@@ -187,6 +187,11 @@
       "kind": "control_parameter",
       "package": "Kimera::Guardrail#overlay",
       "reason": "target is the source span being patched — data the walker matches each node against, not a mode flag; the branch IS the match"
+    },
+    {
+      "kind": "feature_envy",
+      "package": "Kimera::MemoGuard#named?",
+      "reason": "a memo guard is recognized by interrogating raw Prism nodes (see the accepted operator entries): matching a node against the guard ivar reads the node by construction"
     }
   ]
 }

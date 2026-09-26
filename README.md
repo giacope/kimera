@@ -306,6 +306,13 @@ The *default* set is small and low-noise:
 - `!x => x`
 - forced `if` conditions
 
+Memoization is not a mutation target. Dropping a memo only recomputes an equal
+value, so that mutant would always survive. `@x ||= …` has no such mutant, and
+neither does a guard that opens a method: `return @x if defined?(@x)`,
+`return @x if @x` (with `@x` assigned later in the method), or `return if @x`
+followed by `@x = true`. Everything the method computes is still mutated. A
+re-entrancy guard with the run-once shape is skipped too.
+
 The extended families are one flag away. Use `--operators all`, or pick from:
 
 | family | mutation |

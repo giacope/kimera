@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Guard-style memoization is no longer mutated, just as `@x ||=` never was.
+  In a method that opens with `return @x if @x` (and assigns `@x` later) or
+  `return if @x` then `@x = true`, the guard gets no `condition` mutant and
+  the flag no `true => false`. Removing a memo only recomputes an equal value,
+  so those mutants always survived. A re-entrancy guard of the same shape is
+  skipped too.
+
 ## 0.1.3 (2026-09-27)
 
 - `--isolated` no longer scores a child that crashes before reporting results
