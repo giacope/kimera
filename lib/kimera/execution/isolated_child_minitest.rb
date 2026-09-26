@@ -12,13 +12,18 @@ rescue NameError, ArgumentError
   end
 end
 
-ledger, *rest = ARGV
-split = rest.index("--") or abort("usage: <ledger> <test files...> -- <ids...>")
-files = rest[0...split]
-ids = rest[(split + 1)..]
+ledger, request = ARGV
+request = JSON.parse(File.read(request, encoding: Encoding::UTF_8))
+files = request.fetch("files")
+ids = request.fetch("tests")
 ARGV.clear
 
-files.each { |f| require File.expand_path(f) }
+begin
+  files.each { |f| require File.expand_path(f) }
+rescue StandardError, ScriptError => error
+  File.write(ledger, JSON.generate(failures: 1, failing: [], load_error: "#{error.class}: #{error.message}"))
+  exit(1)
+end
 
 methods = {}
 Minitest::Runnable.runnables.each do |runnable|

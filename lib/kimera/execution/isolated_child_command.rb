@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "json"
 require_relative "suite_env"
 
 module Kimera
@@ -19,18 +20,24 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
   end
 
   def command(mirror, locations, ledger:, paths:)
+    File.write(request_path(ledger), JSON.generate(request(locations)))
     includes = paths.flat_map { |path| ["-I", path] }
-    bundled(mirror, Kimera::Execution::SUITE_ENV.dup, ["ruby", *includes, "-I", helpers, *argv(locations, ledger)])
+    bundled(mirror, Kimera::Execution::SUITE_ENV.dup, ["ruby", *includes, "-I", helpers, *argv(ledger)])
   end
 
-  def argv(locations, ledger)
-    return [CHILD, ledger, *locations] unless minitest?
-    [MINITEST_CHILD, ledger, *@test_files, "--", *locations]
+  def argv(ledger)
+    [minitest? ? MINITEST_CHILD : CHILD, ledger, request_path(ledger)]
+  end
+
+  def request(locations)
+    { "tests" => locations, "files" => @test_files }
   end
 
   def helpers
     minitest? ? "test" : "spec"
   end
+
+  def request_path(ledger) = "#{ledger}.request"
 
   private
 

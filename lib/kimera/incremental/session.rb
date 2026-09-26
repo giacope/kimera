@@ -24,7 +24,7 @@ class Kimera::Incremental::Session
   class << self
     def load(path, registry: nil)
       return new unless path && File.exist?(path)
-      session = decode(JSON.parse(File.read(path)))
+      session = decode(JSON.parse(File.read(path, encoding: Encoding::UTF_8)))
       session.prune!(registry) if registry
       session
     end

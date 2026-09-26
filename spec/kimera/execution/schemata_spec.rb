@@ -451,6 +451,71 @@ RSpec.describe(Kimera::Execution::Schemata) do
     end
   end
 
+  # Mimics a class_attribute: a subclass reads its parent's value until it writes its own.
+  def reflective
+    own = {}
+    cleared = Hash.new(0)
+    Module.new do
+      define_method(:_reflections) do
+        own.fetch(self) { superclass.respond_to?(:_reflections) ? superclass._reflections : {} }
+      end
+      define_method(:_reflections=) { |value| own[self] = value }
+      define_method(:cleared) { cleared[self] }
+      define_method(:clear_reflections_cache) { cleared[self] += 1 }
+      define_method(:descendants) { ObjectSpace.each_object(Class).select { |k| k < self } }
+    end
+  end
+
+  describe "reflection overlay guard" do
+    # Mimics ActiveRecord::Reflection.add_reflection and class_attribute copies.
+    def records(key)
+      normal = key.is_a?(String) ? :to_s : :to_sym
+      reflection = Module.new
+      reflection.define_singleton_method(:add_reflection) do |owner, name, value|
+        owner._reflections = owner._reflections.merge(name.public_send(normal) => value)
+      end
+      stub_const("ActiveRecord", Module.new)
+      stub_const("ActiveRecord::Reflection", reflection)
+      described_class.install!
+      base = Class.new.extend(reflective)
+      reflection.add_reflection(base, key, :old)
+      [reflection, base]
+    end
+
+    def heirs(base, key)
+      own = Class.new(base)
+      own._reflections = base._reflections.merge(other: :x)
+      redeclared = Class.new(base)
+      redeclared._reflections = base._reflections.merge(key => :theirs)
+      [own, Class.new(base), redeclared]
+    end
+
+    it "hands an overlaid reflection to subclasses holding a stale private copy", :aggregate_failures do
+      reflection, base = records(:primary)
+      own, shared, redeclared = heirs(base, :primary)
+      described_class.with_guards { reflection.add_reflection(base, "primary", :new) }
+      expect([base, own, shared, redeclared].map { |k| k._reflections[:primary] }).to(eq(%i[new new new theirs]))
+      expect(own._reflections[:other]).to(eq(:x))
+      expect([own.cleared, redeclared.cleared]).to(eq([1, 0]))
+    end
+
+    it "matches string-keyed reflections (Rails 7)" do
+      reflection, base = records("primary")
+      own, = heirs(base, "primary")
+      described_class.with_guards { reflection.add_reflection(base, :primary, :new) }
+      expect(own._reflections["primary"]).to(eq(:new))
+    end
+
+    it "leaves subclasses alone outside overlay and for a first declaration", :aggregate_failures do
+      reflection, base = records(:primary)
+      own, = heirs(base, :primary)
+      reflection.add_reflection(base, :primary, :new)
+      described_class.with_guards { reflection.add_reflection(base, :fresh, :f) }
+      expect(own._reflections[:primary]).to(eq(:old))
+      expect(own._reflections.key?(:fresh)).to(be(false))
+    end
+  end
+
   describe "concern overlay guard" do
     # Ivar names must match ActiveSupport::Concern and the production guard.
     def test_concern
@@ -526,6 +591,40 @@ RSpec.describe(Kimera::Execution::Schemata) do
       end
       expect(concern.instance_variable_get(:@_included_block).call).to(eq(:first))
       expect(concern.instance_variable_get(:@_prepended_block).call).to(eq(:first))
+    end
+
+    # A scope declared in `included do` must reach classes that already ran
+    # the old block, or its guarded lambda is never installed.
+    it "re-runs an overlaid included block on each direct includer, not its subclasses", :aggregate_failures do
+      test_concern
+      concern = Module.new.tap { |m| m.extend(ActiveSupport::Concern) }
+      concern.included { :original }
+      includer = Class.new.tap { |k| k.include(concern) }
+      heir = Class.new(includer)
+      outsider = Class.new
+      ran = []
+      described_class.with_guards { concern.included { ran << self } }
+      expect(ran).to(eq([includer]))
+      expect(ran).not_to(include(heir, outsider))
+    end
+
+    it "does not re-run a first-time block during overlay" do
+      test_concern
+      concern = Module.new.tap { |m| m.extend(ActiveSupport::Concern) }
+      Class.new.include(concern)
+      ran = []
+      described_class.with_guards { concern.included { ran << self } }
+      expect(ran).to(be_empty)
+    end
+
+    it "re-runs an overlaid prepended block on the classes that prepended it" do
+      test_concern
+      concern = Module.new.tap { |m| m.extend(ActiveSupport::Concern) }
+      concern.prepended { :original }
+      prepender = Class.new.tap { |k| k.prepend(concern) }
+      ran = []
+      described_class.with_guards { concern.prepended { ran << self } }
+      expect(ran).to(eq([prepender]))
     end
 
     it "installs the concern guard only once per process", :aggregate_failures do

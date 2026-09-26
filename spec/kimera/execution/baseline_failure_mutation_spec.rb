@@ -18,7 +18,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     failed = %w[a b c d]
     messages = { "a" => "one\ntwo", "b" => "x" * (limit + 1), "c" => nil }
 
-    expect(described_class.summary(failed, messages)).to(
+    expect(described_class.summary(failed, messages, "rspec a b c --order defined")).to(
       eq(
         "baseline suite is not green: a, b, c, d\n  " \
           "a:\n    one\n    two\n  " \
@@ -26,10 +26,8 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
           "reproduce without kimera: rspec a b c --order defined"
       )
     )
-    expect(described_class.summary(["a"], {})).to(
-      eq(
-        "baseline suite is not green: a\n  reproduce without kimera: rspec a --order defined"
-      )
+    expect(described_class.summary(["a"], {}, "ruby -n a")).to(
+      eq("baseline suite is not green: a\n  reproduce without kimera: ruby -n a")
     )
     expect(described_class.truncate("y" * limit)).to(eq("y" * limit))
   end
@@ -218,7 +216,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
 
   it "owns and closes the reload result reader" do
     reader, writer = IO.pipe
-    errand = Kimera::Execution::Reload::Errand.new(1, reader, writer)
+    errand = Kimera::Execution::Reload::Errand.new(1, [], reader, writer)
     writer.puts("result")
     writer.close
 
@@ -231,8 +229,9 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
 
   it "serializes a reload verdict at its process boundary" do
     reload = Kimera::Execution::Reload.allocate
-    allow(reload).to(receive(:evaluate).with(7).and_return([:killed, ["t1"]]))
-    expect(JSON.parse(reload.__send__(:report, 7))).to(eq("id" => 7, "status" => "killed", "fails" => ["t1"]))
+    errand = Kimera::Execution::Reload::Errand.new(7, [], nil, nil)
+    allow(reload).to(receive(:evaluate).with(errand).and_return([:killed, ["t1"]]))
+    expect(JSON.parse(reload.__send__(:report, errand))).to(eq("id" => 7, "status" => "killed", "fails" => ["t1"]))
   end
 
   it "prunes leak records whose mutant result is absent" do

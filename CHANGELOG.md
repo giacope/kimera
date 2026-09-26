@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+- `--isolated` no longer scores a child that crashes before reporting results
+  as a kill. It is `harness_error`, and its `detail` gives the exit status and
+  the ends of the child's stderr. A Minitest child that fails to load a test
+  file still reports that as a kill, as the RSpec child already did.
+- `--isolated` passes test ids and test files to the child in a request file
+  instead of argv, so a mutant covered by thousands of tests no longer fails
+  with `Errno::E2BIG: Argument list too long`.
+- Warm reload-path mutants (for example, statements in a memoized method) run
+  one test at a time and stop at the first failure. Tests covering the
+  mutant's method run first. The hard timeout now applies to each test, not
+  the whole suite, so a mutant a test kills is no longer reported as
+  "reload worker produced no result". A test that overruns the timeout is a
+  `timeout`, and a worker that dies names its exit status or signal.
+- A scope or association declared in a concern's `included do` block is now
+  instrumented in the classes that already included the concern. It used to be
+  reported `no_coverage`, or `survived` when it was covered through another
+  path.
+- An association overlaid on a parent model now also reaches subclasses that
+  declared associations of their own (such as STI children). They used to keep
+  the unguarded reflection, so mutants in the association's scope lambda
+  survived.
+- The red-baseline hint prints a plain Minitest command for a Minitest suite
+  instead of `rspec …`.
+- `kimera report`/`kimera mutant` and incremental sessions read report JSON as
+  UTF-8, so they no longer crash under a non-UTF-8 locale when a report
+  contains non-ASCII text.
+
 ## 0.1.2 (2026-09-26)
 
 - Kimera sets `KIMERA=1` in its own process before loading the suite, and in

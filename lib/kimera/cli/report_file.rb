@@ -13,7 +13,7 @@ module Kimera::CLI::ReportFile
   module_function
 
   def parse(path)
-    JSON.parse(File.read(path))
+    JSON.parse(File.read(path, encoding: Encoding::UTF_8))
   rescue JSON::ParserError => error
     raise(Kimera::UsageError, "unreadable report #{path}: #{error.message}")
   end

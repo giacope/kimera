@@ -5,37 +5,15 @@ require_relative "../runtime"
 require_relative "../synthesis/overlay"
 require_relative "child_process"
 require_relative "overlay_guards"
+require_relative "reload_errand"
 require_relative "verdicts"
 
 class Kimera::Execution::Reload
+  include Kimera::Execution::ChildProcess
+
   Failure =
     Data.define(:exception) do
       def message = "#{exception.class}: #{exception.message}"
-    end
-  include Kimera::Execution::ChildProcess
-
-  Errand =
-    Struct.new(:id, :reader, :writer) do
-      def parent!
-        writer.close
-      end
-
-      def child!
-        reader.close
-      end
-
-      def emit(payload)
-        writer.puts(payload)
-        writer.close
-      end
-
-      def await(deadline, &)
-        return reader.gets if reader.wait_readable(deadline)
-        yield
-        nil
-      ensure
-        reader.close
-      end
     end
 
   def initialize(registry:, adapter:, isolation:, root:)
@@ -45,8 +23,8 @@ class Kimera::Execution::Reload
     @root = root
   end
 
-  def run(id, deadline:)
-    errand = Errand.new(id, *IO.pipe)
+  def run(id, deadline:, tests: @adapter.test_ids)
+    errand = Errand.new(id, tests, *IO.pipe)
     collect(errand, child(errand), deadline)
   end
 
@@ -59,32 +37,42 @@ class Kimera::Execution::Reload
   def work(errand)
     errand.child!
     silence!
-    errand.emit(report(errand.id))
+    errand.emit(report(errand))
     exit!(0)
   end
 
-  def report(id)
-    status, fails = evaluate(id)
-    JSON.generate(id: id, status: status.to_s, fails: fails)
+  def report(errand)
+    status, fails = evaluate(errand)
+    JSON.generate(id: errand.id, status: status.to_s, fails: Array(fails).map { |fail| fail.to_s.scrub })
   end
 
   def collect(errand, pid, deadline)
     line = errand.await(deadline) { kill(pid) }
-    reap(pid)
-    verdict(errand.id, line)
+    verdict(errand.id, line, reap(pid), deadline)
   end
 
-  def evaluate(id)
-    mutate(id).verdict
+  def evaluate(errand)
+    failed = mutate(errand)
+    failed ? failed.verdict : [:survived, []]
   rescue StandardError, ScriptError => error
     [:error, [Failure.new(error).message]]
   end
 
-  def mutate(id)
+  def mutate(errand)
+    id = errand.id
     file = verdicts.point(id).file
     overlay(file, File.join(File.expand_path(@root), file), id)
     Kimera::Runtime.active = nil
-    @isolation.around { @adapter.run(@adapter.test_ids) }
+    @isolation.around { hunt(errand) }
+  end
+
+  def hunt(errand)
+    errand.tests.lazy.map { |test| trial(test, errand) }.reject(&:passed?).first
+  end
+
+  def trial(test, errand)
+    errand.tick
+    @adapter.run([test])
   end
 
   def overlay(file, path, id)
@@ -92,10 +80,16 @@ class Kimera::Execution::Reload
     Kimera::Execution::OverlayGuards.overlay { Kimera::Overlay.evaluate(baked, path) }
   end
 
-  def verdict(id, line)
-    return verdicts.unjudged(id, "reload worker produced no result") unless line
+  def verdict(id, line, status = nil, deadline = nil)
+    return verdicts.timeout(id, deadline) if line == :timeout
+    return verdicts.unjudged(id, "reload worker produced no result#{exited(status)}") unless line
     message = parse(line)
     message ? verdicts.parse(message) : verdicts.unjudged(id, "reload worker output unparseable")
+  end
+
+  def exited(status)
+    return "" unless status
+    status.signaled? ? " (died on signal #{status.termsig})" : " (exited #{status.exitstatus})"
   end
 
   def verdicts

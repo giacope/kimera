@@ -26,6 +26,7 @@ module Kimera
         callbacks!
         concern!
         serialize!
+        reflections!
       end
 
       def enum!
@@ -41,6 +42,11 @@ module Kimera
       def serialize!
         return unless defined?(ActiveRecord::Base)
         ActiveRecord::Base.singleton_class.prepend(OverlayGuardModules.serialization)
+      end
+
+      def reflections!
+        return unless defined?(ActiveRecord::Reflection)
+        ActiveRecord::Reflection.singleton_class.prepend(OverlayGuardModules.reflection)
       end
 
       def concern!

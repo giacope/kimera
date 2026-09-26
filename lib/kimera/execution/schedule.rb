@@ -1,12 +1,13 @@
 # frozen_string_literal: true
 
 require_relative "priority"
+require_relative "kinship"
 require_relative "reload"
 require_relative "verdicts"
 
 class Kimera::Execution::Schedule
   Ledger = Struct.new(:results, :leaks)
-  Batch = Struct.new(:safe, :reloadable, :deferred, :ledger)
+  Batch = Struct.new(:safe, :reloadable, :deferred, :ledger, :coverage)
 
   LOSSES = { timeout: :expired }.freeze
 
@@ -37,14 +38,16 @@ class Kimera::Execution::Schedule
     safe, unsafe = ids.partition { |id| verdicts.safe?(id) }
     reloadable, deferred = unsafe.partition { |id| verdicts.reloadable?(id) }
     progress.start(safe.size + unsafe.size, label)
-    Batch.new(Kimera::Execution::Priority.new(coverage).order(safe), reloadable, deferred, Ledger.new({}, []))
+    Batch.new(prioritized(safe, coverage), reloadable, deferred, Ledger.new({}, []), coverage)
   end
 
+  def prioritized(safe, coverage) = Kimera::Execution::Priority.new(coverage).order(safe)
+
   def process(batch)
-    safe, reloadable, deferred, ledger = batch.to_a
-    pool(safe, ledger)
-    reload(reloadable, ledger)
-    defer(deferred, ledger)
+    ledger = batch.ledger
+    pool(batch.safe, ledger)
+    reload(batch)
+    defer(batch.deferred, ledger)
   end
 
   def finish(ledger)
@@ -58,8 +61,13 @@ class Kimera::Execution::Schedule
     progress.tick(result.status)
   end
 
-  def reload(ids, ledger)
-    ids.each { |id| record(ledger, id, reloader.run(id, deadline: hard)) }
+  def reload(batch)
+    kinship = Kimera::Execution::Kinship.new(@registry, batch.coverage)
+    batch.reloadable.each { |id| record(batch.ledger, id, rerun(id, kinship)) }
+  end
+
+  def rerun(id, kinship)
+    reloader.run(id, deadline: hard, tests: kinship.order(id, @options.fetch(:adapter).test_ids))
   end
 
   def defer(ids, ledger)
@@ -97,7 +105,7 @@ class Kimera::Execution::Schedule
   def crashed(id) = verdicts.unjudged(id, "worker crashed before result")
 
   def reloader
-    Kimera::Execution::Reload.new(
+    @_reloader ||= Kimera::Execution::Reload.new(
       registry: @registry, adapter: @options.fetch(:adapter),
       isolation: @options.fetch(:isolation), root: @options.fetch(:root)
     )

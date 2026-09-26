@@ -13,7 +13,8 @@ RSpec.configuration.output_stream = StringIO.new
 RSpec.configuration.error_stream = StringIO.new
 RSpec.configuration.deprecation_stream = StringIO.new
 
-ledger, *locations = ARGV
+ledger, request = ARGV
+locations = JSON.parse(File.read(request, encoding: Encoding::UTF_8)).fetch("tests")
 code = RSpec::Core::Runner.run(locations)
 
 failed = RSpec.world.all_examples.select { |example| example.execution_result.status == :failed }

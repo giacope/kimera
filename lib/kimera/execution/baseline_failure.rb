@@ -12,14 +12,14 @@ class Kimera::Execution::BaselineFailure < Kimera::Error
   MAX_MESSAGE = 300
 
   class << self
-    def build(failed, messages)
-      new(summary(failed, messages))
+    def build(failed, messages, command)
+      new(summary(failed, messages, command))
     end
 
-    def summary(failed, messages)
+    def summary(failed, messages, command)
       text = "baseline suite is not green: #{failed.join(", ")}"
       text += appendix(failed, messages)
-      "#{text}\n#{reproduce(failed)}"
+      "#{text}\n  reproduce without kimera: #{command}"
     end
 
     def appendix(failed, messages)
@@ -38,10 +38,6 @@ class Kimera::Execution::BaselineFailure < Kimera::Error
 
     def truncate(text)
       text.length > MAX_MESSAGE ? "#{text[0, MAX_MESSAGE]}…" : text
-    end
-
-    def reproduce(failed)
-      "  reproduce without kimera: rspec #{failed.first(MAX_DETAILS).join(" ")} --order defined"
     end
   end
 end

@@ -90,6 +90,22 @@ RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
     expect(adapter.run(["DemoKimeraTest#no_such"]).passed?).to(be(true))
   end
 
+  it "reproduces failing ids with a plain Minitest command, not rspec" do
+    expect(adapter.reproduce(["DemoKimeraTest#test_passes", "Nope#test_x"])).to(
+      eq(
+        "bundle exec ruby -Itest -rminitest/autorun -e 'require File.expand_path(#{testfile.dump})' " \
+          "-- -n '/^(?:DemoKimeraTest\\#test_passes|Nope\\#test_x)$/' --seed 1"
+      )
+    )
+  end
+
+  it "shell-quotes single quotes and names files relative to the working directory", :aggregate_failures do
+    Dir.chdir(dir) do
+      expect(adapter.reproduce(["It's#test"])).to(include("-n '/^(?:It'\\''s\\#test)$/'"))
+      expect(adapter.reproduce(["DemoKimeraTest#test_passes"])).to(include("File.expand_path(\"demo_test.rb\")"))
+    end
+  end
+
   it "describes an id as itself" do
     expect(adapter.describe("DemoKimeraTest#test_passes")).to(eq("DemoKimeraTest#test_passes"))
   end

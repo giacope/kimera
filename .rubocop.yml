@@ -26,6 +26,9 @@ Kata/GoodMethodName:
     - defined_enums
     - normalize_callback_params
     - get_callbacks
+    - add_reflection
+    - _reflections
+    - clear_reflections_cache
 
 Kata/BuilderNoun:
   AllowedNames:

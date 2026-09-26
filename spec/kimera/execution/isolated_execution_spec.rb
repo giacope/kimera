@@ -431,12 +431,14 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       ->(ledger) { [Gem.ruby, "-e", "File.write(ARGV[0], #{json.dump}); exit #{code}", ledger] }
     end
 
-    it "maps a zero-exit child to :survived" do
-      expect(test_verdict_of(["true"]).status).to(eq(:survived))
+    it "maps a child that exits without reporting to :harness_error, whatever its status", :aggregate_failures do
+      expect(test_verdict_of(["true"]).status).to(eq(:harness_error))
+      expect(test_verdict_of(["false"]).status).to(eq(:harness_error))
     end
 
-    it "maps a non-zero-exit child that never reported to :killed" do
-      expect(test_verdict_of(["false"]).status).to(eq(:killed))
+    it "explains a silent crash with the tail of the child's stderr" do
+      outcome = test_verdict_of([Gem.ruby, "-e", "warn 'boot failed: NameError'; exit 1"])
+      expect(outcome.detail).to(eq("test child exited 1 without reporting results:\nboot failed: NameError"))
     end
 
     it "maps a child that overruns the hard deadline to :timeout" do
@@ -462,7 +464,8 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end
 
     it "hands the child a ledger path that does not exist yet" do
-      script = "exit(File.directory?(File.dirname(ARGV[0])) && !File.exist?(ARGV[0]) ? 0 : 1)"
+      script = "fresh = File.directory?(File.dirname(ARGV[0])) && !File.exist?(ARGV[0]); " \
+        "File.write(ARGV[0], '{\"failures\":0}'); exit(fresh ? 0 : 1)"
       expect(test_verdict_of(->(ledger) { [Gem.ruby, "-e", script, ledger] }).status).to(eq(:survived))
     end
   end
