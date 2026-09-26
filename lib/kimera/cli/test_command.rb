@@ -13,13 +13,7 @@ class Kimera::CLI::TestCommand
   end
 
   def baseline
-    check(run, "Baseline: configured test suite is green") do |failure|
-      if failure
-        ["✗", "Baseline: #{failure} (fix it, then rerun `kimera doctor --check-baseline`)"]
-      else
-        ["✗", "Baseline: Bundler is unavailable; run your test suite, then retry"]
-      end
-    end
+    check(run, "Baseline: configured test suite is green") { |failure| ["✗", "Baseline: #{advice(failure)}"] }
   end
 
   def loading
@@ -29,6 +23,11 @@ class Kimera::CLI::TestCommand
   end
 
   private
+
+  def advice(failure)
+    return "Bundler is unavailable; run your test suite, then retry" unless failure
+    "#{failure} (fix it, then rerun `kimera doctor --check-baseline`)"
+  end
 
   def check(command, passed)
     output, status = Open3.capture2e(*command, chdir: @root)
