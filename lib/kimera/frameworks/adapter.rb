@@ -46,7 +46,7 @@ class Kimera::Frameworks::Adapter
     "rspec #{(ids & test_ids).join(" ")} --order defined"
   end
 
-  @registry = {}
+  @registry ||= {}
 
   NO_LOADER = -> {}
   ADAPTER_LOADERS = {
