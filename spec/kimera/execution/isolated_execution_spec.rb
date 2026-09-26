@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "json"
 require "kimera/execution/isolated"
 require "kimera/registry/builder"
 require "kimera/report/progress"
@@ -102,7 +103,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       allow(r.__send__(:plan)).to(receive(:command).and_return([{}, %w[sleep 30]]))
       Dir.mktmpdir do |mirror|
         started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-        [test_invoke_private(r, :verdict, mirror, []), Process.clock_gettime(Process::CLOCK_MONOTONIC) - started]
+        [test_invoke_private(r, :verdict, mirror, []).status, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started]
       end
     end
 
@@ -339,7 +340,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
           Class.new(described_class) do
             define_method(:verdict) do |mirror, _locs|
               baked = File.read(File.join(mirror, "calc.rb"))
-              :killed
+              Kimera::Execution::IsolatedOutcome.new(:killed, ["t1[1:1]"])
             end
           end.new(registry: registry, root: root, tests: ["t1"], coverage: { id => ["t1"] })
         allow(r).to(receive(:now).and_return(10.0, 12.5))
@@ -359,6 +360,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       expect(result.status).to(eq(:killed))
       expect(result.duration).to(eq(2.5))
       expect(result.covering_tests).to(eq(["t1"]))
+      expect(result.failing_tests).to(eq(["t1[1:1]"]))
       expect(baked).not_to(eq(test_source_fixture))
       expect(restored).to(eq(test_source_fixture))
     end
@@ -416,19 +418,49 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       r
     end
 
-    it "maps a zero-exit child to :survived" do
-      r = command(["true"])
-      Dir.mktmpdir { |m| expect(test_invoke_private(r, :verdict, m, [])).to(eq(:survived)) }
+    def test_verdict_of(cmd, **)
+      Dir.mktmpdir { |m| test_invoke_private(command(cmd, **), :verdict, m, []) }
     end
 
-    it "maps a non-zero-exit child to :killed" do
-      r = command(["false"])
-      Dir.mktmpdir { |m| expect(test_invoke_private(r, :verdict, m, [])).to(eq(:killed)) }
+    # A child that reports its failures to the ledger, then exits with `code`.
+    def test_ledger_child(failures, failing, code)
+      ledger = { failures: failures, failing: failing }.to_json
+      [Gem.ruby, "-e", "File.write(ENV.fetch('KIMERA_ISOLATED_LEDGER'), #{ledger.dump}); exit #{code}"]
+    end
+
+    it "maps a zero-exit child to :survived" do
+      expect(test_verdict_of(["true"]).status).to(eq(:survived))
+    end
+
+    it "maps a non-zero-exit child that never reported to :killed" do
+      expect(test_verdict_of(["false"]).status).to(eq(:killed))
     end
 
     it "maps a child that overruns the hard deadline to :timeout" do
-      r = command(%w[sleep 30], hard_timeout: 0.3)
-      Dir.mktmpdir { |m| expect(test_invoke_private(r, :verdict, m, [])).to(eq(:timeout)) }
+      expect(test_verdict_of(%w[sleep 30], hard_timeout: 0.3).status).to(eq(:timeout))
+    end
+
+    it "kills on a reported failure and names the failing tests", :aggregate_failures do
+      outcome = test_verdict_of(test_ledger_child(1, ["./spec/a_spec.rb[1:1]"], 1))
+      expect(outcome.status).to(eq(:killed))
+      expect(outcome.failing).to(eq(["./spec/a_spec.rb[1:1]"]))
+    end
+
+    it "keeps a clean reported run that exits zero :survived" do
+      expect(test_verdict_of(test_ledger_child(0, [], 0)).status).to(eq(:survived))
+    end
+
+    # A SimpleCov floor trips on the partial run after every example passed.
+    it "reports a non-zero exit with zero failures as :harness_error, not a kill", :aggregate_failures do
+      outcome = test_verdict_of(test_ledger_child(0, [], 2))
+      expect(outcome.status).to(eq(:harness_error))
+      expect(outcome.detail).to(start_with("suite exited 2 with 0 failures"))
+      expect(outcome.failing).to(be_nil)
+    end
+
+    it "hands the child a ledger path that does not exist yet" do
+      script = "path = ENV['KIMERA_ISOLATED_LEDGER']; exit(path && !File.exist?(path) ? 0 : 1)"
+      expect(test_verdict_of([Gem.ruby, "-e", script]).status).to(eq(:survived))
     end
   end
 

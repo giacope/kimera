@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "isolated_outcome"
+
 module Kimera
   module Execution
     module IsolatedExecutionVerdict
@@ -17,8 +19,8 @@ module Kimera
         trial.file = point.file
         tests = plan.tests(trial.id, point)
         return result(trial, :no_coverage, nil) unless tests
-        status, duration = measure(trial, tests)
-        result(trial, status, duration, tests)
+        outcome, duration = measure(trial, tests)
+        result(trial, outcome.status, duration, tests, failing_tests: outcome.failing, detail: outcome.detail)
       end
 
       def measure(trial, tests)
@@ -34,10 +36,16 @@ module Kimera
       end
 
       def verdict(mirror, locations)
+        Dir.mktmpdir("kimera-ledger") do |dir|
+          ledger = File.join(dir, "ledger.json")
+          IsolatedOutcome.judge(launch(mirror, locations, ledger), ledger)
+        end
+      end
+
+      def launch(mirror, locations, ledger)
         env, cmd = plan.command(mirror, locations)
-        status = waitfor(Process.spawn(env, *cmd, chdir: mirror, pgroup: true, out: File::NULL, err: File::NULL))
-        return :timeout if status == :timeout
-        status.success? ? :survived : :killed
+        env = env.merge(IsolatedOutcome::LEDGER => ledger)
+        waitfor(Process.spawn(env, *cmd, chdir: mirror, pgroup: true, out: File::NULL, err: File::NULL))
       end
 
       def with_mirror
@@ -54,9 +62,9 @@ module Kimera
         end
       end
 
-      def result(trial, status, duration, cover = nil)
+      def result(trial, status, duration, cover = nil, **outcome)
         MutantResult.new(
-          mutant_id: trial.id, status: status, file: trial.file, duration: duration, covering_tests: cover
+          mutant_id: trial.id, status: status, file: trial.file, duration: duration, covering_tests: cover, **outcome
         )
       end
 

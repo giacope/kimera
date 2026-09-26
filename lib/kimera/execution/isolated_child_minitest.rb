@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "json"
 require "minitest"
 
 Minitest.seed ||= 1
@@ -23,12 +24,16 @@ Minitest::Runnable.runnables.each do |runnable|
   runnable.runnable_methods.each { |name| methods["#{runnable}##{name}"] = [runnable, name] }
 end
 
-killed =
-  ids.any? do |id|
+killer =
+  ids.find do |id|
     klass, name = methods[id]
     next false unless klass
     result = klass.new(name).run
     !result.passed? && !result.skipped?
   end
 
-exit(killed ? 1 : 0)
+if (ledger = ENV.fetch("KIMERA_ISOLATED_LEDGER", nil))
+  File.write(ledger, JSON.generate(failures: killer ? 1 : 0, failing: [killer].compact))
+end
+
+exit(killer ? 1 : 0)

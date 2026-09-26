@@ -142,6 +142,29 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     end
   end
 
+  def test_doctor_floor(helper)
+    Dir.mktmpdir do |dir|
+      FileUtils.mkdir_p(File.join(dir, "spec"))
+      File.write(File.join(dir, "spec", "spec_helper.rb"), helper)
+      out, error = captured
+      [Kimera::CLI::Doctor.new(io: out, errors: error, root: dir).run([]), out.string]
+    end
+  end
+
+  it "warns, without failing, about a coverage floor that partial isolated runs would trip", :aggregate_failures do
+    _status, output = test_doctor_floor("SimpleCov.start { minimum_coverage 100 }\n")
+    expect(output).to(include("! Coverage floor: minimum_coverage in spec/spec_helper.rb"))
+    expect(output).to(include('skip it when ENV["KIMERA"] is set'))
+    expect(output).not_to(include("✗ Coverage"))
+  end
+
+  it "stays quiet about a coverage floor already gated on KIMERA", :aggregate_failures do
+    _status, output = test_doctor_floor(%(SimpleCov.start { minimum_coverage 100 unless ENV["KIMERA"] }\n))
+    expect(output).not_to(include("Coverage floor"))
+    _status, bare = test_doctor_floor("# no simplecov here\n")
+    expect(bare).not_to(include("Coverage floor"))
+  end
+
   it "adds strict CI defaults without replacing explicit user choices" do
     out, error = captured
     runner = instance_double(Kimera::CLI::Run, run: 0)

@@ -435,7 +435,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect(io.string).to(
         include(
           "2 surviving mutant(s): inspect #3 with `kimera mutant 3 --report out.json`",
-          "1 uncovered mutant(s): kimera report out.json --status no_coverage", "1 unjudged mutant(s)"
+          "1 uncovered mutant(s): kimera report out.json --status no_coverage",
+          "1 unjudged mutant(s): see why with `kimera mutant 9 --report out.json`"
         )
       )
     end
@@ -448,8 +449,15 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
     it "uses fallback action commands when no report path exists" do
       io = StringIO.new
-      Kimera::Report::Actions.new(io: io).show(report(result(1, :survived), result(2, :no_coverage)))
-      expect(io.string).to(include("kimera run --report tmp/kimera.json", "rerun with --report tmp/kimera.json"))
+      Kimera::Report::Actions.new(io: io).show(
+        report(result(1, :survived), result(2, :no_coverage), result(3, :harness_error))
+      )
+      expect(io.string).to(
+        include(
+          "kimera run --report tmp/kimera.json", "rerun with --report tmp/kimera.json",
+          "unjudged mutant(s): retry with `kimera run --isolated`"
+        )
+      )
     end
 
     it "emits every machine-readable problem status, fallback field, leak, and metadata" do

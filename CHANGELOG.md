@@ -4,6 +4,11 @@
 
 - Fix a boot crash on case-sensitive filesystems (Linux): `require "English"`
   was spelled `require "english"`.
+- `--isolated` judges a mutant on failed tests, not the child's exit status.
+  A child that exits non-zero with zero failures (e.g. a SimpleCov
+  `minimum_coverage` floor tripped by the partial run) is now `harness_error`
+  instead of a false kill. Kills carry their failing tests. Children run with
+  `KIMERA=1`, and `kimera doctor` warns about an ungated coverage floor.
 - Skill: raising `max_ignored` is a judgment any triager may make when the
   entry has earned it (isolated survival, a mechanism `reason:`, the raise in
   the same diff), never a way to make a failing gate pass.

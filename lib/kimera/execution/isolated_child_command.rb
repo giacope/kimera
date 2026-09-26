@@ -16,8 +16,10 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
     @test_files = test_files
   end
 
+  ENV_FLAG = { "KIMERA" => "1" }.freeze
+
   def command(mirror, locations, paths:)
-    bundled(mirror, {}, ["ruby", *paths.flat_map { |path| ["-I", path] }, "-I", helpers, *argv(locations)])
+    bundled(mirror, ENV_FLAG.dup, ["ruby", *paths.flat_map { |path| ["-I", path] }, "-I", helpers, *argv(locations)])
   end
 
   def argv(locations)

@@ -201,6 +201,9 @@ Kata/EnvDiscipline:
     - exe/**/*
     # Reads NO_COLOR once, alongside tty-ness (no-color.org).
     - lib/kimera/report/screen.rb
+    # Isolated-child entry points: the parent hands them the ledger path.
+    - lib/kimera/execution/isolated_child.rb
+    - lib/kimera/execution/isolated_child_minitest.rb
 
 Kata/NoHashAsObject:
   Exclude:

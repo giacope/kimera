@@ -136,14 +136,14 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     it "builds a bare ruby command with load-path includes when there is no Gemfile", :aggregate_failures do
       env, argv = bare(["spec/a_spec.rb[1:1]"])
       expected = ["ruby", "-I", "lib", "-I", "spec", described_class::ChildCommand::CHILD, "spec/a_spec.rb[1:1]"]
-      expect(env).to(eq({}))
+      expect(env).to(eq("KIMERA" => "1"))
       expect(argv).to(eq(expected))
     end
 
     it "wraps in `bundle exec` and pins BUNDLE_GEMFILE when the mirror has a Gemfile", :aggregate_failures do
       gemfile, env, argv = bundled(["spec/a_spec.rb[1:1]"])
       expected = %w[bundle exec ruby -I lib -I spec] + [described_class::ChildCommand::CHILD, "spec/a_spec.rb[1:1]"]
-      expect(env).to(eq("BUNDLE_GEMFILE" => gemfile))
+      expect(env).to(eq("KIMERA" => "1", "BUNDLE_GEMFILE" => gemfile))
       expect(argv).to(eq(expected))
     end
 
