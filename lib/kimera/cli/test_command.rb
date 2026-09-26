@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "open3"
-require_relative "../suite_env"
+require_relative "../execution/suite_env"
 
 class Kimera::CLI::TestCommand
   LOADER = "ARGV.map { |f| File.expand_path(f) }.tap { ARGV.clear }.each { |f| require(f) }"
@@ -31,7 +31,7 @@ class Kimera::CLI::TestCommand
   end
 
   def check(command, passed)
-    output, status = Open3.capture2e(Kimera::SUITE_ENV, *command, chdir: @root)
+    output, status = Open3.capture2e(Kimera::Execution::SUITE_ENV, *command, chdir: @root)
     status.success? ? ["✓", passed] : yield(summary(output))
   rescue Errno::ENOENT
     yield(nil)

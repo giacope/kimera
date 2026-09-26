@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../suite_env"
+require_relative "suite_env"
 
 module Kimera
   module Execution
@@ -20,7 +20,7 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
 
   def command(mirror, locations, ledger:, paths:)
     includes = paths.flat_map { |path| ["-I", path] }
-    bundled(mirror, Kimera::SUITE_ENV.dup, ["ruby", *includes, "-I", helpers, *argv(locations, ledger)])
+    bundled(mirror, Kimera::Execution::SUITE_ENV.dup, ["ruby", *includes, "-I", helpers, *argv(locations, ledger)])
   end
 
   def argv(locations, ledger)

@@ -19,9 +19,11 @@ RSpec.describe("KIMERA in the suite's environment") do
       end
       require_relative "../app/gate"
     RUBY
-    File.write(File.join(dir, "spec", "gate_spec.rb"), <<~RUBY)
-      require_relative "spec_helper"
+  end
 
+  def specs(dir)
+    File.write(File.join(dir, ".rspec"), "--require spec_helper\n")
+    File.write(File.join(dir, "spec", "gate_spec.rb"), <<~RUBY)
       RSpec.describe(Gate) do
         it("opens above one") { expect(Gate.new.open?(2)).to(be(true)) }
         it("stays shut at one") { expect(Gate.new.open?(1)).to(be(false)) }
@@ -42,6 +44,7 @@ RSpec.describe("KIMERA in the suite's environment") do
   it "keeps a gated floor quiet in a warm run and in doctor", :aggregate_failures do
     Dir.mktmpdir("kimera-suite-env") do |dir|
       project(dir)
+      specs(dir)
       output, status = launch(dir, "run", "app", "--tests", "spec/**/*_spec.rb", "--jobs", "1")
       expect(status.exitstatus).to(eq(0), output)
       expect(output).to(include("survived=0"))

@@ -799,31 +799,22 @@ RSpec.describe(Kimera::Overlay) do
         expect(before[2].same?).to(be(false))
       end
 
-      it "reopens with the constant's own scope, or the lexical one", :aggregate_failures do
+      it "reopens with the constant's own scope, or the lexical one" do
         _registry, source = reopened
-        expect(source).to(
-          include(
-          "Point = ((is_a?(::Module) ? self : ::Object).const_defined?(:Point, false) ? " \
-            "(is_a?(::Module) ? self : ::Object).const_get(:Point) : Data.define(:x)); Point.class_eval do"
-        )
-        )
-        expect(source).to(
-          include(
-          "::SplicedTop = (::Object.const_defined?(:SplicedTop, false) ? " \
-            "::Object.const_get(:SplicedTop) : Struct.new(:x)); ::SplicedTop.class_eval {"
-        )
-        )
-        expect(source).to(
-          include(
-          "Spliced::Nested = (Spliced.const_defined?(:Nested, false) ? " \
-            "Spliced.const_get(:Nested) : Data.define(:x)); Spliced::Nested.class_eval do"
-        )
-        )
-        expect(source).to(include("Plain = Data.define(:x)\n"))
-        expect(source).to(include("Other = Class.new {"))
-        expect(source).to(include("Callback = proc { :noop }"))
-        expect(source).to(include("Safe = Data&.define(:x) do"))
-        expect(source).to(include("helper = Struct.new(:y) {"))
+        lexical = "(is_a?(::Module) ? self : ::Object)"
+        point = "Point = (#{lexical}.const_defined?(:Point, false) ? #{lexical}.const_get(:Point) : " \
+          "Data.define(:x)); Point.class_eval do"
+        top = "::SplicedTop = (::Object.const_defined?(:SplicedTop, false) ? ::Object.const_get(:SplicedTop) : " \
+          "Struct.new(:x)); ::SplicedTop.class_eval {"
+        nested = "Spliced::Nested = (Spliced.const_defined?(:Nested, false) ? Spliced.const_get(:Nested) : " \
+          "Data.define(:x)); Spliced::Nested.class_eval do"
+        expect(source).to(include(point, top, nested))
+      end
+
+      it "leaves every other assignment as written", :aggregate_failures do
+        _registry, source = reopened
+        expect(source).to(include("Plain = Data.define(:x)\n", "Other = Class.new {", "Callback = proc { :noop }"))
+        expect(source).to(include("Safe = Data&.define(:x) do", "helper = Struct.new(:y) {"))
       end
 
       it "leaves a file with nothing to splice unreopened" do

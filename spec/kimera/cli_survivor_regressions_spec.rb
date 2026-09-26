@@ -284,6 +284,19 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect { Kimera::CLI::Run::Cycle.new({ focus: [3] }, registry, nil, digest: digest).__send__(:focus, [1, 2]) }
         .to(raise_error(Kimera::UsageError, /3/))
     end
+
+    # `.rspec`'s `--require spec_helper` loads the helper while the adapter is
+    # built, so a coverage floor gated on KIMERA must see it before then.
+    it "sets KIMERA before loading the framework adapter" do
+      registry = Kimera::RegistryScan.new.source("def x; 1; end\n", file: "x.rb")
+      cycle = Kimera::CLI::Run::Cycle.new({ framework: "rspec" }, registry, nil, digest: nil)
+      env = {}
+      seen = nil
+      allow(Kimera::Frameworks::Adapter).to(receive(:load) { seen = env["KIMERA"] })
+      allow(Kimera::CLI::Run::Pass).to(receive(:new).and_return(instance_double(Kimera::CLI::Run::Pass, call: nil)))
+      cycle.__send__(:harness, [1], nil, env: env)
+      expect(seen).to(eq("1"))
+    end
   end
 
   describe "workflow branches" do
@@ -631,13 +644,14 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         instance = doctor(dir)
         success = instance_double(Process::Status, success?: true)
         test = File.join(dir, "test", "x_test.rb")
-        command = ["bundle", "exec", "ruby", "-Itest", "-e", Kimera::CLI::TestCommand::LOADER, test]
-        allow(Open3).to(receive(:capture2e).with(Kimera::SUITE_ENV, *command, chdir: dir).and_return(["", success]))
+        loader = Kimera::CLI::TestCommand::LOADER
+        command = [Kimera::Execution::SUITE_ENV, "bundle", "exec", "ruby", "-Itest", "-e", loader, test]
+        allow(Open3).to(receive(:capture2e).with(*command, chdir: dir).and_return(["", success]))
 
         result = instance.__send__(:baseline, framework: "minitest", tests: ["test/**/*_test.rb"])
 
         expect(result).to(eq(["✓", "Baseline: configured test suite is green"]))
-        expect(Open3).to(have_received(:capture2e).with(Kimera::SUITE_ENV, *command, chdir: dir))
+        expect(Open3).to(have_received(:capture2e).with(*command, chdir: dir))
       end
     end
 
@@ -649,7 +663,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         command = ["bundle", "exec", "rspec", spec]
         allow(Open3).to(
           receive(:capture2e).with(
-            Kimera::SUITE_ENV, *command,
+            Kimera::Execution::SUITE_ENV, *command,
             chdir: dir
           ).and_return(["noise\n3 examples, 1 failure\n", failure])
         )
@@ -658,7 +672,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
         message = "Baseline: 3 examples, 1 failure (fix it, then rerun `kimera doctor --check-baseline`)"
         expect(result).to(eq(["✗", message]))
-        expect(Open3).to(have_received(:capture2e).with(Kimera::SUITE_ENV, *command, chdir: dir))
+        expect(Open3).to(have_received(:capture2e).with(Kimera::Execution::SUITE_ENV, *command, chdir: dir))
       end
     end
 
