@@ -41,6 +41,8 @@ RSpec.describe(Kimera::Unparse) do
     it "binds only the captures an extended regexp really names", :aggregate_failures do
       node = Kimera::Unparse.parse("/(?<real>.) # (?<fake>.)\n/x =~ value")
       expect(described_class.names(node)).to(eq([:real]))
+      plain = Kimera::Unparse.parse("/(?<real>.) # (?<also>.)/ =~ value")
+      expect(described_class.names(plain)).to(eq(%i[real also]))
     end
 
     it "binds nothing for nodes that bind nothing", :aggregate_failures do

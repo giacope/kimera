@@ -653,6 +653,11 @@ RSpec.describe(Kimera::Overlay) do
             end
             Plain = Data.define(:x)
             Other = Class.new { def odd?(x) = x > 1 }
+            Callback = proc { :noop }
+            Safe = Data&.define(:x) do
+              def ok? = x > 1
+            end
+            helper = Struct.new(:y) { def tiny? = y < 1 }
           end
         RUBY
       end
@@ -816,6 +821,9 @@ RSpec.describe(Kimera::Overlay) do
         )
         expect(source).to(include("Plain = Data.define(:x)\n"))
         expect(source).to(include("Other = Class.new {"))
+        expect(source).to(include("Callback = proc { :noop }"))
+        expect(source).to(include("Safe = Data&.define(:x) do"))
+        expect(source).to(include("helper = Struct.new(:y) {"))
       end
 
       it "leaves a file with nothing to splice unreopened" do
