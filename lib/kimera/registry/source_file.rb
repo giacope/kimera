@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "prism"
+require_relative "../memo_guard"
 require_relative "../memoization"
 require_relative "mutation_point"
 require_relative "walking"
@@ -25,6 +26,8 @@ class Kimera::RegistryScan::SourceFile
 
   def tainted = @_tainted ||= Kimera::Memoization.ranges(@source)
 
+  def guards = @_guards ||= Kimera::MemoGuard.exemptions(@source)
+
   def mined(root)
     found = []
     walk(root, origin) { |node, cursor| bank(found, node, cursor) }
@@ -36,7 +39,7 @@ class Kimera::RegistryScan::SourceFile
   end
 
   def bank(found, node, cursor)
-    pairs = harvest(applicable(cursor), node, cursor.position)
+    pairs = harvest(applicable(cursor), node, cursor.position).reject { |key, _| guarded?(node, key) }
     return if pairs.empty?
     found << assemble(node, pairs, cursor).taint!(tainted)
   end
@@ -45,6 +48,8 @@ class Kimera::RegistryScan::SourceFile
     chosen = cursor.inside_def ? @operators : @operators.select(&:body?)
     cursor.position ? chosen : chosen.reject(&:statement?)
   end
+
+  def guarded?(node, key) = guards.include?(Kimera::MemoGuard::Exemption.new(node.location, key))
 
   def harvest(operators, node, position)
     operators.flat_map { |operator| operator.pairs(node, position: position) }

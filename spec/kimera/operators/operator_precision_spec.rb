@@ -261,6 +261,16 @@ RSpec.describe("operator precision") do
       expect(mutants("def m(x)\n  return :none if x.nil?\n\n  x\nend\n", "conditional").size)
         .to(eq(2))
     end
+
+    it "conditional and boolean_literal skip a guard-style memo but not its neighbours", :aggregate_failures do
+      value = "def m\n  return @x if @x\n\n  @x = compute\nend\n"
+      flag = "def m\n  return if @done\n  @done = true\n  work\nend\n"
+      expect(mutants(value, "conditional")).to(be_empty)
+      expect(mutants(flag, "conditional")).to(be_empty)
+      expect(mutants(flag, "boolean_literal")).to(be_empty)
+      expect(mutants("#{flag}def n\n  return if @stopped\n  work(true)\nend\n", "conditional").size).to(eq(2))
+      expect(mutants("#{flag}def n\n  return if @stopped\n  work(true)\nend\n", "boolean_literal").size).to(eq(1))
+    end
   end
 
   describe "guard precision: matchers stay silent off-target" do
