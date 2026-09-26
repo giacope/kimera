@@ -16,8 +16,9 @@ ledger, *rest = ARGV
 split = rest.index("--") or abort("usage: <ledger> <test files...> -- <ids...>")
 files = rest[0...split]
 ids = rest[(split + 1)..]
+ARGV.clear
 
-files.each { |f| load File.expand_path(f) }
+files.each { |f| require File.expand_path(f) }
 
 methods = {}
 Minitest::Runnable.runnables.each do |runnable|

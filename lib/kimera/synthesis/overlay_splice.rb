@@ -20,8 +20,8 @@ module Kimera
     def gather
       edits = []
       dropped = []
-      each { |definition, points| collect(definition, points, edits, dropped) }
-      [edits, dropped]
+      claimed = each { |definition, points| collect(definition, points, edits, dropped) }
+      [edits, dropped + (@safe - claimed)]
     end
 
     def collect(definition, points, edits, dropped)
@@ -60,6 +60,7 @@ module Kimera
     def each(&)
       claimed = []
       definitions.each { |definition| visit(definition, claimed, &) }
+      claimed
     end
 
     def visit(definition, claimed)

@@ -32,7 +32,7 @@ class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
   end
 
   def source(files)
-    Array(files).each { |file| load(file) }
+    each_test_file(files) { |file| load(file) }
     reindex
     self
   end

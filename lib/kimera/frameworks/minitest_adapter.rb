@@ -35,7 +35,7 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
 
   def source(files)
     paths(files)
-    Array(files).each { |f| load(File.expand_path(f)) }
+    each_test_file(files) { |file| require(file) }
     reindex
     self
   end

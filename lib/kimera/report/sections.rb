@@ -45,6 +45,6 @@ module Kimera::Report::Sections
     return if leaks.empty?
     @io.puts
     @io.puts(yellow("State-leak warnings (#{leaks.size}):"))
-    leaks.each { |leak| @io.puts("  - #{leak.detail}") }
+    leaks.each { |leak| @io.puts("  - ##{leak.mutant_id}  #{leak.detail}") }
   end
 end

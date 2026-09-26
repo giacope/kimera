@@ -34,7 +34,14 @@ class Kimera::Execution::ParallelTestDatabases
 
   def cleanup
     return unless active?
+    scrub
     ActiveSupport::Testing::Parallelization.run_cleanup_hooks.each(&:call)
+  end
+
+  def scrub
+    return unless defined?(ActiveRecord::Base)
+    connection = ActiveRecord::Base.connection
+    connection.truncate_tables(*connection.tables)
   end
 
   def errors = @errors || $stderr

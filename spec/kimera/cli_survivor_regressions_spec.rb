@@ -618,7 +618,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         instance = doctor(dir)
         success = instance_double(Process::Status, success?: true)
         test = File.join(dir, "test", "x_test.rb")
-        command = ["bundle", "exec", "ruby", "-Itest", test]
+        command = ["bundle", "exec", "ruby", "-Itest", "-e", Kimera::CLI::TestCommand::LOADER, test]
         allow(Open3).to(receive(:capture2e).with(*command, chdir: dir).and_return(["", success]))
 
         result = instance.__send__(:baseline, framework: "minitest", tests: ["test/**/*_test.rb"])

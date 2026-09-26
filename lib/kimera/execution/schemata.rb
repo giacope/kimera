@@ -27,24 +27,25 @@ class Kimera::Execution::Schemata
 
   def overlay!
     Kimera::Execution::OverlayGuards.install!
-    @registry.files.flat_map { |path| load(path) }
+    deferred = []
+    @registry.files.flat_map { |path| load(path, deferred) } + deferred.flat_map { |path| load(path) }
   end
 
   private
 
-  def load(path)
+  def load(path, deferred = nil)
     file = File.join(root, path)
     return [] unless File.file?(file)
     return [] if Kimera::SelfProtection.protected?(file)
-    overlay(path, file)
+    overlay(path, file, deferred)
   end
 
-  def overlay(path, file)
+  def overlay(path, file, deferred)
     result = synthesize(path, file)
     return [] if result.mutant_ids.empty?
     apply(result, file)
   rescue StandardError, ScriptError, SystemExit => error
-    skip(path, error)
+    failed(path, error, deferred)
   end
 
   def synthesize(path, file)
@@ -53,6 +54,12 @@ class Kimera::Execution::Schemata
 
   def apply(result, file)
     silence { result.install(file) }
+  end
+
+  def failed(path, error, deferred)
+    return skip(path, error) unless deferred && error.is_a?(NameError)
+    deferred << path
+    []
   end
 
   def skip(path, error)

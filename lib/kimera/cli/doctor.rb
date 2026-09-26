@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
-require "open3"
 require_relative "../error"
 require_relative "../scope/config"
 require_relative "../scope/file_set"
 require_relative "flag"
+require_relative "test_command"
 
 class Kimera::CLI::Doctor
   OPTIONS = Kimera::FlagTable.new(
@@ -40,7 +40,8 @@ class Kimera::CLI::Doctor
   end
 
   def checks(config, options)
-    all = [configuration(config), framework(config), sources(config), tests(config), git, rails, *floor]
+    all = [configuration(config), framework(config), sources(config), tests(config), loading(config), git, rails]
+    all.concat(floor)
     options[:check_baseline] ? all << baseline(config) : all
   end
 
@@ -78,7 +79,7 @@ class Kimera::CLI::Doctor
   def found(count, present, absent) = count.zero? ? ["✗", absent] : ["✓", present]
 
   def git
-    return ["✓", "Git: incremental runs are available"] if File.directory?(File.join(@root, ".git"))
+    return ["✓", "Git: incremental runs are available"] if File.exist?(File.join(@root, ".git"))
     ["!", "Git: not a repository; `kimera changed` is unavailable"]
   end
 
@@ -105,22 +106,12 @@ class Kimera::CLI::Doctor
     source.include?("minimum_coverage") && !source.include?("KIMERA")
   end
 
-  def baseline(config)
-    output, status = Open3.capture2e(*command(config), chdir: @root)
-    return ["✓", "Baseline: configured test suite is green"] if status.success?
-    ["✗", "Baseline: #{summary(output)} (fix it, then rerun `kimera doctor --check-baseline`)"]
-  rescue Errno::ENOENT
-    ["✗", "Baseline: Bundler is unavailable; run your test suite, then retry"]
-  end
+  def baseline(config) = test_command(config).baseline
 
-  def command(config)
-    files = test_files(config)
-    minitest?(config) ? ["bundle", "exec", "ruby", "-Itest", *files] : ["bundle", "exec", "rspec", *files]
-  end
+  def loading(config) = test_command(config).loading
 
-  def summary(output)
-    output.lines.reverse.find { |line| line.match?(/\d+ failures?|\d+ examples?|failed/i) }&.strip ||
-      "test command failed"
+  def test_command(config)
+    Kimera::CLI::TestCommand.new(config.fetch(:framework, "rspec").to_s, test_files(config), root: @root)
   end
 
   def minitest?(config) = config.fetch(:framework, "rspec") == "minitest"

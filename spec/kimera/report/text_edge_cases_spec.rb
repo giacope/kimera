@@ -44,7 +44,7 @@ RSpec.describe(Kimera::Report::Text) do
     leak = Kimera::LeakReport.new(mutant_id: 5, detail: "leaked badly")
     out = render(results: [survivor], leaks: [leak])
     expect(out).to(match(/\n\nState-leak warnings \(1\):/))
-    expect(out).to(include("- leaked badly"))
+    expect(out).to(include("- #5  leaked badly"))
   end
 
   it "omits the leak section when there are no leaks" do
