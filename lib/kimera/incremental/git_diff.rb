@@ -27,11 +27,13 @@ class Kimera::Incremental::GitDiff
     def parse(text)
       files = {}
       current = nil
-      text.each_line { |line| current = advance(files, current, line) }
+      decoded(text).each_line { |line| current = advance(files, current, line) }
       files
     end
 
     private
+
+    def decoded(text) = text.dup.force_encoding(Encoding::UTF_8).scrub
 
     def advance(files, current, line)
       header = line.match(FILE_HEADER)
