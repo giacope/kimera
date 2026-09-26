@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.2 (2026-09-26)
 
 - Kimera sets `KIMERA=1` in its own process before loading the suite, and in
   the `kimera doctor` test commands. A coverage floor gated on
@@ -16,6 +16,10 @@
 - Mutants Kimera could not instrument are reported as `unmutatable`, with the
   reason, instead of `no_coverage`. They never gate and stay out of the score,
   so `--fail-on-no-coverage` again means "no test executes this". (#7)
+- `kimera run --since` no longer crashes with "invalid byte sequence in
+  US-ASCII" when the locale isn't UTF-8 (e.g. `LANG` unset) and the diff
+  contains non-ASCII text. Git's diff output is read as UTF-8, with invalid
+  bytes replaced. (#9)
 
 ## 0.1.1 (2026-09-26)
 
