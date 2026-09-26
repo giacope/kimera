@@ -4,6 +4,9 @@
 
 - Fix a boot crash on case-sensitive filesystems (Linux): `require "English"`
   was spelled `require "english"`.
+- Skill: raising `max_ignored` is a judgment any triager may make when the
+  entry has earned it (isolated survival, a mechanism `reason:`, the raise in
+  the same diff), never a way to make a failing gate pass.
 
 ## 0.1.0 (2026-09-26)
 

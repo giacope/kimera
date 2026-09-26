@@ -91,13 +91,19 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
 
 ## Ignore discipline: hard rules (especially for agents)
 
-- **Never raise `max_ignored` to make a gate pass.** Raising the budget is a
-  human decision. Surface the failing gate and the candidate entry instead.
+- **Raise `max_ignored` only for an entry that has earned it**: survival
+  under `--isolated`, a `reason:` naming the mechanism, and the raise in the
+  same diff as the entry. Any triager, human or agent, may make that call when
+  all three hold. Never raise it to make a failing gate pass; that is skipping
+  triage, not finishing it.
+- If any criterion is missing (no oracle run, a reason that restates the
+  verdict, a mutant you haven't read), write the test or leave the survivor
+  visible.
 - An ignore entry without an isolated-oracle survival check is inadmissible.
   Warm-path survivors can be measurement artifacts (kimera's own suite once
   had a "clearly equivalent" mutant that 11 specs actually kill).
-- A budget raise goes in the same diff as the entry it admits. Reviewers
-  judge the `reason:`, not the number.
+- Reviewers judge the `reason:`, not the number, so the entry and the raise
+  land together.
 
 ## Strengthen
 

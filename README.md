@@ -260,7 +260,8 @@ fail_on_no_coverage: false
 
 # The gate fails when more than this many mutants are ignore-listed. Marking
 # one more mutant equivalent means raising this number in the same diff, so
-# the ignore list stays a reviewed decision, not a shortcut past a test.
+# the ignore list stays a justified decision, reviewed in the diff that makes
+# it, not a shortcut past a test.
 max_ignored: 1
 
 # Accepted pre-adoption survivors, merged with the ignore rules below.
