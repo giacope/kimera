@@ -10,12 +10,24 @@ RSpec.describe(Kimera::Frameworks) do
     end
   end
 
+  describe "RunOutcome#verdict" do
+    it "is survived when passed and killed with the failing ids otherwise", :aggregate_failures do
+      expect(Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: []).verdict).to(eq([:survived, []]))
+      expect(Kimera::Frameworks::RunOutcome.new(passed: false, failed_ids: ["a"]).verdict).to(eq([:killed, ["a"]]))
+    end
+  end
+
   describe Kimera::Frameworks::Adapter do
     it "raises NotImplementedError for the abstract methods", :aggregate_failures do
       adapter = described_class.new
       expect { adapter.source([]) }.to(raise_error(NotImplementedError))
       expect { adapter.test_ids }.to(raise_error(NotImplementedError))
       expect { adapter.run([]) }.to(raise_error(NotImplementedError))
+    end
+
+    it "reproduces the known failing ids with rspec in defined order" do
+      adapter = Class.new(described_class) { def test_ids = %w[a b] }.new
+      expect(adapter.reproduce(%w[b ghost a])).to(eq("rspec b a --order defined"))
     end
 
     it "describes an id as itself by default" do

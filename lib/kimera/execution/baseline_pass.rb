@@ -118,6 +118,7 @@ class Kimera::Execution::BaselinePass
   end
 
   def failure!(failed)
-    raise(Kimera::Execution::BaselineFailure.build(failed, @messages))
+    command = @adapter.reproduce(failed.first(Kimera::Execution::BaselineFailure::MAX_DETAILS))
+    raise(Kimera::Execution::BaselineFailure.build(failed, @messages, command))
   end
 end

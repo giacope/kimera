@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "callback"
+require_relative "reflections"
 
 module Kimera
   module Execution
@@ -56,13 +57,29 @@ module Kimera
           define_method(hook) do |base = nil, &block|
             next super(base, &block) unless block && OverlayGuardModules.replacing?(self, stored, base)
             instance_variable_set(stored, block)
+            OverlayGuardModules.reapply(self, block)
           end
         end
       end
 
       def serialization = SERIALIZEGUARD
 
+      def reflection = Reflections::GUARD
+
+      MIXES = Module.instance_method(:include?)
+
       def concern = CONCERNGUARD
+
+      def reapply(concern, block)
+        ObjectSpace.each_object(Class).each { |klass| klass.class_eval(&block) if owner?(klass, concern) }
+      end
+
+      def owner?(klass, concern)
+        return false if klass.singleton_class? || !mixes?(klass, concern)
+        [klass.superclass].compact.none? { |parent| mixes?(parent, concern) }
+      end
+
+      def mixes?(klass, concern) = MIXES.bind_call(klass, concern)
 
       def replacing?(target, stored, base)
         Kimera::Execution::OverlayGuards.overlaying? && !base && target.instance_variable_defined?(stored)

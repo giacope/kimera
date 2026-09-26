@@ -38,13 +38,16 @@ module Kimera
       def verdict(mirror, locations)
         Dir.mktmpdir("kimera-ledger") do |dir|
           ledger = File.join(dir, "ledger.json")
-          IsolatedOutcome.judge(launch(mirror, locations, ledger), ledger)
+          stderr = File.join(dir, "stderr.log")
+          IsolatedOutcome.judge(launch(mirror, locations, ledger, stderr), ledger, captured(stderr))
         end
       end
 
-      def launch(mirror, locations, ledger)
+      def captured(path) = File.read(path, encoding: Encoding::UTF_8).scrub
+
+      def launch(mirror, locations, ledger, stderr)
         env, cmd = plan.command(mirror, locations, ledger)
-        waitfor(Process.spawn(env, *cmd, chdir: mirror, pgroup: true, out: File::NULL, err: File::NULL))
+        waitfor(Process.spawn(env, *cmd, chdir: mirror, pgroup: true, out: File::NULL, err: stderr))
       end
 
       def with_mirror

@@ -51,7 +51,26 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
     Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed, failures: failures)
   end
 
+  def reproduce(ids)
+    "bundle exec ruby -Itest -rminitest/autorun -e #{quote(loads(ids))} -- -n #{quote(filter(ids))} --seed 1"
+  end
+
   private
+
+  def loads(ids)
+    ids.filter_map { |id| origin(id) }.uniq.map { |file| "require File.expand_path(#{file.dump})" }.join("; ")
+  end
+
+  def filter(ids) = "/^(?:#{ids.map { |id| Regexp.escape(id) }.join("|")})$/"
+
+  def origin(id)
+    klass, name = @methods[id]
+    return unless klass
+    path, = klass.instance_method(name).source_location
+    path.delete_prefix("#{Dir.pwd}#{File::SEPARATOR}")
+  end
+
+  def quote(text) = "'#{text.gsub("'") { "'\\''" }}'"
 
   def record(id, failed, failures)
     klass, name = @methods[id]

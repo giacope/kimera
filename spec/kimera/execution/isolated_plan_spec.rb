@@ -3,6 +3,7 @@
 require "kimera/execution/isolated_plan"
 require "kimera/registry/builder"
 require "kimera/runtime"
+require "json"
 require "tmpdir"
 
 # The mirror-and-bake subprocess flow is covered by the integration suite.
@@ -101,20 +102,19 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       described_class::ChildCommand.new(framework: framework, test_files: test_files)
     end
 
-    it "passes the ledger, then rspec locations straight to the rspec child" do
-      argv = child.argv(["spec/a_spec.rb[1:1]", "spec/b_spec.rb[1:2]"], "ledger.json")
-      expected = [described_class::ChildCommand::CHILD, "ledger.json", "spec/a_spec.rb[1:1]", "spec/b_spec.rb[1:2]"]
-      expect(argv).to(eq(expected))
+    it "passes only the ledger and its request file to the rspec child" do
+      expected = [described_class::ChildCommand::CHILD, "ledger.json", "ledger.json.request"]
+      expect(child.argv("ledger.json")).to(eq(expected))
     end
 
-    it "hands the minitest child the ledger, its test files, then '--', then the ids" do
-      argv = child(framework: "minitest", test_files: %w[test/a_test.rb test/b_test.rb])
-        .argv(["A#test_one"], "ledger.json")
-      expected = [
-        described_class::ChildCommand::MINITEST_CHILD, "ledger.json", "test/a_test.rb", "test/b_test.rb", "--",
-        "A#test_one"
-      ]
-      expect(argv).to(eq(expected))
+    it "passes only the ledger and its request file to the minitest child" do
+      expected = [described_class::ChildCommand::MINITEST_CHILD, "ledger.json", "ledger.json.request"]
+      expect(child(framework: "minitest").argv("ledger.json")).to(eq(expected))
+    end
+
+    it "requests the test ids and the test files" do
+      expect(child(framework: "minitest", test_files: %w[test/a_test.rb]).request(["A#test_one"]))
+        .to(eq("tests" => ["A#test_one"], "files" => %w[test/a_test.rb]))
     end
 
     it "is spec for rspec and test for minitest", :aggregate_failures do
@@ -125,31 +125,33 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
 
   describe "#command" do
     def bare(locations, registry: nil)
-      Dir.mktmpdir { |mirror| return plan(registry: registry || self.registry).command(mirror, locations, "l.json") }
+      Dir.mktmpdir do |mirror|
+        return plan(registry: registry || self.registry).command(mirror, locations, File.join(mirror, "l.json"))
+      end
     end
 
     def bundled(locations)
       Dir.mktmpdir do |mirror|
         gemfile = File.join(mirror, "Gemfile")
         File.write(gemfile, "source 'https://rubygems.org'\n")
-        return [gemfile, *plan.command(mirror, locations, "l.json")]
+        return [gemfile, *plan.command(mirror, locations, File.join(mirror, "l.json"))]
       end
     end
 
     it "builds a bare ruby command with load-path includes when there is no Gemfile", :aggregate_failures do
       env, argv = bare(["spec/a_spec.rb[1:1]"])
       child = described_class::ChildCommand::CHILD
-      expected = ["ruby", "-I", "lib", "-I", "spec", child, "l.json", "spec/a_spec.rb[1:1]"]
       expect(env).to(eq("KIMERA" => "1"))
-      expect(argv).to(eq(expected))
+      expect(argv[0...5]).to(eq(["ruby", "-I", "lib", "-I", "spec"]))
+      expect(argv[5..].map { |a| File.basename(a) }).to(eq([File.basename(child), "l.json", "l.json.request"]))
     end
 
     it "wraps in `bundle exec` and pins BUNDLE_GEMFILE when the mirror has a Gemfile", :aggregate_failures do
       gemfile, env, argv = bundled(["spec/a_spec.rb[1:1]"])
       child = described_class::ChildCommand::CHILD
-      expected = %w[bundle exec ruby -I lib -I spec] + [child, "l.json", "spec/a_spec.rb[1:1]"]
       expect(env).to(eq("KIMERA" => "1", "BUNDLE_GEMFILE" => gemfile))
-      expect(argv).to(eq(expected))
+      expect(argv[0...7]).to(eq(%w[bundle exec ruby -I lib -I spec]))
+      expect(argv[7..].map { |a| File.basename(a) }).to(eq([File.basename(child), "l.json", "l.json.request"]))
     end
 
     def mixed
@@ -158,6 +160,15 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
         points: Kimera::RegistryScan.new.source(src, file: "lib/x.rb").points +
           Kimera::RegistryScan.new.source(src, file: "app/y.rb").points
       )
+    end
+
+    it "writes the locations to the request file instead of argv" do
+      Dir.mktmpdir do |mirror|
+        ledger = File.join(mirror, "l.json")
+        many = Array.new(50_000) { |n| "spec/a_spec.rb[1:#{n}]" }
+        plan.command(mirror, many, ledger)
+        expect(JSON.parse(File.read("#{ledger}.request"))).to(eq("tests" => many, "files" => []))
+      end
     end
 
     it "includes one -I per distinct mutated top dir" do

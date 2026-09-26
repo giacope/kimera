@@ -42,6 +42,10 @@ class Kimera::Frameworks::Adapter
     id
   end
 
+  def reproduce(ids)
+    "rspec #{(ids & test_ids).join(" ")} --order defined"
+  end
+
   @registry = {}
 
   NO_LOADER = -> {}

@@ -165,6 +165,15 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect { h.__send__(:measure!) }.to(raise_error(Kimera::Execution::BaselineFailure, /rspec t2 --order defined/))
     end
 
+    it "asks the adapter for its framework's reproduce command, first ids only", :aggregate_failures do
+      fake = adapter(coverage: { "t2" => [ids.first] }, failing: ["t2"])
+      asked = []
+      fake.define_singleton_method(:reproduce) { |shown| (asked << shown) && "ruby -n t2" }
+      expect { harness(fake).__send__(:measure!) }
+        .to(raise_error(Kimera::Execution::BaselineFailure, /reproduce without kimera: ruby -n t2\z/))
+      expect(asked).to(eq([["t2"]]))
+    end
+
     # The details and hint also name t2, so anchor on the summary text.
     it "names the failing tests on the summary line" do
       h = harness(adapter(coverage: { "t2" => [ids.first] }, failing: ["t2"]))
@@ -969,6 +978,12 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(v.detail).to(include("no result"))
     end
 
+    it "names the signal that killed a reload worker with no result" do
+      status = Process.wait2(Process.spawn(Gem.ruby, "-e", "Process.kill(:KILL, Process.pid)")).last
+      v = reloadverdict.__send__(:verdict, 7, nil, status)
+      expect(v.detail).to(eq("reload worker produced no result (died on signal 9)"))
+    end
+
     it "treats a torn output line as a harness_error: unparseable", :aggregate_failures do
       v = reloadverdict.__send__(:verdict, 7, "{torn")
       expect(v.status).to(eq(:harness_error))
@@ -1256,6 +1271,11 @@ RSpec.describe(Kimera::Execution::Harness) do
   end
 
   describe "#evaluate_reload (reload fallback child logic, run in-process)" do
+    # An in-process errand: the tests it names, and ticks that go nowhere.
+    def errand(id, tests = ["t1"])
+      Kimera::Execution::Reload::Errand.new(id, tests, nil, nil).tap { |e| e.define_singleton_method(:tick) { true } }
+    end
+
     let(:dir) { Dir.mktmpdir }
 
     after { FileUtils.remove_entry(dir) }
@@ -1267,7 +1287,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       # The constant must exist before the bake is overlaid.
       load(File.join(dir, "harnessreload.rb"))
       reloader(observer("HarnessReload"), catalog: registry, root: dir)
-        .__send__(:evaluate, registry.each.find { |m, p| !p.safe? && m.label == "< => >" }.first.id)
+        .__send__(:evaluate, errand(registry.each.find { |m, p| !p.safe? && m.label == "< => >" }.first.id))
     end
 
     it "bakes the mutation, reloads, and classifies the outcome" do
@@ -1297,13 +1317,55 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "classifies a green re-selecting suite as survived" do
       registry, unsafe = reload("HarnessReselGreen")
       runner = reloader(plain(passed: true), catalog: registry, root: dir, isolation: reselection)
-      expect(runner.__send__(:evaluate, unsafe)).to(eq([:survived, []]))
+      expect(runner.__send__(:evaluate, errand(unsafe))).to(eq([:survived, []]))
+    end
+
+    def counting(tests, failing, calls)
+      Class.new(Kimera::Frameworks::Adapter) do
+        define_method(:source) { |_files| self }
+        define_method(:test_ids) { tests }
+        define_method(:run) do |ids|
+          calls << ids
+          failed = ids & failing
+          Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed)
+        end
+      end.new
+    end
+
+    it "runs one test at a time and stops at the first failure", :aggregate_failures do
+      registry, unsafe = reload("HarnessReloadFast")
+      calls = []
+      runner = reloader(counting(%w[t1 t2 t3], ["t2"], calls), catalog: registry, root: dir, isolation: reselection)
+      expect(runner.__send__(:evaluate, errand(unsafe, %w[t1 t2 t3]))).to(eq([:killed, ["t2"]]))
+      expect(calls).to(eq([["t1"], ["t2"]]))
+    end
+
+    it "ticks the errand before every test it runs" do
+      registry, unsafe = reload("HarnessReloadTick")
+      spy = instance_spy(Kimera::Execution::Reload::Errand, id: unsafe, tests: %w[t1 t2 t3])
+      runner = reloader(counting(%w[t1 t2 t3], [], []), catalog: registry, root: dir, isolation: reselection)
+      runner.__send__(:evaluate, spy)
+      expect(spy).to(have_received(:tick).exactly(3).times)
+    end
+
+    it "orders tests covering the mutant's method, then its file, before the rest" do
+      registry, unsafe = reload("HarnessReloadOrder")
+      point = registry.index[unsafe]
+      other = registry.at(point.file).find { |p| p.method_name != point.method_name }
+      kinship = Kimera::Execution::Kinship.new(registry, { other.ids.first => ["t4"], point.ids.first => %w[t3 t9] })
+      expect(kinship.order(unsafe, %w[t1 t2 t3 t4])).to(eq(%w[t3 t4 t1 t2]))
+    end
+
+    it "keeps the suite order for an unknown mutant or missing coverage", :aggregate_failures do
+      registry, unsafe = reload("HarnessReloadAlone")
+      expect(Kimera::Execution::Kinship.new(registry, nil).order(unsafe, %w[t2 t1])).to(eq(%w[t2 t1]))
+      expect(Kimera::Execution::Kinship.new(registry, {}).order(10_000_000, %w[t2 t1])).to(eq(%w[t2 t1]))
     end
 
     it "classifies a failing re-selecting suite as killed with its failures" do
       registry, unsafe = reload("HarnessReselRed")
       runner = reloader(plain(passed: false), catalog: registry, root: dir, isolation: reselection)
-      expect(runner.__send__(:evaluate, unsafe)).to(eq([:killed, ["t1"]]))
+      expect(runner.__send__(:evaluate, errand(unsafe))).to(eq([:killed, ["t1"]]))
     end
 
     def cold
@@ -1337,7 +1399,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry = writing(dir, "HarnessBoom")
       load(File.join(dir, "harnessboom.rb"))
       reloader(boom, catalog: registry, root: dir, isolation: reselection)
-        .__send__(:evaluate, registry.each.map { |m, _p| m.id }.find { |id| !registry.index[id].safe? })
+        .__send__(:evaluate, errand(registry.each.map { |m, _p| m.id }.find { |id| !registry.index[id].safe? }))
     end
 
     it "captures an exception during reload as an :error result", :aggregate_failures do
@@ -1383,18 +1445,35 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     # Without the SIGKILL, reaping blocks until the child's sleep ends.
-    it "hard-kills a reload child that produces no result in time", :aggregate_failures do
+    it "hard-kills a reload child whose test overruns the deadline, as a timeout", :aggregate_failures do
       result, elapsed = timing("HarnessHang", hanging, deadline: 0.3)
-      expect(result.status).to(eq(:harness_error))
-      expect(result.detail).to(include("no result"))
+      expect(result.status).to(eq(:timeout))
       expect(elapsed).to(be < 5)
+    end
+
+    def sluggish(tests, pause)
+      Class.new(Kimera::Frameworks::Adapter) do
+        define_method(:source) { |_files| self }
+        define_method(:test_ids) { tests }
+        define_method(:run) do |_ids|
+          sleep(pause)
+          Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+        end
+      end.new
+    end
+
+    # The deadline bounds one test: a suite longer than it is still judged.
+    it "restarts the deadline for every test the reload child runs", :aggregate_failures do
+      result, elapsed = timing("HarnessSlow", sluggish(%w[t1 t2 t3 t4], 0.2), deadline: 0.5)
+      expect(result.status).to(eq(:survived))
+      expect(elapsed).to(be > 0.5)
     end
 
     # EOF only arrives if the parent closed its own copy of the write end.
     it "notices an early-dead reload child immediately", :aggregate_failures do
       result, elapsed = timing("HarnessCrash", crashing, deadline: 30)
       expect(result.status).to(eq(:harness_error))
-      expect(result.detail).to(include("no result"))
+      expect(result.detail).to(eq("reload worker produced no result (exited 1)"))
       expect(elapsed).to(be < 5)
     end
   end

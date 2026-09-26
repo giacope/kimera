@@ -220,7 +220,10 @@ selector and Kimera's own harness-critical files (see below).
 
 An isolated child is judged on its failed tests, not its exit status. A child
 that exits non-zero with no failing test is `harness_error` (unjudged, gated
-by `--max-errors`), not a kill. The usual cause is a coverage floor such as
+by `--max-errors`), not a kill. So is a child that dies before reporting any
+results (a boot error, an exit hook, a crash); its `detail` carries the
+child's exit status and the ends of its stderr. The usual cause of a non-zero
+exit with no failures is a coverage floor such as
 SimpleCov's `minimum_coverage`, which a partial run always trips. Kimera sets
 `KIMERA=1` wherever it loads your suite (the warm process, `--isolated`
 children, and `kimera doctor`'s test commands), so skip the floor there:

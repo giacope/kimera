@@ -119,7 +119,9 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   suppress the warm path.
 - `--isolated` judges on failed tests, not the exit status. A child that
   exits non-zero with zero failures (typically a SimpleCov `minimum_coverage`
-  floor tripped by the partial run) is `harness_error`, not a kill. Kimera
+  floor tripped by the partial run) is `harness_error`, not a kill, and so is
+  a child that crashes before reporting (read its `detail` for the stderr).
+  Kimera
   sets `KIMERA=1` wherever it loads the suite (warm, `--isolated`, doctor), so
   gate the floor on it (`minimum_coverage ... unless ENV["KIMERA"]`); `kimera
   doctor` warns when it isn't.

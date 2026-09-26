@@ -175,7 +175,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
   it "closes and writes both sides of a reload errand" do
     reader = instance_spy(IO)
     writer = instance_spy(IO)
-    errand = Kimera::Execution::Reload::Errand.new(8, reader, writer)
+    errand = Kimera::Execution::Reload::Errand.new(8, [], reader, writer)
 
     errand.child!
     errand.emit("payload")
@@ -185,11 +185,21 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     expect(writer).to(have_received(:close))
   end
 
+  it "flushes each tick straight to the parent" do
+    reader, writer = IO.pipe
+    errand = Kimera::Execution::Reload::Errand.new(8, [], IO.pipe.first, writer)
+    errand.child!
+    errand.tick
+    expect(reader.read_nonblock(16)).to(eq("tick\n"))
+  ensure
+    [reader, writer].each { |io| io.close unless io.closed? }
+  end
+
   it "performs every reload worker step" do
     reload = Kimera::Execution::Reload.new(registry: Object.new, adapter: Object.new, isolation: Object.new, root: ".")
     errand = instance_spy(Kimera::Execution::Reload::Errand, id: 9)
     allow(reload).to(receive(:silence!))
-    allow(reload).to(receive(:report).with(9).and_return("result"))
+    allow(reload).to(receive(:report).with(errand).and_return("result"))
     allow(reload).to(receive(:exit!))
 
     reload.__send__(:work, errand)
