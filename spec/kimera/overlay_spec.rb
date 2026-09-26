@@ -588,6 +588,9 @@ RSpec.describe(Kimera::Overlay) do
         .to(satisfy { |(m, s)| !m.empty? && !s.empty? && !m.intersect?(s) })
       expect(result.mutant_ids.size + result.skipped_unsafe.size).to(eq(registry.count))
       expect { Unparser.parse(result.source) }.not_to(raise_error)
+      dropped = registry.points.reject(&:safe?)
+      expect(dropped.flat_map(&:ids)).to(eq(result.skipped_unsafe))
+      expect(dropped.map(&:unsafe_reason).uniq).to(eq(["unmutatable: unparser could not round-trip its guard"]))
     end
 
     it "re-raises the original error when no point is guardable" do
@@ -636,6 +639,23 @@ RSpec.describe(Kimera::Overlay) do
           end
         RUBY
       end
+      # Re-evaluating `Name = Data.define do` would build a second class that
+      # no existing instance belongs to, so no spliced guard would ever run.
+      let(:value_source) do
+        <<~RUBY
+          module Spliced
+            Point = Data.define(:x) do
+              def big? = x > 10
+            end
+            ::SplicedTop = Struct.new(:x) { def small? = x < 10 }
+            Spliced::Nested = Data.define(:x) do
+              def same? = x == 10
+            end
+            Plain = Data.define(:x)
+            Other = Class.new { def odd?(x) = x > 1 }
+          end
+        RUBY
+      end
 
       # Whole-file emission fails; individual methods are fine.
       def unparse!
@@ -673,7 +693,7 @@ RSpec.describe(Kimera::Overlay) do
         end
         result = nil
         expect { result = described_class.new(registry).synthesize("spliced.rb", splice_source) }
-          .to(output(/2 mutant\(s\) spliced per method, 2 reported no_coverage/).to_stderr)
+          .to(output(/2 mutant\(s\) spliced per method, 2 reported unmutatable/).to_stderr)
         [registry, result]
       end
 
@@ -681,6 +701,9 @@ RSpec.describe(Kimera::Overlay) do
         registry, result = partial
         expect(result.mutant_ids.size + result.skipped_unsafe.size).to(eq(registry.count))
         expect(result.mutant_ids & result.skipped_unsafe).to(be_empty)
+        dropped = registry.points.select { |point| point.method_name.to_s == "compare" }
+        expect(dropped.map(&:unsafe_reason).uniq).to(eq(["unmutatable: unparser could not round-trip its method"]))
+        expect(registry.points.reject { |point| dropped.include?(point) }).to(all(be_safe))
       end
 
       # A rebuild failure outside any method is a Kimera bug. Splicing would hide it.
@@ -743,6 +766,87 @@ RSpec.describe(Kimera::Overlay) do
         Kimera::Runtime.active = flip.id
         expect(klass.new.compare(2, 1)).to(be(false))
       end
+
+      def reopened
+        registry = Kimera::RegistryScan.new.source(value_source, file: "value.rb")
+        unparse!
+        source = nil
+        announced = /value\.rb: file-level round-trip failed; #{registry.count} mutant\(s\) spliced per method/
+        expect { source = described_class.new(registry).synthesize("value.rb", value_source).source }
+          .to(output(announced).to_stderr)
+        [registry, source]
+      end
+
+      it "reopens value-object constants instead of redefining them", :aggregate_failures do
+        registry, source = reopened
+        stub_const("Spliced", Module.new)
+        stub_const("SplicedTop", nil)
+        Kimera::Warnings.silence { TOPLEVEL_BINDING.eval(value_source) }
+        before = [Spliced::Point.new(x: 11), SplicedTop.new(20), Spliced::Nested.new(x: 10)]
+        Kimera::Warnings.silence { TOPLEVEL_BINDING.eval(source) }
+        expect([Spliced::Point, SplicedTop, Spliced::Nested]).to(eq(before.map(&:class)))
+        flip = ->(label, line) { registry.each.find { |m, p| m.label == label && p.location.start_line == line }.first }
+        Kimera::Runtime.active = flip.call("> => <", 3).id
+        expect(before[0].big?).to(be(false))
+        Kimera::Runtime.active = flip.call("< => >", 5).id
+        expect(before[1].small?).to(be(true))
+        Kimera::Runtime.active = flip.call("== => !=", 7).id
+        expect(before[2].same?).to(be(false))
+      end
+
+      it "reopens with the constant's own scope, or the lexical one", :aggregate_failures do
+        _registry, source = reopened
+        expect(source).to(
+          include(
+          "Point = ((is_a?(::Module) ? self : ::Object).const_defined?(:Point, false) ? " \
+            "(is_a?(::Module) ? self : ::Object).const_get(:Point) : Data.define(:x)); Point.class_eval do"
+        )
+        )
+        expect(source).to(
+          include(
+          "::SplicedTop = (::Object.const_defined?(:SplicedTop, false) ? " \
+            "::Object.const_get(:SplicedTop) : Struct.new(:x)); ::SplicedTop.class_eval {"
+        )
+        )
+        expect(source).to(
+          include(
+          "Spliced::Nested = (Spliced.const_defined?(:Nested, false) ? " \
+            "Spliced.const_get(:Nested) : Data.define(:x)); Spliced::Nested.class_eval do"
+        )
+        )
+        expect(source).to(include("Plain = Data.define(:x)\n"))
+        expect(source).to(include("Other = Class.new {"))
+      end
+
+      it "leaves a file with nothing to splice unreopened" do
+        src = "Point = Data.define(:x) do\n  def big? = x > 10\nend\n"
+        registry = Kimera::RegistryScan.new.source(src, file: "p.rb")
+        allow(Unparser).to(receive(:unparse).and_raise(RuntimeError, "Could not find a round tripping solution"))
+        expect { described_class.new(registry).synthesize("p.rb", src) }.to(raise_error(RuntimeError, /round tripping/))
+      end
+    end
+
+    # giacope/kimera#7: a string interpolating a pattern binding sank every
+    # mutant in the file, including ones in unrelated methods.
+    it "weaves a file whose strings interpolate a case/in binding", :aggregate_failures do
+      src = <<~'RUBY'
+        class PatternBid
+          def big?(value) = value > 10
+
+          def bid(input)
+            case input
+            in [:parsed, chosen] then ["#{input.first} #{chosen}", chosen]
+            end
+          end
+        end
+      RUBY
+      registry = Kimera::RegistryScan.new.source(src, file: "bid.rb")
+      result = nil
+      expect { result = described_class.new(registry).synthesize("bid.rb", src) }.not_to(output.to_stderr)
+      expect(result.mutant_ids.size).to(eq(registry.count))
+      mod = Module.new
+      mod.module_eval(result.source)
+      expect(mod.const_get(:PatternBid).new.bid([:parsed, 2])).to(eq(["parsed 2", 2]))
     end
 
     it "does not warn when every point is guardable" do

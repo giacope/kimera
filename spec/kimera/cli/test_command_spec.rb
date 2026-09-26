@@ -16,15 +16,29 @@ RSpec.describe(Kimera::CLI::TestCommand) do
 
   it "loads minitest files without running them" do
     loading("minitest")
-    expect(Open3).to(
-      have_received(:capture2e)
-      .with("bundle", "exec", "ruby", "-Itest", "-e", described_class::DRY_RUN, "t.rb", chdir: "/app")
-    )
+    command = ["bundle", "exec", "ruby", "-Itest", "-e", described_class::DRY_RUN, "t.rb"]
+    expect(Open3).to(have_received(:capture2e).with({ "KIMERA" => "1" }, *command, chdir: "/app"))
   end
 
   it "loads rspec files with --dry-run" do
     loading("rspec")
-    expect(Open3).to(have_received(:capture2e).with("bundle", "exec", "rspec", "--dry-run", "t.rb", chdir: "/app"))
+    expect(Open3).to(
+      have_received(:capture2e).with({ "KIMERA" => "1" }, "bundle", "exec", "rspec", "--dry-run", "t.rb", chdir: "/app")
+    )
+  end
+
+  # A helper gating its coverage floor on KIMERA must not fail the dry run,
+  # which executes no code at all.
+  it "runs the full baseline with KIMERA set too" do
+    command = described_class.new("rspec", ["t.rb"], root: "/app")
+    allow(Open3).to(receive(:capture2e).and_return(["", status(true)]))
+    command.baseline
+    expect(Open3).to(
+      have_received(:capture2e).with(
+        { "KIMERA" => "1" }, "bundle", "exec", "rspec", "t.rb",
+        chdir: "/app"
+    )
+    )
   end
 
   it "passes when every file loads" do

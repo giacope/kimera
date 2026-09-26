@@ -19,4 +19,11 @@ RSpec.configure do |config|
   config.expect_with(:rspec) { |c| c.syntax = :expect }
   config.disable_monkey_patching!
   config.order = :defined
+  # Booting a suite sets KIMERA for the rest of the process; keep it per example.
+  config.around do |example|
+    before = ENV.fetch("KIMERA", nil)
+    example.run
+  ensure
+    ENV["KIMERA"] = before
+  end
 end

@@ -6,6 +6,8 @@ require_relative "overlay_splice"
 class Kimera::Overlay::FileWeave
   include Kimera::OverlaySplice
 
+  UNGUARDABLE = "unparser could not round-trip its guard"
+
   def initialize(file, map, safe, unsafe)
     @file = file
     @map = map
@@ -43,16 +45,15 @@ class Kimera::Overlay::FileWeave
   def finish(viable)
     dropped = @safe - viable
     notice(dropped)
-    result = attempt(viable)
-    result.skipped_unsafe.concat(dropped.flat_map(&:ids))
-    result
+    dropped.each { |point| point.unmutatable!(UNGUARDABLE) }
+    attempt(viable).tap { |result| result.skipped_unsafe.concat(dropped.flat_map(&:ids)) }
   end
 
   def notice(dropped)
     io.puts(
       "kimera: #{@file}: #{dropped.size} mutation point(s) at " \
         "#{dropped.map { |p| "line #{p.location.start_line}" }.uniq.join(", ")} " \
-        "are unguardable (unparser round-trip); their mutants are reported no_coverage"
+        "are unguardable (unparser round-trip); their mutants are reported unmutatable"
     )
   end
 

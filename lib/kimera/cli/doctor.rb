@@ -96,8 +96,8 @@ class Kimera::CLI::Doctor
   end
 
   def floored(helper)
-    "Coverage floor: minimum_coverage in #{helper} fails partial --isolated runs; " \
-      "skip it when ENV[\"KIMERA\"] is set"
+    "Coverage floor: minimum_coverage in #{helper} fails Kimera's partial runs; " \
+      "skip it when ENV[\"KIMERA\"] is set (Kimera sets it)"
   end
 
   def floor?(path)

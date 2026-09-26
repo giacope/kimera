@@ -11,5 +11,32 @@ module Kimera
     def parse(source) = Kimera::Warnings.silence { Unparser.parse(source) }
 
     def unparse(node) = Kimera::Warnings.silence { Unparser.unparse(node) }
+
+    module Binders
+      private
+
+      def enter(node)
+        super
+        Binders.names(node).each { |name| define(name) }
+      end
+
+      class << self
+        def names(node)
+          case node.type
+          when :match_var, :blockarg then [node.children.first].compact
+          when :match_with_lvasgn then captures(node.children.first)
+          else []
+          end
+        end
+
+        def captures(regexp)
+          *parts, options = regexp.children
+          flags = options.children.include?(:x) ? Regexp::EXTENDED : 0
+          Regexp.new(parts.sum("") { |part| part.children.first }, flags).names.map(&:to_sym)
+        end
+      end
+    end
   end
 end
+
+Unparser::AST::LocalVariableScopeEnumerator.prepend(Kimera::Unparse::Binders)

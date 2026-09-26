@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- Kimera sets `KIMERA=1` in its own process before loading the suite, and in
+  the `kimera doctor` test commands. A coverage floor gated on
+  `ENV["KIMERA"]` no longer fails a passing warm run with exit 2 or blocks
+  doctor's dry run. (#6)
+- A string interpolating a local bound by a pattern (`in [:ok, chosen]`,
+  `=> chosen`), a `&block` parameter, or a regexp named capture no longer
+  sinks its file's mutants. unparser 0.9 could not round-trip it; Kimera now
+  teaches unparser those bindings. (#7)
+- The per-method splice fallback now claims mutants in an endless method
+  (`def big? = value > 10`), and reopens `Data.define` / `Struct.new`
+  constants instead of redefining them, so spliced guards are reached. (#7)
+- Mutants Kimera could not instrument are reported as `unmutatable`, with the
+  reason, instead of `no_coverage`. They never gate and stay out of the score,
+  so `--fail-on-no-coverage` again means "no test executes this". (#7)
+
 ## 0.1.1 (2026-09-26)
 
 - Fix a boot crash on case-sensitive filesystems (Linux): `require "English"`

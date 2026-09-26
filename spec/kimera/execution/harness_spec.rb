@@ -1082,6 +1082,39 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "treats an unknown id (no registry point) as reloadable" do
       expect(Kimera::Execution::Verdicts.new(registry).reloadable?(10_000_000)).to(be(true))
     end
+
+    # Reload bakes the same source the overlay could not emit.
+    it "is false for an unmutatable method-body point" do
+      verdicts = Kimera::Execution::Verdicts.new(mixed_registry)
+      mutant, point = mixed_registry.each.find { |_m, p| !p.body? }
+      point.unmutatable!("unparser could not round-trip its guard")
+      expect(verdicts.reloadable?(mutant.id)).to(be(false))
+    end
+  end
+
+  describe "unmutatable mutants" do
+    def unmutatable
+      registry = Kimera::RegistryScan.new.source("def gt(a, b)\n  a > b\nend\n", file: "u.rb")
+      registry.points.each { |point| point.unmutatable!("schemata setup failed (boom)") }
+      progress = journal
+      ids = registry.each.map { |mutant, _point| mutant.id }
+      [described_class.new(registry: registry, adapter: adapter, progress: progress).run(ids: ids), progress]
+    end
+
+    it "reports them as :unmutatable, with the reason, without evaluating them", :aggregate_failures do
+      report, progress = unmutatable
+      expect(report.results.map(&:status).uniq).to(eq([:unmutatable]))
+      expect(report.results.first.detail).to(eq("unmutatable: schemata setup failed (boom)"))
+      expect(report.results.first.file).to(eq("u.rb"))
+      expect(progress.events).to(include(%i[tick unmutatable]))
+    end
+
+    it "keeps them out of no_coverage and the score, but names them", :aggregate_failures do
+      report, = unmutatable
+      expect(report.uncovered).to(be_empty)
+      expect(report.score).to(eq(1.0))
+      expect(report.summary).to(include("unmutatable=2"))
+    end
   end
 
   describe "#warm!" do

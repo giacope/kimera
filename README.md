@@ -221,8 +221,9 @@ selector and Kimera's own harness-critical files (see below).
 An isolated child is judged on its failed tests, not its exit status. A child
 that exits non-zero with no failing test is `harness_error` (unjudged, gated
 by `--max-errors`), not a kill. The usual cause is a coverage floor such as
-SimpleCov's `minimum_coverage`, which a partial run always trips. Children run
-with `KIMERA=1` set, so skip the floor there:
+SimpleCov's `minimum_coverage`, which a partial run always trips. Kimera sets
+`KIMERA=1` wherever it loads your suite (the warm process, `--isolated`
+children, and `kimera doctor`'s test commands), so skip the floor there:
 
 ```ruby
 SimpleCov.start { minimum_coverage(line: 100, branch: 100) unless ENV["KIMERA"] }
@@ -504,8 +505,11 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   baseline, or worse, as kills that are really collisions.
 - **Score definition.** `score = killed / evaluable`.
   - Killed includes timeouts and errors (observable misbehaviour).
-  - Evaluable excludes `no_coverage`, `ignored`, `isolated_only`, and
-    `harness_error` mutants. Each is reported separately.
+  - Evaluable excludes `no_coverage`, `ignored`, `isolated_only`,
+    `unmutatable`, and `harness_error` mutants. Each is reported separately.
+  - An `unmutatable` mutant is one Kimera could not instrument for the warm
+    run (its file or method failed to re-emit or load); the detail says why.
+    It never gates, and it is not `no_coverage`: a test may well run it.
   - A `harness_error` is a mutant Kimera could not judge: its worker died, or
     its reply was unreadable. It is not a kill. It gates via `--max-errors`
     (default 0). A pool that never produces a result aborts the run.

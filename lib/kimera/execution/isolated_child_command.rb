@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "../suite_env"
+
 module Kimera
   module Execution
   end
@@ -16,11 +18,9 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
     @test_files = test_files
   end
 
-  ENV_FLAG = { "KIMERA" => "1" }.freeze
-
   def command(mirror, locations, ledger:, paths:)
     includes = paths.flat_map { |path| ["-I", path] }
-    bundled(mirror, ENV_FLAG.dup, ["ruby", *includes, "-I", helpers, *argv(locations, ledger)])
+    bundled(mirror, Kimera::SUITE_ENV.dup, ["ruby", *includes, "-I", helpers, *argv(locations, ledger)])
   end
 
   def argv(locations, ledger)

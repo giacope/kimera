@@ -72,7 +72,8 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
 - Rails `enum` models overlay warm (the re-declaration is idempotent), so
   their method-body mutants are judged like any other. A file labeled
   `unmutatable` could not be overlaid (a distinct, reported reason); it is not
-  an `--isolated` case.
+  an `--isolated` case. Its mutants report as `unmutatable` (never gating,
+  never scored, with the reason in the detail), not `no_coverage`.
 
 ## Triage a surviving mutant: the only four verdicts
 
@@ -118,9 +119,10 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   suppress the warm path.
 - `--isolated` judges on failed tests, not the exit status. A child that
   exits non-zero with zero failures (typically a SimpleCov `minimum_coverage`
-  floor tripped by the partial run) is `harness_error`, not a kill. Children
-  run with `KIMERA=1`, so gate the floor on it (`minimum_coverage ... unless
-  ENV["KIMERA"]`); `kimera doctor` warns when it isn't.
+  floor tripped by the partial run) is `harness_error`, not a kill. Kimera
+  sets `KIMERA=1` wherever it loads the suite (warm, `--isolated`, doctor), so
+  gate the floor on it (`minimum_coverage ... unless ENV["KIMERA"]`); `kimera
+  doctor` warns when it isn't.
 - A cluster of `error`/`timeout` verdicts in one region usually means harness
   fragility or a missing guard, not test strength. Read the cluster before
   counting the detections.

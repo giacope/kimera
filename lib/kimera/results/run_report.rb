@@ -10,7 +10,7 @@ end
 class Kimera::RunReport
   attr_reader :results, :leaks, :registry
 
-  CONDITIONAL = %i[harness_error ignored isolated_only leaks].freeze
+  CONDITIONAL = %i[harness_error ignored isolated_only unmutatable leaks].freeze
   LABELS = { total: "mutants", harness_error: "unjudged" }.freeze
   SCHEMA_VERSION = 1
 

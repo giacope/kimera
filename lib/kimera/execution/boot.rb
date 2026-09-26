@@ -1,15 +1,18 @@
 # frozen_string_literal: true
 
+require_relative "../suite_env"
 require_relative "isolation"
 
 class Kimera::Execution::Boot
-  def initialize(adapter:, isolate:, errors: nil)
+  def initialize(adapter:, isolate:, errors: nil, env: ENV)
     @adapter = adapter
     @isolate = isolate
     @errors = errors
+    @env = env
   end
 
   def suite(test_files)
+    @env.update(Kimera::SUITE_ENV)
     @adapter.source(test_files)
     @adapter.start
     load!
