@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Fix a boot crash on case-sensitive filesystems (Linux): `require "English"`
+  was spelled `require "english"`.
+
 ## 0.1.0 (2026-09-26)
 
 Initial public release.

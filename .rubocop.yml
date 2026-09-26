@@ -135,6 +135,7 @@ RSpec/DescribeClass:
     - spec/kimera/cli/workflows_spec.rb
     - spec/kimera/exe_spec.rb
     - spec/kimera/encoding_spec.rb
+    - spec/kimera/require_case_spec.rb
     - spec/kimera/operators/**/*
 
 # Each long example drives one real run; splitting re-runs it per assertion.
