@@ -30,8 +30,9 @@ module Kimera
     end
 
     def dynamic?(node)
-      node.is_a?(Prism::ClassNode) && node.constant_path.is_a?(Prism::ConstantReadNode) &&
-        node.superclass && !constant?(node.superclass)
+      return false unless node.is_a?(Prism::ClassNode) && node.constant_path.is_a?(Prism::ConstantReadNode)
+      superclass = node.superclass
+      superclass && !constant?(superclass)
     end
 
     def constant?(node) = node.is_a?(Prism::ConstantReadNode) || node.is_a?(Prism::ConstantPathNode)

@@ -13,22 +13,29 @@ class Kimera::CLI::TestCommand
   end
 
   def baseline
-    output, status = Open3.capture2e(*run, chdir: @root)
-    return ["✓", "Baseline: configured test suite is green"] if status.success?
-    ["✗", "Baseline: #{summary(output)} (fix it, then rerun `kimera doctor --check-baseline`)"]
-  rescue Errno::ENOENT
-    ["✗", "Baseline: Bundler is unavailable; run your test suite, then retry"]
+    check(run, "Baseline: configured test suite is green") do |failure|
+      if failure
+        ["✗", "Baseline: #{failure} (fix it, then rerun `kimera doctor --check-baseline`)"]
+      else
+        ["✗", "Baseline: Bundler is unavailable; run your test suite, then retry"]
+      end
+    end
   end
 
   def loading
-    output, status = Open3.capture2e(*dry_run, chdir: @root)
-    return ["✓", "Test loading: every test file loads"] if status.success?
-    ["✗", "Test loading: #{summary(output)}"]
-  rescue Errno::ENOENT
-    ["!", "Test loading: Bundler is unavailable; not checked"]
+    check(dry_run, "Test loading: every test file loads") do |failure|
+      failure ? ["✗", "Test loading: #{failure}"] : ["!", "Test loading: Bundler is unavailable; not checked"]
+    end
   end
 
   private
+
+  def check(command, passed)
+    output, status = Open3.capture2e(*command, chdir: @root)
+    status.success? ? ["✓", passed] : yield(summary(output))
+  rescue Errno::ENOENT
+    yield(nil)
+  end
 
   def run = minitest? ? ruby(LOADER) : rspec
 

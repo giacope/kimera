@@ -27,25 +27,33 @@ class Kimera::Execution::Schemata
 
   def overlay!
     Kimera::Execution::OverlayGuards.install!
-    deferred = []
-    @registry.files.flat_map { |path| load(path, deferred) } + deferred.flat_map { |path| load(path) }
+    loaded = weave(@registry.files)
+    (loaded + weave(unresolved)).tap { announce }
   end
 
   private
 
-  def load(path, deferred = nil)
+  def weave(paths) = paths.flat_map { |path| load(path) }
+
+  def unresolved
+    @skipped.keys.select { |path| @skipped[path].start_with?("NameError:") }.each { |path| @skipped.delete(path) }
+  end
+
+  def announce = @skipped.each { |path, reason| notice(path, reason) }
+
+  def load(path)
     file = File.join(root, path)
     return [] unless File.file?(file)
     return [] if Kimera::SelfProtection.protected?(file)
-    overlay(path, file, deferred)
+    overlay(path, file)
   end
 
-  def overlay(path, file, deferred)
+  def overlay(path, file)
     result = synthesize(path, file)
     return [] if result.mutant_ids.empty?
     apply(result, file)
   rescue StandardError, ScriptError, SystemExit => error
-    failed(path, error, deferred)
+    skip(path, "#{error.class}: #{error.message}")
   end
 
   def synthesize(path, file)
@@ -56,16 +64,8 @@ class Kimera::Execution::Schemata
     silence { result.install(file) }
   end
 
-  def failed(path, error, deferred)
-    return skip(path, error) unless deferred && error.is_a?(NameError)
-    deferred << path
-    []
-  end
-
-  def skip(path, error)
-    reason = "#{error.class}: #{error.message}"
+  def skip(path, reason)
     @skipped[path] = reason
-    notice(path, reason)
     []
   end
 

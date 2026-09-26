@@ -21,4 +21,12 @@ RSpec.describe(Kimera::SuperclassPin) do
     source = "class KimeraPlain < StandardError; end\n"
     expect(described_class.pin(source)).to(eq(source))
   end
+
+  it "ignores a same-named constant outside the enclosing namespace" do
+    stub_const("KimeraShadow", Class.new(StandardError))
+    stub_const("KimeraShadowed", Module.new)
+    source = "module KimeraShadowed\n  class KimeraShadow < Struct.new(:a); end\nend\n"
+    Kimera::Overlay.evaluate(source, "shadow.rb")
+    expect(KimeraShadowed::KimeraShadow.new(1).a).to(eq(1))
+  end
 end
