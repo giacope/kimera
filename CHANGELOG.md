@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.3 (2026-09-27)
 
 - `--isolated` no longer scores a child that crashes before reporting results
   as a kill. It is `harness_error`, and its `detail` gives the exit status and
