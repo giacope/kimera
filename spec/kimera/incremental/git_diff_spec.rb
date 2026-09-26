@@ -4,6 +4,26 @@ require "kimera/incremental/git_diff"
 
 RSpec.describe(Kimera::Incremental::GitDiff) do
   describe ".parse" do
+    # Open3 tags git's output with the locale's encoding, US-ASCII when LANG
+    # is unset, so any non-ASCII line made the header regexps raise.
+    def captured(text) = text.b.force_encoding(Encoding::US_ASCII)
+
+    it "parses non-ASCII diff content whatever the locale's encoding", :aggregate_failures do
+      diff = captured(<<~DIFF)
+        --- a/café.rb
+        +++ b/café.rb
+        @@ -1 +1 @@
+        -  "✗"
+        +  "✓"
+      DIFF
+      expect(described_class.parse(diff)).to(eq("café.rb" => Set[1]))
+    end
+
+    it "parses past bytes that are not valid UTF-8" do
+      diff = captured("+++ b/x.rb\n@@ -1 +2 @@\n+ \xE9t\xE9\n")
+      expect(described_class.parse(diff)).to(eq("x.rb" => Set[2]))
+    end
+
     it "collects new-side line numbers from unified=0 hunks" do
       diff = <<~DIFF
         diff --git a/app/models/x.rb b/app/models/x.rb
