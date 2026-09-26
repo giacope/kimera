@@ -411,7 +411,9 @@ RSpec.describe(Kimera::Execution::Shift) do
 
     it "resets active and stops coverage when the request pipe closes", :aggregate_failures do
       request = StringIO.new("#{JSON.generate(id: "t1")}\n")
-      Kimera::Runtime.active = 42
+      # No mutant has this id (they count from 1): when self-hosted, a real id would
+      # switch that mutant on for the rest of the example.
+      Kimera::Runtime.active = -1
       worker(catches: { "t1" => [] }).coverage(request, response)
       expect(Kimera::Runtime.active).to(be_nil)
       expect(messages(response).last).to(eq("t" => "done"))
