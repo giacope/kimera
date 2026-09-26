@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "json"
 require "minitest"
 
 Minitest.seed ||= 1
@@ -11,9 +12,10 @@ rescue NameError, ArgumentError
   end
 end
 
-split = ARGV.index("--") or abort("usage: <test files...> -- <ids...>")
-files = ARGV[0...split]
-ids = ARGV[(split + 1)..]
+ledger, *rest = ARGV
+split = rest.index("--") or abort("usage: <ledger> <test files...> -- <ids...>")
+files = rest[0...split]
+ids = rest[(split + 1)..]
 
 files.each { |f| load File.expand_path(f) }
 
@@ -23,12 +25,14 @@ Minitest::Runnable.runnables.each do |runnable|
   runnable.runnable_methods.each { |name| methods["#{runnable}##{name}"] = [runnable, name] }
 end
 
-killed =
-  ids.any? do |id|
+killer =
+  ids.find do |id|
     klass, name = methods[id]
     next false unless klass
     result = klass.new(name).run
     !result.passed? && !result.skipped?
   end
 
-exit(killed ? 1 : 0)
+File.write(ledger, JSON.generate(failures: killer ? 1 : 0, failing: [killer].compact))
+
+exit(killer ? 1 : 0)

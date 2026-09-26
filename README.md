@@ -218,6 +218,18 @@ process with the code under test. On ordinary code it reaches the same verdicts
 as the warm path. It can also test what the warm path can't: the runtime
 selector and Kimera's own harness-critical files (see below).
 
+An isolated child is judged on its failed tests, not its exit status. A child
+that exits non-zero with no failing test is `harness_error` (unjudged, gated
+by `--max-errors`), not a kill. The usual cause is a coverage floor such as
+SimpleCov's `minimum_coverage`, which a partial run always trips. Children run
+with `KIMERA=1` set, so skip the floor there:
+
+```ruby
+SimpleCov.start { minimum_coverage(line: 100, branch: 100) unless ENV["KIMERA"] }
+```
+
+`kimera doctor` warns when it finds an ungated `minimum_coverage`.
+
 ### Progress output
 
 During a run, a progress bar tracks each phase on stderr. It shows only when
@@ -260,7 +272,8 @@ fail_on_no_coverage: false
 
 # The gate fails when more than this many mutants are ignore-listed. Marking
 # one more mutant equivalent means raising this number in the same diff, so
-# the ignore list stays a reviewed decision, not a shortcut past a test.
+# the ignore list stays a justified decision, reviewed in the diff that makes
+# it, not a shortcut past a test.
 max_ignored: 1
 
 # Accepted pre-adoption survivors, merged with the ignore rules below.

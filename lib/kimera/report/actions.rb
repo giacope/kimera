@@ -11,28 +11,42 @@ class Kimera::Report::Actions
   end
 
   def show(report, path: nil)
-    lines = [survivors(report.survived, path), uncovered(report.uncovered, path), unjudged(report.errors)].compact
+    hints = path ? SavedHints.new(path) : UnsavedHints.new
+    lines = [
+      advice(report.survived, hints, :survivors), advice(report.uncovered, hints, :uncovered),
+      advice(report.errors, hints, :unjudged)
+    ].compact
     @io.puts("", "Next actions:", *lines) unless lines.empty?
   end
 
   private
 
-  def survivors(found, path)
+  def advice(found, hints, kind)
     first = found.min_by(&:mutant_id)
-    first && advice(found, "surviving mutant(s): inspect ##{first.mutant_id} with `#{inspection(first, path)}`")
+    "  #{found.size} #{hints.public_send(kind, first.mutant_id)}" if first
   end
 
-  def inspection(first, path)
-    path ? "kimera mutant #{first.mutant_id} --report #{path}" : "kimera run --report tmp/kimera.json"
+  class SavedHints
+    def initialize(path)
+      @path = path
+    end
+
+    def survivors(id) = "surviving mutant(s): inspect ##{id} with `#{mutant(id)}`"
+
+    def uncovered(_id) = "uncovered mutant(s): kimera report #{@path} --status no_coverage"
+
+    def unjudged(id) = "unjudged mutant(s): see why with `#{mutant(id)}`"
+
+    private
+
+    def mutant(id) = "kimera mutant #{id} --report #{@path}"
   end
 
-  def uncovered(found, path) = advice(found, "uncovered mutant(s): #{listing(path)}")
+  class UnsavedHints
+    def survivors(id) = "surviving mutant(s): inspect ##{id} with `kimera run --report tmp/kimera.json`"
 
-  def listing(path) = path ? "kimera report #{path} --status no_coverage" : "rerun with --report tmp/kimera.json"
+    def uncovered(_id) = "uncovered mutant(s): rerun with --report tmp/kimera.json"
 
-  def unjudged(found) = advice(found, "unjudged mutant(s): retry with `kimera run --isolated`")
-
-  def advice(found, text)
-    "  #{found.size} #{text}" unless found.empty?
+    def unjudged(_id) = "unjudged mutant(s): retry with `kimera run --isolated`"
   end
 end

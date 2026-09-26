@@ -30,8 +30,8 @@ class Kimera::Execution::IsolatedPlan
     selection.recorded(id)
   end
 
-  def command(mirror, locations)
-    child.command(mirror, locations, paths: mutables)
+  def command(mirror, locations, ledger)
+    child.command(mirror, locations, ledger: ledger, paths: mutables)
   end
 
   def mutables

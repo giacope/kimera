@@ -16,6 +16,8 @@ class Kimera::CLI::Doctor
 
   FRAMEWORK_FEATURES = { "rspec" => "rspec/core", "minitest" => "minitest" }.freeze
 
+  HELPERS = %w[.simplecov spec/spec_helper.rb spec/rails_helper.rb test/test_helper.rb].freeze
+
   def initialize(io: $stdout, errors: $stderr, root: ".")
     @io = io
     @errors = errors
@@ -38,7 +40,7 @@ class Kimera::CLI::Doctor
   end
 
   def checks(config, options)
-    all = [configuration(config), framework(config), sources(config), tests(config), git, rails]
+    all = [configuration(config), framework(config), sources(config), tests(config), git, rails, *floor]
     options[:check_baseline] ? all << baseline(config) : all
   end
 
@@ -86,6 +88,22 @@ class Kimera::CLI::Doctor
   end
 
   def rails? = File.file?(File.join(@root, "config", "application.rb"))
+
+  def floor
+    helper = HELPERS.find { |path| floor?(File.join(@root, path)) }
+    helper ? [["!", floored(helper)]] : []
+  end
+
+  def floored(helper)
+    "Coverage floor: minimum_coverage in #{helper} fails partial --isolated runs; " \
+      "skip it when ENV[\"KIMERA\"] is set"
+  end
+
+  def floor?(path)
+    return false unless File.file?(path)
+    source = File.read(path)
+    source.include?("minimum_coverage") && !source.include?("KIMERA")
+  end
 
   def baseline(config)
     output, status = Open3.capture2e(*command(config), chdir: @root)
