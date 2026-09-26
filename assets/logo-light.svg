@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 464 112" width="464" height="112" role="img" aria-label="Kimera">
+  <g transform="translate(4 10)">
+    <path d="M113 60C134 60 138 40 126 32C116 25 116 12 128 10" fill="none" stroke="#14B8A6" stroke-width="7" stroke-linecap="round"/>
+    <polygon points="124,5 138,4 145,9 138,14 124,14" fill="#0D9488"/>
+    <circle cx="134" cy="8" r="1.6" fill="#1F2328"/>
+    <path d="M145 9h4l3-2M149 9l3 2" fill="none" stroke="#E5484D" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <polygon points="92,70 104,70 104,96 88,96 92,93" fill="#A82A24"/>
+    <path d="M40 46C60 42 90 44 104 48C114 50 118 58 116 68L114 93L114 96H98L101 93L102 84C98 78 94 77 88 77H62C60 77 59 80 59 84L59 96H44L47 93L47 88L44 86L43 96H27L31 93L31 80C29 72 28 66 30 60Z" fill="#CC342D"/>
+    <polygon points="68,50 82,48 94,26 82,18" fill="#D97706"/>
+    <path d="M85 17Q80 -1 64 6Q59 9 61 16" fill="none" stroke="#92400E" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <polygon points="80,16 90,13 106,20 110,26 104,29 92,28 84,30" fill="#F5A524"/>
+    <polygon points="95,28 101,28 97,37" fill="#D97706"/>
+    <polygon points="84,20 76,26 84,25" fill="#D97706"/>
+    <circle cx="94" cy="19" r="1.6" fill="#1F2328"/>
+    <polygon points="36.0,18.0 41.4,25.8 50.1,22.1 50.4,31.6 59.7,33.2 54.8,41.3 61.7,47.7 53.3,51.9 55.6,61.0 46.3,60.0 43.3,68.9 36.0,63.0 28.7,68.9 25.7,60.0 16.4,61.0 18.7,51.9 10.3,47.7 17.2,41.3 12.3,33.2 21.6,31.6 21.9,22.1 30.6,25.8" fill="#A82A24"/>
+    <polygon points="34,23 41,19 42,30" fill="#8E1F1A"/>
+    <polygon points="36,28 22,29 12,35 6,43 8,50 14,56 24,60 34,58 40,46" fill="#E5484D"/>
+    <polygon points="6,43 9,40 10,45" fill="#1F2328"/>
+    <polygon points="19,36 26,35 24,38" fill="#1F2328"/>
+    <path d="M9 50L19 51" stroke="#8E1F1A" stroke-width="1.6" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(40 0)">
+    <g fill="none" stroke="#1F2328" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M134 28V86M160 50L134 72M145 63L162 86"/>
+      <path d="M182 50V86"/>
+      <path d="M202 86V50M202 64a14 14 0 0 1 28 0V86M230 64a14 14 0 0 1 28 0V86"/>
+      <path d="M278 68H314A18 18 0 1 0 308.7 80.7"/>
+      <path d="M336 86V50M336 70C336 58 344 50 358 50"/>
+      <circle cx="392" cy="68" r="18"/>
+      <path d="M410 50V86"/>
+    </g>
+    <circle cx="182" cy="32" r="6" fill="#14B8A6"/>
+  </g>
+</svg>

@@ -1,0 +1,192 @@
+{
+  "version": 6,
+  "packaging": "folder",
+  "analyzers": [
+    "complexity",
+    "coupling",
+    "duplication",
+    "smells"
+  ],
+  "targets": [
+    "lib/kimera"
+  ],
+  "edges": [
+    "(root) -> support",
+    "audit -> registry",
+    "audit -> rewrite",
+    "audit -> support",
+    "cli -> (root)",
+    "cli -> execution",
+    "cli -> frameworks",
+    "cli -> incremental",
+    "cli -> operators",
+    "cli -> registry",
+    "cli -> report",
+    "cli -> scope",
+    "cli -> support",
+    "cli -> synthesis",
+    "execution -> (root)",
+    "execution -> registry",
+    "execution -> results",
+    "execution -> support",
+    "execution -> synthesis",
+    "frameworks -> support",
+    "incremental -> results",
+    "incremental -> support",
+    "operators -> support",
+    "registry -> (root)",
+    "registry -> operators",
+    "registry -> support",
+    "report -> rewrite",
+    "report -> support",
+    "results -> rewrite",
+    "rewrite -> support",
+    "scope -> support",
+    "synthesis -> rewrite",
+    "synthesis -> support"
+  ],
+  "findings": {},
+  "traces": {},
+  "accepted": [
+    {
+      "kind": "mixed_audience",
+      "package": "(root)",
+      "reason": "the residual root is the shared floor — errors, version, the runtime selector and its protections; splitting five files into two packages would name nothing new"
+    },
+    {
+      "kind": "duplication",
+      "digest": "84638dc782d8",
+      "reason": "declarative operator tables and the shared guard-chain idiom (plus one coincidental cross-package recursion shape); extracting would obscure, not deepen"
+    },
+    {
+      "kind": "too_many_instance_variables",
+      "package": "Kimera::Execution::Harness",
+      "reason": "attempted in the 2026-08-05 deepening: every remaining field is a distinct injected seam or live counter; the only grouping left is an undifferentiated bag"
+    },
+    {
+      "kind": "too_many_instance_variables",
+      "package": "Kimera::Execution::WorkerPool",
+      "reason": "attempted in the 2026-08-05 deepening: every remaining field is a distinct injected seam or live counter; the only grouping left is an undifferentiated bag"
+    },
+    {
+      "kind": "data_clump",
+      "package": "Kimera::Operators::Vocabulary",
+      "reason": "(node, names) is the call-matcher vocabulary itself; a parameter object would just rename the pair"
+    },
+    {
+      "kind": "control_parameter",
+      "package": "Kimera::Execution::ParallelTestDatabases#before_exit",
+      "reason": "a nil slot marks an injected spec spawner with no database to clean up"
+    },
+    {
+      "kind": "boundary_sprawl",
+      "package": "Prism",
+      "reason": "the operators package IS the Prism boundary: the registry walker hands each family raw nodes by design, and one adapter over 30 node kinds would just be Prism again"
+    },
+    {
+      "kind": "manual_dispatch",
+      "package": "Kimera::Execution::Boot#load!",
+      "reason": "a duck-type probe at a framework boundary we do not own: the shape being tested belongs to Rails/Minitest/Prism and varies by their version, so trusting the duck type turns a version difference into a crash"
+    },
+    {
+      "kind": "manual_dispatch",
+      "package": "Kimera::Execution::Callback#alike?",
+      "reason": "a duck-type probe at a framework boundary we do not own: the shape being tested belongs to Rails/Minitest/Prism and varies by their version, so trusting the duck type turns a version difference into a crash"
+    },
+    {
+      "kind": "manual_dispatch",
+      "package": "Kimera::Execution::OverlayGuardModules#unwrap",
+      "reason": "a duck-type probe at a framework boundary we do not own: the shape being tested belongs to Rails/Minitest/Prism and varies by their version, so trusting the duck type turns a version difference into a crash"
+    },
+    {
+      "kind": "manual_dispatch",
+      "package": "Kimera::Execution::ParallelTestDatabases#configured?",
+      "reason": "a duck-type probe at a framework boundary we do not own: the shape being tested belongs to Rails/Minitest/Prism and varies by their version, so trusting the duck type turns a version difference into a crash"
+    },
+    {
+      "kind": "manual_dispatch",
+      "package": "Kimera::Frameworks::MinitestAdapter#index",
+      "reason": "a duck-type probe at a framework boundary we do not own: the shape being tested belongs to Rails/Minitest/Prism and varies by their version, so trusting the duck type turns a version difference into a crash"
+    },
+    {
+      "kind": "manual_dispatch",
+      "package": "Kimera::Operators::OpAssign#variants",
+      "reason": "a duck-type probe at a framework boundary we do not own: the shape being tested belongs to Rails/Minitest/Prism and varies by their version, so trusting the duck type turns a version difference into a crash"
+    },
+    {
+      "kind": "manual_dispatch",
+      "package": "Kimera::Operators::StatementDeletion#logged?",
+      "reason": "a duck-type probe at a framework boundary we do not own: the shape being tested belongs to Rails/Minitest/Prism and varies by their version, so trusting the duck type turns a version difference into a crash"
+    },
+    {
+      "kind": "feature_envy",
+      "package": "Kimera::Operators::MethodUnwrap#variants",
+      "reason": "operators ARE the Prism boundary (see the accepted boundary_sprawl/Prism): a mutation operator exists to interrogate one raw node kind, so its reads outnumber its own state by construction"
+    },
+    {
+      "kind": "feature_envy",
+      "package": "Kimera::Operators::NumericLiteral#integers",
+      "reason": "operators ARE the Prism boundary (see the accepted boundary_sprawl/Prism): a mutation operator exists to interrogate one raw node kind, so its reads outnumber its own state by construction"
+    },
+    {
+      "kind": "feature_envy",
+      "package": "Kimera::Operators::OpAssign#variants",
+      "reason": "operators ARE the Prism boundary (see the accepted boundary_sprawl/Prism): a mutation operator exists to interrogate one raw node kind, so its reads outnumber its own state by construction"
+    },
+    {
+      "kind": "feature_envy",
+      "package": "Kimera::Operators::StatementDeletion#diagnostic?",
+      "reason": "operators ARE the Prism boundary (see the accepted boundary_sprawl/Prism): a mutation operator exists to interrogate one raw node kind, so its reads outnumber its own state by construction"
+    },
+    {
+      "kind": "control_parameter",
+      "package": "Kimera::Operators::ReturnValue#variants",
+      "reason": "position: is the operator protocol every operator receives, not a flag this one invented"
+    },
+    {
+      "kind": "feature_envy",
+      "package": "Kimera::Frameworks::MinitestAdapter#index",
+      "reason": "the adapter exists to walk its framework's object graph; the reads it makes of that graph are the work, not misplaced behavior"
+    },
+    {
+      "kind": "feature_envy",
+      "package": "Kimera::Frameworks::RSpecAdapter#index",
+      "reason": "the adapter exists to walk its framework's object graph; the reads it makes of that graph are the work, not misplaced behavior"
+    },
+    {
+      "kind": "data_clump",
+      "package": "Kimera::Rewrite::DirectiveHandlers",
+      "reason": "a handler protocol, not a clump: every handler in the table is dispatched by one caller through the same fixed signature, so a parameter object would rename the protocol without removing a single argument"
+    },
+    {
+      "kind": "data_clump",
+      "package": "Kimera::Rewrite::DirectiveExtraHandlers",
+      "reason": "a handler protocol, not a clump: every handler in the table is dispatched by one caller through the same fixed signature, so a parameter object would rename the protocol without removing a single argument"
+    },
+    {
+      "kind": "data_clump",
+      "package": "Kimera::IgnoreList",
+      "reason": "the rule matchers are one protocol dispatched from a table; (mutant, point, value) is the question every rule is asked"
+    },
+    {
+      "kind": "duplication",
+      "digest": "ec363ec62330",
+      "reason": "declarative dispatch tables, same idiom as the accepted operator tables: the shape repeats because the data does"
+    },
+    {
+      "kind": "duplication",
+      "digest": "e1d5c3d8b741",
+      "reason": "two classes reading the same injected seam from their own options; a shared mixin for two one-line readers would couple them for nothing"
+    },
+    {
+      "kind": "data_clump",
+      "package": "Kimera::Execution::Shift",
+      "reason": "(requests, responses) is the worker entrypoint protocol, not a clump: the pool dispatches serve/coverage by name over exactly those two pipes, so a parameter object would wrap the protocol without shortening it"
+    },
+    {
+      "kind": "control_parameter",
+      "package": "Kimera::Guardrail#overlay",
+      "reason": "target is the source span being patched — data the walker matches each node against, not a mode flag; the branch IS the match"
+    }
+  ]
+}

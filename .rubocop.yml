@@ -1,0 +1,209 @@
+inherit_from: .rubocop_todo.yml
+
+plugins:
+  - rubocop-kata
+
+AllCops:
+  TargetRubyVersion: 3.4
+  Exclude:
+    # Fixture apps: specs pin their exact source (lines, operators, mutant counts).
+    - examples/**/*
+    # CI installs the bundle here; replacing Exclude drops RuboCop's default.
+    - vendor/**/*
+
+# --------------------------------------------------------------------------
+# Naming: words this domain owns, or that a framework spells its own way.
+# --------------------------------------------------------------------------
+
+Kata/GoodVariableName:
+  AllowedNames:
+    - $VERBOSE # Ruby's own global
+
+Kata/GoodMethodName:
+  AllowedNames:
+    # ActiveSupport/ActiveRecord APIs that code and fixtures must match exactly.
+    - set_callback
+    - defined_enums
+    - normalize_callback_params
+    - get_callbacks
+
+Kata/BuilderNoun:
+  AllowedNames:
+    - get_callbacks # ActiveSupport's private name, mirrored by a fixture
+
+Kata/GoodClassName:
+  inherit_mode:
+    merge:
+      - AllowedNames
+      - Terms
+  # Operator classes carry their public operator key (`chain_link_deletion`).
+  Terms:
+    - ChainLinkDeletion
+    - RespondToGuard
+  AllowedNames:
+    - Adapter # a boundary pattern, not a job
+    - Doctor # the `kimera doctor` command
+
+Naming/PredicateMethod:
+  AllowedMethods:
+    - run # overrides Minitest::Test#run
+
+Style/GlobalVars:
+  AllowedVariables:
+    # Forked fixture suites report back through this global: the only channel a
+    # spec can read after the child loads. Each user seeds it and clears it in
+    # an ensure.
+    - $probe
+
+RSpec/SpecFilePathFormat:
+  CustomTransform:
+    RSpecAdapter: rspec_adapter # the cop wants r_spec_adapter
+  Exclude:
+    # One file per contract: a module plus every class implementing it.
+    - spec/kimera/execution/isolation_spec.rb
+    - spec/kimera/frameworks/adapter_spec.rb
+
+# --------------------------------------------------------------------------
+# The cop ignores side effects between assignment and read (closing a pipe,
+# starting a clock, forking). All 25 reports it ever made were such cases.
+# --------------------------------------------------------------------------
+
+Elegant/NoRedundantVariable:
+  Enabled: false
+
+# --------------------------------------------------------------------------
+# kimera forks processes, not threads; a mutex here would only slow mutants.
+# --------------------------------------------------------------------------
+
+ThreadSafety/ClassInstanceVariable:
+  Exclude:
+    - spec/**/*
+    # Each forked worker holds its own copy.
+    - lib/kimera/runtime.rb
+    # Operator registry: written at load in the CLI parent, then read-only.
+    - lib/kimera/operators.rb
+ThreadSafety/ClassAndModuleAttributes:
+  Exclude:
+    - spec/**/*
+    # "Overlays armed?" flag, set once before any fork.
+    - lib/kimera/execution/overlay_guards.rb
+ThreadSafety/MutableClassInstanceVariable:
+  Exclude:
+    # Adapter registry: written at load, then read-only; freezing breaks it.
+    - lib/kimera/frameworks/adapter.rb
+ThreadSafety/NewThread:
+  Exclude:
+    # One thread per job is this file's purpose.
+    - lib/kimera/execution/isolated_scheduling.rb
+Style/GlobalStdStream:
+  Exclude:
+    # Must reopen the child's real fd 1/2, not whatever $stdout points at.
+    - lib/kimera/execution/child_process.rb
+
+# --------------------------------------------------------------------------
+# Ruby source is this gem's data: fixtures, AST node types, asserted output.
+# --------------------------------------------------------------------------
+
+Lint/BooleanSymbol:
+  Exclude:
+    # :true/:false are AST node types.
+    - lib/kimera/synthesis/guardrail_value_objects.rb
+    - spec/kimera/overlay_spec.rb
+Lint/InterpolationCheck:
+  Exclude:
+    # "#{...}" in single quotes is literal rewriter input/output.
+    - spec/kimera/rewrite/numbered_params_spec.rb
+    - spec/kimera/overlay_bake_spec.rb
+Security/Eval:
+  Exclude:
+    # Evals generated source built in the example to prove the rewrite runs.
+    - spec/kimera/rewrite/numbered_params_spec.rb
+Style/EvalWithLocation:
+  Exclude:
+    # The fake eval file name is the fixture the guard keys off.
+    - spec/kimera/execution/schemata_spec.rb
+
+# --------------------------------------------------------------------------
+# Spec-suite policy.
+# --------------------------------------------------------------------------
+
+# End-to-end suites: the subject spans many classes.
+RSpec/DescribeClass:
+  Exclude:
+    - spec/integration/**/*
+    - spec/kimera/cli/survivors_spec.rb
+    - spec/kimera/cli/workflows_spec.rb
+    - spec/kimera/exe_spec.rb
+    - spec/kimera/encoding_spec.rb
+    - spec/kimera/operators/**/*
+
+# Each long example drives one real run; splitting re-runs it per assertion.
+# Ratchet at the current longest.
+RSpec/ExampleLength:
+  Max: 21
+
+RSpec/MultipleDescribes:
+  Exclude:
+    # Nesting would invent a parent that doesn't exist.
+    - spec/integration/incremental_spec.rb
+    - spec/kimera/registry/mutation_point_spec.rb
+
+RSpec/RemoveConst:
+  Exclude:
+    # Constants come from eval'd overlay source; stub_const has nothing to restore.
+    - spec/kimera/encoding_spec.rb
+    - spec/kimera/execution/schemata_spec.rb
+    - spec/kimera/frameworks/minitest_adapter_spec.rb
+    - spec/kimera/operators/**/*
+
+RSpec/VerifiedDoubles:
+  Exclude:
+    # Rails isn't loaded; the doubled classes don't exist.
+    - spec/kimera/execution/harness_spec.rb
+
+RSpec/SubjectStub:
+  Exclude:
+    # The CLI is subject and composition root; the seam is on the object itself.
+    - spec/kimera/cli/run_spec.rb
+
+RSpec/AnyInstance:
+  Exclude:
+    # FileWeave and Guardrail are built inside the synthesizer; no injection seam.
+    - spec/kimera/overlay_spec.rb
+
+RSpec/Output:
+  Exclude:
+    # The stdout write is the fixture (a noisy suite).
+    - spec/kimera/execution/harness_spec.rb
+
+Lint/MissingSuper:
+  Exclude:
+    # Stand-in nodes bypass Prism's arg-requiring constructor.
+    - spec/kimera/memoization_spec.rb
+
+# --------------------------------------------------------------------------
+# CLI and report layers.
+# --------------------------------------------------------------------------
+
+Kata/RealWords:
+  Terms:
+    # `--format NAME` values.
+    - ndjson
+    - sarif
+    - github
+
+Kata/EnvDiscipline:
+  Exclude:
+    - spec/**/*
+    - config/**/*
+    - bin/**/*
+    - exe/**/*
+    # Reads NO_COLOR once, alongside tty-ness (no-color.org).
+    - lib/kimera/report/screen.rb
+
+Kata/NoHashAsObject:
+  Exclude:
+    - spec/**/*
+    - config/**/*
+    # SARIF is a fixed external schema.
+    - lib/kimera/report/formats.rb

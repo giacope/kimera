@@ -1,0 +1,22 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+begin
+  if File.file?(File.join(Dir.pwd, "Gemfile")) && !defined?(Bundler)
+    require "bundler/setup"
+    raise(LoadError, "kimera is not in this project's Gemfile") if Gem.find_files("unparser.rb").empty?
+  end
+  $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
+  require "kimera"
+rescue LoadError, StandardError => error
+  raise unless error.is_a?(LoadError) || (defined?(Bundler::BundlerError) && error.is_a?(Bundler::BundlerError))
+  warn(
+    "kimera: could not load its dependencies (#{error.message.lines.first.strip})",
+    "Kimera runs inside your project's bundle: add `gem \"kimera\", group: :test` to the Gemfile, " \
+      "run `bundle install`, then `bundle exec kimera`."
+  )
+  exit(1)
+end
+
+status = Kimera::CLI.start(ARGV)
+exit(status.is_a?(Integer) ? status : 0)

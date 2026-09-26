@@ -1,0 +1,59 @@
+# Example Kimera configuration. Copy to .kimera.yml and adjust.
+# Every key is optional; command-line flags override these values.
+
+# Test framework: rspec (default) or minitest
+framework: rspec
+
+# Files to mutate (globs, dirs, or paths)
+paths:
+  - "app/**/*.rb"
+  - "lib/**/*.rb"
+
+# Test files to run
+tests:
+  - "spec/**/*_spec.rb"
+
+# Files to skip
+exclude:
+  - "app/legacy/**/*.rb"
+
+# Mutation operators to enable (default: this low-noise set; see the README
+# for the extended and rails families, or use "all")
+operators:
+  - comparison
+  - boolean_connective
+  - boolean_literal
+  - statement_deletion
+  - negation
+  - conditional
+
+# Concurrency: number of warm pool workers pulling from one shared queue
+jobs: 4
+
+# CI gate: fail only if survivors exceed this count (omit for "any survivor fails")
+max_survivors: 0
+
+# Budget for the ignore list below: the gate fails when more than this many
+# mutants are ignore-listed, so growing the list is a deliberate, reviewable act.
+max_ignored: 1
+
+# Also fail when any mutant in scope has no covering test. Best on incremental
+# runs (--since), where "no coverage" means the diff adds untested logic.
+fail_on_no_coverage: false
+
+# Per-test soft timeout / per-mutant hard watchdog timeout, in seconds
+soft_timeout: 5.0
+# hard_timeout: 16.0
+
+# Equivalent-mutant suppression. Equivalence is undecidable, so mark known
+# equivalents by hand; matched mutants are excluded from the score and gate.
+# A rule matches when every field it lists matches (file is a glob). Every
+# entry must carry a reason: — entries without one are rejected at startup.
+ignore:
+  - file: "app/models/discount.rb"
+    line: 33
+    label: "> => >="
+    reason: known equivalent at the 50 boundary (spend > 50 vs >= 50 both hit the tier)
+  # - file: "app/services/*.rb"
+  #   original: "a == b"
+  #   reason: why this mutant is equivalent

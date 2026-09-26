@@ -1,0 +1,118 @@
+---
+name: kimera
+description: >-
+  Running, triaging, and gating mutation tests with kimera in a Ruby or Rails
+  project. Use when running kimera, triaging surviving mutants, deciding
+  whether to add a test, adding or reviewing ignore or baseline entries,
+  raising max_ignored, wiring kimera into CI, or reading a kimera report.
+---
+
+# Strengthening a suite with kimera
+
+Mutation testing audits *tests*, not code. The unit of work is one surviving
+mutant, and each gets exactly one of four verdicts (see Triage). Never act to
+move the score.
+
+## Set up
+
+```sh
+bundle exec kimera init                     # detects the project, writes .kimera.yml
+bundle exec kimera doctor --check-baseline  # discovery, git, and a green suite
+```
+
+- Gates: keep `max_survivors: 0`; every survivor is a decision, not a
+  statistic. `max_ignored` rises only in the same diff as the entry it admits.
+- Adopting on a suite with existing survivors: `kimera baseline create
+  REPORT.json --reason TEXT` records them as reviewed debt, so the gate blocks
+  only new holes. Burn the baseline down; never grow it to pass a gate.
+- Fix line coverage first. `no_coverage` mutants are plain coverage gaps, and
+  mutation results only mean something for code the tests execute.
+- CI shape: **PR gate is incremental** (`kimera ci --since origin/main
+  --session tmp/kimera.json`; `ci` defaults to `--max-survivors 0
+  --fail-on-no-coverage`): no new surviving mutants on changed lines.
+  **Full run nightly**, not per-PR.
+- Exit codes: 0 pass; 1 invalid invocation or unmutated suite not green (fix
+  the suite, not kimera); 2 gate failure (survivors, uncovered, ignore budget,
+  or unjudged).
+- The green check covers only tests that *cover* an in-scope mutant. A red
+  test touching none of them is reported and excluded, so an unrelated flaky
+  spec doesn't abort a per-module run.
+
+## Operate
+
+```sh
+bundle exec kimera changed                      # changed lines only (vs origin/main)
+bundle exec kimera run                          # full, per .kimera.yml
+bundle exec kimera report REPORT.json --status survived
+bundle exec kimera mutant ID --report REPORT.json
+bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
+```
+
+- The progress bar renders on a tty. Redirected/CI runs stay silent until the
+  report, except isolated mode, which traces one verdict per line to stderr.
+- `--session FILE` persists per-mutant verdicts and resumes interrupted runs.
+- `--report FILE` writes the machine-readable report. Each result carries
+  `mutant_id`, `status`, `file`, `line`, `operator`, and the `original` ->
+  `mutated` source; don't re-parse the human log.
+- Minitest/Rails: kimera puts `test/` (or `spec/`) on `$LOAD_PATH`, so test
+  files can `require "test_helper"` without `RUBYOPT="-Itest"`.
+- `--tests` on the CLI *replaces* the config `tests:` glob (it does not
+  append).
+- `--jobs` sizes the warm pool and isolated mirrors. Coverage-based test
+  selection and kill-on-first-failure are automatic.
+- A `timeout` verdict is a *detected* mutant (the suite hung on it), not an
+  error.
+- On a Rails app that uses `parallelize`, `--jobs > 1` gives each worker its
+  own database, so there's no shared-DB fixture/RLS deadlock.
+- Operators: the default is the conservative core. `--operators all` enables
+  the extended families; `--operators rails` (or `comparison,rails`) the
+  Rails-aware ones.
+- `isolated_only` marks class-body DSL mutants that only `--isolated` can
+  judge. Run it for their verdicts; they never gate or count in the score.
+- Rails `enum` models overlay warm (the re-declaration is idempotent), so
+  their method-body mutants are judged like any other. A file labeled
+  `unmutatable` could not be overlaid (a distinct, reported reason); it is not
+  an `--isolated` case.
+
+## Triage a surviving mutant: the only four verdicts
+
+1. **Real gap**: write the test. Assert the exact distinction the mutant
+   erased (the `<` vs `<=` boundary, the deleted call's observable effect).
+2. **Equivalent**: ignore entry, only with *both* (a) survival in an
+   `--isolated` oracle run and (b) a `reason:` naming the **mechanism**
+   ("IO.pipe write ends are sync; the flush is redundant"), not restating the
+   verdict ("this is equivalent"). Entries without `reason:` are rejected.
+3. **Dead code**: delete the code. A survivor on a branch nothing observes
+   is YAGNI evidence.
+4. **Wrong level**: the behavior is real but invisible to unit assertions
+   (logging, fd hygiene, progress output). Cover it with an integration test
+   or accept it visibly. Never stub internals just to kill a mutant; a test
+   that pins the implementation makes the suite worse.
+
+## Ignore discipline: hard rules (especially for agents)
+
+- **Never raise `max_ignored` to make a gate pass.** Raising the budget is a
+  human decision. Surface the failing gate and the candidate entry instead.
+- An ignore entry without an isolated-oracle survival check is inadmissible.
+  Warm-path survivors can be measurement artifacts (kimera's own suite once
+  had a "clearly equivalent" mutant that 11 specs actually kill).
+- A budget raise goes in the same diff as the entry it admits. Reviewers
+  judge the `reason:`, not the number.
+
+## Strengthen
+
+- Prioritize by blast radius: boundaries, money, authz, parsers, state
+  machines first; CLI wiring and glue last.
+- **Verify a kill by hand when in doubt**: apply the mutation to the source
+  manually, run the covering tests, confirm red, restore. This catches both
+  false survivors and false kills.
+- Suspicious verdicts on self-referential or harness-critical code (the test
+  runner, global state the suite also touches, kimera's own plumbing):
+  adjudicate with `--isolated`. Suites that manipulate shared globals can
+  suppress the warm path.
+- A cluster of `error`/`timeout` verdicts in one region usually means harness
+  fragility or a missing guard, not test strength. Read the cluster before
+  counting the detections.
+- Anti-patterns: chasing the score; adding tests without reading the mutant;
+  white-box tests that mirror the implementation; reclassifying killable
+  mutants as equivalent to end a triage session.

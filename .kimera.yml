@@ -1,0 +1,19 @@
+# Kimera mutation-testing itself ("mutation-test thyself").
+#
+# Runtime and harness-critical sources are routed through Kimera's structural
+# self-protection and isolated tier. Integration specs still run in the normal
+# suite; the in-process unit suite is the attributable mutation driver.
+framework: rspec
+paths:
+  - "lib/**/*.rb"
+tests:
+  - "spec/kimera/**/*_spec.rb"
+jobs: 4
+soft_timeout: 15.0
+hard_timeout: 30.0
+
+# No survivor or equivalence waiver is permitted. An unobservable branch is a
+# design problem: remove it or expose the effect through an explicit boundary.
+max_survivors: 0
+max_ignored: 0
+ignore: []
