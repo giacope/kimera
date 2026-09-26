@@ -8,6 +8,7 @@ require_relative "../error"
 require_relative "../registry/registry"
 require_relative "guard_weaver"
 require_relative "source_map"
+require_relative "superclass_pin"
 
 class Kimera::Overlay
   Result =
@@ -24,7 +25,7 @@ class Kimera::Overlay
 
   class << self
     def evaluate(source, path)
-      Kimera::Warnings.silence { TOPLEVEL_BINDING.eval(source, path) }
+      Kimera::Warnings.silence { TOPLEVEL_BINDING.eval(Kimera::SuperclassPin.pin(source), path) }
     end
   end
 

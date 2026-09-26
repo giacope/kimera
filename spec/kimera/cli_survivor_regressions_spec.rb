@@ -352,6 +352,19 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       end
     end
 
+    it "fails when a test file cannot load, and accepts a worktree's .git file", :aggregate_failures do
+      Dir.mktmpdir do |dir|
+        FileUtils.mkdir_p(File.join(dir, "spec"))
+        File.write(File.join(dir, "spec", "x_spec.rb"), "# spec\n")
+        File.write(File.join(dir, ".git"), "gitdir: /elsewhere\n")
+        failure = instance_double(Process::Status, success?: false)
+        allow(Open3).to(receive(:capture2e).and_return(["x_spec.rb:1: boom (RuntimeError)\n", failure]))
+        out, errors = streams
+        expect(Kimera::CLI::Doctor.new(io: out, errors: errors, root: dir).run([])).to(eq(1))
+        expect(out.string).to(include("✗ Test loading: x_spec.rb:1: boom (RuntimeError)", "✓ Git: incremental"))
+      end
+    end
+
     it "runs the baseline check only when requested and discovers minitest defaults" do
       Dir.mktmpdir do |dir|
         FileUtils.mkdir_p(File.join(dir, "test"))
@@ -618,7 +631,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         instance = doctor(dir)
         success = instance_double(Process::Status, success?: true)
         test = File.join(dir, "test", "x_test.rb")
-        command = ["bundle", "exec", "ruby", "-Itest", test]
+        command = ["bundle", "exec", "ruby", "-Itest", "-e", Kimera::CLI::TestCommand::LOADER, test]
         allow(Open3).to(receive(:capture2e).with(*command, chdir: dir).and_return(["", success]))
 
         result = instance.__send__(:baseline, framework: "minitest", tests: ["test/**/*_test.rb"])

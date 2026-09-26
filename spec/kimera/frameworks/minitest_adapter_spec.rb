@@ -156,4 +156,31 @@ RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
       $probe = nil
     end
   end
+
+  describe "loading test files" do
+    def write(name, body)
+      File.join(dir, name).tap { |path| File.write(path, body) }
+    end
+
+    it "loads a test file once even when another test requires it", :aggregate_failures do
+      shared = write("shared_kimera_test.rb", "$probe = ($probe || 0) + 1\n")
+      other = write("other_kimera_test.rb", "require_relative 'shared_kimera_test'\n")
+      $probe = 0
+      described_class.build.source([shared, other])
+      expect($probe).to(eq(1))
+    end
+
+    it "hides kimera's own ARGV from test files" do
+      probe = write("argv_kimera_test.rb", "$probe = ARGV.dup\n")
+      ARGV.replace(%w[run --session x])
+      described_class.build.source([probe])
+      expect($probe).to(eq([]))
+    end
+
+    it "names the test file that fails to load" do
+      broken = write("broken_kimera_test.rb", "raise 'boom'\n")
+      expect { described_class.build.source([broken]) }
+        .to(raise_error(Kimera::Error, /broken_kimera_test\.rb \(RuntimeError: boom\)/))
+    end
+  end
 end

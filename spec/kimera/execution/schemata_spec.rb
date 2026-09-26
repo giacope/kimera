@@ -531,4 +531,27 @@ RSpec.describe(Kimera::Execution::Schemata) do
       expect(concern.ancestors.count(Kimera::Execution::OverlayGuardModules.concern)).to(eq(1))
     end
   end
+
+  it "retries a file whose constant another overlaid file defines later", :aggregate_failures do
+    write("sl_a_child.rb", "class SchemataChild < SchemataParent\n  def gt(a, b) = a > b\nend\n")
+    write("sl_b_parent.rb", "class SchemataParent\n  def lt(a, b) = a < b\nend\n")
+    files = %w[sl_a_child.rb sl_b_parent.rb].map { |name| File.join(dir, name) }
+    registry = Kimera::RegistryScan.new(root: dir).build(files)
+
+    loader = described_class.new(registry, root: dir)
+    expect { loader.overlay! }.not_to(output.to_stderr)
+    expect(loader.skipped).to(be_empty)
+    expect(SchemataChild.new.gt(2, 1)).to(be(true))
+  ensure
+    %i[SchemataChild SchemataParent].each { |name| Object.__send__(:remove_const, name) if Object.const_defined?(name) }
+  end
+
+  it "reports a constant that stays missing once, after the retry", :aggregate_failures do
+    write("sl_orphan.rb", "class SchemataOrphan < SchemataNowhere\n  def gt(a, b) = a > b\nend\n")
+    registry = Kimera::RegistryScan.new(root: dir).build([File.join(dir, "sl_orphan.rb")])
+
+    loader = described_class.new(registry, root: dir)
+    expect { loader.overlay! }.to(output(/\Akimera: sl_orphan\.rb cannot run[^\n]*NameError[^\n]*\n\z/).to_stderr)
+    expect(loader.skipped.keys).to(eq(["sl_orphan.rb"]))
+  end
 end

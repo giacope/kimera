@@ -27,10 +27,19 @@ class Kimera::Execution::Schemata
 
   def overlay!
     Kimera::Execution::OverlayGuards.install!
-    @registry.files.flat_map { |path| load(path) }
+    loaded = weave(@registry.files)
+    (loaded + weave(unresolved)).tap { announce }
   end
 
   private
+
+  def weave(paths) = paths.flat_map { |path| load(path) }
+
+  def unresolved
+    @skipped.keys.select { |path| @skipped[path].start_with?("NameError:") }.each { |path| @skipped.delete(path) }
+  end
+
+  def announce = @skipped.each { |path, reason| notice(path, reason) }
 
   def load(path)
     file = File.join(root, path)
@@ -44,7 +53,7 @@ class Kimera::Execution::Schemata
     return [] if result.mutant_ids.empty?
     apply(result, file)
   rescue StandardError, ScriptError, SystemExit => error
-    skip(path, error)
+    skip(path, "#{error.class}: #{error.message}")
   end
 
   def synthesize(path, file)
@@ -55,10 +64,8 @@ class Kimera::Execution::Schemata
     silence { result.install(file) }
   end
 
-  def skip(path, error)
-    reason = "#{error.class}: #{error.message}"
+  def skip(path, reason)
     @skipped[path] = reason
-    notice(path, reason)
     []
   end
 

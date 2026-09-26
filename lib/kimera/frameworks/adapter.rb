@@ -79,4 +79,17 @@ class Kimera::Frameworks::Adapter
       end
     end
   end
+
+  private
+
+  def each_test_file(files, &)
+    ARGV.clear
+    Array(files).each { |file| load_test_file(file, &) }
+  end
+
+  def load_test_file(file)
+    yield(File.expand_path(file))
+  rescue StandardError, ScriptError => error
+    raise(Kimera::Error, "cannot load test file #{file} (#{error.class}: #{error.message})")
+  end
 end

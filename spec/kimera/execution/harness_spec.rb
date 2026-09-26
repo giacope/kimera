@@ -738,6 +738,16 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(drain).to(eq([:cleaned]))
     end
 
+    it "empties the worker's database as it drains" do
+      connection = double(tables: %w[users posts])
+      allow(connection).to(receive(:truncate_tables))
+      base = Class.new
+      base.define_singleton_method(:connection) { connection }
+      stub_const("ActiveRecord::Base", base)
+      drain
+      expect(connection).to(have_received(:truncate_tables).with("users", "posts"))
+    end
+
     it "never runs a nil-slot worker's after-fork hook (injected/test spawners)" do
       stub(after: ->(_i) { raise(RuntimeError, "should not run") })
       db = database(jobs: 2)
