@@ -101,15 +101,18 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       described_class::ChildCommand.new(framework: framework, test_files: test_files)
     end
 
-    it "passes rspec locations straight to the rspec child" do
-      argv = child.argv(["spec/a_spec.rb[1:1]", "spec/b_spec.rb[1:2]"])
-      expect(argv).to(eq([described_class::ChildCommand::CHILD, "spec/a_spec.rb[1:1]", "spec/b_spec.rb[1:2]"]))
+    it "passes the ledger, then rspec locations straight to the rspec child" do
+      argv = child.argv(["spec/a_spec.rb[1:1]", "spec/b_spec.rb[1:2]"], "ledger.json")
+      expected = [described_class::ChildCommand::CHILD, "ledger.json", "spec/a_spec.rb[1:1]", "spec/b_spec.rb[1:2]"]
+      expect(argv).to(eq(expected))
     end
 
-    it "hands the minitest child its test files, then '--', then the ids" do
-      argv = child(framework: "minitest", test_files: %w[test/a_test.rb test/b_test.rb]).argv(["A#test_one"])
+    it "hands the minitest child the ledger, its test files, then '--', then the ids" do
+      argv = child(framework: "minitest", test_files: %w[test/a_test.rb test/b_test.rb])
+        .argv(["A#test_one"], "ledger.json")
       expected = [
-        described_class::ChildCommand::MINITEST_CHILD, "test/a_test.rb", "test/b_test.rb", "--", "A#test_one"
+        described_class::ChildCommand::MINITEST_CHILD, "ledger.json", "test/a_test.rb", "test/b_test.rb", "--",
+        "A#test_one"
       ]
       expect(argv).to(eq(expected))
     end
@@ -122,27 +125,29 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
 
   describe "#command" do
     def bare(locations, registry: nil)
-      Dir.mktmpdir { |mirror| return plan(registry: registry || self.registry).command(mirror, locations) }
+      Dir.mktmpdir { |mirror| return plan(registry: registry || self.registry).command(mirror, locations, "l.json") }
     end
 
     def bundled(locations)
       Dir.mktmpdir do |mirror|
         gemfile = File.join(mirror, "Gemfile")
         File.write(gemfile, "source 'https://rubygems.org'\n")
-        return [gemfile, *plan.command(mirror, locations)]
+        return [gemfile, *plan.command(mirror, locations, "l.json")]
       end
     end
 
     it "builds a bare ruby command with load-path includes when there is no Gemfile", :aggregate_failures do
       env, argv = bare(["spec/a_spec.rb[1:1]"])
-      expected = ["ruby", "-I", "lib", "-I", "spec", described_class::ChildCommand::CHILD, "spec/a_spec.rb[1:1]"]
+      child = described_class::ChildCommand::CHILD
+      expected = ["ruby", "-I", "lib", "-I", "spec", child, "l.json", "spec/a_spec.rb[1:1]"]
       expect(env).to(eq("KIMERA" => "1"))
       expect(argv).to(eq(expected))
     end
 
     it "wraps in `bundle exec` and pins BUNDLE_GEMFILE when the mirror has a Gemfile", :aggregate_failures do
       gemfile, env, argv = bundled(["spec/a_spec.rb[1:1]"])
-      expected = %w[bundle exec ruby -I lib -I spec] + [described_class::ChildCommand::CHILD, "spec/a_spec.rb[1:1]"]
+      child = described_class::ChildCommand::CHILD
+      expected = %w[bundle exec ruby -I lib -I spec] + [child, "l.json", "spec/a_spec.rb[1:1]"]
       expect(env).to(eq("KIMERA" => "1", "BUNDLE_GEMFILE" => gemfile))
       expect(argv).to(eq(expected))
     end

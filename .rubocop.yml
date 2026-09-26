@@ -135,7 +135,6 @@ RSpec/DescribeClass:
     - spec/kimera/cli/workflows_spec.rb
     - spec/kimera/exe_spec.rb
     - spec/kimera/encoding_spec.rb
-    - spec/kimera/require_case_spec.rb
     - spec/kimera/operators/**/*
 
 # Each long example drives one real run; splitting re-runs it per assertion.
@@ -201,9 +200,6 @@ Kata/EnvDiscipline:
     - exe/**/*
     # Reads NO_COLOR once, alongside tty-ness (no-color.org).
     - lib/kimera/report/screen.rb
-    # Isolated-child entry points: the parent hands them the ledger path.
-    - lib/kimera/execution/isolated_child.rb
-    - lib/kimera/execution/isolated_child_minitest.rb
 
 Kata/NoHashAsObject:
   Exclude:

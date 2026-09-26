@@ -18,13 +18,14 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
 
   ENV_FLAG = { "KIMERA" => "1" }.freeze
 
-  def command(mirror, locations, paths:)
-    bundled(mirror, ENV_FLAG.dup, ["ruby", *paths.flat_map { |path| ["-I", path] }, "-I", helpers, *argv(locations)])
+  def command(mirror, locations, ledger:, paths:)
+    includes = paths.flat_map { |path| ["-I", path] }
+    bundled(mirror, ENV_FLAG.dup, ["ruby", *includes, "-I", helpers, *argv(locations, ledger)])
   end
 
-  def argv(locations)
-    return [CHILD, *locations] unless minitest?
-    [MINITEST_CHILD, *@test_files, "--", *locations]
+  def argv(locations, ledger)
+    return [CHILD, ledger, *locations] unless minitest?
+    [MINITEST_CHILD, ledger, *@test_files, "--", *locations]
   end
 
   def helpers

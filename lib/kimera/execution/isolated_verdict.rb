@@ -43,8 +43,7 @@ module Kimera
       end
 
       def launch(mirror, locations, ledger)
-        env, cmd = plan.command(mirror, locations)
-        env = env.merge(IsolatedOutcome::LEDGER => ledger)
+        env, cmd = plan.command(mirror, locations, ledger)
         waitfor(Process.spawn(env, *cmd, chdir: mirror, pgroup: true, out: File::NULL, err: File::NULL))
       end
 

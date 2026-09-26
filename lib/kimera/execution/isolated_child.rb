@@ -13,12 +13,11 @@ RSpec.configuration.output_stream = StringIO.new
 RSpec.configuration.error_stream = StringIO.new
 RSpec.configuration.deprecation_stream = StringIO.new
 
-code = RSpec::Core::Runner.run(ARGV)
+ledger, *locations = ARGV
+code = RSpec::Core::Runner.run(locations)
 
-if (ledger = ENV.fetch("KIMERA_ISOLATED_LEDGER", nil))
-  failed = RSpec.world.all_examples.select { |example| example.execution_result.status == :failed }
-  outside = RSpec.world.non_example_failure ? 1 : 0
-  File.write(ledger, JSON.generate(failures: failed.size + outside, failing: failed.map(&:id)))
-end
+failed = RSpec.world.all_examples.select { |example| example.execution_result.status == :failed }
+outside = RSpec.world.non_example_failure ? 1 : 0
+File.write(ledger, JSON.generate(failures: failed.size + outside, failing: failed.map(&:id)))
 
 exit code

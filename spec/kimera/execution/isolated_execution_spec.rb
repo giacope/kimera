@@ -409,10 +409,13 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
   end
 
   describe "#verdict (command stubbed on the runner)" do
-    # verdict only consumes the plan's command, so no real bake is needed.
+    # verdict only consumes the plan's command, so no real bake is needed. A
+    # callable cmd receives the ledger path, as the real children do in argv.
     def command(cmd, **)
       plan = Object.new
-      plan.define_singleton_method(:command) { |_mirror, _locations| [{}, cmd] }
+      plan.define_singleton_method(:command) do |_mirror, _locations, ledger|
+        [{}, cmd.respond_to?(:call) ? cmd.call(ledger) : cmd]
+      end
       r = runner(**)
       r.instance_variable_set(:@_plan, plan)
       r
@@ -424,8 +427,8 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     # A child that reports its failures to the ledger, then exits with `code`.
     def test_ledger_child(failures, failing, code)
-      ledger = { failures: failures, failing: failing }.to_json
-      [Gem.ruby, "-e", "File.write(ENV.fetch('KIMERA_ISOLATED_LEDGER'), #{ledger.dump}); exit #{code}"]
+      json = { failures: failures, failing: failing }.to_json
+      ->(ledger) { [Gem.ruby, "-e", "File.write(ARGV[0], #{json.dump}); exit #{code}", ledger] }
     end
 
     it "maps a zero-exit child to :survived" do
@@ -459,8 +462,8 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end
 
     it "hands the child a ledger path that does not exist yet" do
-      script = "path = ENV['KIMERA_ISOLATED_LEDGER']; exit(path && !File.exist?(path) ? 0 : 1)"
-      expect(test_verdict_of([Gem.ruby, "-e", script]).status).to(eq(:survived))
+      script = "exit(File.directory?(File.dirname(ARGV[0])) && !File.exist?(ARGV[0]) ? 0 : 1)"
+      expect(test_verdict_of(->(ledger) { [Gem.ruby, "-e", script, ledger] }).status).to(eq(:survived))
     end
   end
 

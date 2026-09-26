@@ -8,8 +8,6 @@ module Kimera
 end
 
 class Kimera::Execution::IsolatedOutcome
-  LEDGER = "KIMERA_ISOLATED_LEDGER"
-
   attr_reader :status, :failing, :detail
 
   def initialize(status, failing = nil, detail = nil)

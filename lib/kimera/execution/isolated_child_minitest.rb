@@ -12,9 +12,10 @@ rescue NameError, ArgumentError
   end
 end
 
-split = ARGV.index("--") or abort("usage: <test files...> -- <ids...>")
-files = ARGV[0...split]
-ids = ARGV[(split + 1)..]
+ledger, *rest = ARGV
+split = rest.index("--") or abort("usage: <ledger> <test files...> -- <ids...>")
+files = rest[0...split]
+ids = rest[(split + 1)..]
 
 files.each { |f| load File.expand_path(f) }
 
@@ -32,8 +33,6 @@ killer =
     !result.passed? && !result.skipped?
   end
 
-if (ledger = ENV.fetch("KIMERA_ISOLATED_LEDGER", nil))
-  File.write(ledger, JSON.generate(failures: killer ? 1 : 0, failing: [killer].compact))
-end
+File.write(ledger, JSON.generate(failures: killer ? 1 : 0, failing: [killer].compact))
 
 exit(killer ? 1 : 0)
