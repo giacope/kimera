@@ -168,6 +168,10 @@ RSpec.describe(Kimera::Execution::Schemata) do
       .to(output(/sl_synth_bad\.rb cannot run in warm workers.*UnknownNodeError/).to_stderr)
     point = registry.points.find { |p| p.file == "sl_synth_ok.rb" }
     expect(live).to(include(*point.ids))
+    expect(point).to(be_safe)
+    bad = registry.points.select { |p| p.file == "sl_synth_bad.rb" }
+    expect(bad.map(&:unsafe_reason).uniq)
+      .to(eq(["unmutatable: schemata setup failed (Unparser::UnknownNodeError: Unknown node type: :defined)"]))
   ensure
     Object.__send__(:remove_const, :SchemataSynthOk) if defined?(SchemataSynthOk)
   end

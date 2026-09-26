@@ -17,7 +17,7 @@ module Kimera
       end
 
       def within?(from, to)
-        interior = ((from + 1)...to)
+        interior = ((from + 1)..to)
         interior.cover?(start_offset) && interior.cover?(finish)
       end
 
@@ -66,6 +66,7 @@ end
 
 class Kimera::MutationPoint
   CLASS_BODY_REASON = "class-body DSL (runs at load; evaluate with --isolated)"
+  UNMUTATABLE = "unmutatable: "
   SAFE = true
 
   FIELDS = %i[point_id file operator node_type location original_source method_name mutants unsafe_reason].freeze
@@ -96,6 +97,18 @@ class Kimera::MutationPoint
 
   def body?
     unsafe_reason == CLASS_BODY_REASON
+  end
+
+  def reloadable?
+    !body? && !unmutatable?
+  end
+
+  def unmutatable?
+    unsafe_reason.to_s.start_with?(UNMUTATABLE)
+  end
+
+  def unmutatable!(detail)
+    unsafe!("#{UNMUTATABLE}#{detail}")
   end
 
   def safe

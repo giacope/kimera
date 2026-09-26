@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "splice_reopening"
+
 module Kimera
   module OverlaySplice
     private
@@ -13,7 +15,7 @@ module Kimera
       return unless ready?
       edits, dropped = gather
       return if edits.empty?
-      source = apply(edits)
+      source = apply(edits + reopenings)
       [edits, dropped, source] if Kimera::Syntax.parse(source).success?
     end
 
@@ -24,6 +26,8 @@ module Kimera
       [edits, dropped + (@safe - claimed)]
     end
 
+    def reopenings = Kimera::SpliceReopening.new(@map).edits
+
     def collect(definition, points, edits, dropped)
       rewritten = rewrite(definition, points)
       rewritten ? edits << rewritten : dropped.concat(points)
@@ -32,6 +36,7 @@ module Kimera
     def report(edits, dropped, source)
       applied = edits.flat_map(&:last)
       announce(applied, dropped)
+      dropped.each { |point| point.unmutatable!("unparser could not round-trip its method") }
       build(applied, dropped, source)
     end
 
@@ -46,7 +51,7 @@ module Kimera
       io.puts(
         "kimera: #{@file}: file-level round-trip failed; " \
           "#{applied.size} mutant(s) spliced per method, " \
-          "#{dropped.flat_map(&:ids).size} reported no_coverage"
+          "#{dropped.flat_map(&:ids).size} reported unmutatable"
       )
     end
 

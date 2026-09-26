@@ -39,7 +39,12 @@ class Kimera::Execution::Schemata
     @skipped.keys.select { |path| @skipped[path].start_with?("NameError:") }.each { |path| @skipped.delete(path) }
   end
 
-  def announce = @skipped.each { |path, reason| notice(path, reason) }
+  def announce
+    @skipped.each do |path, reason|
+      notice(path, reason)
+      @registry.at(path).select(&:safe?).each { |point| point.unmutatable!("schemata setup failed (#{reason})") }
+    end
+  end
 
   def load(path)
     file = File.join(root, path)
@@ -72,7 +77,7 @@ class Kimera::Execution::Schemata
   def notice(path, reason)
     errors.puts(
       "kimera: #{path} cannot run in warm workers — schemata setup failed " \
-        "(#{reason}); its mutants are reported no_coverage"
+        "(#{reason}); its mutants are reported unmutatable"
     )
   end
 

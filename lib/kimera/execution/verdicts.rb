@@ -18,7 +18,7 @@ class Kimera::Execution::Verdicts
   end
 
   def reloadable?(id)
-    !point(id).body?
+    point(id).reloadable?
   end
 
   def reclassify!(results)
@@ -45,7 +45,9 @@ class Kimera::Execution::Verdicts
   end
 
   def quarantine(id)
-    Kimera::MutantResult.new(mutant_id: id, status: :isolated_only, file: path(id), detail: point(id).unsafe_reason)
+    found = point(id)
+    status = found.unmutatable? ? :unmutatable : :isolated_only
+    Kimera::MutantResult.new(mutant_id: id, status: status, file: found.file, detail: found.unsafe_reason)
   end
 
   def point(id)

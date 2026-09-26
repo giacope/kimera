@@ -52,7 +52,7 @@ RSpec.describe(Kimera::RunReport) do
     def counts
       {
         total: 7, killed: 4, survived: 1, timeout: 1, error: 1,
-        no_coverage: 1, harness_error: 0, ignored: 1, isolated_only: 0, leaks: 1
+        no_coverage: 1, harness_error: 0, ignored: 1, isolated_only: 0, unmutatable: 0, leaks: 1
       }
     end
 
@@ -92,6 +92,7 @@ RSpec.describe(Kimera::RunReport) do
       rep = described_class.new(results: [result(1, :killed)])
       expect(rep.summary).not_to(include("ignored="))
       expect(rep.summary).not_to(include("isolated_only="))
+      expect(rep.summary).not_to(include("unmutatable="))
       expect(rep.summary).not_to(include("leaks="))
       expect(rep.summary).not_to(include("unjudged="))
     end

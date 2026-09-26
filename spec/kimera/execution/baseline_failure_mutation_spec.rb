@@ -144,11 +144,13 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     expect(result.message).to(eq(t: "result", id: 8, status: "killed", ms: 1.5, fails: ["a"], cover: %w[a b]))
   end
 
-  it "requires both ends of a location to lie inside a method span" do
+  it "requires a location to lie inside a method span, ending no later than it (endless defs)" do
     location = Kimera::Location.new(start_offset: 11, span: 4)
     expect(location.within?(10, 20)).to(be(true))
     expect(Kimera::Location.new(start_offset: 9, span: 4).within?(10, 20)).to(be(false))
     expect(Kimera::Location.new(start_offset: 19, span: 4).within?(10, 20)).to(be(false))
+    expect(Kimera::Location.new(start_offset: 16, span: 4).within?(10, 20)).to(be(true))
+    expect(Kimera::Location.new(start_offset: 10, span: 4).within?(10, 20)).to(be(false))
   end
 
   it "loads configured plugins before constructing the run cycle" do

@@ -15,7 +15,7 @@ class Kimera::CLI::Survivors
       Kimera::Flag.build(
         "--status NAME", :status,
         "List a different status (survived, no_coverage, " \
-          "timeout, error, killed, isolated_only)"
+          "timeout, error, killed, isolated_only, unmutatable)"
       )
     ]
   )

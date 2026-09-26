@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "../../execution/suite_env"
 require_relative "../../incremental/selection"
 require_relative "../../incremental/session"
 require_relative "digest"
@@ -71,7 +72,8 @@ class Kimera::CLI::Run::Cycle
       .transform_keys(&:to_s)
   end
 
-  def harness(remaining, loaded)
+  def harness(remaining, loaded, env: ENV)
+    env.update(Kimera::Execution::SUITE_ENV)
     adapter = Kimera::Frameworks::Adapter.load(@options[:framework])
     Kimera::CLI::Run::Pass.new(@registry, @options, adapter).call(remaining, loaded)
   end
