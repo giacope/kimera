@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Re-running a mutated concern's `included do` block no longer clobbers a
+  scope or association that an including class redeclares after its
+  `include`. Rails keeps the class's later declaration, but kimera re-declared
+  the concern's version on top of it, so the baseline could go red only under
+  kimera (for example, an `Invitation.expired` override losing its extra
+  filter). Names the class declares after the `include` line are now skipped;
+  the rest of the block still runs.
+
 ## 0.1.4 (2026-09-27)
 
 - Guard-style memoization is no longer mutated, just as `@x ||=` never was.
