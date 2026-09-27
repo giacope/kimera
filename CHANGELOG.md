@@ -1,5 +1,42 @@
 # Changelog
 
+## Unreleased
+
+- `kimera run --evaluate-ignored` (also `changed` and `ci`) runs ignored
+  mutants, from `ignore:` and from the baseline, like any other. They keep
+  status `ignored`, so they never gate as survivors and still count toward
+  `max_ignored`, but each report row gains a `verdict` (`killed`,
+  `survived`, ...) and a `detail` such as `ignored (killed): ...`. The text
+  report sums them up: how many are now killed (their entries can be
+  pruned) and how many still survive. Until now a baselined mutant was never
+  evaluated, so finding out which entries were still alive meant copying
+  `.kimera.yml` without its `baseline:` line. A `--session` file keeps these
+  verdicts across resumes.
+- `kimera run --no-baseline` leaves out the `baseline:` file's entries, so
+  those mutants are judged and gated like any other; `.kimera.yml`'s own
+  `ignore:` entries still apply.
+- `kimera baseline review BASELINE.yml --report REPORT.json` judges every
+  entry against a report (best one from `--evaluate-ignored` or
+  `--no-baseline`): killed and safe to prune, still surviving, unjudged,
+  stale (the report covers the file but no mutant matches), or out of the
+  report's scope. Without `--report` it still just lists the entries.
+- `kimera baseline prune BASELINE.yml --report REPORT.json [--dry-run]`
+  rewrites the baseline without the killed and stale entries, keeping the
+  order of the rest, prints what it removed, and says by how much
+  `max_ignored` can drop. An incremental (`--since`) report holds only the
+  mutants on changed lines, so prune never treats an entry missing from it
+  as stale. Reports now record `since` in their `run` provenance for this.
+- A line-anchored ignore entry that no longer matches at its line (a line
+  was added above it) still applies when its other anchors (label, plus
+  `original` and `method` when given) single out exactly one mutant in the
+  file. Kimera warns `ignore entry re-anchored: path:12 → 13 [label]` so the
+  entry can be updated, instead of reporting it stale and bringing the same
+  mutant back as a new survivor. `baseline review` and `prune` follow the
+  same rule, and `prune` moves such entries to their current line.
+- `kimera baseline create` records each survivor's `original` snippet next
+  to its file, line, and label, so a re-anchored entry matches only the
+  mutant it was written for. Baselines without it keep working.
+
 ## 0.1.5 (2026-09-27)
 
 - Re-running a mutated concern's `included do` block no longer clobbers a
