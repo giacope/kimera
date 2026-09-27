@@ -519,6 +519,10 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     Before the kill it asks the worker for every thread's backtrace (SIGQUIT)
     and puts them in the verdict's `detail`, or in the baseline error. A test
     interrupted by the soft timeout is a `timeout`, not the mutant's killer.
+    The interrupt reaches only the test's own thread, so threads it started
+    may still hold connections and locks: after a soft timeout the worker
+    takes no more mutants and is replaced. A retiring worker's teardown stays
+    under the hard timeout too.
   - Slow tests under parallel load: a baseline test whose worker hits the hard
     timeout reruns once, alone. If it passes, the run goes on with a notice and
     the stacks. If it times out again, the baseline is red.

@@ -56,6 +56,56 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     expect(command.loading).to(eq(["!", "Test loading: Bundler is unavailable; not checked"]))
   end
 
+  def baseline(framework, output)
+    command = described_class.new(framework, ["t.rb"], root: "/app")
+    allow(Open3).to(receive(:capture2e).and_return([output, status(false)]))
+    command.baseline.last
+  end
+
+  it "names the failing RSpec examples in a red baseline" do
+    output = <<~OUT
+      2 examples, 2 failures
+
+      Failed examples:
+
+      rspec ./spec/a_spec.rb:3 # A adds
+      rspec ./spec/b_spec.rb:9 # B subtracts
+    OUT
+    expect(baseline("rspec", output)).to(
+      eq(
+        "Baseline: 2 examples, 2 failures (fix it, then rerun `kimera doctor --check-baseline`)\n  " \
+          "failing tests:\n    ./spec/a_spec.rb:3\n    ./spec/b_spec.rb:9"
+      )
+    )
+  end
+
+  it "names the failing Minitest tests, failures and errors alike" do
+    output = <<~OUT
+        1) Failure:
+      CalcTest#test_add [test/calc_test.rb:5]:
+      Expected: 3
+
+        2) Error:
+      CalcTest#test_0001_divides by zero:
+      ZeroDivisionError: divided by 0
+
+      2 runs, 2 assertions, 1 failures, 1 errors, 0 skips
+    OUT
+    listed = "failing tests:\n    CalcTest#test_add\n    CalcTest#test_0001_divides by zero"
+    expect(baseline("minitest", output)).to(end_with(listed))
+  end
+
+  it "lists at most ten failing tests" do
+    output = (1..12).map { |n| "rspec ./spec/a_spec.rb:#{n} # a" }.join("\n")
+    listed = baseline("rspec", output)
+    expect(listed).to(include("./spec/a_spec.rb:10\n    … and 2 more"))
+  end
+
+  it "keeps the summary alone when no test ids can be read" do
+    expect(baseline("rspec", "LoadError\n"))
+      .to(eq("Baseline: LoadError (fix it, then rerun `kimera doctor --check-baseline`)"))
+  end
+
   it "fails the baseline when Bundler is missing" do
     command = described_class.new("rspec", [], root: "/app")
     allow(Open3).to(receive(:capture2e).and_raise(Errno::ENOENT))

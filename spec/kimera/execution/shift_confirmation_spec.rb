@@ -241,6 +241,29 @@ RSpec.describe(Kimera::Execution::Shift) do
       expect(result.detail).to(eq("soft timeout (0.1s) expired while t1 ran"))
     end
 
+    # Threads the interrupted test started may still hold locks; later mutants
+    # on this worker would block on them and be scored killed.
+    it "stops taking work after a timeout, so the pool replaces the worker", :aggregate_failures do
+      first, second = ids.first(2)
+      request = StringIO.new([first, second].map { |id| "#{JSON.generate(id: id)}\n" }.join)
+      response = StringIO.new
+      worker(swallowing(1.0), { first => %w[t1], second => %w[t2] }, soft: 0.1).serve(request, response)
+
+      sent = messages(response)
+      expect(sent.map { |m| m["t"] }).to(eq(%w[result done]))
+      expect(sent.first).to(include("id" => first, "status" => "timeout"))
+    end
+
+    it "keeps taking work after a kill" do
+      first, second = ids.first(2)
+      request = StringIO.new([first, second].map { |id| "#{JSON.generate(id: id)}\n" }.join)
+      response = StringIO.new
+      worker(scripted({ "t1" => %i[fail pass fail] }), { first => %w[t1], second => %w[t1] }, soft: 5.0)
+        .serve(request, response)
+
+      expect(messages(response).map { |m| m["t"] }).to(eq(%w[result ready result ready done]))
+    end
+
     it "still scores a failure inside the deadline as a kill" do
       target = ids.first
       adapter = scripted({ "t1" => %i[fail pass fail] })

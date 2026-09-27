@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- A warm worker that hits the soft timeout is replaced before it takes
+  another mutant. The timeout interrupts only the test's own thread, so
+  threads the test started (a lock holder in a concurrency test, say) kept
+  their connections, transactions and locks. Later mutants on that worker
+  blocked on them, timed out, and could be scored as kills.
+- A retiring worker's shutdown (`parallelize_teardown` hooks, emptying its
+  test database) is bounded by the hard timeout. Before, the watchdog stopped
+  watching a worker once the queue drained, so a teardown blocked on a leaked
+  lock hung `kimera run` forever.
+- Emptying a worker's test database at shutdown waits at most 5 seconds for
+  table locks on PostgreSQL and MySQL. If it gives up, kimera warns and still
+  runs the `parallelize_teardown` hooks.
+- `kimera doctor --check-baseline` lists the failing tests (up to ten) of a
+  red baseline, for RSpec and Minitest.
+
 ## 0.1.5 (2026-09-27)
 
 - Re-running a mutated concern's `included do` block no longer clobbers a

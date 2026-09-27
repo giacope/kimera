@@ -5,6 +5,12 @@ require_relative "../execution/suite_env"
 
 class Kimera::CLI::TestCommand
   LOADER = "ARGV.map { |f| File.expand_path(f) }.tap { ARGV.clear }.each { |f| require(f) }"
+  MAX_LISTED = 10
+  COUNT_LINE = /\d+ (?:failures?|examples?)\b/i
+  SUMMARIES = [COUNT_LINE, /failed|Error\b/i].freeze
+  RSPEC_RERUN = /^rspec (\S+) #/
+  MINITEST_HEADER = /^\s*\d+\) (?:Failure|Error):\n(.+?)(?: \[[^\]]*\])?:$/
+  CULPRITS = [RSPEC_RERUN, MINITEST_HEADER].freeze
   DRY_RUN = "require 'minitest'; Minitest.class_variable_set(:@@installed_at_exit, true); #{LOADER}; exit!(0)".freeze
 
   def initialize(framework, files, root:)
@@ -14,7 +20,9 @@ class Kimera::CLI::TestCommand
   end
 
   def baseline
-    check(run, "Baseline: configured test suite is green") { |failure| ["✗", "Baseline: #{advice(failure)}"] }
+    check(run, "Baseline: configured test suite is green") do |failure, output|
+      ["✗", "Baseline: #{advice(failure)}#{failing(output)}"]
+    end
   end
 
   def loading
@@ -32,7 +40,7 @@ class Kimera::CLI::TestCommand
 
   def check(command, passed)
     output, status = Open3.capture2e(Kimera::Execution::SUITE_ENV, *command, chdir: @root)
-    status.success? ? ["✓", passed] : yield(summary(output))
+    status.success? ? ["✓", passed] : yield(summary(output), output)
   rescue Errno::ENOENT
     yield(nil)
   end
@@ -41,8 +49,19 @@ class Kimera::CLI::TestCommand
 
   def dry_run = minitest? ? ruby(DRY_RUN) : rspec("--dry-run")
 
+  def failing(output)
+    ids = culprits(output.to_s)
+    return "" if ids.empty?
+    "\n  failing tests:#{ids.first(MAX_LISTED).map { |id| "\n    #{id}" }.join}#{overflow(ids)}"
+  end
+
+  def overflow(ids) = (ids.size - MAX_LISTED).then { |more| more.positive? ? "\n    … and #{more} more" : "" }
+
+  def culprits(output) = CULPRITS.flat_map { |pattern| output.scan(pattern).flatten }.uniq
+
   def summary(output)
-    output.lines.reverse.find { |line| line.match?(/\d+ failures?|\d+ examples?|failed|Error\b/i) }&.strip ||
+    lines = output.lines.reverse
+    SUMMARIES.lazy.filter_map { |pattern| lines.find { |line| line.match?(pattern) } }.first&.strip ||
       "test command failed"
   end
 

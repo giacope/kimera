@@ -27,6 +27,17 @@ RSpec.describe Kimera::Execution::WorkerPool::Worker do
     expect(worker.fresh?).to(be(false))
   end
 
+  # Teardown hooks can hang on locks a leaked thread holds; the watchdog must still see it.
+  it "stays on the clock while it retires", :aggregate_failures do
+    worker = described_class.new(request: :pipe, inflight: 5, deadline: nil)
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+    expect(worker.retire(3.0)).to(eq(:pipe))
+    expect(worker.inflight).to(be_nil)
+    expect(worker.deadline).to(be_within(1.0).of(started + 3.0))
+    expect(worker.expired?(started + 4.0)).to(be(true))
+  end
+
   it "offers a recheck with its flag, and plain work without one" do
     reader, writer = IO.pipe
     worker = described_class.new(request: writer)

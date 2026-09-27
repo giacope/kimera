@@ -92,7 +92,7 @@ class Kimera::Execution::WorkerPool
 
   def trace(slot, id) = context.options[:trace]&.call(slot, id)
 
-  def close(worker) = shut(worker.retire)
+  def close(worker) = shut(worker.retire(limit))
 
   def watch
     current = now
