@@ -126,8 +126,8 @@ class Kimera::Execution::Harness
   end
 
   def parallel(pass)
-    pass.parallel! do |resolve:, lost:|
-      driver.drive(adapter.test_ids, driver.method(:channel), resolve: resolve, lost: lost)
+    pass.parallel! do |resolve:, lost:, trace:|
+      driver.drive(adapter.test_ids, driver.method(:channel), resolve: resolve, lost: lost, trace: trace)
     end
   end
 

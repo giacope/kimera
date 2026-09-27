@@ -8,6 +8,28 @@
   the flag no `true => false`. Removing a memo only recomputes an equal value,
   so those mutants always survived. A re-entrancy guard of the same shape is
   skipped too.
+- `--isolated` first runs the unmutated suite once in a fresh mirror. If it
+  isn't green there (for example, a test helper that won't load), the run
+  stops with exit 1 and the error, as a red warm baseline does. Before, every
+  mutant it covered was scored `killed` with no failing test named.
+- An isolated mirror symlinks `vendor/`, `node_modules/` and `.bundle/`
+  instead of leaving them out. It creates `tmp/` and `log/` empty, and still
+  leaves out `.git/` and `coverage/`. A boot that needs frontend tooling or a
+  vendored bundle now loads in the mirror.
+- An isolated kill caused by a test file failing to load now puts the load
+  error (Minitest: message and first backtrace lines; RSpec: its load-error
+  report) in the result's `detail`.
+- Parallel warm workers follow Rails' fork contract more closely. Each sets
+  `ActiveSupport::TestCase.parallel_worker_id` to its slot, so per-worker
+  resources keyed on it (a Redis db, lease or key namespace, a port) no
+  longer collide between workers. `parallelize_before_fork` hooks run once per
+  fleet, not again before every spawn (including replacement workers forked
+  while other workers are mid-test). `parallelize_teardown` hooks get the
+  worker number.
+- A red parallel baseline lists, for each worker that ran a failing test,
+  where each failure fell in that worker's run and which tests ran just
+  before it. A test lost when its worker hit the hard timeout or crashed now
+  says so, instead of showing up as an unexplained failure.
 
 ## 0.1.3 (2026-09-27)
 

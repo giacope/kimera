@@ -29,8 +29,8 @@ class Kimera::Execution::WorkerPool
   def assign(worker)
     id = fleet.take
     return close(worker) unless id
-    worker.busy!(id)
-    worker.renew(limit)
+    worker.claim(id, limit)
+    trace(worker.slot, id)
     worker.offer(id)
   end
 
@@ -82,6 +82,8 @@ class Kimera::Execution::WorkerPool
     worker.idle!
     worker.renew(limit)
   end
+
+  def trace(slot, id) = context.options[:trace]&.call(slot, id)
 
   def close(worker) = shut(worker.retire)
 

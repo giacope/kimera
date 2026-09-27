@@ -46,10 +46,11 @@ class Kimera::Execution::Pool
     @options[:coverage] = measured
   end
 
-  def drive(queue, spawner, resolve:, lost:)
+  def drive(queue, spawner, resolve:, lost:, trace: nil)
+    database.before_fork
     Kimera::Execution::WorkerPool.new(
       queue: queue, spawner: spawner, jobs: @options.fetch(:jobs),
-      hard_timeout: @options.fetch(:hard), resolve: resolve, lost: lost
+      hard_timeout: @options.fetch(:hard), resolve: resolve, lost: lost, trace: trace
     ).run
   end
 
@@ -66,7 +67,6 @@ class Kimera::Execution::Pool
   def database = @options.fetch(:paralleldb)
 
   def launch(entry, index)
-    database.before_fork
     duty = Duty.new(entry, index, channels)
     [spawn(duty), *duty.pipes.parent!]
   end

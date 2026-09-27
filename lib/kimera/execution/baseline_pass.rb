@@ -71,7 +71,13 @@ class Kimera::Execution::BaselinePass
   end
 
   def dispatch
-    yield(resolve: resolve, lost: loss)
+    yield(resolve: resolve, lost: loss, trace: tracer)
+  end
+
+  def journal = @_journal ||= Hash.new { |workers, slot| workers[slot] = [] }
+
+  def tracer
+    ->(slot, test_id) { journal[slot] << test_id }
   end
 
   def resolve
@@ -90,7 +96,8 @@ class Kimera::Execution::BaselinePass
     method(:lost)
   end
 
-  def lost(test_id, _reason)
+  def lost(test_id, reason)
+    @messages[test_id] = Kimera::Execution::BaselineFailure.lost(reason)
     tally.failures << test_id
     @progress.tick
   end
@@ -119,6 +126,6 @@ class Kimera::Execution::BaselinePass
 
   def failure!(failed)
     command = @adapter.reproduce(failed.first(Kimera::Execution::BaselineFailure::MAX_DETAILS))
-    raise(Kimera::Execution::BaselineFailure.build(failed, @messages, command))
+    raise(Kimera::Execution::BaselineFailure.build(failed, @messages, command, workers: journal))
   end
 end

@@ -19,23 +19,31 @@ class Kimera::Execution::ParallelTestDatabases
   end
 
   def after_fork(index)
+    identify(index)
     return unless index && active?
     ActiveSupport::Testing::Parallelization.after_fork_hooks.each { |hook| hook.call(index) }
     @adapter.start
   end
 
   def before_exit(index)
-    Array(index).each { cleanup }
+    Array(index).each { |worker| cleanup(worker) }
   rescue StandardError => error
     errors.puts("kimera: parallelize_teardown failed (#{error.class}: #{error.message})")
   end
 
   private
 
-  def cleanup
+  def cleanup(index)
     return unless active?
     scrub
-    ActiveSupport::Testing::Parallelization.run_cleanup_hooks.each(&:call)
+    ActiveSupport::Testing::Parallelization.run_cleanup_hooks.each { |hook| hook.call(index) }
+  end
+
+  def identify(index)
+    return unless index && @jobs > 1 && defined?(ActiveSupport::TestCase)
+    ActiveSupport::TestCase.parallel_worker_id = index
+  rescue NoMethodError
+    nil
   end
 
   def scrub

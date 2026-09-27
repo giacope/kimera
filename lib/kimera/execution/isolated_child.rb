@@ -9,7 +9,8 @@ begin
 rescue StandardError, ScriptError
   nil
 end
-RSpec.configuration.output_stream = StringIO.new
+output = StringIO.new
+RSpec.configuration.output_stream = output
 RSpec.configuration.error_stream = StringIO.new
 RSpec.configuration.deprecation_stream = StringIO.new
 
@@ -19,6 +20,8 @@ code = RSpec::Core::Runner.run(locations)
 
 failed = RSpec.world.all_examples.select { |example| example.execution_result.status == :failed }
 outside = RSpec.world.non_example_failure ? 1 : 0
-File.write(ledger, JSON.generate(failures: failed.size + outside, failing: failed.map(&:id)))
+report = { failures: failed.size + outside, failing: failed.map(&:id) }
+report[:load_error] = output.string.strip[0, 4000] if outside.positive?
+File.write(ledger, JSON.generate(report))
 
 exit code

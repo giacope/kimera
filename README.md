@@ -234,6 +234,13 @@ SimpleCov.start { minimum_coverage(line: 100, branch: 100) unless ENV["KIMERA"] 
 
 `kimera doctor` warns when it finds an ungated `minimum_coverage`.
 
+Each isolated mirror is a copy of the project root with some exceptions:
+`.git/` and `coverage/` are left out, `tmp/` and `log/` start empty, and
+`vendor/`, `node_modules/` and `.bundle/` are symlinked to the originals. The
+exception is a directory that holds a mutated file, which is always copied.
+Before judging any mutant, `--isolated` runs the unmutated suite once in a
+mirror. If it isn't green there, the run stops with exit 1 and the error.
+
 ### Progress output
 
 During a run, a progress bar tracks each phase on stderr. It shows only when

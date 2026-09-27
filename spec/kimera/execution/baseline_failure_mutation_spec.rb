@@ -32,6 +32,33 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     expect(described_class.truncate("y" * limit)).to(eq("y" * limit))
   end
 
+  it "breaks a red parallel baseline down per worker, in the order each ran its tests" do
+    workers = { 1 => %w[p q r s t u v], 0 => %w[a b], 2 => %w[c] }
+    failed = %w[s u c x1 x2 x3 x4 x5]
+    workers[1].push(*%w[x1 x2 x3 x4 x5])
+
+    expect(described_class.summary(failed, {}, "cmd", workers: workers)).to(
+      eq(
+        "baseline suite is not green: #{failed.join(", ")}\n  " \
+          "per worker (tests in the order it ran them):\n    " \
+          "worker 1: ran 12; failed #4 s, #6 u, #8 x1, #9 x2, #10 x3 (+2 more); just before: p, q, r\n    " \
+          "worker 2: ran 1; failed #1 c (first test on this worker)\n  " \
+          "reproduce without kimera: cmd"
+      )
+    )
+  end
+
+  it "renders a red isolated baseline with its reason indented and the mirror hint" do
+    error = described_class.mirrored("E: x\n  at a.rb:1", "  hint")
+    expect(error).to(be_a(described_class))
+    expect(error.message).to(
+      eq(
+        "isolated baseline is not green: the unmutated suite fails in a mirror of the project\n  " \
+          "E: x\n      at a.rb:1\n  hint"
+      )
+    )
+  end
+
   it "prints the survivor panel framing exactly" do
     io = StringIO.new
     panel = Kimera::CLI::Survivors::Panel.new(io: io)

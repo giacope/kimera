@@ -59,8 +59,14 @@ module Kimera
 
       def populate(mirror)
         root = plan.root
-        IsolatedPlan.mirrors(Dir.children(root)).each do |entry|
-          FileUtils.cp_r(File.join(root, entry), File.join(mirror, entry))
+        Dir.children(root).each { |entry| place(File.join(root, entry), File.join(mirror, entry), entry) }
+      end
+
+      def place(source, target, entry)
+        case plan.placement(entry)
+        when :copy then FileUtils.cp_r(source, target)
+        when :link then File.symlink(source, target)
+        when :empty then FileUtils.mkdir_p(target) if File.directory?(source)
         end
       end
 
