@@ -24,8 +24,7 @@ module Kimera
         skipping(klass, declared(klass, concern)) { klass.class_eval(&block) }
       end
 
-      def skipping(klass, names)
-        thread = Thread.current
+      def skipping(klass, names, thread = Thread.current)
         previous = thread[:kimera_concern_overrides]
         thread[:kimera_concern_overrides] = [klass, names]
         yield
