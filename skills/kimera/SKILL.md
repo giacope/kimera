@@ -61,7 +61,19 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
 - `--jobs` sizes the warm pool and isolated mirrors. Coverage-based test
   selection and kill-on-first-failure are automatic.
 - A `timeout` verdict is a *detected* mutant (the suite hung on it), not an
-  error.
+  error. A hard-timeout verdict's `detail` holds the killed worker's thread
+  backtraces: read them before deciding the mutant caused the hang.
+- A red baseline blaming the hard timeout on a Rails suite with slow
+  integration tests (a test that passes alone, killed under `--jobs N`): read
+  the thread backtraces it prints. If the test only runs slow under load,
+  raise `--hard-timeout`. If it waits on something the workers share (a Redis
+  db, a lock, a port), give each worker its own through a
+  `parallelize_setup`/`after_fork_hook`.
+- A kill's `detail` holds the killing test's failure message and first
+  frames. A state-leak warning names a test that failed in a warm worker for
+  reasons unrelated to the mutant. Kimera already judged that mutant again on
+  a fresh worker, but the test depends on state other tests leave behind:
+  fix the test, or its teardown.
 - On a Rails app that uses `parallelize`, `--jobs > 1` gives each worker its
   own database, so there's no shared-DB fixture/RLS deadlock.
 - Operators: the default is the conservative core. `--operators all` enables

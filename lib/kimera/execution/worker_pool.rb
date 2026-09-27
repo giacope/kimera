@@ -27,14 +27,14 @@ class Kimera::Execution::WorkerPool
   end
 
   def assign(worker)
-    id = fleet.take
+    id = fleet.take(worker)
     return close(worker) unless id
     worker.claim(id, limit)
     trace(worker.slot, id)
-    worker.offer(id)
+    worker.offer(id, recheck: fleet.recheck?(id))
   end
 
-  def lost(id, reason) = context.lost.call(id, reason)
+  def lost(id, reason, stacks = nil) = context.lost.call(id, reason, stacks)
 
   private
 
@@ -70,9 +70,16 @@ class Kimera::Execution::WorkerPool
   def dispatch(worker, message)
     case message["t"]
     when "result" then finish(worker, message)
-    when "leak" then context.resolve.call(message)
     when "ready" then assign(worker)
+    when "leak", "requeue" then close(worker) if relay(message)
     end
+  end
+
+  def relay(message)
+    context.resolve.call(message)
+    requeue = message["t"] == "requeue"
+    fleet.requeue(message["id"]) if requeue
+    requeue
   end
 
   def finish(worker, message)
@@ -89,14 +96,10 @@ class Kimera::Execution::WorkerPool
 
   def watch
     current = now
-    fleet.pairs { |pipe, worker| expire(pipe, worker, current) }
+    fleet.pairs { |pipe, worker| expire(pipe, worker.halt) if worker.expired?(current) }
   end
 
-  def expire(pipe, worker, current)
-    return unless worker.expired?(current)
-    kill(worker.pid)
-    fleet.remove(pipe, reason: :timeout)
-  end
+  def expire(pipe, stacks) = fleet.remove(pipe, reason: :timeout, stacks: stacks)
 end
 
 require_relative "worker_pool/fleet"

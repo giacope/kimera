@@ -84,7 +84,14 @@ class Kimera::Frameworks::Adapter
     end
   end
 
+  HARNESS = File.expand_path("..", __dir__)
+  FRAMES = 5
+
   private
+
+  def frames(backtrace)
+    Array(backtrace).take_while { |frame| !frame.start_with?(HARNESS) }.first(FRAMES)
+  end
 
   def each_test_file(files, &)
     ARGV.clear

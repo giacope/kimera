@@ -22,6 +22,10 @@ module Kimera
       kimera/frameworks/minitest_adapter.rb
       kimera/execution/shift.rb
       kimera/execution/shift/attempt.rb
+      kimera/execution/shift/deadline.rb
+      kimera/execution/shift/subject.rb
+      kimera/execution/shift/suspect.rb
+      kimera/execution/shift/trial.rb
       kimera/execution/shift/coverage_channel.rb
       kimera/execution/shift/killer_memory.rb
       kimera/execution/shift/leak_guard.rb

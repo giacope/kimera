@@ -83,13 +83,16 @@ class Kimera::Execution::Schedule
   end
 
   def loser(ledger)
-    ->(id, reason) { record(ledger, id, lost(id, reason)) }
+    ->(id, reason, stacks) { record(ledger, id, lost(id, reason, stacks)) }
   end
 
   def resolve(message, ledger)
     case message["t"]
     when "result" then parse(message, ledger)
-    when "leak" then ledger.leaks << Kimera::LeakReport.new(mutant_id: message["id"], detail: message["detail"])
+    when "leak", "requeue" then ledger.leaks << Kimera::LeakReport.new(
+      mutant_id: message["id"],
+      detail: message["detail"]
+    )
     end
   end
 
@@ -98,11 +101,11 @@ class Kimera::Execution::Schedule
     record(ledger, result.mutant_id, result)
   end
 
-  def lost(id, reason) = __send__(LOSSES.fetch(reason, :crashed), id)
+  def lost(id, reason, stacks) = __send__(LOSSES.fetch(reason, :crashed), id, stacks)
 
-  def expired(id) = verdicts.timeout(id, hard)
+  def expired(id, stacks) = verdicts.timeout(id, hard, stacks)
 
-  def crashed(id) = verdicts.unjudged(id, "worker crashed before result")
+  def crashed(id, _stacks) = verdicts.unjudged(id, "worker crashed before result")
 
   def reloader
     @_reloader ||= Kimera::Execution::Reload.new(

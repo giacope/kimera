@@ -36,11 +36,17 @@ class Kimera::Execution::WorkerPool::Fleet
     workers.any?
   end
 
-  def take
-    until queue.empty?
-      id = queue.shift
-      return id unless done[id]
-    end
+  def take(worker)
+    (worker.fresh? && rechecks.shift) || following
+  end
+
+  def requeue(id)
+    rechecked.add(id)
+    rechecks.push(id)
+  end
+
+  def recheck?(id)
+    rechecked.include?(id)
   end
 
   def done!(id)
@@ -51,19 +57,30 @@ class Kimera::Execution::WorkerPool::Fleet
     guard.progress!
   end
 
-  def remove(pipe, reason: :crash)
+  def remove(pipe, reason: :crash, stacks: nil)
     worker = workers.delete(pipe)
     slots.push(worker.slot)
     close(worker)
-    charge(worker.inflight, reason, reap(worker.pid))
+    charge(worker.inflight, reason, reap(worker.pid), stacks)
     refill
   end
 
   private
 
+  def following
+    until queue.empty?
+      id = queue.shift
+      return id unless done[id]
+    end
+  end
+
   def queue = @_queue ||= @source.dup
 
   def done = @_done ||= {}
+
+  def rechecks = @_rechecks ||= []
+
+  def rechecked = @_rechecked ||= Set.new
 
   def workers = @_workers ||= {}
 
@@ -73,8 +90,8 @@ class Kimera::Execution::WorkerPool::Fleet
 
   def spawn
     slot = slots.shift
-    pid, request, pipe = @spawner.call(slot)
-    workers[pipe] = Kimera::Execution::WorkerPool::Worker.new(pid, request, pipe, nil, nil, slot)
+    pid, request, pipe, stacks = @spawner.call(slot)
+    workers[pipe] = Kimera::Execution::WorkerPool::Worker.new(pid, request, pipe, nil, nil, slot, stacks)
   end
 
   def close(worker)
@@ -82,19 +99,23 @@ class Kimera::Execution::WorkerPool::Fleet
     shut(worker.request)
   end
 
-  def charge(id, reason, status)
+  def charge(id, reason, status, stacks)
     return unless id
     guard.track(status) if reason == :crash
     done!(id)
-    @pool.lost(id, reason)
+    @pool.lost(id, reason, stacks)
   end
 
   def refill
     missing = @jobs - workers.size
     missing.times do
-      break unless queue.any? { |id| !done[id] }
+      break unless pending?
       replace
     end
+  end
+
+  def pending?
+    rechecks.any? || queue.any? { |id| !done[id] }
   end
 
   def replace

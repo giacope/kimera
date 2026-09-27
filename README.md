@@ -162,6 +162,12 @@ bundle exec kimera run app --since origin/main --fail-on-no-coverage
 # even on a single big file
 bundle exec kimera run app --jobs 4
 
+# Rails suites with slow integration tests: the watchdog kills a worker whose
+# test runs past --hard-timeout (default 16s, from --soft-timeout 5 × 3 + 1).
+# A baseline test killed that way reruns once alone; raise the limit if it's
+# only slow under parallel load
+bundle exec kimera run app --jobs 8 --hard-timeout 60
+
 # Drop spec files that can't run this way (order-dependent, need a browser)
 # without rewriting the whole --tests glob
 bundle exec kimera run app --exclude-test 'spec/system/**/*_spec.rb'
@@ -501,8 +507,21 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
 - **Standing risks and mitigations:**
   - Global-state leakage: opt-in transaction rollback (`--isolate-db`), cache
     resets, periodic kill-confirmation, one mutant per warm worker at a time.
-  - Selector-induced hangs: a soft per-test timeout, plus a watchdog that
+    Every warm kill is confirmed: the killing test must pass with the mutant
+    switched off, then fail again with it on. If it doesn't, state the worker
+    kept from earlier tests failed it, not the mutant. The worker is retired,
+    the mutant is judged again on a fresh one, and the report lists the test
+    under state-leak warnings. On the fresh worker, a test that still fails
+    without the mutant is left out. If no other test confirms a kill, the
+    mutant is `harness_error`.
+  - Selector-induced hangs: a soft per-mutant timeout, plus a watchdog that
     SIGKILLs a wedged worker so a replacement pulls from the shared queue.
+    Before the kill it asks the worker for every thread's backtrace (SIGQUIT)
+    and puts them in the verdict's `detail`, or in the baseline error. A test
+    interrupted by the soft timeout is a `timeout`, not the mutant's killer.
+  - Slow tests under parallel load: a baseline test whose worker hits the hard
+    timeout reruns once, alone. If it passes, the run goes on with a notice and
+    the stacks. If it times out again, the baseline is red.
   - Equivalent mutants: a small operator set plus human suppression hooks, not
     a solver.
 - **`.rspec` and suite hooks are honored.** The RSpec adapter applies the

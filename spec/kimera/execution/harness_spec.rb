@@ -374,10 +374,16 @@ RSpec.describe(Kimera::Execution::Harness) do
     # A test lost with its worker is not a test failure; say which it was.
     it "explains why a lost parallel test counts as failed", :aggregate_failures do
       lost = Kimera::Execution::BaselinePass.new(adapter: adapter, registry: registry)
-      lost.__send__(:loss).call("t1", :timeout)
-      lost.__send__(:loss).call("t2", :crash)
+      lost.__send__(:loss).call("t1", :timeout, nil)
+      lost.__send__(:relapse, "t1", :timeout)
+      lost.__send__(:loss).call("t2", :crash, nil)
       messages = lost.instance_variable_get(:@messages)
-      expect(messages["t1"]).to(include("hard timeout"))
+      expect(messages["t1"]).to(
+        eq(
+          "its worker was killed at the hard timeout (--hard-timeout) before reporting a result, " \
+            "and again when rerun alone"
+        )
+      )
       expect(messages["t2"]).to(eq("its worker died before reporting a result"))
     end
   end

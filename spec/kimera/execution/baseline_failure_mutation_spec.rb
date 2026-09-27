@@ -80,7 +80,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     passed = Struct.new(:passed?).new(true)
     killed = Struct.new(:passed?).new(false)
     adapter = Object.new
-    adapter.define_singleton_method(:run) { |ids| ids == ["a"] ? passed : killed }
+    adapter.define_singleton_method(:run) { |ids| ids == ["a"] || Kimera::Runtime.active.nil? ? passed : killed }
     isolation = Object.new
     isolation.define_singleton_method(:around) { |&block| block.call }
     remembered = []
@@ -88,7 +88,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     killers.define_singleton_method(:order) { |tests| tests }
     killers.define_singleton_method(:remember) { |id| remembered << id }
     attempt = Kimera::Execution::Shift::Attempt.new(
-      adapter: adapter, isolation: isolation, killers: killers, timeout: nil
+      adapter: adapter, isolation: isolation, killers: killers, deadline: Kimera::Execution::Shift::Deadline.new(nil)
     )
 
     expect(attempt.run(9, %w[a b c])).to(equal(killed))
@@ -166,7 +166,9 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
       mutant_id: 8, status: :killed, duration: 1.5,
       failing_tests: ["a"], covering_tests: %w[a b]
     )
-    expect(result.message).to(eq(t: "result", id: 8, status: "killed", ms: 1.5, fails: ["a"], cover: %w[a b]))
+    expect(result.message).to(
+      eq(t: "result", id: 8, status: "killed", ms: 1.5, fails: ["a"], cover: %w[a b], detail: nil)
+    )
   end
 
   it "requires a location to lie inside a method span, ending no later than it (endless defs)" do

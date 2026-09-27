@@ -84,7 +84,11 @@ class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
 
   def failure(example)
     exception = example.execution_result.exception
-    exception && "#{exception.class}: #{exception.message}"
+    exception && ["#{exception.class}: #{exception.message}", *frames(filtered(exception))].join("\n    ")
+  end
+
+  def filtered(exception)
+    RSpec.configuration.backtrace_formatter.format_backtrace(Array(exception.backtrace))
   end
 
   def reset

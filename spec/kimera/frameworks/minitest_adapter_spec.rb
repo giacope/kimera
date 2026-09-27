@@ -23,6 +23,10 @@ RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
         def test_skipped
           skip "nope"
         end
+        def test_raises
+          explode
+        end
+        def explode = raise("kaboom")
       end
     RUBY
     path
@@ -72,6 +76,28 @@ RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
     expect(message).to(be_a(String))
     expect(message).to(start_with("Assertion: "))
     expect(message).to(include("Expected"))
+  end
+
+  # A warm kill's detail says where the test failed, not just that it did.
+  it "follows an assertion's message with the test's own frame", :aggregate_failures do
+    id = "DemoKimeraTest#test_conditional"
+    message = state(false) { adapter.run([id]).failures[id] }
+    lines = message.lines(chomp: true)
+    expect(lines.first).to(eq("Assertion: Expected: true"))
+    expect(lines.last).to(eq("    #{dir}/demo_test.rb:7:in 'DemoKimeraTest#test_conditional'"))
+  end
+
+  it "names an unexpected error's class once, then where it was raised" do
+    lines = adapter.run(["DemoKimeraTest#test_raises"]).failures["DemoKimeraTest#test_raises"].lines(chomp: true)
+    expect(lines).to(
+      eq(
+        [
+          "UnexpectedError: RuntimeError: kaboom",
+          "    #{dir}/demo_test.rb:15:in 'DemoKimeraTest#explode'",
+          "    #{dir}/demo_test.rb:13:in 'DemoKimeraTest#test_raises'"
+        ]
+      )
+    )
   end
 
   it "treats a skip as neither a pass signal nor a kill", :aggregate_failures do

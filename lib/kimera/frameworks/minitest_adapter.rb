@@ -114,7 +114,16 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
 
   def message(result)
     assertion = result.failures.first
-    assertion && "#{assertion.class.name.split("::").last}: #{assertion.message}"
+    assertion && [headline(assertion), *trace(assertion)].join("\n    ")
+  end
+
+  def trace(assertion) = frames(Minitest.filter_backtrace(Array(assertion.backtrace)))
+
+  def headline(assertion)
+    kind = assertion.class.name.split("::").last
+    return "#{kind}: #{assertion.message}" unless assertion.is_a?(Minitest::UnexpectedError)
+    error = assertion.error
+    "#{kind}: #{error.class}: #{error.message}"
   end
 end
 

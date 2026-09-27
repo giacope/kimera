@@ -29,14 +29,15 @@ class Kimera::Execution::Verdicts
     id = message["id"]
     Kimera::MutantResult.new(
       mutant_id: id, status: message["status"].to_sym, file: path(id),
-      duration: message["ms"], failing_tests: message["fails"], covering_tests: message["cover"]
+      duration: message["ms"], failing_tests: message["fails"], covering_tests: message["cover"],
+      detail: message["detail"]
     )
   end
 
-  def timeout(id, duration)
+  def timeout(id, duration, stacks = nil)
     Kimera::MutantResult.new(
       mutant_id: id, status: :timeout, file: path(id),
-      duration: duration, detail: "hard watchdog timeout"
+      duration: duration, detail: ["hard watchdog timeout", stacks].compact.join("\n")
     )
   end
 

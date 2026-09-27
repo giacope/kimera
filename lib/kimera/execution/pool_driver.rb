@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
+require "tmpdir"
 require_relative "child_process"
 require_relative "shift"
+require_relative "stack_dump"
 require_relative "worker_pool"
 
 class Kimera::Execution::Pool
@@ -46,12 +48,15 @@ class Kimera::Execution::Pool
     @options[:coverage] = measured
   end
 
-  def drive(queue, spawner, resolve:, lost:, trace: nil)
+  def drive(queue, spawner, resolve:, lost:, trace: nil, jobs: @options.fetch(:jobs))
     database.before_fork
-    Kimera::Execution::WorkerPool.new(
-      queue: queue, spawner: spawner, jobs: @options.fetch(:jobs),
-      hard_timeout: @options.fetch(:hard), resolve: resolve, lost: lost, trace: trace
-    ).run
+    Dir.mktmpdir("kimera-stacks") do |dir|
+      @options[:stacks] = Kimera::Execution::StackDump.new(dir)
+      Kimera::Execution::WorkerPool.new(
+        queue: queue, spawner: spawner, jobs: jobs,
+        hard_timeout: @options.fetch(:hard), resolve: resolve, lost: lost, trace: trace
+      ).run
+    end
   end
 
   def worker(index = nil)
@@ -66,9 +71,11 @@ class Kimera::Execution::Pool
 
   def database = @options.fetch(:paralleldb)
 
+  def stacks = @options[:stacks]
+
   def launch(entry, index)
     duty = Duty.new(entry, index, channels)
-    [spawn(duty), *duty.pipes.parent!]
+    [spawn(duty), *duty.pipes.parent!, stacks]
   end
 
   def channels
@@ -76,7 +83,12 @@ class Kimera::Execution::Pool
     Channels.new(*request, *response)
   end
 
-  def spawn(duty) = fork { boot(duty) }
+  def spawn(duty)
+    fork do
+      stacks&.arm!
+      boot(duty)
+    end
+  end
 
   def boot(duty)
     duty.pipes.child!

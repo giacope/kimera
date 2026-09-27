@@ -1,34 +1,39 @@
 # frozen_string_literal: true
 
-require "timeout"
+require_relative "deadline"
+require_relative "suspect"
+require_relative "trial"
 
 class Kimera::Execution::Shift::Attempt
-  def initialize(adapter:, isolation:, killers:, timeout:)
+  def initialize(adapter:, isolation:, killers:, deadline:)
     @adapter = adapter
     @isolation = isolation
     @killers = killers
-    @timeout = timeout
+    @deadline = deadline
   end
 
-  def run(id, tests)
-    timeout { @isolation.around { attempt(id, tests) } }
+  def run(id, tests, mode = :warm)
+    @deadline.guard { @isolation.around { __send__(mode, verdicts(id, tests)) } }
   end
 
   private
 
-  def attempt(id, tests)
-    @killers.order(tests).lazy.map { |testid| kill(id, testid) }.find { |outcome| outcome }
+  def verdicts(id, tests) = @killers.order(tests).lazy.filter_map { |testid| kill(id, testid) }
+
+  def warm(verdicts) = verdicts.first
+
+  def recheck(verdicts)
+    doubts = []
+    verdicts.find { |verdict| decisive?(verdict, doubts) } || doubts.first&.final
+  end
+
+  def decisive?(verdict, doubts)
+    return true unless verdict.is_a?(Kimera::Execution::Shift::Suspect)
+    doubts << verdict
+    false
   end
 
   def kill(id, testid)
-    Kimera::Runtime.active = id
-    outcome = @adapter.run([testid])
-    return if outcome.passed?
-    @killers.remember(testid)
-    outcome
-  end
-
-  def timeout(&)
-    Timeout.timeout(@timeout, &)
+    Kimera::Execution::Shift::Trial.new(@adapter, id, testid).verdict(@deadline) { @killers.remember(testid) }
   end
 end
