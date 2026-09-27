@@ -49,7 +49,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
     def defaults
       {
-        framework: "rspec", source_root: ".", tests: ["spec/**/*_spec.rb"],
+        framework: "rspec", source_root: ".", tests: ["spec/**/*_spec.rb"], configured_tests: ["spec/**/*_spec.rb"],
         operators: Kimera::Operators::DEFAULT_KEYS,
         soft_timeout: 5.0, hard_timeout: nil, leak_every: 10,
         registry: nil, report: nil, format: "text", focus: [], gate: true, coverage: true, require: [],
@@ -58,6 +58,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         jobs: 1, exclude: [], exclude_tests: [], config: nil, ignore: [],
         isolate_db: false,
         isolated: false, fail_on_no_coverage: false, progress: nil, color: nil, quiet: false, verbose: false, log: nil,
+        pidfile: nil,
         isolate_when_covered_by: [],
         paths: ["app/**/*.rb", "lib/**/*.rb"]
       }
@@ -92,6 +93,12 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(opts[:tests]).to(eq(["spec/only_spec.rb"]))
     end
 
+    it "keeps the config tests: glob to tell a narrowed run apart" do
+      File.write("custom.yml", %(tests: ["spec/config_spec.rb"]\n))
+      opts = cli.__send__(:parse, ["--config", "custom.yml", "--tests", "spec/only_spec.rb"])
+      expect(opts[:configured_tests]).to(eq(["spec/config_spec.rb"]))
+    end
+
     it "keeps the config tests: glob when --tests is absent" do
       File.write("custom.yml", %(tests: ["spec/config_spec.rb"]\n))
       expect(cli.__send__(:parse, ["--config", "custom.yml"])[:tests]).to(eq(["spec/config_spec.rb"]))
@@ -106,7 +113,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         framework tests source-root registry operators soft-timeout
         hard-timeout leak-every coverage since session max-survivors
         max-ignored fail-on-no-coverage jobs progress isolate-db isolated
-        isolate-when-covered-by exclude config
+        isolate-when-covered-by exclude config pidfile
       ]
     end
 

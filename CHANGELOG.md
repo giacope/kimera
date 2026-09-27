@@ -18,6 +18,25 @@
   report's ID, so a mutant outside the report's first file was "not in scope"
   or silently swapped for another. It now focuses the key. A report written
   before keys existed can't be rerun; regenerate it.
+- A test that makes code call `exit` or `abort` now fails like any other
+  test. RSpec and Minitest let the `SystemExit` through, so it ended the warm
+  worker and the mutant was `harness_error` ("worker crashed before result");
+  a serial baseline exited kimera silently, and an isolated child died before
+  reporting. The test now fails after its teardown, with the exit status,
+  where it was called and `abort`'s message in the failure. A mutant that
+  makes a test abort is `killed`, and a baseline test that aborts turns the
+  baseline red with that message. `exit!` and interrupts are not caught.
+- A run whose `--tests` leaves out test files the configured `tests:` glob
+  (or the default) would run now says so above the summary: `narrowed run:
+  --tests matched 3 of 1,120 test files from the configured tests: glob;
+  survivors may be killed by tests outside it`. The JSON report's `run`
+  section records `"narrowed": true` and the configured globs. Narrowed runs
+  are faster, but their survivors (and kills that hold only within the narrow
+  set) used to read like a full run's. Verdicts are unchanged.
+- `kimera run --pidfile FILE` writes the run's process id to FILE and removes
+  it when the run ends, including on errors. Scripts waiting with `pgrep -f
+  "kimera run ..."` matched their own shell and waited forever; they can wait
+  on that pid instead.
 
 ## 0.1.5 (2026-09-27)
 

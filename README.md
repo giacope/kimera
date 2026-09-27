@@ -183,6 +183,12 @@ bundle exec kimera run app --jobs 4
 # only slow under parallel load
 bundle exec kimera run app --jobs 8 --hard-timeout 60
 
+# Run only some test files, for speed. --tests replaces the configured tests:
+# glob, so verdicts hold only for those files: a survivor may be killed by a
+# test left out. The report says so ("narrowed run: --tests matched 1 of 1,120
+# test files ...", and "narrowed": true in the JSON report's run section)
+bundle exec kimera run app/models/order.rb --tests 'spec/models/order_spec.rb'
+
 # Drop spec files that can't run this way (order-dependent, need a browser)
 # without rewriting the whole --tests glob
 bundle exec kimera run app --exclude-test 'spec/system/**/*_spec.rb'
@@ -221,6 +227,10 @@ bundle exec kimera baseline review .kimera-baseline.yml
 - Text output honors `NO_COLOR`. `--no-color` forces it off.
 - `--quiet` suits scripts that only need an artifact. `--verbose` prints the
   resolved scope. `--log FILE` keeps the final text report.
+- `--pidfile FILE` writes kimera's process id to FILE when the run starts and
+  removes the file when the run ends, whether it passes, fails or errors
+  (short of `kill -9`). A script that waits on a background run can watch
+  that pid; `pgrep -f "kimera run"` also matches the shell that started it.
 
 Exit codes:
 
@@ -534,6 +544,14 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     Before the kill it asks the worker for every thread's backtrace (SIGQUIT)
     and puts them in the verdict's `detail`, or in the baseline error. A test
     interrupted by the soft timeout is a `timeout`, not the mutant's killer.
+  - Code under test that calls `exit` or `abort` (a rake task, a CLI entry
+    point): RSpec and Minitest let the `SystemExit` through, so it would end
+    the worker. Kimera records it as that test's failure instead, after the
+    test's teardown, with the status, where it was called, and `abort`'s
+    message (`SystemExit: exit(1) called from lib/tasks/import.rb:12:in
+    'Kernel#abort': no such file`). A mutant that makes a test exit is killed;
+    a baseline test that exits turns the baseline red. `exit!` still ends the
+    process, and interrupts still stop the run.
   - Slow tests under parallel load: a baseline test whose worker hits the hard
     timeout reruns once, alone. If it passes, the run goes on with a notice and
     the stacks. If it times out again, the baseline is red.

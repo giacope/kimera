@@ -61,7 +61,10 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
 - Minitest/Rails: kimera puts `test/` (or `spec/`) on `$LOAD_PATH`, so test
   files can `require "test_helper"` without `RUBYOPT="-Itest"`.
 - `--tests` on the CLI *replaces* the config `tests:` glob (it does not
-  append).
+  append). A narrowed run's verdicts hold only for the narrowed set: a
+  survivor may be killed by a test left out, so confirm it with the full glob
+  before writing a test or an ignore entry. The report flags such a run
+  (`narrowed run: ...`, `"narrowed": true` in the JSON `run` section).
 - `--jobs` sizes the warm pool and isolated mirrors. Coverage-based test
   selection and kill-on-first-failure are automatic.
 - A `timeout` verdict is a *detected* mutant (the suite hung on it), not an
@@ -73,6 +76,9 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   raise `--hard-timeout`. If it waits on something the workers share (a Redis
   db, a lock, a port), give each worker its own through a
   `parallelize_setup`/`after_fork_hook`.
+- Code under test that calls `exit` or `abort` fails that test (`detail`:
+  `SystemExit: exit(1) called from FILE:LINE`), so a mutant that makes a test
+  abort is `killed`, not `harness_error`.
 - A kill's `detail` holds the killing test's failure message and first
   frames. A state-leak warning names a test that failed in a warm worker for
   reasons unrelated to the mutant. Kimera already judged that mutant again on

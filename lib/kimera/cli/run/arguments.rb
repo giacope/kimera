@@ -23,10 +23,12 @@ class Kimera::CLI::Run::Arguments
 
   def scoped(options, rest)
     {
-      tests: Kimera::Config.prefer(options[:cli_tests], options[:tests], Kimera::CLI::RunOptions::DEFAULT_TESTS),
+      tests: tests(options[:cli_tests], options), configured_tests: tests([], options),
       paths: Kimera::Config.prefer(rest, options[:paths], Kimera::FileSet::DEFAULT_GLOBS)
     }.merge(arrays(options))
   end
+
+  def tests(cli, options) = Kimera::Config.prefer(cli, options[:tests], Kimera::CLI::RunOptions::DEFAULT_TESTS)
 
   def arrays(options)
     { exclude: Array(options[:exclude]), ignore: Array(options[:ignore]) }
@@ -52,6 +54,7 @@ class Kimera::CLI::Run::Arguments
     { exclude: [], exclude_tests: [], config: nil }
       .merge(ignore: [], isolate_db: false, isolated: false)
       .merge(fail_on_no_coverage: false, progress: nil, color: nil, quiet: false, verbose: false, log: nil)
+      .merge(pidfile: nil)
       .merge(isolate_when_covered_by: [])
       .merge(cli_tests: [])
   end
