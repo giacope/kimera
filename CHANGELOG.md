@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+- Warm kills are confirmed. A mutant counts as killed only when its killing
+  test also passes with the mutant switched off, then fails again with it on.
+  Otherwise state the warm worker kept from earlier tests failed the test,
+  whether that state persists or the test's own teardown cleared it. The
+  worker is retired, the mutant is judged again on a fresh worker, and the
+  report lists the test under state-leak warnings. On that fresh worker, a
+  test that still fails without the mutant is left out, and if no other
+  covering test confirms a kill the mutant is `harness_error` with the reason.
+  Equivalent mutants no longer flip between `killed` and `survived` from run
+  to run.
+- A warm kill's `detail` holds the killing test's failure: its class, message
+  and first frames (RSpec and Minitest). Kimera's own runner frames are left
+  out.
+- A test interrupted by the soft timeout is no longer named as the mutant's
+  killer. RSpec and Minitest rescue the interrupt as an ordinary failure, so
+  the test that happened to be running was scored `killed`. It is now a
+  `timeout` whose `detail` names the test.
+- Before the watchdog kills a wedged warm worker, it asks the worker for every
+  thread's backtrace (SIGQUIT, answered within a second). The backtraces go in
+  a hard-timeout verdict's `detail` and in a red baseline's message, so a stall
+  shows what the worker was waiting on.
+- A baseline test whose worker hits the hard timeout under `--jobs N` runs
+  once more, alone, before it can turn the baseline red. If it passes, the run
+  goes on and prints which tests stalled, with their backtraces. If it times
+  out again, the baseline error says so and shows the backtraces of that run.
+- Worker messages are read as UTF-8 whatever the locale, so a failure message
+  with non-ASCII text no longer crashes a run under `LANG=C`.
+- The README documents `--hard-timeout` next to `--jobs` for Rails suites with
+  slow integration tests.
+
 ## 0.1.4 (2026-09-27)
 
 - Guard-style memoization is no longer mutated, just as `@x ||=` never was.

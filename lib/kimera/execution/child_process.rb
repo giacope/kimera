@@ -35,7 +35,7 @@ module Kimera
       end
 
       def parse(line)
-        JSON.parse(line)
+        JSON.parse(line.dup.force_encoding(Encoding::UTF_8).scrub)
       rescue JSON::ParserError
         nil
       end

@@ -36,7 +36,7 @@ module Kimera
 
       def message
         { t: "result", id: mutant_id, status: status.to_s }
-          .merge(ms: duration, fails: failing_tests, cover: covering_tests)
+          .merge(ms: duration, fails: failing_tests, cover: covering_tests, detail: detail)
       end
 
       def to_h

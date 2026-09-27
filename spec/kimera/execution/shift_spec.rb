@@ -8,23 +8,25 @@ require "stringio"
 
 # No fork needed: feed a fake adapter, read the newline-JSON from a StringIO.
 RSpec.describe(Kimera::Execution::Shift) do
-  # A test fails when the active mutant is in its catch set.
+  # A test fails when the active mutant is in its catch set. Runs with no
+  # mutant active (a kill's control run) go to +controls+, not +runs+.
   def test_adapter_class
     Class.new do
-      attr_reader :runs
+      attr_reader :runs, :controls
 
       def initialize(catches: {}, failure: nil, timeout: nil)
         @catches = catches   # test_id => [mutant_id, ...]
         @failure = failure   # mutant id that makes a run raise
         @timeout = timeout   # mutant id that makes a run sleep
         @runs = []
+        @controls = []
       end
 
       def test_ids = @catches.keys
 
       def run(ids)
-        @runs << ids
         active = Kimera::Runtime.active
+        (active ? @runs : @controls) << ids
         raise(RuntimeError, "boom") if active && active == @failure
         sleep(5) if active && active == @timeout
         failed = ids.select { |id| Array(@catches[id]).include?(active) }
@@ -115,7 +117,7 @@ RSpec.describe(Kimera::Execution::Shift) do
 
       msgs = messages(io)
       result = msgs.find { |m| m["t"] == "result" }
-      expect(result.keys).to(contain_exactly("t", "id", "status", "ms", "fails", "cover"))
+      expect(result.keys).to(contain_exactly("t", "id", "status", "ms", "fails", "cover", "detail"))
       expect(result["id"]).to(eq(target))
       expect(result["status"]).to(eq("killed"))
       expect(result["fails"]).to(eq(["t1"]))
@@ -164,10 +166,11 @@ RSpec.describe(Kimera::Execution::Shift) do
       target = ids.first
       adapter = test_adapter_class.new(catches: { "t1" => [target] })
       calls = 0
+      # Calls 1 and 3 are the kill and its confirmation (call 2 is the control).
       adapter.define_singleton_method(:run) do |ids|
         calls += 1
         active = Kimera::Runtime.active
-        caught = calls == 1 && active ? ids : []
+        caught = [1, 3].include?(calls) && active ? ids : []
         Kimera::Frameworks::RunOutcome.new(passed: caught.empty?, failed_ids: caught)
       end
       request = StringIO.new("#{JSON.generate(id: target)}\n")
@@ -265,7 +268,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       adapter = test_adapter_class.new(catches: { "t1" => [target], "t2" => [target] })
       worker = worker(adapter: adapter, coverage: { target => %w[t1 t2] })
       expect(worker.evaluate(target).status).to(eq(:killed))
-      expect(adapter.runs).to(eq([["t1"]])) # t2 never ran
+      expect(adapter.runs).to(eq([["t1"], ["t1"]])) # the kill and its confirmation; t2 never ran
     end
 
     # The walk stops at the first failure, so order decides how many tests run.
@@ -280,11 +283,11 @@ RSpec.describe(Kimera::Execution::Shift) do
       )
 
       expect(worker.evaluate(a).status).to(eq(:killed))
-      expect(adapter.runs).to(eq([["slow"], ["killer"]]))
+      expect(adapter.runs).to(eq([["slow"], ["killer"], ["killer"]]))
 
       adapter.runs.clear
       expect(worker.evaluate(b).status).to(eq(:killed))
-      expect(adapter.runs).to(eq([["killer"]])) # slow skipped this time
+      expect(adapter.runs).to(eq([["killer"], ["killer"]])) # slow skipped this time
     end
 
     # A duplicate would take a RECENT_KILLERS slot and evict "x" one kill early.
@@ -319,7 +322,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       expect(worker.evaluate(a).status).to(eq(:killed)) # promotes "ka"
       adapter.runs.clear
       expect(worker.evaluate(b).status).to(eq(:killed))
-      expect(adapter.runs).to(eq([["ka"], ["kb"]]))
+      expect(adapter.runs).to(eq([["ka"], ["kb"], ["kb"]]))
     end
 
     it "looks up coverage by integer or string mutant id" do
@@ -461,7 +464,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       target = ids.first
       adapter = test_adapter_class.new(catches: { "t1" => [target] }) # kills every time
       worker(adapter: adapter, coverage: { target => ["t1"] }, cadence: 1).run([target], io)
-      expect(adapter.runs.size).to(eq(2)) # the re-check ran...
+      expect(adapter.runs.size).to(eq(4)) # the re-check ran (each kill runs twice)...
       expect(messages(io).none? { |m| m["t"] == "leak" }).to(be(true)) # ...quietly
     end
 
@@ -470,7 +473,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       adapter = test_adapter_class.new(catches: { "t1" => [target] })
       worker = worker(adapter: adapter, coverage: { target => ["t1"] }, cadence: nil)
       expect { worker.run([target], io) }.not_to(raise_error)
-      expect(adapter.runs.size).to(eq(1))
+      expect(adapter.runs.size).to(eq(2))
     end
 
     it "re-checks after exactly leak_every mutants, in the serve loop too" do
@@ -483,7 +486,7 @@ RSpec.describe(Kimera::Execution::Shift) do
         adapter: adapter, registry: wide_registry, coverage: coverage,
         soft_timeout: nil, leak_every: 3
       ).serve(request, response)
-      expect(adapter.runs).to(eq([["t1"], ["t2"], ["t3"], ["t3"]]))
+      expect(adapter.runs).to(eq([["t1"], ["t1"], ["t2"], ["t2"], ["t3"], ["t3"], ["t3"], ["t3"]]))
     end
 
     it "emits a leak message when a previously-killed mutant later survives", :aggregate_failures do
@@ -500,8 +503,8 @@ RSpec.describe(Kimera::Execution::Shift) do
       adapter.define_singleton_method(:run) do |ids|
         calls += 1
         active = Kimera::Runtime.active
-        # First call kills; the leak re-check no longer catches.
-        caught = calls == 1 && active ? ids : []
+        # The first kill and its confirmation (call 3) catch; the leak re-check doesn't.
+        caught = [1, 3].include?(calls) && active ? ids : []
         Kimera::Frameworks::RunOutcome.new(passed: caught.empty?, failed_ids: caught)
       end
 
@@ -512,13 +515,15 @@ RSpec.describe(Kimera::Execution::Shift) do
       expect(leak["detail"]).to(eq("mutant #{target} killed earlier but survived re-run (state leakage suspected)"))
     end
 
-    # Kills on first eval and survives any re-check, so every check leaks.
+    # Kills on first eval (the kill and its confirmation) and survives any
+    # re-check, so every check leaks.
     def counter(cadence, coverage)
       adapter = test_adapter_class.new(catches: {})
-      seen = []
+      seen = Hash.new(0)
       adapter.define_singleton_method(:run) do |ids|
-        caught = Kimera::Runtime.active && !seen.include?(ids) ? ids : []
-        seen << ids
+        active = Kimera::Runtime.active
+        seen[ids] += 1 if active
+        caught = active && seen[ids] <= 2 ? ids : []
         Kimera::Frameworks::RunOutcome.new(passed: caught.empty?, failed_ids: caught)
       end
       described_class.new(
@@ -556,7 +561,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       adapter.define_singleton_method(:run) do |test_ids|
         active = Kimera::Runtime.active
         seen[active] += 1
-        caught = active == survivor && seen[active] > 1 ? [] : test_ids
+        caught = active.nil? || (active == survivor && seen[active] > 2) ? [] : test_ids
         Kimera::Frameworks::RunOutcome.new(passed: caught.empty?, failed_ids: caught)
       end
       io = StringIO.new

@@ -13,7 +13,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
       queue: queue, spawner: spawner, jobs: jobs, hard_timeout: deadline,
       resolve: lambda do |message|
         resolved << message
-      end, lost: lambda do |id, reason|
+      end, lost: lambda do |id, reason, _stacks|
         lost << [id, reason]
       end
     ).run

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 Kimera::Execution::WorkerPool::Worker =
-  Struct.new(:pid, :request, :response, :inflight, :deadline, :slot) do
+  Struct.new(:pid, :request, :response, :inflight, :deadline, :slot, :stacks, :served) do
     def idle!
       self.inflight = nil
     end
@@ -11,8 +11,23 @@ Kimera::Execution::WorkerPool::Worker =
     end
 
     def claim(id, limit)
+      self.served = true
       busy!(id)
       renew(limit)
+    end
+
+    def fresh?
+      !served
+    end
+
+    def autopsy
+      stacks&.take(pid)
+    end
+
+    def halt
+      autopsy.tap { Process.kill("KILL", pid) }
+    rescue Errno::ESRCH
+      nil
     end
 
     def renew(limit)
@@ -29,8 +44,8 @@ Kimera::Execution::WorkerPool::Worker =
       request
     end
 
-    def offer(id)
-      request.puts(JSON.generate(id: id))
+    def offer(id, recheck: false)
+      request.puts(JSON.generate(recheck ? { id: id, recheck: true } : { id: id }))
     rescue Errno::EPIPE, IOError
       nil
     end

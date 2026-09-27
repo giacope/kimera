@@ -8,6 +8,7 @@ require_relative "../results/run_report"
 require_relative "../runtime"
 require_relative "../self_protection"
 require_relative "baseline_pass"
+require_relative "baseline_stall"
 require_relative "boot"
 require_relative "child_process"
 require_relative "isolation"
@@ -26,11 +27,11 @@ class Kimera::Execution::Harness
   include Kimera::Execution::ChildProcess
 
   Context = Data.define(:registry, :adapter, :options)
-  State = Struct.new(:skipped, :irrelevant, :isolation)
+  State = Struct.new(:skipped, :irrelevant, :isolation, :recovered)
 
   class << self
     def new(registry:, adapter:, **options)
-      super(Context.new(registry, adapter, options), State.new({}, [], nil))
+      super(Context.new(registry, adapter, options), State.new({}, [], nil, {}))
     end
   end
 
@@ -118,16 +119,16 @@ class Kimera::Execution::Harness
   def mutants = registry.each.map { |mutant, _path| mutant.id }
 
   def measure!
-    pass = baseline
-    measured = jobs > 1 ? parallel(pass) : pass.measure!
+    measured = jobs > 1 ? parallel(baseline) : baseline.measure!
     options[:coverage] = measured.coverage
     driver.coverage = coverage
     state.irrelevant = measured.irrelevant
+    state.recovered = measured.recovered
   end
 
   def parallel(pass)
-    pass.parallel! do |resolve:, lost:, trace:|
-      driver.drive(adapter.test_ids, driver.method(:channel), resolve: resolve, lost: lost, trace: trace)
+    pass.parallel! do |ids, width, **channels|
+      driver.drive(ids, driver.method(:channel), jobs: width || jobs, **channels)
     end
   end
 
@@ -138,6 +139,8 @@ class Kimera::Execution::Harness
   end
 
   def notice
+    stall = Kimera::Execution::BaselineStall.new(state.recovered, hard: hard, jobs: jobs).to_s
+    errors.puts(stall) if stall
     count = state.irrelevant.size
     return if count.zero?
     errors.puts(message(count))

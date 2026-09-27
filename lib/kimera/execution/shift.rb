@@ -7,12 +7,12 @@ require_relative "../runtime"
 require_relative "isolation"
 
 class Kimera::Execution::Shift
-  Subject = Struct.new(:id, :file)
+  MODES = { true => :recheck }.freeze
   Channel =
     Data.define(:requests, :responses) do
       def each_request
         while (line = requests.gets)
-          yield(line, responses)
+          break unless yield(line, responses)
         end
       end
     end
@@ -41,8 +41,8 @@ class Kimera::Execution::Shift
     Kimera::Runtime.active = nil
   end
 
-  def evaluate(id)
-    safely(Subject.new(id, @registry.index[id]&.file))
+  def evaluate(id, mode = :warm)
+    safely(Subject.new(id, @registry.index[id]&.file), mode)
   ensure
     Kimera::Runtime.active = nil
     isolation.reset!
@@ -57,7 +57,7 @@ class Kimera::Execution::Shift
   def attempt
     kind = self.class
     @_attempt ||= kind::Attempt.new(
-      adapter: @adapter, isolation: isolation, killers: kind::KillerMemory.new, timeout: timeout
+      adapter: @adapter, isolation: isolation, killers: kind::KillerMemory.new, deadline: kind::Deadline.new(timeout)
     )
   end
 
@@ -72,54 +72,44 @@ class Kimera::Execution::Shift
   end
 
   def step(line, responses, history, index)
-    process(JSON.parse(line)["id"], responses, history, index)
+    request = JSON.parse(line)
+    return if process(request["id"], responses, history, index, MODES.fetch(request["recheck"], :warm)).is_a?(Suspect)
     emit(responses, t: "ready")
     index + 1
   end
 
-  def safely(subject)
+  def safely(subject, mode)
     tests = available(subject.id)
-    return result(subject, :no_coverage) if tests.empty?
-    outcome(subject, tests)
+    return subject.verdict(:no_coverage) if tests.empty?
+    outcome(subject, tests, mode)
   rescue StandardError, ScriptError => error
     error(subject, error)
   end
 
   def error(subject, error)
-    return result(subject, :timeout, timeout) if error.is_a?(Timeout::Error)
-    result(subject, :error, detail: "#{error.class}: #{error.message}")
+    message = error.message
+    return subject.verdict(:timeout, duration: timeout, detail: message) if error.is_a?(Timeout::Error)
+    subject.verdict(:error, detail: "#{error.class}: #{message}")
   end
 
-  def outcome(subject, tests)
+  def outcome(subject, tests, mode)
     started = monotonic
-    outcome = attempt.run(subject.id, tests)
-    result(subject, classify(outcome), monotonic - started, failing(outcome), tests)
+    outcome = attempt.run(subject.id, tests, mode)
+    return outcome.ruling(subject) if outcome.is_a?(Suspect)
+    subject.judged(outcome, tests, monotonic - started)
   end
 
-  def process(id, io, history, index)
-    result = evaluate(id)
+  def process(id, io, history, index, mode = :warm)
+    result = evaluate(id, mode)
     emit(io, **result.message)
     history << id if result.killed?
-    leaks.check(io, history, index)
+    leaks.check(io, history, index) unless result.is_a?(Suspect)
+    result
   end
-
-  def classify(outcome)
-    !outcome || outcome.passed? ? :survived : :killed
-  end
-
-  def failing(outcome) = outcome&.failed_ids
 
   def available(id)
     return @adapter.test_ids unless @coverage
     @coverage.fetch(id) { @coverage.fetch(id.to_s, []) }
-  end
-
-  def result(subject, status, duration = nil, fails = nil, cover = nil, detail: nil)
-    Kimera::MutantResult.new(
-      mutant_id: subject.id, status: status, file: subject.file,
-      duration: duration, failing_tests: fails,
-      covering_tests: cover, detail: detail
-    )
   end
 
   def emit(io, **message)
@@ -135,3 +125,5 @@ require_relative "shift/attempt"
 require_relative "shift/coverage_channel"
 require_relative "shift/killer_memory"
 require_relative "shift/leak_guard"
+require_relative "shift/subject"
+require_relative "shift/suspect"

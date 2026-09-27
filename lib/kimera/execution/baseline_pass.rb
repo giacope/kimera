@@ -4,10 +4,11 @@ require "stringio"
 require_relative "../error"
 require_relative "../runtime"
 require_relative "baseline_failure"
+require_relative "baseline_losses"
 require_relative "null_progress"
 
 class Kimera::Execution::BaselinePass
-  Measured = Struct.new(:coverage, :irrelevant, keyword_init: true)
+  Measured = Struct.new(:coverage, :irrelevant, :recovered, keyword_init: true)
   Tally = Struct.new(:coverage, :failures, :irrelevant)
 
   def initialize(adapter:, registry:, progress: Kimera::Execution::NullProgress)
@@ -17,13 +18,9 @@ class Kimera::Execution::BaselinePass
     @messages = {}
   end
 
-  def measure!
-    settle { serial }
-  end
+  def measure! = settle { serial }
 
-  def parallel!(&)
-    settle { dispatch(&) }
-  end
+  def parallel!(&) = settle { dispatch(&) }
 
   def check!
     Kimera::Runtime.active = nil
@@ -48,7 +45,7 @@ class Kimera::Execution::BaselinePass
   def report
     failures = tally.failures
     failure!(failures) unless failures.empty?
-    Measured.new(coverage: tally.coverage, irrelevant: tally.irrelevant)
+    Measured.new(coverage: tally.coverage, irrelevant: tally.irrelevant, recovered: losses.recovered(@messages))
   end
 
   def serial
@@ -70,19 +67,22 @@ class Kimera::Execution::BaselinePass
     @progress.tick
   end
 
-  def dispatch
-    yield(resolve: resolve, lost: loss, trace: tracer)
+  def dispatch(&)
+    yield(@adapter.test_ids, nil, resolve: resolve, lost: loss, trace: tracer)
+    rerun(losses.stalled, &)
   end
+
+  def rerun(ids)
+    yield(ids, 1, resolve: resolve, lost: method(:relapse), trace: nil) unless ids.empty?
+  end
+
+  def losses = @_losses ||= Kimera::Execution::BaselineLosses.new
 
   def journal = @_journal ||= Hash.new { |workers, slot| workers[slot] = [] }
 
-  def tracer
-    ->(slot, test_id) { journal[slot] << test_id }
-  end
+  def tracer = ->(slot, test_id) { journal[slot] << test_id }
 
-  def resolve
-    ->(message) { receive(message) }
-  end
+  def resolve = ->(message) { receive(message) }
 
   def receive(message)
     touched = message["touched"]
@@ -92,12 +92,15 @@ class Kimera::Execution::BaselinePass
     @progress.tick
   end
 
-  def loss
-    method(:lost)
+  def loss = method(:lost)
+
+  def lost(test_id, reason, stacks = nil)
+    return losses.stall(test_id, stacks) if reason == :timeout
+    relapse(test_id, reason, stacks)
   end
 
-  def lost(test_id, reason)
-    @messages[test_id] = Kimera::Execution::BaselineFailure.lost(reason)
+  def relapse(test_id, reason, stacks = nil)
+    @messages[test_id] = losses.charge(test_id, reason, stacks)
     tally.failures << test_id
     @progress.tick
   end
@@ -126,6 +129,6 @@ class Kimera::Execution::BaselinePass
 
   def failure!(failed)
     command = @adapter.reproduce(failed.first(Kimera::Execution::BaselineFailure::MAX_DETAILS))
-    raise(Kimera::Execution::BaselineFailure.build(failed, @messages, command, workers: journal))
+    raise(Kimera::Execution::BaselineFailure.build(failed, @messages, command, workers: journal, stacks: losses.stacks))
   end
 end
