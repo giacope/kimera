@@ -61,7 +61,7 @@ class Kimera::CLI::Run::Cycle
   def coverage = @options[:fail_on_no_coverage] ? :list : :hint
 
   def focus(eligible)
-    ids = Array(@options[:focus])
+    ids = Array(@options[:focus]).map { |token| @registry.keys.id(token) }
     return eligible if ids.empty?
     missing = ids - eligible
     missing.empty? ? ids : raise(Kimera::UsageError, "focused mutant(s) not in scope: #{missing.join(", ")}")

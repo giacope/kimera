@@ -71,7 +71,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     expect(io.string).to(
       eq(
         "1 survived mutant(s):\n\n  #7  b.rb:4  [x]\n    - a\n    + b\n    " \
-          "covered by 1 test(s)\n\ndetail: kimera mutant <N> --report report.json\n"
+          "covered by 1 test(s)\n\ndetail: kimera mutant <ID|KEY> --report report.json\n"
       )
     )
   end

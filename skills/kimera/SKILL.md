@@ -44,7 +44,7 @@ bundle exec kimera doctor --check-baseline  # discovery, git, and a green suite
 bundle exec kimera changed                      # changed lines only (vs origin/main)
 bundle exec kimera run                          # full, per .kimera.yml
 bundle exec kimera report REPORT.json --status survived
-bundle exec kimera mutant ID --report REPORT.json
+bundle exec kimera mutant ID_OR_KEY --report REPORT.json [--rerun]
 bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
 ```
 
@@ -52,8 +52,12 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   report, except isolated mode, which traces one verdict per line to stderr.
 - `--session FILE` persists per-mutant verdicts and resumes interrupted runs.
 - `--report FILE` writes the machine-readable report. Each result carries
-  `mutant_id`, `status`, `file`, `line`, `operator`, and the `original` ->
-  `mutated` source; don't re-parse the human log.
+  `mutant_id`, `key`, `status`, `file`, `line`, `operator`, and the
+  `original` -> `mutated` source; don't re-parse the human log.
+- Refer to a mutant by its `key` (`path:line:digest`), not its `mutant_id`.
+  The ID numbers every mutant in that run, so it changes with the set of
+  files scanned; the key doesn't. `kimera mutant` and `--focus` take either,
+  and a key still resolves after unrelated edits move its line.
 - Minitest/Rails: kimera puts `test/` (or `spec/`) on `$LOAD_PATH`, so test
   files can `require "test_helper"` without `RUBYOPT="-Itest"`.
 - `--tests` on the CLI *replaces* the config `tests:` glob (it does not

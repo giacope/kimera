@@ -148,8 +148,9 @@ RSpec.describe(Kimera::RunReport) do
 
       after { FileUtils.remove_entry(dir) }
 
-      it "carries line, operator, and label", :aggregate_failures do
+      it "carries key, line, operator, and label", :aggregate_failures do
         mutant, point = mutant_and_point
+        expect(enriched["key"]).to(eq(registry.keys[mutant.id]).and(match(/\Acmp\.rb:3:\h{8}\z/)))
         expect(enriched["line"]).to(eq(point.location.start_line))
         expect(enriched["operator"]).to(eq(point.operator))
         expect(enriched["label"]).to(eq(mutant.label))

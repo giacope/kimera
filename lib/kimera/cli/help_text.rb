@@ -21,7 +21,7 @@ module Kimera
 
       Investigate:
         report REPORT.json    Filter a saved report (survivors, uncovered, errors)
-        mutant ID --report R  Show one mutant in full detail
+        mutant ID --report R  Show one mutant, by ID or key, in full detail
         registry [paths...]   Inspect what Kimera would mutate
         synthesize [paths...] Write schemata sources for inspection
 

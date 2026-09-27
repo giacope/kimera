@@ -222,7 +222,21 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
       cli = Kimera::CLI.new(io: out, errors: error)
       expect(cli.run(["report", report])).to(eq(0))
       expect(cli.run(["mutant", "7", "--report", report])).to(eq(0))
-      expect(out.string).to(include("1 survived mutant(s):", "#7  survived  app/a.rb:3"))
+      expect(out.string).to(include("1 survived mutant(s):", "#7  survived  app/a.rb:3\n"))
+    end
+  end
+
+  it "finds a mutant by its key and shows the key in place of file:line" do
+    Dir.mktmpdir do |dir|
+      report = written(dir, "results" => [survivor.merge("key" => "app/a.rb:3:0123abcd")])
+      out, error = captured
+      cli = Kimera::CLI.new(io: out, errors: error)
+      expect(cli.run(["mutant", "app/a.rb:3:0123abcd", "--report", report])).to(eq(0))
+      expect(cli.run(["report", report])).to(eq(0))
+      expect(out.string).to(include("#7  survived  app/a.rb:3:0123abcd\n", "  #7  app/a.rb:3:0123abcd  [> => >=]"))
+      expect(out.string).to(include("detail: kimera mutant <ID|KEY> --report #{report}"))
+      expect(cli.run(["mutant", "app/a.rb:3:ffffffff", "--report", report])).to(eq(1))
+      expect(error.string).to(include("no mutant #app/a.rb:3:ffffffff in this report"))
     end
   end
 
@@ -230,7 +244,8 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     Dir.mktmpdir do |dir|
       provenance = { "framework" => "rspec", "source_root" => ".", "tests" => ["spec/**/*_spec.rb"] }
         .merge("operators" => ["comparison"], "coverage" => true, "isolated" => false)
-      report = written(dir, "run" => provenance, "results" => [survivor.slice("mutant_id", "status", "file")])
+      row = survivor.slice("mutant_id", "status", "file").merge("key" => "app/a.rb:3:0123abcd")
+      report = written(dir, "run" => provenance, "results" => [row])
       out, error = captured
       runner = instance_double(Kimera::CLI::Run, run: 2)
       allow(Kimera::CLI::Run).to(receive(:new).and_return(runner))
@@ -238,11 +253,11 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
       expect(status).to(eq(2))
       expect(runner).to(
         have_received(:run).with(
-          ["app/a.rb", "--focus", "7", "--framework", "rspec", "--source-root", "."]
+          ["app/a.rb", "--focus", "app/a.rb:3:0123abcd", "--framework", "rspec", "--source-root", "."]
             .push("--tests", "spec/**/*_spec.rb", "--operators", "comparison")
         )
       )
-      expect(out.string).to(include("Re-running mutant #7"))
+      expect(out.string).to(eq("Re-running mutant #7: app/a.rb:3:0123abcd\n"))
     end
   end
 end

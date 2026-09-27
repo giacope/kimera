@@ -35,8 +35,8 @@ module Kimera::CLI::RunOptions
       Kimera::Flag.build("--since REF", :since, "Incremental: only mutate lines changed vs REF (git diff)"),
       Kimera::Flag.build("--session FILE", :session, "Persist/resume per-mutant results in FILE"),
       Kimera::Flag.build(
-        "--focus ID", :focus, "Evaluate only one or more mutant IDs (repeatable)",
-        type: Integer, collect: true
+        "--focus ID|KEY", :focus, "Evaluate only these mutants, by ID or report key (repeatable)",
+        collect: true
       ),
       Kimera::Flag.build("--[no-]gate", :gate, "Return gate status (default: on; use --no-gate for exploration)"),
       Kimera::Flag.build("--max-survivors N", :max_survivors, "Gate: fail only if survivors exceed N", type: Integer),

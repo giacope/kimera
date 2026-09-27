@@ -101,7 +101,19 @@ suite.
 bundle exec kimera run --report tmp/kimera/report.json
 bundle exec kimera report tmp/kimera/report.json --status survived
 bundle exec kimera mutant 42 --report tmp/kimera/report.json
+bundle exec kimera mutant app/models/discount.rb:44:8557dadd --report tmp/kimera/report.json
+bundle exec kimera mutant 42 --report tmp/kimera/report.json --rerun
 ```
+
+A mutant has two names. Its ID (`42`) numbers every mutant the run scanned,
+so the same mutant gets a different ID when a run covers a different set of
+files. Its key (`app/models/discount.rb:44:8557dadd`, the `key` field of each
+report result) is `path:line:digest`. The digest is computed from the mutant's
+own code (its file, method, operator, source, and label), so the key names
+the same mutant in a one-file run and in a full one. `kimera mutant` and
+`--focus` take either. A key whose line moved still resolves when the path
+and digest match exactly one mutant. `--rerun` re-evaluates only that mutant,
+focused by its key.
 
 For each survivor, write the test that kills it. If a mutant is truly
 equivalent, add it to `ignore:` in `.kimera.yml` with a reason (see
@@ -157,6 +169,9 @@ bundle exec kimera run app --since origin/main \
 # Also fail when a changed line has no covering test
 # (a no_coverage mutant is untested new logic, not a pass)
 bundle exec kimera run app --since origin/main --fail-on-no-coverage
+
+# Evaluate only the given mutants, by report key or by ID (repeatable)
+bundle exec kimera run app/models/discount.rb --focus app/models/discount.rb:44:8557dadd
 
 # N warm workers pull from one shared queue, so this scales with cores
 # even on a single big file

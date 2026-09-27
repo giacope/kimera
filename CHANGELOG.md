@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+- Every report result carries a `key`, such as
+  `app/models/discount.rb:44:8557dadd`, that names the mutant in any run. A
+  mutant ID numbers every mutant the run scanned, so `--focus 3740` from a
+  full report meant nothing, or a different mutant, in a one-file run. The
+  key's digest covers the mutant's own code (file, method, operator,
+  whitespace-squeezed source, label, and which repeat it is), not its line or
+  ID, so it is the same whether the run scanned one file or five hundred.
+  `kimera report` and `kimera mutant` show it next to the ID.
+- `--focus` (on `run`, `changed`, and `ci`) and `kimera mutant` accept a key
+  as well as an ID. A key whose line moved still resolves when its path and
+  digest match exactly one mutant; an unknown key is "not in scope".
+- `kimera mutant ID --report R --rerun` re-evaluates the right mutant. It
+  scanned only the mutant's file, where IDs restart at 1, then focused the
+  report's ID, so a mutant outside the report's first file was "not in scope"
+  or silently swapped for another. It now focuses the key. A report written
+  before keys existed can't be rerun; regenerate it.
+
 ## 0.1.5 (2026-09-27)
 
 - Re-running a mutated concern's `included do` block no longer clobbers a
