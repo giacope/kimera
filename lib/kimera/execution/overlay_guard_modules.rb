@@ -2,6 +2,7 @@
 
 require_relative "callback"
 require_relative "reflections"
+require_relative "concern_overrides"
 
 module Kimera
   module Execution
@@ -71,7 +72,9 @@ module Kimera
       def concern = CONCERNGUARD
 
       def reapply(concern, block)
-        ObjectSpace.each_object(Class).each { |klass| klass.class_eval(&block) if owner?(klass, concern) }
+        ObjectSpace.each_object(Class).each do |klass|
+          ConcernOverrides.reapply(klass, concern, block) if owner?(klass, concern)
+        end
       end
 
       def owner?(klass, concern)

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Re-running a mutated concern's `included do` block no longer clobbers a
+  scope or association that an including class redeclares after its
+  `include`. Rails keeps the class's later declaration, but kimera re-declared
+  the concern's version on top of it, so the baseline could go red only under
+  kimera (for example, an `Invitation.expired` override losing its extra
+  filter). Names the class declares after the `include` line are now skipped;
+  the rest of the block still runs.
 - Warm kills are confirmed. A mutant counts as killed only when its killing
   test also passes with the mutant switched off, then fails again with it on.
   Otherwise state the warm worker kept from earlier tests failed the test,
