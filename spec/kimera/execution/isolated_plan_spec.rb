@@ -193,10 +193,24 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     end
   end
 
-  describe "#mirrors" do
-    it "drops VCS/build noise and keeps everything else" do
-      entries = %w[lib app spec .git tmp vendor node_modules coverage log .bundle Gemfile]
-      expect(described_class.mirrors(entries)).to(eq(%w[lib app spec Gemfile]))
+  describe "#placement" do
+    def placements(entries)
+      entries.to_h { |entry| [entry, plan.placement(entry)] }
+    end
+
+    # A boot that needs node_modules/ or a vendored bundle must load in the
+    # mirror, or every mutant it covers scores as a false kill.
+    it "copies sources, links dependencies, empties scratch dirs and skips history", :aggregate_failures do
+      expect(placements(%w[lib app spec Gemfile])).to(all(satisfy { |_e, how| how == :copy }))
+      expect(placements(%w[vendor node_modules .bundle]).values).to(eq(%i[link link link]))
+      expect(placements(%w[tmp log]).values).to(eq(%i[empty empty]))
+      expect(placements(%w[.git coverage]).values).to(eq(%i[skip skip]))
+    end
+
+    it "copies a would-be link that holds a mutated file, so no mutant writes through it" do
+      src = "def a(x, y)\n  x > y\nend\n"
+      inside = Kimera::Registry.new(points: Kimera::RegistryScan.new.source(src, file: "vendor/a.rb").points)
+      expect(plan(registry: inside).placement("vendor")).to(eq(:copy))
     end
   end
 end

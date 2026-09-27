@@ -5,6 +5,7 @@ require "tmpdir"
 require_relative "../results/result"
 require_relative "../results/run_report"
 require_relative "../synthesis/overlay"
+require_relative "baseline_failure"
 require_relative "isolated_plan"
 require_relative "isolated_scheduling"
 require_relative "isolated_verdict"
@@ -28,6 +29,13 @@ class Kimera::Execution::IsolatedExecution
     @root = root
     @tests = tests
     @options = options
+  end
+
+  def verify!
+    errors.puts("kimera: isolated baseline (unmutated mirror)") unless progress.enabled?
+    outcome = with_mirror { |mirror| verdict(mirror, plan.suite) }
+    return if outcome.status == :survived
+    raise(Kimera::Execution::BaselineFailure.mirrored(outcome.explain(limit), Kimera::Execution::IsolatedPlan::MIRROR_HINT))
   end
 
   def run(ids: self.ids, label: "mutants")

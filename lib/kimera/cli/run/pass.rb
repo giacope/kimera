@@ -63,7 +63,7 @@ class Kimera::CLI::Run::Pass
   end
 
   def run(remaining)
-    isolated = ->(ids) { isolation.run(ids: ids, label: "mutants (isolated)") }
+    isolated = ->(ids) { judge(ids) }
     return isolated.call(remaining) if @options[:isolated]
     pooled(remaining, isolated)
   end
@@ -74,8 +74,13 @@ class Kimera::CLI::Run::Pass
     harness.run(ids: together, label: "mutants (warm)").merge(isolated.call(apart))
   end
 
+  def judge(ids)
+    isolation.verify!
+    isolation.run(ids: ids, label: "mutants (isolated)")
+  end
+
   def isolation
-    Kimera::Execution::IsolatedExecution.new(**core, **{ hard_timeout: @options[:hard_timeout] }.compact)
+    @_isolation ||= Kimera::Execution::IsolatedExecution.new(**core, **limits)
   end
 
   def core
@@ -83,6 +88,8 @@ class Kimera::CLI::Run::Pass
       .merge(coverage: harness.coverage, progress: progress, jobs: @options[:jobs])
       .merge(framework: @options[:framework], test_files: files)
   end
+
+  def limits = { hard_timeout: @options[:hard_timeout] }.compact
 
   def split(ids)
     patterns = Array(@options[:isolate_when_covered_by])

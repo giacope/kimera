@@ -161,6 +161,83 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end
   end
 
+  describe "#verify!" do
+    def test_baseline(outcome, progress: Kimera::Execution::NullProgress)
+      seen = []
+      engine =
+        Class.new(described_class) do
+          define_method(:verdict) do |mirror, tests|
+            seen << [File.file?(File.join(mirror, "calc.rb")), tests]
+            outcome
+          end
+        end
+      Dir.mktmpdir do |root|
+        File.write(File.join(root, "calc.rb"), "def a(x, y) = x > y\n")
+        engine.new(registry: registry, root: root, tests: %w[t1 t2], hard_timeout: 7, progress: progress).verify!
+      end
+      seen
+    end
+
+    it "runs the whole suite once in a fresh mirror and passes when it is green", :aggregate_failures do
+      green = Kimera::Execution::IsolatedOutcome.new(:survived)
+      seen = nil
+      expect { seen = test_baseline(green) }.to(output("kimera: isolated baseline (unmutated mirror)\n").to_stderr)
+      expect(seen).to(eq([[true, %w[t1 t2]]]))
+    end
+
+    it "stays quiet while the progress bar renders" do
+      bar = Kimera::Report::Progress.new(io: StringIO.new, enabled: true)
+      green = Kimera::Execution::IsolatedOutcome.new(:survived)
+      expect { test_baseline(green, progress: bar) }.not_to(output.to_stderr)
+    end
+
+    it "aborts with the reason and the mirror layout when the unmutated suite is red", :aggregate_failures do
+      red = Kimera::Execution::IsolatedOutcome.new(:timeout)
+      expect { test_baseline(red, progress: test_recording_bar([])) }.to(
+        raise_error(Kimera::Execution::BaselineFailure) do |error|
+          expect(error.message).to(include("isolated baseline is not green", "timed out after 7s"))
+          expect(error.message).to(end_with(Kimera::Execution::IsolatedPlan::MIRROR_HINT))
+        end
+      )
+    end
+  end
+
+  describe "#populate" do
+    def test_mirror
+      Dir.mktmpdir do |root|
+        %w[lib node_modules tmp .git].each { |dir| FileUtils.mkdir_p(File.join(root, dir, "sub")) }
+        File.write(File.join(root, "Gemfile"), "")
+        Dir.mktmpdir do |mirror|
+          test_invoke_private(runner_at(root), :populate, mirror)
+          yield(root, mirror)
+        end
+      end
+    end
+
+    def runner_at(root) = described_class.new(registry: registry, root: root, tests: ["t1"])
+
+    it "copies sources, links dependencies, empties scratch dirs and skips history", :aggregate_failures do
+      test_mirror do |root, mirror|
+        expect(File.directory?(File.join(mirror, "lib", "sub"))).to(be(true))
+        expect(File.symlink?(File.join(mirror, "lib"))).to(be(false))
+        expect(File.readlink(File.join(mirror, "node_modules"))).to(eq(File.join(root, "node_modules")))
+        expect(Dir.children(File.join(mirror, "tmp"))).to(be_empty)
+        expect(File.exist?(File.join(mirror, ".git"))).to(be(false))
+        expect(File.file?(File.join(mirror, "Gemfile"))).to(be(true))
+      end
+    end
+
+    it "does not turn a scratch file into a directory" do
+      Dir.mktmpdir do |root|
+        File.write(File.join(root, "log"), "")
+        Dir.mktmpdir do |mirror|
+          test_invoke_private(runner_at(root), :populate, mirror)
+          expect(File.exist?(File.join(mirror, "log"))).to(be(false))
+        end
+      end
+    end
+  end
+
   describe "#trace" do
     def result(status)
       Kimera::MutantResult.new(mutant_id: 7, status: status, file: "calc.rb", duration: 1.25)

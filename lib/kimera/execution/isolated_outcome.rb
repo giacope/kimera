@@ -19,6 +19,13 @@ class Kimera::Execution::IsolatedOutcome
     @detail = detail
   end
 
+  def explain(limit)
+    return "timed out after #{limit}s" if status == :timeout
+    named = Array(failing)
+    return "failing: #{named.join(", ")}" if named.any?
+    detail || "the test child failed without naming a test"
+  end
+
   class << self
     def judge(exit, path, stderr = "")
       return new(:timeout) if exit == :timeout
@@ -50,7 +57,7 @@ class Kimera::Execution::IsolatedOutcome
 
     def tally(exit, ledger)
       failing = Array(ledger["failing"])
-      return new(:killed, failing) if ledger["failures"].positive?
+      return new(:killed, failing, ledger["load_error"]) if ledger["failures"].positive?
       return new(:survived) if exit.success?
       new(:harness_error, nil, unexplained(exit))
     end

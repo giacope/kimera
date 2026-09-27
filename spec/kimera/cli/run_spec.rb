@@ -698,7 +698,9 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       framework(test_ids: ["t1"], finish: nil)
       harness = executor(coverage: {})
       allow(harness).to(receive_messages(warm!: nil, run: nil))
-      runner = instance_double(Kimera::Execution::IsolatedExecution, run: Kimera::RunReport.new(results: []))
+      runner = instance_double(
+        Kimera::Execution::IsolatedExecution, verify!: nil, run: Kimera::RunReport.new(results: [])
+      )
       allow(Kimera::Execution::IsolatedExecution).to(receive(:new).and_return(runner))
       [harness, runner, Kimera::Incremental::Session.new]
     end
@@ -709,10 +711,17 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(harness).not_to(have_received(:run))
     end
 
+    it "hands --hard-timeout to the isolated runner" do
+      _harness, _runner, session = routing
+      pass(registry, settings(coverage: false, isolated: true, hard_timeout: 9.0), [1], session)
+      expect(Kimera::Execution::IsolatedExecution).to(have_received(:new).with(hash_including(hard_timeout: 9.0)))
+    end
+
     it "routes evaluation through the IsolatedExecution when --isolated" do
       harness, runner, session = routing
       pass(registry, settings(coverage: false, isolated: true), [1], session)
-      expect(runner).to(have_received(:run).with(ids: [1], label: "mutants (isolated)"))
+      expect(runner).to(have_received(:verify!).ordered)
+      expect(runner).to(have_received(:run).with(ids: [1], label: "mutants (isolated)").ordered)
       route(harness)
     end
 
@@ -737,7 +746,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       framework(test_ids: %w[t1 t2], finish: nil)
       harness = executor(coverage: { 1 => ["./spec/unit_spec.rb[1:1]"], 2 => ["./spec/acp/end_to_end_spec.rb[1:2]"] })
       allow(harness).to(receive_messages(warm!: nil, run: result(1, :killed)))
-      runner = instance_double(Kimera::Execution::IsolatedExecution, run: result(2, :survived))
+      runner = instance_double(Kimera::Execution::IsolatedExecution, verify!: nil, run: result(2, :survived))
       allow(Kimera::Execution::IsolatedExecution).to(receive(:new).and_return(runner))
       session = Kimera::Incremental::Session.new
       allow(session).to(receive(:merge!))

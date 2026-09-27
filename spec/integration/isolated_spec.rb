@@ -55,4 +55,26 @@ RSpec.describe("kimera run --isolated (end-to-end)") do
       expect(status).to(eq(2))
     end
   end
+
+  # A suite that can't load in the mirror must stop the run, not score every
+  # mutant it covers as killed.
+  def test_unloadable(root)
+    FileUtils.cp_r(File.join(test_repo_root, "examples", "minitest_app", "."), root)
+    FileUtils.mkdir_p(File.join(root, "coverage"))
+    test = File.join(root, "test", "scorer_test.rb")
+    guard = %(raise ArgumentError, "needs coverage/" unless Dir.exist?(File.expand_path("../coverage", __dir__))\n)
+    File.write(test, guard + File.read(test))
+  end
+
+  it "aborts when the unmutated suite fails to load in the mirror, naming the error", :aggregate_failures do
+    Dir.mktmpdir("kimera-unloadable") do |root|
+      test_unloadable(root)
+      args = ["--framework", "minitest", "--isolated"]
+      test_run(cwd: root, tests: "test/**/*_test.rb", args: args) do |output, report, status|
+        expect(output).to(include("isolated baseline is not green", "ArgumentError: needs coverage/"))
+        expect(report).to(be_nil)
+        expect(status).to(eq(1))
+      end
+    end
+  end
 end

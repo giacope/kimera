@@ -10,7 +10,12 @@ module Kimera
 end
 
 class Kimera::Execution::IsolatedPlan
-  MIRROR_SKIP = %w[.git tmp vendor node_modules coverage log .bundle].freeze
+  MIRROR_SKIP = %w[.git coverage].freeze
+  MIRROR_EMPTY = %w[tmp log].freeze
+  MIRROR_LINK = %w[vendor node_modules .bundle].freeze
+  MIRROR_HINT =
+    "  the mirror copies the project except #{MIRROR_SKIP.join(", ")} " \
+      "(#{MIRROR_EMPTY.join(", ")} start empty; #{MIRROR_LINK.join(", ")} are symlinked)".freeze
 
   attr_reader :registry
 
@@ -34,14 +39,17 @@ class Kimera::Execution::IsolatedPlan
     child.command(mirror, locations, ledger: ledger, paths: mutables)
   end
 
+  def suite = selection.all
+
   def mutables
     @registry.files.map { |f| f.split(File::SEPARATOR).first }.uniq
   end
 
-  class << self
-    def mirrors(entries)
-      entries.reject { |entry| MIRROR_SKIP.include?(entry) }
-    end
+  def placement(entry)
+    return :copy if mutables.include?(entry)
+    return :skip if MIRROR_SKIP.include?(entry)
+    return :empty if MIRROR_EMPTY.include?(entry)
+    MIRROR_LINK.include?(entry) ? :link : :copy
   end
 
   private

@@ -21,7 +21,8 @@ ARGV.clear
 begin
   files.each { |f| require File.expand_path(f) }
 rescue StandardError, ScriptError => error
-  File.write(ledger, JSON.generate(failures: 1, failing: [], load_error: "#{error.class}: #{error.message}"))
+  cause = ["#{error.class}: #{error.message}", *Array(error.backtrace).first(5).map { |line| "  #{line}" }]
+  File.write(ledger, JSON.generate(failures: 1, failing: [], load_error: cause.join("\n")))
   exit(1)
 end
 

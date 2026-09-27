@@ -10,6 +10,11 @@ Kimera::Execution::WorkerPool::Worker =
       self.inflight = id
     end
 
+    def claim(id, limit)
+      busy!(id)
+      renew(limit)
+    end
+
     def renew(limit)
       self.deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + limit
     end

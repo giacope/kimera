@@ -154,6 +154,16 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect { h.__send__(:measure!) }.to(raise_error(Kimera::Execution::BaselineFailure, /t2/))
     end
 
+    # Failures that only show up in parallel depend on what shared the worker.
+    it "names the worker that ran each failing test when the parallel baseline is red" do
+      h = described_class.new(
+        registry: registry, jobs: 2,
+        adapter: adapter(coverage: { "t1" => [], "t2" => [ids.first] }, failing: ["t2"])
+      )
+      expect { h.__send__(:measure!) }
+        .to(raise_error(Kimera::Execution::BaselineFailure, /per worker.*\n    worker \d: ran \d; failed #\d t2/m))
+    end
+
     it "includes the failing assertion message in the BaselineFailure" do
       h = harness(adapter(coverage: { "t2" => [ids.first] }, failing: ["t2"]))
       expect { h.__send__(:measure!) }.to(raise_error(Kimera::Execution::BaselineFailure, /assertion failed in t2/))
@@ -360,6 +370,16 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(lost.__send__(:tally).failures).to(eq(["t2"]))
       expect(progress.events).to(eq([[:tick, nil]]))
     end
+
+    # A test lost with its worker is not a test failure; say which it was.
+    it "explains why a lost parallel test counts as failed", :aggregate_failures do
+      lost = Kimera::Execution::BaselinePass.new(adapter: adapter, registry: registry)
+      lost.__send__(:loss).call("t1", :timeout)
+      lost.__send__(:loss).call("t2", :crash)
+      messages = lost.instance_variable_get(:@messages)
+      expect(messages["t1"]).to(include("hard timeout"))
+      expect(messages["t2"]).to(eq("its worker died before reporting a result"))
+    end
   end
 
   describe "#measure! parallel path (jobs > 1)" do
@@ -381,6 +401,16 @@ RSpec.describe(Kimera::Execution::Harness) do
         adapter: adapter(coverage: { "t1" => [], "t2" => [ids.first] }, failing: ["t2"])
       )
       expect { h.__send__(:measure!) }.to(raise_error(Kimera::Execution::BaselineFailure, /t2/))
+    end
+
+    # Failures that only show up in parallel depend on what shared the worker.
+    it "names the worker that ran each failing test when the parallel baseline is red" do
+      h = described_class.new(
+        registry: registry, jobs: 2,
+        adapter: adapter(coverage: { "t1" => [], "t2" => [ids.first] }, failing: ["t2"])
+      )
+      expect { h.__send__(:measure!) }
+        .to(raise_error(Kimera::Execution::BaselineFailure, /per worker.*\n    worker \d: ran \d; failed #\d t2/m))
     end
   end
 
@@ -736,15 +766,16 @@ RSpec.describe(Kimera::Execution::Harness) do
     def drain
       cleaned = []
       parallelization(true)
-      stub(after: ->(_i) {}, cleanup: -> { cleaned << :cleaned })
+      stub(after: ->(_i) {}, cleanup: ->(i) { cleaned << i })
       db = database(jobs: 2)
       db.before_exit(0)
       db.before_exit(nil) # injected spawners have no slot
       cleaned
     end
 
-    it "runs the app's cleanup hooks as the worker drains" do
-      expect(drain).to(eq([:cleaned]))
+    # Rails hands parallelize_teardown the worker number, as it does parallelize_setup.
+    it "runs the app's cleanup hooks with the worker's slot as it drains" do
+      expect(drain).to(eq([0]))
     end
 
     it "empties the worker's database as it drains" do
@@ -804,24 +835,46 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(skip).to(be_empty)
     end
 
-    # The before-fork hook drops the shared DB socket.
+    # The before-fork hook drops the shared DB socket. Rails runs it once,
+    # ahead of the fleet: rerunning it per spawn (a replacement worker, say)
+    # would run the app's hook while its siblings are mid-test.
     def forking
       before = []
       parallelization(true)
       stub(before: -> { before << :before }, after: ->(_i) {})
-      pid, request, response = described_class
-        .new(registry: registry, adapter: adapter, jobs: 2)
-        .__send__(:driver)
-        .worker(0)
+      driver = described_class.new(registry: registry, adapter: adapter, jobs: 2).__send__(:driver)
+      pid, request, response = driver.worker(0)
       request.close
       response.read
       response.close
       Process.wait(pid)
+      [before.dup, fleet(driver, before)]
+    end
+
+    def fleet(driver, before)
+      driver.drive([], driver.method(:worker), resolve: ->(_m) {}, lost: ->(_i, _r) {})
       before
     end
 
-    it "runs the parent-side before-fork hook when forking a serving worker" do
-      expect(forking).to(eq([:before]))
+    it "runs the parent-side before-fork hook once per fleet, not per spawned worker", :aggregate_failures do
+      spawned, driven = forking
+      expect(spawned).to(eq([]))
+      expect(driven).to(eq([:before]))
+    end
+
+    def worker_id(jobs)
+      test_case = Class.new { class << self; attr_accessor :parallel_worker_id; end }
+      stub_const("ActiveSupport::TestCase", test_case)
+      stub(after: ->(_i) {})
+      database(jobs: jobs).after_fork(4)
+      test_case.parallel_worker_id
+    end
+
+    # Rails' own worker sets it before parallelize_setup; apps key per-worker
+    # Redis dbs, lease namespaces and ports on it.
+    it "sets ActiveSupport::TestCase.parallel_worker_id to the slot in a parallel worker", :aggregate_failures do
+      expect(worker_id(2)).to(eq(4))
+      expect(worker_id(1)).to(be_nil)
     end
 
     # Without its slot index, a child loses its own test database.

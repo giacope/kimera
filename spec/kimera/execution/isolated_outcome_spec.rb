@@ -72,6 +72,21 @@ RSpec.describe(Kimera::Execution::IsolatedOutcome) do
     expect(outcome.detail).to(start_with("suite died on signal 9 with 0 failures"))
   end
 
+  it "keeps a load error the child recorded as the kill's detail", :aggregate_failures do
+    outcome = test_judge(failed, { failures: 1, failing: [], load_error: "ArgumentError: boom" }.to_json)
+    expect(outcome.status).to(eq(:killed))
+    expect(outcome.detail).to(eq("ArgumentError: boom"))
+  end
+
+  describe "#explain" do
+    it "says why a red isolated baseline is red", :aggregate_failures do
+      expect(described_class.new(:timeout).explain(30)).to(eq("timed out after 30s"))
+      expect(described_class.new(:killed, %w[a b], "ignored").explain(1)).to(eq("failing: a, b"))
+      expect(described_class.new(:killed, [], "LoadError: x").explain(1)).to(eq("LoadError: x"))
+      expect(described_class.new(:harness_error).explain(1)).to(eq("the test child failed without naming a test"))
+    end
+  end
+
   it "treats a missing failing list on a kill as no named tests" do
     expect(test_judge(failed, { failures: 2 }.to_json).failing).to(eq([]))
   end
