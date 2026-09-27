@@ -627,6 +627,39 @@ RSpec.describe(Kimera::Execution::Schemata) do
       expect(ran).to(eq([prepender]))
     end
 
+    # Rails keeps a scope the class redeclares after `include`; re-running the
+    # concern's block must not clobber that override.
+    it "skips a scope or association the includer redeclares after the include", :aggregate_failures do
+      test_concern
+      concern = Module.new.tap { |m| m.extend(ActiveSupport::Concern) }
+      stub_const("SchemataExpiring", concern)
+      concern.included { :original }
+      path = write("schemata_invitation.rb", <<~RUBY)
+        class SchemataInvitation
+          def self.defined = @defined ||= {}
+          def self.scope(name, body) = defined[name] = body
+          def self.has_many(name, *) = defined[name] = :has_many
+          scope :before, :own
+          include SchemataExpiring
+          scope :expired, :override
+          has_many :notes
+        end
+      RUBY
+      load(File.join(dir, path))
+      invitation = SchemataInvitation
+      described_class.with_guards do
+        concern.included do
+          scope :expired, :mutated
+          scope :before, :mutated
+          scope :fresh, :mutated
+          has_many :notes
+        end
+      end
+      expect(invitation.defined).to(eq(expired: :override, before: :mutated, notes: :has_many, fresh: :mutated))
+    ensure
+      Object.__send__(:remove_const, :SchemataInvitation) if defined?(SchemataInvitation)
+    end
+
     it "installs the concern guard only once per process", :aggregate_failures do
       concern = test_concern
       described_class.install!
