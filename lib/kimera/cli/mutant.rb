@@ -77,8 +77,10 @@ class Kimera::CLI::Mutant
       .push("--source-root", settings["source_root"])
       .concat(Array(settings["tests"]).flat_map { |glob| ["--tests", glob] })
       .push("--operators", Array(settings["operators"]).join(","))
-      .concat(modes(settings))
+      .concat(modes(settings)).concat(waived(row))
   end
+
+  def waived(row) = row["status"] == "ignored" ? ["--evaluate-ignored"] : []
 
   def modes(settings)
     [settings["coverage"] == false ? "--no-coverage" : nil, settings["isolated"] ? "--isolated" : nil].compact

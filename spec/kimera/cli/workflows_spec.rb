@@ -260,4 +260,18 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
       expect(out.string).to(eq("Re-running mutant #7: app/a.rb:3:0123abcd\n"))
     end
   end
+
+  it "evaluates an ignored mutant when re-running it" do
+    Dir.mktmpdir do |dir|
+      provenance = { "framework" => "rspec", "source_root" => ".", "tests" => ["spec/**/*_spec.rb"] }
+        .merge("operators" => ["comparison"], "coverage" => true, "isolated" => false)
+      row = { "mutant_id" => 7, "status" => "ignored", "file" => "app/a.rb", "key" => "app/a.rb:3:0123abcd" }
+      report = written(dir, "run" => provenance, "results" => [row])
+      out, error = captured
+      runner = instance_double(Kimera::CLI::Run, run: 0)
+      allow(Kimera::CLI::Run).to(receive(:new).and_return(runner))
+      Kimera::CLI::Mutant.new(io: out, errors: error).run(["7", "--report", report, "--rerun"])
+      expect(runner).to(have_received(:run).with(array_including("--evaluate-ignored")))
+    end
+  end
 end

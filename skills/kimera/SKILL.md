@@ -131,6 +131,39 @@ bundle exec kimera baseline prune .kimera-baseline.yml --report r.json  # --dry-
    or accept it visibly. Never stub internals just to kill a mutant; a test
    that pins the implementation makes the suite worse.
 
+### Survivors that recur on Rails apps
+
+These shapes survive again and again. Recognizing one tells you which verdict
+to test first. It never replaces the `--isolated` check.
+
+Usually **dead code**. The guard only saves a query, so delete it:
+
+- A guard before a query that already returns nil/false/0: `return false
+  unless user` before `memberships.exists?(user:)` on a NOT NULL column, or
+  `return if ids.empty?` before `where(id: ids)` / `update_all`.
+- A no-op write under dirty tracking: `update!(status: :past_due) unless
+  past_due?`. Rails skips the UPDATE when nothing changed. Delete the guard
+  unless callbacks or `updated_at` must not fire, and if they must, test
+  that.
+- A readiness check that compares constants with constants
+  (`REQUIRED - LIVE_STATES`). Nothing at runtime can change it, so assert it
+  once at load time or drop it.
+
+Usually **keep and ignore** (after `--isolated`, with the mechanism as the
+`reason:`), because the code hardens against something tests don't drive:
+
+- `reload` before `with_lock`/`lock!` on the same record, or double-checked
+  locking. `with_lock` reloads the row anyway, and only a real race tells
+  the two apart.
+- `transaction(requires_new: true)` around a `create!` that rescues
+  `RecordNotUnique`. It matters only when a concurrent insert wins.
+- Barrier or queue values that nothing reads (`ready << true`), and
+  timing-safe compares.
+
+Before you delete one of these guards, check that it doesn't also skip a side
+effect (a callback, a job, an audit row). If it does, the survivor is a real
+gap: test that side effect.
+
 ## Ignore discipline: hard rules (especially for agents)
 
 - **Raise `max_ignored` only for an entry that has earned it**: survival
