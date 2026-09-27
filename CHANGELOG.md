@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.4 (2026-09-27)
 
 - Guard-style memoization is no longer mutated, just as `@x ||=` never was.
   In a method that opens with `return @x if @x` (and assigns `@x` later) or
