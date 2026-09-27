@@ -17,6 +17,10 @@
   section records `"narrowed": true` and the configured globs. Narrowed runs
   are faster, but their survivors (and kills that hold only within the narrow
   set) used to read like a full run's. Verdicts are unchanged.
+- `kimera run --pidfile FILE` writes the run's process id to FILE and removes
+  it when the run ends, including on errors. Scripts waiting with `pgrep -f
+  "kimera run ..."` matched their own shell and waited forever; they can wait
+  on that pid instead.
 
 ## 0.1.5 (2026-09-27)
 

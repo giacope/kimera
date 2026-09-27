@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "fileutils"
 require_relative "../error"
 require_relative "../plugins"
 
@@ -27,13 +28,26 @@ class Kimera::CLI::Run
   end
 
   def run(argv)
-    cycle(parse(argv)).call
+    options = parse(argv)
+    pid_file(options[:pidfile]) { cycle(options).call }
   rescue Kimera::Error => error
     @errors.puts("kimera: #{error.message}")
     1
   end
 
   private
+
+  def pid_file(path, &)
+    return yield unless path
+    File.write(path, "#{Process.pid}\n")
+    held(path, &)
+  end
+
+  def held(path)
+    yield
+  ensure
+    FileUtils.rm_f(path)
+  end
 
   def parse(argv) = Kimera::CLI::Run::Arguments.new.parse(argv)
 

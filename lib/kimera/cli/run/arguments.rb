@@ -54,6 +54,7 @@ class Kimera::CLI::Run::Arguments
     { exclude: [], exclude_tests: [], config: nil }
       .merge(ignore: [], isolate_db: false, isolated: false)
       .merge(fail_on_no_coverage: false, progress: nil, color: nil, quiet: false, verbose: false, log: nil)
+      .merge(pidfile: nil)
       .merge(isolate_when_covered_by: [])
       .merge(cli_tests: [])
   end

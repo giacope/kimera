@@ -63,6 +63,7 @@ module Kimera::CLI::RunOptions
       Kimera::Flag.build(["-q", "--quiet"], :quiet, "Suppress the final human-readable report"),
       Kimera::Flag.build(["-v", "--verbose"], :verbose, "Print resolved scope and execution settings"),
       Kimera::Flag.build("--log FILE", :log, "Write the final human-readable report to FILE"),
+      Kimera::Flag.build("--pidfile FILE", :pidfile, "Write kimera's process id to FILE, removed when the run ends"),
       Kimera::Flag.build(
         "--[no-]isolate-db", :isolate_db, "Wrap each mutant in a rolled-back ActiveRecord transaction"
       ),

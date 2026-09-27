@@ -212,6 +212,10 @@ bundle exec kimera baseline review .kimera-baseline.yml
 - Text output honors `NO_COLOR`. `--no-color` forces it off.
 - `--quiet` suits scripts that only need an artifact. `--verbose` prints the
   resolved scope. `--log FILE` keeps the final text report.
+- `--pidfile FILE` writes kimera's process id to FILE when the run starts and
+  removes the file when the run ends, whether it passes, fails or errors
+  (short of `kill -9`). A script that waits on a background run can watch
+  that pid; `pgrep -f "kimera run"` also matches the shell that started it.
 
 Exit codes:
 

@@ -58,6 +58,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         jobs: 1, exclude: [], exclude_tests: [], config: nil, ignore: [],
         isolate_db: false,
         isolated: false, fail_on_no_coverage: false, progress: nil, color: nil, quiet: false, verbose: false, log: nil,
+        pidfile: nil,
         isolate_when_covered_by: [],
         paths: ["app/**/*.rb", "lib/**/*.rb"]
       }
@@ -112,7 +113,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         framework tests source-root registry operators soft-timeout
         hard-timeout leak-every coverage since session max-survivors
         max-ignored fail-on-no-coverage jobs progress isolate-db isolated
-        isolate-when-covered-by exclude config
+        isolate-when-covered-by exclude config pidfile
       ]
     end
 
