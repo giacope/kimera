@@ -20,18 +20,17 @@ module Kimera
         end
 
       def reapply(klass, concern, block)
-        names = declared(klass, concern)
-        return klass.class_eval(&block) if names.empty?
         klass.singleton_class.prepend(GUARD)
-        skipping(klass, names) { klass.class_eval(&block) }
+        skipping(klass, declared(klass, concern)) { klass.class_eval(&block) }
       end
 
       def skipping(klass, names)
-        previous = Thread.current[:kimera_concern_overrides]
-        Thread.current[:kimera_concern_overrides] = [klass, names]
+        thread = Thread.current
+        previous = thread[:kimera_concern_overrides]
+        thread[:kimera_concern_overrides] = [klass, names]
         yield
       ensure
-        Thread.current[:kimera_concern_overrides] = previous
+        thread[:kimera_concern_overrides] = previous
       end
 
       def skipping?(klass, name)
@@ -45,11 +44,7 @@ module Kimera
         []
       end
 
-      def source(klass)
-        klass.name && Object.const_source_location(klass.name)&.first
-      rescue NameError
-        nil
-      end
+      def source(klass) = Object.const_source_location(klass.name).first
 
       def after(calls, tail)
         calls.drop_while { |call| !mixin?(call, tail) }.drop(1).filter_map { |call| declaration(call) }
@@ -66,7 +61,7 @@ module Kimera
       end
 
       def calls(node, found = [])
-        found << node if node.is_a?(Prism::CallNode) && node.receiver.nil?
+        found << node if node.is_a?(Prism::CallNode)
         node.compact_child_nodes.each { |child| calls(child, found) }
         found
       end
