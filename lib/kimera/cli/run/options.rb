@@ -24,7 +24,9 @@ module Kimera::CLI::RunOptions
       Kimera::REGISTRY_FLAG,
       Kimera::OPERATORS_FLAG,
       Kimera::REQUIRE_FLAG,
-      Kimera::Flag.build("--soft-timeout SEC", :soft_timeout, "Soft timeout for a mutant's covering tests", type: Float),
+      Kimera::Flag.build(
+        "--soft-timeout SEC", :soft_timeout, "Soft timeout for a mutant's covering tests", type: Float
+      ),
       Kimera::Flag.build(
         "--hard-timeout SEC", :hard_timeout, "Watchdog kill timeout per mutant and per baseline test", type: Float
       ),
