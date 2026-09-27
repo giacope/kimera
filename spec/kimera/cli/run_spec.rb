@@ -49,7 +49,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
     def defaults
       {
-        framework: "rspec", source_root: ".", tests: ["spec/**/*_spec.rb"],
+        framework: "rspec", source_root: ".", tests: ["spec/**/*_spec.rb"], configured_tests: ["spec/**/*_spec.rb"],
         operators: Kimera::Operators::DEFAULT_KEYS,
         soft_timeout: 5.0, hard_timeout: nil, leak_every: 10,
         registry: nil, report: nil, format: "text", focus: [], gate: true, coverage: true, require: [],
@@ -90,6 +90,12 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       File.write("custom.yml", %(tests: ["spec/config_spec.rb"]\n))
       opts = cli.__send__(:parse, ["--config", "custom.yml", "--tests", "spec/only_spec.rb"])
       expect(opts[:tests]).to(eq(["spec/only_spec.rb"]))
+    end
+
+    it "keeps the config tests: glob to tell a narrowed run apart" do
+      File.write("custom.yml", %(tests: ["spec/config_spec.rb"]\n))
+      opts = cli.__send__(:parse, ["--config", "custom.yml", "--tests", "spec/only_spec.rb"])
+      expect(opts[:configured_tests]).to(eq(["spec/config_spec.rb"]))
     end
 
     it "keeps the config tests: glob when --tests is absent" do

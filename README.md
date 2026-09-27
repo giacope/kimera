@@ -168,6 +168,12 @@ bundle exec kimera run app --jobs 4
 # only slow under parallel load
 bundle exec kimera run app --jobs 8 --hard-timeout 60
 
+# Run only some test files, for speed. --tests replaces the configured tests:
+# glob, so verdicts hold only for those files: a survivor may be killed by a
+# test left out. The report says so ("narrowed run: --tests matched 1 of 1,120
+# test files ...", and "narrowed": true in the JSON report's run section)
+bundle exec kimera run app/models/order.rb --tests 'spec/models/order_spec.rb'
+
 # Drop spec files that can't run this way (order-dependent, need a browser)
 # without rewriting the whole --tests glob
 bundle exec kimera run app --exclude-test 'spec/system/**/*_spec.rb'

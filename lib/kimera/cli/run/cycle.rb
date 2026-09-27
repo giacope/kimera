@@ -4,6 +4,7 @@ require_relative "../../execution/suite_env"
 require_relative "../../incremental/selection"
 require_relative "../../incremental/session"
 require_relative "digest"
+require_relative "narrowing"
 require_relative "pass"
 require_relative "sources"
 
@@ -55,8 +56,10 @@ class Kimera::CLI::Run::Cycle
 
   def emission
     { path: @options[:report], format: @options.fetch(:format, "text"), metadata: provenance }
-      .merge(coverage: coverage, log: @options[:log])
+      .merge(coverage: coverage, log: @options[:log], scope: narrowing.note)
   end
+
+  def narrowing = @_narrowing ||= Kimera::CLI::Run::Narrowing.new(@options)
 
   def coverage = @options[:fail_on_no_coverage] ? :list : :hint
 
@@ -69,7 +72,7 @@ class Kimera::CLI::Run::Cycle
 
   def provenance
     @options.slice(:framework, :source_root, :tests, :exclude_tests, :operators, :coverage, :isolated, :jobs)
-      .transform_keys(&:to_s)
+      .transform_keys(&:to_s).merge(narrowing.provenance)
   end
 
   def harness(remaining, loaded, env: ENV)

@@ -57,7 +57,10 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
 - Minitest/Rails: kimera puts `test/` (or `spec/`) on `$LOAD_PATH`, so test
   files can `require "test_helper"` without `RUBYOPT="-Itest"`.
 - `--tests` on the CLI *replaces* the config `tests:` glob (it does not
-  append).
+  append). A narrowed run's verdicts hold only for the narrowed set: a
+  survivor may be killed by a test left out, so confirm it with the full glob
+  before writing a test or an ignore entry. The report flags such a run
+  (`narrowed run: ...`, `"narrowed": true` in the JSON `run` section).
 - `--jobs` sizes the warm pool and isolated mirrors. Coverage-based test
   selection and kill-on-first-failure are automatic.
 - A `timeout` verdict is a *detected* mutant (the suite hung on it), not an

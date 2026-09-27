@@ -213,7 +213,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     def emission(coverage)
-      { coverage: coverage, path: nil, format: "text", metadata: anything, log: nil }
+      { coverage: coverage, path: nil, format: "text", metadata: anything, log: nil, scope: nil }
     end
 
     it "writes report metadata only when supplied and respects color overrides" do
@@ -262,7 +262,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         eq(
           "framework" => "rspec", "source_root" => ".", "tests" => ["spec/**/*_spec.rb"],
           "exclude_tests" => [], "operators" => ["comparison"], "coverage" => true,
-          "isolated" => false, "jobs" => 1
+          "isolated" => false, "jobs" => 1, "narrowed" => false
         )
       )
     end

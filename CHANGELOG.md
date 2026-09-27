@@ -10,6 +10,13 @@
   where it was called and `abort`'s message in the failure. A mutant that
   makes a test abort is `killed`, and a baseline test that aborts turns the
   baseline red with that message. `exit!` and interrupts are not caught.
+- A run whose `--tests` leaves out test files the configured `tests:` glob
+  (or the default) would run now says so above the summary: `narrowed run:
+  --tests matched 3 of 1,120 test files from the configured tests: glob;
+  survivors may be killed by tests outside it`. The JSON report's `run`
+  section records `"narrowed": true` and the configured globs. Narrowed runs
+  are faster, but their survivors (and kills that hold only within the narrow
+  set) used to read like a full run's. Verdicts are unchanged.
 
 ## 0.1.5 (2026-09-27)
 
