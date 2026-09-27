@@ -29,6 +29,9 @@ Kata/GoodMethodName:
     - add_reflection
     - _reflections
     - clear_reflections_cache
+    # RSpec and Minitest internals kimera extends each test with, to fail a test that calls exit.
+    - with_around_example_hooks
+    - capture_exceptions
 
 Kata/BuilderNoun:
   AllowedNames:

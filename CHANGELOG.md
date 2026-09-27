@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- A test that makes code call `exit` or `abort` now fails like any other
+  test. RSpec and Minitest let the `SystemExit` through, so it ended the warm
+  worker and the mutant was `harness_error` ("worker crashed before result");
+  a serial baseline exited kimera silently, and an isolated child died before
+  reporting. The test now fails after its teardown, with the exit status,
+  where it was called and `abort`'s message in the failure. A mutant that
+  makes a test abort is `killed`, and a baseline test that aborts turns the
+  baseline red with that message. `exit!` and interrupts are not caught.
+
 ## 0.1.5 (2026-09-27)
 
 - Re-running a mutated concern's `included do` block no longer clobbers a

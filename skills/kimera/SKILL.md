@@ -69,6 +69,9 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   raise `--hard-timeout`. If it waits on something the workers share (a Redis
   db, a lock, a port), give each worker its own through a
   `parallelize_setup`/`after_fork_hook`.
+- Code under test that calls `exit` or `abort` fails that test (`detail`:
+  `SystemExit: exit(1) called from FILE:LINE`), so a mutant that makes a test
+  abort is `killed`, not `harness_error`.
 - A kill's `detail` holds the killing test's failure message and first
   frames. A state-leak warning names a test that failed in a warm worker for
   reasons unrelated to the mutant. Kimera already judged that mutant again on

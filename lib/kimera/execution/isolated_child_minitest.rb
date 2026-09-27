@@ -2,6 +2,7 @@
 
 require "json"
 require "minitest"
+require_relative "../support/test_exit"
 
 Minitest.seed ||= 1
 begin
@@ -36,7 +37,7 @@ killer =
   ids.find do |id|
     klass, name = methods[id]
     next false unless klass
-    result = klass.new(name).run
+    result = klass.new(name).extend(Kimera::TestExit::Test).run
     !result.passed? && !result.skipped?
   end
 

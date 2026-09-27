@@ -519,6 +519,14 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     Before the kill it asks the worker for every thread's backtrace (SIGQUIT)
     and puts them in the verdict's `detail`, or in the baseline error. A test
     interrupted by the soft timeout is a `timeout`, not the mutant's killer.
+  - Code under test that calls `exit` or `abort` (a rake task, a CLI entry
+    point): RSpec and Minitest let the `SystemExit` through, so it would end
+    the worker. Kimera records it as that test's failure instead, after the
+    test's teardown, with the status, where it was called, and `abort`'s
+    message (`SystemExit: exit(1) called from lib/tasks/import.rb:12:in
+    'Kernel#abort': no such file`). A mutant that makes a test exit is killed;
+    a baseline test that exits turns the baseline red. `exit!` still ends the
+    process, and interrupts still stop the run.
   - Slow tests under parallel load: a baseline test whose worker hits the hard
     timeout reruns once, alone. If it passes, the run goes on with a notice and
     the stacks. If it times out again, the baseline is red.

@@ -3,6 +3,7 @@
 require "rspec/core"
 require_relative "adapter"
 require_relative "rspec_group_index"
+require_relative "../support/test_exit"
 
 module Kimera
   module Frameworks
@@ -105,7 +106,9 @@ class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
   end
 
   def index(top)
-    Kimera::Frameworks::RSpecGroupIndex.examples(top).each { |example| @examples[example.id] = example }
+    Kimera::Frameworks::RSpecGroupIndex.examples(top).each do |example|
+      @examples[example.id] = example.extend(Kimera::TestExit::Example)
+    end
   end
 
   def clear(examples)
