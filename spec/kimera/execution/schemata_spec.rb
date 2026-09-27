@@ -639,8 +639,11 @@ RSpec.describe(Kimera::Execution::Schemata) do
           def self.defined = @defined ||= {}
           def self.scope(name, body) = defined[name] = body
           def self.has_many(name, *) = defined[name] = :has_many
+          def self.note(*) = nil
+          note SchemataExpiring
           scope :before, :own
           include SchemataExpiring
+          note :fresh
           scope :expired, :override
           has_many :notes
         end

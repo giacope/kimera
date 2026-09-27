@@ -40,9 +40,7 @@ module Kimera
       end
 
       def declared(klass, concern)
-        file = source(klass)
-        return [] unless file && concern.name
-        after(calls(Prism.parse_file(file).value), concern.name.split("::").last)
+        after(calls(Prism.parse_file(source(klass)).value), concern.name.split("::").last)
       rescue StandardError
         []
       end
@@ -54,9 +52,7 @@ module Kimera
       end
 
       def after(calls, tail)
-        mark = calls.find { |call| mixin?(call, tail) }
-        return [] unless mark
-        calls.filter_map { |call| declaration(call) if call.location.start_offset > mark.location.start_offset }
+        calls.drop_while { |call| !mixin?(call, tail) }.drop(1).filter_map { |call| declaration(call) }
       end
 
       def mixin?(call, tail)
