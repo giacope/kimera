@@ -52,5 +52,34 @@ RSpec.describe(Kimera::MutantResult) do
     it "serializes status as a string" do
       expect(result(:killed).to_h["status"]).to(eq("killed"))
     end
+
+    it "writes a verdict only for an evaluated ignored mutant, and reads it back", :aggregate_failures do
+      expect(original.to_h).not_to(have_key("verdict"))
+      expect(reloaded.verdict).to(be_nil)
+      waived = original.waive
+      expect(waived.to_h).to(include("status" => "ignored", "verdict" => "survived"))
+      expect(described_class.from_h(waived.to_h)).to(eq(waived))
+    end
+  end
+
+  describe "#waive" do
+    it "keeps the evaluation but reports the mutant as ignored with its verdict", :aggregate_failures do
+      waived = result(:killed).tap { |killed| killed.detail = "Calc spec failed" }.waive
+      expect(waived).to(have_attributes(mutant_id: 1, status: :ignored, verdict: :killed, file: "x.rb", duration: 0.1))
+      expect(waived.detail).to(eq("ignored (killed): Calc spec failed"))
+      expect(result(:survived).waive.detail).to(eq("ignored (survived)"))
+    end
+
+    it "never counts toward the score or the kills" do
+      expect([result(:killed).waive.covered?, result(:killed).waive.killed?]).to(eq([false, false]))
+    end
+  end
+
+  describe "#lapsed?" do
+    it "is true only for an ignored mutant whose verdict is a kill", :aggregate_failures do
+      %i[killed timeout error].each { |s| expect(result(s).waive.lapsed?).to(be(true)) }
+      %i[survived no_coverage harness_error].each { |s| expect(result(s).waive.lapsed?).to(be(false)) }
+      expect(described_class.waived(1, "x.rb").lapsed?).to(be(false))
+    end
   end
 end

@@ -217,7 +217,25 @@ bundle exec kimera mutant 42 --report tmp/kimera/report.json
 bundle exec kimera baseline create tmp/kimera/report.json --reason "adopting Kimera"
 # Add the printed `baseline:` entry to .kimera.yml, then review it in code review
 bundle exec kimera baseline review .kimera-baseline.yml
+
+# Burn the baseline down: evaluate the ignored mutants too, see which entries
+# are now killed or stale, and drop them
+bundle exec kimera run --evaluate-ignored --report tmp/kimera/report.json
+bundle exec kimera baseline review .kimera-baseline.yml --report tmp/kimera/report.json
+bundle exec kimera baseline prune .kimera-baseline.yml --report tmp/kimera/report.json
 ```
+
+Ignored mutants, from `ignore:` or the baseline, are skipped by default.
+`--evaluate-ignored` runs them anyway: each keeps status `ignored` (it never
+gates as a survivor and still counts toward `max_ignored`) and its report row
+gains a `verdict` (`killed`, `survived`, ...). `--no-baseline` leaves the
+baseline out entirely, so its mutants are judged and gated like any other.
+
+`baseline review --report` sorts the entries into killed (safe to prune),
+still surviving, unjudged, stale (the report covers the file but no mutant
+matches), and out of the report's scope. `baseline prune` drops the killed and
+stale ones (`--dry-run` only prints them) and says how far `max_ignored` can
+drop. After an incremental `--since` run it never prunes an entry as stale.
 
 ### Output formats and exit codes
 
@@ -324,7 +342,10 @@ max_ignored: 1
 
 # Known-equivalent mutants. Equivalence is undecidable, so Kimera doesn't
 # guess: you mark a mutant and it stops being a survivor. An entry without
-# a reason: is rejected at startup.
+# a reason: is rejected at startup. Anchors: file (a glob, required), line,
+# column, label, method, original. If a line anchor drifts (a line was added
+# above), the entry still applies when its label (plus original/method, if
+# given) singles out one mutant in the file; Kimera warns so you can update it.
 ignore:
   - file: app/models/discount.rb
     line: 33

@@ -16,7 +16,7 @@ class Kimera::CLI::Run::Arguments
 
   def finish(options, rest)
     validate(options)
-    options.except(:cli_tests).merge(scoped(options, rest))
+    options.except(:cli_tests, :baseline_ignore).merge(scoped(options, rest))
   end
 
   def validate(options) = Kimera::Report::Formats.new.normalize(options[:format])
@@ -31,7 +31,7 @@ class Kimera::CLI::Run::Arguments
   def tests(cli, options) = Kimera::Config.prefer(cli, options[:tests], Kimera::CLI::RunOptions::DEFAULT_TESTS)
 
   def arrays(options)
-    { exclude: Array(options[:exclude]), ignore: Array(options[:ignore]) }
+    { exclude: Array(options[:exclude]), ignore: Kimera::Config.ignores(options) }
       .merge(isolate_when_covered_by: Array(options[:isolate_when_covered_by]), focus: Array(options[:focus]))
   end
 
@@ -48,6 +48,7 @@ class Kimera::CLI::Run::Arguments
 
   def gates
     { since: nil, session: nil, max_survivors: nil }.merge(max_ignored: nil, max_errors: 0, jobs: 1)
+      .merge(evaluate_ignored: false, baseline: nil)
   end
 
   def scope

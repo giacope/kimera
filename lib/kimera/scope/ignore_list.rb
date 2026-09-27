@@ -24,26 +24,31 @@ module Kimera
         end
       end
 
+    Resolution = Data.define(:ids, :stale, :moved)
+
+    Shift =
+      Data.define(:rule, :line) do
+        def to_s = "#{rule[:file]}:#{rule[:line]} → #{line} [#{rule[:label]}]"
+      end
+
     module_function
 
-    def ids(registry, rules)
-      rules = Array(rules)
-      registry.each.filter_map { |mutant, point| mutant.id if rules.any? { |rule| match?(rule, point, mutant) } }
+    def resolve(registry, rules)
+      candidates = Hash.new { |cache, glob| cache[glob] = pairs(registry, glob) }
+      placements = Array(rules).map { |rule| Placement.new(rule, candidates[rule[:file]]) }
+      Resolution.new(
+        ids: placements.flat_map(&:ids).uniq.sort,
+        stale: placements.select(&:stale?).map(&:rule), moved: placements.filter_map(&:moved)
+      )
     end
 
-    def stale(registry, rules)
-      Array(rules).select do |rule|
-        relevant?(rule, registry) && !any?(rule, registry)
-      end
-    end
+    def ids(registry, rules) = resolve(registry, rules).ids
 
-    def relevant?(rule, registry)
-      glob = rule[:file]
-      glob && registry.files.any? { |file| File.fnmatch?(glob, file, File::FNM_PATHNAME) }
-    end
+    def stale(registry, rules) = resolve(registry, rules).stale
 
-    def any?(rule, registry)
-      registry.each.any? { |mutant, point| match?(rule, point, mutant) }
+    def pairs(registry, glob)
+      files = glob ? registry.files.select { |file| File.fnmatch?(glob, file, File::FNM_PATHNAME) } : []
+      files.flat_map { |file| registry.at(file).flat_map { |point| point.mutants.map { |mutant| [mutant, point] } } }
     end
 
     ANCHORS = { line: :line?, column: :column?, label: :label? }.merge(method: :method?, original: :original?).freeze
@@ -53,3 +58,5 @@ module Kimera
     end
   end
 end
+
+require_relative "ignore_placement"

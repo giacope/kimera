@@ -68,8 +68,12 @@ class Kimera::Incremental::Session
 
   def report(evaluated, waived, registry)
     results = evaluated.filter_map { |id| @results[id] }
-    results += waived.map { |id| Kimera::MutantResult.waived(id, registry.index[id]&.file) }
+    results += waived.map { |id| waiver(id, registry) }
     Kimera::RunReport.new(results: results, leaks: @leaks, registry: registry)
+  end
+
+  def waiver(id, registry)
+    @results[id]&.waive || Kimera::MutantResult.waived(id, registry.index[id]&.file)
   end
 
   def merge!(report)

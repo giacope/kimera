@@ -97,6 +97,25 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   an `--isolated` case. Its mutants report as `unmutatable` (never gating,
   never scored, with the reason in the detail), not `no_coverage`.
 
+## Burn down a baseline
+
+```sh
+bundle exec kimera run --evaluate-ignored --report r.json   # judge ignored mutants too
+bundle exec kimera baseline review .kimera-baseline.yml --report r.json
+bundle exec kimera baseline prune .kimera-baseline.yml --report r.json  # --dry-run first
+```
+
+- `--evaluate-ignored` keeps ignored mutants `ignored` (never a gating
+  survivor, still counted by `max_ignored`) but records each one's `verdict`.
+  Don't copy `.kimera.yml` to drop the `baseline:` line; `--no-baseline`
+  does that.
+- `review` sorts entries into killed (prune), still surviving (triage them
+  like any survivor), unjudged, stale, and out of scope. `prune` drops killed
+  and stale entries, moves re-anchored ones to their current line, and says
+  how far to lower `max_ignored`: lower it in the same diff.
+- A drifted line anchor re-anchors on its own when the label (and `original`)
+  single out one mutant; the `re-anchored` warning means update the entry.
+
 ## Triage a surviving mutant: the only four verdicts
 
 1. **Real gap**: write the test. Assert the exact distinction the mutant

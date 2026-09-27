@@ -141,4 +141,31 @@ RSpec.describe(Kimera::Report::Text) do
     expect(output).to(include("Mutants with no covering test (1):"))
     expect(output).not_to(include("#999999"))
   end
+
+  def waived(status, index) = Kimera::MutantResult.new(mutant_id: 100 + index, status: status, file: "calc.rb").waive
+
+  def waivers(path: nil)
+    results = %i[killed survived no_coverage timeout].each_with_index.map { |status, index| waived(status, index) }
+    io = StringIO.new
+    report = Kimera::RunReport.new(results: results + [Kimera::MutantResult.waived(200, "calc.rb")])
+    described_class.new(registry, io: io, color: false).report(report, path: path)
+    io.string
+  end
+
+  it "tallies evaluated ignored mutants by verdict and points at pruning", :aggregate_failures do
+    expect(waivers).to(
+      include(
+        "\n\n2 ignored mutant(s) are now killed (their entries can be pruned); 1 still survive; " \
+          "1 could not be judged.\n",
+        "2 ignored mutant(s) now killed: rerun with --report FILE, then `kimera baseline prune`"
+      )
+    )
+    expect(waivers(path: "rep.json")).to(
+      include("2 ignored mutant(s) now killed: `kimera baseline prune BASELINE.yml --report rep.json`")
+    )
+  end
+
+  it "stays silent about ignored mutants that were not evaluated" do
+    expect(render(Kimera::MutantResult.waived(mutant.id, "calc.rb"))).not_to(include("ignored mutant(s)"))
+  end
 end

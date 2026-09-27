@@ -14,7 +14,7 @@ class Kimera::Report::Actions
     hints = path ? SavedHints.new(path) : UnsavedHints.new
     lines = [
       advice(report.survived, hints, :survivors), advice(report.uncovered, hints, :uncovered),
-      advice(report.errors, hints, :unjudged)
+      advice(report.errors, hints, :unjudged), advice(report.statuses(:ignored).select(&:lapsed?), hints, :lapsed)
     ].compact
     @io.puts("", "Next actions:", *lines) unless lines.empty?
   end
@@ -37,6 +37,8 @@ class Kimera::Report::Actions
 
     def unjudged(id) = "unjudged mutant(s): see why with `#{mutant(id)}`"
 
+    def lapsed(_id) = "ignored mutant(s) now killed: `kimera baseline prune BASELINE.yml --report #{@path}`"
+
     private
 
     def mutant(id) = "kimera mutant #{id} --report #{@path}"
@@ -48,5 +50,7 @@ class Kimera::Report::Actions
     def uncovered(_id) = "uncovered mutant(s): rerun with --report tmp/kimera.json"
 
     def unjudged(_id) = "unjudged mutant(s): retry with `kimera run --isolated`"
+
+    def lapsed(_id) = "ignored mutant(s) now killed: rerun with --report FILE, then `kimera baseline prune`"
   end
 end

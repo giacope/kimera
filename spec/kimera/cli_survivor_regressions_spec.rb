@@ -127,7 +127,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         File.write(bad, JSON.generate("results" => [{ "mutant_id" => 1, "status" => "survived", "file" => "x.rb" }]))
         argv = ["create", bad, "--reason", "why", "--output", File.join(dir, "baseline.yml")]
         expect(baseline(argv)[2]).to(include("report is missing line for mutant #1"))
-        expect(baseline(["review"])[2]).to(include("usage: kimera baseline review"))
+        expect(baseline(["review"])[2]).to(include("Usage: kimera baseline review BASELINE.yml"))
         expect(baseline(["review", "missing.yml"])[2]).to(include("no such baseline"))
       end
     end

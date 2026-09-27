@@ -25,19 +25,21 @@ class Kimera::CLI::Run::Cycle
 
   def scope(selected)
     eligible = focus(selected || @registry.each.map { |mutant, _| mutant.id })
-    ignored = Kimera::IgnoreList.ids(@registry, @options[:ignore]) & eligible
-    notify(selected, ignored)
+    resolution = Kimera::IgnoreList.resolve(@registry, @options[:ignore])
+    ignored = resolution.ids & eligible
+    notify(selected, ignored, resolution)
     session(eligible - ignored, ignored)
   end
 
-  def notify(selected, ignored)
-    @digest.stale(@registry, @options[:ignore])
+  def notify(selected, ignored, resolution)
+    @digest.anchors(resolution)
     @digest.announce(selected, ignored, files: @registry.files.size, since: @options[:since])
+    @digest.evaluating(ignored) if @options[:evaluate_ignored]
   end
 
   def session(todo, ignored)
     loaded = Kimera::Incremental::Session.load(@options[:session], registry: @registry)
-    perform(todo, loaded)
+    perform(@options[:evaluate_ignored] ? todo + ignored : todo, loaded)
     conclude(todo, ignored, loaded)
   end
 
@@ -71,7 +73,7 @@ class Kimera::CLI::Run::Cycle
   end
 
   def provenance
-    @options.slice(:framework, :source_root, :tests, :exclude_tests, :operators, :coverage, :isolated, :jobs)
+    @options.slice(:framework, :source_root, :tests, :exclude_tests, :operators, :coverage, :isolated, :jobs, :since)
       .transform_keys(&:to_s).merge(narrowing.provenance)
   end
 

@@ -40,7 +40,12 @@ module Kimera
       return {} unless File.exist?(file)
       options = normalize(YAML.safe_load_file(file) || {})
       baseline = options[:baseline]
-      baseline ? options.merge(ignore: Array(options[:ignore]) + ignores_from(baseline, file)) : options
+      baseline ? options.merge(baseline_ignore: ignores_from(baseline, file)) : options
+    end
+
+    def ignores(options)
+      local = Array(options[:ignore])
+      options[:baseline] ? local + Array(options[:baseline_ignore]) : local
     end
 
     def root(root: ".")

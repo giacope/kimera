@@ -26,7 +26,7 @@ module Kimera
         synthesize [paths...] Write schemata sources for inspection
 
       Setup:
-        baseline ...          Create or review a baseline of accepted survivors
+        baseline ...          Create, review, or prune a baseline of accepted survivors
         completion SHELL      Print Bash, Zsh, or Fish completion setup
         skill                 Print the guide for AI agents running Kimera
         version               Print version

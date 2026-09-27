@@ -21,8 +21,14 @@ class Kimera::CLI::Run::Digest
     @io.puts("Ignoring #{ignored.size} mutant(s) marked equivalent.") unless ignored.empty?
   end
 
-  def stale(registry, rules)
-    Kimera::IgnoreList.stale(registry, rules).each { |rule| @errors.puts(anchor(rule)) }
+  def evaluating(ignored)
+    return if ignored.empty?
+    @io.puts("Evaluating them anyway (--evaluate-ignored): each keeps status ignored and records its verdict.")
+  end
+
+  def anchors(resolution)
+    resolution.stale.each { |rule| @errors.puts(anchor(rule)) }
+    resolution.moved.each { |shift| @errors.puts(moved(shift)) }
   end
 
   def verbose(options)
@@ -42,6 +48,8 @@ class Kimera::CLI::Run::Digest
   def anchor(rule)
     "kimera: warning: ignore entry matches no mutant (stale anchor?): #{spot(rule)} #{rule[:label]}".rstrip
   end
+
+  def moved(shift) = "kimera: warning: ignore entry re-anchored: #{shift} (update the entry to silence this)"
 
   def spot(rule)
     [rule[:file], rule[:line]].compact.join(":")

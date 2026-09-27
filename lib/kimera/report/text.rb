@@ -43,6 +43,7 @@ class Kimera::Report::Text
   def survivors(report)
     section("Surviving mutants", report.survived) { |result| survivor(result) }
     unjudged(report)
+    waivers(report)
   end
 
   def summary(report)

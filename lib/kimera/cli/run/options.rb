@@ -45,6 +45,11 @@ module Kimera::CLI::RunOptions
         "Gate: fail if more than N mutants are ignore-listed", type: Integer
       ),
       Kimera::Flag.build(
+        "--evaluate-ignored", :evaluate_ignored,
+        "Also run ignored mutants; they stay ignored but record their verdict (killed, survived, ...)"
+      ),
+      Kimera::Flag.build("--no-baseline", :baseline, "Skip the config's baseline: file (its mutants are judged)"),
+      Kimera::Flag.build(
         "--max-errors N", :max_errors,
         "Gate: fail if more than N mutants could not be judged (default 0)", type: Integer
       ),

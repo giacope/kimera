@@ -85,7 +85,7 @@ RSpec.describe(Kimera::Config) do
     end
   end
 
-  it "merges a reasoned baseline file with local ignore entries" do
+  def with_baseline
     Dir.mktmpdir do |dir|
       File.write(File.join(dir, ".kimera-baseline.yml"), <<~YAML)
         ignore:
@@ -94,19 +94,24 @@ RSpec.describe(Kimera::Config) do
             label: "== => !="
             reason: pre-adoption debt
       YAML
-      File.write(File.join(dir, ".kimera.yml"), "baseline: .kimera-baseline.yml\n")
-      opts = described_class.root(root: dir)
-      expect(opts.fetch(:ignore)).to(
-        eq(
-        [
-        {
-          file: "app/models/old.rb", line: 4, label: "== => !=",
-          reason: "pre-adoption debt"
-        }
-      ]
-      )
-      )
+      File.write(File.join(dir, ".kimera.yml"), "baseline: .kimera-baseline.yml\n#{normalized_yaml.lines.last(5).join}")
+      described_class.root(root: dir)
     end
+  end
+
+  def accepted = { file: "app/models/old.rb", line: 4, label: "== => !=", reason: "pre-adoption debt" }
+
+  it "keeps a reasoned baseline file's entries apart from the local ignore entries", :aggregate_failures do
+    opts = with_baseline
+    expect(opts.fetch(:ignore)).to(eq(normalized_ignore))
+    expect(opts.fetch(:baseline_ignore)).to(eq([accepted]))
+  end
+
+  it "applies baseline entries after local ones unless --no-baseline cleared baseline", :aggregate_failures do
+    opts = with_baseline
+    expect(described_class.ignores(opts)).to(eq(normalized_ignore + [accepted]))
+    expect(described_class.ignores(opts.merge(baseline: false))).to(eq(normalized_ignore))
+    expect(described_class.ignores({})).to(eq([]))
   end
 
   it "omits keys that are not present" do

@@ -212,7 +212,7 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     out, error = captured
     status = Kimera::CLI::Baseline.new(io: out, errors: error).run(["unknown"])
     expect(status).to(eq(1))
-    expect(error.string).to(include("usage: kimera baseline <create|review>"))
+    expect(error.string).to(include("usage: kimera baseline <create|review|prune> ..."))
   end
 
   it "uses report as the friendly survivors alias and mutant as focused detail" do
