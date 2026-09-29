@@ -117,16 +117,16 @@ RSpec.describe(Kimera::Registry) do
     end
   end
 
-  # A mutant that is the original can never be killed, and two of one kind
-  # that are the same program count one test gap twice. (Different kinds can
-  # still meet on redundant code: `x.to_s.to_s` unwrapped or unlinked.)
-  it "never emits a mutant that is the original program, or two of one kind that are the same program" do
+  # A mutant that is the original can never be killed, and two that are the
+  # same program count one test gap twice, whichever operators made them
+  # (`x.to_s.to_s` unwrapped or unlinked).
+  it "never emits a mutant that is the original program, or two that are the same program" do
     for_all(programs, runs: 60) do |program|
       schemata = SchemataProjection.check(render(program))
       schemata.registry.points.each do |point|
-        bakes = point.mutants.map { |mutant| [mutant.directive["type"], schemata.baked(mutant.id)] }
+        bakes = point.mutants.map { |mutant| schemata.baked(mutant.id) }
         source = point.original_source
-        expect(bakes.map(&:last)).not_to(include(schemata.original), "#{source}: a mutant is the original")
+        expect(bakes).not_to(include(schemata.original), "#{source}: a mutant is the original")
         expect(bakes).to(eq(bakes.uniq), "#{source}: #{point.mutants.map(&:label)} repeat a program")
       end
     end

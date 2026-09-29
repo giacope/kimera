@@ -4,6 +4,7 @@ require "prism"
 require_relative "../default_removal"
 require_relative "../memo_guard"
 require_relative "../memoization"
+require_relative "../rewrite/outcomes"
 require_relative "mutation_point"
 require_relative "walking"
 
@@ -57,12 +58,14 @@ class Kimera::RegistryScan::SourceFile
   end
 
   def assemble(node, pairs, cursor)
-    point = Kimera::MutationPoint.new(**attrs(node, distinct(pairs), cursor.defname))
+    point = Kimera::MutationPoint.new(**attrs(node, distinct(node.location, pairs), cursor.defname))
     point.unsafe!(Kimera::MutationPoint::CLASS_BODY_REASON) unless cursor.inside_def
     point
   end
 
-  def distinct(pairs) = pairs.uniq { |(_key, variant)| variant.directive }
+  def distinct(location, pairs) = outcomes.distinct(location, pairs) { |(_key, variant)| variant.directive }
+
+  def outcomes = @_outcomes ||= Kimera::Rewrite::Outcomes.new(@source)
 
   def attrs(node, pairs, name)
     location = node.location

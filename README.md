@@ -665,8 +665,8 @@ invariants every run relies on:
   running both on random calls, including calls that omit optional arguments.
   The one-page equivalence contract, with its exclusions, is at the top of
   `spec/property/support/schemata_projection.rb`;
-- no mutant is the original program, and no two mutants of one kind at a
-  point are the same program;
+- no mutant is the original program, and no two mutants at a point are the
+  same program;
 - mutant ids, keys (including keys whose line moved) and registry JSON are
   stable;
 - diff parsing never misses a changed line, checked against real `git diff`;

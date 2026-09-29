@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- A point keeps one mutant per program it can leave, whichever operators
+  made them. Variants were told apart by directive only, so on redundant
+  code two operators could emit the same program (`a.to_s.to_s` with
+  `.to_s` unwrapped or its chain link dropped; `nil.respond_to?(:abs)`
+  deleted or unguarded) and one test gap was reported twice. Each variant
+  is now applied to the node as it stands in its file, and the first of
+  equal programs is kept. The scan parses each file once more for that:
+  over kimera's own `lib/` (280 KB), 1.2s becomes 1.9s.
 - `argument_drop` and `element_drop` also count neighbors as equal when they
   differ only by parentheses or by minus on a numeric literal (`[-(1), -1]`,
   `f((a), a)`). Dropping either leaves the same program, but the two were
