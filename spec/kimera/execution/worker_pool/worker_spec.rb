@@ -20,6 +20,15 @@ RSpec.describe Kimera::Execution::WorkerPool::Worker do
     end
   end
 
+  it "hands back only whole lines and keeps the rest for the next chunk", :aggregate_failures do
+    worker = described_class.new
+    expect(worker.lines("a\nb")).to(eq(["a"]))
+    expect(worker.lines("c\n\nd\n")).to(eq(["bc", "", "d"]))
+    expect(worker.rest).to(eq(""))
+    expect(worker.lines("e")).to(eq([]))
+    expect([worker.rest, worker.rest]).to(eq(["e", ""]))
+  end
+
   it "is fresh until it claims a mutant", :aggregate_failures do
     worker = described_class.new(pid: 1)
     expect(worker.fresh?).to(be(true))
