@@ -130,6 +130,22 @@ RSpec.describe(Kimera::Overlay) do
       expect(described_class.new(catalog).bake("x.rb", src, mutant.id)).to(include("r = (([a, a])...a)", "a < b"))
     end
 
+    # unparser 0.9 wrote `-(0.succ)` as `-0.succ`, which Ruby reads as
+    # `(-0).succ`, and `(-1) ** 2` as `-1 ** 2`, which is `-(1 ** 2)`.
+    {
+      "a minus over a chain rooted at the literal" => ["--1.succ", "-1", "-1 => 0", "-(0.succ)", -1],
+      "a literal raised to a power" => ["0 ** 2", "0", "0 => -1", "(-1) ** 2", 1]
+    }.each do |shape, (body, needle, label, written, value)|
+      it "bakes a literal mutant under #{shape} as the program it names", :aggregate_failures do
+        src = "def m\n  #{body}\nend\n"
+        catalog = selected(%w[numeric_literal], src)
+        mutant = catalog.points.find { |p| p.original_source == needle }.mutants.find { |m| m.label == label }
+        baked = described_class.new(catalog).bake("x.rb", src, mutant.id)
+        expect(baked).to(include(written))
+        expect(Object.new.extend(Module.new.tap { |mod| mod.module_eval(baked) }).m).to(eq(value))
+      end
+    end
+
     it "raises Unbakeable, naming the unparser failure, when unparser can't write the bake" do
       mutant = registry.each.first.first
       allow(Kimera::Unparse).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))

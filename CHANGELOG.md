@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- A bake keeps a sign that belongs outside a numeric literal. unparser
+  wrote minus or plus over a call chain rooted at a literal (`-(0.succ)`)
+  as `-0.succ`, and a negative literal raised to a power (`(-1) ** 2`) as
+  `-1 ** 2`; Ruby reads the sign as the literal's, so `--1.succ` with
+  `-1 => 0` baked to `1` where the warm run returned `-1`. `--isolated` and
+  the reload tier judged that different program. Kimera now writes such an
+  operand in parentheses, in synthesis, bakes and rendered directives alike.
 - Code with an array literal as a range endpoint (`([a, a]...a)`) is
   mutated. unparser writes such an endpoint as a `%w`/`%i` literal, so it
   raised KeyError unless every element was a plain string or symbol (and

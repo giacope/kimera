@@ -46,8 +46,46 @@ module Kimera
 
       def endpoint(node) = node && n_array?(node) ? parentheses { visit(node) } : yield
     end
+
+    module Numerals
+      TYPES = %i[int float rational complex].freeze
+      CHAINS = %i[send csend index block numblock itblock].freeze
+      SIGNS = %i[-@ +@].freeze
+
+      class << self
+        def rooted?(node) = CHAINS.include?(node.type) && leading?(node.children.first)
+
+        def leading?(node) = node.is_a?(Parser::AST::Node) && (TYPES.include?(node.type) || rooted?(node))
+
+        def negative?(node) = TYPES.include?(node.type) && Unparser.unparse(node).start_with?("-")
+      end
+
+      module Enclosure
+        private
+
+        def visit(node) = fused?(node) ? parentheses { super } : super
+      end
+
+      module Operand
+        include Enclosure
+
+        private
+
+        def fused?(node) = SIGNS.include?(selector) && Numerals.rooted?(node)
+      end
+
+      module Exponentiation
+        include Enclosure
+
+        private
+
+        def fused?(node) = node.equal?(receiver) && selector.equal?(:**) && Numerals.negative?(node)
+      end
+    end
   end
 end
 
 Unparser::AST::LocalVariableScopeEnumerator.prepend(Kimera::Unparse::Binders)
 Unparser::Emitter::Range.prepend(Kimera::Unparse::RangeEndpoints)
+Unparser::Writer::Send::Unary.prepend(Kimera::Unparse::Numerals::Operand)
+Unparser::Writer::Send::Binary.prepend(Kimera::Unparse::Numerals::Exponentiation)

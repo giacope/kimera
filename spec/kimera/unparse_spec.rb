@@ -72,4 +72,82 @@ RSpec.describe(Kimera::Unparse) do
       expect(reemit("0...(1..2)")).to(eq("0...(1..2)"))
     end
   end
+
+  # unparser 0.9 writes a sign right before a numeric literal, and Ruby reads
+  # the sign as the literal's: `-(0.to_s)` as `-0.to_s`, which is `(-0).to_s`.
+  # Parsed source keeps such parentheses as a begin node; a mutation can root a
+  # chain at a literal without one (`--1.to_s`, `-1 => 0`), so these trees are
+  # built by hand.
+  describe(Kimera::Unparse::Numerals) do
+    def self.s(type, *children) = Parser::AST::Node.new(type, children)
+
+    def s(...) = self.class.s(...)
+
+    def write(node) = Kimera::Unparse.unparse(node)
+
+    def reemit(source) = write(Kimera::Unparse.parse(source))
+
+    let(:one) { s(:send, s(:int, 1), :abs) }
+
+    {
+      "an integer" => [s(:int, 0), "-(0.to_s)"], "a float" => [s(:float, 1.5), "-(1.5.to_s)"],
+      "a rational" => [s(:rational, 1r), "-(1r.to_s)"], "an imaginary" => [s(:complex, 1i), "-(1i.to_s)"],
+      "a negative literal" => [s(:int, -1), "-(-1.to_s)"]
+    }.each do |kind, (literal, written)|
+      it "writes minus over a call on #{kind} with the call in parentheses" do
+        expect(write(s(:send, s(:send, literal, :to_s), :-@))).to(eq(written))
+      end
+    end
+
+    {
+      "a longer chain" => [s(:send, s(:send, s(:int, 1), :abs), :to_s), "-(1.abs.to_s)"],
+      "a safe navigation" => [s(:csend, s(:int, 1), :abs), "-(1&.abs)"],
+      "an index" => [s(:index, s(:send, s(:int, 1), :abs), s(:int, 0)), "-(1.abs[0])"],
+      "a block" => [s(:block, s(:send, s(:int, 1), :then), s(:args), nil), "-(1.then {\n})"],
+      "a numbered block" => [s(:numblock, s(:send, s(:int, 1), :then), 1, s(:lvar, :_1)), "-(1.then {\n  _1\n})"],
+      "an it block" => [s(:itblock, s(:send, s(:int, 1), :then), :it, s(:lvar, :it)), "-(1.then {\n  it\n})"],
+      "a power" => [s(:send, s(:int, 2), :**, s(:int, 2)), "-(2 ** 2)"],
+      "a minus over a chain" => [s(:send, s(:send, s(:int, 1), :abs), :-@), "-(-(1.abs))"]
+    }.each do |shape, (operand, written)|
+      it "writes minus over #{shape} rooted at a literal with the operand in parentheses" do
+        expect(write(s(:send, operand, :-@))).to(eq(written))
+      end
+    end
+
+    it "writes plus over a chain rooted at a literal with the chain in parentheses" do
+      expect(write(s(:send, one, :+@))).to(eq("+(1.abs)"))
+    end
+
+    it "leaves other signs, and other operands, as unparser writes them", :aggregate_failures do
+      expect(write(s(:send, one, :~))).to(eq("~1.abs"))
+      expect(write(s(:send, one, :!))).to(eq("!1.abs"))
+      expect(write(s(:send, s(:int, 1), :-@))).to(eq("-1"))
+      expect(write(s(:send, s(:int, 1), :+@))).to(eq("++1"))
+      expect(write(s(:send, s(:array, s(:int, 1)), :-@))).to(eq("-[1]"))
+      expect(reemit("-a.abs")).to(eq("-a.abs"))
+      expect(reemit("-(1)")).to(eq("-(1)"))
+    end
+
+    {
+      "an integer" => [s(:int, -1), "(-1) ** 2"], "a float" => [s(:float, -0.0), "(-0.0) ** 2"],
+      "a rational" => [s(:rational, -1r), "(-1r) ** 2"], "an imaginary" => [s(:complex, -1i), "(-1i) ** 2"]
+    }.each do |kind, (literal, written)|
+      it "writes #{kind} negative literal raised to a power in parentheses" do
+        expect(write(s(:send, literal, :**, s(:int, 2)))).to(eq(written))
+      end
+    end
+
+    it "leaves other bases and operators as unparser writes them", :aggregate_failures do
+      expect(write(s(:send, s(:int, 2), :**, s(:int, -1)))).to(eq("2 ** -1"))
+      expect(write(s(:send, s(:int, -1), :*, s(:int, 2)))).to(eq("-1 * 2"))
+      expect(write(s(:send, s(:send, s(:int, -1), :abs), :**, s(:int, 2)))).to(eq("-1.abs ** 2"))
+      expect(reemit("10 ** 3")).to(eq("10 ** 3"))
+    end
+
+    # What Ruby itself reads back, not only the text.
+    it "writes code that evaluates like the tree", :aggregate_failures do
+      expect(Object.new.instance_eval(write(s(:send, s(:send, s(:int, 1), :to_s), :-@)))).to(eq("1"))
+      expect(Object.new.instance_eval(write(s(:send, s(:int, -1), :**, s(:int, 2))))).to(eq(1))
+    end
+  end
 end
