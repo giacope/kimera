@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- A point keeps one mutant per program it can leave, whichever operators
+  made them. Variants were told apart by directive only, so on redundant
+  code two operators could emit the same program (`a.to_s.to_s` with
+  `.to_s` unwrapped or its chain link dropped; `nil.respond_to?(:abs)`
+  deleted or unguarded) and one test gap was reported twice. Each variant
+  is now applied to the node as it stands in its file, and the first of
+  equal programs is kept. The scan parses each file once more for that:
+  over kimera's own `lib/` (280 KB), 1.2s becomes 1.9s.
 - `kimera changed` and `--since` keep the lines after an added line that
   starts with `++ b/`. git prints that line as `+++ b/...`, the diff parser
   took it for a new file's header, and every later hunk of the file went to

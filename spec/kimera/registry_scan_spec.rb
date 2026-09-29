@@ -143,6 +143,32 @@ RSpec.describe(Kimera::RegistryScan) do
     end
   end
 
+  # Different operators can meet on redundant code; one program is one mutant.
+  describe "variants that leave the same program" do
+    let(:operators) { Kimera::Operators.build(keys: ["all"]) }
+
+    def labels(source)
+      described_class.new(operators: operators).source(source, file: "x.rb").points.first.mutants.map(&:label)
+    end
+
+    it "keeps the first of the operators that meet", :aggregate_failures do
+      expect(labels("def m(a)\n  a.to_s.to_s\nend\n")).to(eq(["delete `a.to_s.to_s`", "delete .to_s"]))
+      expect(labels("def m\n  nil.respond_to?(:a)\nend\n")).to(eq(["delete `nil.respond_to?(:a)`", "drop arg `:a`"]))
+      expect(labels("def m\n  Array(nil)\nend\n")).to(eq(["delete `Array(nil)`", "drop arg `nil`"]))
+    end
+
+    # `&` alone is not a program; the call is read where it stands.
+    it "reads the node in its file", :aggregate_failures do
+      expect(labels("def m(&)\n  f(1, 1, &)\nend\n")).to(eq(["delete `f(1, 1, &)`", "drop arg `1`"]))
+      expect(labels("def m(a)\n  f(a, a)\n  a.map { it }\nend\n")).to(eq(["delete `f(a, a)`", "drop arg `a`"]))
+    end
+
+    # The parser gem rejects "\xff" in a UTF-8 file, where Prism reads it.
+    it "keeps every variant of a file it can't render" do
+      expect(labels("def m\n  f(1, 1)\n  \"\\xff\"\nend\n")).to(eq(["delete `f(1, 1)`"] + (["drop arg `1`"] * 2)))
+    end
+  end
+
   describe "tainting" do
     def spot
       Kimera::MutationPoint.new(

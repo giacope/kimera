@@ -36,6 +36,7 @@
     "operators -> support",
     "registry -> (root)",
     "registry -> operators",
+    "registry -> rewrite",
     "registry -> support",
     "report -> rewrite",
     "report -> support",

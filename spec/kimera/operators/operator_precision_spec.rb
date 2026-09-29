@@ -241,13 +241,13 @@ RSpec.describe("operator precision") do
       expect(kept("(a), a, ((a))")).to(eq([0]))
       expect(kept("-(-1), 1, (1)")).to(eq([0]))
       expect(kept("-(1.5), -1.5, -(1r), -1r, -(2i), -2i")).to(eq([0, 2, 4]))
-      expect(kept("[-(1)].first, [-1].first, -a, -(a)")).to(eq([0, 2]))
+      expect(kept("[-(1)].first, [-1].first, -a, -(a), a.-@")).to(eq([0, 2]))
     end
 
     it "still tells apart neighbors that differ", :aggregate_failures do
       expect(kept("-(1), 1, 0.0, -(0.0), 1.0")).to(eq([0, 1, 2, 3, 4]))
       expect(kept("(1; 2), 1, 1.-@(2), -1, 1.-@ { }, -1")).to(eq([0, 1, 2, 3, 4, 5]))
-      expect(kept("a&.b, a.b, a.-@, -a, a.+(1), a.-(1)")).to(eq([0, 1, 2, 3, 4, 5]))
+      expect(kept("a&.b, a.b, a.+(1), a.-(1), a.-@(1), -a")).to(eq([0, 1, 2, 3, 4, 5]))
       expect(kept("+(1), -1, (), nil, [1], [2]")).to(eq([0, 1, 2, 3, 4, 5]))
     end
 
