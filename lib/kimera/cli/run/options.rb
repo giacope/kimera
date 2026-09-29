@@ -35,8 +35,8 @@ module Kimera::CLI::RunOptions
       Kimera::Flag.build("--since REF", :since, "Incremental: only mutate lines changed vs REF (git diff)"),
       Kimera::Flag.build("--session FILE", :session, "Persist/resume per-mutant results in FILE"),
       Kimera::Flag.build(
-        "--focus ID", :focus, "Evaluate only one or more mutant IDs (repeatable)",
-        type: Integer, collect: true
+        "--focus ID|KEY", :focus, "Evaluate only these mutants, by ID or report key (repeatable)",
+        collect: true
       ),
       Kimera::Flag.build("--[no-]gate", :gate, "Return gate status (default: on; use --no-gate for exploration)"),
       Kimera::Flag.build("--max-survivors N", :max_survivors, "Gate: fail only if survivors exceed N", type: Integer),
@@ -44,6 +44,11 @@ module Kimera::CLI::RunOptions
         "--max-ignored N", :max_ignored,
         "Gate: fail if more than N mutants are ignore-listed", type: Integer
       ),
+      Kimera::Flag.build(
+        "--evaluate-ignored", :evaluate_ignored,
+        "Also run ignored mutants; they stay ignored but record their verdict (killed, survived, ...)"
+      ),
+      Kimera::Flag.build("--no-baseline", :baseline, "Skip the config's baseline: file (its mutants are judged)"),
       Kimera::Flag.build(
         "--max-errors N", :max_errors,
         "Gate: fail if more than N mutants could not be judged (default 0)", type: Integer
@@ -63,6 +68,7 @@ module Kimera::CLI::RunOptions
       Kimera::Flag.build(["-q", "--quiet"], :quiet, "Suppress the final human-readable report"),
       Kimera::Flag.build(["-v", "--verbose"], :verbose, "Print resolved scope and execution settings"),
       Kimera::Flag.build("--log FILE", :log, "Write the final human-readable report to FILE"),
+      Kimera::Flag.build("--pidfile FILE", :pidfile, "Write kimera's process id to FILE, removed when the run ends"),
       Kimera::Flag.build(
         "--[no-]isolate-db", :isolate_db, "Wrap each mutant in a rolled-back ActiveRecord transaction"
       ),

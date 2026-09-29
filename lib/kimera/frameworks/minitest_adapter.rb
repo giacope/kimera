@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "adapter"
+require_relative "../support/test_exit"
 
 module Kimera
   module Frameworks
@@ -75,7 +76,7 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
   def record(id, failed, failures)
     klass, name = @methods[id]
     return unless klass
-    result = klass.new(name).run
+    result = klass.new(name).extend(Kimera::TestExit::Test).run
     return unless killing?(result)
     failure(id, result, failed, failures)
   end

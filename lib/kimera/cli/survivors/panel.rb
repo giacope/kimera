@@ -11,7 +11,7 @@ class Kimera::CLI::Survivors::Panel
     @io.puts("#{matching.size} #{options[:status]} mutant(s):")
     sorted(matching).each { |row| entry(row) }
     @io.puts
-    @io.puts("detail: kimera mutant <N> --report #{options[:report]}")
+    @io.puts("detail: kimera mutant <ID|KEY> --report #{options[:report]}")
   end
 
   def describe(row)
@@ -76,6 +76,6 @@ class Kimera::CLI::Survivors::Panel
   end
 
   def location(row)
-    [row["file"], row["line"]].compact.join(":")
+    row["key"] || [row["file"], row["line"]].compact.join(":")
   end
 end

@@ -127,7 +127,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         File.write(bad, JSON.generate("results" => [{ "mutant_id" => 1, "status" => "survived", "file" => "x.rb" }]))
         argv = ["create", bad, "--reason", "why", "--output", File.join(dir, "baseline.yml")]
         expect(baseline(argv)[2]).to(include("report is missing line for mutant #1"))
-        expect(baseline(["review"])[2]).to(include("usage: kimera baseline review"))
+        expect(baseline(["review"])[2]).to(include("Usage: kimera baseline review BASELINE.yml"))
         expect(baseline(["review", "missing.yml"])[2]).to(include("no such baseline"))
       end
     end
@@ -135,7 +135,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
   describe "mutant reruns" do
     def rerun(settings)
-      Kimera::CLI::Mutant.new.__send__(:arguments_for, { "file" => "app/x.rb" }, 7, settings)
+      row = { "file" => "app/x.rb", "key" => "app/x.rb:1:0123abcd" }
+      Kimera::CLI::Mutant.new.__send__(:arguments_for, row, settings)
     end
 
     it "validates required inputs and preserves coverage and isolation provenance" do
@@ -153,6 +154,19 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         "operators" => ["comparison"], "coverage" => false, "isolated" => true
       )
       expect(args).to(include("--no-coverage", "--isolated", "--framework", "minitest", "--source-root", "src"))
+      expect(args.first(3)).to(eq(["app/x.rb", "--focus", "app/x.rb:1:0123abcd"]))
+    end
+
+    it "asks for a fresh report when the rerun row predates mutant keys" do
+      Dir.mktmpdir do |dir|
+        path = File.join(dir, "report.json")
+        File.write(path, JSON.generate("run" => {}, "results" => [{ "mutant_id" => 7, "file" => "x.rb" }]))
+        out, errors = streams
+        expect(Kimera::CLI::Mutant.new(io: out, errors: errors).run(["7", "--report", path, "--rerun"])).to(eq(1))
+        expect(errors.string)
+          .to(eq("kimera: report has no mutant keys; regenerate it with kimera run --report, then rerun\n"))
+        expect(out.string).to(be_empty)
+      end
     end
 
     it "rejects reports without the requested mutant, source, or provenance" do
@@ -213,7 +227,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     def emission(coverage)
-      { coverage: coverage, path: nil, format: "text", metadata: anything, log: nil }
+      { coverage: coverage, path: nil, format: "text", metadata: anything, log: nil, scope: nil }
     end
 
     it "writes report metadata only when supplied and respects color overrides" do
@@ -262,7 +276,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         eq(
           "framework" => "rspec", "source_root" => ".", "tests" => ["spec/**/*_spec.rb"],
           "exclude_tests" => [], "operators" => ["comparison"], "coverage" => true,
-          "isolated" => false, "jobs" => 1
+          "isolated" => false, "jobs" => 1, "narrowed" => false
         )
       )
     end
@@ -283,6 +297,20 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect(focused.__send__(:focus, [1, 2])).to(eq([1]))
       expect { Kimera::CLI::Run::Cycle.new({ focus: [3] }, registry, nil, digest: digest).__send__(:focus, [1, 2]) }
         .to(raise_error(Kimera::UsageError, /3/))
+    end
+
+    it "focuses by ordinal or key, follows a key whose line moved, and rejects an unknown key" do
+      registry = Kimera::RegistryScan.new.source("def x(a)\n  a > 1\nend\n", file: "x.rb")
+      key = registry.keys[1]
+      focus =
+        lambda do |tokens|
+          Kimera::CLI::Run::Cycle.new({ focus: tokens }, registry, nil, digest: nil).__send__(:focus, [1, 2, 3])
+        end
+      expect(key).to(start_with("x.rb:2:"))
+      expect(focus.call([key, "2"])).to(eq([1, 2]))
+      expect(focus.call([key.sub(":2:", ":7:")])).to(eq([1]))
+      expect { focus.call(["x.rb:2:ffffffff", "3"]) }
+        .to(raise_error(Kimera::UsageError, "focused mutant(s) not in scope: x.rb:2:ffffffff"))
     end
 
     # `.rspec`'s `--require spec_helper` loads the helper while the adapter is

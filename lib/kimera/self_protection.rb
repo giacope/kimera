@@ -20,6 +20,7 @@ module Kimera
       kimera/frameworks/rspec_adapter.rb
       kimera/frameworks/rspec_group_index.rb
       kimera/frameworks/minitest_adapter.rb
+      kimera/support/test_exit.rb
       kimera/execution/shift.rb
       kimera/execution/shift/attempt.rb
       kimera/execution/shift/deadline.rb

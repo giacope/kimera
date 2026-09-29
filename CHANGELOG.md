@@ -1,5 +1,77 @@
 # Changelog
 
+## Unreleased
+
+- Every report result carries a `key`, such as
+  `app/models/discount.rb:44:8557dadd`, that names the mutant in any run. A
+  mutant ID numbers every mutant the run scanned, so `--focus 3740` from a
+  full report meant nothing, or a different mutant, in a one-file run. The
+  key's digest covers the mutant's own code (file, method, operator,
+  whitespace-squeezed source, label, and which repeat it is), not its line or
+  ID, so it is the same whether the run scanned one file or five hundred.
+  `kimera report` and `kimera mutant` show it next to the ID.
+- `--focus` (on `run`, `changed`, and `ci`) and `kimera mutant` accept a key
+  as well as an ID. A key whose line moved still resolves when its path and
+  digest match exactly one mutant; an unknown key is "not in scope".
+- `kimera mutant ID --report R --rerun` re-evaluates the right mutant. It
+  scanned only the mutant's file, where IDs restart at 1, then focused the
+  report's ID, so a mutant outside the report's first file was "not in scope"
+  or silently swapped for another. It now focuses the key. A report written
+  before keys existed can't be rerun; regenerate it.
+- A test that makes code call `exit` or `abort` now fails like any other
+  test. RSpec and Minitest let the `SystemExit` through, so it ended the warm
+  worker and the mutant was `harness_error` ("worker crashed before result");
+  a serial baseline exited kimera silently, and an isolated child died before
+  reporting. The test now fails after its teardown, with the exit status,
+  where it was called and `abort`'s message in the failure. A mutant that
+  makes a test abort is `killed`, and a baseline test that aborts turns the
+  baseline red with that message. `exit!` and interrupts are not caught.
+- A run whose `--tests` leaves out test files the configured `tests:` glob
+  (or the default) would run now says so above the summary: `narrowed run:
+  --tests matched 3 of 1,120 test files from the configured tests: glob;
+  survivors may be killed by tests outside it`. The JSON report's `run`
+  section records `"narrowed": true` and the configured globs. Narrowed runs
+  are faster, but their survivors (and kills that hold only within the narrow
+  set) used to read like a full run's. Verdicts are unchanged.
+- `kimera run --pidfile FILE` writes the run's process id to FILE and removes
+  it when the run ends, including on errors. Scripts waiting with `pgrep -f
+  "kimera run ..."` matched their own shell and waited forever; they can wait
+  on that pid instead.
+- `kimera run --evaluate-ignored` (also `changed` and `ci`) runs ignored
+  mutants, from `ignore:` and from the baseline, like any other. They keep
+  status `ignored`, so they never gate as survivors and still count toward
+  `max_ignored`, but each report row gains a `verdict` (`killed`,
+  `survived`, ...) and a `detail` such as `ignored (killed): ...`. The text
+  report sums them up: how many are now killed (their entries can be
+  pruned) and how many still survive. Until now a baselined mutant was never
+  evaluated, so finding out which entries were still alive meant copying
+  `.kimera.yml` without its `baseline:` line. A `--session` file keeps these
+  verdicts across resumes.
+- `kimera run --no-baseline` leaves out the `baseline:` file's entries, so
+  those mutants are judged and gated like any other; `.kimera.yml`'s own
+  `ignore:` entries still apply.
+- `kimera baseline review BASELINE.yml --report REPORT.json` judges every
+  entry against a report (best one from `--evaluate-ignored` or
+  `--no-baseline`): killed and safe to prune, still surviving, unjudged,
+  stale (the report covers the file but no mutant matches), or out of the
+  report's scope. Without `--report` it still just lists the entries.
+- `kimera baseline prune BASELINE.yml --report REPORT.json [--dry-run]`
+  rewrites the baseline without the killed and stale entries, keeping the
+  order of the rest, prints what it removed, and says by how much
+  `max_ignored` can drop. An incremental (`--since`) report holds only the
+  mutants on changed lines, so prune never treats an entry missing from it
+  as stale. Reports now record `since` in their `run` provenance for this.
+- A line-anchored ignore entry that no longer matches at its line (a line
+  was added above it) still applies when its other anchors (label, plus
+  `original` and `method` when given) single out exactly one mutant in the
+  file. Kimera warns `ignore entry re-anchored: path:12 → 13 [label]` so the
+  entry can be updated, instead of reporting it stale and bringing the same
+  mutant back as a new survivor. `baseline review` and `prune` follow the
+  same rule, and `prune` moves such entries to their current line.
+- `kimera baseline create` records each survivor's `original` snippet next
+  to its file, line, and label, so a re-anchored entry matches only the
+  mutant it was written for. Baselines without it keep working.
+
 ## 0.1.5 (2026-09-27)
 
 - Re-running a mutated concern's `included do` block no longer clobbers a

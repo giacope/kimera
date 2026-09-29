@@ -17,8 +17,8 @@ class Kimera::CLI::Run::Emission
     @quiet = quiet
   end
 
-  def emit(report, registry, path: nil, format: "text", metadata: nil, coverage: :hint, log: nil)
-    text = rendered(report, registry, coverage, path)
+  def emit(report, registry, path: nil, format: "text", metadata: nil, coverage: :hint, log: nil, scope: nil)
+    text = rendered(report, registry, coverage, path, scope)
     document = report.document(metadata)
     present(text, format, document)
     save(log, text) if log
@@ -27,9 +27,10 @@ class Kimera::CLI::Run::Emission
 
   private
 
-  def rendered(report, registry, coverage, path)
+  def rendered(report, registry, coverage, path, scope)
     io = StringIO.new
-    Kimera::Report::Text.new(registry, io: io, color: color?).report(report, coverage: coverage, path: path)
+    Kimera::Report::Text.new(registry, io: io, color: color?)
+      .report(report, scope: scope, coverage: coverage, path: path)
     io.string
   end
 

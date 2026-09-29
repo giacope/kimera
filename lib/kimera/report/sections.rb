@@ -10,6 +10,21 @@ module Kimera::Report::Sections
 
   def unjudged(report) = section("Mutants Kimera could not judge", report.errors) { |r| unjudge(r) }
 
+  def waivers(report)
+    judged = report.statuses(:ignored).select(&:verdict)
+    return if judged.empty?
+    @io.puts
+    @io.puts(verdicts(judged))
+  end
+
+  def verdicts(judged)
+    lapsed = judged.count(&:lapsed?)
+    surviving = judged.count { |result| result.verdict == :survived }
+    other = judged.size - lapsed - surviving
+    line = "#{lapsed} ignored mutant(s) are now killed (their entries can be pruned); #{surviving} still survive"
+    other.zero? ? "#{line}." : "#{line}; #{other} could not be judged."
+  end
+
   def unjudge(result)
     id = result.mutant_id
     @io.puts("  #{red("unjudged")} ##{id}  #{where(@registry.index[id], result)}  #{result.detail}")

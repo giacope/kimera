@@ -95,8 +95,9 @@ class Kimera::RunReport
 
   def detailed(result)
     base = result.to_h
-    pair = @registry&.point(result.mutant_id)
-    pair ? base.merge(rewritten(pair)) : base
+    id = result.mutant_id
+    pair = @registry&.point(id)
+    pair ? base.merge("key" => @registry.keys[id]).merge(rewritten(pair)) : base
   end
 
   def rewritten(pair)

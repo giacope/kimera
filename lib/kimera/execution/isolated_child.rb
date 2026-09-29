@@ -3,6 +3,7 @@
 require "json"
 require "rspec/core"
 require "stringio"
+require_relative "../support/test_exit"
 
 begin
   RSpec::Core::ConfigurationOptions.new([]).configure(RSpec.configuration)
@@ -13,6 +14,10 @@ output = StringIO.new
 RSpec.configuration.output_stream = output
 RSpec.configuration.error_stream = StringIO.new
 RSpec.configuration.deprecation_stream = StringIO.new
+
+RSpec.configuration.before(:suite) do
+  RSpec.world.all_examples.each { |example| example.extend(Kimera::TestExit::Example) }
+end
 
 ledger, request = ARGV
 locations = JSON.parse(File.read(request, encoding: Encoding::UTF_8)).fetch("tests")

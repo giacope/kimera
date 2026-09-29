@@ -44,6 +44,25 @@ RSpec.describe(Kimera::Incremental::Session) do
     expect(actual).to(eq([[1, 2], 2]))
   end
 
+  describe "ignored mutants" do
+    let(:registry) { Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n", file: "calc.rb") }
+
+    def ids = registry.each.map { |mutant, _point| mutant.id }
+
+    def waived(session) = session.report([], ids, registry).results
+
+    it "reports an evaluated ignored mutant as ignored with its stored verdict", :aggregate_failures do
+      first, second = ids
+      path = seed(dir, report([result(first, :killed)]), registry: registry)
+      rows = waived(described_class.load(path, registry: registry))
+      expect(rows.map { |row| [row.status, row.verdict, row.detail] }).to(
+        eq([[:ignored, :killed, "ignored (killed)"], [:ignored, nil, "marked equivalent (ignored)"]])
+      )
+      expect(rows.map(&:file)).to(eq(["x.rb", "calc.rb"]))
+      expect(rows.last.mutant_id).to(eq(second))
+    end
+  end
+
   describe "staleness invalidation on resume" do
     # Mutant ids are positional, so an edit can point a stored id at a
     # different mutation.

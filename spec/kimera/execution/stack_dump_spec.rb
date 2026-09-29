@@ -119,7 +119,9 @@ RSpec.describe(Kimera::Execution::StackDump) do
     writer =
       fork do
         sleep(0.1)
-        File.write(File.join(folder, "#{Process.pid}.txt"), "late")
+        target = File.join(folder, "#{Process.pid}.txt")
+        File.write("#{target}.tmp", "late")
+        File.rename("#{target}.tmp", target)
         exit!(0)
       end
     expect(dump.__send__(:collect, File.join(folder, "#{writer}.txt"))).to(eq("late"))
