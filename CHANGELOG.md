@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- With `--operators all`, a `chain_link_deletion` mutant on a call whose
+  receiver carried two or more mutants of its own ran a different program in
+  warm workers. It sent the next call to the receiver's guard condition
+  (`false.upcase`), not the receiver (`x.ord.upcase`), so its warm verdict
+  could disagree with the mutant the report showed and with `--isolated`.
+- `argument_drop` and `element_drop` no longer emit two mutants for equal
+  neighbors (`f(nil, nil)`, `[7, 7]`): dropping either one leaves the same
+  program, so one test gap was counted, and reported, twice.
+- `conditional` no longer forces a literal condition to itself (`if true` to
+  `condition => true`). That mutant is the original program, a survivor no
+  test can kill.
+- A mutation point the parser folds into its parent (the inner `-1` of `--1`)
+  has no node to guard. It is now reported `unmutatable`. Before, it ran
+  unmutated and read as `no_coverage`.
+- Property-based specs (`spec/property/`) check the schemata, registry, diff,
+  gate and worker-pool invariants on generated programs. A TLA+ model of the
+  worker pool (`formal/`) is checked by TLC in CI. The fixes above came out
+  of them.
+
 - A warm worker re-evaluates only the code of an already-loaded file that
   carries mutants. To install its guards, the overlay evaluated the whole file
   again, so every class-body statement ran twice. Non-idempotent DSL broke the
