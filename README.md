@@ -654,7 +654,26 @@ subprocesses that share nothing with Kimera's runtime.
 bundle install
 bin/spec                 # run the test suite
 COVERAGE=1 bin/spec      # run with line+branch coverage (SimpleCov)
+bin/model-check          # model-check the worker pool (needs Java)
 ```
+
+`spec/property/` holds property-based specs ([pbt](https://github.com/ohbarye/pbt)).
+They generate random Ruby methods and check the invariants every run relies
+on:
+- with mutant k active, the compiled schemata reduces exactly to mutant k's
+  source, and with none active, to the original. This is checked
+  symbolically and by running both on random inputs;
+- no mutant is the original program, and no two mutants of a point are the
+  same program;
+- mutant ids, keys and registry JSON are stable;
+- diff parsing never misses a changed line;
+- the gate and score are monotone.
+
+A failure prints a shrunk counterexample and its seed. `PBT_SEED=<seed>`
+replays a run, and `PBT_SCALE=10` searches ten times deeper.
+[`formal/`](formal/README.md) holds a TLA+ model of the warm worker pool,
+exhaustively checked by TLC and tied to the code by
+`spec/property/worker_pool_spec.rb`.
 
 `examples/` holds the runnable fixtures the integration tests drive
 (`sample_app` for RSpec, `minitest_app` for Minitest).
