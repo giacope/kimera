@@ -20,15 +20,40 @@ module Kimera
       ].freeze
       CALLS = %i[send csend index indexasgn].freeze
       SPREAD = %i[splat kwargs block_pass].freeze
+      NUMERALS = %i[int float rational complex].freeze
+      CHAINS = %i[send csend index block numblock itblock].freeze
+      SIGNS = %i[-@ +@].freeze
 
       def call(node)
         return node unless node.is_a?(Parser::AST::Node)
         children = node.children.map { |child| call(child) }
         floors(node).each { |index, floor| children[index] = wrap(children[index], floor) }
-        node.updated(nil, children)
+        node.updated(nil, separate(node, children))
       end
 
-      def wrap(node, floor) = node && tightness(node) < floor ? Parser::AST::Node.new(:begin, [node]) : node
+      def wrap(node, floor) = node && tightness(node) < floor ? enclose(node) : node
+
+      def enclose(node) = Parser::AST::Node.new(:begin, [node])
+
+      def separate(node, children)
+        receiver, *rest = children
+        fused?(node, receiver) ? [enclose(receiver), *rest] : children
+      end
+
+      def fused?(node, receiver)
+        selector = node.children[1] if node.type == :send
+        (SIGNS.include?(selector) && rooted?(receiver)) || (selector == :** && negative?(receiver))
+      end
+
+      def rooted?(node) = CHAINS.include?(node&.type) && leading?(node.children.first)
+
+      def leading?(node) = numeral?(node) || rooted?(node)
+
+      def numeral?(node) = NUMERALS.include?(node&.type)
+
+      def negative?(node) = numeral?(node) && as_written(node.children.first).start_with?("-")
+
+      def as_written(value) = (value.is_a?(Complex) ? value.imaginary : value).to_s
 
       def floors(node)
         level = operator(node)

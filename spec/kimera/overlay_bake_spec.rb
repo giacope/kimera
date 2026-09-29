@@ -149,10 +149,14 @@ RSpec.describe(Kimera::Overlay) do
     end
 
     # unparser 0.9 wrote `-(0.succ)` as `-0.succ`, which Ruby reads as
-    # `(-0).succ`, and `(-1) ** 2` as `-1 ** 2`, which is `-(1 ** 2)`.
+    # `(-0).succ`, and `(-1) ** 2` as `-1 ** 2`, which is `-(1 ** 2)`. Inside a
+    # string the parentheses must be in the tree, or the interpolation is
+    # unwritable.
     {
       "a minus over a chain rooted at the literal" => ["--1.succ", "-1", "-1 => 0", "-(0.succ)", -1],
-      "a literal raised to a power" => ["0 ** 2", "0", "0 => -1", "(-1) ** 2", 1]
+      "a literal raised to a power" => ["0 ** 2", "0", "0 => -1", "(-1) ** 2", 1],
+      "a minus over a chain in an interpolation" => ["\"x\#{--1.succ}\"", "-1", "-1 => 0", "\"x\#{-(0.succ)}\"", "x-1"],
+      "a power in an interpolation" => ["\"x\#{0 ** 2}\"", "0", "0 => -1", "\"x\#{(-1) ** 2}\"", "x1"]
     }.each do |shape, (body, needle, label, written, value)|
       it "bakes a literal mutant under #{shape} as the program it names", :aggregate_failures do
         src = "def m\n  #{body}\nend\n"

@@ -142,6 +142,28 @@ RSpec.describe(Kimera::Unparse) do
         expect(Kimera::Unparse.parse(Kimera::Unparse.unparse(node))).to(eq(described_class.call(node)), node.inspect)
       end
     end
+
+    # Every nesting two deep of calls, blocks, powers and signs over numeric
+    # literals, in each context, reads back as the very tree it was written
+    # from. A sign straight over a literal is left out: `-(1)` reads back as
+    # the literal `-1`, the same number.
+    def numerals(depth)
+      return [s(:int, 2), s(:int, -2)] if depth.zero?
+      inner = numerals(depth - 1)
+      signable = inner.reject { |operand| operand.type == :int }
+      [
+        *inner, *inner.product(inner).map { |(left, right)| s(:send, left, :**, right) },
+        *inner.flat_map { |base| [s(:send, base, :abs), s(:csend, base, :abs), s(:index, base, s(:int, 1))] },
+        *inner.map { |base| s(:block, s(:send, base, :then), s(:args), nil) },
+        *signable.product(%i[-@ +@]).map { |(operand, sign)| s(:send, operand, sign) }
+      ]
+    end
+
+    it "writes every nested sign, power and call on a literal so it reads back as written", :aggregate_failures do
+      numerals(2).flat_map { |tree| contexts(tree) }.each do |node|
+        expect(Kimera::Unparse.parse(Kimera::Unparse.unparse(node))).to(eq(described_class.call(node)), node.inspect)
+      end
+    end
   end
 
   # unparser 0.9 writes a sign right before a numeric literal, and Ruby reads
@@ -149,7 +171,7 @@ RSpec.describe(Kimera::Unparse) do
   # Parsed source keeps such parentheses as a begin node; a mutation can root a
   # chain at a literal without one (`--1.to_s`, `-1 => 0`), so these trees are
   # built by hand.
-  describe(Kimera::Unparse::Numerals) do
+  describe(Kimera::Unparse::Grouping, "over a sign before a numeric literal") do
     def self.s(type, *children) = Parser::AST::Node.new(type, children)
 
     def s(...) = self.class.s(...)
@@ -177,8 +199,7 @@ RSpec.describe(Kimera::Unparse) do
       "a block" => [s(:block, s(:send, s(:int, 1), :then), s(:args), nil), "-(1.then {\n})"],
       "a numbered block" => [s(:numblock, s(:send, s(:int, 1), :then), 1, s(:lvar, :_1)), "-(1.then {\n  _1\n})"],
       "an it block" => [s(:itblock, s(:send, s(:int, 1), :then), :it, s(:lvar, :it)), "-(1.then {\n  it\n})"],
-      "a power" => [s(:send, s(:int, 2), :**, s(:int, 2)), "-(2 ** 2)"],
-      "a minus over a chain" => [s(:send, s(:send, s(:int, 1), :abs), :-@), "-(-(1.abs))"]
+      "a power" => [s(:send, s(:int, 2), :**, s(:int, 2)), "-(2 ** 2)"]
     }.each do |shape, (operand, written)|
       it "writes minus over #{shape} rooted at a literal with the operand in parentheses" do
         expect(write(s(:send, operand, :-@))).to(eq(written))
@@ -189,12 +210,17 @@ RSpec.describe(Kimera::Unparse) do
       expect(write(s(:send, one, :+@))).to(eq("+(1.abs)"))
     end
 
+    it "writes a sign over a signed chain with only the chain in parentheses" do
+      expect(write(s(:send, s(:send, one, :-@), :-@))).to(eq("--(1.abs)"))
+    end
+
     it "leaves other signs, and other operands, as unparser writes them", :aggregate_failures do
       expect(write(s(:send, one, :~))).to(eq("~1.abs"))
       expect(write(s(:send, one, :!))).to(eq("!1.abs"))
       expect(write(s(:send, s(:int, 1), :-@))).to(eq("-1"))
       expect(write(s(:send, s(:int, 1), :+@))).to(eq("++1"))
       expect(write(s(:send, s(:array, s(:int, 1)), :-@))).to(eq("-[1]"))
+      expect(write(s(:csend, one, :-@))).to(eq("1.abs&.-@"))
       expect(reemit("-a.abs")).to(eq("-a.abs"))
       expect(reemit("-(1)")).to(eq("-(1)"))
     end
@@ -219,6 +245,17 @@ RSpec.describe(Kimera::Unparse) do
     it "writes code that evaluates like the tree", :aggregate_failures do
       expect(Object.new.instance_eval(write(s(:send, s(:send, s(:int, 1), :to_s), :-@)))).to(eq("1"))
       expect(Object.new.instance_eval(write(s(:send, s(:int, -1), :**, s(:int, 2))))).to(eq(1))
+    end
+
+    # A string writes its interpolation only if it reads back as the very tree.
+    {
+      "minus over a chain" => [s(:send, s(:send, s(:int, 1), :abs), :-@), "\"x\#{-(1.abs)}\"", "x-1"],
+      "a negative literal raised to a power" => [s(:send, s(:int, -2), :**, s(:int, 2)), "\"x\#{(-2) ** 2}\"", "x4"]
+    }.each do |shape, (tree, written, value)|
+      it "writes #{shape} inside an interpolation", :aggregate_failures do
+        expect(write(s(:dstr, s(:str, "x"), s(:begin, tree)))).to(eq(written))
+        expect(Object.new.instance_eval(written)).to(eq(value))
+      end
     end
   end
 end

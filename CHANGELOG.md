@@ -7,8 +7,11 @@
   as `-0.succ`, and a negative literal raised to a power (`(-1) ** 2`) as
   `-1 ** 2`; Ruby reads the sign as the literal's, so `--1.succ` with
   `-1 => 0` baked to `1` where the warm run returned `-1`. `--isolated` and
-  the reload tier judged that different program. Kimera now writes such an
-  operand in parentheses, in synthesis, bakes and rendered directives alike.
+  the reload tier judged that different program. Kimera now parenthesizes
+  such an operand in the tree before unparser writes it, alongside the
+  regrouping below, so it also reads back as the same tree inside an
+  interpolated string (`"x#{-(0.succ)}"`), and synthesis, bakes and
+  rendered directives all gain it.
 - `--isolated` and the reload tier report a point the parser folds into its
   parent (the inner `-1` of `--1`) unmutatable, as warm runs do. Its bake
   found no node to mutate and returned the file unchanged, so each of its
