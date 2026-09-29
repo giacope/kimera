@@ -49,8 +49,8 @@ module Kimera
       )
       HANDLERS = VALUE_HANDLERS.merge(STRUCTURAL_HANDLERS).freeze
 
-      def apply(node, directive, unguard: DirectiveHandlers::IDENTITY)
-        DirectiveHandlers::Operation.new(node, directive, unguard).public_send(handler(directive))
+      def apply(node, directive)
+        DirectiveHandlers::Operation.new(node, directive).public_send(handler(directive))
       end
 
       def handler(directive)

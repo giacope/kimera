@@ -511,62 +511,45 @@ RSpec.describe(Kimera::Overlay) do
     end
   end
 
-  # Directives that reach into a child must see it without a nested point's
-  # dispatch. unwrap must strip only the overlay's own dispatches.
-  describe "#unwrap" do
-    let(:synth) { Kimera::Guardrail.new(Kimera::SourceMap.new("def m(a, b)\n  a > b\nend\n"), []) }
+  # Only one mutant is active at a time, so under a point's guard every guard
+  # beneath it is false: its variants copy the bare subtree, not the guarded
+  # one. Copying the guards made size multiply along a nesting path.
+  describe "nested points" do
+    let(:source) { "def m(a)\n  ((a + 1) * 2 - 3).abs.succ.to_s\nend\n" }
+    let(:registry) do
+      Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["all"])).source(source, file: "x.rb")
+    end
+    let(:overlay) { described_class.new(registry) }
+    let(:result) { overlay.synthesize("x.rb", source) }
 
-    def ast(type, *children)
-      Parser::AST::Node.new(type, children)
+    it "emits each mutant's guard exactly once, however deep its point sits", :aggregate_failures do
+      guards = result.source.scan(/active\?\((\d+)\)/).flatten.map { |id| Integer(id) }
+      expect(result.mutant_ids.size).to(be > 10)
+      expect(guards).to(match_array(result.mutant_ids))
     end
 
-    def dispatch(variant, original)
-      ast(
-        :begin,
-        ast(:if, ast(:send, ast(:const, ast(:cbase), :MutantRuntime), :active?, ast(:int, 1)), variant, original)
-      )
+    def loaded(text) = Object.new.extend(Module.new.tap { |mod| mod.module_eval(text) })
+
+    def outcomes(receiver)
+      [-4, 0, 3].map do |a|
+        receiver.m(a)
+      rescue StandardError => error
+        error.class
+      end
     end
 
-    it "strips its own dispatch down to the original branch" do
-      original = ast(:send, ast(:send, nil, :a), :b)
-      expect(synth.__send__(:unwrap, dispatch(ast(:nil), original))).to(eq(original))
+    def flip(live, id)
+      Kimera::Runtime.active = id
+      outcomes(live)
     end
 
-    # One point's mutants chain as bare ifs under its begin; unwrapping only
-    # the first guard would hand chain_link_deletion the next guard's condition.
-    it "strips the whole chain of one point's dispatches" do
-      original = ast(:send, ast(:lvar, :x), :ord)
-      second = dispatch(ast(:false), original).children[0].updated(nil, [guard(2), ast(:false), original])
-      chain = ast(:begin, ast(:if, guard(1), ast(:nil), second))
-      expect(synth.__send__(:unwrap, chain)).to(eq(original))
-    end
-
-    def guard(id) = ast(:send, ast(:const, ast(:cbase), :MutantRuntime), :active?, ast(:int, id))
-
-    it "strips nested dispatches all the way down" do
-      original = ast(:send, nil, :a)
-      # :false is the AST node type, not a boolean.
-      nested = dispatch(ast(:nil), dispatch(ast(:false), original))
-      expect(synth.__send__(:unwrap, nested)).to(eq(original))
-    end
-
-    # Not wrapped, two children, non-guard if, while, no condition, symbol, nil.
-    def cases(plain, guard)
-      [
-        plain,
-        ast(:begin, plain, plain),
-        ast(:begin, ast(:if, ast(:send, nil, :ready?), plain, plain)),
-        ast(:begin, ast(:while, guard, plain)),
-        ast(:begin, ast(:if, nil, plain, plain)),
-        ast(:sym, :x),
-        nil
-      ]
-    end
-
-    it "leaves anything that is not a dispatch exactly as it is" do
-      plain = ast(:send, nil, :a)
-      guard = ast(:send, ast(:const, ast(:cbase), :MutantRuntime), :active?, ast(:int, 1))
-      cases(plain, guard).each { |node| expect(synth.__send__(:unwrap, node)).to(eq(node)) }
+    # chain_link_deletion reaches into its receiver, a node with points of its own.
+    # Bakes come first: kimera's own guards read the same runtime when it mutates itself.
+    it "behaves like each mutant's bake when that mutant is active" do
+      live = loaded(result.source)
+      baked = result.mutant_ids.to_h { |id| [id, outcomes(loaded(overlay.bake("x.rb", source, id)))] }
+      flipped = baked.keys.to_h { |id| [id, flip(live, id)] }
+      expect(flipped).to(eq(baked))
     end
   end
 
