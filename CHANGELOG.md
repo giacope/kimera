@@ -16,10 +16,25 @@
 - A mutation point the parser folds into its parent (the inner `-1` of `--1`)
   has no node to guard. It is now reported `unmutatable`. Before, it ran
   unmutated and read as `no_coverage`.
+- `default_argument` (`default => required`) no longer runs a mutant warm
+  when the warm guard can't match the real signature, which gave wrong
+  verdicts. A removal that doesn't parse (a middle optional, or one before a
+  splat, as in `def m(a = 1, b = 2, c = 3)`) is no longer emitted. Three kinds
+  are now judged by reload instead of warm:
+  - one that rebinds positional arguments (in `def m(a = 1, b = 2)`, making `b`
+    required turns `m(9)` into `[1, 9]`, while the guard raised);
+  - one in a block, where an omitted argument is `nil`;
+  - a keyword that follows a default with effects (the guard ran that default
+    first, so `m(0)` raised `ZeroDivisionError` instead of "missing keyword").
+- A warm worker that wrote part of a message line and then stopped, with its
+  pipe still open, hung the whole run: the parent blocked reading the rest of
+  the line and never reached its watchdog. The parent now reads what's
+  available and buffers partial lines, so the hard timeout kills that worker.
 - Property-based specs (`spec/property/`) check the schemata, registry, diff,
   gate and worker-pool invariants on generated programs. A TLA+ model of the
-  worker pool (`formal/`) is checked by TLC in CI. The fixes above came out
-  of them.
+  worker pool (`formal/`) is checked by TLC in CI for three small
+  configurations. The fixes above came out of them, and of fault injection
+  against the real pool.
 
 - A warm worker re-evaluates only the code of an already-loaded file that
   carries mutants. To install its guards, the overlay evaluated the whole file

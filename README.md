@@ -658,22 +658,29 @@ bin/model-check          # model-check the worker pool (needs Java)
 ```
 
 `spec/property/` holds property-based specs ([pbt](https://github.com/ohbarye/pbt)).
-They generate random Ruby methods and check the invariants every run relies
-on:
-- with mutant k active, the compiled schemata reduces exactly to mutant k's
-  source, and with none active, to the original. This is checked
-  symbolically and by running both on random inputs;
-- no mutant is the original program, and no two mutants of a point are the
-  same program;
-- mutant ids, keys and registry JSON are stable;
-- diff parsing never misses a changed line;
-- the gate and score are monotone.
+They generate random Ruby methods and check, on those samples, the
+invariants every run relies on:
+- with mutant k active, the compiled schemata reduces to mutant k's source,
+  and with none active, to the original. This is checked symbolically and by
+  running both on random calls, including calls that omit optional arguments.
+  The one-page equivalence contract, with its exclusions, is at the top of
+  `spec/property/support/schemata_projection.rb`;
+- no mutant is the original program, and no two mutants of one kind at a
+  point are the same program;
+- mutant ids, keys (including keys whose line moved) and registry JSON are
+  stable;
+- diff parsing never misses a changed line, checked against real `git diff`;
+- the gate passes and fails exactly at its documented thresholds.
 
 A failure prints a shrunk counterexample and its seed. `PBT_SEED=<seed>`
-replays a run, and `PBT_SCALE=10` searches ten times deeper.
-[`formal/`](formal/README.md) holds a TLA+ model of the warm worker pool,
-exhaustively checked by TLC and tied to the code by
-`spec/property/worker_pool_spec.rb`.
+replays a run, and `PBT_SCALE=10` searches ten times deeper. Property tests
+sample; they don't prove.
+
+[`formal/`](formal/README.md) holds a TLA+ model of the warm worker pool.
+TLC checks it exhaustively for three small configurations of mutants and
+jobs, which says nothing about other sizes or about the Ruby code directly.
+`spec/property/worker_pool_spec.rb` runs the real pool against scripted
+children that inject the model's faults (fault injection, not conformance).
 
 `examples/` holds the runnable fixtures the integration tests drive
 (`sample_app` for RSpec, `minitest_app` for Minitest).
