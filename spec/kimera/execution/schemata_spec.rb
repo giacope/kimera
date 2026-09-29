@@ -510,12 +510,14 @@ RSpec.describe(Kimera::Execution::Schemata) do
   end
 
   describe "reflection overlay guard" do
-    # Mimics ActiveRecord::Reflection.add_reflection and class_attribute copies.
+    # Mimics ActiveRecord::Reflection.add_reflection, which moves a redeclared
+    # name to the end, and class_attribute copies.
     def records(key)
       normal = key.is_a?(String) ? :to_s : :to_sym
       reflection = Module.new
       reflection.define_singleton_method(:add_reflection) do |owner, name, value|
-        owner._reflections = owner._reflections.merge(name.public_send(normal) => value)
+        named = name.public_send(normal)
+        owner._reflections = owner._reflections.except(named).merge!(named => value)
       end
       stub_const("ActiveRecord", Module.new)
       stub_const("ActiveRecord::Reflection", reflection)
@@ -547,6 +549,17 @@ RSpec.describe(Kimera::Execution::Schemata) do
       own, = heirs(base, "primary")
       described_class.with_guards { reflection.add_reflection(base, :primary, :new) }
       expect(own._reflections["primary"]).to(eq(:new))
+    end
+
+    # once-campfire: `has_many :memberships do ... end` carries mutants, so the
+    # overlay redeclares it after `has_many :users, through: :memberships`, and
+    # Rails raised HasManyThroughOrderError for every Room.
+    it "keeps a redeclared reflection where it was declared", :aggregate_failures do
+      reflection, base = records("memberships")
+      reflection.add_reflection(base, "users", :through)
+      described_class.with_guards { reflection.add_reflection(base, "memberships", :new) }
+      expect(base._reflections).to(eq("memberships" => :new, "users" => :through))
+      expect(base._reflections.keys).to(eq(%w[memberships users]))
     end
 
     it "leaves subclasses alone outside overlay and for a first declaration", :aggregate_failures do

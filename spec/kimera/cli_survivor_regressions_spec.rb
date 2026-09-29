@@ -408,8 +408,9 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
     it "runs the baseline check only when requested and discovers minitest defaults" do
       Dir.mktmpdir do |dir|
-        FileUtils.mkdir_p(File.join(dir, "test"))
-        File.write(File.join(dir, "test", "x_test.rb"), "# test\n")
+        FileUtils.mkdir_p(File.join(dir, "spec"))
+        File.write(File.join(dir, "spec", "x_spec.rb"), "# spec\n")
+        allow(Open3).to(receive(:capture2e).and_return(["", instance_double(Process::Status, success?: true)]))
         out, errors = streams
         doctor = Kimera::CLI::Doctor.new(io: out, errors: errors, root: dir)
         allow(doctor).to(receive(:baseline).and_return(["✓", "Baseline: configured test suite is green"]))

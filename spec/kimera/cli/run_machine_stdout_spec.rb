@@ -2,6 +2,7 @@
 
 require "kimera/cli/run"
 require "stringio"
+require "tmpdir"
 
 # The suite loads in kimera's own process, so its prints and at_exit hooks
 # (SimpleCov, Coveralls) shared stdout with a --format json report: thor's
@@ -35,6 +36,35 @@ RSpec.describe(Kimera::CLI::Run) do
   it "leaves a report stream it was handed alone", :aggregate_failures do
     expect(machine?("json", io: StringIO.new)).to(be(false))
     expect(machine?("json", io: diagnostics.last)).to(be(false))
+  end
+
+  def full(*argv)
+    allow(Kimera::Execution::Harness).to(receive(:new).and_wrap_original) do |original, **kwargs|
+      original.call(**kwargs).tap do |harness|
+        allow(harness).to(receive(:warm!))
+        allow(harness).to(receive(:run).and_return(Kimera::RunReport.new(results: [])))
+      end
+    end
+    cli.run(["calc.rb", *argv])
+  end
+
+  def project(&)
+    Dir.mktmpdir do |dir|
+      Dir.chdir(dir) do
+        File.write("calc.rb", "def m(a, b)\n  a > b\nend\n")
+        FileUtils.mkdir_p("spec")
+        File.write("spec/calc_spec.rb", "")
+        yield
+      end
+    end
+  end
+
+  it "detaches stdout for the whole of a --format json run", :aggregate_failures do
+    project { full("--format", "json") }
+    report.last.write("later")
+    report.last.flush
+    expect(JSON.parse(report.first.read_nonblock(100_000))).to(include("counts"))
+    expect(diagnostics.first.read_nonblock(100_000)).to(end_with("later"))
   end
 
   it "keeps stdout for the report and sends everything else to stderr", :aggregate_failures do
