@@ -9,8 +9,13 @@ class Kimera::CLI::TestCommand
   COUNT_LINE = /\d+ (?:failures?|examples?)\b/i
   SUMMARIES = [COUNT_LINE, /failed|Error\b/i].freeze
   RSPEC_RERUN = /^rspec (\S+) #/
-  MINITEST_HEADER = /^\s*\d+\) (?:Failure|Error):\n(.+?)(?: \[[^\]]*\])?:$/
+  MINITEST_HEADER = /^\s*(?:\d+\) )?(?:Failure|Error):\n(.+?)(?: \[[^\]]*\])?:$/
   CULPRITS = [RSPEC_RERUN, MINITEST_HEADER].freeze
+  OUTSIDE = "occurred outside of examples"
+  CAUSE = /^(\w+(?:::\w+)*(?:Error|Exception)):\n\s+(\S.*)$/
+  NO_FAILURES = /\b0 failures(?:, 0 errors\b|\z)/
+  QUIET_EXIT = " (it exited non-zero with no failing test: a coverage floor such as SimpleCov's " \
+    "minimum_coverage? Skip it when ENV[\"KIMERA\"] is set)"
   DRY_RUN = "require 'minitest'; Minitest.class_variable_set(:@@installed_at_exit, true); #{LOADER}; exit!(0)".freeze
 
   def initialize(framework, files, root:)
@@ -59,10 +64,18 @@ class Kimera::CLI::TestCommand
 
   def culprits(output) = CULPRITS.flat_map { |pattern| output.scan(pattern).flatten }.uniq
 
-  def summary(output)
+  def summary(output) = headline(output).then { |line| "#{line}#{reason(output, line)}" }
+
+  def headline(output)
     lines = output.lines.reverse
     SUMMARIES.lazy.filter_map { |pattern| lines.find { |line| line.match?(pattern) } }.first&.strip ||
       "test command failed"
+  end
+
+  def reason(output, line)
+    return QUIET_EXIT if line.match?(NO_FAILURES)
+    cause = output.match(CAUSE) if output.include?(OUTSIDE)
+    cause ? " (#{cause.captures.join(": ")})" : ""
   end
 
   def ruby(script) = ["bundle", "exec", "ruby", "-Itest", "-e", script, *@files]

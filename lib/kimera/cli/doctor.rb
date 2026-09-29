@@ -16,7 +16,8 @@ class Kimera::CLI::Doctor
 
   FRAMEWORK_FEATURES = { "rspec" => "rspec/core", "minitest" => "minitest" }.freeze
 
-  HELPERS = %w[.simplecov spec/spec_helper.rb spec/rails_helper.rb test/test_helper.rb].freeze
+  HELPERS = %w[.simplecov {spec,test}/**/*helper*.rb].freeze
+  UNCHECKED = [["!", "Test loading: no test files to load"]].freeze
 
   def initialize(io: $stdout, errors: $stderr, root: ".")
     @io = io
@@ -40,9 +41,13 @@ class Kimera::CLI::Doctor
   end
 
   def checks(config, options)
-    all = [configuration(config), framework(config), sources(config), tests(config), loading(config), git, rails]
-    all.concat(floor)
-    options[:check_baseline] ? all << baseline(config) : all
+    [configuration(config), framework(config), sources(config), tests(config), git, rails]
+      .concat(floor, suite(config, options))
+  end
+
+  def suite(config, options)
+    return UNCHECKED if test_files(config).empty?
+    options[:check_baseline] ? [loading(config), baseline(config)] : [loading(config)]
   end
 
   def verdict(checks)
@@ -91,8 +96,8 @@ class Kimera::CLI::Doctor
   def rails? = File.file?(File.join(@root, "config", "application.rb"))
 
   def floor
-    helper = HELPERS.find { |path| floor?(File.join(@root, path)) }
-    helper ? [["!", floored(helper)]] : []
+    helper = glob(HELPERS).find { |path| floor?(path) }
+    helper ? [["!", floored(helper.delete_prefix("#{@root}/"))]] : []
   end
 
   def floored(helper)
@@ -116,9 +121,12 @@ class Kimera::CLI::Doctor
 
   def minitest?(config) = config.fetch(:framework, "rspec") == "minitest"
 
-  def test_files(config) = glob(config.fetch(:tests, tests_for(config)))
+  def test_files(config)
+    excluded = Array(config[:exclude_tests]).map { |pattern| File.join(@root, pattern) }
+    Kimera::FileSet.exclude(glob(config.fetch(:tests, tests_for(config))), excluded)
+  end
 
   def tests_for(config) = minitest?(config) ? ["test/**/*_test.rb"] : ["spec/**/*_spec.rb"]
 
-  def glob(patterns) = Array(patterns).flat_map { |pattern| Dir.glob(File.join(@root, pattern)) }.uniq
+  def glob(patterns) = Array(patterns).flat_map { |pattern| Dir.glob(File.join(@root, pattern)) }.uniq.sort
 end

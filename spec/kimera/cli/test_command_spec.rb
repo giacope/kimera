@@ -95,6 +95,50 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     expect(baseline("minitest", output)).to(end_with(listed))
   end
 
+  # Rails' minitest reporter prints its headers unnumbered (once-campfire).
+  it "names the failing tests of a Rails minitest run" do
+    output = <<~OUT
+      Failure:
+      ComposerTest#test_attach [test/system/composer_test.rb:9]:
+      Expected true
+
+      Error:
+      WebhookTest#test_delivers:
+      JSON::ParserError: unexpected end of input
+
+      2 runs, 1 assertions, 1 failures, 1 errors, 0 skips
+    OUT
+    listed = "failing tests:\n    ComposerTest#test_attach\n    WebhookTest#test_delivers"
+    expect(baseline("minitest", output)).to(end_with(listed))
+  end
+
+  # rubocop-ast needs a generated lexer; the count line alone said nothing.
+  it "names the error that stopped the suite before any example ran" do
+    output = <<~OUT
+      An error occurred while loading spec_helper.
+      LoadError:
+        cannot load such file -- lib/lexer.rex
+      # ./lib/lexer.rb:4
+
+      0 examples, 0 failures, 1 error occurred outside of examples
+    OUT
+    cause = "(LoadError: cannot load such file -- lib/lexer.rex)"
+    expect(loading("rspec", output: output, success: false).last).to(end_with("outside of examples #{cause}"))
+  end
+
+  # thor's spec/helper.rb sets minimum_coverage(90), which a dry run always trips.
+  it "explains a command that failed with no failing test", :aggregate_failures do
+    expect(loading("rspec", output: "911 examples, 0 failures\n", success: false).last)
+      .to(eq("Test loading: 911 examples, 0 failures#{described_class::QUIET_EXIT}"))
+    expect(baseline("minitest", "5 runs, 9 assertions, 0 failures, 0 errors, 0 skips\n"))
+      .to(include(described_class::QUIET_EXIT))
+  end
+
+  it "adds no cause to a red baseline whose failures are its own", :aggregate_failures do
+    output = "RSpec::Expectations::ExpectationNotMetError:\n  expected 1\n\n2 examples, 1 failure\n"
+    expect(baseline("rspec", output)).to(start_with("Baseline: 2 examples, 1 failure (fix it"))
+  end
+
   it "lists at most ten failing tests" do
     output = (1..12).map { |n| "rspec ./spec/a_spec.rb:#{n} # a" }.join("\n")
     listed = baseline("rspec", output)
