@@ -6,8 +6,6 @@ module Kimera
 end
 
 class Kimera::Frameworks::RSpecGroupIndex
-  CHILD_MEMOS = %i[@descendant_filtered_examples @_descendants].freeze
-
   class << self
     def top(examples)
       examples.map { |example| group(example) }.uniq
@@ -49,12 +47,7 @@ class Kimera::Frameworks::RSpecGroupIndex
       adopt(kept)
     end
 
-    def adopt(families)
-      families.each do |group, children|
-        group.instance_variable_set(:@children, children)
-        CHILD_MEMOS.each { |memo| group.instance_variable_set(memo, nil) }
-      end
-    end
+    def adopt(families) = families.each { |group, children| group.instance_variable_set(:@children, children) }
 
     def group(example)
       example.example_group.parent_groups.last

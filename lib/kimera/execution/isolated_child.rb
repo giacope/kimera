@@ -19,7 +19,8 @@ RSpec.configuration.before(:suite) do
   RSpec.world.all_examples.each { |example| example.extend(Kimera::TestExit::Example) }
 end
 
-ledger, request = ARGV
+ledger, request, pulse = ARGV
+RSpec.configuration.prepend_before(:example) { File.write(pulse, ".", mode: "a") } if pulse
 locations = JSON.parse(File.read(request, encoding: Encoding::UTF_8)).fetch("tests")
 code = RSpec::Core::Runner.run(locations)
 

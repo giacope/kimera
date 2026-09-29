@@ -40,7 +40,6 @@ class Kimera::CLI::Run
   def machine?(options) = options.fetch(:format, "text") != "text" && @io.equal?($stdout) && @io.is_a?(IO)
 
   def detach
-    @io.flush
     @io = @io.dup.tap { |report| report.sync = true }
     $stdout.reopen($stderr)
   end

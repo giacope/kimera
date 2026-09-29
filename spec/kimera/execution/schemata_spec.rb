@@ -66,6 +66,27 @@ RSpec.describe(Kimera::Execution::Schemata) do
     Object.__send__(:remove_const, :SchemataRequired) if defined?(SchemataRequired)
   end
 
+  def lazily(root)
+    registry = Kimera::RegistryScan.new(root: root).build([File.join(root, "sl_lazy.rb")])
+    described_class.new(registry, root: root).overlay!
+    registry.each.find { |m, _p| m.label == "> => <" }.first.id
+  end
+
+  # dry-validation requires its extensions on demand. Unregistered, that require
+  # loaded the original file over the guarded methods, which hid their mutants.
+  it "keeps the guards of a file the suite requires only later, by either path", :aggregate_failures do
+    write("real/sl_lazy.rb", "class SchemataLazy\n  def gt(a, b)\n    a > b\n  end\nend\n")
+    linked = File.join(dir, "linked")
+    File.symlink(File.join(dir, "real"), linked)
+    Kimera::Runtime.active = lazily(linked)
+    paths = [File.join(linked, "sl_lazy.rb"), File.join(dir, "real", "sl_lazy.rb")]
+    expect(paths.map { |path| require(path) }).to(eq([false, false]))
+    expect(SchemataLazy.new.gt(2, 1)).to(be(false))
+  ensure
+    Object.__send__(:remove_const, :SchemataLazy) if defined?(SchemataLazy)
+    $LOADED_FEATURES.reject! { |feature| feature.end_with?("sl_lazy.rb") }
+  end
+
   it "skips files that have no schema-safe points", :aggregate_failures do
     # Memoized code is never schema-safe.
     write("sl_memo.rb", <<~RUBY)

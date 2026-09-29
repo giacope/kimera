@@ -13,7 +13,7 @@ rescue NameError, ArgumentError
   end
 end
 
-ledger, request = ARGV
+ledger, request, pulse = ARGV
 request = JSON.parse(File.read(request, encoding: Encoding::UTF_8))
 files = request.fetch("files")
 ids = request.fetch("tests")
@@ -37,6 +37,7 @@ killer =
   ids.find do |id|
     klass, name = methods[id]
     next false unless klass
+    File.write(pulse, ".", mode: "a") if pulse
     result = klass.new(name).extend(Kimera::TestExit::Test).run
     !result.passed? && !result.skipped?
   end
