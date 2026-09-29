@@ -10,6 +10,11 @@
   is now applied to the node as it stands in its file, and the first of
   equal programs is kept. The scan parses each file once more for that:
   over kimera's own `lib/` (280 KB), 1.2s becomes 1.9s.
+- `kimera changed` and `--since` keep the lines after an added line that
+  starts with `++ b/`. git prints that line as `+++ b/...`, the diff parser
+  took it for a new file's header, and every later hunk of the file went to
+  a file that does not exist, so the mutants on those lines were skipped.
+  The parser now counts each hunk's added lines before it looks for a header.
 - `argument_drop` and `element_drop` also count neighbors as equal when they
   differ only by parentheses or by minus on a numeric literal (`[-(1), -1]`,
   `f((a), a)`). Dropping either leaves the same program, but the two were
