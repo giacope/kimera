@@ -41,13 +41,14 @@ module Kimera
       end
 
       def drops(nodes, type, label:)
+        shapes = nodes.map { Kimera::Syntax.shape(it) }
         nodes.each_index.filter_map do |index|
-          next if repeat?(nodes, index)
+          next if repeat?(shapes, index)
           Variant.new(label: "#{label} `#{first(nodes[index])}`", directive: directive(type, index: index))
         end
       end
 
-      def repeat?(nodes, index) = index.positive? && nodes[index - 1] === nodes[index]
+      def repeat?(shapes, index) = index.positive? && shapes[index - 1] == shapes[index]
 
       def call(node) = CallQuery.new(node)
 

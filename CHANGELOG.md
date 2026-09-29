@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `argument_drop` and `element_drop` also count neighbors as equal when they
+  differ only by parentheses or by minus on a numeric literal (`[-(1), -1]`,
+  `f((a), a)`). Dropping either leaves the same program, but the two were
+  compared node for node, so one test gap was still reported twice.
 - The schemata grows with the number of mutants, not with their product
   along a nesting path. Each mutant of a node copied the node's guarded
   subtree, so every guard beneath it was copied once per mutant above it.
