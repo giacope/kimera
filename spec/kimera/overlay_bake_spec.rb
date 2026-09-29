@@ -127,7 +127,16 @@ RSpec.describe(Kimera::Overlay) do
       src = "def m(a, b)\n  r = ([a, a]...a)\n  a > b\nend\n"
       catalog = build(src)
       mutant = catalog.each.find { |m, _p| m.label == "> => <" }.first
-      expect(described_class.new(catalog).bake("x.rb", src, mutant.id)).to(include("r = (([a, a])...a)", "a < b"))
+      expect(described_class.new(catalog).bake("x.rb", src, mutant.id)).to(include("r = ([a, a]...a)", "a < b"))
+    end
+
+    # unparser writes an interpolation only if it reads back as the same tree,
+    # which an endpoint in parentheses did not.
+    it "bakes a file interpolating a range with an array endpoint" do
+      src = "def m(a, b)\n  \"x\#{([a]...[b]).size}y\"\n  a > b\nend\n"
+      catalog = build(src)
+      mutant = catalog.each.find { |m, _p| m.label == "> => <" }.first
+      expect(described_class.new(catalog).bake("x.rb", src, mutant.id)).to(include("([a]...[b]).size", "a < b"))
     end
 
     it "raises Unbakeable, naming the unparser failure, when unparser can't write the bake" do

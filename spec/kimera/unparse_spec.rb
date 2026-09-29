@@ -51,18 +51,27 @@ RSpec.describe(Kimera::Unparse) do
     end
   end
 
-  # unparser 0.9 writes an array range endpoint as a %w/%i literal.
+  # unparser 0.9 writes an array range endpoint as a %w/%i literal. It must come
+  # back as the same AST, not just the same range: a string's interpolation is
+  # written only once it parses back to the very node, so a parenthesized
+  # endpoint (a begin node the tree lacks) left the string unwritable.
   describe(Kimera::Unparse::RangeEndpoints) do
     def reemit(source) = Kimera::Unparse.unparse(Kimera::Unparse.parse(source))
 
     {
-      "([a, a]...a)" => "(([a, a])...a)\n", "(0...[a, a])" => "(0...([a, a]))\n",
-      "[1, 2]..3" => "([1, 2])..3", "[1]..[2]" => "([1])..([2])", "[1]..nil" => "([1])..nil",
-      "[1]..;" => "([1])..", "..[1]" => "..([1])", "[\"a b\", \"c]\"]..d" => "([\"a b\", \"c]\"])..d"
+      "([a, a]...a)" => "([a, a]...a)\n", "(0...[a, a])" => "(0...[a, a])\n",
+      "[1, 2]..3" => "[1, 2]..3", "[1]..[2]" => "[1]..[2]", "[1]..nil" => "[1]..nil",
+      "[1]..;" => "[1]..", "..[1]" => "..[1]", "[\"a b\", \"c]\"]..d" => "[\"a b\", \"c]\"]..d"
     }.each do |source, written|
-      it "writes `#{source}` with its array endpoint in parentheses" do
+      it "writes `#{source}` with its array endpoint as an array literal" do
         expect(reemit(source)).to(eq(written))
       end
+    end
+
+    it "writes a string interpolating a range with array endpoints", :aggregate_failures do
+      source = "def m(a) = \"x\#{([]...[a]).to_s.size}y\""
+      expect(reemit(source)).to(include("\"x\#{([]...[a]).to_s.size}y\""))
+      expect(Kimera::Unparse.parse(reemit(source))).to(eq(Kimera::Unparse.parse(source)))
     end
 
     it "leaves other endpoints as unparser writes them", :aggregate_failures do

@@ -44,7 +44,7 @@ module Kimera
 
       def visit_end_node(node) = endpoint(node) { super }
 
-      def endpoint(node) = node && n_array?(node) ? parentheses { visit(node) } : yield
+      def endpoint(node) = node && n_array?(node) ? visit(node) : yield
     end
   end
 end
