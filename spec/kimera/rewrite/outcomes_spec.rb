@@ -29,6 +29,11 @@ RSpec.describe(Kimera::Rewrite::Outcomes) do
     expect(distinct("\"é\"\nf(1, 1)\n", "f(1, 1)", drops(2))).to(eq([0]))
   end
 
+  # unparser 0.9 can't write an array range endpoint; programs compare as trees.
+  it "compares programs unparser can't write" do
+    expect(distinct("f([a, a]...a, [a, a]...a)\n", "f([a, a]...a, [a, a]...a)", drops(2))).to(eq([0]))
+  end
+
   it "keeps apart what it can't render, unless the directives are the same", :aggregate_failures do
     unknown = { "type" => "unknown" }
     expect(distinct("f(1)\n", "f(1)", [unknown, unknown.merge("to" => 1), unknown])).to(eq([0, 1]))

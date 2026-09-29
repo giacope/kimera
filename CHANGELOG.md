@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Code with an array literal as a range endpoint (`([a, a]...a)`) is
+  mutated. unparser writes such an endpoint as a `%w`/`%i` literal, so it
+  raised KeyError unless every element was a plain string or symbol (and
+  wrote `["a b"]` as `%w[a b]`, a different array). The method's mutants were
+  reported unmutatable in warm runs, and with `--isolated` every mutant in
+  the file was an error, which counts as killed. Kimera now writes the
+  endpoint as a parenthesized array. A bake unparser still can't write is
+  reported unmutatable with the reason, in `--isolated` and reload alike.
 - A point keeps one mutant per program it can leave, whichever operators
   made them. Variants were told apart by directive only, so on redundant
   code two operators could emit the same program (`a.to_s.to_s` with

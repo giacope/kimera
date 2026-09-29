@@ -36,7 +36,18 @@ module Kimera
         end
       end
     end
+
+    module RangeEndpoints
+      private
+
+      def visit_begin_node(node) = endpoint(node) { super }
+
+      def visit_end_node(node) = endpoint(node) { super }
+
+      def endpoint(node) = node && n_array?(node) ? parentheses { visit(node) } : yield
+    end
   end
 end
 
 Unparser::AST::LocalVariableScopeEnumerator.prepend(Kimera::Unparse::Binders)
+Unparser::Emitter::Range.prepend(Kimera::Unparse::RangeEndpoints)

@@ -26,6 +26,8 @@ module Kimera
       def measure(trial, tests)
         started = now
         [with_mutant(trial) { verdict(trial.mirror, tests) }, now - started]
+      rescue Kimera::Overlay::Unbakeable => error
+        [IsolatedOutcome.new(:unmutatable, nil, "#{Kimera::MutationPoint::UNMUTATABLE}#{error.message}"), nil]
       end
 
       def with_mutant(trial)

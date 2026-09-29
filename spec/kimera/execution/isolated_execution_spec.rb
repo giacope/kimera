@@ -476,6 +476,15 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       expect(result.detail).to(eq("RuntimeError: boom"))
     end
 
+    # The mirror keeps its copy, and the mutant gets no :error, which counts as killed.
+    it "reports :unmutatable, with the reason, for a mutant unparser can't bake", :aggregate_failures do
+      allow(Kimera::Unparse).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
+      result, baked, restored = test_baking_evaluate(first)
+      expect([result.status, result.file, result.covering_tests]).to(eq([:unmutatable, "calc.rb", ["t1"]]))
+      expect(result.detail).to(eq("unmutatable: unparser could not write its bake (KeyError: key not found: :lvar)"))
+      expect([baked, restored]).to(eq([nil, test_source_fixture]))
+    end
+
     def unreadable(id)
       Dir.mktmpdir do |root|
         r = described_class.new(registry: registry, root: root, tests: ["t1"], coverage: { id => ["t1"] })

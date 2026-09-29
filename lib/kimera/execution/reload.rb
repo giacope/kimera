@@ -15,6 +15,11 @@ class Kimera::Execution::Reload
   Failure =
     Data.define(:exception) do
       def message = "#{exception.class}: #{exception.message}"
+
+      def verdict
+        return [:error, [message]] unless exception.is_a?(Kimera::Overlay::Unbakeable)
+        [:unmutatable, [], "#{Kimera::MutationPoint::UNMUTATABLE}#{exception.message}"]
+      end
     end
 
   def initialize(registry:, adapter:, isolation:, root:)
@@ -43,8 +48,10 @@ class Kimera::Execution::Reload
   end
 
   def report(errand)
-    status, fails = evaluate(errand)
-    JSON.generate(id: errand.id, status: status.to_s, fails: Array(fails).map { |fail| fail.to_s.scrub })
+    status, fails, detail = evaluate(errand)
+    JSON.generate(
+      id: errand.id, status: status.to_s, fails: Array(fails).map { |fail| fail.to_s.scrub }, detail: detail
+    )
   end
 
   def collect(errand, pid, deadline)
@@ -56,7 +63,7 @@ class Kimera::Execution::Reload
     failed = mutate(errand)
     failed ? failed.verdict : [:survived, []]
   rescue StandardError, ScriptError => error
-    [:error, [Failure.new(error).message]]
+    Failure.new(error).verdict
   end
 
   def mutate(errand)
