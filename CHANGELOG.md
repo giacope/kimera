@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `kimera changed` and `--since` keep the lines after an added line that
+  starts with `++ b/`. git prints that line as `+++ b/...`, the diff parser
+  took it for a new file's header, and every later hunk of the file went to
+  a file that does not exist, so the mutants on those lines were skipped.
+  The parser now counts each hunk's added lines before it looks for a header.
 - RSpec: a selected example's `before(:context)`/`after(:context)` hooks run
   whatever ran earlier on the worker. RSpec memoizes which groups have
   examples to run, and an earlier narrowed run left that memo stale: hooks

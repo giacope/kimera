@@ -70,6 +70,33 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
       expect(described_class.parse(diff)).to(eq({}))
     end
 
+    # An added line "++ b/x.rb" prints as "+++ b/x.rb", the same as a file
+    # header; only the hunk header's count tells them apart.
+    it "reads an added line that looks like a file header as content" do
+      diff = <<~DIFF
+        diff --git a/f.rb b/f.rb
+        --- a/f.rb
+        +++ b/f.rb
+        @@ -1,0 +2 @@ a
+        +++ b/other.rb
+        @@ -5 +6,2 @@ d
+        -e
+        \\ No newline at end of file
+        +E
+        +++ b/x.rb
+        @@ -9 +11 @@ h
+        -i
+        +I
+        diff --git a/g.rb b/g.rb
+        --- a/g.rb
+        +++ b/g.rb
+        @@ -1 +1 @@
+        -x
+        +y
+      DIFF
+      expect(described_class.parse(diff)).to(eq("f.rb" => Set[2, 6, 7, 11], "g.rb" => Set[1]))
+    end
+
     it "tracks multiple files independently", :aggregate_failures do
       diff = <<~DIFF
         --- a/one.rb

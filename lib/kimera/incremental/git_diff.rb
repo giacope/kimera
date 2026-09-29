@@ -25,39 +25,52 @@ class Kimera::Incremental::GitDiff
     end
 
     def parse(text)
-      files = {}
-      current = nil
-      decoded(text).each_line { |line| current = advance(files, current, line) }
-      files
+      Changes.new.feed(decoded(text))
     end
 
     private
 
     def decoded(text) = text.dup.force_encoding(Encoding::UTF_8).scrub
+  end
 
-    def advance(files, current, line)
-      header = line.match(FILE_HEADER)
-      return named(header) if header
-      hunk = line.match(HUNK_HEADER)
-      collect(files, current, hunk) if current && hunk
-      current
+  class Changes
+    def initialize
+      @files = {}
+      @file = nil
+      @pending = 0
     end
+
+    def feed(text)
+      text.each_line { |line| advance(line) }
+      @files
+    end
+
+    private
+
+    def advance(line)
+      return @pending -= 1 if content?(line)
+      header = line.match(FILE_HEADER)
+      return @file = named(header) if header
+      hunk = line.match(HUNK_HEADER)
+      collect(hunk) if hunk
+    end
+
+    def content?(line) = @pending.positive? && line.start_with?("+")
 
     def named(header)
       path = header[1]
       path unless path == File::NULL
     end
 
-    def collect(files, file, match)
+    def collect(match)
       span = match[2]
-      count = span ? Integer(span, 10) : 1
-      return if count.zero?
-      range(files, file, Integer(match[1], 10), count)
+      @pending = span ? Integer(span, 10) : 1
+      range(Integer(match[1], 10)) if @file && @pending.positive?
     end
 
-    def range(files, file, start, count)
-      set = (files[file] ||= Set.new)
-      (start...(start + count)).each { |line| set << line }
+    def range(start)
+      set = (@files[@file] ||= Set.new)
+      (start...(start + @pending)).each { |line| set << line }
     end
   end
 
