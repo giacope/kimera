@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.6 (2026-09-29)
 
 - A warm worker that hits the soft timeout is replaced before it takes
   another mutant. The timeout interrupts only the test's own thread, so
