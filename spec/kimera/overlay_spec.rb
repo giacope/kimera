@@ -808,12 +808,14 @@ RSpec.describe(Kimera::Overlay) do
           "Struct.new(:x)); ::SplicedTop.class_eval {"
         nested = "Spliced::Nested = (Spliced.const_defined?(:Nested, false) ? Spliced.const_get(:Nested) : " \
           "Data.define(:x)); Spliced::Nested.class_eval do"
-        expect(source).to(include(point, top, nested))
+        other = "Other = (#{lexical}.const_defined?(:Other, false) ? #{lexical}.const_get(:Other) : " \
+          "Class.new); Other.class_eval {"
+        expect(source).to(include(point, top, nested, other))
       end
 
       it "leaves every other assignment as written", :aggregate_failures do
         _registry, source = reopened
-        expect(source).to(include("Plain = Data.define(:x)\n", "Other = Class.new {", "Callback = proc { :noop }"))
+        expect(source).to(include("Plain = Data.define(:x)\n", "Callback = proc { :noop }"))
         expect(source).to(include("Safe = Data&.define(:x) do", "helper = Struct.new(:y) {"))
       end
 

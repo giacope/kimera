@@ -1388,6 +1388,19 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(status).to(eq(:killed))
     end
 
+    it "re-runs only the reloaded method of a file that was already required", :aggregate_failures do
+      stub_const("HarnessRequired", Class.new)
+      writing(dir, "HarnessRequired")
+      path = File.join(dir, "harnessrequired.rb")
+      File.write(path, File.read(path).sub("class HarnessRequired\n", "\\0  @loads = (@loads || 0) + 1\n"))
+      registry = Kimera::RegistryScan.new(root: dir).build([path])
+      require(path)
+      unsafe = registry.each.find { |m, p| !p.safe? && m.label == "< => >" }.first.id
+      status, = reloader(observer("HarnessRequired"), catalog: registry, root: dir).__send__(:evaluate, errand(unsafe))
+      expect(status).to(eq(:killed))
+      expect(HarnessRequired.instance_variable_get(:@loads)).to(eq(1))
+    end
+
     def reload(name)
       stub_const(name, Class.new)
       registry = writing(dir, name)
@@ -1664,6 +1677,26 @@ RSpec.describe(Kimera::Execution::Harness) do
       harness(adapter(coverage: { "t1" => [ids.first] }), soft_timeout: nil).run(ids: [ids.first])
     end
 
+    def terminating
+      Class.new(Kimera::Frameworks::Adapter) do
+        def source(_files) = self
+        def test_ids = ["t1"]
+
+        def run(_ids)
+          Process.kill("TERM", Process.pid)
+          sleep(5)
+        end
+      end.new
+    end
+
+    it "reports the signal and exception that ended a real pool worker", :aggregate_failures do
+      result = harness(terminating, soft_timeout: nil).run(ids: [ids.first]).results.first
+      expect(result.status).to(eq(:harness_error))
+      expect(result.detail).to(start_with("worker crashed before result: died on signal 15 (SIGTERM)\n"))
+      expect(result.detail).to(include("\nSignalException: SIGTERM\n"))
+      expect(result.detail).to(include("nothing trapped SIGTERM"))
+    end
+
     it "forks a real serving pool worker when none is injected", :aggregate_failures do
       report = unstubbed
       expect(report.results.map(&:mutant_id)).to(eq([ids.first]))
@@ -1682,7 +1715,9 @@ RSpec.describe(Kimera::Execution::Harness) do
         forked do |request, response|
           if first
             request.gets
-            exit!(1)
+            response.puts(JSON.generate(t: "crash", detail: "Boom: from the worker"))
+            response.flush
+            exit!(3)
           else
             while (line = request.gets)
               id = JSON.parse(line)["id"]
@@ -1706,6 +1741,11 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(byid[ids[0]]).to(eq(:harness_error))
       expect(byid[ids[1]]).to(eq(:killed))
       expect(crashrecoveryreport.results.size).to(eq(2))
+    end
+
+    it "says how the crashed worker died and what it raised" do
+      detail = crashrecoveryreport.results.find { |r| r.mutant_id == ids[0] }.detail
+      expect(detail).to(eq("worker crashed before result: exited 3\nBoom: from the worker"))
     end
 
     it "reaps every pool child, including the crashed one" do

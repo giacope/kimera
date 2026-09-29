@@ -545,6 +545,19 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   constants) or is memoized can't be toggled in a warm process. Kimera mutates
   only inside method bodies and routes memoized points to a fork-per-mutant
   reload fallback.
+- **Class bodies run once.** To install its guards, a warm worker evaluates
+  each mutated file again. For a file the suite already required, Kimera first
+  blanks every class-body statement that holds no mutant, so `include`,
+  `class_attribute`, `pre_check`, registrations and other DSL calls keep the
+  state the real load left. What runs again: the methods and lambdas that
+  carry mutants (and the class, module or `included do` blocks around them),
+  visibility calls, `require`s, local variables, and an `alias` of a mutated
+  method. A concern's trimmed `included` block runs on the classes that
+  already include it; a class that includes the concern later gets the full
+  block, then the mutated statements. A class keeps its superclass even if the
+  constant naming it was reassigned, and a `Struct.new`, `Data.define`,
+  `Class.new` or `Module.new` constant is reopened, not replaced. A file
+  nothing required before the overlay is evaluated whole.
 - **An un-emittable node costs one method, not a file.** `unparser` refuses to
   re-emit some valid Ruby (an interpolated `%r{}x` pattern, for example). When
   a whole file won't round-trip, Kimera guards and re-emits each method that
@@ -560,8 +573,12 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     under state-leak warnings. On the fresh worker, a test that still fails
     without the mutant is left out. If no other test confirms a kill, the
     mutant is `harness_error`.
-  - Selector-induced hangs: a soft per-mutant timeout, plus a watchdog that
-    SIGKILLs a wedged worker so a replacement pulls from the shared queue.
+  - Selector-induced hangs: a soft timeout on each covering test a mutant runs
+    (`--soft-timeout`, 5s), plus a watchdog that SIGKILLs a worker whose test
+    runs past `--hard-timeout`, so a replacement pulls from the shared queue.
+    Both time one test at a time: a mutant many tests cover is not a `timeout`
+    for that alone. Raise `--soft-timeout` if single tests run slow under
+    `--jobs` load.
     Before the kill it asks the worker for every thread's backtrace (SIGQUIT)
     and puts them in the verdict's `detail`, or in the baseline error. A test
     interrupted by the soft timeout is a `timeout`, not the mutant's killer.
@@ -577,6 +594,12 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     'Kernel#abort': no such file`). A mutant that makes a test exit is killed;
     a baseline test that exits turns the baseline red. `exit!` still ends the
     process, and interrupts still stop the run.
+  - A test that sends its own process a signal (`Process.kill("TERM",
+    Process.pid)` to exercise graceful shutdown) behaves as it does outside
+    Kimera: if nothing traps the signal, it ends the process. Trap it in the
+    test, or leave the test out with `--exclude-test`. A worker that dies this
+    way is reported with the signal, the exception and where it was raised; in
+    a serial baseline (`--jobs 1`) that test fails with the same detail.
   - Slow tests under parallel load: a baseline test whose worker hits the hard
     timeout reruns once, alone. If it passes, the run goes on with a notice and
     the stacks. If it times out again, the baseline is red.
@@ -606,7 +629,9 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     It never gates, and it is not `no_coverage`: a test may well run it.
   - A `harness_error` is a mutant Kimera could not judge: its worker died, or
     its reply was unreadable. It is not a kill. It gates via `--max-errors`
-    (default 0). A pool that never produces a result aborts the run.
+    (default 0). A pool that never produces a result aborts the run. When a
+    worker died, the `detail` says how (`died on signal 15 (SIGTERM)`,
+    `exited 1`) and, if Ruby raised something, the exception and its frames.
   - Uncovered mutants don't lower the score, unlike some tools.
     `--fail-on-no-coverage` closes that gap.
 - **One top-level constant.** `require "kimera"` defines `::MutantRuntime`,

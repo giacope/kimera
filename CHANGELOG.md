@@ -1,5 +1,50 @@
 # Changelog
 
+## Unreleased
+
+- A warm worker re-evaluates only the code of an already-loaded file that
+  carries mutants. To install its guards, the overlay evaluated the whole file
+  again, so every class-body statement ran twice. Non-idempotent DSL broke the
+  baseline or made files `unmutatable`: a `class_attribute` in a concern's
+  `included do` reset to its default (a class's `track :name` was lost, or
+  doubled), ActionPolicy raised `Pre-check already defined`, a class-level
+  registry was reset, and a constant such as `Error = Class.new(StandardError)`
+  was replaced, so `rescue Error` stopped catching its existing subclasses.
+  Statements with no mutant are now blanked in place (lines don't move).
+  Methods and lambdas with mutants still run, with the class, module or
+  declaration block (`included`, `class_methods`, `class_eval`, ...) around
+  them, and so do visibility calls, `require`s, local variables and an
+  `alias` of a mutated method. A file nothing required yet is still evaluated
+  whole. Tests that failed only under kimera were often dropped silently as
+  "cover no in-scope mutant", which hid their mutants as `no_coverage`.
+- A concern's `included`/`prepended` block that the overlay re-runs is chained
+  after the original instead of replacing it, so a class that includes the
+  concern later (one defined in a test, say) still gets the whole block.
+- Re-evaluating a class keeps the superclass it already has. A nested class
+  whose superclass constant had been rebound (`Row = Data.define(:cells)` then
+  `class PersonRow < Row`) failed with `superclass mismatch`, and the pin only
+  covered superclass expressions that weren't constants. It now covers every
+  superclass, `class A::B < C` included, and looks the class up in its
+  lexical scope.
+- `Class.new` and `Module.new` constants with a block are reopened on
+  re-evaluation, as `Struct.new` and `Data.define` ones already were, so the
+  constant keeps its identity.
+- The soft timeout applies to each covering test a mutant runs, not to all of
+  them together. A surviving mutant runs every covering test, so one covered
+  by, say, 20 tests of 0.3s each always hit the 5s budget and was reported as
+  a `timeout`, which counts as detected. The hard watchdog times each test the
+  same way: a worker reports each test it starts, and the watchdog renews its
+  deadline.
+- A warm worker that dies says how. The `detail` of its `harness_error` (and
+  of a red baseline) names the signal or exit status and, when Ruby raised
+  something (an untrapped `SIGTERM`, `NoMemoryError`), the exception and its
+  first frames. It used to read only "worker crashed before result".
+- A test that sends its own process a signal nothing traps is explained: the
+  detail says to trap the signal in the test or leave the test out with
+  `--exclude-test`. In a serial baseline (`--jobs 1`) such a signal ended
+  kimera with no output; now that test fails, with the detail, and the
+  baseline is red. Interrupts still stop the run.
+
 ## 0.1.6 (2026-09-29)
 
 - A warm worker that hits the soft timeout is replaced before it takes

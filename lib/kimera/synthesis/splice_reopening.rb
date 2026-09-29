@@ -4,7 +4,7 @@ require_relative "../rewrite/ast_walk"
 require_relative "guardrail_value_objects"
 
 class Kimera::SpliceReopening
-  FACTORIES = Kimera::GuardrailValueObjects::VALUE_OBJECT_FACTORIES
+  FACTORIES = Kimera::GuardrailValueObjects::FACTORIES
   LEXICAL = "(is_a?(::Module) ? self : ::Object)"
 
   Assignment =
@@ -52,6 +52,6 @@ class Kimera::SpliceReopening
   def factory?(call)
     receiver, selector = call.children
     call.type == :send && receiver.is_a?(Parser::AST::Node) && receiver.type == :const &&
-      FACTORIES[receiver.children.last] == selector
+      FACTORIES.include?([receiver.children.last, selector])
   end
 end

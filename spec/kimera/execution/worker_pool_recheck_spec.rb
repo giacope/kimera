@@ -81,12 +81,12 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     expect(lost).to(eq([[1, :timeout, "stacks of #{worker.first}"]]))
   end
 
-  it "loses a crash without stacks, even from an armed worker" do
+  it "loses a crash with how the worker died, never its stacks, even from an armed worker" do
     stacks = Object.new
     stacks.define_singleton_method(:take) { |_pid| raise(ArgumentError, "a crash is never dumped") }
 
     _, lost = pool(queue: [1], spawner: ->(_slot) { forked { exit!(1) }.push(stacks) })
-    expect(lost).to(eq([[1, :crash, nil]]))
+    expect(lost).to(eq([[1, :crash, "exited 1"]]))
   ensure
     Process.waitall
   end

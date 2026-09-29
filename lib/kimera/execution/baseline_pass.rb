@@ -5,6 +5,7 @@ require_relative "../error"
 require_relative "../runtime"
 require_relative "baseline_failure"
 require_relative "baseline_losses"
+require_relative "signal_guard"
 require_relative "null_progress"
 
 class Kimera::Execution::BaselinePass
@@ -58,8 +59,10 @@ class Kimera::Execution::BaselinePass
   def attempt(ledger, test_id)
     Kimera::Runtime.active = nil
     Kimera::Runtime.clear!(ledger)
-    record(test_id, quietly { @adapter.run([test_id]) }, Kimera::Runtime.drain!(ledger))
+    record(test_id, sheltered(test_id), Kimera::Runtime.drain!(ledger))
   end
+
+  def sheltered(test_id) = Kimera::Execution::SignalGuard.run(test_id) { quietly { @adapter.run([test_id]) } }
 
   def record(test_id, outcome, touched)
     touched.each { |id| tally.coverage[id] << test_id }

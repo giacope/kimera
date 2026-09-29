@@ -57,7 +57,7 @@ module Kimera
           stored = :"@_#{hook}_block"
           define_method(hook) do |base = nil, &block|
             next super(base, &block) unless block && OverlayGuardModules.replacing?(self, stored, base)
-            instance_variable_set(stored, block)
+            instance_variable_set(stored, OverlayGuardModules.chain(instance_variable_get(stored), block))
             OverlayGuardModules.reapply(self, block)
           end
         end
@@ -83,6 +83,13 @@ module Kimera
       end
 
       def mixes?(klass, concern) = MIXES.bind_call(klass, concern)
+
+      def chain(original, trimmed)
+        proc do |*args|
+          class_exec(*args, &original)
+          class_exec(*args, &trimmed)
+        end
+      end
 
       def replacing?(target, stored, base)
         Kimera::Execution::OverlayGuards.overlaying? && !base && target.instance_variable_defined?(stored)

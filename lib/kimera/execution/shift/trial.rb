@@ -3,18 +3,16 @@
 require_relative "suspect"
 
 Kimera::Execution::Shift::Trial =
-  Data.define(:adapter, :mutant, :test) do
-    def verdict(deadline, &)
+  Data.define(:adapter, :mutant, :test, :deadline) do
+    def verdict(&)
       outcome = on
       return if outcome.passed?
-      deadline.check!(test)
-      confirm(outcome, deadline, &)
+      confirm(outcome, &)
     end
 
-    def confirm(outcome, deadline, &)
+    def confirm(outcome, &)
       control = off
       again = on if control.passed?
-      deadline.check!(test)
       return suspect(control) unless again && !again.passed?
       outcome.tap(&)
     end
@@ -29,6 +27,6 @@ Kimera::Execution::Shift::Trial =
 
     def run(active)
       Kimera::Runtime.active = active
-      adapter.run([test])
+      deadline.guard(test) { adapter.run([test]) }
     end
   end

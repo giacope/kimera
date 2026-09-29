@@ -16,25 +16,25 @@ module Kimera
     def existing(scope, name)
       owner = scope.is_a?(Module) ? scope : Object
       inherit = false
-      owner.const_defined?(name, inherit) && owner.const_get(name, inherit).superclass
+      return unless owner.const_defined?(name, inherit)
+      found = owner.const_get(name, inherit)
+      found.superclass if found.is_a?(Class)
     end
 
     def reopened(node)
-      "(::Kimera::SuperclassPin.existing(self, :#{node.constant_path.name}) || #{node.superclass.slice})".b
+      path = node.constant_path
+      "(::Kimera::SuperclassPin.existing(#{owner(path)}, :#{path.name}) || #{node.superclass.slice})".b
+    end
+
+    def owner(path)
+      return "::Module.nesting.first" if path.is_a?(Prism::ConstantReadNode)
+      path.parent&.slice || "::Object"
     end
 
     def classes(node, found = [])
-      found << node if dynamic?(node)
+      found << node if node.is_a?(Prism::ClassNode) && node.superclass
       node.compact_child_nodes.each { |child| classes(child, found) }
       found
     end
-
-    def dynamic?(node)
-      return false unless node.is_a?(Prism::ClassNode) && node.constant_path.is_a?(Prism::ConstantReadNode)
-      superclass = node.superclass
-      superclass && !constant?(superclass)
-    end
-
-    def constant?(node) = node.is_a?(Prism::ConstantReadNode) || node.is_a?(Prism::ConstantPathNode)
   end
 end

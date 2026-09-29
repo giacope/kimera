@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 Kimera::Execution::WorkerPool::Worker =
-  Struct.new(:pid, :request, :response, :inflight, :deadline, :slot, :stacks, :served) do
+  Struct.new(:pid, :request, :response, :inflight, :deadline, :slot, :stacks, :served, :last_words) do
     def idle!
       self.inflight = nil
     end
@@ -42,6 +42,23 @@ Kimera::Execution::WorkerPool::Worker =
       self.inflight = nil
       renew(limit)
       request
+    end
+
+    def heard(message, limit)
+      renew(limit)
+      self.last_words = message["detail"] if message["t"] == "crash"
+      self
+    end
+
+    def obituary(status)
+      words = [demise(status), last_words].compact
+      words.join("\n") unless words.empty?
+    end
+
+    def demise(status)
+      return unless status
+      signal = status.termsig
+      signal ? "died on signal #{signal} (SIG#{Signal.signame(signal)})" : "exited #{status.exitstatus}"
     end
 
     def offer(id, recheck: false)

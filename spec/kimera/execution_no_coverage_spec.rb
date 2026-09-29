@@ -141,11 +141,12 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     duty = Kimera::Execution::Pool::Duty.new(:coverage, 4, pipes)
     database = instance_double(Kimera::Execution::ParallelTestDatabases, before_exit: nil)
     duty.run(shift)
-    duty.finish(database)
+    duty.finish(database, nil)
 
     expect(database).to(have_received(:before_exit).with(4))
     expect(shift).to(have_received(:coverage).with(request, response))
     expect(response).to(have_received(:close))
+    expect(response).not_to(have_received(:puts))
   end
 
   it "performs every pool child boot step and always finishes service" do
@@ -162,9 +163,15 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     expect(runner).to(have_received(:silence!))
     expect(database).to(have_received(:after_fork).with(5))
     expect(duty).to(have_received(:run).with(instance_of(Kimera::Execution::Shift)))
-    expect(duty).to(have_received(:finish).with(database))
+    expect(duty).to(have_received(:finish).with(database, nil))
     expect(runner).to(have_received(:exit!).with(0))
-    expect(runner.__send__(:build)).to(be_a(Kimera::Execution::Shift))
+    expect(runner.__send__(:build, duty)).to(be_a(Kimera::Execution::Shift))
+  end
+
+  it "hands the shift a pulse that ticks through the worker's duty" do
+    duty = instance_spy(Kimera::Execution::Pool::Duty)
+    pool.__send__(:pulse, duty).call
+    expect(duty).to(have_received(:pulse))
   end
 
   it "boots a pool duty inside the fork block" do

@@ -60,11 +60,10 @@ class Kimera::Execution::WorkerPool
   end
 
   def service(pipe)
-    worker = fleet.fetch(pipe)
     line = pipe.gets
     return fleet.remove(pipe) unless line
     message = parse(line)
-    dispatch(worker, message) if message
+    dispatch(fleet.fetch(pipe).heard(message, limit), message) if message
   end
 
   def dispatch(worker, message)

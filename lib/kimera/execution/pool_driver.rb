@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
+require "json"
 require "tmpdir"
 require_relative "child_process"
+require_relative "last_words"
 require_relative "shift"
 require_relative "stack_dump"
 require_relative "worker_pool"
@@ -29,9 +31,20 @@ class Kimera::Execution::Pool
         shift.public_send(entry, pipes.req_r, pipes.res_w)
       end
 
-      def finish(database)
+      def pulse
+        pipes.res_w.puts(JSON.generate(t: "tick"))
+      end
+
+      def finish(database, error)
+        confess(error) if error
         database.before_exit(index)
         pipes.res_w.close
+      end
+
+      def confess(error)
+        pipes.res_w.puts(JSON.generate(t: "crash", detail: Kimera::Execution::LastWords.new(error).to_s))
+      rescue IOError, SystemCallError
+        nil
       end
     end
 
@@ -99,15 +112,17 @@ class Kimera::Execution::Pool
   end
 
   def serve(duty)
-    duty.run(build)
+    duty.run(build(duty))
   ensure
-    duty.finish(database)
+    duty.finish(database, $ERROR_INFO)
   end
 
-  def build
+  def build(duty)
     Kimera::Execution::Shift.new(
-      adapter: @adapter, registry: @registry, coverage: coverage,
-      isolation: @isolation, soft_timeout: @options.fetch(:soft), leak_every: @options.fetch(:leak)
+      adapter: @adapter, registry: @registry, coverage: coverage, isolation: @isolation,
+      soft_timeout: @options.fetch(:soft), leak_every: @options.fetch(:leak), pulse: pulse(duty)
     )
   end
+
+  def pulse(duty) = -> { duty.pulse }
 end

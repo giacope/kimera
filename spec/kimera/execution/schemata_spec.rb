@@ -44,6 +44,28 @@ RSpec.describe(Kimera::Execution::Schemata) do
     Object.__send__(:remove_const, :SchemataTarget) if defined?(SchemataTarget)
   end
 
+  # Re-running the class body would redeclare its DSL state (here, count the
+  # load twice); only the mutated method has to run again.
+  it "re-runs only the mutated code of a file that was already required", :aggregate_failures do
+    path = File.join(dir, write("sl_required.rb", <<~RUBY))
+      class SchemataRequired
+        @loads = (@loads || 0) + 1
+        singleton_class.attr_reader(:loads)
+        def gt(a, b)
+          a > b
+        end
+      end
+    RUBY
+    require(path)
+    registry = Kimera::RegistryScan.new(root: dir).build([path])
+    described_class.new(registry, root: dir).overlay!
+    expect(SchemataRequired.loads).to(eq(1))
+    Kimera::Runtime.active = registry.each.find { |m, _p| m.label == "> => <" }.first.id
+    expect(SchemataRequired.new.gt(2, 1)).to(be(false))
+  ensure
+    Object.__send__(:remove_const, :SchemataRequired) if defined?(SchemataRequired)
+  end
+
   it "skips files that have no schema-safe points", :aggregate_failures do
     # Memoized code is never schema-safe.
     write("sl_memo.rb", <<~RUBY)
@@ -545,18 +567,19 @@ RSpec.describe(Kimera::Execution::Schemata) do
       concern
     end
 
-    it "replaces the included block during overlay instead of raising", :aggregate_failures do
+    # The overlaid block is trimmed to its mutated statements, so a class that
+    # includes the concern later needs the original block to run first.
+    it "chains the overlaid included block after the original instead of raising", :aggregate_failures do
       test_concern
       concern = Module.new.tap { |m| m.extend(ActiveSupport::Concern) }
-      concern.included { :original }
-
-      replacement = nil
+      ran = []
+      concern.included { ran << [:original, self] }
       described_class.with_guards do
-        expect { concern.included { replacement = :overlaid } }.not_to(raise_error)
+        expect { concern.included { |base| ran << [:overlaid, base] } }.not_to(raise_error)
       end
-
-      concern.instance_variable_get(:@_included_block).call
-      expect(replacement).to(eq(:overlaid))
+      later = Class.new
+      later.class_eval(&concern.instance_variable_get(:@_included_block))
+      expect(ran).to(eq([[:original, later], [:overlaid, later]]))
     end
 
     it "still raises on a genuine double included block outside overlay" do

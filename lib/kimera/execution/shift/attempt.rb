@@ -13,7 +13,7 @@ class Kimera::Execution::Shift::Attempt
   end
 
   def run(id, tests, mode = :warm)
-    @deadline.guard { @isolation.around { __send__(mode, verdicts(id, tests)) } }
+    @isolation.around { __send__(mode, verdicts(id, tests)) }
   end
 
   private
@@ -34,6 +34,6 @@ class Kimera::Execution::Shift::Attempt
   end
 
   def kill(id, testid)
-    Kimera::Execution::Shift::Trial.new(@adapter, id, testid).verdict(@deadline) { @killers.remember(testid) }
+    Kimera::Execution::Shift::Trial.new(@adapter, id, testid, @deadline).verdict { @killers.remember(testid) }
   end
 end

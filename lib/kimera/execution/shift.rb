@@ -57,7 +57,8 @@ class Kimera::Execution::Shift
   def attempt
     kind = self.class
     @_attempt ||= kind::Attempt.new(
-      adapter: @adapter, isolation: isolation, killers: kind::KillerMemory.new, deadline: kind::Deadline.new(timeout)
+      adapter: @adapter, isolation: isolation, killers: kind::KillerMemory.new,
+      deadline: kind::Deadline.new(timeout, beat: @options.fetch(:pulse, kind::Deadline::SILENT))
     )
   end
 

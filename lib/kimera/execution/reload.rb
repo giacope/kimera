@@ -2,6 +2,7 @@
 
 require "json"
 require_relative "../runtime"
+require_relative "../synthesis/body_trim"
 require_relative "../synthesis/overlay"
 require_relative "child_process"
 require_relative "overlay_guards"
@@ -76,7 +77,8 @@ class Kimera::Execution::Reload
   end
 
   def overlay(file, path, id)
-    baked = Kimera::Overlay.new(@registry).bake(file, File.read(path, encoding: Encoding::UTF_8), id)
+    source = Kimera::BodyTrim.trim(path, File.read(path, encoding: Encoding::UTF_8), [verdicts.point(id).location])
+    baked = Kimera::Overlay.new(@registry).bake(file, source, id)
     Kimera::Execution::OverlayGuards.overlay { Kimera::Overlay.evaluate(baked, path) }
   end
 

@@ -50,6 +50,37 @@ RSpec.describe Kimera::Execution::WorkerPool::Worker do
     reader&.close
   end
 
+  # Any line proves the worker alive; a crash line also says why it is dying.
+  it "renews its deadline on every message and keeps a crash's last words", :aggregate_failures do
+    worker = described_class.new
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    expect(worker.heard({ "t" => "tick" }, 3.0)).to(equal(worker))
+    expect(worker.deadline).to(be_within(1.0).of(started + 3.0))
+    expect(worker.last_words).to(be_nil)
+    worker.heard({ "t" => "requeue", "detail" => "state leak" }, 3.0)
+    expect(worker.last_words).to(be_nil)
+    worker.heard({ "t" => "crash", "detail" => "Boom: x" }, 3.0)
+    expect(worker.last_words).to(eq("Boom: x"))
+  end
+
+  describe "#obituary" do
+    def status(fate)
+      pid = fork { fate == :signal ? Process.kill("TERM", Process.pid) && sleep(1) : exit!(3) }
+      Process.wait2(pid).last
+    end
+
+    it "says how the worker died, then what it said last", :aggregate_failures do
+      worker = described_class.new(last_words: "SignalException: SIGTERM")
+      expect(worker.obituary(status(:signal))).to(eq("died on signal 15 (SIGTERM)\nSignalException: SIGTERM"))
+      expect(described_class.new.obituary(status(:exit))).to(eq("exited 3"))
+    end
+
+    it "has only the last words for a worker that could not be reaped, and nothing without them", :aggregate_failures do
+      expect(described_class.new(last_words: "Boom: x").obituary(nil)).to(eq("Boom: x"))
+      expect(described_class.new.obituary(nil)).to(be_nil)
+    end
+  end
+
   it "takes an autopsy only from an armed worker", :aggregate_failures do
     stacks = Object.new
     stacks.define_singleton_method(:take) { |pid| "dump #{pid}" }

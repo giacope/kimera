@@ -17,9 +17,54 @@ RSpec.describe(Kimera::SuperclassPin) do
     expect(KimeraPinnedPair.new(1).a).to(eq(1))
   end
 
-  it "leaves constant superclasses untouched" do
-    source = "class KimeraPlain < StandardError; end\n"
+  it "keeps a class's superclass when the constant it names was rebound", :aggregate_failures do
+    stub_const("KimeraRebound", Module.new)
+    source = <<~RUBY
+      module KimeraRebound
+        Row = Data.define(:cells)
+        class PersonRow < Row
+          def wide? = cells > 3
+        end
+      end
+    RUBY
+    Kimera::Overlay.evaluate(source, "rebound.rb")
+    first = KimeraRebound::Row
+    Kimera::Overlay.evaluate(source, "rebound.rb")
+    expect(KimeraRebound::PersonRow.superclass).to(equal(first))
+    expect(KimeraRebound::PersonRow.new(cells: 4).wide?).to(be(true))
+  end
+
+  it "pins a class named by a path against that path's owner", :aggregate_failures do
+    stub_const("KimeraPinPath", Module.new)
+    source = "KimeraPinPath::Base = Class.new\nclass KimeraPinPath::Leaf < KimeraPinPath::Base; end\n"
+    Kimera::Overlay.evaluate(source, "path.rb")
+    first = KimeraPinPath::Base
+    Kimera::Overlay.evaluate(source, "path.rb")
+    expect(KimeraPinPath::Leaf.superclass).to(equal(first))
+    expect(described_class.pin("class ::KimeraRooted < Base; end\n"))
+      .to(eq("class ::KimeraRooted < (::Kimera::SuperclassPin.existing(::Object, :KimeraRooted) || Base); end\n"))
+  end
+
+  it "leaves a class without a superclass alone" do
+    source = "module KimeraBare\n  class Plain; end\nend\n"
     expect(described_class.pin(source)).to(eq(source))
+  end
+
+  it "looks the class up in its lexical scope, not in self" do
+    stub_const("KimeraLexical", Module.new)
+    stub_const("KimeraLexicalHost", Class.new)
+    stub_const("KimeraLexicalHost::Row", Class.new(ArgumentError))
+    source = "module KimeraLexical\n  KimeraLexicalHost.class_eval do\n    class Row < StandardError; end\n  end\nend\n"
+    Kimera::Overlay.evaluate(source, "lexical.rb")
+    expect(KimeraLexical::Row.superclass).to(equal(StandardError))
+  end
+
+  it "pins nothing for a constant that is not a class or is only inherited", :aggregate_failures do
+    stub_const("KimeraPinModule", Module.new)
+    expect(described_class.existing(nil, :KimeraPinModule)).to(be_nil)
+    expect(described_class.existing(Module.new, :String)).to(be_nil)
+    expect(described_class.existing(nil, :KimeraPinMissing)).to(be_nil)
+    expect(described_class.existing(nil, :ArgumentError)).to(equal(StandardError))
   end
 
   it "ignores a same-named constant outside the enclosing namespace" do
