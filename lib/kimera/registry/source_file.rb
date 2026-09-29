@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "prism"
+require_relative "../default_removal"
 require_relative "../memo_guard"
 require_relative "../memoization"
 require_relative "mutation_point"
@@ -24,9 +25,9 @@ class Kimera::RegistryScan::SourceFile
 
   private
 
-  def tainted = @_tainted ||= Kimera::Memoization.ranges(@source)
+  def tainted = @_tainted ||= Kimera::Memoization.ranges(@source) + Kimera::DefaultRemoval.ranges(@source)
 
-  def guards = @_guards ||= Kimera::MemoGuard.exemptions(@source)
+  def guards = @_guards ||= Kimera::MemoGuard.exemptions(@source) + Kimera::DefaultRemoval.exemptions(@source)
 
   def mined(root)
     found = []
