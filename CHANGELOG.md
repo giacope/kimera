@@ -7,6 +7,18 @@
   took it for a new file's header, and every later hunk of the file went to
   a file that does not exist, so the mutants on those lines were skipped.
   The parser now counts each hunk's added lines before it looks for a header.
+- `argument_drop` and `element_drop` also count neighbors as equal when they
+  differ only by parentheses or by minus on a numeric literal (`[-(1), -1]`,
+  `f((a), a)`). Dropping either leaves the same program, but the two were
+  compared node for node, so one test gap was still reported twice.
+- The schemata grows with the number of mutants, not with their product
+  along a nesting path. Each mutant of a node copied the node's guarded
+  subtree, so every guard beneath it was copied once per mutant above it.
+  With `--operators all`, `cli/mutant.rb` compiled to 1.7 MB from 2.8 KB
+  (622x), and kimera's own sources to 18.2x their size; every warm worker
+  paid that in compile time and memory. Only one mutant is active at a time,
+  so a mutant's copy now leaves out the guards beneath it: `cli/mutant.rb` is
+  28 KB (10x), and the sources are 5.5x.
 - RSpec: a selected example's `before(:context)`/`after(:context)` hooks run
   whatever ran earlier on the worker. RSpec memoizes which groups have
   examples to run, and an earlier narrowed run left that memo stale: hooks

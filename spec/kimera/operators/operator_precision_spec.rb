@@ -232,6 +232,25 @@ RSpec.describe("operator precision") do
       expect(indexes("def m\n  [7, 8, 7]\nend\n", "element_drop")).to(eq([0, 1, 2]))
     end
 
+    def kept(elements) = indexes("def m(a)\n  [#{elements}]\nend\n", "element_drop")
+
+    # `-(1)` and `-1` are one value: dropping either leaves the same program.
+    it "counts neighbors equal up to parentheses and a negated literal as equal", :aggregate_failures do
+      expect(indexes("def m\n  [-(1), -1].include?(1)\nend\n", "element_drop")).to(eq([0]))
+      expect(indexes("def m\n  f(-(1), -1)\nend\n", "argument_drop")).to(eq([0]))
+      expect(kept("(a), a, ((a))")).to(eq([0]))
+      expect(kept("-(-1), 1, (1)")).to(eq([0]))
+      expect(kept("-(1.5), -1.5, -(1r), -1r, -(2i), -2i")).to(eq([0, 2, 4]))
+      expect(kept("[-(1)].first, [-1].first, -a, -(a)")).to(eq([0, 2]))
+    end
+
+    it "still tells apart neighbors that differ", :aggregate_failures do
+      expect(kept("-(1), 1, 0.0, -(0.0), 1.0")).to(eq([0, 1, 2, 3, 4]))
+      expect(kept("(1; 2), 1, 1.-@(2), -1, 1.-@ { }, -1")).to(eq([0, 1, 2, 3, 4, 5]))
+      expect(kept("a&.b, a.b, a.-@, -a, a.+(1), a.-(1)")).to(eq([0, 1, 2, 3, 4, 5]))
+      expect(kept("+(1), -1, (), nil, [1], [2]")).to(eq([0, 1, 2, 3, 4, 5]))
+    end
+
     it "tells heredocs with the same opener apart by their bodies" do
       expect(indexes("def m\n  f(<<~A, <<~A)\n    x\n  A\n    y\n  A\nend\n", "argument_drop")).to(eq([0, 1]))
     end

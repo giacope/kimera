@@ -11,11 +11,11 @@ module Kimera
       end
     end
 
-    def dispatch(original, points)
+    def dispatch(rebuilt, bare, points)
       mutants = points.flat_map(&:mutants).reverse
-      return parameter(original, mutants) if %i[optarg kwoptarg].include?(original.type)
-      guarded = guard(mutants, original) { |mutant| variant(original, mutant) }
-      guarded.equal?(original) ? guarded : ast(:begin, guarded)
+      return parameter(rebuilt, mutants) if %i[optarg kwoptarg].include?(rebuilt.type)
+      guarded = guard(mutants, rebuilt) { |mutant| variant(bare, mutant) }
+      guarded.equal?(rebuilt) ? guarded : ast(:begin, guarded)
     end
 
     def branch(mutant, truthy, dispatch)
@@ -24,8 +24,8 @@ module Kimera
       conditional(active(id), truthy, dispatch)
     end
 
-    def variant(original, mutant)
-      Kimera::Rewrite::Directive.apply(original, mutant.directive, unguard: method(:unwrap))
+    def variant(bare, mutant)
+      Kimera::Rewrite::Directive.apply(bare, mutant.directive)
     end
 
     def parameter(original, mutants)
@@ -40,26 +40,6 @@ module Kimera
         :send, nil, :raise, ast(:const, nil, :ArgumentError),
         ast(:str, "missing #{param.type == :kwoptarg ? "keyword" : "argument"}: #{name}")
       )
-    end
-
-    def unwrap(node)
-      return node unless type?(node, :begin)
-      inner, extra = node.children
-      return node unless guarded?(inner, extra)
-      unwrap(original(inner))
-    end
-
-    def original(guard)
-      fallback = guard.children[2]
-      guarded?(fallback, nil) ? original(fallback) : fallback
-    end
-
-    def guarded?(inner, extra)
-      !extra && type?(inner, :if) && active?(inner.children[0])
-    end
-
-    def active?(node)
-      type?(node, :send) && node.children[1] == :active?
     end
 
     def active(id)

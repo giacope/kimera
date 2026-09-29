@@ -6,11 +6,10 @@ require_relative "directive_kwarg_handlers"
 module Kimera
   module Rewrite
     module DirectiveHandlers
-      IDENTITY = ->(node) { node }
       CONNECTIVES = %i[and or].freeze
 
       Operation =
-        Data.define(:node, :directive, :unguard) do
+        Data.define(:node, :directive) do
           def target = directive["to"]&.to_sym
 
           def swap
@@ -39,7 +38,7 @@ module Kimera
           def unlink
             DirectiveKwargHandlers.block(node) do |call|
               receiver, *rest = call.children
-              call.updated(nil, [unguard.call(receiver).children[0], *rest])
+              call.updated(nil, [receiver.children[0], *rest])
             end
           end
 
@@ -129,7 +128,7 @@ module Kimera
           end
 
           def extra
-            DirectiveExtraHandlers::Operation.new(node, directive, unguard)
+            DirectiveExtraHandlers::Operation.new(node, directive)
           end
 
           def ast(type, *children)
