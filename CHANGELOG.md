@@ -2,6 +2,52 @@
 
 ## Unreleased
 
+- RSpec: a selected example's `before(:context)`/`after(:context)` hooks run
+  whatever ran earlier on the worker. RSpec memoizes which groups have
+  examples to run, and an earlier narrowed run left that memo stale: hooks
+  were skipped (rubocop-ast's `before(:all) { alias_matcher }` turned the
+  baseline red) or ran for a group with nothing selected.
+- RSpec: running one example no longer walks its whole top-level group.
+  Only the example's ancestor groups run; the others are hidden for the run.
+  On rubocop-ast a single example cost 14.4 ms instead of 1.5 ms natively,
+  and a full run took 617s; it now takes 98s.
+- A source file the suite requires lazily (dry-validation's extensions) is
+  registered as loaded once the overlay has evaluated it. The suite's own
+  `require` used to load the original over the guarded methods, so their
+  mutants read as `no_coverage`, or survived, and the gate could pass.
+- `ruby2_keywords`, and a directive under a modifier `if`/`unless`
+  (`ruby2_keywords :new if respond_to?(:ruby2_keywords, true)`), run again
+  with the methods they flag. Blanked, `Sinatra::Base.new` and devise's
+  `ControllerHelpers#process` stopped passing keywords and the baseline was
+  red.
+- `a || b || c` mutated to `&&` renders as `(a || b) && c`. unparser printed
+  `a || b and c`, a syntax error inside an argument list, and the resulting
+  `error` counted as detected.
+- `--format json`, `sarif` and `github` keep stdout for the report. The suite
+  loads in kimera's process, so its prints and `at_exit` hooks (SimpleCov,
+  Coveralls) made the document unparseable.
+- An in-memory SQLite database (`database: ":memory:"`) survives the fork
+  into warm workers. ActiveRecord reconnected each worker to an empty one:
+  devise read "no such table: users", and 735 of its 1,554 mutants went
+  unjudged.
+- A redeclared association keeps its place in `_reflections`. once-campfire's
+  `has_many :memberships do ... end` carries mutants, so the overlay ran it
+  again after `has_many :users, through: :memberships`, and every `Room`
+  raised `HasManyThroughOrderError`.
+- `--isolated` times each test, as the warm path does: a child beats a pulse
+  file as each test starts. Bounding the whole child by `--hard-timeout`
+  failed the isolated baseline of any suite longer than it (kimera's own
+  self-gate), and could score a mutant with many covering tests `timeout`.
+- The notice about failing tests excluded from the baseline names them, with
+  their failure.
+- `kimera init` leaves a Rails minitest app's `test/system` out, as
+  `rails test` does, and finds minitest files named `test_*.rb` or
+  `spec_*.rb`. `kimera doctor` honors `exclude_tests`, skips loading and the
+  baseline when no test file matches, finds a coverage floor in any spec or
+  test helper, names failing tests from Rails' minitest reporter, names the
+  error behind "1 error occurred outside of examples", and explains a
+  non-zero exit with no failing test.
+
 - A warm worker re-evaluates only the code of an already-loaded file that
   carries mutants. To install its guards, the overlay evaluated the whole file
   again, so every class-body statement ran twice. Non-idempotent DSL broke the
