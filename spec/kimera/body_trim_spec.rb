@@ -71,6 +71,23 @@ RSpec.describe(Kimera::BodyTrim) do
     expect(kept(source, "n > 3", "n < 0")).to(eq(lines(source) - ["@three, @four = 3, 4", "private def plain = 1"]))
   end
 
+  # Sinatra::Base declares `ruby2_keywords :new if respond_to?(:ruby2_keywords, true)`.
+  # Blanked, the re-evaluated `new(*args)` stops passing keywords through.
+  it "keeps ruby2_keywords, also under a modifier condition, and a guarded directive" do
+    source = <<~RUBY
+      class App
+        def self.new(*args, &block) = args.size > 1
+        ruby2_keywords :new if respond_to?(:ruby2_keywords, true)
+        ruby2_keywords(:use)
+        private :helper unless $DEBUG
+        track :name if enabled?
+        if ok? then private :x else skip end
+      end
+    RUBY
+    dropped = ["track :name if enabled?", "if ok? then private :x else skip end"]
+    expect(kept(source, "args.size > 1")).to(eq(lines(source) - dropped))
+  end
+
   describe "aliases" do
     let(:source) do
       <<~RUBY

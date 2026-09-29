@@ -57,10 +57,17 @@ class Kimera::Execution::Schemata
   def overlay(path, file)
     result = synthesize(path, file)
     return [] if result.mutant_ids.empty?
-    apply(result, file)
+    install(result, file)
   rescue StandardError, ScriptError, SystemExit => error
     skip(path, "#{error.class}: #{error.message}")
   end
+
+  def install(result, file)
+    required = Kimera::BodyTrim.loaded?(file)
+    apply(result, file).tap { preempt(file) unless required }
+  end
+
+  def preempt(file) = $LOADED_FEATURES.concat([file, File.realpath(file)].uniq - $LOADED_FEATURES)
 
   def synthesize(path, file)
     source = File.read(file, encoding: Encoding::UTF_8)

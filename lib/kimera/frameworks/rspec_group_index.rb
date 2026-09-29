@@ -6,6 +6,8 @@ module Kimera
 end
 
 class Kimera::Frameworks::RSpecGroupIndex
+  CHILD_MEMOS = %i[@descendant_filtered_examples @_descendants].freeze
+
   class << self
     def top(examples)
       examples.map { |example| group(example) }.uniq
@@ -25,8 +27,9 @@ class Kimera::Frameworks::RSpecGroupIndex
       tree(top).flat_map { |group| filtered(group) }
     end
 
-    def narrow(filtered, top, wanted, &)
-      swap(filtered, tree(top).to_h { |group| [group, group.examples & wanted] }, &)
+    def narrow(filtered, wanted, &)
+      lineage = wanted.flat_map { |example| example.example_group.parent_groups }.uniq
+      swap(filtered, lineage.to_h { |group| [group, group.examples & wanted] }) { prune(lineage, &) }
     end
 
     private
@@ -36,6 +39,21 @@ class Kimera::Frameworks::RSpecGroupIndex
       yield
     ensure
       scoped.each_key { |group| filtered.delete(group) }
+    end
+
+    def prune(lineage)
+      kept = lineage.to_h { |group| [group, group.children] }
+      adopt(kept.transform_values { |children| children & lineage })
+      yield
+    ensure
+      adopt(kept)
+    end
+
+    def adopt(families)
+      families.each do |group, children|
+        group.instance_variable_set(:@children, children)
+        CHILD_MEMOS.each { |memo| group.instance_variable_set(memo, nil) }
+      end
     end
 
     def group(example)

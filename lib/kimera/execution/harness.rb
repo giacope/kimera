@@ -7,6 +7,7 @@ require_relative "../results/result"
 require_relative "../results/run_report"
 require_relative "../runtime"
 require_relative "../self_protection"
+require_relative "baseline_exclusions"
 require_relative "baseline_pass"
 require_relative "baseline_stall"
 require_relative "boot"
@@ -31,7 +32,7 @@ class Kimera::Execution::Harness
 
   class << self
     def new(registry:, adapter:, **options)
-      super(Context.new(registry, adapter, options), State.new({}, [], nil, {}))
+      super(Context.new(registry, adapter, options), State.new({}, {}, nil, {}))
     end
   end
 
@@ -141,13 +142,7 @@ class Kimera::Execution::Harness
   def notice
     stall = Kimera::Execution::BaselineStall.new(state.recovered, hard: hard, jobs: jobs).to_s
     errors.puts(stall) if stall
-    count = state.irrelevant.size
-    return if count.zero?
-    errors.puts(message(count))
-  end
-
-  def message(count)
-    "kimera: #{count} failing test(s) cover no in-scope mutant and were " \
-      "excluded from the baseline (they gate nothing this run)"
+    excluded = Kimera::Execution::BaselineExclusions.new(state.irrelevant).to_s
+    errors.puts(excluded) if excluded
   end
 end

@@ -28,7 +28,7 @@ class Kimera::CLI::Run
   end
 
   def run(argv)
-    options = parse(argv)
+    options = parse(argv).tap { |parsed| detach if machine?(parsed) }
     pid_file(options[:pidfile]) { cycle(options).call }
   rescue Kimera::Error => error
     @errors.puts("kimera: #{error.message}")
@@ -36,6 +36,14 @@ class Kimera::CLI::Run
   end
 
   private
+
+  def machine?(options) = options.fetch(:format, "text") != "text" && @io.equal?($stdout) && @io.is_a?(IO)
+
+  def detach
+    @io.flush
+    @io = @io.dup.tap { |report| report.sync = true }
+    $stdout.reopen($stderr)
+  end
 
   def pid_file(path, &)
     return yield unless path

@@ -35,7 +35,9 @@ RSpec.describe(Kimera::Overlay) do
       "foo(a > b, c < d)",
       "arr.select { |x| x > 0 && x < 10 }",
       "a > b ? (c == d) : (e != f)",
-      "!(a > b) && c"
+      "!(a > b) && c",
+      "foo(a || b || c)",
+      "@memo ||= foo(a && b && c)"
     ].freeze
 
     corpus.each do |expr|
