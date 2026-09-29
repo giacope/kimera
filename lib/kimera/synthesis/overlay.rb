@@ -17,6 +17,10 @@ class Kimera::Overlay
         Kimera::Overlay.evaluate(source, path)
         mutant_ids
       end
+
+      def settle!(points, detail)
+        skipped_unsafe.concat(points.flat_map { |point| point.orphan!(mutant_ids, detail) })
+      end
     end
 
   def initialize(registry)

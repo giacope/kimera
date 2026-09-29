@@ -222,6 +222,32 @@ RSpec.describe("operator precision") do
     end
   end
 
+  # Dropping either of two equal neighbors leaves the same program.
+  describe "drops of equal neighbors" do
+    def indexes(src, key) = mutants(src, key).map { |m| m.directive["index"] }
+
+    it "keeps one drop per run of equal neighbors", :aggregate_failures do
+      expect(indexes("def m\n  [7, 7]\nend\n", "element_drop")).to(eq([0]))
+      expect(indexes("def m\n  f(1, 1, 2)\nend\n", "argument_drop")).to(eq([0, 2]))
+      expect(indexes("def m\n  [7, 8, 7]\nend\n", "element_drop")).to(eq([0, 1, 2]))
+    end
+
+    it "tells heredocs with the same opener apart by their bodies" do
+      expect(indexes("def m\n  f(<<~A, <<~A)\n    x\n  A\n    y\n  A\nend\n", "argument_drop")).to(eq([0, 1]))
+    end
+  end
+
+  # Forcing `if true` to true leaves it unchanged: a survivor no test can kill.
+  describe "conditional on a literal condition" do
+    def labels(src) = mutants(src, "conditional").map(&:label)
+
+    it "only forces a literal condition to the other literal", :aggregate_failures do
+      expect(labels("def m(a)\n  a if true\nend\n")).to(eq(["condition => false"]))
+      expect(labels("def m(a)\n  a unless false\nend\n")).to(eq(["condition => true"]))
+      expect(labels("def m(a)\n  a if a\nend\n")).to(eq(["condition => true", "condition => false"]))
+    end
+  end
+
   describe "argument_drop label slicing (multi-line / padded)" do
     it "labels a multi-line argument with its stripped first line", :aggregate_failures do
       src = "def m\n  helper(build(\n    :deep\n  ), other)\nend\n"

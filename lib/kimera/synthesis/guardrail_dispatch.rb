@@ -46,7 +46,12 @@ module Kimera
       return node unless type?(node, :begin)
       inner, extra = node.children
       return node unless guarded?(inner, extra)
-      unwrap(inner.children[2])
+      unwrap(original(inner))
+    end
+
+    def original(guard)
+      fallback = guard.children[2]
+      guarded?(fallback, nil) ? original(fallback) : fallback
     end
 
     def guarded?(inner, extra)

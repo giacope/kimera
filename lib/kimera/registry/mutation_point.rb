@@ -115,6 +115,12 @@ class Kimera::MutationPoint
     @attributes.fetch(:schema_safe, SAFE)
   end
 
+  def orphan!(applied, detail)
+    return [] unless safe? && !ids.intersect?(applied)
+    unmutatable!(detail)
+    ids
+  end
+
   def unsafe!(reason)
     @attributes[:schema_safe] = false
     @attributes[:unsafe_reason] = reason
