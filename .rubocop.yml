@@ -65,6 +65,8 @@ RSpec/SpecFilePathFormat:
   CustomTransform:
     RSpecAdapter: rspec_adapter # the cop wants r_spec_adapter
   Exclude:
+    # One file per invariant, which spans classes; the unit specs mirror lib/.
+    - spec/property/**/*
     # One file per contract: a module plus every class implementing it.
     - spec/kimera/execution/isolation_spec.rb
     - spec/kimera/frameworks/adapter_spec.rb
@@ -101,6 +103,10 @@ ThreadSafety/NewThread:
   Exclude:
     # One thread per job is this file's purpose.
     - lib/kimera/execution/isolated_scheduling.rb
+Style/CaseEquality:
+  Exclude:
+    # Prism::Node#=== is structural equality (locations ignored), not a case match.
+    - lib/kimera/operators/vocabulary.rb
 Style/GlobalStdStream:
   Exclude:
     # Must reopen the child's real fd 1/2, not whatever $stdout points at.
@@ -124,6 +130,10 @@ Security/Eval:
   Exclude:
     # Evals generated source built in the example to prove the rewrite runs.
     - spec/kimera/rewrite/numbered_params_spec.rb
+Security/MarshalLoad:
+  Exclude:
+    # Reads back what its own forked child wrote, never outside data.
+    - spec/property/support/supervised.rb
 Style/EvalWithLocation:
   Exclude:
     # The fake eval file name is the fixture the guard keys off.
@@ -137,11 +147,18 @@ Style/EvalWithLocation:
 RSpec/DescribeClass:
   Exclude:
     - spec/integration/**/*
+    - spec/property/**/*
     - spec/kimera/cli/survivors_spec.rb
     - spec/kimera/cli/workflows_spec.rb
     - spec/kimera/exe_spec.rb
     - spec/kimera/encoding_spec.rb
     - spec/kimera/operators/**/*
+
+# A property is one example: its checks run inside the generator loop, and
+# aggregate_failures would hide a failure from the shrinker.
+RSpec/MultipleExpectations:
+  Exclude:
+    - spec/property/**/*
 
 # Each long example drives one real run; splitting re-runs it per assertion.
 # Ratchet at the current longest.

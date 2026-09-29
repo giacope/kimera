@@ -41,10 +41,13 @@ module Kimera
       end
 
       def drops(nodes, type, label:)
-        nodes.each_index.map do |index|
+        nodes.each_index.filter_map do |index|
+          next if repeat?(nodes, index)
           Variant.new(label: "#{label} `#{first(nodes[index])}`", directive: directive(type, index: index))
         end
       end
+
+      def repeat?(nodes, index) = index.positive? && nodes[index - 1] === nodes[index]
 
       def call(node) = CallQuery.new(node)
 

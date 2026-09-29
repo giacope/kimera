@@ -1,7 +1,17 @@
 # frozen_string_literal: true
 
 Kimera::Execution::WorkerPool::Worker =
-  Struct.new(:pid, :request, :response, :inflight, :deadline, :slot, :stacks, :served, :last_words) do
+  Struct.new(:pid, :request, :response, :inflight, :deadline, :slot, :stacks, :served, :last_words, :unread) do
+    def lines(chunk)
+      *complete, partial = (rest + chunk).split("\n", -1)
+      self.unread = partial
+      complete
+    end
+
+    def rest
+      (unread || "".b).tap { self.unread = nil }
+    end
+
     def idle!
       self.inflight = nil
     end

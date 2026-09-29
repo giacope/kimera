@@ -3,6 +3,8 @@
 require_relative "base"
 
 class Kimera::Operators::Conditional < Kimera::Operators::Base
+  LITERAL_CONDITIONS = { "true" => TrueNode, "false" => FalseNode }.freeze
+
   class << self
     def key = "conditional"
   end
@@ -11,7 +13,7 @@ class Kimera::Operators::Conditional < Kimera::Operators::Base
     return unless conditional?(node)
     return if elsif?(node)
     return if memoized?(node)
-    %w[true false].map { |to| flip(to) }
+    LITERAL_CONDITIONS.filter_map { |to, literal| flip(to) unless node.predicate.is_a?(literal) }
   end
 
   private

@@ -21,6 +21,24 @@ jobs:
           bundler-cache: true
       - run: bin/spec
 
+  # Exhaustive check of the worker-pool protocol model (formal/README.md).
+  model-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+      - uses: actions/cache@v4
+        with:
+          path: tmp/tla2tools.jar
+          key: tla2tools-1.8.0
+      - run: bin/model-check
+
   # hashira fails on any coupling/complexity/duplication/smell finding not in
   # hashira_baseline.json.
   lint:
@@ -48,6 +66,21 @@ jobs:
           bundler-cache: true
       - name: Mutation-test changed lines
         run: bundle exec kimera run --since origin/${{ github.base_ref }} --fail-on-no-coverage
+
+  # Property specs at 10x their CI run counts, over a fresh seed and a wider
+  # corpus sample. Trigger manually from the Actions tab.
+  properties-deep:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+      - run: bin/spec spec/property
+        env:
+          PBT_SCALE: "10"
 
   # Full self-host run (max_survivors: 0 via .kimera.yml); uploads the JSON
   # report. Trigger manually from the Actions tab.

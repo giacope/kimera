@@ -1,0 +1,60 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "digest"
+require "fileutils"
+require "open-uri"
+require "tmpdir"
+
+module Kimera; end
+
+class Kimera::ModelCheck
+  USAGE = <<~TEXT
+    Model-checks formal/WorkerPool.tla with TLC (needs Java 11+).
+
+      bin/model-check        the sizes CI checks
+      bin/model-check N J    N mutants on J jobs (3 2: tens of millions of states)
+  TEXT
+  ROOT = File.expand_path("..", __dir__)
+  JAR = File.join(ROOT, "tmp", "tla2tools.jar")
+  JAR_URL = "https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar"
+  JAR_SHA256 = "ab4694601923fd5ac06452abbf847c366a5054a3d739552085edd6ed986c29ec"
+  SPEC = File.join(ROOT, "formal", "WorkerPool.tla")
+  CONFIG = File.join(ROOT, "formal", "WorkerPool.cfg")
+  CI_SIZES = [[2, 2], [3, 1], [1, 3]].freeze
+
+  def run(argv)
+    return puts(USAGE) || true if argv.include?("--help")
+    fetch
+    sizes = argv.empty? ? CI_SIZES : [argv.map { |arg| Integer(arg) }]
+    sizes.all? { |mutants, jobs| check(mutants, jobs) }
+  end
+
+  private
+
+  def fetch
+    return if File.exist?(JAR) && Digest::SHA256.file(JAR).hexdigest == JAR_SHA256
+    FileUtils.mkdir_p(File.dirname(JAR))
+    body = URI.parse(JAR_URL).open("rb", &:read)
+    abort("tla2tools.jar checksum mismatch") unless Digest::SHA256.hexdigest(body) == JAR_SHA256
+    File.binwrite(JAR, body)
+  end
+
+  def check(mutants, jobs)
+    puts("== N=#{mutants} Jobs=#{jobs}")
+    Dir.mktmpdir("tlc") do |dir|
+      system(
+        "java", "-XX:+UseParallelGC", "-cp", JAR, "tlc2.TLC", "-workers", "auto", "-cleanup",
+        "-metadir", File.join(dir, "states"), "-config", sized(dir, mutants, jobs), SPEC, chdir: File.dirname(SPEC)
+      )
+    end
+  end
+
+  def sized(dir, mutants, jobs)
+    File.join(dir, "WorkerPool.cfg").tap do |config|
+      File.write(config, File.read(CONFIG).sub(/N = \d+/, "N = #{mutants}").sub(/Jobs = \d+/, "Jobs = #{jobs}"))
+    end
+  end
+end
+
+exit(Kimera::ModelCheck.new.run(ARGV))

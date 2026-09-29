@@ -229,6 +229,67 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     expect(resolved.select { |m| m["t"] == "result" }.map { |m| m["id"] }).to(eq([2]))
   end
 
+  # A readable pipe need not hold a whole line: blocking on the rest of it
+  # would stall the loop before its watchdog ever ran.
+  def halting(*writes, linger: 30)
+    forked do |request, response|
+      request.gets
+      writes.each do |text|
+        response.write(text)
+        response.flush
+        sleep(0.05)
+      end
+      sleep(linger)
+      exit!(0)
+    end
+  end
+
+  def result(id) = JSON.generate(t: "result", id: id, status: "killed", ms: 1, fails: [])
+
+  it "watchdogs a worker that writes half a line and hangs", :aggregate_failures do
+    resolved = lost = nil
+    spawner = ->(_slot) { halting('{"t":"res') }
+    Timeout.timeout(10) { resolved, lost = pool(queue: [1], spawner: spawner, deadline: 0.3) }
+
+    expect(lost).to(eq([[1, :timeout]]))
+    expect(resolved).to(be_empty)
+  end
+
+  it "joins a line split across writes and splits lines that share one", :aggregate_failures do
+    line = result(1)
+    spawner = ->(_slot) { halting(line[0, 9], "#{line[9..]}\n#{JSON.generate(t: "leak", id: 1)}\n", linger: 0) }
+    resolved, lost = pool(queue: [1], spawner: spawner)
+
+    expect(resolved.map { |m| m["t"] }).to(eq(%w[result leak]))
+    expect(lost).to(be_empty)
+  end
+
+  # IO.select can report a pipe ready with nothing to read yet.
+  def spurious(response)
+    woken = false
+    read = response.method(:read_nonblock)
+    allow(response).to(receive(:read_nonblock)) do |*args, **options|
+      next read.call(*args, **options) if woken
+      woken = true
+      :wait_readable
+    end
+  end
+
+  it "waits out a spurious wakeup instead of reading it as data", :aggregate_failures do
+    spawner = ->(_slot) { healthy.tap { |_pid, _request, response| spurious(response) } }
+    resolved, lost = pool(queue: [1], spawner: spawner)
+
+    expect(resolved.select { |m| m["t"] == "result" }.map { |m| m["id"] }).to(eq([1]))
+    expect(lost).to(be_empty)
+  end
+
+  it "reads a last line the worker wrote without a newline before it exited", :aggregate_failures do
+    resolved, lost = pool(queue: [1], spawner: ->(_slot) { halting(result(1), linger: 0) })
+
+    expect(resolved.map { |m| m["id"] }).to(eq([1]))
+    expect(lost).to(be_empty)
+  end
+
   it "kills a retired worker whose teardown hangs, so the run still ends", :aggregate_failures do
     resolved = lost = nil
     Timeout.timeout(10) { resolved, lost = pool(queue: [1, 2], spawner: ->(_slot) { stuck }, deadline: 0.5) }

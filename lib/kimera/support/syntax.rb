@@ -5,7 +5,7 @@ require "prism"
 module Kimera
   module Syntax
     %i[
-      AndNode ArrayNode AssocNode AssocSplatNode BlockArgumentNode BlockNode
+      AndNode ArrayNode AssocNode AssocSplatNode BlockArgumentNode BlockNode BlockParametersNode
       CallNode ClassVariableOrWriteNode ClassVariableReadNode ClassVariableWriteNode
       CallOperatorWriteNode ClassVariableOperatorWriteNode ConstantOperatorWriteNode
       ConstantPathOperatorWriteNode GlobalVariableOperatorWriteNode
@@ -14,8 +14,8 @@ module Kimera
       ForwardingArgumentsNode GlobalVariableOrWriteNode GlobalVariableReadNode
       GlobalVariableWriteNode HashNode IfNode InNode InstanceVariableOrWriteNode
       InstanceVariableReadNode InstanceVariableWriteNode IntegerNode KeywordHashNode
-      LambdaNode MatchPredicateNode MatchRequiredNode NilNode Node
-      OptionalKeywordParameterNode OptionalParameterNode OrNode ParenthesesNode
+      LambdaNode LocalVariableReadNode MatchPredicateNode MatchRequiredNode NilNode Node
+      OptionalKeywordParameterNode OptionalParameterNode OrNode ParametersNode ParenthesesNode
       RangeNode RegularExpressionNode ReturnNode SplatNode StatementsNode StringNode
       SymbolNode TrueNode UnlessNode
     ].each { |name| const_set(name, Prism.const_get(name)) }
