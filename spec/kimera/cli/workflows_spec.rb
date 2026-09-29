@@ -165,6 +165,78 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     expect(bare).not_to(include("Coverage floor"))
   end
 
+  def test_initialized(files)
+    Dir.mktmpdir do |dir|
+      files.each do |path, body|
+        FileUtils.mkdir_p(File.dirname(File.join(dir, path)))
+        File.write(File.join(dir, path), body)
+      end
+      out, error = captured
+      Kimera::CLI::Init.new(io: out, errors: error, root: dir).run(["--dry-run"])
+      YAML.safe_load(out.string)
+    end
+  end
+
+  # `rails test` leaves out test/system; loaded with the rest, once-campfire's
+  # Selenium tests need Chrome and also broke unrelated tests.
+  it "leaves a Rails app's system tests out, as rails test does", :aggregate_failures do
+    rails = { "config/application.rb" => "", "test/test_helper.rb" => "require 'minitest'\n" }
+    with = test_initialized(rails.merge("test/system/chat_test.rb" => "", "test/models/a_test.rb" => ""))
+    expect(with).to(include("tests" => ["test/**/*_test.rb"], "exclude_tests" => ["test/system/**/*_test.rb"]))
+    expect(test_initialized(rails.merge("test/models/a_test.rb" => ""))).not_to(have_key("exclude_tests"))
+    plain = test_initialized("test/test_helper.rb" => "require 'minitest'\n", "test/system/x_test.rb" => "")
+    expect(plain).not_to(have_key("exclude_tests"))
+    rspec = rails.merge("spec/system/x_spec.rb" => "", ".rspec" => "")
+    expect(test_initialized(rspec)).not_to(have_key("exclude_tests"))
+  end
+
+  # rack names its tests test/spec_*.rb; rake-style gems use test/test_*.rb.
+  it "finds minitest files named test_*.rb or spec_*.rb", :aggregate_failures do
+    helper = { "test/helper.rb" => "require 'minitest/autorun'\n" }
+    expect(test_initialized(helper.merge("test/spec_utils.rb" => ""))).to(include("tests" => ["test/**/spec_*.rb"]))
+    expect(test_initialized(helper.merge("test/test_task.rb" => ""))).to(include("tests" => ["test/**/test_*.rb"]))
+  end
+
+  def test_doctor_in(dir, *argv)
+    out, error = captured
+    [Kimera::CLI::Doctor.new(io: out, errors: error, root: dir).run(argv), out.string]
+  end
+
+  it "skips loading and the baseline when no test file matches", :aggregate_failures do
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, ".kimera.yml"), "tests: [test/**/*_test.rb]\n")
+      allow(Open3).to(receive(:capture2e))
+      status, output = test_doctor_in(dir, "--check-baseline")
+      expect(status).to(eq(1))
+      expect(output).to(include("✗ Test discovery", "! Test loading: no test files to load"))
+      expect(output).not_to(include("Baseline"))
+      expect(Open3).not_to(have_received(:capture2e))
+    end
+  end
+
+  it "leaves the configured exclude_tests out of discovery", :aggregate_failures do
+    Dir.mktmpdir do |dir|
+      FileUtils.mkdir_p(File.join(dir, "test", "system"))
+      File.write(File.join(dir, "test", "a_test.rb"), "")
+      File.write(File.join(dir, "test", "system", "b_test.rb"), "")
+      config = "tests: [test/**/*_test.rb]\nexclude_tests: [test/system/**/*_test.rb]\n"
+      File.write(File.join(dir, ".kimera.yml"), config)
+      allow(Open3).to(receive(:capture2e).and_return(["", instance_double(Process::Status, success?: true)]))
+      expect(test_doctor_in(dir).last).to(include("✓ Test discovery: 1 files"))
+      green = "✓ Baseline: configured test suite is green\n"
+      expect(test_doctor_in(dir, "--check-baseline").last.lines.last).to(eq(green))
+    end
+  end
+
+  # thor keeps its floor in spec/helper.rb.
+  it "finds a coverage floor in any spec or test helper" do
+    Dir.mktmpdir do |dir|
+      FileUtils.mkdir_p(File.join(dir, "spec", "support"))
+      File.write(File.join(dir, "spec", "helper.rb"), "SimpleCov.start { minimum_coverage(90) }\n")
+      expect(test_doctor_in(dir).last).to(include("! Coverage floor: minimum_coverage in spec/helper.rb"))
+    end
+  end
+
   it "adds strict CI defaults without replacing explicit user choices" do
     out, error = captured
     runner = instance_double(Kimera::CLI::Run, run: 0)

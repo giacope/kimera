@@ -13,6 +13,7 @@ class Kimera::Execution::IsolatedPlan; end
 class Kimera::Execution::IsolatedPlan::ChildCommand
   CHILD = File.expand_path("isolated_child.rb", __dir__)
   MINITEST_CHILD = File.expand_path("isolated_child_minitest.rb", __dir__)
+  PULSE = ".pulse"
 
   def initialize(framework:, test_files:)
     @framework = framework
@@ -26,7 +27,7 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
   end
 
   def argv(ledger)
-    [minitest? ? MINITEST_CHILD : CHILD, ledger, request_path(ledger)]
+    [minitest? ? MINITEST_CHILD : CHILD, ledger, request_path(ledger), "#{ledger}#{PULSE}"]
   end
 
   def request(locations)

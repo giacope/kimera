@@ -17,6 +17,8 @@ class Kimera::CLI::Init
   )
 
   HELPERS = %w[spec/spec_helper.rb spec/rails_helper.rb spec/helper.rb test/test_helper.rb test/helper.rb].freeze
+  MINITEST_GLOBS = %w[test/**/*_test.rb test/**/test_*.rb test/**/spec_*.rb spec/**/*_spec.rb].freeze
+  SYSTEM_TESTS = "test/system/**/*_test.rb"
   AGENT_POINTER = "Mutation testing: before running kimera or triaging its results, read `bundle exec kimera skill`.\n"
 
   def initialize(io: $stdout, errors: $stderr, root: ".")
@@ -71,10 +73,14 @@ class Kimera::CLI::Init
 
   def detected
     Kimera::Config.document(
-      framework: framework, paths: sources, tests: tests,
+      framework: framework, paths: sources, tests: tests, **browserless,
       jobs: [Etc.nprocessors, 8].min, max_survivors: 0, max_errors: 0, fail_on_no_coverage: false
     )
   end
+
+  def browserless = rails? && Dir.glob(File.join(@root, SYSTEM_TESTS)).any? ? { exclude_tests: [SYSTEM_TESTS] } : {}
+
+  def rails? = framework == "minitest" && File.file?(File.join(@root, "config", "application.rb"))
 
   def framework = @_framework ||= declared || layout
 
@@ -99,7 +105,7 @@ class Kimera::CLI::Init
   end
 
   def tests
-    globs = framework == "minitest" ? %w[test/**/*_test.rb spec/**/*_spec.rb] : %w[spec/**/*_spec.rb]
+    globs = framework == "minitest" ? MINITEST_GLOBS : %w[spec/**/*_spec.rb]
     [globs.find { |glob| Dir.glob(File.join(@root, glob)).any? } || globs.first]
   end
 end

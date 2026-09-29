@@ -39,7 +39,7 @@ module Kimera
         "op_asgn_swap", :assign, "csend_to_send", :send, "index_to_fetch", :fetch,
         "boolean_literal", :literal, "integer_literal", :integer, "float_literal", :float,
         "string_literal", :string, "symbol_literal", :symbol, "regexp_literal", :regexp,
-        "boolean_connective", :retype, "range_flip", :retype, "condition", :retest
+        "boolean_connective", :connective, "range_flip", :retype, "condition", :retest
       )
       STRUCTURAL_HANDLERS = table(
         STATEMENT_DELETION, :clear, "return_nil", :nothing, "empty_collection", :empty,

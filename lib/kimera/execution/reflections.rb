@@ -5,13 +5,15 @@ module Kimera
     module Reflections
       module_function
 
+      Declared = Data.define(:key, :reflection, :stale)
+
       GUARD =
         Module.new do
           def add_reflection(owner, name, reflection)
+            before = owner._reflections
             key = Reflections.key(owner, name)
-            stale = OverlayGuards.overlaying? && owner._reflections[key]
             super
-            Reflections.inherit(owner, key, stale, reflection) if stale
+            Reflections.settle(owner, before, Declared.new(key, reflection, before[key])) if OverlayGuards.overlaying?
           end
         end
 
@@ -20,15 +22,19 @@ module Kimera
         owner._reflections.key?(text) ? text : name.to_sym
       end
 
-      def inherit(owner, key, stale, reflection)
-        owner.descendants.each { |heir| replace(heir, key, stale, reflection) }
+      def settle(owner, before, declared)
+        return unless declared.stale
+        held = owner._reflections
+        owner._reflections = before.to_h { |name, _| [name, held[name]] }.merge(held)
+        owner.descendants.each { |heir| replace(heir, declared) }
       end
 
-      def replace(heir, key, stale, reflection)
+      def replace(heir, declared)
         held = heir._reflections
-        return unless held[key].equal?(stale)
+        key = declared.key
+        return unless held[key].equal?(declared.stale)
         heir.clear_reflections_cache
-        heir._reflections = held.merge(key => reflection)
+        heir._reflections = held.merge(key => declared.reflection)
       end
     end
   end

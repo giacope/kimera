@@ -222,6 +222,15 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(h.coverage[ids.first]).to(include("t1"))
     end
 
+    it "names each excluded failing test with its failure, up to a limit", :aggregate_failures do
+      failing = %w[t2 t3 t4 t5 t6 t7 t8]
+      coverage = failing.to_h { |id| [id, []] }.merge("t1" => [ids.first])
+      h = harness(adapter(coverage: coverage, failing: failing, message: "boom\nframe"))
+      h.__send__(:measure!)
+      expect { h.__send__(:notice) }.to(output(/excluded from the baseline .*:\n  t2: boom\n/).to_stderr)
+      expect { h.__send__(:notice) }.to(output(/\n  t6: boom\n  … and 2 more\n\z/).to_stderr)
+    end
+
     it "closes its own ledger afterward" do
       h = harness(adapter(coverage: { "t1" => [ids.first] }))
       expect { h.__send__(:measure!) }.not_to(change { Array(Kimera::Runtime.instance_variable_get(:@ledgers)).size })

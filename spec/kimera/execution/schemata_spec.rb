@@ -66,6 +66,27 @@ RSpec.describe(Kimera::Execution::Schemata) do
     Object.__send__(:remove_const, :SchemataRequired) if defined?(SchemataRequired)
   end
 
+  def lazily(root)
+    registry = Kimera::RegistryScan.new(root: root).build([File.join(root, "sl_lazy.rb")])
+    described_class.new(registry, root: root).overlay!
+    registry.each.find { |m, _p| m.label == "> => <" }.first.id
+  end
+
+  # dry-validation requires its extensions on demand. Unregistered, that require
+  # loaded the original file over the guarded methods, which hid their mutants.
+  it "keeps the guards of a file the suite requires only later, by either path", :aggregate_failures do
+    write("real/sl_lazy.rb", "class SchemataLazy\n  def gt(a, b)\n    a > b\n  end\nend\n")
+    linked = File.join(dir, "linked")
+    File.symlink(File.join(dir, "real"), linked)
+    Kimera::Runtime.active = lazily(linked)
+    paths = [File.join(linked, "sl_lazy.rb"), File.join(dir, "real", "sl_lazy.rb")]
+    expect(paths.map { |path| require(path) }).to(eq([false, false]))
+    expect(SchemataLazy.new.gt(2, 1)).to(be(false))
+  ensure
+    Object.__send__(:remove_const, :SchemataLazy) if defined?(SchemataLazy)
+    $LOADED_FEATURES.reject! { |feature| feature.end_with?("sl_lazy.rb") }
+  end
+
   it "skips files that have no schema-safe points", :aggregate_failures do
     # Memoized code is never schema-safe.
     write("sl_memo.rb", <<~RUBY)
@@ -489,12 +510,14 @@ RSpec.describe(Kimera::Execution::Schemata) do
   end
 
   describe "reflection overlay guard" do
-    # Mimics ActiveRecord::Reflection.add_reflection and class_attribute copies.
+    # Mimics ActiveRecord::Reflection.add_reflection, which moves a redeclared
+    # name to the end, and class_attribute copies.
     def records(key)
       normal = key.is_a?(String) ? :to_s : :to_sym
       reflection = Module.new
       reflection.define_singleton_method(:add_reflection) do |owner, name, value|
-        owner._reflections = owner._reflections.merge(name.public_send(normal) => value)
+        named = name.public_send(normal)
+        owner._reflections = owner._reflections.except(named).merge!(named => value)
       end
       stub_const("ActiveRecord", Module.new)
       stub_const("ActiveRecord::Reflection", reflection)
@@ -526,6 +549,17 @@ RSpec.describe(Kimera::Execution::Schemata) do
       own, = heirs(base, "primary")
       described_class.with_guards { reflection.add_reflection(base, :primary, :new) }
       expect(own._reflections["primary"]).to(eq(:new))
+    end
+
+    # once-campfire: `has_many :memberships do ... end` carries mutants, so the
+    # overlay redeclares it after `has_many :users, through: :memberships`, and
+    # Rails raised HasManyThroughOrderError for every Room.
+    it "keeps a redeclared reflection where it was declared", :aggregate_failures do
+      reflection, base = records("memberships")
+      reflection.add_reflection(base, "users", :through)
+      described_class.with_guards { reflection.add_reflection(base, "memberships", :new) }
+      expect(base._reflections).to(eq("memberships" => :new, "users" => :through))
+      expect(base._reflections.keys).to(eq(%w[memberships users]))
     end
 
     it "leaves subclasses alone outside overlay and for a first declaration", :aggregate_failures do

@@ -46,8 +46,10 @@ class Kimera::Execution::BaselinePass
   def report
     failures = tally.failures
     failure!(failures) unless failures.empty?
-    Measured.new(coverage: tally.coverage, irrelevant: tally.irrelevant, recovered: losses.recovered(@messages))
+    Measured.new(coverage: tally.coverage, irrelevant: excluded, recovered: losses.recovered(@messages))
   end
+
+  def excluded = tally.irrelevant.to_h { |test_id| [test_id, @messages[test_id]] }
 
   def serial
     ledger = Kimera::Runtime.start!

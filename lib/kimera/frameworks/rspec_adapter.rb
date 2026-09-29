@@ -117,13 +117,8 @@ class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
 
   def execute(selected)
     reporter = RSpec::Core::Reporter.new(RSpec.configuration)
-    filtered = RSpec.world.filtered_examples
-    wanted = selected.to_a
-    Kimera::Frameworks::RSpecGroupIndex.top(selected).each { |top| perform(top, reporter, filtered, wanted) }
-  end
-
-  def perform(top, reporter, filtered, wanted)
-    Kimera::Frameworks::RSpecGroupIndex.narrow(filtered, top, wanted) { top.run(reporter) }
+    index = Kimera::Frameworks::RSpecGroupIndex
+    index.narrow(RSpec.world.filtered_examples, selected) { index.top(selected).each { |top| top.run(reporter) } }
   end
 end
 

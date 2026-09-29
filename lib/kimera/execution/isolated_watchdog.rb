@@ -1,22 +1,24 @@
 # frozen_string_literal: true
 
+require_relative "isolated_pulse"
+
 module Kimera
   module Execution
     module IsolatedExecutionWatchdog
       private
 
-      def waitfor(pid)
-        deadline = now + limit
+      def waitfor(pid, pulse = File::NULL)
+        watch = Kimera::Execution::IsolatedPulse.new(pulse, limit)
         loop do
-          step = attempt(pid, deadline)
+          step = attempt(pid, watch)
           return step unless step == :continue
         end
       end
 
-      def attempt(pid, deadline)
+      def attempt(pid, watch)
         done, status = Process.waitpid2(pid, Process::WNOHANG)
         return status if done
-        return fail!(pid) unless (deadline - now).positive?
+        return fail!(pid) if watch.expired?
         pause
         :continue
       end

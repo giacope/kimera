@@ -113,7 +113,7 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     result, = measure({ "t1" => :timeout }, { "t1" => :stray })
 
     expect(result.recovered).to(eq({}))
-    expect(result.irrelevant).to(eq(["t1"]))
+    expect(result.irrelevant.keys).to(eq(["t1"]))
   end
 
   it "fails the baseline on a test that fails when rerun alone", :aggregate_failures do

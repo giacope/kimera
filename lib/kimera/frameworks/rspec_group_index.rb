@@ -25,8 +25,9 @@ class Kimera::Frameworks::RSpecGroupIndex
       tree(top).flat_map { |group| filtered(group) }
     end
 
-    def narrow(filtered, top, wanted, &)
-      swap(filtered, tree(top).to_h { |group| [group, group.examples & wanted] }, &)
+    def narrow(filtered, wanted, &)
+      lineage = wanted.flat_map { |example| example.example_group.parent_groups }.uniq
+      swap(filtered, lineage.to_h { |group| [group, group.examples & wanted] }) { prune(lineage, &) }
     end
 
     private
@@ -37,6 +38,16 @@ class Kimera::Frameworks::RSpecGroupIndex
     ensure
       scoped.each_key { |group| filtered.delete(group) }
     end
+
+    def prune(lineage)
+      kept = lineage.to_h { |group| [group, group.children] }
+      adopt(kept.transform_values { |children| children & lineage })
+      yield
+    ensure
+      adopt(kept)
+    end
+
+    def adopt(families) = families.each { |group, children| group.instance_variable_set(:@children, children) }
 
     def group(example)
       example.example_group.parent_groups.last

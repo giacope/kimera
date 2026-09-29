@@ -14,6 +14,13 @@ RSpec.describe(Kimera::Rewrite::Directive) do
       expect(out).to(eq("a || b"))
     end
 
+    # unparser prints `a || b and "c"` for this: a syntax error once it sits in an
+    # argument list (thor's `Shellwords.split(ENV["THOR_DIFF"] || ENV["RAILS_DIFF"] || "diff -u")`).
+    it "parenthesizes a nested connective so the variant stays valid in any context" do
+      out = described_class.render('a || b || "c"', { "type" => "boolean_connective", "to" => "and" })
+      expect(out).to(eq('(a || b) && "c"'))
+    end
+
     it "renders a boolean literal variant" do
       out = described_class.render("true", { "type" => "boolean_literal", "to" => "false" })
       expect(out).to(eq("false"))

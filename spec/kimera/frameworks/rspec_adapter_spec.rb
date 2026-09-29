@@ -251,6 +251,38 @@ RSpec.describe(Kimera::Frameworks::RSpecAdapter) do
     expect(ran).to(eq([:c]))
   end
 
+  def contextual
+    path = File.join(dir, "contextual_spec.rb")
+    File.write(path, <<~RUBY)
+      RSpec.describe "KimeraContextual" do
+        it("outside") { $probe << :outside }
+        describe "hooked" do
+          before(:context) { $probe << :before_context }
+          after(:context) { $probe << :after_context }
+          it("inside") { $probe << :inside }
+        end
+      end
+    RUBY
+    path
+  end
+
+  def sequenced(*descriptions)
+    ad = quietly { described_class.build.source([contextual]) }
+    runs = descriptions.map { |text| ad.test_ids.find { |i| ad.describe(i) == "KimeraContextual #{text}" } }
+    executions { runs.each { |id| ad.run([id]) } }
+  end
+
+  # RSpec memoizes each group's descendant_filtered_examples. Left from an earlier
+  # narrow run, it skips before(:context) (rubocop-ast's alias_matcher) or runs it
+  # for a group with nothing selected.
+  it "runs a group's context hooks when an earlier run selected none of its examples" do
+    expect(sequenced("outside", "hooked inside")).to(eq(%i[outside before_context inside after_context]))
+  end
+
+  it "skips a group's context hooks when this run selects none of its examples" do
+    expect(sequenced("hooked inside", "outside")).to(eq(%i[before_context inside after_context outside]))
+  end
+
   def overrides(description)
     groups = RSpec.world.example_groups.select { |g| g.description == description }
     RSpec.world.filtered_examples.keys & (groups + groups.flat_map(&:children))
@@ -321,30 +353,45 @@ RSpec.describe(Kimera::Frameworks::RSpecAdapter) do
   end
 
   describe "narrowing the filtered-example table" do
-    def group(children = [])
-      Struct.new(:children, :examples).new(children, %i[a b])
+    def narrow(filtered, wanted, &)
+      Kimera::Frameworks::RSpecGroupIndex.narrow(filtered, wanted, &)
     end
 
-    def narrow(filtered, top, wanted, &)
-      Kimera::Frameworks::RSpecGroupIndex.narrow(filtered, top, wanted, &)
+    def top
+      prepared
+      RSpec.world.example_groups.find { |g| g.description == "KimeraCounted" }
     end
 
-    it "scopes every group in the tree while the block runs", :aggregate_failures do
-      child = group
-      top = group([child])
+    def example(group, text) = group.descendants.flat_map(&:examples).find { |ex| ex.description == text }
+
+    it "scopes only the wanted example's ancestor chain while the block runs", :aggregate_failures do
+      outer = top
+      inner = outer.children.first
+      c = example(outer, "c")
       filtered = {}
       seen = nil
-      narrow(filtered, top, [:a]) { seen = filtered.dup }
-      expect(seen).to(eq(top => [:a], child => [:a]))
+      narrow(filtered, [c]) { seen = filtered.dup }
+      expect(seen).to(eq(outer => [], inner => [c]))
       expect(filtered).to(be_empty)
     end
 
-    it "restores entries it did not add, and clears its own after a raise", :aggregate_failures do
-      top = group
-      other = group
+    it "hides children off the chain while the block runs, then restores them", :aggregate_failures do
+      outer = top
+      inner = outer.children.first
+      seen = nil
+      narrow({}, [example(outer, "a")]) { seen = outer.children.dup }
+      expect(seen).to(be_empty)
+      expect(outer.children).to(eq([inner]))
+    end
+
+    it "restores entries it did not add, and the children it hid, after a raise", :aggregate_failures do
+      outer = top
+      inner = outer.children.first
+      other = Object.new
       filtered = { other => %i[a b] }
-      expect { narrow(filtered, top, [:b]) { raise(ArgumentError) } }.to(raise_error(ArgumentError))
+      expect { narrow(filtered, [example(outer, "a")]) { raise(ArgumentError) } }.to(raise_error(ArgumentError))
       expect(filtered).to(eq(other => %i[a b]))
+      expect(outer.children).to(eq([inner]))
     end
   end
 end

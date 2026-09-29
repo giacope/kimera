@@ -66,7 +66,8 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       allow(Process).to(receive(:waitpid2).and_return([nil, nil]))
       allow(r).to(receive(:sleep))
 
-      expect(test_invoke_private(r, :attempt, 123, Float::INFINITY)).to(eq(:continue))
+      watch = instance_double(Kimera::Execution::IsolatedPulse, expired?: false)
+      expect(test_invoke_private(r, :attempt, 123, watch)).to(eq(:continue))
       expect(r).to(have_received(:sleep).with(0.0125))
     end
 
@@ -92,6 +93,18 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       expect(elapsed).to(be < 5.0)
       # kill 0 probes for existence
       expect { Process.kill(0, pid) }.to(raise_error(Errno::ESRCH))
+    end
+
+    # The hard timeout bounds one test, as on the warm path. Bounding the whole
+    # child timed out any suite longer than it, the unmutated baseline included.
+    def beating(pulse, beats)
+      script = "#{beats}.times { File.write(ARGV[0], '.', mode: 'a'); sleep(0.15) }"
+      pid = Process.spawn(Gem.ruby, "-e", script, pulse, pgroup: true)
+      test_invoke_private(runner(hard_timeout: 0.5, poll_interval: 0.01), :waitfor, pid, pulse)
+    end
+
+    it "lets a child run past the hard timeout while each test starts within it" do
+      Dir.mktmpdir { |dir| expect(beating(File.join(dir, "pulse"), 8)).to(be_success) }
     end
   end
 

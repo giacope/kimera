@@ -7,6 +7,7 @@ module Kimera
   module Rewrite
     module DirectiveHandlers
       IDENTITY = ->(node) { node }
+      CONNECTIVES = %i[and or].freeze
 
       Operation =
         Data.define(:node, :directive, :unguard) do
@@ -17,9 +18,11 @@ module Kimera
             node.updated(:send, [receiver, target, *args])
           end
 
-          def retype
-            node.updated(target, node.children)
-          end
+          def retype = node.updated(target, node.children)
+
+          def connective = node.updated(target, node.children.map { |operand| parenthesized(operand) })
+
+          def parenthesized(operand) = CONNECTIVES.include?(operand.type) ? ast(:begin, operand) : operand
 
           def literal
             node.updated(target, [])

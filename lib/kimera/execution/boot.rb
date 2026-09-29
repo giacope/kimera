@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "isolation"
+require_relative "memory_databases"
 
 class Kimera::Execution::Boot
   def initialize(adapter:, isolate:, errors: nil)
@@ -13,6 +14,7 @@ class Kimera::Execution::Boot
     @adapter.source(test_files)
     @adapter.start
     load!
+    Kimera::Execution::MemoryDatabases.keep!
   end
 
   def load!

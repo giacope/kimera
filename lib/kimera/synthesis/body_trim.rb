@@ -9,7 +9,8 @@ module Kimera
     module_function
 
     VISIBILITY = %i[private protected public module_function private_class_method public_class_method].freeze
-    LOADS = %i[require require_relative].freeze
+    RERUN = %i[require require_relative ruby2_keywords].freeze
+    CONDITIONS = [Prism::IfNode, Prism::UnlessNode].freeze
     DECLARATIONS = %i[included prepended class_methods concerning class_eval module_eval class_exec module_exec].freeze
     FACTORIES = Kimera::GuardrailValueObjects::FACTORIES
     LOCALS = [
@@ -39,7 +40,7 @@ module Kimera
     end
 
     def sort(node, locations, found, defined)
-      return found << node unless live?(node, locations) || kept?(node, defined)
+      return found << node unless live?(node, locations) || kept?(unguarded(node), defined)
       defined << node.name if node.is_a?(Prism::DefNode)
       body = inner(node)
       dead(body, locations, found) if body.is_a?(Prism::StatementsNode)
@@ -60,6 +61,10 @@ module Kimera
       end
     end
 
+    def unguarded(node) = CONDITIONS.include?(node.class) && modifier?(node) ? node.statements.body.first : node
+
+    def modifier?(node) = node.location.end_offset == node.predicate.location.end_offset
+
     def local?(node)
       return [*node.lefts, *node.rights].any?(Prism::LocalVariableTargetNode) if node.is_a?(Prism::MultiWriteNode)
       LOCALS.any? { |kind| node.is_a?(kind) }
@@ -69,7 +74,7 @@ module Kimera
       name = call.name
       arguments = call.arguments&.arguments || []
       return arguments.none?(Prism::DefNode) if VISIBILITY.include?(name)
-      LOADS.include?(name) || (name == :alias_method && defined.include?(named(arguments[1])))
+      RERUN.include?(name) || (name == :alias_method && defined.include?(named(arguments[1])))
     end
 
     def named(node)

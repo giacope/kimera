@@ -102,14 +102,15 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       described_class::ChildCommand.new(framework: framework, test_files: test_files)
     end
 
-    it "passes only the ledger and its request file to the rspec child" do
-      expected = [described_class::ChildCommand::CHILD, "ledger.json", "ledger.json.request"]
-      expect(child.argv("ledger.json")).to(eq(expected))
+    let(:files) { ["ledger.json", "ledger.json.request", "ledger.json.pulse"] }
+
+    it "passes only the ledger, its request file and its pulse to the rspec child" do
+      expect(child.argv("ledger.json")).to(eq([described_class::ChildCommand::CHILD, *files]))
     end
 
-    it "passes only the ledger and its request file to the minitest child" do
-      expected = [described_class::ChildCommand::MINITEST_CHILD, "ledger.json", "ledger.json.request"]
-      expect(child(framework: "minitest").argv("ledger.json")).to(eq(expected))
+    it "passes only the ledger, its request file and its pulse to the minitest child" do
+      minitest = child(framework: "minitest")
+      expect(minitest.argv("ledger.json")).to(eq([described_class::ChildCommand::MINITEST_CHILD, *files]))
     end
 
     it "requests the test ids and the test files" do
@@ -124,6 +125,8 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
   end
 
   describe "#command" do
+    let(:ledgers) { ["l.json", "l.json.request", "l.json.pulse"] }
+
     def bare(locations, registry: nil)
       Dir.mktmpdir do |mirror|
         return plan(registry: registry || self.registry).command(mirror, locations, File.join(mirror, "l.json"))
@@ -143,7 +146,7 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       child = described_class::ChildCommand::CHILD
       expect(env).to(eq("KIMERA" => "1"))
       expect(argv[0...5]).to(eq(["ruby", "-I", "lib", "-I", "spec"]))
-      expect(argv[5..].map { |a| File.basename(a) }).to(eq([File.basename(child), "l.json", "l.json.request"]))
+      expect(argv[5..].map { |a| File.basename(a) }).to(eq([File.basename(child), *ledgers]))
     end
 
     it "wraps in `bundle exec` and pins BUNDLE_GEMFILE when the mirror has a Gemfile", :aggregate_failures do
@@ -151,7 +154,7 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       child = described_class::ChildCommand::CHILD
       expect(env).to(eq("KIMERA" => "1", "BUNDLE_GEMFILE" => gemfile))
       expect(argv[0...7]).to(eq(%w[bundle exec ruby -I lib -I spec]))
-      expect(argv[7..].map { |a| File.basename(a) }).to(eq([File.basename(child), "l.json", "l.json.request"]))
+      expect(argv[7..].map { |a| File.basename(a) }).to(eq([File.basename(child), *ledgers]))
     end
 
     def mixed

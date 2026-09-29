@@ -47,7 +47,8 @@ module Kimera
 
       def launch(mirror, locations, ledger, stderr)
         env, cmd = plan.command(mirror, locations, ledger)
-        waitfor(Process.spawn(env, *cmd, chdir: mirror, pgroup: true, out: File::NULL, err: stderr))
+        pulse = "#{ledger}#{Kimera::Execution::IsolatedPlan::ChildCommand::PULSE}"
+        waitfor(Process.spawn(env, *cmd, chdir: mirror, pgroup: true, out: File::NULL, err: stderr), pulse)
       end
 
       def with_mirror
