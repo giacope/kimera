@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `argument_drop` and `element_drop` also count neighbors as equal when they
+  differ only by parentheses or by minus on a numeric literal (`[-(1), -1]`,
+  `f((a), a)`). Dropping either leaves the same program, but the two were
+  compared node for node, so one test gap was still reported twice.
 - RSpec: a selected example's `before(:context)`/`after(:context)` hooks run
   whatever ran earlier on the worker. RSpec memoizes which groups have
   examples to run, and an earlier narrowed run left that memo stale: hooks

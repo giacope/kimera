@@ -13,10 +13,10 @@ module Kimera
       ConstantPathWriteNode ConstantWriteNode DefNode DefinedNode FalseNode FloatNode
       ForwardingArgumentsNode GlobalVariableOrWriteNode GlobalVariableReadNode
       GlobalVariableWriteNode HashNode IfNode InNode InstanceVariableOrWriteNode
-      InstanceVariableReadNode InstanceVariableWriteNode IntegerNode KeywordHashNode
+      ImaginaryNode InstanceVariableReadNode InstanceVariableWriteNode IntegerNode KeywordHashNode
       LambdaNode LocalVariableReadNode MatchPredicateNode MatchRequiredNode NilNode Node
       OptionalKeywordParameterNode OptionalParameterNode OrNode ParametersNode ParenthesesNode
-      RangeNode RegularExpressionNode ReturnNode SplatNode StatementsNode StringNode
+      RangeNode RationalNode RegularExpressionNode ReturnNode SplatNode StatementsNode StringNode
       SymbolNode TrueNode UnlessNode
     ].each { |name| const_set(name, Prism.const_get(name)) }
 
@@ -60,9 +60,61 @@ module Kimera
         end
       end
 
+    module Shape
+      NUMERIC = [IntegerNode, FloatNode, RationalNode, ImaginaryNode].freeze
+      POSITIONAL = %i[node_id location].freeze
+      PLACEMENT_FLAGS = Prism::NodeFlags::NEWLINE | Prism::NodeFlags::STATIC_LITERAL
+
+      module_function
+
+      def of(node)
+        number = value(node)
+        return [Numeric, number.inspect] if number
+        inner = lone(node)
+        inner ? of(inner) : [node.class, flags(node), fields(node)]
+      end
+
+      def value(node)
+        inner = lone(node)
+        return value(inner) if inner
+        return node.value if NUMERIC.include?(node.class)
+        number = negation?(node) && value(node.receiver)
+        -number if number
+      end
+
+      def lone(node)
+        return unless node.is_a?(ParenthesesNode)
+        body = node.body
+        return unless body.is_a?(StatementsNode)
+        statements = body.body
+        statements.first if statements.one?
+      end
+
+      def negation?(node)
+        node.is_a?(CallNode) && node.name == :-@ && !node.arguments && !node.block
+      end
+
+      def flags(node) = node.__send__(:flags) & ~PLACEMENT_FLAGS
+
+      def fields(node)
+        node.deconstruct_keys(nil).except(*POSITIONAL).transform_values { field(it) }
+      end
+
+      def field(value) = value.is_a?(Array) ? value.map { field(it) } : scalar(value)
+
+      def scalar(value)
+        case value
+        when Prism::Node then of(value)
+        when Prism::Location then value.class
+        else value
+        end
+      end
+    end
+
     module_function
 
     def parse(source) = Prism.parse(source)
     def view(node) = View.new(node)
+    def shape(node) = Shape.of(node)
   end
 end
