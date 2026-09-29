@@ -8,9 +8,11 @@ require_relative "property_helper"
 # `kimera changed` and `--since` mutate only the lines a diff touched: a
 # changed line the parser misses is a mutant silently left out of the gate.
 RSpec.describe(Kimera::Incremental::GitDiff) do
-  # Line content never starts with "++ b/": rendered after its "+", it would
-  # read as a file header (the parser does not count hunk lengths).
-  let(:text) { Pbt.one_of("x = 1", "y = 2", "end", "", "  z", "# note", "@@ -1 +1 @@", "+++ a/x", "--- b/y") }
+  # Content can read as a header once rendered after its "+": "++ b/x"
+  # becomes "+++ b/x".
+  let(:text) do
+    Pbt.one_of("x = 1", "y = 2", "end", "", "  z", "# note", "@@ -1 +1 @@", "+++ a/x", "--- b/y", "++ b/c.rb")
+  end
   let(:changes) do
     Pbt.array(Pbt.tuple(Pbt.one_of("app/a.rb", "lib/b c.rb", "c.rb"), Pbt.array(Pbt.integer(min: 1, max: 40))), max: 3)
   end
@@ -45,7 +47,7 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
   # must be lines the old file already had, in order. A new or edited line
   # can never go unreported.
   describe "on a real repository" do
-    let(:lines) { Pbt.array(Pbt.one_of("a", "b", "c", "d", "end"), max: 12) }
+    let(:lines) { Pbt.array(Pbt.one_of("a", "b", "c", "d", "end", "++ b/g.rb"), max: 12) }
 
     def git(dir, *)
       out, status = Open3.capture2e("git", "-C", dir, "-c", "user.name=k", "-c", "user.email=k@k", *)
