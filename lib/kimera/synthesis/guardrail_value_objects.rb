@@ -2,7 +2,7 @@
 
 module Kimera
   module GuardrailValueObjects
-    VALUE_OBJECT_FACTORIES = { Struct: :new, Data: :define }.freeze
+    FACTORIES = [%i[Struct new], %i[Data define], %i[Class new], %i[Module new]].freeze
 
     private
 
@@ -40,7 +40,7 @@ module Kimera
     def factory?(call)
       return false unless type?(call, :send)
       receiver, selector = call.children
-      type?(receiver, :const) && VALUE_OBJECT_FACTORIES[receiver.children[1]] == selector
+      type?(receiver, :const) && FACTORIES.include?([receiver.children[1], selector])
     end
   end
 end

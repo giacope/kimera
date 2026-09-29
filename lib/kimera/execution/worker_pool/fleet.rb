@@ -61,7 +61,7 @@ class Kimera::Execution::WorkerPool::Fleet
     worker = workers.delete(pipe)
     slots.push(worker.slot)
     close(worker)
-    charge(worker.inflight, reason, reap(worker.pid), stacks)
+    charge(worker, reason, reap(worker.pid), stacks)
     refill
   end
 
@@ -99,11 +99,16 @@ class Kimera::Execution::WorkerPool::Fleet
     shut(worker.request)
   end
 
-  def charge(id, reason, status, stacks)
+  def charge(worker, reason, status, stacks)
+    id = worker.inflight
     return unless id
-    guard.track(status) if reason == :crash
     done!(id)
-    @pool.lost(id, reason, stacks)
+    @pool.lost(id, reason, reason == :crash ? crashed(worker, status) : stacks)
+  end
+
+  def crashed(worker, status)
+    guard.track(status)
+    worker.obituary(status)
   end
 
   def refill

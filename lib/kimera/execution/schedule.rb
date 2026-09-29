@@ -105,7 +105,7 @@ class Kimera::Execution::Schedule
 
   def expired(id, stacks) = verdicts.timeout(id, hard, stacks)
 
-  def crashed(id, _stacks) = verdicts.unjudged(id, "worker crashed before result")
+  def crashed(id, obituary) = verdicts.unjudged(id, ["worker crashed before result", obituary].compact.join(": "))
 
   def reloader
     @_reloader ||= Kimera::Execution::Reload.new(

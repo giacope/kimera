@@ -68,8 +68,10 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
 - `--jobs` sizes the warm pool and isolated mirrors. Coverage-based test
   selection and kill-on-first-failure are automatic.
 - A `timeout` verdict is a *detected* mutant (the suite hung on it), not an
-  error. A hard-timeout verdict's `detail` holds the killed worker's thread
-  backtraces: read them before deciding the mutant caused the hang.
+  error. Both timeouts time one covering test at a time, so a timeout means a
+  single test ran long under the mutant. A hard-timeout verdict's `detail`
+  holds the killed worker's thread backtraces: read them before deciding the
+  mutant caused the hang.
 - A red baseline blaming the hard timeout on a Rails suite with slow
   integration tests (a test that passes alone, killed under `--jobs N`): read
   the thread backtraces it prints. If the test only runs slow under load,
@@ -79,6 +81,11 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
 - Code under test that calls `exit` or `abort` fails that test (`detail`:
   `SystemExit: exit(1) called from FILE:LINE`), so a mutant that makes a test
   abort is `killed`, not `harness_error`.
+- A `harness_error` from a dead worker says how it died (`died on signal 15
+  (SIGTERM)`, `exited 1`) and the exception it died of, with frames. A test
+  that signals its own process with nothing trapping the signal ends the
+  worker, as it would end `rails test`: trap it in the test, or leave the test
+  out with `--exclude-test`.
 - A kill's `detail` holds the killing test's failure message and first
   frames. A state-leak warning names a test that failed in a warm worker for
   reasons unrelated to the mutant. Kimera already judged that mutant again on

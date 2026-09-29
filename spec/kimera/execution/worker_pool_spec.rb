@@ -137,6 +137,32 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     ]
   end
 
+  # Ticks before each covering test, then reports after longer than the deadline.
+  def ticking
+    forked do |request, response|
+      while (line = request.gets)
+        id = JSON.parse(line)["id"]
+        4.times do
+          response.puts(JSON.generate(t: "tick"))
+          response.flush
+          sleep(0.2)
+        end
+        response.puts(JSON.generate(t: "result", id: id, status: "survived", ms: 1, fails: []))
+        response.puts(JSON.generate(t: "ready"))
+        response.flush
+      end
+      exit!(0)
+    end
+  end
+
+  # The hard timeout times each covering test, so a mutant many tests cover
+  # isn't killed for that alone.
+  it "renews a worker's hard deadline on every tick", :aggregate_failures do
+    resolved, lost = pool(queue: [1], spawner: ->(_slot) { ticking }, deadline: 0.5)
+    expect(lost).to(be_empty)
+    expect(resolved.map { |message| message["status"] }).to(eq(["survived"]))
+  end
+
   it "aborts once more workers than the pool is wide die without reporting" do
     # The exit description is the operator's only clue before retrying with --jobs 1.
     expect { pool(queue: (1..6).to_a, spawner: ->(_slot) { crashed }, jobs: 2) }

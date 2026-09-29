@@ -2,6 +2,7 @@
 
 require "stringio"
 require_relative "../self_protection"
+require_relative "../synthesis/body_trim"
 require_relative "../synthesis/overlay"
 require_relative "overlay_guards"
 
@@ -62,7 +63,8 @@ class Kimera::Execution::Schemata
   end
 
   def synthesize(path, file)
-    synth.synthesize(path, File.read(file, encoding: Encoding::UTF_8))
+    source = File.read(file, encoding: Encoding::UTF_8)
+    synth.synthesize(path, Kimera::BodyTrim.trim(file, source, @registry.at(path).select(&:safe?).map(&:location)))
   end
 
   def apply(result, file)

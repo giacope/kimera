@@ -19,9 +19,11 @@ RSpec.describe(Kimera::Execution::Shift::Trial) do
   it "stops at a failure past the deadline, before any confirmation run", :aggregate_failures do
     log = []
     expired = Object.new
-    expired.define_singleton_method(:check!) { |test| raise(Timeout::Error, "late in #{test}") }
-
-    expect { described_class.new(failing(log), 7, "t1").verdict(expired) }.to(raise_error(Timeout::Error, "late in t1"))
+    expired.define_singleton_method(:guard) do |test, &run|
+      run.call
+      raise(Timeout::Error, "late in #{test}")
+    end
+    expect { described_class.new(failing(log), 7, "t1", expired).verdict }.to(raise_error(Timeout::Error, "late in t1"))
     expect(log).to(eq([7]))
   end
 end
