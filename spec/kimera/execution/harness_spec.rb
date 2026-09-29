@@ -785,13 +785,46 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     it "empties the worker's database as it drains" do
-      connection = double(tables: %w[users posts])
+      connection = double(tables: %w[users posts], adapter_name: "SQLite")
       allow(connection).to(receive(:truncate_tables))
       base = Class.new
       base.define_singleton_method(:connection) { connection }
       stub_const("ActiveRecord::Base", base)
       drain
       expect(connection).to(have_received(:truncate_tables).with("users", "posts"))
+    end
+
+    def scrub(adapter, truncate: nil)
+      connection = double(tables: %w[users], adapter_name: adapter, execute: nil)
+      truncation = allow(connection).to(receive(:truncate_tables))
+      truncation.and_raise(truncate) if truncate
+      stub_const("ActiveRecord::Base", Class.new)
+      allow(ActiveRecord::Base).to(receive(:connection).and_return(connection))
+      cleaned = []
+      stub(cleanup: ->(index) { cleaned << index })
+      errors = StringIO.new
+      db = Kimera::Execution::ParallelTestDatabases.new(adapter: adapter, jobs: 2, errors: errors)
+      allow(db).to(receive(:active?).and_return(true))
+      db.before_exit(0)
+      [connection, errors.string, cleaned]
+    end
+
+    # A thread left behind by a timed-out test can hold a table lock forever.
+    it "bounds how long the teardown truncate waits for locks", :aggregate_failures do
+      postgres, = scrub("PostgreSQL")
+      mysql, = scrub("Mysql2")
+      lite, = scrub("SQLite")
+
+      expect(postgres).to(have_received(:execute).with("SET lock_timeout = '5s'").ordered)
+      expect(postgres).to(have_received(:truncate_tables).with("users").ordered)
+      expect(mysql).to(have_received(:execute).with("SET SESSION lock_wait_timeout = 5"))
+      expect(lite).not_to(have_received(:execute))
+    end
+
+    it "warns and still runs the app's cleanup hooks when the teardown truncate gives up", :aggregate_failures do
+      _, errors, cleaned = scrub("PostgreSQL", truncate: RuntimeError.new("lock timeout"))
+      expect(errors).to(eq("kimera: could not empty the worker's test database (RuntimeError: lock timeout)\n"))
+      expect(cleaned).to(eq([0]))
     end
 
     it "never runs a nil-slot worker's after-fork hook (injected/test spawners)" do

@@ -67,6 +67,20 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     end
   end
 
+  # Serves until retired, then hangs in teardown (a truncate blocked by a leaked lock).
+  def stuck
+    forked do |request, response|
+      while (line = request.gets)
+        id = JSON.parse(line)["id"]
+        response.puts(JSON.generate(t: "result", id: id, status: "killed", ms: 1, fails: []))
+        response.puts(JSON.generate(t: "ready"))
+        response.flush
+      end
+      sleep(30)
+      exit!(0)
+    end
+  end
+
   def signal
     lambda do |_slot|
       forked do |_request, _response|
@@ -187,6 +201,15 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     # Only the pre-start deadline can retire a worker that never speaks.
     expect(lost).to(eq([[1, :timeout]]))
     expect(resolved.select { |m| m["t"] == "result" }.map { |m| m["id"] }).to(eq([2]))
+  end
+
+  it "kills a retired worker whose teardown hangs, so the run still ends", :aggregate_failures do
+    resolved = lost = nil
+    Timeout.timeout(10) { resolved, lost = pool(queue: [1, 2], spawner: ->(_slot) { stuck }, deadline: 0.5) }
+
+    # Nothing was in flight, so nothing is charged to a mutant.
+    expect(lost).to(be_empty)
+    expect(resolved.select { |m| m["t"] == "result" }.map { |m| m["id"] }).to(eq([1, 2]))
   end
 
   it "returns a crashed worker's slot to its replacement" do

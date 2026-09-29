@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class Kimera::Execution::ParallelTestDatabases
+  LOCK_WAITS = { /postg/i => "SET lock_timeout = '5s'", /mysql|trilogy/i => "SET SESSION lock_wait_timeout = 5" }.freeze
+
   def initialize(adapter:, jobs:, errors: nil)
     @adapter = adapter
     @jobs = jobs
@@ -26,16 +28,14 @@ class Kimera::Execution::ParallelTestDatabases
   end
 
   def before_exit(index)
-    Array(index).each { |worker| cleanup(worker) }
-  rescue StandardError => error
-    errors.puts("kimera: parallelize_teardown failed (#{error.class}: #{error.message})")
+    attempt("parallelize_teardown failed") { Array(index).each { |worker| cleanup(worker) } }
   end
 
   private
 
   def cleanup(index)
     return unless active?
-    scrub
+    attempt("could not empty the worker's test database") { scrub }
     ActiveSupport::Testing::Parallelization.run_cleanup_hooks.each { |hook| hook.call(index) }
   end
 
@@ -46,10 +46,22 @@ class Kimera::Execution::ParallelTestDatabases
     nil
   end
 
+  def attempt(failure)
+    yield
+  rescue StandardError => error
+    errors.puts("kimera: #{failure} (#{error.class}: #{error.message})")
+  end
+
   def scrub
     return unless defined?(ActiveRecord::Base)
     connection = ActiveRecord::Base.connection
+    bound(connection)
     connection.truncate_tables(*connection.tables)
+  end
+
+  def bound(connection)
+    statement = LOCK_WAITS.find { |pattern, _| connection.adapter_name.match?(pattern) }&.last
+    connection.execute(statement) if statement
   end
 
   def errors = @errors || $stderr

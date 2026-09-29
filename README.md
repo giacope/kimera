@@ -565,6 +565,10 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     Before the kill it asks the worker for every thread's backtrace (SIGQUIT)
     and puts them in the verdict's `detail`, or in the baseline error. A test
     interrupted by the soft timeout is a `timeout`, not the mutant's killer.
+    The interrupt reaches only the test's own thread, so threads it started
+    may still hold connections and locks: after a soft timeout the worker
+    takes no more mutants and is replaced. A retiring worker's teardown stays
+    under the hard timeout too.
   - Code under test that calls `exit` or `abort` (a rake task, a CLI entry
     point): RSpec and Minitest let the `SystemExit` through, so it would end
     the worker. Kimera records it as that test's failure instead, after the

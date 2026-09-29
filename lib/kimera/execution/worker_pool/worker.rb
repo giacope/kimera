@@ -38,9 +38,9 @@ Kimera::Execution::WorkerPool::Worker =
       deadline && !(deadline - now).positive?
     end
 
-    def retire
+    def retire(limit)
       self.inflight = nil
-      self.deadline = nil
+      renew(limit)
       request
     end
 

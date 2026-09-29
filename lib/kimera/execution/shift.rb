@@ -73,10 +73,12 @@ class Kimera::Execution::Shift
 
   def step(line, responses, history, index)
     request = JSON.parse(line)
-    return if process(request["id"], responses, history, index, MODES.fetch(request["recheck"], :warm)).is_a?(Suspect)
+    return if tainted?(process(request["id"], responses, history, index, MODES.fetch(request["recheck"], :warm)))
     emit(responses, t: "ready")
     index + 1
   end
+
+  def tainted?(result) = result.is_a?(Suspect) || result.status == :timeout
 
   def safely(subject, mode)
     tests = available(subject.id)
@@ -103,7 +105,7 @@ class Kimera::Execution::Shift
     result = evaluate(id, mode)
     emit(io, **result.message)
     history << id if result.killed?
-    leaks.check(io, history, index) unless result.is_a?(Suspect)
+    leaks.check(io, history, index) unless tainted?(result)
     result
   end
 
