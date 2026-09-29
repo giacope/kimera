@@ -48,7 +48,9 @@ class RubyPrograms < Pbt::Arbitrary::Arbitrary
     "(%1 ? %2 : %3)", "(if %1 then %2 else %3 end)", "(unless %1 then %2 else %3 end)",
     "%1.clamp(%2, %3)", "[%1, %2, %3].compact.size", "%1.between?(%2, %3)"
   ].freeze
-  STATEMENTS = ["%1", "a += %1", "return %1 if %2", "b = %1", "x = %1"].freeze
+  # `x = %1 && %2 && %3` nests a connective with no parentheses of its own, so
+  # swapping the inner one to || leaves a tree only grouping can write back.
+  STATEMENTS = ["%1", "a += %1", "return %1 if %2", "b = %1", "x = %1", "x = %1 && %2 && %3"].freeze
   FORMS = [LEAVES, UNARY, BINARY, TERNARY].freeze
   HOLE = /%(\d)/
 

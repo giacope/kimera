@@ -51,18 +51,27 @@ RSpec.describe(Kimera::Unparse) do
     end
   end
 
-  # unparser 0.9 writes an array range endpoint as a %w/%i literal.
+  # unparser 0.9 writes an array range endpoint as a %w/%i literal. It must come
+  # back as the same AST, not just the same range: a string's interpolation is
+  # written only once it parses back to the very node, so a parenthesized
+  # endpoint (a begin node the tree lacks) left the string unwritable.
   describe(Kimera::Unparse::RangeEndpoints) do
     def reemit(source) = Kimera::Unparse.unparse(Kimera::Unparse.parse(source))
 
     {
-      "([a, a]...a)" => "(([a, a])...a)\n", "(0...[a, a])" => "(0...([a, a]))\n",
-      "[1, 2]..3" => "([1, 2])..3", "[1]..[2]" => "([1])..([2])", "[1]..nil" => "([1])..nil",
-      "[1]..;" => "([1])..", "..[1]" => "..([1])", "[\"a b\", \"c]\"]..d" => "([\"a b\", \"c]\"])..d"
+      "([a, a]...a)" => "([a, a]...a)\n", "(0...[a, a])" => "(0...[a, a])\n",
+      "[1, 2]..3" => "[1, 2]..3", "[1]..[2]" => "[1]..[2]", "[1]..nil" => "[1]..nil",
+      "[1]..;" => "[1]..", "..[1]" => "..[1]", "[\"a b\", \"c]\"]..d" => "[\"a b\", \"c]\"]..d"
     }.each do |source, written|
-      it "writes `#{source}` with its array endpoint in parentheses" do
+      it "writes `#{source}` with its array endpoint as an array literal" do
         expect(reemit(source)).to(eq(written))
       end
+    end
+
+    it "writes a string interpolating a range with array endpoints", :aggregate_failures do
+      source = "def m(a) = \"x\#{([]...[a]).to_s.size}y\""
+      expect(reemit(source)).to(include("\"x\#{([]...[a]).to_s.size}y\""))
+      expect(Kimera::Unparse.parse(reemit(source))).to(eq(Kimera::Unparse.parse(source)))
     end
 
     it "leaves other endpoints as unparser writes them", :aggregate_failures do
@@ -70,6 +79,68 @@ RSpec.describe(Kimera::Unparse) do
       expect(reemit("..2")).to(eq("..2"))
       expect(reemit("a...")).to(eq("a..."))
       expect(reemit("0...(1..2)")).to(eq("0...(1..2)"))
+    end
+  end
+
+  # A mutated tree lacks the parentheses its new operator needs: with the inner
+  # && of `x = a && b && c` swapped to ||, unparser wrote `x = a || b && c`.
+  describe(Kimera::Unparse::Grouping) do
+    # The tree as a mutation can leave it: no begin node for any parentheses.
+    def bare(node, interpolated: false)
+      return node unless node.is_a?(Parser::AST::Node)
+      return bare(node.children[0]) if node.type == :begin && node.children.one? && !interpolated
+      node.updated(nil, node.children.map { |child| bare(child, interpolated: node.type == :dstr) })
+    end
+
+    # Each source's tree, stripped of its parentheses, and how it is written.
+    {
+      "a && (b || c)" => "a && (b || c)", "x = (a || b) && c" => "x = (a || b) && c",
+      "a && (b && c)" => "a && (b && c)", "a || (b || c)" => "a || (b || c)",
+      "a || b && c" => "a || b && c", "a && b || c" => "a && b || c", "!(a && b)" => "!(a && b)",
+      "(a || b).foo" => "(a || b).foo", "(a && b)[1]" => "(a && b)[1]", "(a || b)&.foo" => "(a || b)&.foo",
+      "a + (b || c)" => "a + (b || c)", "(a..b).to_s" => "(a..b).to_s", "(a && b)..c" => "a && b..c",
+      "a..(b..c)" => "a..(b..c)", "a - (b + c)" => "a - (b + c)", "a - b + c" => "a - b + c",
+      "a ** (b * c)" => "a ** (b * c)", "(-a) ** b" => "(-a) ** b", "-(a ** b)" => "-a ** b",
+      "!(a ** b)" => "!(a ** b)", "(a ** b) ** c" => "(a ** b) ** c", "a ** (b ** c)" => "a ** b.**(c)",
+      "(a == b) == c" => "(a == b) == c", "a + (-b)" => "a + b.-@", "(!a) + b" => "!a + b",
+      "a ** (-b)" => "a ** b.-@", "!(-a)" => "!-a", "(a - b).+(*c)" => "(a - b).+(*c)",
+      "(x = a).foo" => "(x = a).foo", "(a.b = c).d" => "(a.b=c).d", "(a[0] = b).c" => "(a[0] = b).c",
+      "(a rescue b).c" => "(a rescue b).c", "(a in b) && c" => "(a in b) && c", "defined?(a).b" => "defined?(a).b",
+      "\"x\#{(a || b) && c}y\"" => "\"x\#{(a || b) && c}y\""
+    }.each do |source, written|
+      it "writes `#{source}` as `#{written}` from its tree without parentheses", :aggregate_failures do
+        tree = bare(Kimera::Unparse.parse(source))
+        expect(Kimera::Unparse.unparse(tree)).to(eq(written))
+        expect(bare(Kimera::Unparse.parse(written))).to(eq(tree))
+      end
+    end
+
+    it "leaves a tree that needs no parentheses as it is" do
+      tree = Kimera::Unparse.parse("a && b || c.foo(d + e * f) - g")
+      expect(described_class.call(tree)).to(equal(tree))
+    end
+
+    # Every nesting two deep of connectives and operators, in each context,
+    # reads back as the very tree it was written from.
+    def trees(depth)
+      return [s(:send, nil, :a)] if depth.zero?
+      inner = trees(depth - 1)
+      pairs = inner.product(inner)
+      [
+        inner.first, *%i[and or].flat_map { |type| pairs.map { |pair| s(type, *pair) } },
+        *%i[+ **].flat_map { |operator| pairs.map { |(left, right)| s(:send, left, operator, right) } },
+        *%i[! -@].flat_map { |operator| inner.map { |operand| s(:send, operand, operator) } }
+      ]
+    end
+
+    def s(type, *children) = Parser::AST::Node.new(type, children)
+
+    def contexts(tree) = [tree, s(:lvasgn, :x, tree), s(:send, tree, :foo), s(:dstr, s(:str, "x"), s(:begin, tree))]
+
+    it "writes every nested connective and operator so it reads back as written", :aggregate_failures do
+      trees(2).flat_map { |tree| contexts(tree) }.each do |node|
+        expect(Kimera::Unparse.parse(Kimera::Unparse.unparse(node))).to(eq(described_class.call(node)), node.inspect)
+      end
     end
   end
 

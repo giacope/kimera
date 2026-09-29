@@ -13,14 +13,24 @@
   parent (the inner `-1` of `--1`) unmutatable, as warm runs do. Its bake
   found no node to mutate and returned the file unchanged, so each of its
   mutants survived, and failed the gate, though no test could kill it.
+- A mutant that regroups an expression is baked as the program it is.
+  unparser takes grouping from the parentheses in the parsed source, which a
+  mutated tree lacks: with the inner `&&` of `x = p && q && r` swapped to
+  `||`, the bake read `x = p || q && r`, which is `p || (q && r)`, and
+  `Array(a || b).size` with `Array()` deleted baked to `a || b.size`. Warm
+  runs judged the intended mutant, but `--isolated` and reload judged the
+  other program. Kimera now writes each operand that binds more loosely than
+  its place allows in parentheses.
 - Code with an array literal as a range endpoint (`([a, a]...a)`) is
   mutated. unparser writes such an endpoint as a `%w`/`%i` literal, so it
   raised KeyError unless every element was a plain string or symbol (and
   wrote `["a b"]` as `%w[a b]`, a different array). The method's mutants were
   reported unmutatable in warm runs, and with `--isolated` every mutant in
   the file was an error, which counts as killed. Kimera now writes the
-  endpoint as a parenthesized array. A bake unparser still can't write is
-  reported unmutatable with the reason, in `--isolated` and reload alike.
+  endpoint as an ordinary array literal, which reads back as the same tree,
+  as unparser demands inside an interpolated string (`"#{([]...[a]).size}"`).
+  A bake unparser still can't write is reported unmutatable with the reason,
+  in `--isolated` and reload alike.
 - A point keeps one mutant per program it can leave, whichever operators
   made them. Variants were told apart by directive only, so on redundant
   code two operators could emit the same program (`a.to_s.to_s` with

@@ -127,7 +127,25 @@ RSpec.describe(Kimera::Overlay) do
       src = "def m(a, b)\n  r = ([a, a]...a)\n  a > b\nend\n"
       catalog = build(src)
       mutant = catalog.each.find { |m, _p| m.label == "> => <" }.first
-      expect(described_class.new(catalog).bake("x.rb", src, mutant.id)).to(include("r = (([a, a])...a)", "a < b"))
+      expect(described_class.new(catalog).bake("x.rb", src, mutant.id)).to(include("r = ([a, a]...a)", "a < b"))
+    end
+
+    # unparser writes an interpolation only if it reads back as the same tree,
+    # which an endpoint in parentheses did not.
+    it "bakes a file interpolating a range with an array endpoint" do
+      src = "def m(a, b)\n  \"x\#{([a]...[b]).size}y\"\n  a > b\nend\n"
+      catalog = build(src)
+      mutant = catalog.each.find { |m, _p| m.label == "> => <" }.first
+      expect(described_class.new(catalog).bake("x.rb", src, mutant.id)).to(include("([a]...[b]).size", "a < b"))
+    end
+
+    # The swapped connective binds more loosely than the && around it.
+    it "bakes a swapped connective with the grouping it had", :aggregate_failures do
+      src = "def m(p, q, r)\n  x = p && q && r\nend\n"
+      baked = prune(src, %w[boolean_connective], "p && q")
+      expect(baked).to(include("x = (p || q) && r"))
+      mod = Module.new.tap { |m| m.module_eval(baked) }
+      expect(mod.instance_method(:m).bind_call(Object.new.extend(mod), true, nil, false)).to(be(false))
     end
 
     # unparser 0.9 wrote `-(0.succ)` as `-0.succ`, which Ruby reads as
