@@ -9,6 +9,10 @@
   `-1 => 0` baked to `1` where the warm run returned `-1`. `--isolated` and
   the reload tier judged that different program. Kimera now writes such an
   operand in parentheses, in synthesis, bakes and rendered directives alike.
+- `--isolated` and the reload tier report a point the parser folds into its
+  parent (the inner `-1` of `--1`) unmutatable, as warm runs do. Its bake
+  found no node to mutate and returned the file unchanged, so each of its
+  mutants survived, and failed the gate, though no test could kill it.
 - Code with an array literal as a range endpoint (`([a, a]...a)`) is
   mutated. unparser writes such an endpoint as a `%w`/`%i` literal, so it
   raised KeyError unless every element was a plain string or symbol (and

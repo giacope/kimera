@@ -146,6 +146,18 @@ RSpec.describe(Kimera::Overlay) do
       end
     end
 
+    # Prism sees a literal -1 inside `--1`; the parser folds both minuses into
+    # one literal. The bake returned the file unchanged, a survivor with
+    # --isolated where the warm run reports the point unmutatable.
+    it "raises Unbakeable for a point the parser folds away, as the warm run reports it" do
+      src = "def m\n  --1\nend\n"
+      catalog = selected(%w[numeric_literal], src)
+      mutant = catalog.points.find { |p| p.original_source == "-1" }.mutants.first
+      expect { described_class.new(catalog).bake("x.rb", src, mutant.id) }.to(
+        raise_error(described_class::Unbakeable, Kimera::Overlay::FileWeave::UNMATCHED)
+      )
+    end
+
     it "raises Unbakeable, naming the unparser failure, when unparser can't write the bake" do
       mutant = registry.each.first.first
       allow(Kimera::Unparse).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
