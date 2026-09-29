@@ -139,6 +139,15 @@ RSpec.describe(Kimera::Overlay) do
       expect(described_class.new(catalog).bake("x.rb", src, mutant.id)).to(include("([a]...[b]).size", "a < b"))
     end
 
+    # The swapped connective binds more loosely than the && around it.
+    it "bakes a swapped connective with the grouping it had", :aggregate_failures do
+      src = "def m(p, q, r)\n  x = p && q && r\nend\n"
+      baked = prune(src, %w[boolean_connective], "p && q")
+      expect(baked).to(include("x = (p || q) && r"))
+      mod = Module.new.tap { |m| m.module_eval(baked) }
+      expect(mod.instance_method(:m).bind_call(Object.new.extend(mod), true, nil, false)).to(be(false))
+    end
+
     it "raises Unbakeable, naming the unparser failure, when unparser can't write the bake" do
       mutant = registry.each.first.first
       allow(Kimera::Unparse).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))

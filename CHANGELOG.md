@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- A mutant that regroups an expression is baked as the program it is.
+  unparser takes grouping from the parentheses in the parsed source, which a
+  mutated tree lacks: with the inner `&&` of `x = p && q && r` swapped to
+  `||`, the bake read `x = p || q && r`, which is `p || (q && r)`, and
+  `Array(a || b).size` with `Array()` deleted baked to `a || b.size`. Warm
+  runs judged the intended mutant, but `--isolated` and reload judged the
+  other program. Kimera now writes each operand that binds more loosely than
+  its place allows in parentheses.
 - Code with an array literal as a range endpoint (`([a, a]...a)`) is
   mutated. unparser writes such an endpoint as a `%w`/`%i` literal, so it
   raised KeyError unless every element was a plain string or symbol (and

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "warnings"
+require_relative "unparse_grouping"
 
 Kimera::Warnings.silence { require "unparser" }
 
@@ -10,7 +11,7 @@ module Kimera
 
     def parse(source) = Kimera::Warnings.silence { Unparser.parse(source) }
 
-    def unparse(node) = Kimera::Warnings.silence { Unparser.unparse(node) }
+    def unparse(node) = Kimera::Warnings.silence { Unparser.unparse(Grouping.call(node)) }
 
     module Binders
       private
