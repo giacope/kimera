@@ -57,6 +57,8 @@ RSpec.describe Kimera::Execution::WorkerPool::Worker do
     expect(worker.heard({ "t" => "tick" }, 3.0)).to(equal(worker))
     expect(worker.deadline).to(be_within(1.0).of(started + 3.0))
     expect(worker.last_words).to(be_nil)
+    worker.heard({ "t" => "requeue", "detail" => "state leak" }, 3.0)
+    expect(worker.last_words).to(be_nil)
     worker.heard({ "t" => "crash", "detail" => "Boom: x" }, 3.0)
     expect(worker.last_words).to(eq("Boom: x"))
   end

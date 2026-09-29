@@ -168,6 +168,12 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     expect(runner.__send__(:build, duty)).to(be_a(Kimera::Execution::Shift))
   end
 
+  it "hands the shift a pulse that ticks through the worker's duty" do
+    duty = instance_spy(Kimera::Execution::Pool::Duty)
+    pool.__send__(:pulse, duty).call
+    expect(duty).to(have_received(:pulse))
+  end
+
   it "boots a pool duty inside the fork block" do
     runner = pool(database: instance_double(Kimera::Execution::ParallelTestDatabases))
     duty = Object.new

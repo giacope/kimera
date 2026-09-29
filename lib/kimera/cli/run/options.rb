@@ -28,7 +28,7 @@ module Kimera::CLI::RunOptions
         "--soft-timeout SEC", :soft_timeout, "Soft timeout for each covering test a mutant runs", type: Float
       ),
       Kimera::Flag.build(
-        "--hard-timeout SEC", :hard_timeout, "Watchdog kill timeout per mutant and per baseline test", type: Float
+        "--hard-timeout SEC", :hard_timeout, "Watchdog kill timeout per test (per mutant in --isolated)", type: Float
       ),
       Kimera::Flag.build("--leak-every N", :leak_every, "Re-check a killed mutant every N", type: Integer),
       Kimera::Flag.build("--[no-]coverage", :coverage, "Run each mutant only against covering tests (default: on)"),
