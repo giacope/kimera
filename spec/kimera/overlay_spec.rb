@@ -530,6 +530,17 @@ RSpec.describe(Kimera::Overlay) do
       expect(synth.__send__(:unwrap, dispatch(ast(:nil), original))).to(eq(original))
     end
 
+    # One point's mutants chain as bare ifs under its begin; unwrapping only
+    # the first guard would hand chain_link_deletion the next guard's condition.
+    it "strips the whole chain of one point's dispatches" do
+      original = ast(:send, ast(:lvar, :x), :ord)
+      second = dispatch(ast(:false), original).children[0].updated(nil, [guard(2), ast(:false), original])
+      chain = ast(:begin, ast(:if, guard(1), ast(:nil), second))
+      expect(synth.__send__(:unwrap, chain)).to(eq(original))
+    end
+
+    def guard(id) = ast(:send, ast(:const, ast(:cbase), :MutantRuntime), :active?, ast(:int, id))
+
     it "strips nested dispatches all the way down" do
       original = ast(:send, nil, :a)
       # :false is the AST node type, not a boolean.
@@ -554,6 +565,24 @@ RSpec.describe(Kimera::Overlay) do
       plain = ast(:send, nil, :a)
       guard = ast(:send, ast(:const, ast(:cbase), :MutantRuntime), :active?, ast(:int, 1))
       cases(plain, guard).each { |node| expect(synth.__send__(:unwrap, node)).to(eq(node)) }
+    end
+  end
+
+  # Prism sees a literal -1 inside `--1`; the parser folds both minuses into
+  # one literal, so that point has no node to guard.
+  describe "a point the parser folds away" do
+    let(:source) { "def m(a)\n  a > 0 && --1\nend\n" }
+    let(:registry) do
+      Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: %w[numeric_literal comparison]))
+        .source(source, file: "x.rb")
+    end
+
+    it "is reported unmutatable, not left live and uncovered", :aggregate_failures do
+      result = described_class.new(registry).synthesize("x.rb", source)
+      folded = registry.points.find { |point| point.original_source == "-1" }
+      expect(result.skipped_unsafe).to(eq(folded.ids))
+      expect(result.mutant_ids).to(match_array(registry.points.reject { |point| point.equal?(folded) }.flat_map(&:ids)))
+      expect(folded.unsafe_reason).to(eq("unmutatable: #{Kimera::Overlay::FileWeave::UNMATCHED}"))
     end
   end
 

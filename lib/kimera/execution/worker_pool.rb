@@ -10,6 +10,7 @@ class Kimera::Execution::WorkerPool
   Context = Data.define(:queue, :spawner, :resolve, :lost, :options)
 
   POLL_INTERVAL = 0.2
+  CHUNK = 65_536
 
   class << self
     def new(queue:, spawner:, resolve:, lost:, **options)
@@ -60,10 +61,20 @@ class Kimera::Execution::WorkerPool
   end
 
   def service(pipe)
-    line = pipe.gets
-    return fleet.remove(pipe) unless line
+    worker = fleet.fetch(pipe)
+    chunk = pipe.read_nonblock(CHUNK, exception: false)
+    return hangup(pipe, worker) unless chunk
+    worker.lines(chunk).each { |line| deliver(worker, line) } unless chunk == :wait_readable
+  end
+
+  def hangup(pipe, worker)
+    deliver(worker, worker.rest)
+    fleet.remove(pipe)
+  end
+
+  def deliver(worker, line)
     message = parse(line)
-    dispatch(fleet.fetch(pipe).heard(message, limit), message) if message
+    dispatch(worker.heard(message, limit), message) if message
   end
 
   def dispatch(worker, message)

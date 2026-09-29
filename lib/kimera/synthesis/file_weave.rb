@@ -7,6 +7,7 @@ class Kimera::Overlay::FileWeave
   include Kimera::OverlaySplice
 
   UNGUARDABLE = "unparser could not round-trip its guard"
+  UNMATCHED = "no node to guard: the parser folds it into its parent (as in `--1`)"
 
   def initialize(file, map, safe, unsafe)
     @file = file
@@ -16,7 +17,7 @@ class Kimera::Overlay::FileWeave
   end
 
   def result
-    attempt(@safe) || fallback
+    (attempt(@safe) || fallback).tap { |result| result.settle!(@safe, UNMATCHED) }
   end
 
   private
