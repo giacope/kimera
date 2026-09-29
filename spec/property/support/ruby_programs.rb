@@ -11,11 +11,12 @@ require "pbt"
 # some of which read `a` and can raise, so removing a default is tested for
 # argument binding and for the order defaults are evaluated in.
 #
-# Three shapes stay out, as their source text can't round-trip: an array
-# literal as a range endpoint (unparser raises), unary minus on a call chain
-# rooted at a numeric literal (`-(0.to_s)` prints as `-0.to_s`), and a bare
-# range in a condition (`!(a...b)` reads back as a flip-flop). Hence
-# `(a...b).to_a` and `-(%1)`.
+# Two shapes stay out, as their source text can't round-trip: unary minus on
+# a call chain rooted at a numeric literal (`-(0.to_s)` prints as
+# `-0.to_s`), and a bare range in a condition (`!(a...b)` reads back as a
+# flip-flop). Hence `-(%1)`, and a range is always the receiver of two
+# chained calls, so no one mutation leaves it bare. `([%1]...[%2]).to_s.size`
+# has array literals for endpoints and prints the range instead of iterating.
 class RubyPrograms < Pbt::Arbitrary::Arbitrary
   # Each hole is filled from DEFAULTS, or from LITERALS where `a` is itself
   # optional (its default can't read it).
@@ -40,7 +41,7 @@ class RubyPrograms < Pbt::Arbitrary::Arbitrary
     "(%1 | %2)", "(%1 <=> %2)", "[%1, %2]", "[%1, %2].max", "{ k: %1, j: %2 }.fetch(:k)", "{ k: %1 }[:k]",
     "[%1, %2].map { |x| x.to_s }", "[%1, %2].select { |x| x }",
     "[%1, %2].first(1)", "[%1, %2].include?(1)", "%1.eql?(%2)", "[%1, %2].sum(0)", "[%1, %2][1]",
-    "%1.to_s.center(4, %2.to_s)"
+    "%1.to_s.center(4, %2.to_s)", "([%1]...[%2]).to_s.size"
   ].freeze
   TERNARY = [
     "(%1 ? %2 : %3)", "(if %1 then %2 else %3 end)", "(unless %1 then %2 else %3 end)",

@@ -50,4 +50,26 @@ RSpec.describe(Kimera::Unparse) do
       expect(described_class.names(Kimera::Unparse.parse("value"))).to(eq([]))
     end
   end
+
+  # unparser 0.9 writes an array range endpoint as a %w/%i literal.
+  describe(Kimera::Unparse::RangeEndpoints) do
+    def reemit(source) = Kimera::Unparse.unparse(Kimera::Unparse.parse(source))
+
+    {
+      "([a, a]...a)" => "(([a, a])...a)\n", "(0...[a, a])" => "(0...([a, a]))\n",
+      "[1, 2]..3" => "([1, 2])..3", "[1]..[2]" => "([1])..([2])", "[1]..nil" => "([1])..nil",
+      "[1]..;" => "([1])..", "..[1]" => "..([1])", "[\"a b\", \"c]\"]..d" => "([\"a b\", \"c]\"])..d"
+    }.each do |source, written|
+      it "writes `#{source}` with its array endpoint in parentheses" do
+        expect(reemit(source)).to(eq(written))
+      end
+    end
+
+    it "leaves other endpoints as unparser writes them", :aggregate_failures do
+      expect(reemit("1..2")).to(eq("1..2"))
+      expect(reemit("..2")).to(eq("..2"))
+      expect(reemit("a...")).to(eq("a..."))
+      expect(reemit("0...(1..2)")).to(eq("0...(1..2)"))
+    end
+  end
 end

@@ -120,5 +120,22 @@ RSpec.describe(Kimera::Overlay) do
       baked = described_class.new(catalog).bake("x.rb", src, mutant.id)
       expect(baked).to(include("[`ls`, a < b]"))
     end
+
+    # unparser 0.9 raised on the array endpoint, so every mutant of the file
+    # failed to bake.
+    it "bakes a file with an array range endpoint" do
+      src = "def m(a, b)\n  r = ([a, a]...a)\n  a > b\nend\n"
+      catalog = build(src)
+      mutant = catalog.each.find { |m, _p| m.label == "> => <" }.first
+      expect(described_class.new(catalog).bake("x.rb", src, mutant.id)).to(include("r = (([a, a])...a)", "a < b"))
+    end
+
+    it "raises Unbakeable, naming the unparser failure, when unparser can't write the bake" do
+      mutant = registry.each.first.first
+      allow(Kimera::Unparse).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
+      expect { synth.bake("x.rb", source, mutant.id) }.to(
+        raise_error(described_class::Unbakeable, "unparser could not write its bake (KeyError: key not found: :lvar)")
+      )
+    end
   end
 end

@@ -32,6 +32,9 @@ Kata/GoodMethodName:
     # RSpec and Minitest internals kimera extends each test with, to fail a test that calls exit.
     - with_around_example_hooks
     - capture_exceptions
+    # unparser's range emitter internals, overridden to write array endpoints.
+    - visit_begin_node
+    - visit_end_node
 
 Kata/BuilderNoun:
   AllowedNames:

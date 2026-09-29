@@ -23,6 +23,8 @@ class Kimera::Overlay
       end
     end
 
+  class Unbakeable < Kimera::Error; end
+
   def initialize(registry)
     @registry = registry
   end
@@ -44,10 +46,16 @@ class Kimera::Overlay
     return source unless pair
     mutant, point = pair
     map = Kimera::SourceMap.new(source)
-    map.restore(Kimera::Unparse.unparse(Kimera::Guardrail.new(map, []).bake(point.location, mutant.directive)))
+    map.restore(write(Kimera::Guardrail.new(map, []).bake(point.location, mutant.directive)))
   end
 
   private
+
+  def write(tree)
+    Kimera::Unparse.unparse(tree)
+  rescue StandardError => error
+    raise(Unbakeable, "unparser could not write its bake (#{error.class}: #{error.message})")
+  end
 
   def unsafe(file, source, points)
     Result.new(file: file, source: source, mutant_ids: [], skipped_unsafe: points.flat_map(&:ids))

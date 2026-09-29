@@ -256,11 +256,14 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     writer&.close unless writer&.closed?
   end
 
-  it "serializes a reload verdict at its process boundary" do
+  it "serializes a reload verdict at its process boundary", :aggregate_failures do
     reload = Kimera::Execution::Reload.allocate
     errand = Kimera::Execution::Reload::Errand.new(7, [], nil, nil)
-    allow(reload).to(receive(:evaluate).with(errand).and_return([:killed, ["t1"]]))
-    expect(JSON.parse(reload.__send__(:report, errand))).to(eq("id" => 7, "status" => "killed", "fails" => ["t1"]))
+    allow(reload).to(receive(:evaluate).with(errand).and_return([:killed, ["t1"]], [:unmutatable, [], "why"]))
+    expect(JSON.parse(reload.__send__(:report, errand)))
+      .to(eq("id" => 7, "status" => "killed", "fails" => ["t1"], "detail" => nil))
+    expect(JSON.parse(reload.__send__(:report, errand)))
+      .to(eq("id" => 7, "status" => "unmutatable", "fails" => [], "detail" => "why"))
   end
 
   it "prunes leak records whose mutant result is absent" do

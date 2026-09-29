@@ -1500,6 +1500,16 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(progress.events).to(include(%i[tick survived]))
     end
 
+    # The reload child reports the reason; an :error would count as killed.
+    it "reports a mutant unparser can't bake as unmutatable, with the reason", :aggregate_failures do
+      allow(Kimera::Unparse).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
+      report, progress = cold
+      result = report.results.first
+      expect(result.status).to(eq(:unmutatable))
+      expect(result.detail).to(eq("unmutatable: unparser could not write its bake (KeyError: key not found: :lvar)"))
+      expect(progress.events).to(include(%i[tick unmutatable]))
+    end
+
     def boom
       Class.new(Kimera::Frameworks::Adapter) do
         def source(_files) = self
@@ -1520,6 +1530,13 @@ RSpec.describe(Kimera::Execution::Harness) do
       status, detail = evaluation
       expect(status).to(eq(:error))
       expect(detail.first).to(include("RuntimeError: kaboom"))
+    end
+
+    it "classifies a bake unparser can't write as unmutatable, with the reason" do
+      allow(Kimera::Unparse).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
+      expect(evaluation).to(
+        eq([:unmutatable, [], "unmutatable: unparser could not write its bake (KeyError: key not found: :lvar)"])
+      )
     end
   end
 
