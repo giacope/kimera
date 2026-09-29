@@ -66,16 +66,54 @@ RSpec.describe(Kimera::Registry) do
     end
   end
 
-  # A key whose line moved still resolves when path and digest match exactly
-  # one mutant, and never resolves to a different mutant.
+  def unlined(key) = key.sub(Kimera::MutantKeys::LINE, ":")
+
+  # README: a key whose line moved still resolves when path and digest match
+  # exactly one mutant. Shifting the file keeps every digest unique, so every
+  # old key must come back to its own mutant.
   it "follows a key to its mutant after lines above it move" do
     for_all(programs, Pbt.integer(min: 1, max: 5), runs: 150) do |program, shift|
       before = scan(render(program))
       after = scan(("\n" * shift) + render(program))
+      moved = after.each.map { |mutant, _| unlined(after.keys[mutant.id]) }
       before.each.map { |mutant, _| mutant.id }.each do |id|
         key = before.keys[id]
-        expect(after.keys.id(key)).to(eq(id).or(be_a(String)), "#{key} resolved to another mutant")
+        expect(moved.count(unlined(key))).to(eq(1), "#{key} is not unique once unlined")
+        expect(after.keys.id(key)).to(eq(id), "#{key} did not resolve to mutant #{id}")
       end
+    end
+  end
+
+  # The other outcomes of a lookup, on keys built to collide: an exact key
+  # wins, a moved key resolves only when its unlined form is unique, and
+  # anything else (ambiguous or unknown) comes back as the text it was.
+  describe Kimera::MutantKeys do
+    let(:key) do
+      parts = Pbt.tuple(Pbt.one_of("a.rb", "b.rb"), Pbt.one_of("1", "2", "3"), Pbt.one_of("0000000a", "0000000b"))
+      parts.map(->(fields) { fields.join(":") }, ->(text) { text.split(":") })
+    end
+
+    def lookup(keys, token)
+      exact = keys.key(token)
+      return exact if exact
+      matches = keys.select { |_, text| unlined(text) == unlined(token) }.keys
+      matches.one? ? matches.first : token
+    end
+
+    it "resolves exact keys, unique moved keys, and nothing else" do
+      for_all(Pbt.array(key, max: 8), key, runs: 300) do |texts, token|
+        keys = texts.uniq.each_with_index.to_h { |text, i| [i + 1, text] }
+        expect(described_class.new(keys).id(token)).to(eq(lookup(keys, token)))
+      end
+    end
+
+    it "leaves an ambiguous or unknown key unresolved, and reads a number as an id", :aggregate_failures do
+      keys = described_class.new(1 => "a.rb:1:0000000a", 2 => "a.rb:3:0000000a", 3 => "a.rb:2:0000000b")
+      expect(keys.id("a.rb:2:0000000a")).to(eq("a.rb:2:0000000a"))
+      expect(keys.id("a.rb:5:0000000c")).to(eq("a.rb:5:0000000c"))
+      expect(keys.id("b.rb:2:0000000b")).to(eq("b.rb:2:0000000b"))
+      expect(keys.id("a.rb:7:0000000b")).to(eq(3))
+      expect(keys.id("42")).to(eq(42))
     end
   end
 

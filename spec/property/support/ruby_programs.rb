@@ -6,6 +6,10 @@ require "pbt"
 # parameters, built to reach every operator family. A program is a tree of
 # [template, *children]; "%1".."%3" in a template stand for its children, so
 # shrinking can swap any node for one of its children or a bare parameter.
+# A program is [signature, *statements]. Signatures vary the optional
+# parameters (a second optional, a splat after them) and their defaults,
+# some of which read `a` and can raise, so removing a default is tested for
+# argument binding and for the order defaults are evaluated in.
 #
 # Three shapes stay out, as their source text can't round-trip: an array
 # literal as a range endpoint (unparser raises), unary minus on a call chain
@@ -13,7 +17,17 @@ require "pbt"
 # range in a condition (`!(a...b)` reads back as a flip-flop). Hence
 # `(a...b).to_a` and `-(%1)`.
 class RubyPrograms < Pbt::Arbitrary::Arbitrary
-  SIGNATURE = "def m(a, b = 2, c: 3)"
+  # Each hole is filled from DEFAULTS, or from LITERALS where `a` is itself
+  # optional (its default can't read it).
+  SIGNATURES = {
+    "def m(a, b = %1, c: %2)" => %i[any any],
+    "def m(a = %1, b = %2, c: %3)" => %i[literal any any],
+    "def m(a, b = %1, d = %2, c: %3)" => %i[any any any],
+    "def m(a = %1, b = %2, d = %3, c: %4)" => %i[literal any any any],
+    "def m(a, b = %1, d = %2, *r, c: %3)" => %i[any any any]
+  }.freeze
+  SIMPLEST = ["def m(a, b = %1, c: %2)", ["2"], ["2"]].freeze
+  DEFAULTS = { literal: %w[1 2 nil], any: ["2", "3", "nil", '"s"', "(1 / a)", "a.to_s", "(a + 1)"] }.freeze
   LEAVES = ["a", "b", "c", "0", "1", "2", "-1", "7", "nil", "true", "false", '"s"', ":k", "[]", "{}"].freeze
   UNARY = [
     "(!%1)", "-(%1)", "%1.to_s", "%1.to_s.size", "%1.abs", "%1&.succ", "%1.to_s.upcase", "Integer(%1)",
@@ -43,19 +57,21 @@ class RubyPrograms < Pbt::Arbitrary::Arbitrary
   end
 
   def generate(random = Random.new)
-    Array.new(random.rand(1..@statements)) { statement(random) }
+    [signature(random), *Array.new(random.rand(1..@statements)) { statement(random) }]
   end
 
   def shrink(current)
+    signature, *body = current
     Enumerator.new do |out|
-      current.each_index { |i| out << (current[0...i] + current[(i + 1)..]) if current.size > 1 }
-      current.each_with_index { |node, i| smaller(node).each { |s| out << current.dup.tap { |c| c[i] = s } } }
+      simpler(signature).each { |s| out << [s, *body] }
+      body.each_index { |i| out << [signature, *body[0...i], *body[(i + 1)..]] if body.size > 1 }
+      body.each_with_index { |node, i| smaller(node).each { |s| out << [signature, *body.dup.tap { |c| c[i] = s }] } }
     end
   end
 
   def self.render(program)
-    body = program.map { |statement| "  #{source(statement)}\n" }.join
-    "#{SIGNATURE}\n#{body}end\n"
+    signature, *body = program
+    "#{source(signature)}\n#{body.map { |statement| "  #{source(statement)}\n" }.join}end\n"
   end
 
   def self.source(node)
@@ -64,6 +80,25 @@ class RubyPrograms < Pbt::Arbitrary::Arbitrary
   end
 
   private
+
+  def signature(random)
+    template, kinds = SIGNATURES.to_a.sample(random: random)
+    [template, *kinds.map { |kind| [DEFAULTS.fetch(kind).sample(random: random)] }]
+  end
+
+  # The plainest signature first, then each default back to "2". Each step
+  # leaves the plainest template or turns one more default into "2", so
+  # shrinking can't cycle.
+  def simpler(signature)
+    template, *defaults = signature
+    [(SIMPLEST unless signature == SIMPLEST), *plainer(template, defaults)].compact
+  end
+
+  def plainer(template, defaults)
+    defaults.each_index.filter_map do |i|
+      [template, *defaults.dup.tap { |d| d[i] = ["2"] }] unless defaults[i] == ["2"]
+    end
+  end
 
   def statement(random)
     template = STATEMENTS.sample(random: random)

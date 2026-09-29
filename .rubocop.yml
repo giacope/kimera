@@ -130,6 +130,10 @@ Security/Eval:
   Exclude:
     # Evals generated source built in the example to prove the rewrite runs.
     - spec/kimera/rewrite/numbered_params_spec.rb
+Security/MarshalLoad:
+  Exclude:
+    # Reads back what its own forked child wrote, never outside data.
+    - spec/property/support/supervised.rb
 Style/EvalWithLocation:
   Exclude:
     # The fake eval file name is the fixture the guard keys off.

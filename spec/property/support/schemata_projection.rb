@@ -14,9 +14,31 @@ require "kimera/synthesis/overlay"
 # - a lone expression in parentheses is that expression;
 # - adjacent string parts join and empty ones drop (unparser splits them);
 # - && and || chains are associative (unparser regroups them);
-# - minus on a numeric literal is the negative literal (`-(1)` is `-1`);
-# - "default removed" is a default that raises the ArgumentError a missing
-#   required argument would, since a guard can't change a signature.
+# - minus on a numeric literal is the negative literal (`-(1)` is `-1`).
+#
+# One more rewrite is an assumption, not a behavior-preserving identity:
+# `required` reads a default that raises the missing-argument ArgumentError
+# as a required parameter, because a guard can't change a signature. That is
+# what the equivalence contract below allows, and schemata_spec checks it by
+# running calls that omit arguments, not by this reduction.
+#
+# Equivalence contract. With an applied mutant active, the schemata behaves
+# like that mutant's bake on every call (same return value, or same
+# exception class and message), except for:
+# - reflection: a removed default is still optional to Method#arity and
+#   Method#parameters;
+# - where a missing argument is reported: inside the method once earlier
+#   defaults have run, not by the arity check at the call site, so the
+#   backtrace differs and so does the wording ("missing argument: b" vs
+#   "wrong number of arguments"; "missing keyword: c" vs ":c");
+# - comparison failures: "comparison of A with B failed" names and orders its
+#   operands by whichever VM path ran (`[x, y].max` compiles one way for
+#   literals, another for computed elements), and guards change the shape.
+# A default removal the schemata can't represent is not applied at all. One
+# whose bake doesn't parse (a middle optional, or one before a splat) is
+# never emitted. One that rebinds positional arguments, sits in a block
+# (omitted block arguments bind to nil), or follows a default that isn't
+# inert is judged by reload instead (Kimera::DefaultRemoval).
 module SchemataProjection
   CHAINS = %i[and or].freeze
   INTERPOLATED = %i[dstr dsym xstr regexp].freeze
@@ -130,6 +152,18 @@ module SchemataProjection
     missing = Parser::AST::Node.new(:const, [nil, :ArgumentError])
     return node unless default == Parser::AST::Node.new(:send, [nil, :raise, missing, text("missing #{kind}: #{name}")])
     Parser::AST::Node.new(type, [name])
+  end
+
+  COMPARED = /\Acomparison of (.+) with (.+) failed\z/
+
+  # An error message up to the details the equivalence contract excludes
+  # (see the top of this file); any other wording must match exactly.
+  def worded(error)
+    message = error.message
+    return message unless error.instance_of?(ArgumentError)
+    return "missing keyword: #{::Regexp.last_match(1)}" if message =~ /\Amissing keyword: :?(\w+)\z/
+    return "arity" if message.match?(/\A(wrong number of arguments|missing argument: )/)
+    message.match?(COMPARED) ? "comparison failed" : message
   end
 
   def node?(node, type = nil) = node.is_a?(Parser::AST::Node) && (type.nil? || node.type == type)

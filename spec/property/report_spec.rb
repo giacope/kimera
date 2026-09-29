@@ -50,13 +50,40 @@ RSpec.describe(Kimera::RunReport) do
 
     def status(outcomes, options) = described_class.new(report(outcomes), options).status(StringIO.new)
 
-    # More bad news never makes a failing gate pass.
-    it "exits 0 or 2, and a failing gate never passes once another result lands" do
-      for_all(results, options, statuses, runs: 300) do |outcomes, options, extra|
-        before = status(outcomes, options)
-        expect(before).to(eq(0).or(eq(2)))
-        expect(status(outcomes + [extra], options)).to(eq(2), "#{extra} turned the gate green") if before == 2
+    # The gate's documented rules (README, `kimera help run`), restated.
+    def failing?(outcomes, options)
+      survived, uncovered, ignored, unjudged = %i[survived no_coverage ignored harness_error].map { outcomes.count(it) }
+      cap = options[:max_survivors]
+      [
+        cap ? survived > cap : survived.positive?,
+        options[:fail_on_no_coverage] && uncovered.positive?,
+        options[:max_ignored] && ignored > options[:max_ignored],
+        unjudged > (options[:max_errors] || 0)
+      ].any?
+    end
+
+    it "exits 2 exactly when a documented threshold is crossed, and 0 otherwise" do
+      for_all(results, options, runs: 500) do |outcomes, options|
+        expect(status(outcomes, options)).to(eq(failing?(outcomes, options) ? 2 : 0))
       end
+    end
+
+    # More bad news never makes a failing gate pass.
+    it "never passes once another result lands on a failing gate" do
+      for_all(results, options, statuses, runs: 300) do |outcomes, options, extra|
+        next unless status(outcomes, options) == 2
+        expect(status(outcomes + [extra], options)).to(eq(2), "#{extra} turned the gate green")
+      end
+    end
+
+    it "passes at each threshold and fails one past it", :aggregate_failures do
+      expect(status([:killed], {})).to(eq(0))
+      expect(status([:survived], {})).to(eq(2))
+      expect([status([:survived], max_survivors: 1), status(%i[survived survived], max_survivors: 1)]).to(eq([0, 2]))
+      expect([status([:ignored] * 2, max_ignored: 2), status([:ignored] * 3, max_ignored: 2)]).to(eq([0, 2]))
+      expect([status([:ignored] * 9, {}), status([:harness_error], {})]).to(eq([0, 2]))
+      expect([status([:harness_error], max_errors: 1), status([:harness_error] * 2, max_errors: 1)]).to(eq([0, 2]))
+      expect([status([:no_coverage], {}), status([:no_coverage], fail_on_no_coverage: true)]).to(eq([0, 2]))
     end
   end
 

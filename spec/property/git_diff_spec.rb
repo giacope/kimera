@@ -59,23 +59,36 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
       git(dir, "commit", "-q", "-m", "base", "--allow-empty")
     end
 
-    def subsequence?(kept, old)
-      rest = old.each
-      kept.all? { |line| loop { break true if rest.next == line } }
-    rescue StopIteration
-      false
+    def edited(old, new)
+      Dir.mktmpdir do |dir|
+        committed(dir, old)
+        File.write(File.join(dir, "f.rb"), new.map { "#{it}\n" }.join)
+        described_class.lines(since: "HEAD", root: dir).fetch("f.rb", Set.new)
+      end
+    end
+
+    # The oracle below is only as good as this check.
+    it "judges subsequences exactly", :aggregate_failures do
+      expect(Subsequence.of?([], [])).to(be(true))
+      expect(Subsequence.of?([], %w[a])).to(be(true))
+      expect(Subsequence.of?(%w[a], [])).to(be(false))
+      expect(Subsequence.of?(%w[a c], %w[a b c])).to(be(true))
+      expect(Subsequence.of?(%w[z], %w[a b])).to(be(false))
+      expect(Subsequence.of?(%w[b a], %w[a b])).to(be(false))
+      expect(Subsequence.of?(%w[a a], %w[a])).to(be(false))
+      expect(Subsequence.of?(%w[a a], %w[a b a])).to(be(true))
+    end
+
+    it "reports a line an edit inserts" do
+      expect(edited(%w[a b], %w[a z b]).to_a).to(eq([2]))
     end
 
     it "reports every line that is not an unchanged line of the old file" do
       for_all(lines, lines, runs: 40) do |old, new|
-        Dir.mktmpdir do |dir|
-          committed(dir, old)
-          File.write(File.join(dir, "f.rb"), new.map { "#{it}\n" }.join)
-          reported = described_class.lines(since: "HEAD", root: dir).fetch("f.rb", Set.new)
-          expect(reported.to_a - (1..new.size).to_a).to(be_empty, "reported lines beyond the file")
-          kept = new.each_with_index.reject { |_, i| reported.include?(i + 1) }.map(&:first)
-          expect(subsequence?(kept, old)).to(be(true), "unreported #{kept} are not old lines in order")
-        end
+        reported = edited(old, new)
+        expect(reported.to_a - (1..new.size).to_a).to(be_empty, "reported lines beyond the file")
+        kept = new.each_with_index.reject { |_, i| reported.include?(i + 1) }.map(&:first)
+        expect(Subsequence.of?(kept, old)).to(be(true), "unreported #{kept} are not old lines in order")
       end
     end
   end

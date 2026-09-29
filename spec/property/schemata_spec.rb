@@ -37,19 +37,23 @@ RSpec.describe("Mutant schemata") do
   end
 
   # End to end through Ruby itself: load the schemata once, flip each mutant,
-  # and compare every call with the same call on its baked source.
+  # and compare every call with the same call on its baked source. Calls pass
+  # zero to three positionals and may omit `c:`, so defaults are evaluated,
+  # skipped, and rebound.
   describe "running a flipped mutant" do
     let(:inputs) do
-      value = Pbt.one_of(-3, -1, 0, 1, 2, 5, nil, "4")
-      Pbt.array(Pbt.tuple(value, value, value), min: 1, max: 4)
+      values = [-3, -1, 0, 1, 2, 5, nil, "4"]
+      Pbt.array(Pbt.tuple(Pbt.array(Pbt.one_of(*values), max: 3), Pbt.one_of(:omitted, *values)), min: 1, max: 5)
     end
 
-    def outcome(receiver, (a, b, c))
-      [:returned, receiver.m(a, b, c: c)]
-    rescue ArgumentError => error
-      [:raised, error.class] # "missing keyword: c" vs ":c"; the class is the contract
+    # A removed default raises from inside the method ("missing argument: b",
+    # "missing keyword: c") where the real signature fails its arity check
+    # ("wrong number of arguments", "missing keyword: :c"). That wording is
+    # the one difference this comparison excuses; see SchemataProjection.
+    def outcome(receiver, (positional, keyword))
+      [:returned, receiver.m(*positional, **(keyword == :omitted ? {} : { c: keyword }))]
     rescue StandardError => error
-      [:raised, error.class, error.message]
+      [:raised, error.class, SchemataProjection.worded(error)]
     end
 
     # Generated code may test a literal (`if "s"`); Ruby's parse warning is noise.
