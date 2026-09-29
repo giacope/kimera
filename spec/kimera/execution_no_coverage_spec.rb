@@ -48,13 +48,18 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     end
   end
 
-  it "rejects noninteger mutant IDs and explains malformed rerun reports" do
+  it "rejects unknown mutant IDs and explains malformed rerun reports" do
     errors = StringIO.new
-    cli = Kimera::CLI::Mutant.new(errors: errors)
-    expect(cli.run(["not-an-id", "--report", "unused.json"])).to(eq(1))
-    expect(errors.string).to(include("mutant ID must be an integer"))
+    cli = Kimera::CLI::Mutant.new(io: StringIO.new, errors: errors)
 
     Dir.mktmpdir do |dir|
+      listed = File.join(dir, "listed.json")
+      File.write(listed, JSON.generate("results" => [{ "mutant_id" => 1, "status" => "killed" }]))
+      expect(cli.run(["not-an-id", "--report", listed])).to(eq(1))
+      expect(errors.string).to(include("no mutant #not-an-id in this report"))
+      errors.truncate(0)
+      errors.rewind
+
       report = File.join(dir, "broken.json")
       File.write(report, "{")
       detail = malformation("{")

@@ -2,6 +2,7 @@
 
 require "json"
 require_relative "mutation_point"
+require_relative "mutant_keys"
 
 class Kimera::Registry
   FORMAT_VERSION = 1
@@ -51,6 +52,10 @@ class Kimera::Registry
 
   def point(id)
     paired[id]
+  end
+
+  def keys
+    @_keys ||= Kimera::MutantKeys.of(self)
   end
 
   def each

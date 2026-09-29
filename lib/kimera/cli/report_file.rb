@@ -12,6 +12,10 @@ end
 module Kimera::CLI::ReportFile
   module_function
 
+  def row(results, token)
+    results.find { |result| [result["mutant_id"].to_s, result["key"]].include?(token.to_s) }
+  end
+
   def parse(path)
     JSON.parse(File.read(path, encoding: Encoding::UTF_8))
   rescue JSON::ParserError => error

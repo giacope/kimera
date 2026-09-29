@@ -101,7 +101,19 @@ suite.
 bundle exec kimera run --report tmp/kimera/report.json
 bundle exec kimera report tmp/kimera/report.json --status survived
 bundle exec kimera mutant 42 --report tmp/kimera/report.json
+bundle exec kimera mutant app/models/discount.rb:44:8557dadd --report tmp/kimera/report.json
+bundle exec kimera mutant 42 --report tmp/kimera/report.json --rerun
 ```
+
+A mutant has two names. Its ID (`42`) numbers every mutant the run scanned,
+so the same mutant gets a different ID when a run covers a different set of
+files. Its key (`app/models/discount.rb:44:8557dadd`, the `key` field of each
+report result) is `path:line:digest`. The digest is computed from the mutant's
+own code (its file, method, operator, source, and label), so the key names
+the same mutant in a one-file run and in a full one. `kimera mutant` and
+`--focus` take either. A key whose line moved still resolves when the path
+and digest match exactly one mutant. `--rerun` re-evaluates only that mutant,
+focused by its key.
 
 For each survivor, write the test that kills it. If a mutant is truly
 equivalent, add it to `ignore:` in `.kimera.yml` with a reason (see
@@ -158,6 +170,9 @@ bundle exec kimera run app --since origin/main \
 # (a no_coverage mutant is untested new logic, not a pass)
 bundle exec kimera run app --since origin/main --fail-on-no-coverage
 
+# Evaluate only the given mutants, by report key or by ID (repeatable)
+bundle exec kimera run app/models/discount.rb --focus app/models/discount.rb:44:8557dadd
+
 # N warm workers pull from one shared queue, so this scales with cores
 # even on a single big file
 bundle exec kimera run app --jobs 4
@@ -167,6 +182,12 @@ bundle exec kimera run app --jobs 4
 # A baseline test killed that way reruns once alone; raise the limit if it's
 # only slow under parallel load
 bundle exec kimera run app --jobs 8 --hard-timeout 60
+
+# Run only some test files, for speed. --tests replaces the configured tests:
+# glob, so verdicts hold only for those files: a survivor may be killed by a
+# test left out. The report says so ("narrowed run: --tests matched 1 of 1,120
+# test files ...", and "narrowed": true in the JSON report's run section)
+bundle exec kimera run app/models/order.rb --tests 'spec/models/order_spec.rb'
 
 # Drop spec files that can't run this way (order-dependent, need a browser)
 # without rewriting the whole --tests glob
@@ -196,7 +217,25 @@ bundle exec kimera mutant 42 --report tmp/kimera/report.json
 bundle exec kimera baseline create tmp/kimera/report.json --reason "adopting Kimera"
 # Add the printed `baseline:` entry to .kimera.yml, then review it in code review
 bundle exec kimera baseline review .kimera-baseline.yml
+
+# Burn the baseline down: evaluate the ignored mutants too, see which entries
+# are now killed or stale, and drop them
+bundle exec kimera run --evaluate-ignored --report tmp/kimera/report.json
+bundle exec kimera baseline review .kimera-baseline.yml --report tmp/kimera/report.json
+bundle exec kimera baseline prune .kimera-baseline.yml --report tmp/kimera/report.json
 ```
+
+Ignored mutants, from `ignore:` or the baseline, are skipped by default.
+`--evaluate-ignored` runs them anyway: each keeps status `ignored` (it never
+gates as a survivor and still counts toward `max_ignored`) and its report row
+gains a `verdict` (`killed`, `survived`, ...). `--no-baseline` leaves the
+baseline out entirely, so its mutants are judged and gated like any other.
+
+`baseline review --report` sorts the entries into killed (safe to prune),
+still surviving, unjudged, stale (the report covers the file but no mutant
+matches), and out of the report's scope. `baseline prune` drops the killed and
+stale ones (`--dry-run` only prints them) and says how far `max_ignored` can
+drop. After an incremental `--since` run it never prunes an entry as stale.
 
 ### Output formats and exit codes
 
@@ -206,6 +245,10 @@ bundle exec kimera baseline review .kimera-baseline.yml
 - Text output honors `NO_COLOR`. `--no-color` forces it off.
 - `--quiet` suits scripts that only need an artifact. `--verbose` prints the
   resolved scope. `--log FILE` keeps the final text report.
+- `--pidfile FILE` writes kimera's process id to FILE when the run starts and
+  removes the file when the run ends, whether it passes, fails or errors
+  (short of `kill -9`). A script that waits on a background run can watch
+  that pid; `pgrep -f "kimera run"` also matches the shell that started it.
 
 Exit codes:
 
@@ -299,7 +342,10 @@ max_ignored: 1
 
 # Known-equivalent mutants. Equivalence is undecidable, so Kimera doesn't
 # guess: you mark a mutant and it stops being a survivor. An entry without
-# a reason: is rejected at startup.
+# a reason: is rejected at startup. Anchors: file (a glob, required), line,
+# column, label, method, original. If a line anchor drifts (a line was added
+# above), the entry still applies when its label (plus original/method, if
+# given) singles out one mutant in the file; Kimera warns so you can update it.
 ignore:
   - file: app/models/discount.rb
     line: 33
@@ -523,6 +569,14 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     may still hold connections and locks: after a soft timeout the worker
     takes no more mutants and is replaced. A retiring worker's teardown stays
     under the hard timeout too.
+  - Code under test that calls `exit` or `abort` (a rake task, a CLI entry
+    point): RSpec and Minitest let the `SystemExit` through, so it would end
+    the worker. Kimera records it as that test's failure instead, after the
+    test's teardown, with the status, where it was called, and `abort`'s
+    message (`SystemExit: exit(1) called from lib/tasks/import.rb:12:in
+    'Kernel#abort': no such file`). A mutant that makes a test exit is killed;
+    a baseline test that exits turns the baseline red. `exit!` still ends the
+    process, and interrupts still stop the run.
   - Slow tests under parallel load: a baseline test whose worker hits the hard
     timeout reruns once, alone. If it passes, the run goes on with a notice and
     the stacks. If it times out again, the baseline is red.

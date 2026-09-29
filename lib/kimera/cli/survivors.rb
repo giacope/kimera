@@ -11,7 +11,7 @@ class Kimera::CLI::Survivors
       "Lists a report's surviving mutants; FILE_SUBSTRING keeps only " \
       "mutants whose file path contains it (e.g. models/discount).",
     flags: [
-      Kimera::Flag.build("--id N", :id, "Show one mutant in full detail", type: Integer),
+      Kimera::Flag.build("--id ID|KEY", :id, "Show one mutant, by ID or key, in full detail"),
       Kimera::Flag.build(
         "--status NAME", :status,
         "List a different status (survived, no_coverage, " \
@@ -74,7 +74,7 @@ class Kimera::CLI::Survivors
   end
 
   def show(results, id)
-    row = results.find { |candidate| candidate["mutant_id"] == id }
+    row = Kimera::CLI::ReportFile.row(results, id)
     return missing(id) unless row
     Panel.new(io: @io).describe(row)
     0

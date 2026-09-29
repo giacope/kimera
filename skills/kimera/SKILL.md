@@ -44,7 +44,7 @@ bundle exec kimera doctor --check-baseline  # discovery, git, and a green suite
 bundle exec kimera changed                      # changed lines only (vs origin/main)
 bundle exec kimera run                          # full, per .kimera.yml
 bundle exec kimera report REPORT.json --status survived
-bundle exec kimera mutant ID --report REPORT.json
+bundle exec kimera mutant ID_OR_KEY --report REPORT.json [--rerun]
 bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
 ```
 
@@ -52,12 +52,19 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   report, except isolated mode, which traces one verdict per line to stderr.
 - `--session FILE` persists per-mutant verdicts and resumes interrupted runs.
 - `--report FILE` writes the machine-readable report. Each result carries
-  `mutant_id`, `status`, `file`, `line`, `operator`, and the `original` ->
-  `mutated` source; don't re-parse the human log.
+  `mutant_id`, `key`, `status`, `file`, `line`, `operator`, and the
+  `original` -> `mutated` source; don't re-parse the human log.
+- Refer to a mutant by its `key` (`path:line:digest`), not its `mutant_id`.
+  The ID numbers every mutant in that run, so it changes with the set of
+  files scanned; the key doesn't. `kimera mutant` and `--focus` take either,
+  and a key still resolves after unrelated edits move its line.
 - Minitest/Rails: kimera puts `test/` (or `spec/`) on `$LOAD_PATH`, so test
   files can `require "test_helper"` without `RUBYOPT="-Itest"`.
 - `--tests` on the CLI *replaces* the config `tests:` glob (it does not
-  append).
+  append). A narrowed run's verdicts hold only for the narrowed set: a
+  survivor may be killed by a test left out, so confirm it with the full glob
+  before writing a test or an ignore entry. The report flags such a run
+  (`narrowed run: ...`, `"narrowed": true` in the JSON `run` section).
 - `--jobs` sizes the warm pool and isolated mirrors. Coverage-based test
   selection and kill-on-first-failure are automatic.
 - A `timeout` verdict is a *detected* mutant (the suite hung on it), not an
@@ -69,6 +76,9 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   raise `--hard-timeout`. If it waits on something the workers share (a Redis
   db, a lock, a port), give each worker its own through a
   `parallelize_setup`/`after_fork_hook`.
+- Code under test that calls `exit` or `abort` fails that test (`detail`:
+  `SystemExit: exit(1) called from FILE:LINE`), so a mutant that makes a test
+  abort is `killed`, not `harness_error`.
 - A kill's `detail` holds the killing test's failure message and first
   frames. A state-leak warning names a test that failed in a warm worker for
   reasons unrelated to the mutant. Kimera already judged that mutant again on
@@ -87,6 +97,25 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   an `--isolated` case. Its mutants report as `unmutatable` (never gating,
   never scored, with the reason in the detail), not `no_coverage`.
 
+## Burn down a baseline
+
+```sh
+bundle exec kimera run --evaluate-ignored --report r.json   # judge ignored mutants too
+bundle exec kimera baseline review .kimera-baseline.yml --report r.json
+bundle exec kimera baseline prune .kimera-baseline.yml --report r.json  # --dry-run first
+```
+
+- `--evaluate-ignored` keeps ignored mutants `ignored` (never a gating
+  survivor, still counted by `max_ignored`) but records each one's `verdict`.
+  Don't copy `.kimera.yml` to drop the `baseline:` line; `--no-baseline`
+  does that.
+- `review` sorts entries into killed (prune), still surviving (triage them
+  like any survivor), unjudged, stale, and out of scope. `prune` drops killed
+  and stale entries, moves re-anchored ones to their current line, and says
+  how far to lower `max_ignored`: lower it in the same diff.
+- A drifted line anchor re-anchors on its own when the label (and `original`)
+  single out one mutant; the `re-anchored` warning means update the entry.
+
 ## Triage a surviving mutant: the only four verdicts
 
 1. **Real gap**: write the test. Assert the exact distinction the mutant
@@ -101,6 +130,39 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
    (logging, fd hygiene, progress output). Cover it with an integration test
    or accept it visibly. Never stub internals just to kill a mutant; a test
    that pins the implementation makes the suite worse.
+
+### Survivors that recur on Rails apps
+
+These shapes survive again and again. Recognizing one tells you which verdict
+to test first. It never replaces the `--isolated` check.
+
+Usually **dead code**. The guard only saves a query, so delete it:
+
+- A guard before a query that already returns nil/false/0: `return false
+  unless user` before `memberships.exists?(user:)` on a NOT NULL column, or
+  `return if ids.empty?` before `where(id: ids)` / `update_all`.
+- A no-op write under dirty tracking: `update!(status: :past_due) unless
+  past_due?`. Rails skips the UPDATE when nothing changed. Delete the guard
+  unless callbacks or `updated_at` must not fire, and if they must, test
+  that.
+- A readiness check that compares constants with constants
+  (`REQUIRED - LIVE_STATES`). Nothing at runtime can change it, so assert it
+  once at load time or drop it.
+
+Usually **keep and ignore** (after `--isolated`, with the mechanism as the
+`reason:`), because the code hardens against something tests don't drive:
+
+- `reload` before `with_lock`/`lock!` on the same record, or double-checked
+  locking. `with_lock` reloads the row anyway, and only a real race tells
+  the two apart.
+- `transaction(requires_new: true)` around a `create!` that rescues
+  `RecordNotUnique`. It matters only when a concurrent insert wins.
+- Barrier or queue values that nothing reads (`ready << true`), and
+  timing-safe compares.
+
+Before you delete one of these guards, check that it doesn't also skip a side
+effect (a callback, a job, an audit row). If it does, the survivor is a real
+gap: test that side effect.
 
 ## Ignore discipline: hard rules (especially for agents)
 

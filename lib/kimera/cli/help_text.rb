@@ -21,12 +21,12 @@ module Kimera
 
       Investigate:
         report REPORT.json    Filter a saved report (survivors, uncovered, errors)
-        mutant ID --report R  Show one mutant in full detail
+        mutant ID --report R  Show one mutant, by ID or key, in full detail
         registry [paths...]   Inspect what Kimera would mutate
         synthesize [paths...] Write schemata sources for inspection
 
       Setup:
-        baseline ...          Create or review a baseline of accepted survivors
+        baseline ...          Create, review, or prune a baseline of accepted survivors
         completion SHELL      Print Bash, Zsh, or Fish completion setup
         skill                 Print the guide for AI agents running Kimera
         version               Print version
