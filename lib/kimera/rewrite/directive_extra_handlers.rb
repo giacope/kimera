@@ -4,7 +4,7 @@ module Kimera
   module Rewrite
     module DirectiveExtraHandlers
       Operation =
-        Data.define(:node, :directive, :unguard) do
+        Data.define(:node, :directive) do
           def trim(pair)
             key, value = pair.children
             elements = value.children.dup

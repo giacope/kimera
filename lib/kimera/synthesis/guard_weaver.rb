@@ -38,9 +38,7 @@ class Kimera::Guardrail
     [Kimera::Unparse.unparse(transform(node)), applied]
   end
 
-  def transform(node)
-    Kimera::Rewrite::AstWalk.rebuild(node) { |rebuilt, original| rebuild(rebuilt, original) }
-  end
+  def transform(node) = weave(node).first
 
   def bake(location, directive)
     prune(overlay([location.start_offset, location.finish], directive))
@@ -48,11 +46,14 @@ class Kimera::Guardrail
 
   private
 
-  def rebuild(rebuilt, original)
-    rebuilt = flatten(rebuilt) if rebuilt.type == :dstr
-    rebuilt = dispatch(rebuilt, points(original))
-    reopen(rebuilt)
+  def weave(node)
+    return [node, node] unless node.is_a?(Parser::AST::Node)
+    woven = node.children.map { |child| weave(child) }
+    bare = settle(node.updated(nil, woven.map(&:last)))
+    [reopen(dispatch(settle(node.updated(nil, woven.map(&:first))), bare, points(node))), reopen(bare)]
   end
+
+  def settle(node) = node.type == :dstr ? flatten(node) : node
 
   def overlay(target, directive)
     patch = Patch.new(@map, target, directive)
