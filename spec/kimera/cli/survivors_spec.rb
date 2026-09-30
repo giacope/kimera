@@ -22,7 +22,7 @@ RSpec.describe("kimera survivors", :aggregate_failures) do
           "original" => "where(active: true)", "mutated" => "(statement deleted)",
           "covering_tests" => %w[UserTest#test_active UserTest#test_scope],
           "failing_tests" => %w[UserTest#test_active],
-          "detail" => "sample detail", "duration" => 0.4
+          "detail" => "sample detail", "duration" => 0.4, "note" => "judged in a fresh isolated mirror"
         },
         {
           "mutant_id" => 9, "status" => "survived", "file" => "app/models/book.rb",
@@ -101,6 +101,7 @@ RSpec.describe("kimera survivors", :aggregate_failures) do
     expect(status).to(eq(0))
     expect(out).to(include("#7  survived  app/models/user.rb:13", "operator: statement_deletion"))
     expect(out).to(include("label:    delete `where(active: true)`", "duration: 400ms", "detail:   sample detail"))
+    expect(out).to(include("detail:   sample detail\n  note:     judged in a fresh isolated mirror\n"))
   end
 
   it "shows one mutant's test lists with --id" do
@@ -112,7 +113,7 @@ RSpec.describe("kimera survivors", :aggregate_failures) do
     out, status = run(report_path, "--id", "12")
     expect(status).to(eq(0))
     expect(out).to(include("#12  timeout  app/models/bare.rb", "- z"))
-    absent = %w[operator: label: duration: detail: covering failing +]
+    absent = %w[operator: label: duration: detail: note: covering failing +]
     absent.each { |a| expect(out).not_to(include(a)) }
   end
 

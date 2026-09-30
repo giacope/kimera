@@ -290,6 +290,31 @@ exception is a directory that holds a mutated file, which is always copied.
 Before judging any mutant, `--isolated` runs the unmutated suite once in a
 mirror. If it isn't green there, the run stops with exit 1 and the error.
 
+### Re-judging what the warm pass could not
+
+Some mutants change state that stays changed after the warm worker switches
+them off: a memoized class-level table, a `require` a later test relies on,
+rows a crashed `before(:all)` left behind. The confirming run without the
+mutant then fails too, even on a fresh worker, so the warm pass can't tell a
+kill from a leak, and the mutant would be `harness_error`. The same goes for a
+mutant whose warm or reload worker died before it replied.
+
+After the warm pass, Kimera judges each such mutant again in the isolated
+tier, in a fresh mirror of its own, against its covering tests only (every
+test under `--no-coverage`). A fresh process never sees the state the warm
+worker kept. A kill (or timeout) stands only if those tests then pass in
+another fresh mirror without the mutant. The report carries the fresh
+verdict, and the row's `note` keeps what the warm pass said. The text report
+tallies these mutants, and `github`/`sarif` findings append the note.
+
+- If the tests fail without the mutant too, or the mirror can't run them,
+  the mutant stays `harness_error`, with the reason as its `detail`.
+- Only the unjudged mutants are re-judged, `--jobs` at a time, each under
+  `--hard-timeout` for its whole run (300s when unset). No full-suite
+  baseline runs first; the confirming run replaces it.
+- `--no-rejudge` (or `rejudge: false` in `.kimera.yml`) turns this off: the
+  mutants stay `harness_error` with the warm detail.
+
 ### Progress output
 
 During a run, a progress bar tracks each phase on stderr. It shows only when
@@ -298,8 +323,9 @@ stderr is a tty; `--[no-]progress` overrides. Completed phases stay visible:
 - `baseline` records coverage.
 - `mutants (warm)` uses the shared worker pool.
 - `mutants (isolated)` evaluates the subset routed to fresh mirrors.
+- `mutants (re-judged)` judges again what the warm pass could not.
 
-The last two labels appear only when a run uses both strategies. Output the
+The warm and isolated labels appear only when a run uses both strategies. Output the
 suite prints during mutant evaluation is swallowed, since mutated code warns,
 raises, and logs freely. Verdicts travel back as structured results.
 
@@ -532,6 +558,8 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
    shared, heaviest-first queue. For each mutant, flip `Runtime.active` and run
    only its covering tests. The queue is shared, not split by file, so
    `--jobs N` scales with cores even when mutants sit in one large file.
+   Mutants the warm pass could not judge are then judged again, each in a
+   fresh mirror of its own (see [re-judging](#re-judging-what-the-warm-pass-could-not)).
 
 ---
 
@@ -572,7 +600,8 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     the mutant is judged again on a fresh one, and the report lists the test
     under state-leak warnings. On the fresh worker, a test that still fails
     without the mutant is left out. If no other test confirms a kill, the
-    mutant is `harness_error`.
+    warm pass can't judge the mutant, and Kimera judges it again in a fresh
+    mirror (see [re-judging](#re-judging-what-the-warm-pass-could-not)).
   - Selector-induced hangs: a soft timeout on each covering test a mutant runs
     (`--soft-timeout`, 5s), plus a watchdog that SIGKILLs a worker whose test
     runs past `--hard-timeout`, so a replacement pulls from the shared queue.
@@ -628,7 +657,8 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     run (its file or method failed to re-emit or load); the detail says why.
     It never gates, and it is not `no_coverage`: a test may well run it.
   - A `harness_error` is a mutant Kimera could not judge: its worker died, or
-    its reply was unreadable. It is not a kill. It gates via `--max-errors`
+    its reply was unreadable, and a fresh mirror could not judge it either.
+    It is not a kill. It gates via `--max-errors`
     (default 0). A pool that never produces a result aborts the run. When a
     worker died, the `detail` says how (`died on signal 15 (SIGTERM)`,
     `exited 1`) and, if Ruby raised something, the exception and its frames.

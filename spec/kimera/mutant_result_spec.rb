@@ -62,6 +62,23 @@ RSpec.describe(Kimera::MutantResult) do
     end
   end
 
+  describe "#note" do
+    it "is written only when set, and read back", :aggregate_failures do
+      expect(result(:killed).to_h).not_to(have_key("note"))
+      noted = result(:killed).tap { |killed| killed.note = "judged in a fresh isolated mirror" }
+      expect(noted.to_h).to(include("note" => "judged in a fresh isolated mirror"))
+      expect(described_class.from_h(noted.to_h)).to(eq(noted))
+    end
+  end
+
+  describe "#unjudged" do
+    it "keeps only the identity, with the reason as detail" do
+      judged = result(:killed).tap { |killed| killed.failing_tests = ["t1"] }.unjudged("its tests fail")
+      expected = described_class.new(mutant_id: 1, status: :harness_error, file: "x.rb", detail: "its tests fail")
+      expect(judged).to(eq(expected))
+    end
+  end
+
   describe "#waive" do
     it "keeps the evaluation but reports the mutant as ignored with its verdict", :aggregate_failures do
       waived = result(:killed).tap { |killed| killed.detail = "Calc spec failed" }.waive

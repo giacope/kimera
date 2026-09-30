@@ -57,7 +57,8 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         max_errors: 0, evaluate_ignored: false, baseline: nil,
         jobs: 1, exclude: [], exclude_tests: [], config: nil, ignore: [],
         isolate_db: false,
-        isolated: false, fail_on_no_coverage: false, progress: nil, color: nil, quiet: false, verbose: false, log: nil,
+        isolated: false, rejudge: true, fail_on_no_coverage: false,
+        progress: nil, color: nil, quiet: false, verbose: false, log: nil,
         pidfile: nil,
         isolate_when_covered_by: [],
         paths: ["app/**/*.rb", "lib/**/*.rb"]
@@ -113,7 +114,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         framework tests source-root registry operators soft-timeout
         hard-timeout leak-every coverage since session max-survivors
         max-ignored fail-on-no-coverage jobs progress isolate-db isolated
-        isolate-when-covered-by exclude config pidfile evaluate-ignored no-baseline
+        isolate-when-covered-by rejudge exclude config pidfile evaluate-ignored no-baseline
       ]
     end
 
@@ -166,6 +167,13 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     it "keeps the config paths: when no positional paths are given" do
       File.write("custom.yml", %(paths: ["only/**/*.rb"]\n))
       expect(cli.__send__(:parse, ["--config", "custom.yml"])[:paths]).to(eq(["only/**/*.rb"]))
+    end
+
+    it "turns the isolated re-judge off with --no-rejudge or rejudge: false in the config" do
+      expect(cli.__send__(:parse, ["--no-rejudge"])[:rejudge]).to(be(false))
+      File.write("custom.yml", "rejudge: false\n")
+      expect(cli.__send__(:parse, ["--config", "custom.yml"])[:rejudge]).to(be(false))
+      expect(cli.__send__(:parse, ["--config", "custom.yml", "--rejudge"])[:rejudge]).to(be(true))
     end
 
     it "defaults --isolated off and turns it on when given" do
@@ -763,6 +771,34 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     def distribute(harness, runner)
       expect(harness).to(have_received(:run).with(ids: [1], label: "mutants (warm)"))
       expect(runner).to(have_received(:run).with(ids: [2], label: "mutants (isolated)"))
+    end
+
+    def verdict(id, status) = result(id, status).results.first
+
+    def unjudged
+      framework(test_ids: ["t1"], finish: nil)
+      harness = executor(coverage: { 1 => ["t1"] })
+      warm = Kimera::RunReport.new(results: [verdict(1, :harness_error), verdict(2, :killed)])
+      allow(harness).to(receive_messages(warm!: nil, run: warm))
+      runner = instance_double(Kimera::Execution::IsolatedExecution, rejudge: [verdict(1, :killed)])
+      allow(Kimera::Execution::IsolatedExecution).to(receive(:new).and_return(runner))
+      [runner, warm.results.first, Kimera::Incremental::Session.new]
+    end
+
+    it "re-judges in the isolated tier what the warm pass could not judge" do
+      runner, warm, session = unjudged
+      report = pass(registry, settings(hard_timeout: 9.0, jobs: 3), [1, 2], session)
+      expect(report.results.map { |r| [r.mutant_id, r.status] }).to(eq([[1, :killed], [2, :killed]]))
+      expect(runner).to(have_received(:rejudge).with([warm], label: "mutants (re-judged)"))
+      settings = hash_including(coverage: { 1 => ["t1"] }, hard_timeout: 9.0, jobs: 3, tests: ["t1"])
+      expect(Kimera::Execution::IsolatedExecution).to(have_received(:new).with(settings))
+    end
+
+    it "leaves the warm verdicts alone under --no-rejudge" do
+      runner, _warm, session = unjudged
+      report = pass(registry, settings(rejudge: false), [1, 2], session)
+      expect(report.results.map(&:status)).to(eq(%i[harness_error killed]))
+      expect(runner).not_to(have_received(:rejudge))
     end
 
     it "isolates only mutants covered by a pool-unsafe spec and merges the reports" do

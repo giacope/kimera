@@ -44,6 +44,18 @@ module Kimera
         end
       end
 
+      def alone(ids)
+        sweep = Kimera::Execution::Sweep.new(ids, Mutex.new)
+        Array.new(jobs) { Thread.new { solo(sweep) } }.each(&:join)
+        sweep.results.to_h { |result| [result.mutant_id, result] }
+      end
+
+      def solo(sweep)
+        while (id = sweep.pop)
+          charge(sweep, single(id))
+        end
+      end
+
       def charge(sweep, result)
         done = sweep.record(result)
         progress.tick(result.status)

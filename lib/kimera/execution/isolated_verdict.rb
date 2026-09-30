@@ -15,6 +15,22 @@ module Kimera
         self.error(trial, "#{error.class}: #{error.message}")
       end
 
+      def single(id)
+        result = with_mirror { |mirror| evaluate(Kimera::Execution::Trial.new(id, mirror, Overlay.new(plan.registry))) }
+        return unstaged(result) if result.status == :error
+        result.killed? ? confirmed(result) : result
+      end
+
+      def unstaged(result)
+        result.unjudged("the isolated tier could not stage it: #{result.detail}")
+      end
+
+      def confirmed(result)
+        control = with_mirror { |mirror| verdict(mirror, result.covering_tests) }
+        return result if control.status == :survived
+        result.unjudged("its tests fail in a fresh mirror without the mutant too (#{control.explain(limit)})")
+      end
+
       def bake(trial, point)
         trial.file = point.file
         tests = plan.tests(trial.id, point)

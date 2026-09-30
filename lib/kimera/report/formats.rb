@@ -67,8 +67,11 @@ class Kimera::Report::Formats
 
   def message(result)
     location = [result["file"], result["line"]].compact.join(":")
-    "#{result["status"]} mutant ##{result["mutant_id"]} at #{location}: #{result["label"] || result["detail"]}".strip
+    "#{result["status"]} mutant ##{result["mutant_id"]} at #{location}: #{result["label"] || result["detail"]}".strip +
+      noted(result["note"])
   end
+
+  def noted(note) = note ? " (#{note})" : ""
 
   def property(value) = value.to_s.gsub(/[%\r\n,:]/) { |char| "%#{char.ord.to_s(16).upcase.rjust(2, "0")}" }
 

@@ -43,6 +43,7 @@ class Kimera::CLI::Survivors::Panel
     seconds = row["duration"]
     @io.puts("  duration: #{Kimera::Duration.new(seconds).brief}") if seconds&.positive?
     field("detail:   ", row["detail"])
+    field("note:     ", row["note"])
   end
 
   def field(prefix, value)

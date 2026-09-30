@@ -44,6 +44,7 @@ class Kimera::Report::Text
     section("Surviving mutants", report.survived) { |result| survivor(result) }
     unjudged(report)
     waivers(report)
+    rejudged(report)
   end
 
   def summary(report)
@@ -70,6 +71,7 @@ class Kimera::Report::Text
     spotted("survived", id, mutant, point)
     diff(point, mutant)
     covering(result)
+    annotate(result)
   end
 
   def resolved(result)

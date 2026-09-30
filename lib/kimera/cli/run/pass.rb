@@ -70,8 +70,14 @@ class Kimera::CLI::Run::Pass
 
   def pooled(remaining, isolated)
     apart, together = split(remaining)
-    return harness.run(ids: together, label: "mutants") if apart.empty?
-    harness.run(ids: together, label: "mutants (warm)").merge(isolated.call(apart))
+    return rejudged(harness.run(ids: together, label: "mutants")) if apart.empty?
+    rejudged(harness.run(ids: together, label: "mutants (warm)")).merge(isolated.call(apart))
+  end
+
+  def rejudged(report)
+    unjudged = report.errors
+    return report if unjudged.empty? || @options[:rejudge] == false
+    report.revise(isolation.rejudge(unjudged, label: "mutants (re-judged)"))
   end
 
   def judge(ids)

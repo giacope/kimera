@@ -52,6 +52,11 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       expect(plan.tests(mutant_id, point)).to(be_nil)
     end
 
+    # --no-coverage measured nothing, so every test covers every mutant, as warm.
+    it "runs the whole suite when no coverage was measured" do
+      expect(plan(coverage: nil).tests(mutant_id, point)).to(eq(%w[t1 t2 t3]))
+    end
+
     it "runs a schema-unsafe point against the whole suite (a safe superset)" do
       unsafe = Kimera::RegistryScan.new.source(<<~RUBY, file: "lib/memo.rb")
         def total(a, b)

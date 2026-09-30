@@ -33,6 +33,19 @@ RSpec.describe(Kimera::RunReport) do
     end
   end
 
+  describe "#revise" do
+    let(:leak) { Kimera::LeakReport.new(mutant_id: 3, detail: "state") }
+    let(:registry) { Kimera::RegistryScan.new.source("def gt(a, b)\n  a > b\nend\n", file: "cmp.rb") }
+
+    it "replaces the revised results in place, keeping the rest, the leaks and the registry", :aggregate_failures do
+      results = [result(1, :harness_error), result(2, :killed)]
+      warm = described_class.new(results: results, leaks: [leak], registry: registry)
+      revised = warm.revise([result(1, :survived)])
+      expect(revised.results.map { |r| [r.mutant_id, r.status] }).to(eq([[1, :survived], [2, :killed]]))
+      expect([revised.leaks, revised.registry]).to(eq([[leak], registry]))
+    end
+  end
+
   describe "#score" do
     it "is killed / evaluable" do
       # 4 killed out of 5 evaluable

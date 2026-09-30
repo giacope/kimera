@@ -28,7 +28,26 @@ module Kimera::Report::Sections
   def unjudge(result)
     id = result.mutant_id
     @io.puts("  #{red("unjudged")} ##{id}  #{where(@registry.index[id], result)}  #{result.detail}")
+    annotate(result)
   end
+
+  def annotate(result)
+    note = result.note
+    @io.puts("    note: #{note}") if note
+  end
+
+  def rejudged(report)
+    judged = report.results.select(&:note)
+    return if judged.empty?
+    @io.puts
+    @io.puts("#{judged.size} mutant(s) the warm pass could not judge, judged again in fresh mirrors: #{tally(judged)}.")
+  end
+
+  def tally(judged)
+    judged.group_by(&:status).map { |status, results| "#{results.size} #{named(status)}" }.join(", ")
+  end
+
+  def named(status) = status == :harness_error ? "unjudged" : status
 
   def where(point, result)
     point ? "#{point.file}:#{point.location.start_line}" : result.file.to_s
