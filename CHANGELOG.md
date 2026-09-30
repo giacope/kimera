@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- A red baseline from a suite that isn't parallel-safe now says to try
+  `--jobs 1`. `kimera init` writes `jobs:` at the core count, and thor
+  (every test shares `spec/sandbox`), sinatra (`send_file` tests write and
+  delete `test/file.txt`) and devise (generator tests share `tmp/`) are red
+  on four workers and green on one. The error named no next step, and on
+  thor it listed about 80 test IDs on a single line before the per-worker
+  traces. A baseline that ran on several workers now ends with `ran on N
+  workers: if these pass with --jobs 1, the suite shares state between
+  workers (a directory, file or port)`, and the failing tests are listed one
+  per line, the first 10 and then `… and N more`, as `doctor` lists them.
+  The baseline Kimera checks in one process (`--no-coverage`, `--jobs 1`)
+  gives no such hint. `kimera doctor --check-baseline` ran the suite in one
+  process only, so it called these suites green; with `jobs:` over 1 it now
+  also runs the suite split across that many processes, dealing each file's
+  tests out in turn as the warm pool does, and warns with the failing tests
+  when that is red. `--jobs N` checks another width; `--jobs 1` skips it.
 - Processes a test starts no longer outlive a warm worker the watchdog
   kills. Sinatra's integration tests start server subprocesses and stop
   them in teardown; a worker SIGKILLed mid-test never ran that teardown,

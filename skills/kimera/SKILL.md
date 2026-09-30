@@ -37,6 +37,11 @@ bundle exec kimera doctor --check-baseline  # discovery, git, and a green suite
 - The green check covers only tests that *cover* an in-scope mutant. A red
   test touching none of them is reported and excluded, so an unrelated flaky
   spec doesn't abort a per-module run.
+- A red baseline that says `ran on N workers`: rerun with `--jobs 1`. Green
+  there means the tests share a directory, file or port between workers, not
+  that they are broken. Give each test its own (`Dir.mktmpdir`, a free port)
+  or keep `jobs: 1`; `doctor --check-baseline` flags this before a run when
+  `jobs:` is over 1.
 
 ## Operate
 

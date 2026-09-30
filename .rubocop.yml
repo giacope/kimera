@@ -106,6 +106,8 @@ ThreadSafety/NewThread:
   Exclude:
     # One thread per job is this file's purpose.
     - lib/kimera/execution/isolated_scheduling.rb
+    # doctor waits on one suite process per job at once.
+    - lib/kimera/cli/test_command.rb
 Style/CaseEquality:
   Exclude:
     # Prism::Node#=== is structural equality (locations ignored), not a case match.
