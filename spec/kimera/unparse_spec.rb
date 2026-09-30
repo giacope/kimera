@@ -11,6 +11,38 @@ RSpec.describe(Kimera::Unparse) do
     expect { expect(described_class.unparse(described_class.parse("a > b"))).to(eq("a > b")) }.not_to(output.to_stderr)
   end
 
+  # Ruby and Prism read "\xFF" in a UTF-8 file as that byte, but the parser
+  # gem's builder rejected the literal, so one (as in Lobsters' avatar sniffing)
+  # left its whole file unmutatable.
+  describe "a string escape that is invalid UTF-8" do
+    let(:source) { 'def jpeg?(data) = data.start_with?("\xFF\xD8\xFF".b)' }
+
+    it "parses to the bytes Ruby reads and writes them back as escapes", :aggregate_failures do
+      tree = described_class.parse(source)
+      literal = tree.children.last.children.last.children.first
+      expect(literal.children.first.bytes).to(eq([0xFF, 0xD8, 0xFF]))
+      expect(described_class.unparse(tree)).to(eq("def jpeg?(data)\n  data.start_with?(\"\\xFF\\xD8\\xFF\".b)\nend"))
+    end
+
+    # unparser writes an interpolated string only once it parses back.
+    it "writes it back interpolated, where unparser parses what it wrote" do
+      interpolated = %("x\#{"\\xFF"}y")
+      expect(described_class.unparse(described_class.parse(interpolated))).to(eq(interpolated))
+    end
+
+    it "still rejects what Ruby rejects, as an escape invalid in a regexp" do
+      expect { described_class.parse('/\xFF/') }
+        .to(raise_error(Parser::SyntaxError, %r{invalid multibyte escape: /\\xFF/}))
+    end
+
+    # unparser writes a command string's parts as they are, so the escape
+    # would come back a raw byte and the file no longer load.
+    it "refuses to write the raw bytes unparser leaves in a command string" do
+      expect { described_class.unparse(described_class.parse("`printf \\xFE\#{name}`")) }
+        .to(raise_error(EncodingError, "unparser wrote a literal's raw bytes, invalid in UTF-8"))
+    end
+  end
+
   # unparser 0.9 only tracked locals from assignments and method parameters, so a
   # string interpolating any other local failed its round-trip check and took the
   # whole file down with it.
