@@ -180,6 +180,71 @@ RSpec.describe(Kimera::Overlay) do
       )
     end
 
+    it "bakes a file with a string escape that is invalid UTF-8" do
+      src = "def scaled(size, data) = data.start_with?(\"\\xFF\\xD8\".b) ? size * 2 : size\n"
+      catalog = selected(%w[arithmetic], src)
+      baked = described_class.new(catalog).bake("x.rb", src, catalog.each.first.first.id)
+      expect(baked).to(include('data.start_with?("\xFF\xD8".b)', "size / 2"))
+    end
+
+    # unparser can't write such a byte back into a plain heredoc. As a warm
+    # run splices the file per method, a bake then writes the point's method alone.
+    describe "in a file unparser can't write" do
+      let(:src) do
+        <<~'RUBY'
+          module Sniffer
+            LIMIT = 3
+            Check = ->(value) { value > LIMIT }
+            Size = Data.define(:x) do
+              def big? = x > LIMIT
+            end
+
+            def self.banner(size)
+              return "" if size < LIMIT
+              <<~TEXT
+                \xFF
+                end
+              TEXT
+            end
+
+            def self.scaled(size) = size * LIMIT
+          end
+        RUBY
+      end
+      let(:catalog) { selected(%w[arithmetic comparison], src) }
+
+      def bake(needle)
+        point = catalog.points.find { |p| p.original_source == needle }
+        described_class.new(catalog).bake("x.rb", src, point.mutants.first.id)
+      end
+
+      it "writes the method that holds the point and keeps the rest verbatim", :aggregate_failures do
+        baked = bake("size * LIMIT")
+        expect(baked).to(end_with(src.lines.drop(4).join.sub(" = size * LIMIT", "\n  size / LIMIT\nend")))
+        expect(Prism.parse(baked)).to(be_success)
+      end
+
+      # Re-evaluating `Size = Data.define do` would make a second class.
+      it "reopens a value object around the method it writes", :aggregate_failures do
+        baked = bake("x > LIMIT")
+        expect(baked).to(include("Size = ((is_a?(::Module) ? self : ::Object).const_defined?(:Size, false)"))
+        expect(baked).to(include("def big?\n  x >= LIMIT\nend", "    \\xFF\n"))
+      end
+
+      it "raises Unbakeable for a point in the method it can't write, or in none", :aggregate_failures do
+        message = /\Aunparser could not write its bake \(EncodingError: /
+        expect { bake("size < LIMIT") }.to(raise_error(described_class::Unbakeable, message))
+        expect { bake("value > LIMIT") }.to(raise_error(described_class::Unbakeable, message))
+      end
+
+      it "raises Unbakeable when the spliced method would not parse" do
+        allow(Kimera::Unparse).to(receive(:unparse).and_wrap_original) do |original, node|
+          %i[def defs].include?(node.type) ? "def broken(" : original.call(node)
+        end
+        expect { bake("size * LIMIT") }.to(raise_error(described_class::Unbakeable, /could not write its bake/))
+      end
+    end
+
     it "raises Unbakeable, naming the unparser failure, when unparser can't write the bake" do
       mutant = registry.each.first.first
       allow(Kimera::Unparse).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))

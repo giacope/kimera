@@ -64,7 +64,7 @@ module Kimera
 
     def each(&)
       claimed = []
-      definitions.each { |definition| visit(definition, claimed, &) }
+      definitions(@map.ast).each { |definition| visit(definition, claimed, &) }
       claimed
     end
 
@@ -80,9 +80,9 @@ module Kimera
       @safe.select { |point| !claimed.include?(point) && point.location.within?(from, to) }
     end
 
-    def definitions
+    def definitions(root)
       nodes = []
-      Kimera::Rewrite::AstWalk.visit(@map.ast) { |node| nodes << node if %i[def defs].include?(node.type) }
+      Kimera::Rewrite::AstWalk.visit(root) { |node| nodes << node if %i[def defs].include?(node.type) }
       nodes
     end
 

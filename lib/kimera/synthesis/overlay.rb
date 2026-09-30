@@ -45,7 +45,7 @@ class Kimera::Overlay
     pair = @registry.point(id)
     return source unless pair
     map = Kimera::SourceMap.new(source)
-    map.restore(write(baked(map, *pair)))
+    write(map, baked(map, *pair), pair.last)
   end
 
   private
@@ -55,10 +55,11 @@ class Kimera::Overlay
       raise(Unbakeable, Kimera::Overlay::FileWeave::UNMATCHED)
   end
 
-  def write(tree)
-    Kimera::Unparse.unparse(tree)
+  def write(map, tree, point)
+    map.restore(Kimera::Unparse.unparse(tree))
   rescue StandardError => error
-    raise(Unbakeable, "unparser could not write its bake (#{error.class}: #{error.message})")
+    Kimera::Overlay::MethodBake.new(map, tree).source(point.location) ||
+      raise(Unbakeable, "unparser could not write its bake (#{error.class}: #{error.message})")
   end
 
   def unsafe(file, source, points)
@@ -67,3 +68,4 @@ class Kimera::Overlay
 end
 
 require_relative "file_weave"
+require_relative "method_bake"

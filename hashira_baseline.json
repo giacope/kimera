@@ -141,6 +141,11 @@
     },
     {
       "kind": "control_parameter",
+      "package": "Kimera::Unparse::RawBytes#diagnostic",
+      "reason": "overrides the parser gem builder's diagnostic hook, whose signature is the gem's: reason is the diagnostic it reports, and the branch lets exactly one (invalid_encoding) through"
+    },
+    {
+      "kind": "control_parameter",
       "package": "Kimera::Operators::ReturnValue#variants",
       "reason": "position: is the operator protocol every operator receives, not a flag this one invented"
     },

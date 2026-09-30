@@ -16,7 +16,8 @@ require "pbt"
 # `(-%1)` over `-1` roots a call chain at a literal a mutation can unsign
 # (`(--1.to_s)`), or leaves a literal the parser folds (`(--1)`).
 # `([%1]...[%2]).to_s.size` has array literals for endpoints and prints the
-# range instead of iterating.
+# range instead of iterating. `"\xFF"` is a string whose escape is not valid
+# UTF-8, which Ruby reads as that byte.
 class RubyPrograms < Pbt::Arbitrary::Arbitrary
   # Each hole is filled from DEFAULTS, or from LITERALS where `a` is itself
   # optional (its default can't read it).
@@ -29,7 +30,7 @@ class RubyPrograms < Pbt::Arbitrary::Arbitrary
   }.freeze
   SIMPLEST = ["def m(a, b = %1, c: %2)", ["2"], ["2"]].freeze
   DEFAULTS = { literal: %w[1 2 nil], any: ["2", "3", "nil", '"s"', "(1 / a)", "a.to_s", "(a + 1)"] }.freeze
-  LEAVES = ["a", "b", "c", "0", "1", "2", "-1", "7", "nil", "true", "false", '"s"', ":k", "[]", "{}"].freeze
+  LEAVES = ["a", "b", "c", "0", "1", "2", "-1", "7", "nil", "true", "false", '"s"', '"\xFF"', ":k", "[]", "{}"].freeze
   UNARY = [
     "(!%1)", "(-%1)", "%1.to_s", "%1.to_s.size", "%1.abs", "%1&.succ", "%1.to_s.upcase", "Integer(%1)",
     "String(%1)", "%1.to_s.to_sym", "[%1].first", '"x#{%1}y"', "%1.to_s.match?(/1/)", "%1.nil?",

@@ -571,6 +571,51 @@ RSpec.describe(Kimera::Overlay) do
     end
   end
 
+  # From Lobsters: Ruby reads "\xFF" in a UTF-8 file as that byte, but the
+  # parser gem rejected the literal, so its whole file was unmutatable.
+  describe "a string escape that is invalid UTF-8" do
+    def escaped(source, keys = %w[string_literal arithmetic])
+      operators = Kimera::Operators.build(keys: keys)
+      registry = Kimera::RegistryScan.new(operators: operators).source(source, file: "escaped.rb")
+      [described_class.new(registry).synthesize("escaped.rb", source), registry]
+    end
+
+    let(:source) do
+      <<~'RUBY'
+        def content_type(data)
+          data.start_with?("\xFF\xD8\xFF".b) ? "image/jpeg" : "image/png"
+        end
+
+        def scaled(size) = size * 2
+      RUBY
+    end
+
+    it "mutates the whole file, the literal's own point too", :aggregate_failures do
+      result, registry = escaped(source)
+      expect([result.mutant_ids.size, result.skipped_unsafe]).to(eq([registry.count, []]))
+      subject = subject(result)
+      Kimera::Runtime.active = nil
+      expect(subject.content_type("\xFF\xD8\xFF\xE0".b)).to(eq("image/jpeg"))
+      Kimera::Runtime.active = registry.each.find { |m, _p| m.label == '"\xFF\xD8\xFF" => ""' }.first.id
+      expect(subject.content_type("\x89PNG".b)).to(eq("image/jpeg"))
+    end
+
+    # unparser can't write such a byte back into a plain heredoc (a guarded
+    # part is written as an interpolation, which it can), so only its method
+    # is left out.
+    it "splices the other methods when unparser can't write the literal", :aggregate_failures do
+      heredoc = "def banner(size)\n  return if size < 2 * 2\n  <<~TEXT\n    \\xFF\n    end\n  TEXT\nend\n\n#{source}"
+      result = nil
+      registry = nil
+      expect { result, registry = escaped(heredoc, %w[arithmetic comparison]) }
+        .to(output(/escaped\.rb: file-level round-trip failed; 1 mutant\(s\) spliced per method, 3 reported/).to_stderr)
+      dropped = registry.points.reject(&:safe?)
+      expect(dropped.map(&:method_name).uniq).to(eq(["banner"]))
+      expect(dropped.map(&:unsafe_reason).uniq).to(eq(["unmutatable: unparser could not round-trip its method"]))
+      expect(subject(result).banner(5).bytes).to(eq([0xFF, 10, 101, 110, 100, 10]))
+    end
+  end
+
   describe "unparser round-trip fallback" do
     # From campfire: unparser can't round-trip the guarded inline-assignment
     # condition. Only that point should drop, not the whole file.
