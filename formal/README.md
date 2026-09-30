@@ -154,16 +154,28 @@ The model abstracts away:
 ## How the model relates to the code
 
 `spec/property/worker_pool_spec.rb` runs the real parent (`WorkerPool`,
-`Fleet`, `Worker`, `StillbornGuard`) against forked children that follow
-random scripts drawn from the model's child actions (result, leak, tainted,
-requeue, crash, hang, half a line then silence). Each run is supervised in its
-own process group with an external deadline. Two kinds of evidence come out
-of it.
+`Fleet`, `Worker`, `StillbornGuard`) against forked children, each mutant
+with a random script: what happens when it is offered warm, and again on a
+recheck. The children come in two kinds:
+- scripts that speak `Shift`'s pipe protocol, drawn from the model's child
+  actions (result, leak, tainted, requeue, crash, hang, and half a line then
+  silence);
+- the real `Shift`, driven by an adapter (`spec/property/support/faulty_adapter.rb`)
+  whose one test kills the mutant, lets it survive, leaks (killed, then
+  survives `LeakGuard`'s re-run), fails with the mutant off too (a `Suspect`),
+  outlasts the soft timeout, crashes the process, or hangs through the soft
+  timeout. `Shift`, `Attempt`, `Trial` and `LeakGuard` then decide what goes
+  down the pipe: a requeue, or on a recheck a `Doubt` ruled `harness_error`.
+
+Each run is supervised in its own process group with an external deadline,
+and the random scripts are drawn from the property seed (`PBT_SEED` replays
+a run). Two kinds of evidence come out of it.
 
 **Outcomes.** The model's safety invariants hold of what actually happened:
-one verdict per mutant, of the kind the script calls for; one requeue per
-requeued mutant; rechecks only on fresh workers; slots reused only after
-their holder is reaped; an abort only when `StillbornGuard`'s condition held.
+one verdict per mutant, of the kind and status its script calls for; one
+requeue per requeued mutant, and none for a recheck; rechecks only on fresh
+workers; slots reused only after their holder is reaped; an abort only when
+`StillbornGuard`'s condition held.
 
 **Trace validation.** Each run also logs the parent's steps
 (`spec/property/support/pool_trace.rb`, prepended to the pool's classes inside
@@ -178,19 +190,24 @@ any steps that explain what the parent read. So each real step is a model
 transition, and the model's deterministic parent logic (`Take`,
 `Following`, `Pending`, `Remove`, the refill count, the FIFO of slots,
 `StillbornGuard`) makes the same choice the code made, every time, along
-the whole run. 30 random runs are checked per `bin/spec` (about 7 s of TLC,
-one TLC run per pool size), 300 in the `properties-deep` job; the examples
-skip when Java is missing.
+the whole run. With `Shift` as the child, its side is checked too: every
+line it wrote, in order, must be one the model's child actions write. 30
+random runs of each kind are checked per `bin/spec` (about 7 s of TLC each,
+one TLC run per pool size; the whole file takes under a minute), 300 in the
+`properties-deep` job; the trace examples skip when Java is missing.
 
-The check has teeth. Each change below to the Ruby parent, with the
-property's seed fixed, is rejected at the first step where it diverges:
+The check has teeth. Each change below to the Ruby code was run with the
+property's seed fixed; a rejected trace is reported at the first step where
+the code and the model diverge:
 
-| Change to the parent | Outcome checks | Trace validation |
+| Change to the code | Outcome checks | Trace validation |
 | --- | --- | --- |
 | `Fleet#take` serves the queue before a recheck | pass | rejected (a spawn offers 2, the model offers the recheck of 1) |
 | `Fleet#remove` returns a slot to the front of `Fleet#slots` | pass | rejected (a spawn takes the wrong slot) |
 | `StillbornGuard` aborts one crash early | fail | rejected (an abort the model doesn't take) |
 | a `leak` message closes the worker | fail | rejected (a read that sends a close) |
+| `Shift#process` runs `LeakGuard` before it reports the result | pass | rejected (a leak read before the result) |
+| `Shift` ignores an offer's recheck flag | fail (the recheck requeues forever) | fail (the run never ends) |
 
 The first is also a permanent example in the property spec: the mutant runs
 with correct verdicts, and its trace must be rejected at step 5. The model's
@@ -203,9 +220,11 @@ What trace validation does not establish:
   it happens to make);
 - anything about what the parent does between logged steps beyond what the
   model's state reflects (message payloads, the ledger, deadlines);
-- the child side: the children are scripts that speak `Shift`'s pipe
-  protocol, not `Shift`. The model's child actions are the only thing their
-  logs are checked against.
+- the whole child: `Shift` runs under a fake adapter, one test per mutant,
+  without the pool driver around it (`Pool::Duty`'s `tick` pulses and the
+  `crash` message with a dying worker's last words, which the model lacks).
+  Half a line followed by silence comes only from the scripted children: an
+  adapter can't make `Shift` stop partway through a write.
 
 ## Evidence the invariants have teeth
 
