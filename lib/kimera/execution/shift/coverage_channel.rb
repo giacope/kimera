@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "../stopwatch"
+
 class Kimera::Execution::Shift::CoverageChannel
   def initialize(adapter)
     @adapter = adapter
@@ -24,7 +26,8 @@ class Kimera::Execution::Shift::CoverageChannel
 
   def step(response, testid, ledger)
     Kimera::Runtime.active = nil
-    emit(response, **message(testid, ledger, @adapter.run([testid])))
+    watch = Kimera::Execution::Stopwatch.new
+    emit(response, **message(testid, ledger, watch.lap { @adapter.run([testid]) }), took: watch.last)
   end
 
   def message(testid, ledger, outcome)

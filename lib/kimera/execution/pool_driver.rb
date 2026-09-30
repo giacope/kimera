@@ -61,6 +61,10 @@ class Kimera::Execution::Pool
     @options[:coverage] = measured
   end
 
+  def budget=(budget)
+    @options[:budget] = budget
+  end
+
   def drive(queue, spawner, resolve:, lost:, trace: nil, jobs: @options.fetch(:jobs))
     database.before_fork
     Dir.mktmpdir("kimera-stacks") do |dir|
@@ -120,7 +124,8 @@ class Kimera::Execution::Pool
   def build(duty)
     Kimera::Execution::Shift.new(
       adapter: @adapter, registry: @registry, coverage: coverage, isolation: @isolation,
-      soft_timeout: @options.fetch(:soft), leak_every: @options.fetch(:leak), pulse: pulse(duty)
+      soft_timeout: @options.fetch(:soft), leak_every: @options.fetch(:leak), pulse: pulse(duty),
+      **@options.slice(:budget)
     )
   end
 

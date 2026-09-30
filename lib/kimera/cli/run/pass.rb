@@ -52,6 +52,7 @@ class Kimera::CLI::Run::Pass
     { registry: @registry, adapter: @adapter, source_root: @options[:source_root] }
       .merge(soft_timeout: @options[:soft_timeout], leak_every: @options[:leak_every], jobs: @options[:jobs])
       .merge(isolate_db: @options[:isolate_db], progress: progress)
+      .merge(@options.slice(:relative_timeout, :timeout_factor, :timeout_slack))
   end
 
   def warm

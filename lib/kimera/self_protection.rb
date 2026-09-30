@@ -24,6 +24,7 @@ module Kimera
       kimera/execution/shift.rb
       kimera/execution/shift/attempt.rb
       kimera/execution/shift/deadline.rb
+      kimera/execution/shift/overrun.rb
       kimera/execution/shift/subject.rb
       kimera/execution/shift/suspect.rb
       kimera/execution/shift/trial.rb
@@ -32,6 +33,9 @@ module Kimera
       kimera/execution/shift/leak_guard.rb
       kimera/execution/harness.rb
       kimera/execution/baseline_pass.rb
+      kimera/execution/baseline_tally.rb
+      kimera/execution/stopwatch.rb
+      kimera/execution/time_budget.rb
       kimera/execution/reload.rb
       kimera/execution/parallel_test_databases.rb
       kimera/execution/verdicts.rb

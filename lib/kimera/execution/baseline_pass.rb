@@ -5,13 +5,12 @@ require_relative "../error"
 require_relative "../runtime"
 require_relative "baseline_failure"
 require_relative "baseline_losses"
+require_relative "baseline_tally"
 require_relative "signal_guard"
+require_relative "stopwatch"
 require_relative "null_progress"
 
 class Kimera::Execution::BaselinePass
-  Measured = Struct.new(:coverage, :irrelevant, :recovered, keyword_init: true)
-  Tally = Struct.new(:coverage, :failures, :irrelevant)
-
   def initialize(adapter:, registry:, progress: Kimera::Execution::NullProgress)
     @adapter = adapter
     @registry = registry
@@ -41,12 +40,12 @@ class Kimera::Execution::BaselinePass
     @progress.finish
   end
 
-  def tally = @_tally ||= Tally.new(Hash.new { |h, k| h[k] = [] }, [], [])
+  def tally = @_tally ||= Kimera::Execution::BaselineTally.new(Hash.new { |h, k| h[k] = [] }, [], [], {})
 
   def report
     failures = tally.failures
     failure!(failures) unless failures.empty?
-    Measured.new(coverage: tally.coverage, irrelevant: excluded, recovered: losses.recovered(@messages))
+    tally.measured(excluded, losses.recovered(@messages))
   end
 
   def excluded = tally.irrelevant.to_h { |test_id| [test_id, @messages[test_id]] }
@@ -61,13 +60,14 @@ class Kimera::Execution::BaselinePass
   def attempt(ledger, test_id)
     Kimera::Runtime.active = nil
     Kimera::Runtime.clear!(ledger)
-    record(test_id, sheltered(test_id), Kimera::Runtime.drain!(ledger))
+    watch = Kimera::Execution::Stopwatch.new
+    record(test_id, watch.lap { sheltered(test_id) }, Kimera::Runtime.drain!(ledger), watch.last)
   end
 
   def sheltered(test_id) = Kimera::Execution::SignalGuard.run(test_id) { quietly { @adapter.run([test_id]) } }
 
-  def record(test_id, outcome, touched)
-    touched.each { |id| tally.coverage[id] << test_id }
+  def record(test_id, outcome, touched, took)
+    tally.cover(test_id, touched, took)
     bank(test_id, touched, message: outcome.failures[test_id]) unless outcome.passed?
     @progress.tick
   end
@@ -92,7 +92,7 @@ class Kimera::Execution::BaselinePass
   def receive(message)
     touched = message["touched"]
     test_id = message["id"]
-    touched.each { |id| tally.coverage[id] << test_id }
+    tally.cover(test_id, touched, message["took"])
     bank(test_id, touched, message: message["failure"]) unless message["passed"]
     @progress.tick
   end
