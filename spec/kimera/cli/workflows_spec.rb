@@ -165,6 +165,30 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     expect(bare).not_to(include("Coverage floor"))
   end
 
+  # giacope/kimera#19: pundit's floor applies only when COVERAGE is set, and
+  # Kimera's runs never set it.
+  it "stays quiet about a coverage floor gated on any other env var" do
+    _status, output = test_doctor_floor(<<~RUBY)
+      if ENV["COVERAGE"]
+        require "simplecov"
+        SimpleCov.start { add_filter "/spec/" }
+        SimpleCov.minimum_coverage_by_file line: 100, branch: 100
+      end
+    RUBY
+    expect(output).not_to(include("Coverage floor"))
+  end
+
+  it "reads a minitest helper's floor the same way", :aggregate_failures do
+    Dir.mktmpdir do |dir|
+      FileUtils.mkdir_p(File.join(dir, "test"))
+      helper = File.join(dir, "test", "test_helper.rb")
+      File.write(helper, %(SimpleCov.minimum_coverage 90 if ENV["COVERAGE"]\nrequire "minitest/autorun"\n))
+      expect(test_doctor_in(dir).last).not_to(include("Coverage floor"))
+      File.write(helper, %(SimpleCov.minimum_coverage 90\nrequire "minitest/autorun"\n))
+      expect(test_doctor_in(dir).last).to(include("! Coverage floor: minimum_coverage in test/test_helper.rb can fail"))
+    end
+  end
+
   def test_initialized(files)
     Dir.mktmpdir do |dir|
       files.each do |path, body|

@@ -223,7 +223,7 @@ gap: test that side effect.
   Kimera
   sets `KIMERA=1` wherever it loads the suite (warm, `--isolated`, doctor), so
   gate the floor on it (`minimum_coverage ... unless ENV["KIMERA"]`); `kimera
-  doctor` warns when it isn't.
+  doctor` warns when no condition on `ENV` guards it.
 - A cluster of `error`/`timeout` verdicts in one region usually means harness
   fragility or a missing guard, not test strength. Read the cluster before
   counting the detections.

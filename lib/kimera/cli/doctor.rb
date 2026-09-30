@@ -3,6 +3,7 @@
 require_relative "../error"
 require_relative "../scope/config"
 require_relative "../scope/file_set"
+require_relative "coverage_minimum"
 require_relative "flag"
 require_relative "test_command"
 
@@ -102,15 +103,11 @@ class Kimera::CLI::Doctor
   end
 
   def floored(helper)
-    "Coverage floor: minimum_coverage in #{helper} fails Kimera's partial runs; " \
+    "Coverage floor: minimum_coverage in #{helper} can fail Kimera's partial runs; " \
       "skip it when ENV[\"KIMERA\"] is set (Kimera sets it)"
   end
 
-  def floor?(path)
-    return false unless File.file?(path)
-    source = File.read(path)
-    source.include?("minimum_coverage") && !source.include?("KIMERA")
-  end
+  def floor?(path) = File.file?(path) && Kimera::CLI::CoverageMinimum.ungated?(File.read(path))
 
   def baselines(config) = test_command(config).baselines
 
