@@ -539,6 +539,45 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
   end
 
+  # The coverage pass times each test; a mutant that makes a covering test
+  # run past baseline × factor + slack, twice, is a timeout.
+  describe "relative time budget" do
+    def dawdling(target)
+      Class.new(Kimera::Frameworks::Adapter) do
+        def test_ids = %w[t1]
+        define_method(:run) do |_test_ids|
+          sleep(0.3) if Kimera::Runtime.active?(target)
+          Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+        end
+      end.new
+    end
+
+    def judged(**)
+      target = ids.first
+      h = harness(dawdling(target), timeout_factor: 2.0, timeout_slack: 0.1, **)
+      h.__send__(:measure!)
+      h.run(ids: [target]).results.first
+    end
+
+    it "times each baseline test and holds each covering test to its budget", :aggregate_failures do
+      result = judged
+      expect(result.status).to(eq(:timeout))
+      expect(result.detail).to(match(/\At1 ran past its relative time budget .*× 2\.0 \+ 0\.1s\), and in /))
+    end
+
+    it "times the baseline tests of a parallel coverage pass too" do
+      expect(judged(jobs: 2).status).to(eq(:timeout))
+    end
+
+    it "is off under relative_timeout: false" do
+      expect(judged(relative_timeout: false).status).to(eq(:survived))
+    end
+
+    it "falls back to the default slack" do
+      expect(judged(timeout_slack: nil).status).to(eq(:survived))
+    end
+  end
+
   describe "#warm! wiring" do
     let(:dir) { Dir.mktmpdir }
 

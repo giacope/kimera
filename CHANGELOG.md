@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- A mutant that slows every covering test without failing any no longer
+  costs the whole run. Deleting `pool.shutdown` in once-campfire made each
+  of 407 tests wait out two `wait_for_termination(1)` calls, about 2s more
+  each and never near the 5s soft timeout, so the mutant ran them all and
+  survived after 870s, about 90% of the run's wall time. The coverage pass
+  now records each test's time, and in the warm pass a covering test that
+  passes but runs past its baseline × 10 + 1s, then keeps to that budget
+  with the mutant switched off and runs past it again with it on, makes the
+  mutant a `timeout` (detected), with a `detail` naming the test, both runs
+  and the budget. A slow first test on a fresh worker or a GC pause does not
+  repeat, so it is not a verdict. `--timeout-factor` and `--timeout-slack`
+  (`timeout_factor:`, `timeout_slack:`) tune it, and `--no-relative-timeout`
+  (`relative_timeout: false`) keeps the old behavior. Tests with no baseline
+  (`--no-coverage`), and the isolated and reload tiers, keep only the
+  absolute timeouts.
 - A mutant whose effect outlives its switch-off is judged, not left
   unjudged. A memoized class-level table the mutant poisoned, a `require` a
   later test satisfied, or rows a crashed `before(:all)` left behind made

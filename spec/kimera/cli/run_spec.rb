@@ -52,6 +52,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         framework: "rspec", source_root: ".", tests: ["spec/**/*_spec.rb"], configured_tests: ["spec/**/*_spec.rb"],
         operators: Kimera::Operators::DEFAULT_KEYS,
         soft_timeout: 5.0, hard_timeout: nil, leak_every: 10,
+        relative_timeout: true, timeout_factor: nil, timeout_slack: nil,
         registry: nil, report: nil, format: "text", focus: [], gate: true, coverage: true, require: [],
         since: nil, session: nil, max_survivors: nil, max_ignored: nil,
         max_errors: 0, evaluate_ignored: false, baseline: nil,
@@ -112,7 +113,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     def flags
       %w[
         framework tests source-root registry operators soft-timeout
-        hard-timeout leak-every coverage since session max-survivors
+        hard-timeout relative-timeout timeout-factor timeout-slack leak-every coverage since session max-survivors
         max-ignored fail-on-no-coverage jobs progress isolate-db isolated
         isolate-when-covered-by rejudge exclude config pidfile evaluate-ignored no-baseline
       ]
@@ -174,6 +175,15 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       File.write("custom.yml", "rejudge: false\n")
       expect(cli.__send__(:parse, ["--config", "custom.yml"])[:rejudge]).to(be(false))
       expect(cli.__send__(:parse, ["--config", "custom.yml", "--rejudge"])[:rejudge]).to(be(true))
+    end
+
+    it "tunes the relative timeout, or turns it off, by flag or config", :aggregate_failures do
+      tuned = cli.__send__(:parse, ["--timeout-factor", "4", "--timeout-slack", "0.5"])
+      expect(tuned).to(include(timeout_factor: 4.0, timeout_slack: 0.5))
+      expect(cli.__send__(:parse, ["--no-relative-timeout"])[:relative_timeout]).to(be(false))
+      File.write("custom.yml", "relative_timeout: false\ntimeout_factor: 20\ntimeout_slack: 2.5\n")
+      expect(cli.__send__(:parse, ["--config", "custom.yml"]))
+        .to(include(relative_timeout: false, timeout_factor: 20, timeout_slack: 2.5))
     end
 
     it "defaults --isolated off and turns it on when given" do
@@ -724,6 +734,14 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     def route(harness)
       expect(harness).to(have_received(:warm!).with(kind_of(Array)))
       expect(harness).not_to(have_received(:run))
+    end
+
+    it "hands the relative timeout settings to the warm harness" do
+      _report, _harness, session, = warmed
+      pass(registry, settings(relative_timeout: false, timeout_factor: 4.0, timeout_slack: 0.5), [1, 2], session)
+      expect(Kimera::Execution::Harness).to(
+        have_received(:new).with(hash_including(relative_timeout: false, timeout_factor: 4.0, timeout_slack: 0.5))
+      )
     end
 
     it "hands --hard-timeout to the isolated runner" do

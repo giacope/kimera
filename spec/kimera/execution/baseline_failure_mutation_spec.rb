@@ -109,7 +109,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     Kimera::Execution::Shift::CoverageChannel.new(adapter).serve(request, response)
 
     messages = response.string.lines.map { |line| JSON.parse(line) }
-    expect(messages.first.except("touched")).to(
+    expect(messages.first.except("touched", "took")).to(
       eq(
         "t" => "result", "id" => "t", "passed" => false, "failure" => "boom"
       )

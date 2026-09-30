@@ -30,6 +30,18 @@ module Kimera::CLI::RunOptions
       Kimera::Flag.build(
         "--hard-timeout SEC", :hard_timeout, "Watchdog kill timeout per test (per mutant in --isolated)", type: Float
       ),
+      Kimera::Flag.build(
+        "--[no-]relative-timeout", :relative_timeout,
+        "A warm covering test past its baseline time x factor + slack is a timeout (default: on)"
+      ),
+      Kimera::Flag.build(
+        "--timeout-factor N", :timeout_factor, "Relative timeout: multiple of the test's baseline time (default 10)",
+        type: Float
+      ),
+      Kimera::Flag.build(
+        "--timeout-slack SEC", :timeout_slack, "Relative timeout: seconds added to the multiple (default 1)",
+        type: Float
+      ),
       Kimera::Flag.build("--leak-every N", :leak_every, "Re-check a killed mutant every N", type: Integer),
       Kimera::Flag.build("--[no-]coverage", :coverage, "Run each mutant only against covering tests (default: on)"),
       Kimera::Flag.build("--since REF", :since, "Incremental: only mutate lines changed vs REF (git diff)"),
