@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- `statement_deletion` no longer deletes the expression an interpolation
+  embeds. The walker gave every statement inside `"#{…}"` a statement
+  position, so `raise NotDefinedError, "no scope for #{find(object)}"` had
+  a mutant deleting `find(object)`: a change to the message's text, not the
+  deletion of a side-effecting statement the default operator promises.
+  Such mutants sat mostly on error and log messages (143 of Lobsters' 1,201
+  survivors). The last statement of an interpolation, in a string, symbol,
+  regexp, backtick command or heredoc, is now not a statement position.
+  Statements before it (`"#{log; x}"`), whose values are discarded, and
+  statements in a block inside one stay deletable, and every other operator
+  still mutates inside interpolations; `string_literal` covers message
+  text. Kimera's own default set loses 232 such mutants.
 - A mutant whose effect outlives its switch-off is judged, not left
   unjudged. A memoized class-level table the mutant poisoned, a `require` a
   later test satisfied, or rows a crashed `before(:all)` left behind made

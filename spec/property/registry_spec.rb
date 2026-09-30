@@ -84,6 +84,23 @@ RSpec.describe(Kimera::Registry) do
     end
   end
 
+  def embeds(node)
+    values = node.compact_child_nodes.flat_map { embeds(it) }
+    return values unless node.is_a?(Prism::EmbeddedStatementsNode) && node.statements
+    values << node.statements.body.last.location.then { [it.start_offset, it.length] }
+  end
+
+  # README: statement_deletion deletes side-effecting statements; the
+  # expression an interpolation embeds is its text, not one of them.
+  it "never deletes the value an interpolation embeds" do
+    for_all(programs, runs: 150) do |program|
+      source = render(program)
+      deletions = scan(source).points.select { |point| point.operator.include?("statement_deletion") }
+      values = embeds(Prism.parse(source).value)
+      expect(deletions.map { |point| [point.location.start_offset, point.location.span] } & values).to(be_empty)
+    end
+  end
+
   # The other outcomes of a lookup, on keys built to collide: an exact key
   # wins, a moved key resolves only when its unlined form is unique, and
   # anything else (ambiguous or unknown) comes back as the text it was.
