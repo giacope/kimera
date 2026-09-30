@@ -52,7 +52,8 @@ RSpec.describe("kimera run's relative time budget (end-to-end)", :aggregate_fail
       expect(report).not_to(be_nil, "no JSON report; output:\n#{output}")
       row = test_deletion(report)
       expect(row["status"]).to(eq("timeout"))
-      expect(row["detail"]).to(match(/\A\S+pusher_spec\.rb\[1:1\] ran past its relative time budget with the mutant on /))
+      expect(row["detail"])
+        .to(match(/\A\S+pusher_spec\.rb\[1:1\] ran past its relative time budget with the mutant on /))
       expect(row["detail"]).to(include("× 10.0 + 0.2s), and in "))
       expect(row["duration"]).to(be < 1.5)
     end
