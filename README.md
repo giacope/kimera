@@ -415,7 +415,8 @@ The *default* set is small and low-noise:
 
 - comparison operators (boundary and negation)
 - boolean connectives and boolean literals
-- deletion of side-effecting statements
+- deletion of side-effecting statements, not of the value an interpolation
+  embeds (`x` in `"#{x}"`, `:"#{x}"`, `/#{x}/`, backticks, heredocs)
 - `!x => x`
 - forced `if` conditions
 

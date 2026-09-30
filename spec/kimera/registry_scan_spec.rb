@@ -84,6 +84,44 @@ RSpec.describe(Kimera::RegistryScan) do
     expect(tails).to(eq(["a - b"]))
   end
 
+  describe "statement positions inside interpolation" do
+    def scan(src, keys: Kimera::Operators::DEFAULT_KEYS)
+      described_class.new(operators: Kimera::Operators.build(keys: keys))
+        .source("def m(o)\n#{src}\nend\n", file: "interp.rb")
+    end
+
+    def deleted(src)
+      scan(src).points.select { |p| p.operator.include?("statement_deletion") }.map(&:original_source)
+    end
+
+    it "does not delete the value an interpolation embeds, in any interpolating literal" do
+      src = <<~'RUBY'
+        log "a #{o.inspect} b"
+        s = :"s#{o.name}"
+        t = `echo #{o.cmd}`
+        r = /x#{o.pat}y/
+        h = <<~TXT
+          hi #{o.who}
+        TXT
+      RUBY
+      expect(deleted(src)).to(eq(["log \"a \#{o.inspect} b\""]))
+    end
+
+    it "still deletes the discarded statements before an interpolation's value" do
+      expect(deleted("\"\#{o.tick; o.tock}\"")).to(eq(["o.tick"]))
+    end
+
+    it "still deletes statements in a block inside an interpolation" do
+      expect(deleted("\"\#{o.map { |x| x.save; x.id }}\"")).to(eq(["x.save", "x.id"]))
+    end
+
+    it "still gives other operators the expressions inside an interpolation" do
+      registry = scan("\"\#{o.size > 1} \#{o.strip} \#{'t'}\"", keys: %w[comparison method_unwrap string_literal])
+      points = registry.points.map { |p| [p.operator, p.original_source] }
+      expect(points).to(include(["comparison", "o.size > 1"], %w[method_unwrap o.strip], ["string_literal", "'t'"]))
+    end
+  end
+
   describe "#walk" do
     def walker
       Kimera::RegistryScan::SourceFile.new("", file: "x.rb", operators: [], numbering: nil)
@@ -91,7 +129,7 @@ RSpec.describe(Kimera::RegistryScan) do
 
     def cursor(**overrides)
       Kimera::RegistryWalking::Cursor.new(
-        position: false, inside_def: false, in_pattern: false, def_body: false, defname: nil,
+        position: false, inside_def: false, in_pattern: false, def_body: false, defname: nil, embedded: false,
         **overrides
       )
     end
