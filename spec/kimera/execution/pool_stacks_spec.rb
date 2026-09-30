@@ -69,6 +69,7 @@ RSpec.describe(Kimera::Execution::Pool) do
     stacks = instance_spy(Kimera::Execution::StackDump)
     pool.instance_variable_get(:@options)[:stacks] = stacks
     allow(pool).to(receive(:fork).and_yield.and_return(7))
+    allow(pool).to(receive(:lead))
     allow(pool).to(receive(:boot)) { expect(stacks).to(have_received(:arm!)) }
 
     expect(pool.__send__(:spawn, :duty)).to(eq(7))

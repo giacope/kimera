@@ -41,6 +41,7 @@ class Kimera::Execution::Reload
   end
 
   def work(errand)
+    lead
     errand.child!
     silence!
     errand.emit(report(errand))
@@ -55,8 +56,15 @@ class Kimera::Execution::Reload
   end
 
   def collect(errand, pid, deadline)
-    line = errand.await(deadline) { kill(pid) }
-    verdict(errand.id, line, reap(pid), deadline)
+    line = hear(errand, pid, deadline)
+    verdict(errand.id, line, bury(pid), deadline)
+  end
+
+  def hear(errand, pid, deadline)
+    errand.await(deadline) { kill(pid) }
+  rescue SignalException
+    stop(pid)
+    raise
   end
 
   def evaluate(errand)

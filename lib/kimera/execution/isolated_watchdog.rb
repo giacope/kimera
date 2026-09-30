@@ -8,7 +8,13 @@ module Kimera
       private
 
       def waitfor(pid, pulse = File::NULL)
-        watch = Kimera::Execution::IsolatedPulse.new(pulse, limit)
+        outlast(pid, Kimera::Execution::IsolatedPulse.new(pulse, limit))
+      rescue SignalException
+        fail!(pid)
+        raise
+      end
+
+      def outlast(pid, watch)
         loop do
           step = attempt(pid, watch)
           return step unless step == :continue
@@ -17,7 +23,7 @@ module Kimera
 
       def attempt(pid, watch)
         done, status = Process.waitpid2(pid, Process::WNOHANG)
-        return status if done
+        return status.tap { kill(pid) } if done
         return fail!(pid) if watch.expired?
         pause
         :continue
@@ -35,7 +41,7 @@ module Kimera
 
       def kill(pid)
         Process.kill("KILL", -pid)
-      rescue Errno::ESRCH
+      rescue Errno::ESRCH, Errno::EPERM
         nil
       end
 

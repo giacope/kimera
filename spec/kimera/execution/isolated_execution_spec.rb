@@ -3,6 +3,7 @@
 require "json"
 require "kimera/execution/isolated"
 require "kimera/registry/builder"
+require "timeout"
 
 # A mutant baked into the harness's own timeout code can wedge its suite,
 # so the runner's watchdog is tested directly here.
@@ -103,6 +104,23 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     it "lets a child run past the hard timeout while each test starts within it" do
       Dir.mktmpdir { |dir| expect(beating(File.join(dir, "pulse"), 8)).to(be_success) }
+    end
+
+    it "kills what a child left running in its group once it exits", :aggregate_failures do
+      witness = self.witness
+      pid = Process.spawn("sh", "-c", "sleep 30 & exit 3", pgroup: true, out: witness.holder)
+      expect(test_invoke_private(runner(hard_timeout: 5.0), :waitfor, pid).exitstatus).to(eq(3))
+      expect(witness.outlived?).to(be(false))
+    end
+
+    # The child leads its own process group, so the terminal's Ctrl-C never
+    # reaches it: an interrupted kimera kills and reaps it on the way out.
+    it "takes a child's group down with it when kimera is interrupted", :aggregate_failures do
+      pid = Process.spawn("sleep", "300", pgroup: true, out: File::NULL)
+      allow(Process).to(receive(:waitpid2).and_raise(Interrupt))
+      expect { Timeout.timeout(10) { test_invoke_private(runner(hard_timeout: 5.0), :waitfor, pid) } }
+        .to(raise_error(Interrupt))
+      expect { Process.kill(0, pid) }.to(raise_error(Errno::ESRCH))
     end
   end
 

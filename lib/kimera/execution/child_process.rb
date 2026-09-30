@@ -15,16 +15,35 @@ module Kimera
         $stderr = STDERR
       end
 
-      def kill(pid)
-        Process.kill("KILL", pid)
-      rescue Errno::ESRCH
+      def lead
+        Process.setpgid(0, 0)
+      rescue SystemCallError
         nil
+      end
+
+      def kill(pid)
+        [-pid, pid].each { |target| signal(target) }
       end
 
       def reap(pid)
         Process.wait(pid)
         $CHILD_STATUS
       rescue Errno::ECHILD
+        nil
+      end
+
+      def stop(pid)
+        kill(pid)
+        reap(pid)
+      end
+
+      def bury(pid)
+        reap(pid).tap { signal(-pid) }
+      end
+
+      def signal(target)
+        Process.kill("KILL", target)
+      rescue Errno::ESRCH, Errno::EPERM
         nil
       end
 

@@ -53,7 +53,10 @@ It does **not** establish:
   in small instances, but nothing here proves it);
 - `Termination` beyond the sizes checked without symmetry;
 - that the Ruby code refines the model beyond the runs trace validation
-  checks (below), or in what the model abstracts away.
+  checks (below), or in what the model abstracts away;
+- anything about the processes a worker's tests start: the model has no
+  process groups (see "Fairness and abstractions"; the property spec checks
+  them instead).
 
 ### Why the state space is small, and why symmetry is sound
 
@@ -135,6 +138,14 @@ The model abstracts away:
 - Worker identity beyond the slot: two workers that held the same slot at
   different times share a name. `Fleet#slots` is modeled as the FIFO it is
   (spawn takes the head, remove appends).
+- **Process groups.** Each worker leads a process group of its own
+  (`ChildProcess#lead`), and `Worker#halt` kills the group, `Fleet#remove`
+  kills what is left of it once the worker is reaped (`ChildProcess#bury`),
+  so what a worker's tests started goes with it (#16). The model has no
+  grandchildren: a child in `Expire` or `Remove` stands for its whole group.
+  Nor does it model what follows an abort, or kimera being interrupted:
+  `Fleet#disband` then kills and reaps the workers still live, after the
+  model's run has ended.
 
 ## Action map
 
@@ -143,8 +154,8 @@ The model abstracts away:
 | `Init`, `RefillStep` | `Fleet#bootstrap`, `Fleet#refill`, `Fleet#replace`, `Fleet#spawn` |
 | `Assign`, `Take`, `Following` | `WorkerPool#assign`, `Fleet#take`, `Fleet#following`, `Worker#claim`, `Worker#offer`, `WorkerPool#close` |
 | `Service` | `WorkerPool#service`, `Worker#lines`, `#hangup` and `#dispatch`: `#finish`, `#relay`, `Fleet#requeue` |
-| `Remove` | `Fleet#remove`, `Fleet#charge`, `StillbornGuard#track` |
-| `Expire` | `WorkerPool#watch`, `Worker#halt` |
+| `Remove` | `Fleet#remove`, `ChildProcess#bury`, `Fleet#charge`, `StillbornGuard#track` |
+| `Expire` | `WorkerPool#watch`, `Worker#halt` (`ChildProcess#kill`) |
 | `ChildRead` | `Shift::Channel#each_request` (EOF means retired) |
 | `ChildResult`, `ChildTainted` | `Shift#step`, `Shift#process`, `Shift#tainted?`, `Shift::LeakGuard#check` |
 | `ChildRequeue` | `Shift::Suspect#message` (warm only: `Attempt#recheck` settles on a `Doubt`) |
@@ -175,7 +186,10 @@ a run). Two kinds of evidence come out of it.
 one verdict per mutant, of the kind and status its script calls for; one
 requeue per requeued mutant, and none for a recheck; rechecks only on fresh
 workers; slots reused only after their holder is reaped; an abort only when
-`StillbornGuard`'s condition held.
+`StillbornGuard`'s condition held. Below the model, too: every child leads
+its own process group and starts a grandchild first, and no grandchild
+outlives the run, whether its parent finished, crashed, hung or was still
+live when the run aborted.
 
 **Trace validation.** Each run also logs the parent's steps
 (`spec/property/support/pool_trace.rb`, prepended to the pool's classes inside

@@ -21,7 +21,10 @@ require_relative "property_helper"
 # never requeues (Attempt#recheck settles on a Doubt); under Shift it may
 # try, and Shift must rule a harness_error instead. Every run is supervised in
 # its own process group with a deadline of its own, so a pool that stops
-# polling fails the example instead of hanging the suite.
+# polling fails the example instead of hanging the suite. Each child leads a
+# process group of its own, as the pool's workers do, and starts a
+# grandchild first, as a test that starts a server does: however the child
+# ends, the grandchild must not outlive the run.
 RSpec.describe(Kimera::Execution::WorkerPool) do
   let(:warm) { Pbt.one_of(:result, :result, :result, :leak, :tainted, :requeue, :requeue, :crash, :hang, :partial) }
   let(:recheck) { Pbt.one_of(:result, :leak, :tainted, :crash, :hang, :partial) }
@@ -40,10 +43,21 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   # Twice the worst case (every mutant hangs on one worker) plus fork time.
   def deadline = 15
 
-  # Logs one line per offer the child receives: "id recheck first?".
-  def child(script, log)
-    served = 0
+  # A child as Pool#spawn makes one: the leader of its own process group.
+  # Like a test that starts a server, it starts a grandchild first, which
+  # must not outlive the run however the child ends.
+  def founded(grandchildren)
     forked do |request, response|
+      Process.setpgid(0, 0)
+      grandchildren.spawn
+      yield(request, response)
+    end
+  end
+
+  # Logs one line per offer the child receives: "id recheck first?".
+  def child(script, log, grandchildren)
+    served = 0
+    founded(grandchildren) do |request, response|
       while (line = request.gets)
         offer = JSON.parse(line)
         id = offer["id"]
@@ -99,9 +113,10 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   # trace. A mutant module, if given, is prepended to Fleet first.
   def run(script, jobs, log, mutant)
     Kimera::Execution::WorkerPool::Fleet.prepend(mutant) if mutant
-    tally = { events: [], slots: [], error: nil }
+    grandchildren = witness
+    tally = { events: [], slots: [], error: nil, grandchildren: grandchildren }
     PoolTrace.record((1..script.size).to_a, jobs) { judge(tally, script, jobs, log) }
-    tally
+    tally.except(:grandchildren).merge(outlived: grandchildren.outlived?)
   end
 
   def judge(tally, script, jobs, log)
@@ -118,7 +133,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     lambda do |slot|
       holder = holders[slot]
       tally[:slots] << slot unless (0...jobs).cover?(slot) && !(holder && alive?(holder))
-      child(script, log).tap { |pid, *| holders[slot] = pid }
+      child(script, log, tally[:grandchildren]).tap { |pid, *| holders[slot] = pid }
     end
   end
 
@@ -185,6 +200,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   def safe(tally, script)
     judged = verdicts(tally[:events])
     expect(tally[:slots]).to(be_empty, "a slot was out of range or still held")
+    expect(tally[:outlived]).to(be(false), "a process a worker started outlived the run")
     expect(judged).to(all(satisfy { expected(script).include?(it) }))
     expect(judged.map(&:first)).to(eq(judged.map(&:first).uniq), "a mutant got two verdicts")
     expect(statuses(tally[:events])).to(all(satisfy { |id, status| status == status(final(script)[id - 1]) }))
@@ -247,8 +263,8 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
         .fetch(behavior)
     end
 
-    def child(script, log)
-      forked do |request, response|
+    def child(script, log, grandchildren)
+      founded(grandchildren) do |request, response|
         offers = OfferTap.new(request, log)
         shift(script, offers).serve(offers, response)
         exit!(0)

@@ -27,4 +27,57 @@ RSpec.describe(Kimera::Execution::ChildProcess) do
   it "skips a line that isn't JSON" do
     expect(parse("!!not json!!")).to(be_nil)
   end
+
+  describe "process groups" do
+    def call(name, *) = reader.__send__(name, *)
+
+    it "makes a forked child lead a process group of its own" do
+      group, report = IO.pipe
+      pid =
+        fork do
+          call(:lead)
+          report.puts(Process.getpgrp)
+          exit!(0)
+        end
+      report.close
+      expect(Integer(group.gets)).to(eq(pid))
+    ensure
+      Process.wait(pid)
+    end
+
+    # The fork above records no coverage for `lead`; this runs it in-process.
+    it "leaves a child in its parent's group when it can't lead one of its own", :aggregate_failures do
+      allow(Process).to(receive(:setpgid).and_raise(Errno::EPERM))
+      expect(call(:lead)).to(be_nil)
+      expect(Process).to(have_received(:setpgid).with(0, 0))
+    end
+
+    it "kills a child and everything it started", :aggregate_failures do
+      witness = self.witness
+      pid = family(witness)
+      call(:kill, pid)
+      expect(Process.wait2(pid).last.termsig).to(eq(9))
+      expect(witness.outlived?).to(be(false))
+    end
+
+    it "kills a child that never led a group of its own" do
+      pid = fork { sleep(30) }
+      call(:kill, pid)
+      expect(Process.wait2(pid).last.termsig).to(eq(9))
+    end
+
+    it "reaps a child with the status it exited with, then kills what it left running", :aggregate_failures do
+      witness = self.witness
+      pid = family(witness) { exit!(3) }
+      expect(call(:bury, pid).exitstatus).to(eq(3))
+      expect(witness.outlived?).to(be(false))
+    end
+
+    it "shrugs off a group that is gone or out of reach", :aggregate_failures do
+      allow(Process).to(receive(:kill).and_raise(Errno::ESRCH))
+      expect(call(:signal, 12_345)).to(be_nil)
+      allow(Process).to(receive(:kill).and_raise(Errno::EPERM))
+      expect(call(:signal, 12_345)).to(be_nil)
+    end
+  end
 end
