@@ -44,12 +44,16 @@ class Kimera::Overlay
   def bake(_file, source, id)
     pair = @registry.point(id)
     return source unless pair
-    mutant, point = pair
     map = Kimera::SourceMap.new(source)
-    map.restore(write(Kimera::Guardrail.new(map, []).bake(point.location, mutant.directive)))
+    map.restore(write(baked(map, *pair)))
   end
 
   private
+
+  def baked(map, mutant, point)
+    Kimera::Guardrail.new(map, []).bake(point.location, mutant.directive) ||
+      raise(Unbakeable, Kimera::Overlay::FileWeave::UNMATCHED)
+  end
 
   def write(tree)
     Kimera::Unparse.unparse(tree)

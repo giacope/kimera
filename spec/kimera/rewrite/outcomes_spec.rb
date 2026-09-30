@@ -25,6 +25,11 @@ RSpec.describe(Kimera::Rewrite::Outcomes) do
     expect(distinct("f(0.0, -(0.0), -0.0)\n", "f(0.0, -(0.0), -0.0)", drops(3))).to(eq([0, 1]))
   end
 
+  # Only a bare literal: a bake writes `-(1.to_s)` as it reads, not as `-1.to_s`.
+  it "keeps minus over a call on a literal apart from the call on the negative literal" do
+    expect(distinct("f(-(1.to_s), (-1).to_s, -1.to_s)\n", "f(-(1.to_s), (-1).to_s, -1.to_s)", drops(3))).to(eq([0, 1]))
+  end
+
   it "reads a node by its span in a multibyte file" do
     expect(distinct("\"é\"\nf(1, 1)\n", "f(1, 1)", drops(2))).to(eq([0]))
   end

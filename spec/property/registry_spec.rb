@@ -119,11 +119,13 @@ RSpec.describe(Kimera::Registry) do
 
   # A mutant that is the original can never be killed, and two that are the
   # same program count one test gap twice, whichever operators made them
-  # (`x.to_s.to_s` unwrapped or unlinked).
+  # (`x.to_s.to_s` unwrapped or unlinked). A point the parser folds away
+  # (the inner `-1` of `--1`) has no program; it is reported unmutatable.
   it "never emits a mutant that is the original program, or two that are the same program" do
     for_all(programs, runs: 60) do |program|
       schemata = SchemataProjection.check(render(program))
       schemata.registry.points.each do |point|
+        next if point.unsafe_reason == "#{Kimera::MutationPoint::UNMUTATABLE}#{Kimera::Overlay::FileWeave::UNMATCHED}"
         bakes = point.mutants.map { |mutant| schemata.baked(mutant.id) }
         source = point.original_source
         expect(bakes).not_to(include(schemata.original), "#{source}: a mutant is the original")

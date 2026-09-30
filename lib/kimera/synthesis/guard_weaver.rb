@@ -41,10 +41,20 @@ class Kimera::Guardrail
   def transform(node) = weave(node).first
 
   def bake(location, directive)
-    prune(overlay([location.start_offset, location.finish], directive))
+    target = [location.start_offset, location.finish]
+    prune(overlay(target, directive)) if spans.include?(target)
   end
 
   private
+
+  def spans
+    Set.new.tap { |found| Kimera::Rewrite::AstWalk.visit(@map.ast) { |node| found << span(node) } }
+  end
+
+  def span(node)
+    expression = node.location&.expression
+    expression && @map.span(expression)
+  end
 
   def weave(node)
     return [node, node] unless node.is_a?(Parser::AST::Node)
