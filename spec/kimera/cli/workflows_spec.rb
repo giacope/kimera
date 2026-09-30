@@ -237,6 +237,14 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     end
   end
 
+  # A .simplecov symlinked to a shared config that isn't checked out.
+  it "passes over a helper path that is not a readable file" do
+    Dir.mktmpdir do |dir|
+      File.symlink(File.join(dir, "missing.rb"), File.join(dir, ".simplecov"))
+      expect(test_doctor_in(dir).last).not_to(include("Coverage floor"))
+    end
+  end
+
   it "adds strict CI defaults without replacing explicit user choices" do
     out, error = captured
     runner = instance_double(Kimera::CLI::Run, run: 0)

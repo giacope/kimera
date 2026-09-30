@@ -836,6 +836,44 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(cleaned).to(eq([0]))
     end
 
+    # Serial workers share the app's own test database: emptying it, or
+    # running teardown hooks meant for per-worker copies, would wipe it.
+    def unisolated
+      connection = double(tables: %w[users], adapter_name: "SQLite")
+      allow(connection).to(receive(:truncate_tables))
+      stub_const("ActiveRecord::Base", Class.new)
+      allow(ActiveRecord::Base).to(receive(:connection).and_return(connection))
+      parallelization(true)
+      cleaned = []
+      stub(after: ->(_i) {}, cleanup: ->(i) { cleaned << i })
+      database(jobs: 1).before_exit(0)
+      [connection, cleaned]
+    end
+
+    it "leaves the shared database and the app's teardown hooks alone when isolation is off", :aggregate_failures do
+      connection, cleaned = unisolated
+      expect(connection).not_to(have_received(:truncate_tables))
+      expect(cleaned).to(be_empty)
+    end
+
+    # parallelize_setup/teardown are Active Support's: an app without Active
+    # Record (Mongoid, say) registers them too, and has no tables to empty.
+    def recordless
+      hide_const("ActiveRecord") if defined?(ActiveRecord)
+      parallelization(true)
+      cleaned = []
+      stub(after: ->(_i) {}, cleanup: ->(i) { cleaned << i })
+      errors = StringIO.new
+      Kimera::Execution::ParallelTestDatabases.new(adapter: adapter, jobs: 2, errors: errors).before_exit(0)
+      [errors.string, cleaned]
+    end
+
+    it "runs the app's teardown hooks without a warning when Active Record is absent", :aggregate_failures do
+      errors, cleaned = recordless
+      expect(errors).to(be_empty)
+      expect(cleaned).to(eq([0]))
+    end
+
     it "never runs a nil-slot worker's after-fork hook (injected/test spawners)" do
       stub(after: ->(_i) { raise(RuntimeError, "should not run") })
       db = database(jobs: 2)

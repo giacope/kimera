@@ -422,7 +422,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       expect(result.status).to(eq(:no_coverage))
     end
 
-    def test_baking_evaluate(id)
+    def test_baking_evaluate(id, pause: nil)
       baked = nil
       Dir.mktmpdir do |root|
         File.write(File.join(root, "calc.rb"), test_source_fixture)
@@ -430,10 +430,11 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
           Class.new(described_class) do
             define_method(:verdict) do |mirror, _locs|
               baked = File.read(File.join(mirror, "calc.rb"))
+              sleep(pause) if pause
               Kimera::Execution::IsolatedOutcome.new(:killed, ["t1[1:1]"])
             end
           end.new(registry: registry, root: root, tests: ["t1"], coverage: { id => ["t1"] })
-        allow(r).to(receive(:now).and_return(10.0, 12.5))
+        allow(r).to(receive(:now).and_return(10.0, 12.5)) unless pause
         Dir.mktmpdir do |mirror|
           FileUtils.cp_r(File.join(root, "calc.rb"), File.join(mirror, "calc.rb"))
           [
@@ -453,6 +454,12 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       expect(result.failing_tests).to(eq(["t1[1:1]"]))
       expect(baked).not_to(eq(test_source_fixture))
       expect(restored).to(eq(test_source_fixture))
+    end
+
+    it "times the verdict on the monotonic clock", :aggregate_failures do
+      result, = test_baking_evaluate(first, pause: 0.05)
+      expect(result.status).to(eq(:killed))
+      expect(result.duration).to(be_between(0.05, 5.0))
     end
 
     def test_raising_evaluate(id)

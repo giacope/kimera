@@ -97,7 +97,6 @@ class Kimera::Execution::WorkerPool
     fleet.progress!
     context.resolve.call(message)
     worker.idle!
-    worker.renew(limit)
   end
 
   def trace(slot, id) = context.options[:trace]&.call(slot, id)

@@ -56,7 +56,11 @@ RSpec.describe(Kimera::TestExit) do
             it("exits") { exit(4) }
 
             it("passes") { expect(1).to eq(1) }
+          end
 
+          # Its own group, so running a sibling can never reach it: an
+          # Interrupt that escapes ends the process instead of failing a test.
+          RSpec.describe "KimeraInterrupts" do
             it("is interrupted") { raise Interrupt }
           end
         RUBY
@@ -72,9 +76,9 @@ RSpec.describe(Kimera::TestExit) do
       $stderr = original
     end
 
-    def run(loaded, name)
+    def run(loaded, name, group: "KimeraExits")
       $probe = []
-      id = loaded.test_ids.find { |test| loaded.describe(test) == "KimeraExits #{name}" }
+      id = loaded.test_ids.find { |test| loaded.describe(test) == "#{group} #{name}" }
       [id, loaded.run([id])]
     rescue SystemExit => error
       [id, error]
@@ -98,7 +102,7 @@ RSpec.describe(Kimera::TestExit) do
 
     it "lets an interrupt through" do
       loaded = adapter
-      expect { run(loaded, "is interrupted") }.to(raise_error(Interrupt))
+      expect { run(loaded, "is interrupted", group: "KimeraInterrupts") }.to(raise_error(Interrupt))
     end
   end
 

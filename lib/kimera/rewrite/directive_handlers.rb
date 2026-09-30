@@ -6,8 +6,6 @@ require_relative "directive_kwarg_handlers"
 module Kimera
   module Rewrite
     module DirectiveHandlers
-      CONNECTIVES = %i[and or].freeze
-
       Operation =
         Data.define(:node, :directive) do
           def target = directive["to"]&.to_sym
@@ -18,10 +16,6 @@ module Kimera
           end
 
           def retype = node.updated(target, node.children)
-
-          def connective = node.updated(target, node.children.map { |operand| parenthesized(operand) })
-
-          def parenthesized(operand) = CONNECTIVES.include?(operand.type) ? ast(:begin, operand) : operand
 
           def literal
             node.updated(target, [])
