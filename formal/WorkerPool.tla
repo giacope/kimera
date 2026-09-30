@@ -15,44 +15,71 @@
 (* Every action names the Ruby method it models; the model was written by  *)
 (* reading that code and is not derived from it mechanically. TLC checks   *)
 (* the properties at the end of this module exhaustively, but only for     *)
-(* the finite instances it is run on (bin/model-check: N/Jobs = 2/2, 3/1   *)
-(* and 1/3). That says nothing about larger pools, and nothing about the   *)
-(* Ruby code beyond what this model captures.                              *)
+(* the finite instances it is run on (bin/model-check lists them). That    *)
+(* says nothing about larger pools, and nothing about the Ruby code beyond *)
+(* what this model captures.                                               *)
 (*                                                                         *)
-(* Abstractions: a message is one atomic step, so a partially written line *)
-(* is not represented (the Ruby parent once blocked on one; see            *)
-(* formal/README.md); time is abstract, so the watchdog may fire at any    *)
+(* A live worker is named by its test-database slot, and a removed         *)
+(* worker's state is reset, so a state holds only what the parent can      *)
+(* still observe; renaming ids or slots maps behaviors to behaviors, which *)
+(* lets safety runs use symmetry reduction.                                *)
+(*                                                                         *)
+(* A pipe carries fragments: complete lines, the start of a line whose     *)
+(* rest may follow (a child that stops partway through a write), and EOF.  *)
+(* The parent keeps the start in the worker's line buffer and dispatches a *)
+(* line only once it is complete. Blocking = TRUE is the parent before #2, *)
+(* which read with pipe.gets: TLC finds it never terminates (see           *)
+(* bin/model-check). Time is abstract, so the watchdog may fire at any     *)
 (* step; message payloads, verdict details and the tiers Schedule runs     *)
 (* after the pool are left out.                                            *)
 (*                                                                         *)
 (* Termination rests on the fairness below: the parent keeps refilling and *)
-(* keeps servicing each worker whose pipe holds a message (every read      *)
-(* completes), each healthy child keeps taking steps, and a hung child is  *)
-(* eventually killed. Healthy children are never assumed to be killed.     *)
+(* keeps dispatching each worker's complete lines (nothing makes it read   *)
+(* half a line), each healthy child keeps taking steps, and a hung child   *)
+(* is eventually killed. Healthy children are never assumed to be killed.  *)
 (***************************************************************************)
-EXTENDS Naturals, Sequences, FiniteSets
+EXTENDS Naturals, Sequences, FiniteSets, TLC
 
-CONSTANTS N,     \* mutants in the warm queue
-          Jobs   \* --jobs
+CONSTANTS Ids,      \* the mutants in the warm queue
+          Slots,    \* test-database slots, one per --jobs
+          None,     \* no mutant: a value outside Ids
+          Blocking  \* TRUE: the parent reads a line with a blocking pipe.gets,
+                    \* as before #2; FALSE: WorkerPool#service as it is now
 
-ASSUME N \in Nat /\ Jobs \in Nat \ {0}
+ASSUME None \notin Ids /\ Slots # {} /\ Blocking \in BOOLEAN
 
-Ids   == 1..N
-None  == 0
-Slots == 0..(Jobs - 1)
+N    == Cardinality(Ids)
+Jobs == Cardinality(Slots)
 
-\* Workers are numbered by spawn order. Each id is requeued at most once and
-\* each crash or kill consumes an id, so Jobs + 2N spawns always suffice.
-\* SpawnBound checks that claim.
-MaxWorkers == Jobs + 2 * N
-Workers    == 1..MaxWorkers
+\* A live worker is named by the slot it holds. Fleet#remove returns the
+\* slot, and Remove resets everything the model keeps for the worker, so a
+\* slot's next worker starts from nothing its predecessor left.
+Workers == Slots
 
 Min(a, b) == IF a < b THEN a ELSE b
 Range(s)  == {s[i] : i \in DOMAIN s}
 
+\* The orders a finite set can be listed in. The warm queue (heaviest first)
+\* and Fleet#slots start in one of them; which one doesn't matter, since no
+\* property tells two ids or two slots apart.
+Orders(S)  == {s \in [1..Cardinality(S) -> S] : Range(s) = S}
+QueueOrder == CHOOSE s \in Orders(Ids) : TRUE
+SlotOrder  == CHOOSE s \in Orders(Slots) : TRUE
+
+\* Renaming ids or slots maps behaviors to behaviors (nothing compares or
+\* orders them), so TLC may check invariants on one state per orbit.
+\* bin/model-check uses this for safety runs only: TLC's symmetry reduction
+\* is unsound for liveness.
+Symmetry == Permutations(Ids) \cup Permutations(Slots)
+
 Offer(i, r) == [kind |-> "offer", id |-> i, recheck |-> r]
 Msg(k, i)   == [kind |-> k, id |-> i]
 EOF         == [kind |-> "eof", id |-> None]
+\* The start of a line a child is still writing. Its rest arrives as the
+\* next fragment, which is the whole message: a line is dispatched only
+\* once it is complete.
+Part        == [kind |-> "part", id |-> None]
+NoTask      == Offer(None, FALSE)
 
 VARIABLES
   queue,      \* Fleet#queue: warm ids not taken yet, heaviest first
@@ -60,15 +87,16 @@ VARIABLES
   rechecks,   \* Fleet#rechecks
   rechecked,  \* Fleet#rechecked
   fleet,      \* Fleet#workers: the workers the parent polls
-  spawned,    \* workers ever spawned
-  slot,       \* Worker#slot
-  free,       \* Fleet#slots
+  free,       \* Fleet#slots, a FIFO: spawn takes the head, remove appends
   inflight,   \* Worker#inflight
   served,     \* Worker#served
-  req,        \* parent -> child pipe
-  resp,       \* child -> parent pipe
-  child,      \* the child process: "none" | "idle" | "busy" | "hung" | "gone"
-  task,       \* the offer the child is evaluating
+  req,        \* parent -> child pipe: offers and EOF
+  resp,       \* child -> parent pipe: lines, Part and EOF, in write order
+  buf,        \* Worker#unread holds the start of a line
+  blocked,    \* {w}: the parent is stuck in a read of w's pipe (Blocking)
+  child,      \* the child process: "none" | "idle" | "busy" | "torn" |
+              \* "hung" | "gone"; torn is busy with half a line written
+  task,       \* the offer the child is evaluating (NoTask unless busy)
   refill,     \* spawns left in the current Fleet#refill loop (0: polling)
   verdicts,   \* ledger entries per id (Schedule#record)
   requeues,   \* requeue messages per id
@@ -77,12 +105,12 @@ VARIABLES
   progressed, \* StillbornGuard#progress! seen
   aborted     \* StillbornGuard raised
 
-vars == <<queue, done, rechecks, rechecked, fleet, spawned, slot, free,
-          inflight, served, req, resp, child, task, refill, verdicts,
-          requeues, stale, stillborn, progressed, aborted>>
+vars == <<queue, done, rechecks, rechecked, fleet, free, inflight, served,
+          req, resp, buf, blocked, child, task, refill, verdicts, requeues,
+          stale, stillborn, progressed, aborted>>
 
-parent == <<queue, done, rechecks, rechecked, fleet, spawned, slot, free,
-            inflight, served, refill, verdicts, requeues, stale, stillborn,
+parent == <<queue, done, rechecks, rechecked, fleet, free, inflight, served,
+            buf, blocked, refill, verdicts, requeues, stale, stillborn,
             progressed, aborted>>
 
 -----------------------------------------------------------------------------
@@ -126,8 +154,9 @@ Assign(w, fresh, rq) ==
          /\ req' = [rq EXCEPT ![w] = Append(@, Offer(t.id, r))]
          /\ stale' = (stale \/ (r /\ ~fresh))
 
-\* Fleet#remove: drop the worker, return its slot, charge its in-flight id
-\* (Fleet#charge), then start Fleet#refill.
+\* Fleet#remove: drop the worker, return its slot, close its pipes and reap
+\* it, charge its in-flight id (Fleet#charge), then start Fleet#refill.
+\* Nothing of the worker is looked at again, so all it held is reset.
 Remove(w, reason) ==
   LET i        == inflight[w]
       crash    == reason = "crash" /\ i # None /\ ~progressed
@@ -135,35 +164,42 @@ Remove(w, reason) ==
       fleetNow == fleet \ {w}
   IN
   /\ fleet' = fleetNow
-  /\ free' = free \cup {slot[w]}
+  /\ free' = Append(free, w)
   /\ stillborn' = born
   /\ aborted' = (born > Jobs)
   /\ done' = IF i # None THEN done \cup {i} ELSE done
   \* StillbornGuard#track raises before the loss reaches the ledger.
   /\ verdicts' = IF i # None /\ born <= Jobs
                    THEN [verdicts EXCEPT ![i] = @ + 1] ELSE verdicts
-  /\ inflight' = [inflight EXCEPT ![w] = None]
   /\ refill' = IF born > Jobs THEN 0 ELSE Jobs - Cardinality(fleetNow)
+  /\ inflight' = [inflight EXCEPT ![w] = None]
+  /\ served' = [served EXCEPT ![w] = FALSE]
+  /\ req' = [req EXCEPT ![w] = <<>>]
+  /\ resp' = [resp EXCEPT ![w] = <<>>]
+  /\ buf' = [buf EXCEPT ![w] = FALSE]
+  /\ child' = [child EXCEPT ![w] = "none"]
+  /\ task' = [task EXCEPT ![w] = NoTask]
 
 -----------------------------------------------------------------------------
-Init ==
-  /\ queue = [k \in 1..N |-> k]
+\* The parent starts with the queue in order q and Fleet#slots in order f.
+InitWith(q, f) ==
+  /\ queue = q
   /\ done = {}
   /\ rechecks = <<>>
   /\ rechecked = {}
   /\ fleet = {}
-  /\ spawned = 0
-  /\ slot = [w \in Workers |-> 0]
-  /\ free = Slots
+  /\ free = f
   /\ inflight = [w \in Workers |-> None]
   /\ served = [w \in Workers |-> FALSE]
   /\ req = [w \in Workers |-> <<>>]
   /\ resp = [w \in Workers |-> <<>>]
+  /\ buf = [w \in Workers |-> FALSE]
+  /\ blocked = {}
   /\ child = [w \in Workers |-> "none"]
-  /\ task = [w \in Workers |-> Offer(None, FALSE)]
+  /\ task = [w \in Workers |-> NoTask]
   \* Fleet#bootstrap spawns min(jobs, queue.size) workers and assigns each.
   \* With the queue full, that is exactly a refill of that many.
-  /\ refill = Min(Jobs, N)
+  /\ refill = Min(Jobs, Len(q))
   /\ verdicts = [i \in Ids |-> 0]
   /\ requeues = [i \in Ids |-> 0]
   /\ stale = FALSE
@@ -171,73 +207,94 @@ Init ==
   /\ progressed = FALSE
   /\ aborted = FALSE
 
-Polling == refill = 0 /\ ~aborted
+Init == InitWith(QueueOrder, SlotOrder)
+
+\* The parent is in its loop, not in a refill and not stuck in a read.
+Polling == refill = 0 /\ ~aborted /\ blocked = {}
 
 \* Fleet#refill: `missing.times { break unless pending?; replace }`, where
-\* Fleet#replace is Fleet#spawn (next free slot) + WorkerPool#assign.
+\* Fleet#replace is Fleet#spawn (the next free slot) + WorkerPool#assign.
 RefillStep ==
   /\ refill > 0 /\ ~aborted
   /\ IF Pending
-       THEN LET w == spawned + 1
-                s == CHOOSE x \in free : \A y \in free : x <= y
-            IN  /\ free # {}
-                /\ spawned' = w
-                /\ fleet' = fleet \cup {w}
-                /\ slot' = [slot EXCEPT ![w] = s]
-                /\ free' = free \ {s}
-                /\ child' = [child EXCEPT ![w] = "idle"]
-                /\ refill' = refill - 1
-                /\ Assign(w, TRUE, req)
-                /\ UNCHANGED <<done, rechecked, resp, task, verdicts, requeues,
-                               stillborn, progressed, aborted>>
+       THEN /\ free # <<>>
+            /\ LET w == Head(free) IN
+               /\ fleet' = fleet \cup {w}
+               /\ free' = Tail(free)
+               /\ child' = [child EXCEPT ![w] = "idle"]
+               /\ refill' = refill - 1
+               /\ Assign(w, TRUE, req)
+            /\ UNCHANGED <<done, rechecked, resp, buf, blocked, task,
+                           verdicts, requeues, stillborn, progressed, aborted>>
        ELSE /\ refill' = 0
-            /\ UNCHANGED <<queue, done, rechecks, rechecked, fleet, spawned,
-                           slot, free, inflight, served, req, resp, child,
+            /\ UNCHANGED <<queue, done, rechecks, rechecked, fleet, free,
+                           inflight, served, req, resp, buf, blocked, child,
                            task, verdicts, requeues, stale, stillborn,
                            progressed, aborted>>
 
-\* WorkerPool#service: read one line from w's pipe and WorkerPool#dispatch.
+\* WorkerPool#service: read one fragment from w's pipe. The start of a line
+\* goes to the worker's buffer (Worker#lines); a complete line goes to
+\* WorkerPool#dispatch. With Blocking, the start of a line leaves the
+\* parent stuck in pipe.gets until the rest or EOF arrives: no other
+\* worker is read and the watchdog doesn't run.
 Service(w) ==
-  /\ Polling /\ w \in fleet /\ resp[w] # <<>>
+  /\ refill = 0 /\ ~aborted /\ blocked \subseteq {w}
+  /\ w \in fleet /\ resp[w] # <<>>
   /\ LET m == Head(resp[w])
          rest == [resp EXCEPT ![w] = Tail(@)]
+         line == /\ resp' = rest
+                 /\ buf' = [buf EXCEPT ![w] = FALSE]
+                 /\ blocked' = {}
      IN
-     CASE m.kind = "eof" ->              \* pipe.gets returned nil
-            /\ Remove(w, "crash")
+     CASE m.kind = "part" ->             \* Worker#lines keeps it
             /\ resp' = rest
-            /\ UNCHANGED <<queue, rechecks, rechecked, spawned, slot, served,
-                           req, child, task, requeues, stale, progressed>>
+            /\ buf' = [buf EXCEPT ![w] = TRUE]
+            /\ blocked' = IF Blocking THEN {w} ELSE {}
+            /\ UNCHANGED <<queue, done, rechecks, rechecked, fleet, free,
+                           inflight, served, req, child, task, refill,
+                           verdicts, requeues, stale, stillborn, progressed,
+                           aborted>>
+       [] m.kind = "eof" ->              \* WorkerPool#hangup: a partial
+            /\ Remove(w, "crash")        \* rest doesn't parse
+            /\ blocked' = {}
+            /\ UNCHANGED <<queue, rechecks, rechecked, requeues, stale,
+                           progressed>>
        [] m.kind = "result" ->           \* WorkerPool#finish
             /\ done' = done \cup {m.id}
             /\ progressed' = TRUE
             /\ verdicts' = [verdicts EXCEPT ![m.id] = @ + 1]
             /\ inflight' = [inflight EXCEPT ![w] = None]
-            /\ resp' = rest
-            /\ UNCHANGED <<queue, rechecks, rechecked, fleet, spawned, slot,
-                           free, served, req, child, task, refill, requeues,
-                           stale, stillborn, aborted>>
+            /\ line
+            /\ UNCHANGED <<queue, rechecks, rechecked, fleet, free, served,
+                           req, child, task, refill, requeues, stale,
+                           stillborn, aborted>>
        [] m.kind = "ready" ->            \* WorkerPool#assign
             /\ Assign(w, ~served[w], req)
-            /\ resp' = rest
-            /\ UNCHANGED <<done, rechecked, fleet, spawned, slot, free, child,
-                           task, refill, verdicts, requeues, stillborn,
-                           progressed, aborted>>
+            /\ line
+            /\ UNCHANGED <<done, rechecked, fleet, free, child, task, refill,
+                           verdicts, requeues, stillborn, progressed, aborted>>
        [] m.kind = "requeue" ->          \* WorkerPool#relay + Fleet#requeue, close
             /\ rechecks' = Append(rechecks, m.id)
             /\ rechecked' = rechecked \cup {m.id}
             /\ requeues' = [requeues EXCEPT ![m.id] = @ + 1]
             /\ inflight' = [inflight EXCEPT ![w] = None]
             /\ req' = [req EXCEPT ![w] = Append(@, EOF)]
-            /\ resp' = rest
-            /\ UNCHANGED <<queue, done, fleet, spawned, slot, free, served,
-                           child, task, refill, verdicts, stale, stillborn,
-                           progressed, aborted>>
+            /\ line
+            /\ UNCHANGED <<queue, done, fleet, free, served, child, task,
+                           refill, verdicts, stale, stillborn, progressed,
+                           aborted>>
        [] OTHER ->                       \* "leak", "done": the ledger only
-            /\ resp' = rest
-            /\ UNCHANGED <<queue, done, rechecks, rechecked, fleet, spawned,
-                           slot, free, inflight, served, req, child, task,
-                           refill, verdicts, requeues, stale, stillborn,
-                           progressed, aborted>>
+            /\ line
+            /\ UNCHANGED <<queue, done, rechecks, rechecked, fleet, free,
+                           inflight, served, req, child, task, refill,
+                           verdicts, requeues, stale, stillborn, progressed,
+                           aborted>>
+
+\* The pipe holds a complete line, or EOF: a read that returns one.
+Complete(w) == \E k \in DOMAIN resp[w] : resp[w][k].kind # "part"
+
+\* Stuck in a read (Blocking only): the parent is alive and does nothing.
+Wait == blocked # {} /\ UNCHANGED vars
 
 \* WorkerPool#watch: the deadline passed; Worker#halt kills the child and
 \* Fleet#remove reaps it. A slow test is indistinguishable from a hang, so
@@ -245,15 +302,19 @@ Service(w) ==
 Expire(w) ==
   /\ Polling /\ w \in fleet
   /\ Remove(w, "timeout")
-  /\ child' = [child EXCEPT ![w] = "gone"]
-  /\ UNCHANGED <<queue, rechecks, rechecked, spawned, slot, served, req, resp,
-                 task, requeues, stale, progressed>>
+  /\ UNCHANGED <<queue, rechecks, rechecked, blocked, requeues, stale,
+                 progressed>>
 
 -----------------------------------------------------------------------------
 (* The child (Shift#serve). Its pipes outlive the parent's interest: once  *)
-(* removed from the fleet, whatever it writes is never read.               *)
+(* removed from the fleet, whatever it writes is never read. The offer it  *)
+(* is evaluating matters only while it is busy.                            *)
 
 Emit(w, msgs) == resp' = [resp EXCEPT ![w] = @ \o msgs]
+
+Become(w, state) ==
+  /\ child' = [child EXCEPT ![w] = state]
+  /\ task' = [task EXCEPT ![w] = NoTask]
 
 ChildUnchanged == UNCHANGED parent
 
@@ -264,55 +325,65 @@ ChildRead(w) ==
      /\ req' = [req EXCEPT ![w] = Tail(@)]
      /\ IF m.kind = "eof"
           THEN /\ Emit(w, <<Msg("done", None), EOF>>)
-               /\ child' = [child EXCEPT ![w] = "gone"]
-               /\ task' = task
+               /\ Become(w, "gone")
           ELSE /\ child' = [child EXCEPT ![w] = "busy"]
                /\ task' = [task EXCEPT ![w] = m]
                /\ resp' = resp
   /\ ChildUnchanged
 
+Busy(w) == child[w] \in {"busy", "torn"}
+
 \* Shift#step: a trusted result, then "ready". Shift#process may slip a
-\* "leak" for an earlier kill in between (LeakGuard#check).
+\* "leak" for an earlier kill in between (LeakGuard#check). From torn, the
+\* first line finishes the one already started.
 ChildResult(w) ==
-  /\ child[w] = "busy"
+  /\ Busy(w)
   /\ \E leak \in BOOLEAN :
        Emit(w, IF leak
                  THEN <<Msg("result", task[w].id), Msg("leak", None), Msg("ready", None)>>
                  ELSE <<Msg("result", task[w].id), Msg("ready", None)>>)
-  /\ child' = [child EXCEPT ![w] = "idle"]
-  /\ UNCHANGED <<req, task>> /\ ChildUnchanged
+  /\ Become(w, "idle")
+  /\ UNCHANGED req /\ ChildUnchanged
 
 \* Shift#tainted?: a soft-timeout result ends the shift.
 ChildTainted(w) ==
-  /\ child[w] = "busy"
+  /\ Busy(w)
   /\ Emit(w, <<Msg("result", task[w].id), Msg("done", None), EOF>>)
-  /\ child' = [child EXCEPT ![w] = "gone"]
-  /\ UNCHANGED <<req, task>> /\ ChildUnchanged
+  /\ Become(w, "gone")
+  /\ UNCHANGED req /\ ChildUnchanged
 
 \* Suspect#message: a warm run that can't be trusted. A recheck never
 \* requeues (Attempt#recheck settles on a Doubt, which rules a result).
 ChildRequeue(w) ==
-  /\ child[w] = "busy" /\ ~task[w].recheck
+  /\ Busy(w) /\ ~task[w].recheck
   /\ Emit(w, <<Msg("requeue", task[w].id), Msg("done", None), EOF>>)
-  /\ child' = [child EXCEPT ![w] = "gone"]
+  /\ Become(w, "gone")
+  /\ UNCHANGED req /\ ChildUnchanged
+
+\* A child stops partway through writing its first line: the pipe holds
+\* the start of it, flushed. What follows is the rest, EOF, or nothing.
+ChildTear(w) ==
+  /\ child[w] = "busy"
+  /\ Emit(w, <<Part>>)
+  /\ child' = [child EXCEPT ![w] = "torn"]
   /\ UNCHANGED <<req, task>> /\ ChildUnchanged
 
 \* The process dies: the kernel closes its end of the pipe.
 ChildCrash(w) ==
-  /\ child[w] \in {"idle", "busy"}
+  /\ child[w] \in {"idle", "busy", "torn"}
   /\ Emit(w, <<EOF>>)
-  /\ child' = [child EXCEPT ![w] = "gone"]
-  /\ UNCHANGED <<req, task>> /\ ChildUnchanged
+  /\ Become(w, "gone")
+  /\ UNCHANGED req /\ ChildUnchanged
 
 \* Stuck in a test, or in teardown after it was retired.
 ChildHang(w) ==
-  /\ child[w] \in {"idle", "busy"}
-  /\ child' = [child EXCEPT ![w] = "hung"]
-  /\ UNCHANGED <<req, resp, task>> /\ ChildUnchanged
+  /\ child[w] \in {"idle", "busy", "torn"}
+  /\ Become(w, "hung")
+  /\ UNCHANGED <<req, resp>> /\ ChildUnchanged
 
 ChildStep(w) ==
   \/ ChildRead(w) \/ ChildResult(w) \/ ChildTainted(w) \/ ChildRequeue(w)
-  \/ ChildCrash(w)
+  \/ ChildTear(w) \/ ChildCrash(w)
 
 \* The parent's loop ends: `poll while fleet.any?`
 Finished == (Polling /\ fleet = {}) \/ aborted
@@ -320,14 +391,18 @@ Finished == (Polling /\ fleet = {}) \/ aborted
 Next ==
   \/ RefillStep
   \/ \E w \in Workers : Service(w) \/ Expire(w) \/ ChildStep(w) \/ ChildHang(w)
+  \/ Wait
   \/ (Finished /\ UNCHANGED vars)
 
-\* Healthy children make progress and the parent keeps polling; the
-\* watchdog is only relied on to kill children that really hung.
+\* Healthy children make progress, and the parent keeps refilling and
+\* dispatches every line that is complete. Nothing makes it read the start
+\* of a line whose rest may never come: under Blocking that read never
+\* returns. The watchdog is only relied on to kill children that really
+\* hung.
 Fairness ==
   /\ WF_vars(RefillStep)
   /\ \A w \in Workers :
-       /\ WF_vars(Service(w))
+       /\ WF_vars(Complete(w) /\ Service(w))
        /\ WF_vars(ChildStep(w))
        /\ WF_vars(child[w] = "hung" /\ Expire(w))
 
@@ -338,7 +413,8 @@ Spec == Init /\ [][Next]_vars /\ Fairness
 
 TypeOK ==
   /\ fleet \subseteq Workers
-  /\ spawned \in 0..MaxWorkers
+  /\ free \in Seq(Slots)
+  /\ blocked \subseteq fleet /\ Cardinality(blocked) <= 1
   /\ done \subseteq Ids
   /\ rechecked \subseteq Ids
   /\ \A w \in Workers : inflight[w] \in Ids \cup {None}
@@ -355,13 +431,25 @@ RecheckOnFreshWorker == ~stale
 
 FleetWithinJobs == Cardinality(fleet) <= Jobs
 
-\* Parallel test databases: each live worker owns a distinct slot.
+\* Parallel test databases: the live workers and Fleet#slots hold every
+\* slot exactly once between them, so no two live workers share a slot and
+\* a spawn never takes one a live worker holds.
 SlotsExclusive ==
-  /\ \A v, w \in fleet : v # w => slot[v] # slot[w]
-  /\ \A w \in fleet : slot[w] \in Slots /\ slot[w] \notin free
+  /\ Len(free) + Cardinality(fleet) = Jobs
+  /\ Range(free) \cup fleet = Slots
 
-\* Whenever Fleet#refill spawns, a slot is free and the spawn bound holds.
-CanSpawn == (refill > 0 /\ ~aborted /\ Pending) => (free # {} /\ spawned < MaxWorkers)
+\* A buffered start of a line belongs to a child still writing it, stuck or
+\* dead, or its rest is next in the pipe: lines are never spliced.
+Framed ==
+  \A w \in fleet :
+    buf[w] => \/ child[w] \in {"torn", "hung", "gone"}
+              \/ resp[w] # <<>> /\ Head(resp[w]).kind \notin {"part", "eof"}
+
+\* A worker leaves the fleet only once its process is reaped.
+Reaped == \A w \in Workers \ fleet : child[w] = "none"
+
+\* Whenever Fleet#refill spawns, a slot is free.
+CanSpawn == (refill > 0 /\ ~aborted /\ Pending) => free # <<>>
 
 \* Every id is in exactly one place: waiting, awaiting a recheck, in flight
 \* on one live worker, or done.

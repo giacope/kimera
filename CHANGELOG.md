@@ -15,6 +15,14 @@
   the mutant. The report carries that verdict and keeps the warm detail as
   the row's `note` (text, JSON, `github` and `sarif`). `--no-rejudge` (or
   `rejudge: false`) keeps the old behavior.
+- The worker-pool model (`formal/`) is now checked against the code, not
+  only on its own: TLC validates each run of the pool's property spec, with
+  scripted children and with the real `Shift`, step by step against it. The
+  model also represents half-written lines, and finds the half-written-line
+  hang (below) when the old blocking read is put back. CI checks it
+  exhaustively up to 3 mutants on 2 jobs, and its invariants up to 5 on 2
+  and 4 on 3.
+
 - Kimera's full self-host run passes its own gate again. Seven mutants
   survived it, one had no covering test, and one was unjudged: the isolated
   child died of an `Interrupt` from a fixture test that a broken RSpec

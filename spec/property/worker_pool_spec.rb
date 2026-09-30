@@ -2,25 +2,38 @@
 
 require "json"
 require "tempfile"
+require "kimera/execution/shift"
 require "kimera/execution/worker_pool"
 require_relative "property_helper"
 
 # Fault injection for the real pool, with scripts drawn from the child
 # actions in formal/WorkerPool.tla. The real parent (WorkerPool, Fleet,
-# Worker, StillbornGuard) drives forked children that follow a random script
-# instead of running Shift, and the run must keep the model's safety
-# invariants. This does not replay TLC traces or check that each real step
-# is one of the model's transitions.
+# Worker, StillbornGuard) drives forked children that follow a random script,
+# either speaking Shift's pipe protocol themselves or running the real Shift
+# over an adapter that injects the faults, and the run must keep the model's
+# safety invariants. Every run's steps are also logged
+# (support/pool_trace.rb), and the second property has TLC check that each
+# log is a behavior of the model, step by step (support/trace_check.rb,
+# formal/WorkerPoolTrace.tla).
 #
 # Each mutant's script is [warm, recheck]: what its child does when offered
-# it warm, and again on a fresh worker after a requeue. A recheck never
-# requeues (Attempt#recheck settles on a Doubt). Every run is supervised in
+# it warm, and again on a fresh worker after a requeue. A scripted recheck
+# never requeues (Attempt#recheck settles on a Doubt); under Shift it may
+# try, and Shift must rule a harness_error instead. Every run is supervised in
 # its own process group with a deadline of its own, so a pool that stops
 # polling fails the example instead of hanging the suite.
 RSpec.describe(Kimera::Execution::WorkerPool) do
   let(:warm) { Pbt.one_of(:result, :result, :result, :leak, :tainted, :requeue, :requeue, :crash, :hang, :partial) }
   let(:recheck) { Pbt.one_of(:result, :leak, :tainted, :crash, :hang, :partial) }
   let(:scripts) { Pbt.array(Pbt.tuple(warm, recheck), min: 1, max: 6) }
+  # Fleet#take with its sources swapped: a fresh worker serves the queue
+  # before a recheck. Every verdict is still right and every recheck still
+  # runs on a fresh worker, so only the trace shows the change.
+  let(:mutant) do
+    Module.new do
+      def take(worker) = following || (worker.fresh? && rechecks.shift)
+    end
+  end
 
   def watchdog = 0.4
 
@@ -61,8 +74,11 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     sleep(60)
   end
 
+  # The verdict a result carries.
+  def status(behavior) = behavior == :tainted ? "timeout" : "killed"
+
   def report(behavior, id, response)
-    say(response, t: "result", id: id, status: behavior == :tainted ? "timeout" : "killed", ms: 1, fails: [])
+    say(response, t: "result", id: id, status: status(behavior), ms: 1, fails: [])
     say(response, t: "leak", id: id, detail: "leak") if behavior == :leak
     say(response, t: "ready") unless behavior == :tainted
   end
@@ -79,13 +95,21 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     false
   end
 
-  # Runs inside the supervisor: the pool, and a log of what it reported.
-  def run(script, jobs, log)
+  # Runs inside the supervisor: the pool, a log of what it reported, and its
+  # trace. A mutant module, if given, is prepended to Fleet first.
+  def run(script, jobs, log, mutant)
+    Kimera::Execution::WorkerPool::Fleet.prepend(mutant) if mutant
     tally = { events: [], slots: [], error: nil }
-    pool(tally, spawner(tally, script, jobs, log), script.size, jobs).run
+    PoolTrace.record((1..script.size).to_a, jobs) { judge(tally, script, jobs, log) }
     tally
+  end
+
+  def judge(tally, script, jobs, log)
+    pool(tally, spawner(tally, script, jobs, log), script.size, jobs).run
   rescue Kimera::Error => error
-    tally.merge(error: error.message)
+    tally[:error] = error.message
+  ensure
+    tally[:trace] = PoolTrace.recorder.to_h
   end
 
   # A slot is reused only once its last holder is reaped.
@@ -108,13 +132,13 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   def resolver(tally)
     lambda do |message|
       kind = message["t"]
-      tally[:events] << [kind.to_sym, message["id"]] if %w[result requeue].include?(kind)
+      tally[:events] << [kind.to_sym, message["id"], message["status"]] if %w[result requeue].include?(kind)
     end
   end
 
-  def supervised(script, jobs)
+  def supervised(script, jobs, mutant: nil)
     Tempfile.create("offers") do |log|
-      tally = Supervised.run(deadline: deadline) { run(script, jobs, log.path) }
+      tally = Supervised.run(deadline: deadline) { run(script, jobs, log.path, mutant) }
       raise(Kimera::Error, "the supervised run raised #{tally.detail}") if tally.is_a?(Supervised::Crashed)
       tally.merge(offers: File.readlines(log.path).map(&:split))
     end
@@ -122,10 +146,13 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
   def outcome(behavior) = { crash: :crash, hang: :timeout, partial: :timeout }.fetch(behavior, :result)
 
+  # What each mutant's last child does with it.
+  def final(script) = script.map { |warm, recheck| warm == :requeue ? recheck : warm }
+
   # What each mutant ends with, given its script.
-  def expected(script)
-    script.each_with_index.map { |(warm, recheck), index| [index + 1, outcome(warm == :requeue ? recheck : warm)] }
-  end
+  def expected(script) = final(script).each_with_index.map { |behavior, index| [index + 1, outcome(behavior)] }
+
+  def statuses(events) = events.filter_map { |kind, id, status| [id, status] if kind == :result }
 
   def verdicts(events)
     events.filter_map { |kind, id, reason| [id, kind == :lost ? reason : :result] unless kind == :requeue }
@@ -143,33 +170,98 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     events.none? { it.first == :result } && events.count { it.last == :crash } == jobs && crashes > jobs
   end
 
+  def judged(tally, script, jobs)
+    safe(tally, script)
+    if tally[:error]
+      expect(tally[:error]).to(include("died before reporting a result"))
+      expect(stillborn?(tally, script, jobs)).to(be(true), "aborted though StillbornGuard's condition did not hold")
+    else
+      expect(verdicts(tally[:events])).to(match_array(expected(script)))
+      expect(requeues(tally[:events])).to(match_array(requeued(script)))
+    end
+  end
+
   # Safety holds whether or not the run completed.
   def safe(tally, script)
     judged = verdicts(tally[:events])
     expect(tally[:slots]).to(be_empty, "a slot was out of range or still held")
     expect(judged).to(all(satisfy { expected(script).include?(it) }))
     expect(judged.map(&:first)).to(eq(judged.map(&:first).uniq), "a mutant got two verdicts")
+    expect(statuses(tally[:events])).to(all(satisfy { |id, status| status == status(final(script)[id - 1]) }))
     requeues = requeues(tally[:events])
     expect(requeues).to(eq(requeues.uniq).and(all(satisfy { requeued(script).include?(it) })))
     expect(tally[:offers]).not_to(include([anything, "true", "false"]), "a recheck reached a used worker")
   end
 
-  it "gives every mutant exactly the one verdict its script calls for, or aborts only when it must" do
-    for_all(scripts, Pbt.integer(min: 1, max: 3), runs: 30) do |script, jobs|
-      tally = supervised(script, jobs)
-      safe(tally, script)
-      if tally[:error]
-        expect(tally[:error]).to(include("died before reporting a result"))
-        expect(stillborn?(tally, script, jobs)).to(be(true), "aborted though StillbornGuard's condition did not hold")
-      else
-        expect(verdicts(tally[:events])).to(match_array(expected(script)))
-        expect(requeues(tally[:events])).to(match_array(requeued(script)))
+  def conforming(runs)
+    skip("trace validation runs TLC, which needs Java") unless TraceCheck.available?
+    TraceCheck.new(runs).verdict
+  end
+
+  # The trace is checked once all runs are in: one TLC run per pool size.
+  shared_examples("a pool the model describes") do
+    it "gives each mutant the one verdict its script calls for, and steps as formal/WorkerPool.tla does" do
+      runs = []
+      for_all(scripts, Pbt.integer(min: 1, max: 3), runs: 30) do |script, jobs|
+        tally = supervised(script, jobs)
+        runs << [jobs, tally[:trace]]
+        judged(tally, script, jobs)
       end
+      accepted, report = conforming(runs)
+      expect(accepted).to(be(true), "a run is not a behavior of the model:\n#{report}")
     end
+  end
+
+  it_behaves_like("a pool the model describes")
+
+  it "rejects the trace of a parent that serves the queue before a recheck", :aggregate_failures do
+    script = [%i[requeue result], %i[result result]]
+    tally = supervised(script, 1, mutant: mutant)
+    safe(tally, script)
+    expect(verdicts(tally[:events])).to(match_array(expected(script)))
+    accepted, report = conforming([[1, tally[:trace]]])
+    expect([accepted, report[/REJECTED at step \d+/]]).to(eq([false, "REJECTED at step 5"]))
   end
 
   it "times out a worker that flushes half a line and hangs with its pipe open" do
     tally = supervised([%i[partial result], %i[result result]], 1)
     expect([tally[:error], verdicts(tally[:events])]).to(eq([nil, [[1, :timeout], [2, :result]]]))
+  end
+
+  # The real Shift in each child, with an adapter that injects the faults
+  # (support/faulty_adapter.rb). Shift decides what goes down the pipe, so
+  # the child side of the protocol is the code's, not a script's.
+  context("with Shift as the child") do
+    let(:warm) { Pbt.one_of(:killed, :killed, :survived, :leak, :tainted, :requeue, :requeue, :crash, :hang) }
+    let(:recheck) { Pbt.one_of(:killed, :survived, :leak, :tainted, :requeue, :crash, :hang) }
+
+    # Room for a Trial and a LeakGuard re-run under a loaded machine: a slow
+    # healthy child would get the wrong verdict.
+    def soft = 0.25
+
+    def watchdog = 1.0
+
+    # A recheck that stays in doubt is ruled harness_error; it never requeues.
+    def status(behavior)
+      { killed: "killed", leak: "killed", survived: "survived", tainted: "timeout", requeue: "harness_error" }
+        .fetch(behavior)
+    end
+
+    def child(script, log)
+      forked do |request, response|
+        offers = OfferTap.new(request, log)
+        shift(script, offers).serve(offers, response)
+        exit!(0)
+      end
+    end
+
+    def shift(script, offers)
+      Kimera::Execution::Shift.new(
+        adapter: FaultyAdapter.new(script, offers), registry: Struct.new(:index).new({}),
+        coverage: (1..script.size).to_h { [it, ["t"]] }, soft_timeout: soft, leak_every: 1
+      )
+    end
+
+    it_behaves_like("a pool the model describes")
   end
 end
