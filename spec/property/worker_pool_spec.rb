@@ -9,8 +9,9 @@ require_relative "property_helper"
 # actions in formal/WorkerPool.tla. The real parent (WorkerPool, Fleet,
 # Worker, StillbornGuard) drives forked children that follow a random script
 # instead of running Shift, and the run must keep the model's safety
-# invariants. This does not replay TLC traces or check that each real step
-# is one of the model's transitions.
+# invariants. Every run's steps are also logged (support/pool_trace.rb), and
+# the second property has TLC check that each log is a behavior of the
+# model, step by step (support/trace_check.rb, formal/WorkerPoolTrace.tla).
 #
 # Each mutant's script is [warm, recheck]: what its child does when offered
 # it warm, and again on a fresh worker after a requeue. A recheck never
@@ -21,6 +22,14 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   let(:warm) { Pbt.one_of(:result, :result, :result, :leak, :tainted, :requeue, :requeue, :crash, :hang, :partial) }
   let(:recheck) { Pbt.one_of(:result, :leak, :tainted, :crash, :hang, :partial) }
   let(:scripts) { Pbt.array(Pbt.tuple(warm, recheck), min: 1, max: 6) }
+  # Fleet#take with its sources swapped: a fresh worker serves the queue
+  # before a recheck. Every verdict is still right and every recheck still
+  # runs on a fresh worker, so only the trace shows the change.
+  let(:mutant) do
+    Module.new do
+      def take(worker) = following || (worker.fresh? && rechecks.shift)
+    end
+  end
 
   def watchdog = 0.4
 
@@ -79,13 +88,21 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     false
   end
 
-  # Runs inside the supervisor: the pool, and a log of what it reported.
-  def run(script, jobs, log)
+  # Runs inside the supervisor: the pool, a log of what it reported, and its
+  # trace. A mutant module, if given, is prepended to Fleet first.
+  def run(script, jobs, log, mutant)
+    Kimera::Execution::WorkerPool::Fleet.prepend(mutant) if mutant
     tally = { events: [], slots: [], error: nil }
-    pool(tally, spawner(tally, script, jobs, log), script.size, jobs).run
+    PoolTrace.record((1..script.size).to_a, jobs) { judge(tally, script, jobs, log) }
     tally
+  end
+
+  def judge(tally, script, jobs, log)
+    pool(tally, spawner(tally, script, jobs, log), script.size, jobs).run
   rescue Kimera::Error => error
-    tally.merge(error: error.message)
+    tally[:error] = error.message
+  ensure
+    tally[:trace] = PoolTrace.recorder.to_h
   end
 
   # A slot is reused only once its last holder is reaped.
@@ -112,9 +129,9 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     end
   end
 
-  def supervised(script, jobs)
+  def supervised(script, jobs, mutant: nil)
     Tempfile.create("offers") do |log|
-      tally = Supervised.run(deadline: deadline) { run(script, jobs, log.path) }
+      tally = Supervised.run(deadline: deadline) { run(script, jobs, log.path, mutant) }
       raise(Kimera::Error, "the supervised run raised #{tally.detail}") if tally.is_a?(Supervised::Crashed)
       tally.merge(offers: File.readlines(log.path).map(&:split))
     end
@@ -166,6 +183,29 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
         expect(requeues(tally[:events])).to(match_array(requeued(script)))
       end
     end
+  end
+
+  def conforming(runs)
+    skip("trace validation runs TLC, which needs Java") unless TraceCheck.available?
+    TraceCheck.new(runs).verdict
+  end
+
+  it "takes only steps formal/WorkerPool.tla allows, from the state the model is in" do
+    runs = []
+    for_all(scripts, Pbt.integer(min: 1, max: 3), runs: 30) do |script, jobs|
+      runs << [jobs, supervised(script, jobs)[:trace]]
+    end
+    accepted, report = conforming(runs)
+    expect(accepted).to(be(true), "a run is not a behavior of the model:\n#{report}")
+  end
+
+  it "rejects the trace of a parent that serves the queue before a recheck", :aggregate_failures do
+    script = [%i[requeue result], %i[result result]]
+    tally = supervised(script, 1, mutant: mutant)
+    safe(tally, script)
+    expect(verdicts(tally[:events])).to(match_array(expected(script)))
+    accepted, report = conforming([[1, tally[:trace]]])
+    expect([accepted, report[/REJECTED at step \d+/]]).to(eq([false, "REJECTED at step 5"]))
   end
 
   it "times out a worker that flushes half a line and hangs with its pipe open" do

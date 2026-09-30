@@ -5,6 +5,8 @@
 pipe protocol (`Shift`). It was written by reading that code, not extracted
 from it. It exists because the pool is where a lost or duplicated message
 would silently drop a mutant from the gate, or record two verdicts for one.
+`WorkerPoolTrace.tla` checks logs of the real parent against it (see "How
+the model relates to the code").
 
 ```sh
 bin/model-check              # the instances CI checks (about 2 minutes)
@@ -32,6 +34,14 @@ any step. CI checks:
 | 5, 2 | invariants, symmetry | 164,282 | 14 s |
 | 4, 3 | invariants, symmetry | 944,723 | 80 s |
 
+`bin/model-check --deep` (the `model-check-deep` job) adds:
+
+| N, Jobs | Checks | Distinct states | Time (4 cores) |
+| --- | --- | --- | --- |
+| 4, 2 | all | 876,491 | 103 s |
+| 6, 2 | invariants, symmetry | 263,659 | 94 s |
+| 5, 3 | invariants, symmetry | 2,549,814 | 12 min |
+
 "All" is every invariant and `Termination`, with no reduction. The
 symmetry runs check the invariants only (see below). CI also checks that
 the parent as it was before #2 (`Blocking = TRUE`, below) violates
@@ -42,8 +52,8 @@ It does **not** establish:
 - correctness for other pool sizes (the small-scope hope is that bugs show up
   in small instances, but nothing here proves it);
 - `Termination` beyond the sizes checked without symmetry;
-- anything about the Ruby code beyond what the model captures. The model can
-  drift from the code, and what it abstracts away (below) is unchecked.
+- that the Ruby code refines the model beyond the runs trace validation
+  checks (below), or in what the model abstracts away.
 
 ### Why the state space is small, and why symmetry is sound
 
@@ -115,7 +125,8 @@ child hangs, and the parent waits forever. With `Blocking = FALSE`
 (`read_nonblock` and a line buffer, as the code is now) every CI instance
 passes. Only tears before a child's first line of a reply are modeled; a
 tear later in the reply is handled by the same buffer, and a long line read
-in pieces from a healthy child is a stuttering step.
+in pieces from a healthy child is a stuttering step (trace validation maps
+it so).
 
 The model abstracts away:
 - **Time.** A deadline is "may fire at any step"; there are no clocks.
@@ -142,23 +153,59 @@ The model abstracts away:
 
 ## How the model relates to the code
 
-The connection is model-inspired fault-injection testing, not conformance.
 `spec/property/worker_pool_spec.rb` runs the real parent (`WorkerPool`,
 `Fleet`, `Worker`, `StillbornGuard`) against forked children that follow
 random scripts drawn from the model's child actions (result, leak, tainted,
-requeue, crash, hang), plus one the model lacks (half a line, then silence).
-It checks the model's safety invariants on what actually happened: one verdict
-per mutant, of the kind the script calls for; one requeue per requeued mutant;
-rechecks only on fresh workers; slots reused only after their holder is
-reaped. It checks that an abort happens only when `StillbornGuard`'s condition
-held. Each run is supervised in its own process group with an external
-deadline.
+requeue, crash, hang, half a line then silence). Each run is supervised in its
+own process group with an external deadline. Two kinds of evidence come out
+of it.
 
-It does not run the real `Shift` (the children are scripts that speak its
-pipe protocol), does not replay TLC traces, and does not check that each real
-step corresponds to a model transition. Stronger conformance claims would
-need that evidence, such as trace validation of the real parent against the
-spec.
+**Outcomes.** The model's safety invariants hold of what actually happened:
+one verdict per mutant, of the kind the script calls for; one requeue per
+requeued mutant; rechecks only on fresh workers; slots reused only after
+their holder is reaped; an abort only when `StillbornGuard`'s condition held.
+
+**Trace validation.** Each run also logs the parent's steps
+(`spec/property/support/pool_trace.rb`, prepended to the pool's classes inside
+the supervised fork only, so the code under test is otherwise untouched):
+every spawn with the offer it sent, every fragment read with what the parent
+sent back (an offer, a close, nothing), every removal with the id it charged,
+and the loop's end or abort. TLC then checks each log against the model with
+`WorkerPoolTrace.tla`: each logged step must be a parent action of
+`WorkerPool` from the state the model has reached, with the same outcome.
+The model's children are not logged; between two logged steps they may take
+any steps that explain what the parent read. So each real step is a model
+transition, and the model's deterministic parent logic (`Take`,
+`Following`, `Pending`, `Remove`, the refill count, the FIFO of slots,
+`StillbornGuard`) makes the same choice the code made, every time, along
+the whole run. 30 random runs are checked per `bin/spec` (about 7 s of TLC,
+one TLC run per pool size), 300 in the `properties-deep` job; the examples
+skip when Java is missing.
+
+The check has teeth. Each change below to the Ruby parent, with the
+property's seed fixed, is rejected at the first step where it diverges:
+
+| Change to the parent | Outcome checks | Trace validation |
+| --- | --- | --- |
+| `Fleet#take` serves the queue before a recheck | pass | rejected (a spawn offers 2, the model offers the recheck of 1) |
+| `Fleet#remove` returns a slot to the front of `Fleet#slots` | pass | rejected (a spawn takes the wrong slot) |
+| `StillbornGuard` aborts one crash early | fail | rejected (an abort the model doesn't take) |
+| a `leak` message closes the worker | fail | rejected (a read that sends a close) |
+
+The first is also a permanent example in the property spec: the mutant runs
+with correct verdicts, and its trace must be rejected at step 5. The model's
+earlier slot choice (the lowest free slot, where `Fleet#slots` is a FIFO)
+is rejected by 3 of the 23 multi-job traces of one run.
+
+What trace validation does not establish:
+- that the code refines the model on runs the property doesn't generate
+  (the scripts, sizes up to 6 mutants on 3 jobs, and timings of the runs
+  it happens to make);
+- anything about what the parent does between logged steps beyond what the
+  model's state reflects (message payloads, the ledger, deadlines);
+- the child side: the children are scripts that speak `Shift`'s pipe
+  protocol, not `Shift`. The model's child actions are the only thing their
+  logs are checked against.
 
 ## Evidence the invariants have teeth
 

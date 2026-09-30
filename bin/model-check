@@ -19,6 +19,8 @@ class Kimera::ModelCheck
       bin/model-check --deep         larger instances (several minutes)
       bin/model-check N J            N mutants on J jobs: invariants and Termination
       bin/model-check --safety N J   invariants only, one state per symmetry orbit
+      bin/model-check --fetch        download tla2tools.jar only (trace validation
+                                     in spec/property/worker_pool_spec.rb runs it)
   TEXT
   ROOT = File.expand_path("..", __dir__)
   JAR = File.join(ROOT, "tmp", "tla2tools.jar")
@@ -39,6 +41,7 @@ class Kimera::ModelCheck
   def run(argv)
     return puts(USAGE) || true if argv.include?("--help")
     fetch
+    return true if argv == ["--fetch"]
     checks(argv).all? { |mutants, jobs, scope| check(mutants, jobs, scope) }
   end
 
