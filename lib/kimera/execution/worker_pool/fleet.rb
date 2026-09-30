@@ -61,10 +61,8 @@ class Kimera::Execution::WorkerPool::Fleet
 
   def disband
     workers.each_value do |worker|
-      pid = worker.pid
-      kill(pid)
       close(worker)
-      reap(pid)
+      stop(worker.pid)
     end
   end
 

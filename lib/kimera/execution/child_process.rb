@@ -32,6 +32,11 @@ module Kimera
         nil
       end
 
+      def stop(pid)
+        kill(pid)
+        reap(pid)
+      end
+
       def bury(pid)
         reap(pid).tap { signal(-pid) }
       end

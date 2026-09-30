@@ -63,8 +63,7 @@ class Kimera::Execution::Reload
   def hear(errand, pid, deadline)
     errand.await(deadline) { kill(pid) }
   rescue SignalException
-    kill(pid)
-    reap(pid)
+    stop(pid)
     raise
   end
 
