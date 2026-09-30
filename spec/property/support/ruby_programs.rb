@@ -11,9 +11,8 @@ require "pbt"
 # some of which read `a` and can raise, so removing a default is tested for
 # argument binding and for the order defaults are evaluated in.
 #
-# One shape stays out, as its source text can't round-trip: a bare range in
-# a condition (`!(a...b)` reads back as a flip-flop). A range is always the
-# receiver of two chained calls, so no one mutation leaves it bare.
+# `(!(a...b).cover?(%1))` is one dropped link from a bare range under `!`,
+# which Ruby reads as a flip-flop; kimera emits no such mutant.
 # `(-%1)` over `-1` roots a call chain at a literal a mutation can unsign
 # (`(--1.to_s)`), or leaves a literal the parser folds (`(--1)`).
 # `([%1]...[%2]).to_s.size` has array literals for endpoints and prints the
@@ -34,7 +33,8 @@ class RubyPrograms < Pbt::Arbitrary::Arbitrary
   UNARY = [
     "(!%1)", "(-%1)", "%1.to_s", "%1.to_s.size", "%1.abs", "%1&.succ", "%1.to_s.upcase", "Integer(%1)",
     "String(%1)", "%1.to_s.to_sym", "[%1].first", '"x#{%1}y"', "%1.to_s.match?(/1/)", "%1.nil?",
-    "%1.to_s.to_i", "%1.respond_to?(:abs)", "Array(%1)", "(a...b).to_a.include?(%1)", "%1.to_s.split(\"\").first"
+    "%1.to_s.to_i", "%1.respond_to?(:abs)", "Array(%1)", "(a...b).cover?(%1)", "%1.to_s.split(\"\").first",
+    "(!(a...b).cover?(%1))"
   ].freeze
   BINARY = [
     "(%1 + %2)", "(%1 - %2)", "(%1 * %2)", "(%1 / %2)", "(%1 % %2)", "(%1 == %2)", "(%1 != %2)",

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- No mutant leaves a range or regexp literal where Ruby tests a condition.
+  Ruby reads a range there as a flip-flop and a regexp as a match against
+  `$_`, and no source text keeps the plain value: `!(a...b).cover?(x)` with
+  the chain link `.cover?` dropped baked to `!(a...b)`, a flip-flop, not the
+  negated range the mutation meant, and `if (a...b).to_a` with `.to_a`
+  unwrapped ran the (always truthy) range in warm runs, where the guard
+  around it hides the condition, but a flip-flop in `--isolated` and reload.
+  Kimera now drops such a variant, from any operator, when it scans a point:
+  under `if`, `unless`, `elsif`, `?:`, `while`, `until`, `!` and `not`, and
+  through parentheses and the operands of `&&`, `||`, `and` and `or` there.
+
 - A bake keeps a sign that belongs outside a numeric literal. unparser
   wrote minus or plus over a call chain rooted at a literal (`-(0.succ)`)
   as `-0.succ`, and a negative literal raised to a power (`(-1) ** 2`) as

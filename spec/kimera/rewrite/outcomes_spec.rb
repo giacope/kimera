@@ -45,4 +45,29 @@ RSpec.describe(Kimera::Rewrite::Outcomes) do
     expect(distinct("f(1, 1)\n", "1, 1", drops(2))).to(eq([0, 1]))
     expect(distinct("f(1, 1)\n\"\\xff\"\n", "f(1, 1)", drops(2))).to(eq([0, 1]))
   end
+
+  describe "#writable" do
+    def writable(source, snippet, directives)
+      described_class.new(source).writable(at(source, snippet), directives.each_index.to_a) { directives[it] }
+    end
+
+    let(:unwrap) { [{ "type" => "unwrap_receiver" }, { "type" => "return_nil" }] }
+
+    it "drops a variant that leaves a range literal where the node is tested", :aggregate_failures do
+      expect(writable("if (a...b).to_a then 1 end\n", "(a...b).to_a", unwrap)).to(eq([1]))
+      expect(writable("x && (a...b).to_a ? 1 : 2\n", "(a...b).to_a", unwrap)).to(eq([1]))
+      expect(writable("x = (a...b).to_a\n", "(a...b).to_a", unwrap)).to(eq([0, 1]))
+    end
+
+    it "drops a variant that leaves a range literal tested inside it" do
+      unlink = [{ "type" => "drop_receiver_link" }, { "type" => "return_nil" }]
+      expect(writable("!(a...b).cover?(a)\n", "!(a...b).cover?(a)", unlink)).to(eq([1]))
+    end
+
+    it "keeps what it can't render", :aggregate_failures do
+      expect(writable("if (a...b).to_a then 1 end\n", "(a...b).to_a", [{ "type" => "unknown" }])).to(eq([0]))
+      expect(writable("if (a...b).to_a then 1 end\n", "(a...b).to_a then", unwrap)).to(eq([0, 1]))
+      expect(writable("if (a...b).to_a then 1 end\n\"\\xff\"\n", "(a...b).to_a", unwrap)).to(eq([0, 1]))
+    end
+  end
 end
