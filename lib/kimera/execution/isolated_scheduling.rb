@@ -57,9 +57,8 @@ module Kimera
       end
 
       def charge(sweep, result)
-        done = sweep.record(result)
+        sweep.record(result)
         progress.tick(result.status)
-        trace(result, done, sweep.total)
       end
     end
   end

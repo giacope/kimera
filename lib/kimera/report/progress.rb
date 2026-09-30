@@ -18,8 +18,6 @@ class Kimera::Report::Progress
     @clock = clock
   end
 
-  def enabled? = screen.enabled?
-
   def start(total, label = "mutants")
     tally.begin!(Integer(total), label, monotonic)
     emit if visible?
@@ -35,9 +33,15 @@ class Kimera::Report::Progress
     surface.commit
   end
 
+  def note(text)
+    surface.note(text) if enabled? && !screen.interactive?
+  end
+
   private
 
-  def screen = @_screen ||= Kimera::Report::Screen.for(@io, @enabled)
+  def enabled? = screen.enabled?
+
+  def screen = @_screen ||= Kimera::Report::Screen.for(@io, @enabled != false)
 
   def surface = @_surface ||= screen.surface
 
@@ -49,7 +53,12 @@ class Kimera::Report::Progress
 
   def cadence = @redraw || surface.cadence
 
-  def emit = surface.paint(tally.line(monotonic), monotonic)
+  def emit
+    now = monotonic
+    surface.paint(frame(now), now)
+  end
+
+  def frame(now) = screen.interactive? ? tally.line(now) : tally.plain(now)
 
   def monotonic = @clock.call
 end

@@ -48,8 +48,9 @@ bundle exec kimera mutant ID_OR_KEY --report REPORT.json [--rerun]
 bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
 ```
 
-- The progress bar renders on a tty. Redirected/CI runs stay silent until the
-  report, except isolated mode, which traces one verdict per line to stderr.
+- Progress goes to stderr: a bar on a tty; redirected/CI runs get a plain
+  `kimera: <phase> done/total …` line per phase start, at most every 30s, and at
+  the end. `--no-progress` silences it.
 - `--session FILE` persists per-mutant verdicts and resumes interrupted runs.
 - `--report FILE` writes the machine-readable report. Each result carries
   `mutant_id`, `key`, `status`, `file`, `line`, `operator`, and the

@@ -11,7 +11,7 @@ module Kimera
 
       def finish; end
 
-      def enabled? = false
+      def note(_text); end
     end
   end
 end

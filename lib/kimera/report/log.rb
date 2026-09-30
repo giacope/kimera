@@ -6,7 +6,7 @@ module Kimera
 end
 
 class Kimera::Report::Log
-  HEARTBEAT_EVERY = 10.0
+  HEARTBEAT_EVERY = 30.0
   NEVER = -Float::INFINITY
 
   def initialize(io)
@@ -18,6 +18,8 @@ class Kimera::Report::Log
   def cadence = HEARTBEAT_EVERY
 
   def due?(now, cadence) = now - @last >= cadence
+
+  def note(text) = write("kimera: #{text}\n")
 
   def paint(text, now)
     write(frame(text))

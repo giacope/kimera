@@ -3,7 +3,6 @@
 require "json"
 require "kimera/execution/isolated"
 require "kimera/registry/builder"
-require "kimera/report/progress"
 
 # A mutant baked into the harness's own timeout code can wedge its suite,
 # so the runner's watchdog is tested directly here.
@@ -36,11 +35,10 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     "def a(x, y)\n  x > y\nend\n"
   end
 
-  # enabled? true suppresses trace's stderr lines.
   def test_recording_bar(sink)
     Class.new do
       define_method(:initialize) { |s| @s = s }
-      def enabled? = true
+      define_method(:note) { |text| @s << [:note, text] }
       define_method(:start) { |total, label = "mutants"| @s << [:start, total, label] }
       define_method(:tick) { |status = nil| @s << [:tick, status] }
       define_method(:finish) { @s << [:finish] }
@@ -159,19 +157,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       expect(progress.last).to(eq([:finish]))
       expect(r.seen.values.flatten).to(match_array(ids))
     end
-
-    def silent(root, jobs: 2)
-      File.write(File.join(root, "calc.rb"), "def a(x, y) = x > y\n")
-      canned.new(registry: registry, root: root, tests: ["t1"], jobs: jobs, progress: Kimera::Execution::NullProgress)
-    end
-
-    it "emits stderr trace lines on the parallel path when the bar is off" do
-      Dir.mktmpdir do |root|
-        ids = test_all_ids
-        expect { silent(root).run(ids: ids) }
-          .to(output(%r{kimera: isolated #{ids.size}/#{ids.size}\s+#\d+ killed}).to_stderr)
-      end
-    end
   end
 
   describe "#verify!" do
@@ -194,14 +179,14 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     it "runs the whole suite once in a fresh mirror and passes when it is green", :aggregate_failures do
       green = Kimera::Execution::IsolatedOutcome.new(:survived)
       seen = nil
-      expect { seen = test_baseline(green) }.to(output("kimera: isolated baseline (unmutated mirror)\n").to_stderr)
+      expect { seen = test_baseline(green) }.not_to(output.to_stderr)
       expect(seen).to(eq([[true, %w[t1 t2]]]))
     end
 
-    it "stays quiet while the progress bar renders" do
-      bar = Kimera::Report::Progress.new(io: StringIO.new, enabled: true)
-      green = Kimera::Execution::IsolatedOutcome.new(:survived)
-      expect { test_baseline(green, progress: bar) }.not_to(output.to_stderr)
+    it "notes the phase on the progress output before it runs" do
+      events = []
+      test_baseline(Kimera::Execution::IsolatedOutcome.new(:survived), progress: test_recording_bar(events))
+      expect(events).to(eq([[:note, "isolated baseline (unmutated mirror)"]]))
     end
 
     it "aborts with the reason and the mirror layout when the unmutated suite is red", :aggregate_failures do
@@ -248,23 +233,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
           expect(File.exist?(File.join(mirror, "log"))).to(be(false))
         end
       end
-    end
-  end
-
-  describe "#trace" do
-    def result(status)
-      Kimera::MutantResult.new(mutant_id: 7, status: status, file: "calc.rb", duration: 1.25)
-    end
-
-    it "logs one verdict line to stderr when the progress bar is off" do
-      expect { test_invoke_private(runner, :trace, result(:killed), 3, 10) }
-        .to(output(%r{kimera: isolated 3/10\s+#7 killed\s+calc\.rb\s+\(1\.2s\)}).to_stderr)
-    end
-
-    it "stays quiet when the interactive bar is rendering" do
-      bar = Kimera::Report::Progress.new(io: StringIO.new, enabled: true)
-      r = runner(progress: bar)
-      expect { test_invoke_private(r, :trace, result(:survived), 1, 2) }.not_to(output.to_stderr)
     end
   end
 
@@ -383,15 +351,14 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       expect(ordered[:events].last).to(eq([:finish]))
     end
 
-    def trace(root)
+    def unannounced(root)
       File.write(File.join(root, "calc.rb"), "def a(x, y) = x > y\n")
       test_canned_runner(root: root, jobs: 1, progress: Kimera::Execution::NullProgress)
     end
 
-    it "emits a stderr trace line per verdict when the bar is off" do
+    it "prints nothing per verdict; progress alone reports the run" do
       Dir.mktmpdir do |root|
-        expect { trace(root).run(ids: [first]) }
-          .to(output(%r{kimera: isolated 1/1\s+##{first} killed\s+calc\.rb}).to_stderr)
+        expect { unannounced(root).run(ids: [first]) }.not_to(output.to_stderr)
       end
     end
 

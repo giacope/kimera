@@ -44,18 +44,6 @@ module Kimera
       rescue Errno::ECHILD
         nil
       end
-
-      def trace(result, done, total)
-        return if progress.enabled?
-        errors.puts(line(result, done, total))
-      end
-
-      def line(result, done, total)
-        format(
-          "kimera: isolated %d/%d  #%s %s  %s  (%.1fs)", done, total,
-          *result.to_h.values_at("mutant_id", "status", "file", "duration")
-        )
-      end
     end
   end
 end
