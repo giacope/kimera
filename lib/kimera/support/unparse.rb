@@ -11,7 +11,20 @@ module Kimera
 
     def parse(source) = Kimera::Warnings.silence { Unparser.parse(source) }
 
-    def unparse(node) = Kimera::Warnings.silence { Unparser.unparse(Grouping.call(node)) }
+    def unparse(node)
+      text = Kimera::Warnings.silence { Unparser.unparse(Grouping.call(node)) }
+      text.valid_encoding? ? text : raise(EncodingError, "unparser wrote a literal's raw bytes, invalid in UTF-8")
+    end
+
+    module RawBytes
+      def diagnostic(type, reason, *)
+        super unless reason == :invalid_encoding
+      end
+    end
+
+    module Parsing
+      def parser = super.tap { it.builder.extend(RawBytes) }
+    end
 
     module Binders
       private
@@ -50,5 +63,6 @@ module Kimera
   end
 end
 
+Unparser.singleton_class.prepend(Kimera::Unparse::Parsing)
 Unparser::AST::LocalVariableScopeEnumerator.prepend(Kimera::Unparse::Binders)
 Unparser::Emitter::Range.prepend(Kimera::Unparse::RangeEndpoints)

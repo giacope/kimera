@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- A string literal with a byte escape that is not valid UTF-8, like the
+  `"\xFF\xD8\xFF".b` Lobsters sniffs JPEG uploads with, no longer takes its
+  whole file down. Ruby and Prism read the escape as that byte, but the
+  parser gem under unparser rejected the literal (`literal contains escape
+  sequences incompatible with UTF-8`): warm runs reported all 13 of
+  `avatars_controller.rb`'s mutants unmutatable, and `--isolated` and
+  reload reported each an `error`, which counts as killed, so its survivors
+  passed the gate. Kimera now keeps the literal's bytes, in its own parses
+  and in unparser's round-trip checks, and unparser writes them back as the
+  same escapes, so the file is mutated like any other. Where unparser still
+  can't write such a literal (a heredoc without interpolation and
+  juxtaposed strings fail, and a backtick command came back with the raw
+  byte, which Kimera now refuses), the file is spliced per method, as any
+  file unparser can't write, and only the method holding it is unmutatable.
+  A bake that unparser can't write for the whole file is now also written
+  for its point's method alone and spliced in, as warm runs splice such a
+  file, where `--isolated` and reload reported every mutant in it
+  unmutatable.
 - A mutant that slows every covering test without failing any no longer
   costs the whole run. Deleting `pool.shutdown` in once-campfire made each
   of 407 tests wait out two `wait_for_termination(1)` calls, about 2s more

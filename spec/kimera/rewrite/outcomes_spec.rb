@@ -43,7 +43,11 @@ RSpec.describe(Kimera::Rewrite::Outcomes) do
     unknown = { "type" => "unknown" }
     expect(distinct("f(1)\n", "f(1)", [unknown, unknown.merge("to" => 1), unknown])).to(eq([0, 1]))
     expect(distinct("f(1, 1)\n", "1, 1", drops(2))).to(eq([0, 1]))
-    expect(distinct("f(1, 1)\n\"\\xff\"\n", "f(1, 1)", drops(2))).to(eq([0, 1]))
+    expect(distinct("f(1, 1)\n/\\xff/\n", "f(1, 1)", drops(2))).to(eq([0, 1]))
+  end
+
+  it "reads a file with a string escape that is invalid UTF-8" do
+    expect(distinct("f(1, 1)\n\"\\xff\"\n", "f(1, 1)", drops(2))).to(eq([0]))
   end
 
   describe "#writable" do
@@ -67,7 +71,7 @@ RSpec.describe(Kimera::Rewrite::Outcomes) do
     it "keeps what it can't render", :aggregate_failures do
       expect(writable("if (a...b).to_a then 1 end\n", "(a...b).to_a", [{ "type" => "unknown" }])).to(eq([0]))
       expect(writable("if (a...b).to_a then 1 end\n", "(a...b).to_a then", unwrap)).to(eq([0, 1]))
-      expect(writable("if (a...b).to_a then 1 end\n\"\\xff\"\n", "(a...b).to_a", unwrap)).to(eq([0, 1]))
+      expect(writable("if (a...b).to_a then 1 end\n/\\xff/\n", "(a...b).to_a", unwrap)).to(eq([0, 1]))
     end
   end
 end
