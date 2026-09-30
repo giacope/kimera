@@ -169,6 +169,24 @@ RSpec.describe(Kimera::RegistryScan) do
     end
   end
 
+  # Ruby reads a range literal it tests as a flip-flop; see Rewrite::Conditions.
+  describe "variants that leave a range literal in a condition" do
+    def labels(source, keys = ["all"])
+      points = described_class.new(operators: Kimera::Operators.build(keys: keys)).source(source, file: "x.rb").points
+      points.flat_map { |point| point.mutants.map(&:label) }
+    end
+
+    it "emits none", :aggregate_failures do
+      expect(labels("def m(a, b)\n  !(a...b).cover?(a)\nend\n")).not_to(include("drop chain link `.cover?`"))
+      expect(labels("def m(a, b)\n  1 if (a...b).to_a\nend\n")).not_to(include("delete .to_a"))
+      expect(labels("def m(a, b)\n  (a...b).to_a\nend\n")).to(include("delete .to_a"))
+    end
+
+    it "leaves no point when every variant would" do
+      expect(labels("def m(a, b)\n  1 if (a...b).to_a\nend\n", ["method_unwrap"])).to(be_empty)
+    end
+  end
+
   describe "tainting" do
     def spot
       Kimera::MutationPoint.new(

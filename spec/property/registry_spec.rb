@@ -121,7 +121,9 @@ RSpec.describe(Kimera::Registry) do
   # same program count one test gap twice, whichever operators made them
   # (`x.to_s.to_s` unwrapped or unlinked). A point the parser folds away
   # (the inner `-1` of `--1`) has no program; it is reported unmutatable.
-  it "never emits a mutant that is the original program, or two that are the same program" do
+  # A bake Ruby reads a flip-flop or `$_` match in was never the mutated tree:
+  # generated programs hold none, so a mutant left a literal in a condition.
+  it "never emits a mutant that is the original program, two that are the same program, or one it misreads" do
     for_all(programs, runs: 60) do |program|
       schemata = SchemataProjection.check(render(program))
       schemata.registry.points.each do |point|
@@ -130,6 +132,7 @@ RSpec.describe(Kimera::Registry) do
         source = point.original_source
         expect(bakes).not_to(include(schemata.original), "#{source}: a mutant is the original")
         expect(bakes).to(eq(bakes.uniq), "#{source}: #{point.mutants.map(&:label)} repeat a program")
+        expect(bakes.map(&:inspect)).not_to(include(/flipflop|match_current_line/), "#{source}: a mutant is misread")
       end
     end
   end

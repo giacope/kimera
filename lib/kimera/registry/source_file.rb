@@ -11,6 +11,8 @@ require_relative "walking"
 class Kimera::RegistryScan::SourceFile
   include Kimera::RegistryWalking
 
+  DIRECTIVE = ->((_key, variant)) { variant.directive }
+
   def initialize(source, file:, operators:, numbering:)
     @source = source
     @file = file
@@ -42,6 +44,7 @@ class Kimera::RegistryScan::SourceFile
 
   def bank(found, node, cursor)
     pairs = harvest(applicable(cursor), node, cursor.position).reject { |key, _| guarded?(node, key) }
+    pairs = writable(node.location, pairs)
     return if pairs.empty?
     found << assemble(node, pairs, cursor).taint!(tainted)
   end
@@ -63,7 +66,9 @@ class Kimera::RegistryScan::SourceFile
     point
   end
 
-  def distinct(location, pairs) = outcomes.distinct(location, pairs) { |(_key, variant)| variant.directive }
+  def writable(location, pairs) = outcomes.writable(location, pairs, &DIRECTIVE)
+
+  def distinct(location, pairs) = outcomes.distinct(location, pairs, &DIRECTIVE)
 
   def outcomes = @_outcomes ||= Kimera::Rewrite::Outcomes.new(@source)
 
