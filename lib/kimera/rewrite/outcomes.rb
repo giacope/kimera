@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../support/unparse"
+require_relative "conditions"
 require_relative "directive"
 require_relative "numbered_params"
 
@@ -17,7 +18,22 @@ class Kimera::Rewrite::Outcomes
     end
   end
 
+  def writable(location, variants)
+    node = nodes[[location.start_offset, location.end_offset]]
+    variants.reject { |variant| misread?(node, yield(variant)) }
+  end
+
   private
+
+  def misread?(node, directive)
+    Kimera::Rewrite::Conditions.misread?(Kimera::Rewrite::Directive.apply(node, directive), tested: tested[node])
+  rescue StandardError
+    false
+  end
+
+  def tested = @_tested ||= Kimera::Rewrite::Conditions.places(tree)
+
+  def tree = @_tree ||= Kimera::Rewrite::NumberedParams.normalize(Kimera::Unparse.parse(@source))
 
   def program(location, variant)
     programs[variant] ||= outcome(location, yield(variant))
@@ -35,7 +51,7 @@ class Kimera::Rewrite::Outcomes
   end
 
   def nodes
-    @_nodes ||= index(Kimera::Rewrite::NumberedParams.normalize(Kimera::Unparse.parse(@source)), {})
+    @_nodes ||= index(tree, {})
   rescue StandardError
     @_nodes = {}
   end
