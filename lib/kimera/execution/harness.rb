@@ -139,7 +139,10 @@ class Kimera::Execution::Harness
     end
   end
 
-  def verify! = baseline.check!
+  def verify!
+    progress.note("baseline (whole suite, no coverage)")
+    baseline.check!
+  end
 
   def budget(timings)
     return Kimera::Execution::TimeBudget::NONE if options[:relative_timeout] == false

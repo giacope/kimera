@@ -11,8 +11,6 @@ class Kimera::Execution::Sweep
     @lock = lock
   end
 
-  def total = @ids.size
-
   def results = @_results ||= []
 
   def pop = queue.pop(timeout: 0)
@@ -21,7 +19,6 @@ class Kimera::Execution::Sweep
 
   def record(result)
     @lock.synchronize { results << result }
-    results.size
   end
 
   private

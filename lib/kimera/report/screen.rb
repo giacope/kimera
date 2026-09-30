@@ -36,6 +36,8 @@ class Kimera::Report::Screen
 
   def enabled? = @enabled
 
+  def interactive? = @interactive
+
   def colored? = @enabled && !ENV.key?("NO_COLOR")
 
   def surface

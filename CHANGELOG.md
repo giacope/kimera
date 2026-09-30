@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- A run whose stderr is not a tty now says how far it has got. Progress drew
+  only on a tty, so in CI or under `2> log` a warm run printed nothing
+  between the scan warnings and the report: on Lobsters, 61 minutes of
+  silence for 4,124 mutants, with no telling a slow run from a wedged one.
+  Each phase (the coverage baseline, the warm pool with its reload tier,
+  `--isolated`, the re-judge pass) now prints a plain line to stderr when it
+  starts, at most one every 30 seconds as mutants complete, and one when it
+  ends, with the counts by status, the rate, an ETA and the time elapsed:
+  `kimera: mutants (warm) 1210/4124 29%  killed=801 survived=312
+  no_coverage=97  1.7/s  ETA 29:03  12:04 elapsed`. The tty bar is
+  unchanged; `--progress` off a tty, which printed the bar's text every 10
+  seconds, prints these lines too; stdout stays clean under `--format json`,
+  `sarif` and `github`. The isolated tier no longer traces one line per
+  verdict (4,124 lines on Lobsters); each verdict, with its duration, is in
+  the report. `--no-progress` (`progress: false`) now silences all
+  progress, including the isolated baseline and re-judge notices it used to
+  print.
 - Processes a test starts no longer outlive a warm worker the watchdog
   kills. Sinatra's integration tests start server subprocesses and stop
   them in teardown; a worker SIGKILLed mid-test never ran that teardown,

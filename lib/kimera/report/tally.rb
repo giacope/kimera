@@ -39,6 +39,10 @@ class Kimera::Report::Tally
     ["#{@label} #{bar}", "#{done}/#{@total}", "#{percent}%", *pace(now), elapsed(now)].join("  ")
   end
 
+  def plain(now)
+    ["kimera: #{@label} #{done}/#{@total} #{percent}%", *pace(now), "#{elapsed(now)} elapsed"].join("  ")
+  end
+
   private
 
   def statuses = @counts.keys.compact

@@ -345,8 +345,9 @@ it was set.
 
 ### Progress output
 
-During a run, a progress bar tracks each phase on stderr. It shows only when
-stderr is a tty; `--[no-]progress` overrides. Completed phases stay visible:
+During a run, progress for each phase goes to stderr, never stdout, so
+`--format json` and the other machine formats stay parseable. On a tty it is a
+bar redrawn in place, and completed phases stay visible:
 
 - `baseline` records coverage.
 - `mutants (warm)` uses the shared worker pool.
@@ -362,6 +363,24 @@ baseline [========================]  895/895  100%  0:03
 mutants (warm) [========================]  2104/2104  100%  killed=1867 survived=137 no_coverage=100  0:59
 mutants (isolated) [===========>            ]  224/445  50%  killed=196 survived=0 no_coverage=19 timeout=9  2:01
 ```
+
+When stderr is not a tty (CI, `2> log`), each phase prints plain lines
+instead: one when it starts, one at most every 30 seconds while its mutants
+complete, and one when it ends. A line comes only as mutants complete, so a
+gap well past 30 seconds plus `--hard-timeout` points at a stalled run rather
+than a slow one.
+
+```
+kimera: baseline 0/895 0%  0:00 elapsed
+kimera: baseline 895/895 100%  298.3/s  0:03 elapsed
+kimera: mutants (warm) 0/4124 0%  0:00 elapsed
+kimera: mutants (warm) 1210/4124 29%  killed=801 survived=312 no_coverage=97  1.7/s  ETA 29:03  12:04 elapsed
+```
+
+Phases with no count, such as `--isolated`'s unmutated baseline or the
+re-judge pass's reason, get one plain line each. `--no-progress` (or
+`progress: false` in `.kimera.yml`) silences all of it; `--progress` turns it
+back on over a config's `false`.
 
 ---
 

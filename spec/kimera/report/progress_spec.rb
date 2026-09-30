@@ -43,9 +43,16 @@ RSpec.describe(Kimera::Report::Progress) do
     bar
   end
 
-  it "defaults to disabled on a non-tty stream" do
+  it "defaults to plain lines on a non-tty stream", :aggregate_failures do
     io = StringIO.new
     exercise(io)
+    expect(io.string.lines).to(all(start_with("kimera: mutants ")))
+    expect(io.string).not_to(include("\r", "["))
+  end
+
+  it "stays silent on a non-tty stream when disabled explicitly" do
+    io = StringIO.new
+    described_class.new(io: io, enabled: false).tap { |bar| bar.start(2, "mutants") }.note("phase")
     expect(io.string).to(be_empty)
   end
 
@@ -60,8 +67,51 @@ RSpec.describe(Kimera::Report::Progress) do
 
     expect(io.string).not_to(include("\r\e[K"))
     lines = io.string.lines
-    expect(lines.first).to(include("0/2"))
+    expect(lines.first).to(eq("kimera: mutants 0/2 0%  0:00 elapsed\n"))
     expect(lines.last).to(include("2/2", "100%", "killed=2"))
+  end
+
+  # Every tick but the last lands at t=0, inside the heartbeat window; the last at `at`.
+  def plain(total, ticks, at:, label: "mutants (warm)")
+    now = 0.0
+    io = StringIO.new
+    bar = described_class.new(io: io, clock: -> { now })
+    bar.start(total, label)
+    ticks[...-1].each { |status| bar.tick(status) }
+    now = at
+    bar.tick(ticks.last)
+    io.string.lines
+  end
+
+  it "renders a plain line with counts, rate, ETA and elapsed time" do
+    ticks = ([:killed] * 801) + ([:survived] * 312) + ([:no_coverage] * 97)
+    line = "kimera: mutants (warm) 1210/4124 29%  killed=801 survived=312 no_coverage=97  1.7/s  ETA 29:03  " \
+      "12:04 elapsed"
+    expect(plain(4124, ticks, at: 724.0).last).to(eq("#{line}\n"))
+  end
+
+  it "closes a phase with a final plain line and no ETA" do
+    expect(plain(2, %i[killed survived], at: 5.0).last).to(
+      eq("kimera: mutants (warm) 2/2 100%  killed=1 survived=1  0.4/s  0:05 elapsed\n")
+    )
+  end
+
+  it "prints a plain heartbeat every 30 seconds, not sooner", :aggregate_failures do
+    expect(Kimera::Report::Log::HEARTBEAT_EVERY).to(eq(30.0))
+    expect(plain(10, [:killed], at: 29.9).size).to(eq(1))
+    expect(plain(10, [:killed], at: 30.0).size).to(eq(2))
+  end
+
+  it "writes a note as its own plain line" do
+    io = StringIO.new
+    described_class.new(io: io).note("isolated baseline (unmutated mirror)")
+    expect(io.string).to(eq("kimera: isolated baseline (unmutated mirror)\n"))
+  end
+
+  it "keeps notes off a live bar" do
+    bar, io = progress
+    bar.note("isolated baseline (unmutated mirror)")
+    expect(io.string).to(be_empty)
   end
 
   # Ticks at t=0 (always suppressed), then again at `elapsed`.
