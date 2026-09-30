@@ -13,7 +13,7 @@
   Statements before it (`"#{log; x}"`), whose values are discarded, and
   statements in a block inside one stay deletable, and every other operator
   still mutates inside interpolations; `string_literal` covers message
-  text. Kimera's own default set loses 232 such mutants.
+  text. Kimera's own default mutant set shrinks from 3,738 to 3,503.
 - A mutant that slows every covering test without failing any no longer
   costs the whole run. Deleting `pool.shutdown` in once-campfire made each
   of 407 tests wait out two `wait_for_termination(1)` calls, about 2s more
