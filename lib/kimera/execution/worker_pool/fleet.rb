@@ -24,17 +24,11 @@ class Kimera::Execution::WorkerPool::Fleet
     workers.to_a.each(&)
   end
 
-  def fetch(pipe)
-    workers.fetch(pipe)
-  end
+  def fetch(pipe) = workers.fetch(pipe)
 
-  def keys
-    workers.keys
-  end
+  def keys = workers.keys
 
-  def any?
-    workers.any?
-  end
+  def any? = workers.any?
 
   def take(worker)
     (worker.fresh? && rechecks.shift) || following
@@ -61,8 +55,15 @@ class Kimera::Execution::WorkerPool::Fleet
     worker = workers.delete(pipe)
     slots.push(worker.slot)
     close(worker)
-    charge(worker, reason, reap(worker.pid), stacks)
+    charge(worker, reason, bury(worker.pid), stacks)
     refill
+  end
+
+  def disband
+    workers.each_value do |worker|
+      close(worker)
+      stop(worker.pid)
+    end
   end
 
   private

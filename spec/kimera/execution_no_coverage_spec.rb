@@ -15,6 +15,7 @@ require "kimera/support/syntax_types"
 require "kimera/synthesis/file_weave"
 require "json"
 require "stringio"
+require "timeout"
 require "tmpdir"
 
 RSpec.describe Kimera::Execution, :aggregate_failures do
@@ -174,11 +175,14 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     expect(duty).to(have_received(:pulse))
   end
 
-  it "boots a pool duty inside the fork block" do
+  # Leading its own process group, the worker takes what its tests start
+  # down with it when it is killed.
+  it "boots a pool duty inside the fork block, as the leader of a process group" do
     runner = pool(database: instance_double(Kimera::Execution::ParallelTestDatabases))
     duty = Object.new
     allow(runner).to(receive(:fork).and_yield.and_return(123))
-    allow(runner).to(receive(:boot))
+    allow(runner).to(receive(:lead))
+    allow(runner).to(receive(:boot)) { expect(runner).to(have_received(:lead)) }
 
     expect(runner.__send__(:spawn, duty)).to(eq(123))
     expect(runner).to(have_received(:boot).with(duty))
@@ -210,6 +214,8 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
   it "performs every reload worker step" do
     reload = Kimera::Execution::Reload.new(registry: Object.new, adapter: Object.new, isolation: Object.new, root: ".")
     errand = instance_spy(Kimera::Execution::Reload::Errand, id: 9)
+    allow(reload).to(receive(:lead))
+    allow(errand).to(receive(:child!)) { expect(reload).to(have_received(:lead)) }
     allow(reload).to(receive(:silence!))
     allow(reload).to(receive(:report).with(errand).and_return("result"))
     allow(reload).to(receive(:exit!))
@@ -220,6 +226,18 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     expect(reload).to(have_received(:silence!))
     expect(errand).to(have_received(:emit).with("result"))
     expect(reload).to(have_received(:exit!).with(0))
+  end
+
+  # The child leads its own process group, so the terminal's Ctrl-C never
+  # reaches it: an interrupted kimera kills and reaps it on the way out.
+  it "takes a reload child down with it when kimera is interrupted", :aggregate_failures do
+    reload = Kimera::Execution::Reload.new(registry: Object.new, adapter: Object.new, isolation: Object.new, root: ".")
+    pid = fork { sleep(300) }
+    errand = instance_double(Kimera::Execution::Reload::Errand)
+    allow(errand).to(receive(:await).and_raise(Interrupt))
+
+    expect { Timeout.timeout(10) { reload.__send__(:hear, errand, pid, 1.0) } }.to(raise_error(Interrupt))
+    expect { Process.kill(0, pid) }.to(raise_error(Errno::ESRCH))
   end
 
   it "runs reload work inside the fork block before closing the parent writer" do

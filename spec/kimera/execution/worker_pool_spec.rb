@@ -167,15 +167,88 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     # The exit description is the operator's only clue before retrying with --jobs 1.
     expect { pool(queue: (1..6).to_a, spawner: ->(_slot) { crashed }, jobs: 2) }
       .to(raise_error(Kimera::Error, /3 warm workers died before reporting.*last exit: status 1/m))
-  ensure
-    # abort_pool! leaves dead workers unreaped; reap so later ECHILD probes stay meaningful.
-    Process.waitall
   end
 
   it "describes a signal death distinctly in the abort message" do
     expect { pool(queue: (1..6).to_a, spawner: signal, jobs: 2) }.to(raise_error(Kimera::Error, /last exit: signal 9/))
-  ensure
-    Process.waitall
+  end
+
+  # Leads its own process group and starts a grandchild, as a test that
+  # starts a server does, then serves as the block says.
+  def founder(witness)
+    forked do |request, response|
+      Process.setpgid(0, 0)
+      witness.spawn
+      yield(request, response)
+      exit!(0)
+    end
+  end
+
+  def hang(request, _response)
+    request.gets
+    sleep(30)
+  end
+
+  def reaped?(pid)
+    Process.kill(0, pid)
+    false
+  rescue Errno::ESRCH
+    true
+  end
+
+  it "kills what a hung worker started along with it", :aggregate_failures do
+    witness = self.witness
+    _, lost = pool(queue: [1], spawner: ->(_slot) { founder(witness) { |*pipes| hang(*pipes) } }, deadline: 0.3)
+    expect(lost).to(eq([[1, :timeout]]))
+    expect(witness.outlived?).to(be(false))
+  end
+
+  it "kills what a worker left running when it crashed or exited", :aggregate_failures do
+    witness = self.witness
+    spawned = 0
+    spawner =
+      lambda do |_slot|
+        spawned += 1
+        spawned == 1 ? founder(witness) { |request, _| exit!(1) if request.gets } : healthy
+      end
+    resolved, lost = pool(queue: [1, 2], spawner: spawner)
+    expect(lost).to(eq([[1, :crash]]))
+    expect(resolved.select { |m| m["t"] == "result" }.map { |m| m["id"] }).to(eq([2]))
+    expect(witness.outlived?).to(be(false))
+  end
+
+  # Workers lead their own process groups, out of reach of the terminal's
+  # Ctrl-C: a run that stops early takes them down itself. The first worker
+  # hangs; +spawner+ makes the rest.
+  def stopped(witness, spawner, resolve: ->(_message) {})
+    hung = nil
+    fleet =
+      lambda do |slot|
+        next spawner.call(slot) if hung
+        hung = founder(witness) { |*pipes| hang(*pipes) }
+      end
+    described_class.new(queue: [*1..6], spawner: fleet, jobs: 2, hard_timeout: 5, resolve: resolve, lost: ->(*) {}).run
+  rescue Kimera::Error, Interrupt => error
+    [error, hung]
+  end
+
+  it "kills and reaps every live worker, and what it started, when the run aborts", :aggregate_failures do
+    witness = self.witness
+    error, (pid, *pipes) = Timeout.timeout(10) { stopped(witness, ->(_slot) { crashed }) }
+    expect(error).to(be_a(Kimera::Error))
+    expect(reaped?(pid)).to(be(true))
+    expect(pipes).to(all(be_closed))
+    expect(witness.outlived?).to(be(false))
+  end
+
+  it "kills and reaps every live worker, and what it started, when kimera is interrupted", :aggregate_failures do
+    witness = self.witness
+    interrupt = ->(message) { raise(Interrupt) if message["t"] == "result" }
+    error, (pid, *pipes) = Timeout.timeout(10) { stopped(witness, ->(_slot) { healthy }, resolve: interrupt) }
+    expect(error).to(be_a(Interrupt))
+    expect(reaped?(pid)).to(be(true))
+    expect(pipes).to(all(be_closed))
+    expect(witness.outlived?).to(be(false))
   end
 
   # A hang is the mutant's fault; only crashes are systemic.
