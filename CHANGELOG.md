@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Kimera's full self-host run passes its own gate again. Seven mutants
+  survived it, one had no covering test, and one was unjudged: the isolated
+  child died of an `Interrupt` from a fixture test that a broken RSpec
+  narrowing let run. Each is now killed by a test (per-worker database
+  teardown, the doctor's coverage-floor probe, isolated verdict timing, the
+  test-exit fixture), or the code it sat on is gone: a worker's deadline was
+  renewed a second time after each result, the ignore-rule glob was matched
+  again on points already selected by it, and see the next entry.
+- A swapped `&&`/`||` is written with only the parentheses its grouping
+  needs, like every other bake: `a && b && c` with its outer `&&` swapped
+  reads `a && b || c`, one operator away from the original, not
+  `(a && b) || c`. The swap wrapped every `&&`/`||` operand itself, which
+  predates the regrouping below; both wrote the same program.
 - A bake keeps a sign that belongs outside a numeric literal. unparser
   wrote minus or plus over a call chain rooted at a literal (`-(0.succ)`)
   as `-0.succ`, and a negative literal raised to a power (`(-1) ** 2`) as

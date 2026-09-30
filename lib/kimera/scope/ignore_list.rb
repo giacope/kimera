@@ -5,8 +5,10 @@ module Kimera
     Match =
       Data.define(:point, :mutant) do
         def rule?(rule)
-          glob = rule[:file]
-          glob && File.fnmatch?(glob, point.file, File::FNM_PATHNAME) && anchors?(rule)
+          ANCHORS.all? do |field, matcher|
+            value = rule[field]
+            !value || __send__(matcher, value)
+          end
         end
         private
         def line?(value) = point.location.range.include?(Integer(value))
@@ -15,13 +17,6 @@ module Kimera
         def method?(value) = value.to_s == point.method_name
         def original?(value) = squeeze(value) == squeeze(point.original_source)
         def squeeze(source) = source.to_s.split.join(" ")
-
-        def anchors?(rule)
-          ANCHORS.all? do |field, matcher|
-            value = rule[field]
-            !value || __send__(matcher, value)
-          end
-        end
       end
 
     Resolution = Data.define(:ids, :stale, :moved)
