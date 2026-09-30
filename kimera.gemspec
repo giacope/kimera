@@ -31,5 +31,5 @@ Gem::Specification.new do |spec|
   spec.executables = ["kimera"]
   spec.require_paths = ["lib"]
   spec.add_dependency("prism", ">= 0.19", "< 2")
-  spec.add_dependency("unparser", ">= 0.6", "< 1")
+  spec.add_dependency("unparser", "~> 0.9.0")
 end
