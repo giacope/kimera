@@ -7,8 +7,10 @@ from it. It exists because the pool is where a lost or duplicated message
 would silently drop a mutant from the gate, or record two verdicts for one.
 
 ```sh
-bin/model-check          # the instances CI checks (about 3 minutes)
-bin/model-check 3 2      # any other N (mutants) and Jobs; 3 2 is tens of millions of states
+bin/model-check              # the instances CI checks (about 30 seconds)
+bin/model-check --deep       # larger instances, run by hand or from the Actions tab
+bin/model-check 4 2          # any N (mutants) and Jobs: invariants and Termination
+bin/model-check --safety 5 3 # invariants only, with symmetry reduction
 ```
 
 `bin/model-check` needs Java 11+ and downloads the pinned `tla2tools.jar`
@@ -17,18 +19,48 @@ into `tmp/` on first use.
 ## What this establishes, and what it doesn't
 
 TLC explores every reachable state of the model, but only for the finite
-instances it's run on. CI checks (N, Jobs) = (2, 2), (3, 1) and (1, 3), and in
-each of them every interleaving of parent and children satisfies the
-properties below, including crashes, hangs and watchdog kills at any step.
+instances it's run on. In each, every interleaving of parent and children
+satisfies the properties below, including crashes, hangs and watchdog kills at
+any step. CI checks:
+
+| N, Jobs | Checks | Distinct states | Time (4 cores) |
+| --- | --- | --- | --- |
+| 2, 2 | all | 5,352 | 2 s |
+| 3, 1 | all | 1,045 | 1 s |
+| 1, 3 | all | 78 | < 1 s |
+| 3, 2 | all | 45,498 | 5 s |
+| 5, 2 | invariants, symmetry | 41,401 | 5 s |
+| 4, 3 | invariants, symmetry | 150,108 | 13 s |
+
+"All" is every invariant and `Termination`, with no reduction. The
+symmetry runs check the invariants only (see below).
 
 It does **not** establish:
 - correctness for other pool sizes (the small-scope hope is that bugs show up
   in small instances, but nothing here proves it);
+- `Termination` beyond the sizes checked without symmetry;
 - anything about the Ruby code beyond what the model captures. The model can
   drift from the code, and what it abstracts away (below) is unchecked.
 
-A longer run of (3, 2) explored 39.7 million distinct states without a
-violation before it was stopped. That run was not exhaustive.
+### Why the state space is small, and why symmetry is sound
+
+A live worker is named by the test-database slot it holds, and `Remove`
+resets everything the model keeps for a removed worker (its pipes are closed
+and its process reaped, so the parent never looks at it again). A state
+therefore holds only what can still influence the run. Before this, workers
+were numbered by spawn order and a dead worker's leftovers stayed in the
+state: (3, 2) passed 39.7 million distinct states without finishing, where
+it now has 45,498. The seeded bugs below are still caught.
+
+Nothing in the spec compares, orders or singles out an id or a slot: the
+queue and `Fleet#slots` are sequences, the initial orders are one `CHOOSE`n
+permutation (only `Init` uses it), and every property quantifies over all
+ids or all workers. So renaming ids or slots maps each step to a step and
+each state to a state that satisfies the same invariants, and TLC may keep
+one state per orbit of `Permutations(Ids) \cup Permutations(Slots)` when it
+checks invariants. It may not when it checks liveness: TLC's symmetry
+reduction can miss or invent cycles, so `Termination` is only ever checked
+without it.
 
 ## Properties
 
@@ -39,7 +71,8 @@ violation before it was stopped. That run was not exhaustive.
 | `Conservation` | At every step each mutant is in exactly one place: queued, awaiting a recheck, in flight on one live worker, or done. |
 | `RequeueAtMostOnce` | A rechecked mutant never returns to a warm run that could requeue it again. |
 | `RecheckOnFreshWorker` | A recheck only runs on a worker that has served nothing yet. |
-| `FleetWithinJobs`, `SlotsExclusive`, `CanSpawn` | At most `--jobs` workers are live, each on its own test-database slot, and a slot is free whenever the pool spawns. |
+| `FleetWithinJobs`, `SlotsExclusive`, `CanSpawn` | At most `--jobs` workers are live; the live workers and `Fleet#slots` hold every slot exactly once between them, so no two live workers share a test database; a slot is free whenever the pool spawns. |
+| `Reaped` | A worker leaves the fleet only with its process reaped. |
 | `Termination` | The run ends, under the fairness assumptions below. |
 
 ## Fairness and abstractions
@@ -64,8 +97,9 @@ The model abstracts away:
 - **Time.** A deadline is "may fire at any step"; there are no clocks.
 - Message payloads beyond kind and mutant id, verdict details, and the tiers
   `Schedule` runs after the pool (reload and quarantine).
-- Workers are numbered by spawn order, bounded by `Jobs + 2N`; `CanSpawn`
-  checks that bound rather than assuming it.
+- Worker identity beyond the slot: two workers that held the same slot at
+  different times share a name. `Fleet#slots` is modeled as the FIFO it is
+  (spawn takes the head, remove appends).
 
 ## Action map
 
@@ -111,3 +145,5 @@ with a counterexample trace:
 - no refill after a removal: `CompleteOnExit`
 - a recheck allowed to requeue: `RequeueAtMostOnce`
 - a result that leaves the worker in flight: `Conservation`
+
+They are also caught at (3, 2) with symmetry reduction.
