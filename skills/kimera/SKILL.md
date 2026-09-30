@@ -91,6 +91,12 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   reasons unrelated to the mutant. Kimera already judged that mutant again on
   a fresh worker, but the test depends on state other tests leave behind:
   fix the test, or its teardown.
+- A mutant the warm pass can't judge (its state outlives the switch-off, so
+  the confirming run fails too; or its worker died) is judged again in a
+  fresh isolated mirror of its own, against its covering tests. Its report
+  row carries that verdict plus a `note` with the warm detail. It stays
+  `harness_error` only if the tests also fail in a fresh mirror without the
+  mutant. `--no-rejudge` (`rejudge: false`) turns this off.
 - On a Rails app that uses `parallelize`, `--jobs > 1` gives each worker its
   own database, so there's no shared-DB fixture/RLS deadlock.
 - Operators: the default is the conservative core. `--operators all` enables

@@ -78,6 +78,10 @@ module Kimera::CLI::RunOptions
           "the runtime selector and harness-critical code)"
       ),
       Kimera::Flag.build(
+        "--[no-]rejudge", :rejudge,
+        "Judge again, each in a fresh isolated mirror, the mutants the warm pass could not judge (default: on)"
+      ),
+      Kimera::Flag.build(
         "--isolate-when-covered-by SUBSTR", :isolate_when_covered_by,
         "Isolate only mutants whose covering set includes a test id matching SUBSTR " \
           "(repeatable) — a fast, targeted alternative to --isolated for pool-unsafe specs",

@@ -53,7 +53,7 @@ class Kimera::CLI::Run::Arguments
 
   def scope
     { exclude: [], exclude_tests: [], config: nil }
-      .merge(ignore: [], isolate_db: false, isolated: false)
+      .merge(ignore: [], isolate_db: false, isolated: false, rejudge: true)
       .merge(fail_on_no_coverage: false, progress: nil, color: nil, quiet: false, verbose: false, log: nil)
       .merge(pidfile: nil)
       .merge(isolate_when_covered_by: [])

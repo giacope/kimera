@@ -16,6 +16,7 @@ class Kimera::Execution::IsolatedPlan::TestSelection
   end
 
   def recorded(id)
+    return @all unless @coverage
     tests = @coverage[id] || @coverage[id.to_s]
     tests unless Array(tests).empty?
   end

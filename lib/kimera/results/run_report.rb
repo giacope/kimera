@@ -28,6 +28,12 @@ class Kimera::RunReport
     Kimera::RunReport.new(results: @results + other.results, leaks: @leaks, registry: @registry)
   end
 
+  def revise(revised)
+    fresh = revised.to_h { |judged| [judged.mutant_id, judged] }
+    results = @results.map { |result| fresh.fetch(result.mutant_id, result) }
+    Kimera::RunReport.new(results: results, leaks: @leaks, registry: @registry)
+  end
+
   def killed
     @results.select(&:killed?)
   end

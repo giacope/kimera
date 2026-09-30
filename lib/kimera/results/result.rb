@@ -15,7 +15,7 @@ module Kimera
   MutantResult =
     Struct.new(
       :mutant_id, :status, :file, :duration, :failing_tests, :covering_tests,
-      :detail, :verdict,
+      :detail, :verdict, :note,
       keyword_init: true
     ) do
       def duration
@@ -32,6 +32,10 @@ module Kimera
 
       def isolated(detail)
         self.class.new(mutant_id: mutant_id, status: :isolated_only, file: file, duration: duration, detail: detail)
+      end
+
+      def unjudged(detail)
+        self.class.new(mutant_id: mutant_id, status: :harness_error, file: file, detail: detail)
       end
 
       def waive
@@ -63,8 +67,10 @@ module Kimera
 
       def outcome
         { "duration" => duration, "failing_tests" => failing_tests }
-          .merge("covering_tests" => covering_tests, "detail" => detail)
+          .merge("covering_tests" => covering_tests, "detail" => detail).merge(noted)
       end
+
+      def noted = note ? { "note" => note } : {}
       class << self
         def waived(id, file)
           new(mutant_id: id, status: :ignored, file: file, detail: "marked equivalent (ignored)")
@@ -81,7 +87,7 @@ module Kimera
 
         def outcome(hash)
           { duration: hash["duration"], failing_tests: hash["failing_tests"] }
-            .merge(covering_tests: hash["covering_tests"], detail: hash["detail"])
+            .merge(covering_tests: hash["covering_tests"], detail: hash["detail"], note: hash["note"])
         end
       end
     end

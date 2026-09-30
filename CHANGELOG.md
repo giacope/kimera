@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- A mutant whose effect outlives its switch-off is judged, not left
+  unjudged. A memoized class-level table the mutant poisoned, a `require` a
+  later test satisfied, or rows a crashed `before(:all)` left behind made
+  the warm confirming run fail without the mutant too, even on a fresh
+  worker, so the mutant was `harness_error` and failed the default
+  `max_errors: 0` gate, though it was really killed (3 of money's 511
+  mutants), and whether it read as unjudged could depend on test order.
+  After the warm pass, Kimera now judges each mutant it could not judge
+  again in a fresh isolated mirror of its own, against its covering tests;
+  a kill stands only if those tests pass in another fresh mirror without
+  the mutant. The report carries that verdict and keeps the warm detail as
+  the row's `note` (text, JSON, `github` and `sarif`). `--no-rejudge` (or
+  `rejudge: false`) keeps the old behavior.
 - The worker-pool model (`formal/`) is now checked against the code, not
   only on its own: TLC validates each run of the pool's property spec, with
   scripted children and with the real `Shift`, step by step against it. The

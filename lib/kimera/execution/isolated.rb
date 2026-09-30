@@ -45,6 +45,14 @@ class Kimera::Execution::IsolatedExecution
     progress.finish
   end
 
+  def rejudge(warm, label:)
+    announce(warm.size, label)
+    verdicts = alone(warm.map(&:mutant_id))
+    warm.map { |result| noted(verdicts.fetch(result.mutant_id), result) }
+  ensure
+    progress.finish
+  end
+
   private
 
   def progress = @options.fetch(:progress, Kimera::Execution::NullProgress)
@@ -61,6 +69,16 @@ class Kimera::Execution::IsolatedExecution
       coverage: @options.fetch(:coverage, {}), framework: @options.fetch(:framework, "rspec"),
       test_files: @options.fetch(:test_files, [])
     )
+  end
+
+  def announce(count, label)
+    progress.start(count, label)
+    return if progress.enabled?
+    errors.puts("kimera: re-judging #{count} mutant(s) the warm pass could not judge, each in a fresh mirror")
+  end
+
+  def noted(result, warm)
+    result.tap { result.note = "judged in a fresh isolated mirror; the warm pass could not: #{warm.detail}" }
   end
 
   def report(ids)

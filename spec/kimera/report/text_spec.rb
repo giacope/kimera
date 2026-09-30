@@ -131,6 +131,33 @@ RSpec.describe(Kimera::Report::Text) do
     expect(render(orphan)).to(include("unjudged #999999  gone.rb"))
   end
 
+  def rejudged(result)
+    result.tap { |judged| judged.note = "judged in a fresh isolated mirror; the warm pass could not: t1" }
+  end
+
+  def rendered(results)
+    io = StringIO.new
+    described_class.new(registry, io: io, color: false).report(Kimera::RunReport.new(results: results))
+    io.string
+  end
+
+  it "keeps the warm detail as a note under a re-judged survivor or unjudged mutant", :aggregate_failures do
+    note = "\n    note: judged in a fresh isolated mirror; the warm pass could not: t1\n"
+    expect(render(rejudged(survivor))).to(include("covered by 1 test(s): ./spec/calc_spec.rb[1:1]#{note}"))
+    expect(render(rejudged(error))).to(include("worker crashed before result#{note}"))
+    expect(render(survivor)).not_to(include("note:"))
+  end
+
+  it "tallies the mutants judged again in fresh mirrors, killed ones included" do
+    output = rendered([rejudged(killed), rejudged(error), rejudged(killed), survivor])
+    tally = "3 mutant(s) the warm pass could not judge, judged again in fresh mirrors: 2 killed, 1 unjudged."
+    expect(output).to(include("\n\n#{tally}\n"))
+  end
+
+  it "omits the tally when nothing was judged again" do
+    expect(render(killed)).not_to(include("judged again"))
+  end
+
   it "omits the unjudged section when every mutant got a verdict" do
     expect(render(killed)).not_to(include("could not judge"))
   end
