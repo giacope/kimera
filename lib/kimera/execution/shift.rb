@@ -58,9 +58,11 @@ class Kimera::Execution::Shift
     kind = self.class
     @_attempt ||= kind::Attempt.new(
       adapter: @adapter, isolation: isolation, killers: kind::KillerMemory.new,
-      deadline: kind::Deadline.new(timeout, beat: @options.fetch(:pulse, kind::Deadline::SILENT))
+      deadline: kind::Deadline.new(timeout, beat: @options.fetch(:pulse, kind::Deadline::SILENT), **budget)
     )
   end
+
+  def budget = @options.slice(:budget)
 
   def leaks = @_leaks ||= self.class::LeakGuard.new(@options.fetch(:leak_every, 10)) { |id| evaluate(id) }
 

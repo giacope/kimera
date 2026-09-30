@@ -398,7 +398,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       expect(msgs.map { |m| m["t"] }).to(eq(%w[result ready result ready done]))
       expect(msgs.select { |m| m["t"] == "result" }.map { |m| m["id"] }).to(eq(%w[t1 t2]))
       result = msgs.first
-      expect(result.keys).to(contain_exactly("t", "id", "touched", "passed", "failure"))
+      expect(result.keys).to(contain_exactly("t", "id", "touched", "passed", "failure", "took"))
       # When self-hosted, the loop's own guards land in the ledger too.
       expect(result["passed"]).to(be(true))
       expect(result["touched"]).to(be_an(Array))

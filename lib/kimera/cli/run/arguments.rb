@@ -43,6 +43,7 @@ class Kimera::CLI::Run::Arguments
     { framework: "rspec", source_root: ".", tests: [] }
       .merge(paths: nil, operators: Kimera::Operators::DEFAULT_KEYS, soft_timeout: 5.0)
       .merge(hard_timeout: nil, leak_every: 10, registry: nil)
+      .merge(relative_timeout: true, timeout_factor: nil, timeout_slack: nil)
       .merge(report: nil, format: "text", focus: [], gate: true, coverage: true, require: [])
   end
 

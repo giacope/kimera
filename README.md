@@ -315,6 +315,34 @@ tallies these mutants, and `github`/`sarif` findings append the note.
 - `--no-rejudge` (or `rejudge: false` in `.kimera.yml`) turns this off: the
   mutants stay `harness_error` with the warm detail.
 
+### Relative time budget
+
+A mutant can slow every test it touches without failing any: deleting a
+`pool.shutdown` makes a `wait_for_termination(1)` in each test's setup wait
+out its full second. Under the absolute soft timeout alone, such a mutant runs
+all its covering tests to completion and survives, and one of them can cost
+most of a run's wall time.
+
+The coverage pass already runs each test once, so Kimera records how long it
+took. In the warm pass, a covering test that passes but runs past
+`baseline × --timeout-factor + --timeout-slack` (10 × its baseline + 1s by
+default) makes the mutant a `timeout`, which counts as detected. A single slow
+run is not enough. The same test must then keep to its budget with the mutant
+switched off, and run past it again with the mutant on. A fresh worker's first
+test, a GC pause or a burst of load from other workers doesn't repeat on the
+rerun, or slows the control run too, so the budget is let go and the mutant
+runs on. The verdict's `detail` names the test, both runs, the budget and how
+it was set.
+
+- It is on by default. `--no-relative-timeout` (or `relative_timeout: false`
+  in `.kimera.yml`) turns it off; `--timeout-factor` and `--timeout-slack`
+  (`timeout_factor:`, `timeout_slack:`) tune it.
+- A test with no baseline has no budget: under `--no-coverage` nothing is
+  timed, and the soft and hard timeouts alone apply, as they always do.
+- The isolated and reload tiers keep only their absolute limits. They bake the
+  mutant into a fresh process, so there is no run without it to compare with,
+  and a fresh process's first tests run slower than the warm baseline.
+
 ### Progress output
 
 During a run, a progress bar tracks each phase on stderr. It shows only when
@@ -608,7 +636,9 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     runs past `--hard-timeout`, so a replacement pulls from the shared queue.
     Both time one test at a time: a mutant many tests cover is not a `timeout`
     for that alone. Raise `--soft-timeout` if single tests run slow under
-    `--jobs` load.
+    `--jobs` load. Below the soft timeout, a warm test that passes but runs
+    far past its baseline time, twice, is a `timeout` too (see
+    [relative time budget](#relative-time-budget)).
     Before the kill it asks the worker for every thread's backtrace (SIGQUIT)
     and puts them in the verdict's `detail`, or in the baseline error. A test
     interrupted by the soft timeout is a `timeout`, not the mutant's killer.

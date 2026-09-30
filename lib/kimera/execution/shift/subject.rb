@@ -9,8 +9,10 @@ Kimera::Execution::Shift::Subject =
     end
 
     def judged(outcome, tests, duration)
-      return verdict(:survived, duration: duration, covering_tests: tests) unless outcome
-      killed(outcome, duration: duration, covering_tests: tests)
+      fields = { duration: duration, covering_tests: tests }
+      return verdict(:survived, **fields) unless outcome
+      return verdict(:timeout, detail: outcome.detail, **fields) if outcome.is_a?(Kimera::Execution::Shift::Overrun)
+      killed(outcome, **fields)
     end
 
     def killed(outcome, **fields)

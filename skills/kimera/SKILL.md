@@ -72,6 +72,12 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   single test ran long under the mutant. A hard-timeout verdict's `detail`
   holds the killed worker's thread backtraces: read them before deciding the
   mutant caused the hang.
+- A `timeout` whose `detail` says a test "ran past its relative time budget"
+  passed, but took over 10 × its baseline time + 1s, twice with the mutant on,
+  and kept to it with the mutant off. The mutant made that test slow (a
+  deleted shutdown, a dropped cache). Tune with `--timeout-factor` and
+  `--timeout-slack`; `--no-relative-timeout` (`relative_timeout: false`) turns
+  it off.
 - A red baseline blaming the hard timeout on a Rails suite with slow
   integration tests (a test that passes alone, killed under `--jobs N`): read
   the thread backtraces it prints. If the test only runs slow under load,

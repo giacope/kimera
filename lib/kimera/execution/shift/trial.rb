@@ -1,14 +1,27 @@
 # frozen_string_literal: true
 
+require_relative "overrun"
 require_relative "suspect"
 
 Kimera::Execution::Shift::Trial =
   Data.define(:adapter, :mutant, :test, :deadline) do
     def verdict(&)
       outcome = on
-      return if outcome.passed?
-      confirm(outcome, &)
+      return confirm(outcome, &) unless outcome.passed?
+      lagged if deadline.overran?(test)
     end
+
+    def lagged
+      first = deadline.elapsed
+      return unless calm?
+      control = deadline.elapsed
+      on
+      overrun([first, deadline.elapsed], control) if deadline.overran?(test)
+    end
+
+    def overrun(runs, control) = Kimera::Execution::Shift::Overrun.new(test, runs, control, deadline.budget)
+
+    def calm? = off.passed? && !deadline.overran?(test)
 
     def confirm(outcome, &)
       control = off

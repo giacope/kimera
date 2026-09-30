@@ -22,6 +22,7 @@ require_relative "schedule"
 require_relative "schemata"
 require_relative "verdicts"
 require_relative "shift"
+require_relative "time_budget"
 require_relative "worker_pool"
 
 class Kimera::Execution::Harness
@@ -122,9 +123,14 @@ class Kimera::Execution::Harness
   def measure!
     measured = jobs > 1 ? parallel(baseline) : baseline.measure!
     options[:coverage] = measured.coverage
-    driver.coverage = coverage
+    arm(measured.timings)
     state.irrelevant = measured.irrelevant
     state.recovered = measured.recovered
+  end
+
+  def arm(timings)
+    driver.coverage = coverage
+    driver.budget = budget(timings)
   end
 
   def parallel(pass)
@@ -134,6 +140,13 @@ class Kimera::Execution::Harness
   end
 
   def verify! = baseline.check!
+
+  def budget(timings)
+    return Kimera::Execution::TimeBudget::NONE if options[:relative_timeout] == false
+    Kimera::Execution::TimeBudget.new(timings, **tuning)
+  end
+
+  def tuning = { factor: options[:timeout_factor], slack: options[:timeout_slack] }.compact
 
   def baseline
     Kimera::Execution::BaselinePass.new(adapter: adapter, registry: registry, progress: progress)
