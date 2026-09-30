@@ -1,7 +1,10 @@
 # frozen_string_literal: true
 
+require_relative "../child_process"
+
 Kimera::Execution::WorkerPool::Worker =
   Struct.new(:pid, :request, :response, :inflight, :deadline, :slot, :stacks, :served, :last_words, :unread) do
+    include Kimera::Execution::ChildProcess
     def lines(chunk)
       *complete, partial = (rest + chunk).split("\n", -1)
       self.unread = partial
@@ -35,9 +38,7 @@ Kimera::Execution::WorkerPool::Worker =
     end
 
     def halt
-      autopsy.tap { Process.kill("KILL", pid) }
-    rescue Errno::ESRCH
-      nil
+      autopsy.tap { kill(pid) }
     end
 
     def renew(limit)

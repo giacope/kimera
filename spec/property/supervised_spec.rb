@@ -33,6 +33,23 @@ RSpec.describe(Supervised) do
     reader&.close
   end
 
+  # The pool's workers lead process groups of their own; only its ensure can
+  # stop them.
+  it "lets an overdue block's ensures run before it is killed" do
+    reader, writer = IO.pipe
+    expect do
+      described_class.run(deadline: 0.5) do
+        sleep(60)
+      ensure
+        writer.puts("stopped")
+      end
+    end.to(raise_error(Supervised::Overdue))
+    writer.close
+    expect(reader.read).to(eq("stopped\n"))
+  ensure
+    reader&.close
+  end
+
   it "carries a report larger than a pipe buffer" do
     expect(described_class.run(deadline: 5) { "x" * 1_000_000 }.size).to(eq(1_000_000))
   end

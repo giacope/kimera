@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Processes a test starts no longer outlive a warm worker the watchdog
+  kills. Sinatra's integration tests start server subprocesses and stop
+  them in teardown; a worker SIGKILLed mid-test never ran that teardown,
+  and the servers, reparented to init, kept running and holding their ports
+  an hour after `kimera run` exited. Warm workers (the coverage pass's too)
+  and reload children now lead a process group of their own, as isolated
+  children already did. The watchdog kills the whole group, and once any
+  of these children is reaped, however it ended (a crash, or a worker's
+  `exit!` past `at_exit` hooks), what it left running in its group is
+  killed too. Outside the terminal's process group they no longer get its
+  Ctrl-C, so a run that is interrupted (INT, TERM) or aborts now kills and
+  reaps them itself on the way out; an isolated child, already outside it,
+  used to keep running after a Ctrl-C. A process that leaves the group on
+  purpose (`setsid`, `pgroup: true`) still outlives the run.
+
 - `statement_deletion` no longer deletes the expression an interpolation
   embeds. The walker gave every statement inside `"#{…}"` a statement
   position, so `raise NotDefinedError, "no scope for #{find(object)}"` had

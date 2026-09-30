@@ -4,8 +4,12 @@
 # it returns (via Marshal), or raises Overdue once `deadline` seconds pass.
 # The bound holds whatever the block does: a loop wedged in a read, or a
 # watchdog that never fires, is killed along with every process it forked.
+# Forks that lead groups of their own (the pool's workers) are out of that
+# reach, so an overdue block gets a TERM first: the pool's ensure stops them.
 module Supervised
   class Overdue < StandardError; end
+
+  GRACE = 2
 
   Crashed = Struct.new(:detail)
 
@@ -16,6 +20,7 @@ module Supervised
     pid = fork { serve(reader, writer, &) }
     writer.close
     report = collected(pid, reader, Process.clock_gettime(Process::CLOCK_MONOTONIC) + deadline)
+    settle(pid) unless report
     stop(pid)
     raise(Overdue, "still running after #{deadline}s; killed its process group") unless report
     decoded(report)
@@ -55,6 +60,17 @@ module Supervised
     chunk = reader.read_nonblock(65_536, exception: false)
     chunk.is_a?(String) ? chunk : ""
   end
+
+  # Asks an overdue block to stop, and gives its ensures a moment to run.
+  def settle(pid)
+    Process.kill("TERM", pid)
+    until_time = now + GRACE
+    sleep(0.02) until Process.waitpid(pid, Process::WNOHANG) || now > until_time
+  rescue Errno::ESRCH, Errno::ECHILD
+    nil
+  end
+
+  def now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
   # Kills the group (the block's forks outlive it), then reaps the leader.
   def stop(pid)

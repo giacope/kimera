@@ -25,6 +25,8 @@ class Kimera::Execution::WorkerPool
   def run
     bootstrap
     poll while fleet.any?
+  ensure
+    fleet.disband
   end
 
   def assign(worker)

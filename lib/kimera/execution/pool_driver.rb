@@ -102,6 +102,7 @@ class Kimera::Execution::Pool
 
   def spawn(duty)
     fork do
+      lead
       stacks&.arm!
       boot(duty)
     end
