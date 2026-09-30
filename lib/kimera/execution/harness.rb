@@ -134,7 +134,7 @@ class Kimera::Execution::Harness
   end
 
   def parallel(pass)
-    pass.parallel! do |ids, width, **channels|
+    pass.parallel!(jobs) do |ids, width, **channels|
       driver.drive(ids, driver.method(:channel), jobs: width || jobs, **channels)
     end
   end

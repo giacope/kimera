@@ -228,6 +228,35 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     end
   end
 
+  def test_doctor_jobs(dir, config, *argv, serial: true)
+    FileUtils.mkdir_p(File.join(dir, "spec"))
+    File.write(File.join(dir, "spec", "a_spec.rb"), "")
+    File.write(File.join(dir, ".kimera.yml"), config)
+    allow(Open3).to(receive(:capture2e)) do |_env, *command, **|
+      ["", instance_double(Process::Status, success?: serial || command.include?("--dry-run"))]
+    end
+    test_doctor_in(dir, "--check-baseline", *argv).last
+  end
+
+  # A suite that is green in one process can still be red on the configured
+  # workers; doctor runs it split across that many processes too.
+  it "runs the baseline split across the configured jobs only when it is green serially", :aggregate_failures do
+    parallel = "✓ Parallel baseline: green split across 3 processes too (jobs: 3)\n"
+    Dir.mktmpdir do |dir|
+      expect(test_doctor_jobs(dir, "jobs: 3\n").lines.last).to(eq(parallel))
+      expect(Open3).to(have_received(:capture2e).exactly(5).times)
+      expect(test_doctor_jobs(dir, "jobs: 3\n", "--jobs", "1")).not_to(include("Parallel"))
+      expect(test_doctor_jobs(dir, "{}\n", "--jobs", "3").lines.last).to(eq(parallel))
+      expect(test_doctor_jobs(dir, "jobs: 1\n")).not_to(include("Parallel"))
+      expect(test_doctor_jobs(dir, "{}\n")).not_to(include("Parallel"))
+      expect(test_doctor_jobs(dir, "jobs: many\n")).not_to(include("Parallel"))
+      expect(test_doctor_jobs(dir, "jobs:\n")).not_to(include("Parallel"))
+      red = test_doctor_jobs(dir, "jobs: 3\n", serial: false)
+      expect(red).to(include("✗ Baseline"))
+      expect(red).not_to(include("Parallel"))
+    end
+  end
+
   # thor keeps its floor in spec/helper.rb.
   it "finds a coverage floor in any spec or test helper" do
     Dir.mktmpdir do |dir|

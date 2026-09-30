@@ -80,7 +80,10 @@ bundle exec kimera init
 
 **3. Check the setup.** `doctor` confirms source and test discovery, Git, and
 Rails parallel-safety. `--check-baseline` also runs your suite once to confirm
-it is green.
+it is green. With `jobs:` over 1 it then runs it again, split across that many
+processes as `kimera run` splits it across its workers, and warns, naming the
+tests, when it is red there: the suite shares a directory, file or port
+between tests. `--jobs N` checks another width; `--jobs 1` skips it.
 
 ```sh
 bundle exec kimera doctor --check-baseline
@@ -698,7 +701,12 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   a hook and Kimera runs it:
   `ActiveSupport::Testing::Parallelization.after_fork_hook { |i| ... }`.
   Without one, concurrent examples fight over one keyspace. That reads as a red
-  baseline, or worse, as kills that are really collisions.
+  baseline, or worse, as kills that are really collisions. A suite that is not
+  parallel-safe at all (thor's tests share `spec/sandbox`, sinatra's write and
+  delete `test/file.txt`) is green with `--jobs 1` and red with more: a red
+  baseline that ran on several workers says so, and `kimera doctor
+  --check-baseline` warns before a run. Give each test its own path
+  (`Dir.mktmpdir`) and port, or set `jobs: 1`.
 - **Score definition.** `score = killed / evaluable`.
   - Killed includes timeouts and errors (observable misbehaviour).
   - Evaluable excludes `no_coverage`, `ignored`, `isolated_only`,

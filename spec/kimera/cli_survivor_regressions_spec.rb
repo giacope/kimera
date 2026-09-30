@@ -413,13 +413,13 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         allow(Open3).to(receive(:capture2e).and_return(["", instance_double(Process::Status, success?: true)]))
         out, errors = streams
         doctor = Kimera::CLI::Doctor.new(io: out, errors: errors, root: dir)
-        allow(doctor).to(receive(:baseline).and_return(["✓", "Baseline: configured test suite is green"]))
+        allow(doctor).to(receive(:baselines).and_return([["✓", "Baseline: configured test suite is green"]]))
         expect(doctor.run([])).to(eq(1))
-        expect(doctor).not_to(have_received(:baseline))
+        expect(doctor).not_to(have_received(:baselines))
         out.truncate(0)
         out.rewind
         expect(doctor.run(["--check-baseline"])).to(eq(1))
-        expect(doctor).to(have_received(:baseline))
+        expect(doctor).to(have_received(:baselines))
         expect(out.string).to(include("Baseline: configured test suite is green"))
         expect(doctor.__send__(:tests_for, framework: "minitest")).to(eq(["test/**/*_test.rb"]))
         expect(doctor.__send__(:tests_for, framework: "rspec")).to(eq(["spec/**/*_spec.rb"]))
@@ -677,9 +677,9 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         command = [Kimera::Execution::SUITE_ENV, "bundle", "exec", "ruby", "-Itest", "-e", loader, test]
         allow(Open3).to(receive(:capture2e).with(*command, chdir: dir).and_return(["", success]))
 
-        result = instance.__send__(:baseline, framework: "minitest", tests: ["test/**/*_test.rb"])
+        result = instance.__send__(:baselines, { framework: "minitest", tests: ["test/**/*_test.rb"] })
 
-        expect(result).to(eq(["✓", "Baseline: configured test suite is green"]))
+        expect(result).to(eq([["✓", "Baseline: configured test suite is green"]]))
         expect(Open3).to(have_received(:capture2e).with(*command, chdir: dir))
       end
     end
@@ -697,10 +697,10 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
           ).and_return(["noise\n3 examples, 1 failure\n", failure])
         )
 
-        result = instance.__send__(:baseline, framework: "rspec", tests: ["spec/**/*_spec.rb"])
+        result = instance.__send__(:baselines, { framework: "rspec", tests: ["spec/**/*_spec.rb"] })
 
         message = "Baseline: 3 examples, 1 failure (fix it, then rerun `kimera doctor --check-baseline`)"
-        expect(result).to(eq(["✗", message]))
+        expect(result).to(eq([["✗", message]]))
         expect(Open3).to(have_received(:capture2e).with(Kimera::Execution::SUITE_ENV, *command, chdir: dir))
       end
     end

@@ -8,9 +8,10 @@ require_relative "test_command"
 
 class Kimera::CLI::Doctor
   OPTIONS = Kimera::FlagTable.new(
-    banner: "Usage: kimera doctor [--check-baseline]",
+    banner: "Usage: kimera doctor [--check-baseline [--jobs N]]",
     flags: [
-      Kimera::Flag.build("--check-baseline", :check_baseline, "Run the configured test suite and verify it is green")
+      Kimera::Flag.build("--check-baseline", :check_baseline, "Run the configured test suite and verify it is green"),
+      Kimera::Flag.build("--jobs N", :jobs, "Also run it split across N processes (default: jobs:)", type: Integer)
     ]
   )
 
@@ -28,7 +29,7 @@ class Kimera::CLI::Doctor
   def run(argv)
     options = { check_baseline: false }
     OPTIONS.parse(argv, options)
-    verdict(checks(Kimera::Config.root(root: @root), options))
+    verdict(checks(Kimera::Config.root(root: @root).merge(options.slice(:jobs)), options))
   rescue Kimera::UsageError => error
     usage(error)
   end
@@ -47,7 +48,7 @@ class Kimera::CLI::Doctor
 
   def suite(config, options)
     return UNCHECKED if test_files(config).empty?
-    options[:check_baseline] ? [loading(config), baseline(config)] : [loading(config)]
+    options[:check_baseline] ? [loading(config), *baselines(config)] : [loading(config)]
   end
 
   def verdict(checks)
@@ -111,13 +112,16 @@ class Kimera::CLI::Doctor
     source.include?("minimum_coverage") && !source.include?("KIMERA")
   end
 
-  def baseline(config) = test_command(config).baseline
+  def baselines(config) = test_command(config).baselines
 
   def loading(config) = test_command(config).loading
 
   def test_command(config)
-    Kimera::CLI::TestCommand.new(config.fetch(:framework, "rspec").to_s, test_files(config), root: @root)
+    framework = config.fetch(:framework, "rspec").to_s
+    Kimera::CLI::TestCommand.new(framework, test_files(config), root: @root, jobs: jobs(config))
   end
+
+  def jobs(config) = Integer(config.fetch(:jobs, 1), exception: false).to_i
 
   def minitest?(config) = config.fetch(:framework, "rspec") == "minitest"
 

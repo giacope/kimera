@@ -2,10 +2,11 @@
 
 require "open3"
 require_relative "../execution/suite_env"
+require_relative "../listing"
+require_relative "test_shard"
 
 class Kimera::CLI::TestCommand
   LOADER = "ARGV.map { |f| File.expand_path(f) }.tap { ARGV.clear }.each { |f| require(f) }"
-  MAX_LISTED = 10
   COUNT_LINE = /\d+ (?:failures?|examples?)\b/i
   SUMMARIES = [COUNT_LINE, /failed|Error\b/i].freeze
   RSPEC_RERUN = /^rspec (\S+) #/
@@ -17,11 +18,15 @@ class Kimera::CLI::TestCommand
   QUIET_EXIT = " (it exited non-zero with no failing test: a coverage floor such as SimpleCov's " \
     "minimum_coverage? Skip it when ENV[\"KIMERA\"] is set)"
   DRY_RUN = "require 'minitest'; Minitest.class_variable_set(:@@installed_at_exit, true); #{LOADER}; exit!(0)".freeze
+  SHARED = "red split across %d processes (jobs: %d), green in one: the suite shares state " \
+    "between workers (a directory, file or port), which can turn `kimera run`'s baseline red; " \
+    "use jobs: 1 until each test has its own"
 
-  def initialize(framework, files, root:)
+  def initialize(framework, files, root:, jobs: 1)
     @framework = framework
     @files = files
     @root = root
+    @jobs = jobs
   end
 
   def baseline
@@ -36,6 +41,17 @@ class Kimera::CLI::TestCommand
     end
   end
 
+  def baselines
+    serial = baseline
+    serial.first == "✓" && @jobs > 1 ? [serial, parallel(@jobs)] : [serial]
+  end
+
+  def parallel(jobs)
+    red = shards(jobs).reject { |_output, status| status.success? }
+    return ["✓", "Parallel baseline: green split across #{jobs} processes too (jobs: #{jobs})"] if red.empty?
+    ["!", "Parallel baseline: #{format(SHARED, jobs, jobs)}#{failing(red.map(&:first).join)}"]
+  end
+
   private
 
   def advice(failure)
@@ -44,11 +60,17 @@ class Kimera::CLI::TestCommand
   end
 
   def check(command, passed)
-    output, status = Open3.capture2e(Kimera::Execution::SUITE_ENV, *command, chdir: @root)
+    output, status = capture(command)
     status.success? ? ["✓", passed] : yield(summary(output), output)
   rescue Errno::ENOENT
     yield(nil)
   end
+
+  def capture(command) = Open3.capture2e(Kimera::Execution::SUITE_ENV, *command, chdir: @root)
+
+  def shards(jobs) = Array.new(jobs) { |index| Thread.new { capture(shard(index, jobs)) } }.map(&:value)
+
+  def shard(index, count) = ["bundle", "exec", "ruby", *Kimera::CLI::TestShard.argv(@framework, index, count), *@files]
 
   def run = minitest? ? ruby(LOADER) : rspec
 
@@ -57,10 +79,8 @@ class Kimera::CLI::TestCommand
   def failing(output)
     ids = culprits(output.to_s)
     return "" if ids.empty?
-    "\n  failing tests:#{ids.first(MAX_LISTED).map { |id| "\n    #{id}" }.join}#{overflow(ids)}"
+    "\n  failing tests:#{Kimera::Listing.lines(ids, "    ")}"
   end
-
-  def overflow(ids) = (ids.size - MAX_LISTED).then { |more| more.positive? ? "\n    … and #{more} more" : "" }
 
   def culprits(output) = CULPRITS.flat_map { |pattern| output.scan(pattern).flatten }.uniq
 

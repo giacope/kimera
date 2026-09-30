@@ -43,10 +43,10 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
   # +first+ and +alone+ script the two rounds: each maps a test to :pass,
   # :fail, :timeout or :crash. Returns the pass's result and every round's
   # arguments.
-  def measure(first, alone = {}, meter: progress)
+  def measure(first, alone = {}, meter: progress, jobs: 1)
     rounds = []
     pass = described_class.new(adapter: adapter, registry: registry, progress: meter)
-    [pass.parallel! { |queue, jobs, **channels| round(queue, jobs, channels, [first, alone], rounds) }, rounds]
+    [pass.parallel!(jobs) { |queue, jobs, **channels| round(queue, jobs, channels, [first, alone], rounds) }, rounds]
   end
 
   def round(queue, jobs, channels, scripts, rounds)
@@ -134,5 +134,33 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     pass = described_class.new(adapter: adapter, registry: registry)
     pass.__send__(:lost, "t1", :crash)
     expect(pass.instance_variable_get(:@messages)["t1"]).to(eq("its worker died before reporting a result"))
+  end
+
+  # A suite that shares a directory, file or port between tests is red on
+  # several workers and green on one: the error says what to try.
+  it "names --jobs 1 as the check when a baseline on several workers is red", :aggregate_failures do
+    hint = "\n  ran on 3 workers: if these pass with --jobs 1, the suite shares state between workers " \
+      "(a directory, file or port); use jobs: 1 until each test has its own"
+    expect { measure({ "t1" => :fail, "t2" => :fail }, jobs: 3) }.to(
+      raise_error(Kimera::Execution::BaselineFailure) { |error| expect(error.message).to(end_with(hint)) }
+    )
+    expect { measure({ "t1" => :fail }) }.to(
+      raise_error(Kimera::Execution::BaselineFailure) { |error| expect(error.message).not_to(include("--jobs 1")) }
+    )
+  end
+
+  # Without coverage the baseline runs in this process, whatever --jobs says.
+  it "doesn't name --jobs 1 for the baseline it checks in one process" do
+    outcome = Struct.new(:passed?, :failures, :failed_ids).new(false, { "t1" => "boom" }, ["t1"])
+    adapter.define_singleton_method(:run) { |_ids| outcome }
+    pass = described_class.new(adapter: adapter, registry: registry)
+    expect do
+  pass.check!
+end.to(
+  raise_error(
+    Kimera::Execution::BaselineFailure,
+    "baseline suite is not green: t1\n  t1:\n    boom\n  reproduce without kimera: rspec t1"
+)
+)
   end
 end

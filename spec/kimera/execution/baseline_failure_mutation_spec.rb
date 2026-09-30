@@ -20,7 +20,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
 
     expect(described_class.summary(failed, messages, "rspec a b c --order defined")).to(
       eq(
-        "baseline suite is not green: a, b, c, d\n  " \
+        "baseline suite is not green: 4 tests failed:\n    a\n    b\n    c\n    d\n  " \
           "a:\n    one\n    two\n  " \
           "b:\n    #{"x" * limit}…\n  " \
           "reproduce without kimera: rspec a b c --order defined"
@@ -39,7 +39,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
 
     expect(described_class.summary(failed, {}, "cmd", workers: workers)).to(
       eq(
-        "baseline suite is not green: #{failed.join(", ")}\n  " \
+        "baseline suite is not green: 8 tests failed:\n    #{failed.join("\n    ")}\n  " \
           "per worker (tests in the order it ran them):\n    " \
           "worker 1: ran 12; failed #4 s, #6 u, #8 x1, #9 x2, #10 x3 (+2 more); just before: p, q, r\n    " \
           "worker 2: ran 1; failed #1 c (first test on this worker)\n  " \

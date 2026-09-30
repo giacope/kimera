@@ -18,33 +18,33 @@ class Kimera::Execution::BaselinePass
     @messages = {}
   end
 
-  def measure! = settle { serial }
+  def measure! = settle(1) { serial }
 
-  def parallel!(&) = settle { dispatch(&) }
+  def parallel!(jobs, &) = settle(jobs) { dispatch(&) }
 
   def check!
     Kimera::Runtime.active = nil
     outcome = quietly { @adapter.run(@adapter.test_ids) }
     return if outcome.passed?
     @messages = outcome.failures
-    failure!(outcome.failed_ids)
+    failure!(outcome.failed_ids, 1)
   end
 
   private
 
-  def settle
+  def settle(jobs)
     @progress.start(@adapter.test_ids.size, "baseline")
     yield
-    report
+    report(jobs)
   ensure
     @progress.finish
   end
 
   def tally = @_tally ||= Kimera::Execution::BaselineTally.new(Hash.new { |h, k| h[k] = [] }, [], [], {})
 
-  def report
+  def report(jobs)
     failures = tally.failures
-    failure!(failures) unless failures.empty?
+    failure!(failures, jobs) unless failures.empty?
     tally.measured(excluded, losses.recovered(@messages))
   end
 
@@ -132,8 +132,9 @@ class Kimera::Execution::BaselinePass
     $stderr = StringIO.new
   end
 
-  def failure!(failed)
+  def failure!(failed, jobs)
     command = @adapter.reproduce(failed.first(Kimera::Execution::BaselineFailure::MAX_DETAILS))
-    raise(Kimera::Execution::BaselineFailure.build(failed, @messages, command, workers: journal, stacks: losses.stacks))
+    context = { workers: journal, stacks: losses.stacks, jobs: jobs }
+    raise(Kimera::Execution::BaselineFailure.build(failed, @messages, command, **context))
   end
 end
