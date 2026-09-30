@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- `kimera doctor` no longer warns about a coverage floor that already
+  applies only when an environment variable asks for it. It flagged any
+  helper that mentioned `minimum_coverage` and not `KIMERA`, so pundit's
+  floor, which sits under `if ENV["COVERAGE"]` and never runs under Kimera,
+  drew a warning and an edit it didn't need. Doctor now parses the helper
+  and warns only about a `minimum_coverage` or `minimum_coverage_by_file`
+  call that no condition on `ENV` guards: `if`/`unless`/`elsif`, their
+  modifier and ternary forms, `&&`/`||`, a `case` on `ENV`, and an earlier
+  `return`, `next`, `exit` or `abort` guarded by `ENV` in the same scope all
+  count, whatever the key. A floor under any other condition (a Ruby
+  version, `defined?(SimpleCov)`) still warns, since that condition holds
+  under Kimera too, and the warning now says the floor can fail Kimera's
+  partial runs rather than that it does. A helper Prism can't parse is
+  judged by the old text match.
+
 - A red baseline from a suite that isn't parallel-safe now says to try
   `--jobs 1`. `kimera init` writes `jobs:` at the core count, and thor
   (every test shares `spec/sandbox`), sinatra (`send_file` tests write and

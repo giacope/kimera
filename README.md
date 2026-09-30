@@ -284,7 +284,11 @@ children, and `kimera doctor`'s test commands), so skip the floor there:
 SimpleCov.start { minimum_coverage(line: 100, branch: 100) unless ENV["KIMERA"] }
 ```
 
-`kimera doctor` warns when it finds an ungated `minimum_coverage`.
+`kimera doctor` warns when it finds a `minimum_coverage` or
+`minimum_coverage_by_file` that no condition on `ENV` guards. A floor that
+applies only when the environment asks for it (`if ENV["COVERAGE"]`, a
+`case` on `ENV`, or after `return unless ENV["COVERAGE"]`) passes whatever
+the variable; one under any other condition still warns.
 
 Each isolated mirror is a copy of the project root with some exceptions:
 `.git/` and `coverage/` are left out, `tmp/` and `log/` start empty, and
