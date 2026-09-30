@@ -35,7 +35,8 @@ RSpec.describe("worker output suppression") do
     RUBY
   end
 
-  # "mutants [" is the progress bar, which must stay off without a tty.
+  # "mutants [" is the progress bar, which must stay off without a tty (plain
+  # progress lines take its place).
   it "keeps app noise out of kimera's output while still killing mutants", :aggregate_failures do
     fixture do |output, report, _status|
       expect(report).not_to(be_nil, "no report; output:\n#{output}")

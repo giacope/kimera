@@ -2,6 +2,8 @@
 
 require "kimera/execution/isolated"
 require "kimera/registry/builder"
+require "kimera/report/progress"
+require "stringio"
 require "tmpdir"
 
 # The warm pass hands over what it could not judge; each mutant is judged
@@ -22,7 +24,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
   def test_bar(sink)
     Class.new do
       define_method(:initialize) { |s| @s = s }
-      def enabled? = true
+      define_method(:note) { |text| @s << [:note, text] }
       define_method(:start) { |total, label| @s << [:start, total, label] }
       define_method(:tick) { |status| @s << [:tick, status] }
       define_method(:finish) { @s << [:finish] }
@@ -120,18 +122,33 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
     expect(log.map(&:last).uniq.size).to(eq(2))
   end
 
-  it "brackets the pass with the progress bar, ticking each verdict" do
+  it "notes the pass, then brackets it with progress, ticking each verdict" do
     events = []
     test_rejudge(isolated: { ids.first => [:survived, nil] }, progress: test_bar(events))
-    expect(events).to(eq([[:start, 1, "mutants (re-judged)"], %i[tick survived], [:finish]]))
+    expect(events).to(
+      eq(
+        [
+          [:note, "re-judging 1 mutant(s) the warm pass could not judge, each in a fresh mirror"],
+          [:start, 1, "mutants (re-judged)"], %i[tick survived], [:finish]
+        ]
+      )
+    )
   end
 
-  it "stays quiet on stderr while the bar renders" do
-    expect { test_rejudge(isolated: { ids.first => [:survived, nil] }, **test_quiet) }.not_to(output.to_stderr)
+  it "writes nothing to stderr itself" do
+    expect { test_rejudge(isolated: { ids.first => [:survived, nil] }) }.not_to(output.to_stderr)
   end
 
-  it "says what it re-judges on stderr when the bar is off" do
-    announced = /\Akimera: re-judging 1 mutant\(s\) the warm pass could not judge, each in a fresh mirror\n/
-    expect { test_rejudge(isolated: { ids.first => [:survived, nil] }) }.to(output(announced).to_stderr)
+  it "reads as plain lines on a stream that is not a terminal" do
+    io = StringIO.new
+    test_rejudge(isolated: { ids.first => [:survived, nil] }, progress: Kimera::Report::Progress.new(io: io))
+    expect(io.string.lines.first(2)).to(
+      eq(
+        [
+          "kimera: re-judging 1 mutant(s) the warm pass could not judge, each in a fresh mirror\n",
+          "kimera: mutants (re-judged) 0/1 0%  0:00 elapsed\n"
+        ]
+      )
+    )
   end
 end

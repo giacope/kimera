@@ -71,7 +71,8 @@ module Kimera::CLI::RunOptions
       ),
       Kimera::Flag.build("--jobs N", :jobs, "Concurrent workers (warm pool / isolated mirrors)", type: Integer),
       Kimera::Flag.build(
-        "--[no-]progress", :progress, "Live progress bar on stderr (default: on when stderr is a tty)"
+        "--[no-]progress", :progress,
+        "Progress on stderr: a live bar on a tty, else plain lines every 30s (default: on)"
       ),
       Kimera::Flag.build(
         "--[no-]color", :color,

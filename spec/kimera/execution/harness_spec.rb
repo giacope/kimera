@@ -121,6 +121,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       def start(total, label = "mutants") = @events << [:start, total, label]
       def tick(status = nil) = @events << [:tick, status]
       def finish = @events << [:finish]
+      def note(text) = @events << [:note, text]
     end.new
   end
 
@@ -1072,6 +1073,12 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "passes silently when the suite is green" do
       h = harness(adapter(coverage: { "t1" => [] }))
       expect { h.__send__(:verify!) }.not_to(raise_error)
+    end
+
+    it "notes the whole-suite run as a phase of its own" do
+      progress = journal
+      harness(adapter(coverage: { "t1" => [] }), progress: progress).__send__(:verify!)
+      expect(progress.events).to(eq([[:note, "baseline (whole suite, no coverage)"]]))
     end
 
     it "raises BaselineFailure when a test fails" do

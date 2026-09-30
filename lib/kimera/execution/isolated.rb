@@ -32,7 +32,7 @@ class Kimera::Execution::IsolatedExecution
   end
 
   def verify!
-    errors.puts("kimera: isolated baseline (unmutated mirror)") unless progress.enabled?
+    progress.note("isolated baseline (unmutated mirror)")
     outcome = with_mirror { |mirror| verdict(mirror, plan.suite) }
     return if outcome.status == :survived
     raise(Kimera::Execution::BaselineFailure.mirrored(outcome.explain(limit), Kimera::Execution::IsolatedPlan::MIRROR_HINT))
@@ -61,8 +61,6 @@ class Kimera::Execution::IsolatedExecution
 
   def jobs = @_jobs ||= [Integer(@options.fetch(:jobs, 1)), 1].max
 
-  def errors = @options.fetch(:errio, $stderr)
-
   def plan
     @_plan ||= Kimera::Execution::IsolatedPlan.new(
       registry: @registry, root: @root, tests: @tests,
@@ -72,9 +70,8 @@ class Kimera::Execution::IsolatedExecution
   end
 
   def announce(count, label)
+    progress.note("re-judging #{count} mutant(s) the warm pass could not judge, each in a fresh mirror")
     progress.start(count, label)
-    return if progress.enabled?
-    errors.puts("kimera: re-judging #{count} mutant(s) the warm pass could not judge, each in a fresh mirror")
   end
 
   def noted(result, warm)

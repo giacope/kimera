@@ -196,7 +196,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(cli.__send__(:parse, ["--max-ignored", "5"])[:max_ignored]).to(eq(5))
     end
 
-    # nil means auto: Report::Progress keys off stderr being a tty.
+    # nil means auto: Report::Progress draws a bar on a tty and plain lines elsewhere.
     it "leaves progress on auto by default and honors --[no-]progress" do
       expect(cli.__send__(:parse, [])[:progress]).to(be_nil)
       expect(cli.__send__(:parse, ["--progress"])[:progress]).to(be(true))
