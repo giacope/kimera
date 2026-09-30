@@ -39,7 +39,9 @@ class Kimera::RegistryScan::SourceFile
   end
 
   def origin
-    Kimera::RegistryWalking::Cursor.new(position: nil, inside_def: nil, in_pattern: nil, def_body: nil, defname: nil)
+    Kimera::RegistryWalking::Cursor.new(
+      position: nil, inside_def: nil, in_pattern: nil, def_body: nil, defname: nil, embedded: nil
+    )
   end
 
   def bank(found, node, cursor)

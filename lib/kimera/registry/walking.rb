@@ -7,13 +7,14 @@ module Kimera::RegistryWalking
     Kimera::SyntaxTypes::MatchPredicateNode
   ].freeze
 
-  Cursor = Data.define(:position, :inside_def, :in_pattern, :def_body, :defname)
+  Cursor = Data.define(:position, :inside_def, :in_pattern, :def_body, :defname, :embedded)
   Shape =
-    Data.define(:statements, :tail, :matchnode, :defbody, :insidedef) do
+    Data.define(:statements, :tail, :matchnode, :defbody, :insidedef, :embeds) do
       def advance(child, cursor)
         cursor.with(
           position: position(child), inside_def: insidedef,
-          in_pattern: cursor.in_pattern || child.equal?(matchnode), def_body: child.equal?(defbody)
+          in_pattern: cursor.in_pattern || child.equal?(matchnode), def_body: child.equal?(defbody),
+          embedded: embeds
         )
       end
 
@@ -36,10 +37,13 @@ module Kimera::RegistryWalking
   def shape(node, cursor)
     statements = node.is_a?(Kimera::SyntaxTypes::StatementsNode) ? node.body : nil
     Shape.new(
-      statements: statements, tail: cursor.def_body ? statements&.last : nil, matchnode: pattern(node),
-      defbody: body(node), insidedef: cursor.inside_def || reexecuted?(node)
+      statements: deletable(statements, cursor), tail: cursor.def_body ? statements&.last : nil,
+      matchnode: pattern(node), defbody: body(node), insidedef: cursor.inside_def || reexecuted?(node),
+      embeds: node.is_a?(Kimera::SyntaxTypes::EmbeddedStatementsNode)
     )
   end
+
+  def deletable(statements, cursor) = cursor.embedded ? statements[...-1] : statements
 
   def pattern(node)
     PATTERN_HOLDERS.any? { |k| node.is_a?(k) } ? node.pattern : nil
