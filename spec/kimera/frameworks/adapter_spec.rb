@@ -33,48 +33,43 @@ RSpec.describe(Kimera::Frameworks) do
     it "describes an id as itself by default" do
       expect(described_class.new.describe("Foo#bar")).to(eq("Foo#bar"))
     end
+  end
 
-    describe "the adapter registry" do
-      around do |example|
-        saved = described_class.registry.dup
-        example.run
-      ensure
-        described_class.registry.replace(saved)
-      end
+  describe Kimera::Frameworks::AdapterRegistry do
+    it "registers and fetches an adapter by name (string or symbol)", :aggregate_failures do
+      registry = described_class.new
+      klass = Class.new(Kimera::Frameworks::Adapter)
+      registry.register(:demo, klass)
+      expect(registry.fetch("demo")).to(eq(klass))
+      expect(registry.fetch(:demo)).to(eq(klass))
+    end
 
-      it "registers and fetches an adapter by name (string or symbol)", :aggregate_failures do
-        klass = Class.new(described_class)
-        described_class.register(:demo, klass)
-        expect(described_class.fetch("demo")).to(eq(klass))
-        expect(described_class.fetch(:demo)).to(eq(klass))
-      end
+    it "constructs a registered extension without a built-in loader" do
+      registry = described_class.new
+      instance = Object.new
+      klass = Class.new(Kimera::Frameworks::Adapter)
+      allow(klass).to(receive(:build).and_return(instance))
+      registry.register(:demo, klass)
+      expect(registry.load(:demo)).to(equal(instance))
+    end
 
-      it "constructs a registered extension without a built-in loader" do
-        instance = Object.new
-        klass = Class.new(described_class)
-        allow(klass).to(receive(:build).and_return(instance))
-        described_class.register(:demo, klass)
-        expect(described_class.load(:demo)).to(equal(instance))
-      end
+    it "loads a built-in adapter in a fresh Ruby process", :aggregate_failures do
+      lib = File.expand_path("../../../lib", __dir__)
+      script = 'require "kimera/frameworks/adapter"; Kimera::Frameworks::ADAPTERS.load(:rspec)'
+      expect(Kimera::Frameworks::ADAPTERS.load(:rspec)).to(be_a(Kimera::Frameworks::RSpecAdapter))
+      expect(system("ruby", "-I#{lib}", "-e", script, out: File::NULL, err: File::NULL)).to(be(true))
+    end
 
-      it "loads a built-in adapter in a fresh Ruby process", :aggregate_failures do
-        lib = File.expand_path("../../../lib", __dir__)
-        script = 'require "kimera/frameworks/adapter"; Kimera::Frameworks::Adapter.load(:rspec)'
-        expect(described_class.load(:rspec)).to(be_a(Kimera::Frameworks::RSpecAdapter))
-        expect(system("ruby", "-I#{lib}", "-e", script, out: File::NULL, err: File::NULL)).to(be(true))
-      end
+    it "turns a framework missing from the bundle into a Kimera::Error that names the fix" do
+      loader = described_class::LOADERS.fetch("rspec")
+      allow(loader).to(receive(:call).and_raise(LoadError, "cannot load such file -- rspec/core"))
+      expect { Kimera::Frameworks::ADAPTERS.load(:rspec) }
+        .to(raise_error(Kimera::Error, %r{framework rspec .* rspec/core.*set framework: rspec or minitest}))
+    end
 
-      it "turns a framework missing from the bundle into a Kimera::Error that names the fix" do
-        loader = described_class::ADAPTER_LOADERS.fetch("rspec")
-        allow(loader).to(receive(:call).and_raise(LoadError, "cannot load such file -- rspec/core"))
-        expect { described_class.load(:rspec) }
-          .to(raise_error(Kimera::Error, %r{framework rspec .* rspec/core.*set framework: rspec or minitest}))
-      end
-
-      it "raises a Kimera::Error for an unknown adapter name" do
-        expect { described_class.fetch(:nonesuch) }
-          .to(raise_error(Kimera::Error, /unknown test framework adapter: nonesuch/))
-      end
+    it "raises a Kimera::Error for an unknown adapter name" do
+      expect { described_class.new.fetch(:nonesuch) }
+        .to(raise_error(Kimera::Error, /unknown test framework adapter: nonesuch/))
     end
   end
 end

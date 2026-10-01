@@ -8,6 +8,7 @@ require_relative "baseline_losses"
 require_relative "baseline_tally"
 require_relative "signal_guard"
 require_relative "stopwatch"
+require_relative "worker_pool"
 require_relative "null_progress"
 
 class Kimera::Execution::BaselinePass
@@ -23,7 +24,7 @@ class Kimera::Execution::BaselinePass
   def parallel!(jobs, &) = settle(jobs) { dispatch(&) }
 
   def check!
-    Kimera::Runtime.active = nil
+    Kimera::RUNTIME.active = nil
     outcome = quietly { @adapter.run(@adapter.test_ids) }
     return if outcome.passed?
     @messages = outcome.failures
@@ -51,17 +52,17 @@ class Kimera::Execution::BaselinePass
   def excluded = tally.irrelevant.to_h { |test_id| [test_id, @messages[test_id]] }
 
   def serial
-    ledger = Kimera::Runtime.start!
+    ledger = Kimera::RUNTIME.start!
     @adapter.test_ids.each { |test_id| attempt(ledger, test_id) }
   ensure
-    Kimera::Runtime.stop!(ledger)
+    Kimera::RUNTIME.stop!(ledger)
   end
 
   def attempt(ledger, test_id)
-    Kimera::Runtime.active = nil
-    Kimera::Runtime.clear!(ledger)
+    Kimera::RUNTIME.active = nil
+    ledger.clear
     watch = Kimera::Execution::Stopwatch.new
-    record(test_id, watch.lap { sheltered(test_id) }, Kimera::Runtime.drain!(ledger), watch.last)
+    record(test_id, watch.lap { sheltered(test_id) }, ledger.drain!, watch.last)
   end
 
   def sheltered(test_id) = Kimera::Execution::SignalGuard.run(test_id) { quietly { @adapter.run([test_id]) } }
@@ -73,13 +74,15 @@ class Kimera::Execution::BaselinePass
   end
 
   def dispatch(&)
-    yield(@adapter.test_ids, nil, resolve: resolve, lost: loss, trace: tracer)
+    yield(@adapter.test_ids, nil, listeners(method(:lost), tracer))
     rerun(losses.stalled, &)
   end
 
   def rerun(ids)
-    yield(ids, 1, resolve: resolve, lost: method(:relapse), trace: nil) unless ids.empty?
+    yield(ids, 1, listeners(method(:relapse), nil)) unless ids.empty?
   end
+
+  def listeners(lost, trace) = Kimera::Execution::WorkerPool::Listeners.new(resolve: resolve, lost: lost, trace: trace)
 
   def losses = @_losses ||= Kimera::Execution::BaselineLosses.new
 
@@ -96,8 +99,6 @@ class Kimera::Execution::BaselinePass
     bank(test_id, touched, message: message["failure"]) unless message["passed"]
     @progress.tick
   end
-
-  def loss = method(:lost)
 
   def lost(test_id, reason, stacks = nil)
     return losses.stall(test_id, stacks) if reason == :timeout
@@ -133,8 +134,9 @@ class Kimera::Execution::BaselinePass
   end
 
   def failure!(failed, jobs)
-    command = @adapter.reproduce(failed.first(Kimera::Execution::BaselineFailure::MAX_DETAILS))
-    context = { workers: journal, stacks: losses.stacks, jobs: jobs }
-    raise(Kimera::Execution::BaselineFailure.build(failed, @messages, command, **context))
+    summary = Kimera::Execution::BaselineFailure::Summary
+    command = @adapter.reproduce(failed.first(summary::MAX_DETAILS))
+    context = summary::Context.new(workers: journal, stacks: losses.stacks, jobs: jobs)
+    raise(Kimera::Execution::BaselineFailure, summary.new(failed, @messages, command, context).to_s)
   end
 end

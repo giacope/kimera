@@ -5,9 +5,7 @@ require_relative "base"
 class Kimera::Operators::KernelCoercion < Kimera::Operators::Base
   COERCIONS = %i[Array String Integer Float].freeze
 
-  class << self
-    def key = "kernel_coercion"
-  end
+  def key = "kernel_coercion"
 
   def variants(node, **)
     return unless call(node).bare?(COERCIONS)

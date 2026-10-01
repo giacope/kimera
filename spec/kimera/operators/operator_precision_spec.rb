@@ -32,12 +32,12 @@ RSpec.describe("operator precision") do
       result = Kimera::Overlay.new(catalog).synthesize("p.rb", src)
       mod = Module.new.tap { |m| m.module_eval(result.source) }
       object = Object.new.extend(mod)
-      Kimera::Runtime.active = nil
+      Kimera::RUNTIME.active = nil
       expect(object.rate).to(eq(2.5))
-      Kimera::Runtime.active = catalog.each.first.first.id
+      Kimera::RUNTIME.active = catalog.each.first.first.id
       expect(object.rate).to(eq(3.5))
     ensure
-      Kimera::Runtime.reset!
+      Kimera::RUNTIME.reset!
     end
   end
 
@@ -83,12 +83,12 @@ RSpec.describe("operator precision") do
       result = Kimera::Overlay.new(catalog).synthesize("p.rb", src)
       mod = Module.new.tap { |m| m.module_eval(result.source) }
       object = Object.new.extend(mod)
-      Kimera::Runtime.active = nil
+      Kimera::RUNTIME.active = nil
       expect(object.s.to_a).to(eq([2, 3, 4]))
-      Kimera::Runtime.active = catalog.each.first.first.id
+      Kimera::RUNTIME.active = catalog.each.first.first.id
       expect(object.s.to_a).to(eq([2, 3, 4, 5]))
     ensure
-      Kimera::Runtime.reset!
+      Kimera::RUNTIME.reset!
     end
   end
 
@@ -145,13 +145,13 @@ RSpec.describe("operator precision") do
       result = Kimera::Overlay.new(catalog).synthesize("p.rb", src)
       mod = Module.new.tap { |m| m.module_eval(result.source) }
       object = Object.new.extend(mod)
-      Kimera::Runtime.active = nil
+      Kimera::RUNTIME.active = nil
       expect(object.re("abb")).to(be(true))
       none = catalog.each.find { |m, _p| m.label.include?("match none") }.first
-      Kimera::Runtime.active = none.id
+      Kimera::RUNTIME.active = none.id
       expect(object.re("abb")).to(be(false))
     ensure
-      Kimera::Runtime.reset!
+      Kimera::RUNTIME.reset!
     end
   end
 

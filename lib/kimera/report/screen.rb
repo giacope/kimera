@@ -9,23 +9,13 @@ module Kimera
 end
 
 class Kimera::Report::Screen
-  MODES = { true => :on, false => :off }.freeze
+  MODES = [true, false].freeze
 
   class << self
-    def for(io, preference) = public_send(MODES.fetch(preference, :auto), io)
-
-    def on(io) = new(io, enabled: true, interactive: tty?(io))
-
-    def off(io) = new(io, enabled: false, interactive: tty?(io))
-
-    def auto(io)
-      tty = tty?(io)
-      new(io, enabled: tty, interactive: tty)
+    def of(io, preference)
+      tty = io.tty?
+      new(io, enabled: MODES.include?(preference) ? preference : tty, interactive: tty)
     end
-
-    private
-
-    def tty?(io) = io.tty?
   end
 
   def initialize(io, enabled:, interactive:)
@@ -41,6 +31,14 @@ class Kimera::Report::Screen
   def colored? = @enabled && !ENV.key?("NO_COLOR")
 
   def surface
-    @interactive ? Kimera::Report::Live.for(@io) : Kimera::Report::Log.new(@io)
+    @interactive ? Kimera::Report::Live.new(@io, columns: columns) : Kimera::Report::Log.new(@io)
+  end
+
+  private
+
+  def columns
+    @io.winsize.fetch(1)
+  rescue NoMethodError, SystemCallError
+    nil
   end
 end

@@ -3,9 +3,7 @@
 require_relative "base"
 
 class Kimera::Operators::StringLiteral < Kimera::Operators::Base
-  class << self
-    def key = "string_literal"
-  end
+  def key = "string_literal"
 
   def variants(node, **)
     return unless node.is_a?(StringNode)

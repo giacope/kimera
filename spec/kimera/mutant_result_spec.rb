@@ -96,7 +96,7 @@ RSpec.describe(Kimera::MutantResult) do
     it "is true only for an ignored mutant whose verdict is a kill", :aggregate_failures do
       %i[killed timeout error].each { |s| expect(result(s).waive.lapsed?).to(be(true)) }
       %i[survived no_coverage harness_error].each { |s| expect(result(s).waive.lapsed?).to(be(false)) }
-      expect(described_class.waived(1, "x.rb").lapsed?).to(be(false))
+      expect(described_class.from_waiver(1, "x.rb").lapsed?).to(be(false))
     end
   end
 end

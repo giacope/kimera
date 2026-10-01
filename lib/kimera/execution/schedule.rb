@@ -75,7 +75,8 @@ class Kimera::Execution::Schedule
   end
 
   def pool(queue, ledger)
-    @driver.drive(queue, @spawner, resolve: resolver(ledger), lost: loser(ledger))
+    listeners = Kimera::Execution::WorkerPool::Listeners.new(resolve: resolver(ledger), lost: loser(ledger), trace: nil)
+    @driver.drive(queue, @spawner, listeners)
   end
 
   def resolver(ledger)

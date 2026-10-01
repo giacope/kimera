@@ -15,32 +15,6 @@ class Kimera::DefaultRemoval
   INERT = [IntegerNode, FloatNode, StringNode, SymbolNode, NilNode, TrueNode, FalseNode, LocalVariableReadNode].freeze
   CALLABLES = [DefNode, LambdaNode, BlockNode].freeze
 
-  class << self
-    def exemptions(source) = signatures(source).flat_map(&:exemptions)
-
-    def ranges(source) = signatures(source).flat_map(&:ranges)
-
-    private
-
-    def signatures(source)
-      result = Kimera::Syntax.parse(source)
-      result.failure? ? [] : collect(result.value, [])
-    end
-
-    def collect(node, found)
-      found << new(parameters(node), node.is_a?(Kimera::SyntaxTypes::BlockNode)) if callable?(node)
-      node.compact_child_nodes.each { collect(it, found) }
-      found
-    end
-
-    def callable?(node) = CALLABLES.any? { node.is_a?(it) } && node.parameters
-
-    def parameters(callable)
-      parameters = callable.parameters
-      parameters.is_a?(Kimera::SyntaxTypes::BlockParametersNode) ? parameters.parameters : parameters
-    end
-  end
-
   def initialize(parameters, block)
     @parameters = parameters
     @block = block
@@ -83,3 +57,5 @@ class Kimera::DefaultRemoval
     Kimera::Memoization::Range.new(start, start + location.length, reason, nil)
   end
 end
+
+require_relative "default_removal_source"

@@ -1,4 +1,3 @@
-inherit_from: .rubocop_todo.yml
 
 plugins:
   - rubocop-kata
@@ -89,8 +88,6 @@ Elegant/NoRedundantVariable:
 ThreadSafety/ClassInstanceVariable:
   Exclude:
     - spec/**/*
-    # Each forked worker holds its own copy.
-    - lib/kimera/runtime.rb
     # Operator registry: written at load in the CLI parent, then read-only.
     - lib/kimera/operators.rb
 ThreadSafety/ClassAndModuleAttributes:
@@ -98,10 +95,6 @@ ThreadSafety/ClassAndModuleAttributes:
     - spec/**/*
     # "Overlays armed?" flag, set once before any fork.
     - lib/kimera/execution/overlay_guards.rb
-ThreadSafety/MutableClassInstanceVariable:
-  Exclude:
-    # Adapter registry: written at load, then read-only; freezing breaks it.
-    - lib/kimera/frameworks/adapter.rb
 ThreadSafety/NewThread:
   Exclude:
     # One thread per job is this file's purpose.
@@ -124,7 +117,7 @@ Style/GlobalStdStream:
 Lint/BooleanSymbol:
   Exclude:
     # :true/:false are AST node types.
-    - lib/kimera/synthesis/guardrail_value_objects.rb
+    - lib/kimera/synthesis/guardrail_factories.rb
     - spec/kimera/overlay_spec.rb
 Lint/InterpolationCheck:
   Exclude:

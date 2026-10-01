@@ -14,7 +14,7 @@ class Kimera::Overlay
   Result =
     Struct.new(:file, :source, :mutant_ids, :skipped_unsafe, keyword_init: true) do
       def install(path)
-        Kimera::Overlay.evaluate(source, path)
+        Kimera::Overlay::Source.new(source).evaluate(path)
         mutant_ids
       end
 
@@ -27,12 +27,6 @@ class Kimera::Overlay
 
   def initialize(registry)
     @registry = registry
-  end
-
-  class << self
-    def evaluate(source, path)
-      Kimera::Warnings.silence { TOPLEVEL_BINDING.eval(Kimera::SuperclassPin.pin(source), path) }
-    end
   end
 
   def synthesize(file, source)
@@ -69,3 +63,4 @@ end
 
 require_relative "file_weave"
 require_relative "method_bake"
+require_relative "overlay/source"

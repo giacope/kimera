@@ -22,37 +22,11 @@ class Kimera::Incremental::Session
   end
 
   class << self
-    def load(path, registry: nil)
+    def from(path, registry: nil)
       return new unless path && File.exist?(path)
-      session = decode(JSON.parse(File.read(path, encoding: Encoding::UTF_8)))
-      session.prune!(registry) if registry
-      session
-    end
-
-    def decode(data)
-      new(**attributes(data))
-    end
-
-    def attributes(data)
-      attrs = { leaks: leaks(data["leaks"]), meta: data["meta"] || {} }
-      attrs[:results] = keys(data["results"]) { |hash| Kimera::MutantResult.from_h(hash) }
-      attrs[:fingerprints] = keys(data["fingerprints"]) { |fingerprint| fingerprint }
-      attrs
-    end
-
-    def leaks(raw)
-      Array(raw).map { |hash| Kimera::LeakReport.new(mutant_id: hash["mutant_id"], detail: hash["detail"]) }
-    end
-
-    def keys(hash)
-      Hash(hash).to_h { |id, value| [Integer(id, 10), yield(value)] }
-    end
-
-    def fingerprint(registry, id)
-      pair = registry.point(id)
-      return unless pair
-      mutant, point = pair
-      [point.file, point.location.start_line, point.original_source, mutant.label].join(" ")
+      data = JSON.parse(File.read(path, encoding: Encoding::UTF_8))
+      session = Kimera::Incremental::Session::Payload.new(data).session
+      registry ? session.prune!(registry) : session
     end
   end
 
@@ -73,7 +47,7 @@ class Kimera::Incremental::Session
   end
 
   def waiver(id, registry)
-    @results[id]&.waive || Kimera::MutantResult.waived(id, registry.index[id]&.file)
+    @results[id]&.waive || Kimera::MutantResult.from_waiver(id, registry.index[id]&.file)
   end
 
   def merge!(report)
@@ -93,7 +67,7 @@ class Kimera::Incremental::Session
 
   def stale?(id, registry)
     stored = @fingerprints[id]
-    !stored || stored != self.class.fingerprint(registry, id)
+    !stored || stored != fingerprint(registry.point(id))
   end
 
   def payload
@@ -106,8 +80,16 @@ class Kimera::Incremental::Session
 
   def fingerprints(registry)
     @results.keys.each_with_object({}) do |id, hash|
-      fingerprint = self.class.fingerprint(registry, id)
-      hash[id] = fingerprint if fingerprint
+      stamp = fingerprint(registry.point(id))
+      hash[id] = stamp if stamp
     end
   end
+
+  def fingerprint(pair)
+    return unless pair
+    mutant, point = pair
+    [point.file, point.location.start_line, point.original_source, mutant.label].join(" ")
+  end
 end
+
+require_relative "session/payload"

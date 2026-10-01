@@ -49,7 +49,7 @@ RSpec.describe("Harness watchdog") do
   end
 
   def harness(registry, spawner, jobs: 1)
-    Kimera::Execution::Harness.new(registry: registry, adapter: nil, hard_timeout: 0.4, spawner: spawner, jobs: jobs)
+    Kimera::Execution::Harness.build(registry: registry, adapter: nil, hard_timeout: 0.4, spawner: spawner, jobs: jobs)
   end
 
   it "records clean results when nothing hangs" do

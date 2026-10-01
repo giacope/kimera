@@ -5,9 +5,7 @@ require_relative "base"
 class Kimera::Operators::Conditional < Kimera::Operators::Base
   LITERAL_CONDITIONS = { "true" => TrueNode, "false" => FalseNode }.freeze
 
-  class << self
-    def key = "conditional"
-  end
+  def key = "conditional"
 
   def variants(node, **)
     return unless conditional?(node)

@@ -16,7 +16,7 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
       define_method(:test_ids) { %w[t1 t2] }
       define_method(:reproduce) { |failed| "rspec #{failed.join(" ")}" }
       define_method(:run) do |ids|
-        Kimera::Runtime.active?(mutant)
+        Kimera::RUNTIME.active?(mutant)
         raise(error) if ids == ["t1"]
         Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
       end

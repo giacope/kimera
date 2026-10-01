@@ -9,9 +9,7 @@ module MyApp
     class BackgroundDispatch < Kimera::Operators::Base
       SWAPS = { perform_later: :perform_now, deliver_later: :deliver_now }.freeze
 
-      class << self
-        def key = "background_dispatch"
-      end
+      def key = "background_dispatch"
 
       def variants(node, **)
         return unless node.is_a?(Prism::CallNode) && node.receiver

@@ -533,11 +533,9 @@ require "kimera/operators"
 class Authorization < Kimera::Operators::Base
   NAMES = %i[authorize authorize! policy_scope].freeze
 
-  class << self
-    def key = "authorization"
+  def key = "authorization"
 
-    def statement? = true
-  end
+  def statement? = true
 
   def variants(node, **)
     return unless matches?(node, NAMES)
@@ -584,7 +582,7 @@ hand-added to the ignore list. Check it against a representative snippet:
 ```ruby
 require "kimera/operators/audit"
 
-faults = Kimera::Operators::Audit.faults([Authorization.new], File.read("app/controllers/orders_controller.rb"))
+faults = Kimera::Operators::Audit.new([Authorization.new]).faults(File.read("app/controllers/orders_controller.rb"))
 expect(faults).to(be_empty)
 ```
 
@@ -603,14 +601,14 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
    byte/line span, original node, and variant directives. Each gets a globally
    unique integer id. The JSON registry is the single source of truth.
 2. **Synthesis.** Replace each schema-safe point with a nested guarded dispatch
-   (`if Kimera::Runtime.active?(102) … else …end`) and unparse. Memoized
+   (`if ::MutantRuntime.active?(102) … else …end`) and unparse. Memoized
    expressions (`@x ||= …`) and load-time-only code go to a reload fallback, so
    they can never read as a false "survived".
 3. **Execution.** Load the suite once and overlay the schemata. Check the
    baseline is green while recording per-test coverage. With `--jobs N`, the
    coverage pass also fans out across the warm pool (each worker runs a slice
    of the examples). Then fork the warm pool and stream mutants to it from one
-   shared, heaviest-first queue. For each mutant, flip `Runtime.active` and run
+   shared, heaviest-first queue. For each mutant, flip `Kimera::RUNTIME.active` and run
    only its covering tests. The queue is shared, not split by file, so
    `--jobs N` scales with cores even when mutants sit in one large file.
    Mutants the warm pass could not judge are then judged again, each in a
@@ -727,7 +725,8 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   - Uncovered mutants don't lower the score, unlike some tools.
     `--fail-on-no-coverage` closes that gap.
 - **One top-level constant.** `require "kimera"` defines `::MutantRuntime`,
-  aliased to `Kimera::Runtime` unless already bound. Every synthesized guard
+  bound to `Kimera::RUNTIME`, the process's one `Kimera::Runtime`, unless
+  already bound. Every synthesized guard
   dispatches through it. It stays top-level so an outer measurer can pre-bind
   it. It is the only constant Kimera adds outside its namespace.
 

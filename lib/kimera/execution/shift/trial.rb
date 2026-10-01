@@ -39,7 +39,7 @@ Kimera::Execution::Shift::Trial =
     def off = run(nil)
 
     def run(active)
-      Kimera::Runtime.active = active
+      Kimera::RUNTIME.active = active
       deadline.guard(test) { adapter.run([test]) }
     end
   end

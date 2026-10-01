@@ -174,7 +174,7 @@ RSpec.describe(Kimera::Report::Text) do
   def waivers(path: nil)
     results = %i[killed survived no_coverage timeout].each_with_index.map { |status, index| waived(status, index) }
     io = StringIO.new
-    report = Kimera::RunReport.new(results: results + [Kimera::MutantResult.waived(200, "calc.rb")])
+    report = Kimera::RunReport.new(results: results + [Kimera::MutantResult.from_waiver(200, "calc.rb")])
     described_class.new(registry, io: io, color: false).report(report, path: path)
     io.string
   end
@@ -193,6 +193,6 @@ RSpec.describe(Kimera::Report::Text) do
   end
 
   it "stays silent about ignored mutants that were not evaluated" do
-    expect(render(Kimera::MutantResult.waived(mutant.id, "calc.rb"))).not_to(include("ignored mutant(s)"))
+    expect(render(Kimera::MutantResult.from_waiver(mutant.id, "calc.rb"))).not_to(include("ignored mutant(s)"))
   end
 end

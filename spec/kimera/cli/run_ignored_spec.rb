@@ -27,7 +27,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     runner = instance_double(Kimera::CLI::Run::Pass)
     allow(runner).to(receive(:call) { |ids, session| session.merge!(judged(ids, status)) })
     allow(Kimera::CLI::Run::Pass).to(receive(:new).and_return(runner))
-    allow(Kimera::Frameworks::Adapter).to(receive(:load).and_return(nil))
+    allow(Kimera::Frameworks::ADAPTERS).to(receive(:load).and_return(nil))
     runner
   end
 

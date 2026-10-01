@@ -4,7 +4,7 @@ require_relative "isolated_pulse"
 
 module Kimera
   module Execution
-    module IsolatedExecutionWatchdog
+    module IsolatedWatchdog
       private
 
       def waitfor(pid, pulse = File::NULL)

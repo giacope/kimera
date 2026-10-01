@@ -4,13 +4,13 @@ require "kimera/execution/shift"
 require "kimera/frameworks/adapter"
 
 RSpec.describe(Kimera::Execution::Shift::Trial) do
-  after { Kimera::Runtime.reset! }
+  after { Kimera::RUNTIME.reset! }
 
   # Fails every run, logging whether the mutant was on.
   def failing(log)
     Class.new do
       define_method(:run) do |ids|
-        log << Kimera::Runtime.active
+        log << Kimera::RUNTIME.active
         Kimera::Frameworks::RunOutcome.new(passed: false, failed_ids: ids)
       end
     end.new

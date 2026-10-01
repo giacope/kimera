@@ -6,7 +6,7 @@ require_relative "concern_overrides"
 
 module Kimera
   module Execution
-    module OverlayGuardModules
+    module GuardModules
       module_function
 
       ENUMGUARD =
@@ -23,7 +23,7 @@ module Kimera
         def set_callback(name, *arguments, &block)
           return super unless Kimera::Execution::OverlayGuards.overlaying?
           type, filters, options = normalize_callback_params(arguments.dup, block)
-          fresh = Kimera::Execution::OverlayGuardModules.fresh(__send__(:get_callbacks, name), type, filters)
+          fresh = Kimera::Execution::GuardModules.fresh(__send__(:get_callbacks, name), type, filters)
           return if fresh.empty?
           super(name, type, *fresh, options)
         end
@@ -46,7 +46,7 @@ module Kimera
       SERIALIZEGUARD =
         Module.new do
         def serialize(attribute, *args, **options, &)
-          return if OverlayGuards.overlaying? && OverlayGuardModules.serialized?(type_for_attribute(attribute))
+          return if OverlayGuards.overlaying? && GuardModules.serialized?(type_for_attribute(attribute))
           super
         end
       end
@@ -56,9 +56,9 @@ module Kimera
         %i[included prepended].each do |hook|
           stored = :"@_#{hook}_block"
           define_method(hook) do |base = nil, &block|
-            next super(base, &block) unless block && OverlayGuardModules.replacing?(self, stored, base)
-            instance_variable_set(stored, OverlayGuardModules.chain(instance_variable_get(stored), block))
-            OverlayGuardModules.reapply(self, block)
+            next super(base, &block) unless block && GuardModules.replacing?(self, stored, base)
+            instance_variable_set(stored, GuardModules.chain(instance_variable_get(stored), block))
+            GuardModules.reapply(self, block)
           end
         end
       end

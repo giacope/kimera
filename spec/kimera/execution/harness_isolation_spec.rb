@@ -8,7 +8,7 @@ RSpec.describe(Kimera::Execution::Harness) do
   let(:events) { [] }
 
   def harness(isolation:)
-    described_class.new(registry: registry, adapter: nil, isolate_db: isolation)
+    described_class.build(registry: registry, adapter: nil, isolate_db: isolation)
   end
 
   before do

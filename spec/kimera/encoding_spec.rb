@@ -56,9 +56,9 @@ RSpec.describe("non-ASCII source handling") do
   end
 
   def test_expect_toggle(registry, object)
-    Kimera::Runtime.active = nil
+    Kimera::RUNTIME.active = nil
     expect(object.gt(2, 1)).to(be(true))
-    Kimera::Runtime.active = registry.each.find { |m, _p| m.label == "> => <" }.first.id
+    Kimera::RUNTIME.active = registry.each.find { |m, _p| m.label == "> => <" }.first.id
     expect(object.gt(2, 1)).to(be(false))
   end
 
@@ -89,13 +89,13 @@ RSpec.describe("non-ASCII source handling") do
     expect(result.mutant_ids).not_to(be_empty)
     test_expect_toggle(registry, object)
   ensure
-    Kimera::Runtime.reset!
+    Kimera::RUNTIME.reset!
   end
 
   it "round-trips a registry with non-ASCII source snippets through disk" do
     test_write_source("widget.rb")
     registry = test_registry_for("widget.rb")
     path = File.join(dir, "reg.json").tap { |p| registry.write(p) }
-    expect(Kimera::Registry.load(path).count).to(eq(registry.count))
+    expect(Kimera::Registry.from_file(path).count).to(eq(registry.count))
   end
 end

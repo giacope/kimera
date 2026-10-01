@@ -8,18 +8,6 @@ class Kimera::Report::Live < Kimera::Report::Log
   ERASE = "\r\e[K"
   CURSOR_UP = "\e[1A"
 
-  class << self
-    def for(io) = new(io, columns: width(io))
-
-    private
-
-    def width(io)
-      io.winsize.fetch(1)
-    rescue NoMethodError, SystemCallError
-      nil
-    end
-  end
-
   def initialize(io, columns: nil)
     super(io)
     @columns = columns

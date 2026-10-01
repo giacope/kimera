@@ -3,9 +3,7 @@
 require_relative "base"
 
 class Kimera::Operators::ReturnValue < Kimera::Operators::Base
-  class << self
-    def key = "return_value"
-  end
+  def key = "return_value"
 
   SKIPPED = [NilNode, ParenthesesNode].freeze
   POSITIONS = Hash.new(->(_operator, _node) {}).merge(tail: ->(operator, node) { operator.tail(node) }).freeze

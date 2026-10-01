@@ -8,7 +8,7 @@ require "kimera/execution/shift"
 RSpec.describe(Kimera::Execution::Shift::Deadline) do
   def deadline(seconds, times, beat: described_class::SILENT)
     clock = times.dup
-    described_class.new(seconds, clock: -> { clock.shift }, beat: beat)
+    described_class.build(seconds, clock: -> { clock.shift }, beat: beat)
   end
 
   it "expires a test run the moment the soft timeout is spent" do
@@ -30,7 +30,7 @@ RSpec.describe(Kimera::Execution::Shift::Deadline) do
   end
 
   it "interrupts a run that outlasts the budget" do
-    expect { described_class.new(0.05).guard("t1") { sleep(5) } }.to(raise_error(Timeout::Error))
+    expect { described_class.build(0.05).guard("t1") { sleep(5) } }.to(raise_error(Timeout::Error))
   end
 
   # The parent's hard watchdog renews on each beat, so it too times one test.
@@ -44,7 +44,7 @@ RSpec.describe(Kimera::Execution::Shift::Deadline) do
   describe "#overran?" do
     def deadline(times, budget)
       clock = times.dup
-      described_class.new(5.0, clock: -> { clock.shift }, budget: budget)
+      described_class.build(5.0, clock: -> { clock.shift }, budget: budget)
     end
 
     let(:budget) { Kimera::Execution::TimeBudget.new({ "t1" => 0.1 }, factor: 1.0, slack: 0.1) }
@@ -70,7 +70,7 @@ RSpec.describe(Kimera::Execution::Shift::Deadline) do
     end
 
     it "has no budget unless given one" do
-      expect(described_class.new(5.0).budget).to(be(Kimera::Execution::TimeBudget::NONE))
+      expect(described_class.build(5.0).budget).to(be(Kimera::Execution::TimeBudget::NONE))
     end
   end
 end

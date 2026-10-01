@@ -354,7 +354,7 @@ RSpec.describe(Kimera::Frameworks::RSpecAdapter) do
 
   describe "narrowing the filtered-example table" do
     def narrow(filtered, wanted, &)
-      Kimera::Frameworks::RSpecGroupIndex.narrow(filtered, wanted, &)
+      Kimera::Frameworks::GroupScope.new(wanted).narrow(filtered, &)
     end
 
     def top

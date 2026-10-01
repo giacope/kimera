@@ -8,19 +8,13 @@ require_relative "../../registry/registry"
 require_relative "../../scope/file_set"
 
 class Kimera::CLI::Run::Sources
-  class << self
-    def changed(options)
-      Kimera::Incremental::GitDiff.lines(since: options[:since], root: options[:source_root])
-    end
-  end
-
   def initialize(errors: $stderr)
     @errors = errors
   end
 
   def load(options, changed = nil)
     stored = options[:registry]
-    return Kimera::Registry.load(stored) if stored
+    return Kimera::Registry.from_file(stored) if stored
     build(options, files(options, changed))
   end
 

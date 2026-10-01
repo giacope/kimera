@@ -14,11 +14,12 @@ require "kimera/results/result"
 
 RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
   it "renders the complete baseline failure, including boundaries and omitted details" do
-    limit = Kimera::Execution::BaselineFailure::MAX_MESSAGE
+    summary = Kimera::Execution::BaselineFailure::Summary
+    limit = summary::MAX_MESSAGE
     failed = %w[a b c d]
     messages = { "a" => "one\ntwo", "b" => "x" * (limit + 1), "c" => nil }
 
-    expect(described_class.summary(failed, messages, "rspec a b c --order defined")).to(
+    expect(summary.new(failed, messages, "rspec a b c --order defined").to_s).to(
       eq(
         "baseline suite is not green: 4 tests failed:\n    a\n    b\n    c\n    d\n  " \
           "a:\n    one\n    two\n  " \
@@ -26,10 +27,10 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
           "reproduce without kimera: rspec a b c --order defined"
       )
     )
-    expect(described_class.summary(["a"], {}, "ruby -n a")).to(
+    expect(summary.new(["a"], {}, "ruby -n a").to_s).to(
       eq("baseline suite is not green: a\n  reproduce without kimera: ruby -n a")
     )
-    expect(described_class.truncate("y" * limit)).to(eq("y" * limit))
+    expect(summary.new(["a"], { "a" => "y" * limit }, "c").to_s).to(include("    #{"y" * limit}\n"))
   end
 
   it "breaks a red parallel baseline down per worker, in the order each ran its tests" do
@@ -37,7 +38,8 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     failed = %w[s u c x1 x2 x3 x4 x5]
     workers[1].push(*%w[x1 x2 x3 x4 x5])
 
-    expect(described_class.summary(failed, {}, "cmd", workers: workers)).to(
+    summary = Kimera::Execution::BaselineFailure::Summary
+    expect(summary.new(failed, {}, "cmd", summary::SERIAL.with(workers: workers)).to_s).to(
       eq(
         "baseline suite is not green: 8 tests failed:\n    #{failed.join("\n    ")}\n  " \
           "per worker (tests in the order it ran them):\n    " \
@@ -49,9 +51,8 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
   end
 
   it "renders a red isolated baseline with its reason indented and the mirror hint" do
-    error = described_class.mirrored("E: x\n  at a.rb:1", "  hint")
-    expect(error).to(be_a(described_class))
-    expect(error.message).to(
+    mirror = Kimera::Execution::BaselineFailure::Mirror.new("E: x\n  at a.rb:1", "  hint")
+    expect(mirror.to_s).to(
       eq(
         "isolated baseline is not green: the unmutated suite fails in a mirror of the project\n  " \
           "E: x\n      at a.rb:1\n  hint"
@@ -80,7 +81,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     passed = Struct.new(:passed?).new(true)
     killed = Struct.new(:passed?).new(false)
     adapter = Object.new
-    adapter.define_singleton_method(:run) { |ids| ids == ["a"] || Kimera::Runtime.active.nil? ? passed : killed }
+    adapter.define_singleton_method(:run) { |ids| ids == ["a"] || Kimera::RUNTIME.active.nil? ? passed : killed }
     isolation = Object.new
     isolation.define_singleton_method(:around) { |&block| block.call }
     remembered = []
@@ -88,7 +89,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     killers.define_singleton_method(:order) { |tests| tests }
     killers.define_singleton_method(:remember) { |id| remembered << id }
     attempt = Kimera::Execution::Shift::Attempt.new(
-      adapter: adapter, isolation: isolation, killers: killers, deadline: Kimera::Execution::Shift::Deadline.new(nil)
+      adapter: adapter, isolation: isolation, killers: killers, deadline: Kimera::Execution::Shift::Deadline.build(nil)
     )
 
     expect(attempt.run(9, %w[a b c])).to(equal(killed))
@@ -99,12 +100,12 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     outcome = Struct.new(:passed?, :failures).new(false, { "t" => "boom" })
     adapter = Object.new
     adapter.define_singleton_method(:run) do |_ids|
-      Kimera::Runtime.active?(7)
+      Kimera::RUNTIME.active?(7)
       outcome
     end
     request = StringIO.new("{\"id\":\"t\"}\n")
     response = StringIO.new
-    before = Array(Kimera::Runtime.instance_variable_get(:@ledgers)).size
+    before = Array(Kimera::RUNTIME.instance_variable_get(:@ledgers)).size
 
     Kimera::Execution::Shift::CoverageChannel.new(adapter).serve(request, response)
 
@@ -116,9 +117,9 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     )
     expect(messages.first.fetch("touched")).to(include(7))
     expect(messages.drop(1)).to(eq([{ "t" => "ready" }, { "t" => "done" }]))
-    expect(Array(Kimera::Runtime.instance_variable_get(:@ledgers)).size).to(eq(before))
+    expect(Array(Kimera::RUNTIME.instance_variable_get(:@ledgers)).size).to(eq(before))
   ensure
-    Kimera::Runtime.reset!
+    Kimera::RUNTIME.reset!
   end
 
   it "observes every leak-guard branch and its exact event" do
@@ -186,7 +187,8 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     registry = Object.new
     sources = instance_double(Kimera::CLI::Run::Sources, load: registry)
     allow(Kimera::CLI::Run::Sources).to(receive(:new).and_return(sources))
-    allow(Kimera::CLI::Run::Sources).to(receive(:changed).with(options).and_return(["a.rb"]))
+    diff = instance_double(Kimera::Incremental::GitDiff, lines: ["a.rb"])
+    allow(Kimera::Incremental::GitDiff).to(receive(:new).with(since: "main", root: "/project").and_return(diff))
     allow(Kimera::Plugins).to(receive(:load!).and_return([]))
 
     cycle = runner.__send__(:cycle, options)
@@ -194,7 +196,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     expect(runner.__send__(:cycle, options.merge(since: nil))).to(be_a(Kimera::CLI::Run::Cycle))
     expect(runner.__send__(:digest)).to(be_a(Kimera::CLI::Run::Digest))
     expect(Kimera::Plugins).to(have_received(:load!).with(["plugin.rb"], root: "/project").twice)
-    expect(Kimera::CLI::Run::Sources).to(have_received(:changed).with(options).once)
+    expect(diff).to(have_received(:lines).once)
   end
 
   it "builds the isolated runner contract without lossy intermediate hashes" do

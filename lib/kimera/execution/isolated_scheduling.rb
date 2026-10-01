@@ -5,7 +5,7 @@ require_relative "trial"
 
 module Kimera
   module Execution
-    module IsolatedExecutionScheduling
+    module IsolatedScheduling
       private
 
       def ids

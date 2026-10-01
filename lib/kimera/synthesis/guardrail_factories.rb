@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Kimera
-  module GuardrailValueObjects
+  module GuardrailFactories
     FACTORIES = [%i[Struct new], %i[Data define], %i[Class new], %i[Module new]].freeze
 
     private
@@ -14,12 +14,12 @@ module Kimera
     end
 
     def block(node, scope, name, value)
-      factory, _arguments, body = value.children
-      return node unless factory?(factory)
-      reopened(node, scope, name, factory, body)
+      return node unless factory?(value.children.first)
+      reopened(node, scope, name, value)
     end
 
-    def reopened(node, scope, name, factory, body)
+    def reopened(node, scope, name, value)
+      factory, _arguments, body = value.children
       ast(
         :begin,
         node.updated(nil, [scope, name, constant(ast(:begin, scope || context), ast(:sym, name), factory)]),

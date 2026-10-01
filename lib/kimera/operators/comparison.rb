@@ -7,7 +7,5 @@ class Kimera::Operators::Comparison < Kimera::Operators::BinarySwap
     .merge({ :<= => %i[< >=], :== => [:!=], :!= => [:==] }).freeze
   DIRECTIVE = "comparison"
 
-  class << self
-    def key = "comparison"
-  end
+  def key = "comparison"
 end

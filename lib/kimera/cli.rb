@@ -33,12 +33,6 @@ class Kimera::CLI
 
   COMMAND_NAMES = COMMANDS.keys.grep_v(/\A-/).freeze
 
-  class << self
-    def start(argv)
-      new.run(argv)
-    end
-  end
-
   def initialize(io: $stdout, errors: $stderr)
     @io = io
     @errors = errors

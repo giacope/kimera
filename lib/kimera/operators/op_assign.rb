@@ -5,9 +5,7 @@ require_relative "base"
 class Kimera::Operators::OpAssign < Kimera::Operators::Base
   MUTATIONS = { :+ => :-, :- => :+, :* => :/ }.merge({ :/ => :*, :% => :* }).freeze
 
-  class << self
-    def key = "op_assign"
-  end
+  def key = "op_assign"
 
   def variants(node, **)
     operator = syntax(node).operator

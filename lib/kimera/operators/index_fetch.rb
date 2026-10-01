@@ -3,9 +3,7 @@
 require_relative "base"
 
 class Kimera::Operators::IndexFetch < Kimera::Operators::Base
-  class << self
-    def key = "index_fetch"
-  end
+  def key = "index_fetch"
 
   def variants(node, **)
     return unless call(node).chained?(:[])

@@ -30,16 +30,6 @@ class Kimera::Operators::Audit
       end
     end
 
-  class << self
-    def audit(operators, source, file: "audit.rb")
-      new(operators).audit(source, file: file)
-    end
-
-    def faults(operators, source, file: "audit.rb")
-      audit(operators, source, file: file).reject(&:ok?)
-    end
-  end
-
   def initialize(operators)
     @operators = operators
   end
@@ -47,6 +37,8 @@ class Kimera::Operators::Audit
   def audit(source, file: "audit.rb")
     scan(source, file).points.flat_map { |point| findings(point) }
   end
+
+  def faults(source) = audit(source).reject(&:ok?)
 
   private
 

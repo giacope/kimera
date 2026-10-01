@@ -3,9 +3,7 @@
 require_relative "base"
 
 class Kimera::Operators::RegexpLiteral < Kimera::Operators::Base
-  class << self
-    def key = "regexp"
-  end
+  def key = "regexp"
 
   def variants(node, **)
     return unless node.is_a?(RegularExpressionNode)

@@ -16,7 +16,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   it "prints the stall notice with the run's hard timeout and width", :aggregate_failures do
     errors = StringIO.new
-    harness = described_class.new(registry: registry, adapter: nil, errio: errors, hard_timeout: 7.0, jobs: 3)
+    harness = described_class.build(registry: registry, adapter: nil, errio: errors, hard_timeout: 7.0, jobs: 3)
     harness.__send__(:state).recovered = { "A#t" => "trace" }
     harness.__send__(:notice)
 
@@ -26,7 +26,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   it "prints nothing when no baseline test stalled" do
     errors = StringIO.new
-    described_class.new(registry: registry, adapter: nil, errio: errors).__send__(:notice)
+    described_class.build(registry: registry, adapter: nil, errio: errors).__send__(:notice)
     expect(errors.string).to(be_empty)
   end
 end

@@ -19,7 +19,7 @@ module Kimera::Report::Coloring
     color? ? "\e[#{code}m#{text}\e[0m" : text
   end
 
-  def color? = Kimera::Report::Screen::MODES.key?(@color) ? @color : screen.colored?
+  def color? = Kimera::Report::Screen::MODES.include?(@color) ? @color : screen.colored?
 
-  def screen = @_screen ||= Kimera::Report::Screen.for(@io, @color)
+  def screen = @_screen ||= Kimera::Report::Screen.of(@io, @color)
 end

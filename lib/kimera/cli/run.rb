@@ -60,9 +60,14 @@ class Kimera::CLI::Run
 
   def cycle(options)
     Kimera::Plugins.load!(options[:require], root: options[:source_root])
-    changed = options[:since] ? Kimera::CLI::Run::Sources.changed(options) : nil
+    changed = changes(options)
     registry = Kimera::CLI::Run::Sources.new(errors: @errors).load(options, changed)
     Kimera::CLI::Run::Cycle.new(options, registry, changed, digest: digest(options))
+  end
+
+  def changes(options)
+    since = options[:since]
+    Kimera::Incremental::GitDiff.new(since: since, root: options[:source_root]).lines if since
   end
 
   def digest(options = {})

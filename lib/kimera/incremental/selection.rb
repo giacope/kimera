@@ -20,7 +20,7 @@ module Kimera
       end
 
       def changed(registry, since:, root: ".")
-        select(registry, GitDiff.lines(since: since, root: root))
+        select(registry, GitDiff.new(since: since, root: root).lines)
       end
     end
   end

@@ -41,7 +41,7 @@ class Kimera::Report::Progress
 
   def enabled? = screen.enabled?
 
-  def screen = @_screen ||= Kimera::Report::Screen.for(@io, @enabled != false)
+  def screen = @_screen ||= Kimera::Report::Screen.of(@io, @enabled != false)
 
   def surface = @_surface ||= screen.surface
 

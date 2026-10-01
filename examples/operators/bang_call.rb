@@ -10,9 +10,7 @@ module MyApp
     class BangCall < Kimera::Operators::Base
       NAMES = %i[save! update! create! destroy! find_by! reload!].freeze
 
-      class << self
-        def key = "bang_call"
-      end
+      def key = "bang_call"
 
       def variants(node, **)
         return unless matches?(node, NAMES) && node.receiver

@@ -3,9 +3,7 @@
 require_relative "base"
 
 class Kimera::Operators::RespondToGuard < Kimera::Operators::Base
-  class << self
-    def key = "respond_to_guard"
-  end
+  def key = "respond_to_guard"
 
   def variants(node, **)
     return unless guard?(node)

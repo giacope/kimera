@@ -6,9 +6,7 @@ require_relative "base"
 class Kimera::Operators::ArgumentDrop < Kimera::Operators::Base
   SKIP_KINDS = [SplatNode, KeywordHashNode, BlockArgumentNode, ForwardingArgumentsNode].freeze
 
-  class << self
-    def key = "argument_drop"
-  end
+  def key = "argument_drop"
 
   def variants(node, **)
     return unless identifier?(node)

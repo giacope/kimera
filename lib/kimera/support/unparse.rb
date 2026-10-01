@@ -31,23 +31,7 @@ module Kimera
 
       def enter(node)
         super
-        Binders.names(node).each { |name| define(name) }
-      end
-
-      class << self
-        def names(node)
-          case node.type
-          when :match_var, :blockarg then [node.children.first].compact
-          when :match_with_lvasgn then captures(node.children.first)
-          else []
-          end
-        end
-
-        def captures(regexp)
-          *parts, options = regexp.children
-          flags = options.children.include?(:x) ? Regexp::EXTENDED : 0
-          Regexp.new(parts.sum("") { |part| part.children.first }, flags).names.map(&:to_sym)
-        end
+        Kimera::Unparse::Declaration.new(node).names.each { |name| define(name) }
       end
     end
 
@@ -60,6 +44,28 @@ module Kimera
 
       def endpoint(node) = node && n_array?(node) ? visit(node) : yield
     end
+  end
+end
+
+class Kimera::Unparse::Declaration
+  def initialize(node)
+    @node = node
+  end
+
+  def names
+    case @node.type
+    when :match_var, :blockarg then [@node.children.first].compact
+    when :match_with_lvasgn then captures(@node.children.first)
+    else []
+    end
+  end
+
+  private
+
+  def captures(regexp)
+    *parts, options = regexp.children
+    flags = options.children.include?(:x) ? Regexp::EXTENDED : 0
+    Regexp.new(parts.sum("") { |part| part.children.first }, flags).names.map(&:to_sym)
   end
 end
 

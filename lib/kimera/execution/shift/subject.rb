@@ -15,6 +15,12 @@ Kimera::Execution::Shift::Subject =
       killed(outcome, **fields)
     end
 
+    def crashed(error, limit)
+      message = error.message
+      return verdict(:timeout, duration: limit, detail: message) if error.is_a?(Timeout::Error)
+      verdict(:error, detail: "#{error.class}: #{message}")
+    end
+
     def killed(outcome, **fields)
       verdict(:killed, failing_tests: outcome.failed_ids, detail: outcome.failures.values.first, **fields)
     end

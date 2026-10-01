@@ -49,10 +49,10 @@ RSpec.describe("rails operators") do
       expect(controller.user_params).to(eq(%i[name admin]))
 
       mutant = catalog.each.find { |m, _p| m.label == "permit: drop :admin" }.first.id
-      Kimera::Runtime.active = mutant
+      Kimera::RUNTIME.active = mutant
       expect(controller.user_params).to(eq(%i[name]))
     ensure
-      Kimera::Runtime.reset!
+      Kimera::RUNTIME.reset!
       Object.__send__(:remove_const, :UsersController) if defined?(UsersController)
     end
   end
@@ -195,10 +195,10 @@ RSpec.describe("rails operators") do
 
       expect(Pricing::DISCOUNT.call(100)).to(eq(0))
       boundary = catalog.each.find { |m, _p| m.label == "> => >=" }.first.id
-      Kimera::Runtime.active = boundary
+      Kimera::RUNTIME.active = boundary
       expect(Pricing::DISCOUNT.call(100)).to(eq(10))
     ensure
-      Kimera::Runtime.reset!
+      Kimera::RUNTIME.reset!
       Object.__send__(:remove_const, :Pricing) if defined?(Pricing)
     end
 

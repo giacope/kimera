@@ -8,6 +8,7 @@ require_relative "isolation"
 
 class Kimera::Execution::Shift
   MODES = { true => :recheck }.freeze
+  Job = Data.define(:id, :mode)
   Channel =
     Data.define(:requests, :responses) do
       def each_request
@@ -28,23 +29,23 @@ class Kimera::Execution::Shift
     listen(Channel.new(requests, responses))
     emit(responses, t: "done")
   ensure
-    Kimera::Runtime.active = nil
+    Kimera::RUNTIME.active = nil
   end
 
   def coverage(requests, responses) = channel.serve(requests, responses)
 
   def run(ids, io)
     history = []
-    ids.each_with_index { |id, index| process(id, io, history, index) }
+    ids.each_with_index { |id, index| process(Job.new(id, :warm), io, history, index) }
     emit(io, t: "done")
   ensure
-    Kimera::Runtime.active = nil
+    Kimera::RUNTIME.active = nil
   end
 
   def evaluate(id, mode = :warm)
     safely(Subject.new(id, @registry.index[id]&.file), mode)
   ensure
-    Kimera::Runtime.active = nil
+    Kimera::RUNTIME.active = nil
     isolation.reset!
   end
 
@@ -58,7 +59,7 @@ class Kimera::Execution::Shift
     kind = self.class
     @_attempt ||= kind::Attempt.new(
       adapter: @adapter, isolation: isolation, killers: kind::KillerMemory.new,
-      deadline: kind::Deadline.new(timeout, beat: @options.fetch(:pulse, kind::Deadline::SILENT), **budget)
+      deadline: kind::Deadline.build(timeout, beat: @options.fetch(:pulse, kind::Deadline::SILENT), **budget)
     )
   end
 
@@ -75,10 +76,14 @@ class Kimera::Execution::Shift
   end
 
   def step(line, responses, history, index)
-    request = JSON.parse(line)
-    return if tainted?(process(request["id"], responses, history, index, MODES.fetch(request["recheck"], :warm)))
+    return if tainted?(process(job(line), responses, history, index))
     emit(responses, t: "ready")
     index + 1
+  end
+
+  def job(line)
+    request = JSON.parse(line)
+    Job.new(request["id"], MODES.fetch(request["recheck"], :warm))
   end
 
   def tainted?(result) = result.is_a?(Suspect) || result.status == :timeout
@@ -88,13 +93,7 @@ class Kimera::Execution::Shift
     return subject.verdict(:no_coverage) if tests.empty?
     outcome(subject, tests, mode)
   rescue StandardError, ScriptError => error
-    error(subject, error)
-  end
-
-  def error(subject, error)
-    message = error.message
-    return subject.verdict(:timeout, duration: timeout, detail: message) if error.is_a?(Timeout::Error)
-    subject.verdict(:error, detail: "#{error.class}: #{message}")
+    subject.crashed(error, timeout)
   end
 
   def outcome(subject, tests, mode)
@@ -104,10 +103,10 @@ class Kimera::Execution::Shift
     subject.judged(outcome, tests, monotonic - started)
   end
 
-  def process(id, io, history, index, mode = :warm)
-    result = evaluate(id, mode)
+  def process(job, io, history, index)
+    result = evaluate(*job.deconstruct)
     emit(io, **result.message)
-    history << id if result.killed?
+    history << job.id if result.killed?
     leaks.check(io, history, index) unless tainted?(result)
     result
   end

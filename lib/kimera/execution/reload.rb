@@ -78,7 +78,7 @@ class Kimera::Execution::Reload
     id = errand.id
     file = verdicts.point(id).file
     overlay(file, File.join(File.expand_path(@root), file), id)
-    Kimera::Runtime.active = nil
+    Kimera::RUNTIME.active = nil
     @isolation.around { hunt(errand) }
   end
 
@@ -94,7 +94,7 @@ class Kimera::Execution::Reload
   def overlay(file, path, id)
     source = Kimera::BodyTrim.trim(path, File.read(path, encoding: Encoding::UTF_8), [verdicts.point(id).location])
     baked = Kimera::Overlay.new(@registry).bake(file, source, id)
-    Kimera::Execution::OverlayGuards.overlay { Kimera::Overlay.evaluate(baked, path) }
+    Kimera::Execution::OverlayGuards.overlay { Kimera::Overlay::Source.new(baked).evaluate(path) }
   end
 
   def verdict(id, line, status = nil, deadline = nil)

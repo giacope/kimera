@@ -40,7 +40,7 @@ end
 # - crash: the process exits;
 # - hang: the process sleeps through the soft timeout, until the parent's
 #   watchdog kills it.
-# Kimera::Runtime.active names the mutant on each run a Trial makes, and is
+# Kimera::RUNTIME.active names the mutant on each run a Trial makes, and is
 # nil on its control run, which belongs to the mutant run before it.
 class FaultyAdapter
   FAILING = %i[killed requeue].freeze
@@ -55,7 +55,7 @@ class FaultyAdapter
   def test_ids = ["t"]
 
   def run(ids)
-    active = Kimera::Runtime.active
+    active = Kimera::RUNTIME.active
     @current = active if active
     failed = active ? on(active) : behavior(@current) == :requeue
     Kimera::Frameworks::RunOutcome.new(passed: !failed, failed_ids: failed ? ids : [])

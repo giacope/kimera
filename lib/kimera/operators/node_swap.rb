@@ -3,17 +3,19 @@
 require_relative "base"
 
 class Kimera::Operators::NodeSwap < Kimera::Operators::Base
-  class << self
-    def define(key, mutations)
-      Class.new(self) do
-        const_set(:MUTATIONS, mutations.freeze)
-        define_singleton_method(:key) { key }
-      end
-    end
-  end
+  SWAPS = {
+    "boolean_connective" => {
+      AndNode => { label: "&& => ||", to: "or" },
+      OrNode => { label: "|| => &&", to: "and" }
+    },
+    "boolean_literal" => {
+      TrueNode => { label: "true => false", to: "false" },
+      FalseNode => { label: "false => true", to: "true" }
+    }
+  }.freeze
 
   def variants(node, **)
-    swap = self.class::MUTATIONS[node.class]
+    swap = SWAPS.fetch(key)[node.class]
     return unless swap
     solo(swap[:label], key, to: swap[:to])
   end

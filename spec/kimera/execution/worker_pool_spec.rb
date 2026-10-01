@@ -9,14 +9,11 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   def pool(queue:, spawner:, jobs: 1, deadline: 5.0)
     resolved = []
     lost = []
-    described_class.new(
-      queue: queue, spawner: spawner, jobs: jobs, hard_timeout: deadline,
-      resolve: lambda do |message|
-        resolved << message
-      end, lost: lambda do |id, reason, _stacks|
-        lost << [id, reason]
-      end
-    ).run
+    listeners = described_class::Listeners.new(
+      resolve: ->(message) { resolved << message }, lost: ->(id, reason, _stacks) { lost << [id, reason] }, trace: nil
+    )
+    options = { jobs: jobs, hard_timeout: deadline }
+    described_class.new(described_class::Context.new(queue, spawner, listeners, options)).run
     [resolved, lost]
   end
 
@@ -227,7 +224,8 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
         next spawner.call(slot) if hung
         hung = founder(witness) { |*pipes| hang(*pipes) }
       end
-    described_class.new(queue: [*1..6], spawner: fleet, jobs: 2, hard_timeout: 5, resolve: resolve, lost: ->(*) {}).run
+    listeners = described_class::Listeners.new(resolve: resolve, lost: ->(*) {}, trace: nil)
+    described_class.new(described_class::Context.new([*1..6], fleet, listeners, { jobs: 2, hard_timeout: 5 })).run
   rescue Kimera::Error, Interrupt => error
     [error, hung]
   end

@@ -1,51 +1,60 @@
 # frozen_string_literal: true
 
 module Kimera
-  module Runtime
-    SOURCE_PATH = File.expand_path(__FILE__)
+end
 
-    class << self
-      attr_reader :active
+class Kimera::Runtime
+  SOURCE_PATH = File.expand_path(__FILE__)
 
-      def active=(id)
-        @active = id && Integer(id)
-      end
+  Ledger =
+    Struct.new(:ids) do
+      def push(id) = ids.push(id)
 
-      def active?(id)
-        @ledgers&.each { |ledger| ledger.push(id) }
-        @active == id
-      end
+      def clear = ids.clear
 
-      def start!
-        ledger = []
-        (@ledgers ||= []).push(ledger)
-        ledger
-      end
+      def empty? = ids.empty?
 
-      def drain!(ledger)
-        touched = ledger.uniq
-        clear!(ledger)
+      def drain!
+        touched = ids.uniq
+        ids.clear
         touched
-      end
-
-      def clear!(ledger)
-        ledger.clear
-      end
-
-      def stop!(ledger)
-        open = @ledgers
-        return unless open
-        open.delete_if { |l| l.equal?(ledger) }
-        @ledgers = nil if open.empty?
-      end
-
-      def reset!
-        @active = nil
       end
     end
 
-    reset!
+  attr_reader :active
+
+  def initialize
+    @active = nil
+    @ledgers = nil
+  end
+
+  def active=(id)
+    @active = id && Integer(id)
+  end
+
+  def active?(id)
+    @ledgers&.each { |ledger| ledger.push(id) }
+    @active == id
+  end
+
+  def start!
+    ledger = Ledger.new([])
+    (@ledgers ||= []).push(ledger)
+    ledger
+  end
+
+  def stop!(ledger)
+    open = @ledgers
+    return unless open
+    open.delete_if { |l| l.equal?(ledger) }
+    @ledgers = nil if open.empty?
+  end
+
+  def reset!
+    @active = nil
   end
 end
 
-MutantRuntime = Kimera::Runtime unless defined?(MutantRuntime)
+Kimera::RUNTIME = Kimera::Runtime.new
+
+MutantRuntime = Kimera::RUNTIME unless defined?(MutantRuntime)

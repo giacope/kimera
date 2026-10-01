@@ -18,7 +18,9 @@ module Kimera
     HARNESS_CRITICAL_SUFFIXES = %w[
       kimera/frameworks/adapter.rb
       kimera/frameworks/rspec_adapter.rb
-      kimera/frameworks/rspec_group_index.rb
+      kimera/frameworks/adapter_registry.rb
+      kimera/frameworks/group_scope.rb
+      kimera/frameworks/group_tree.rb
       kimera/frameworks/minitest_adapter.rb
       kimera/support/test_exit.rb
       kimera/execution/shift.rb
@@ -37,7 +39,7 @@ module Kimera
       kimera/execution/stopwatch.rb
       kimera/execution/time_budget.rb
       kimera/execution/reload.rb
-      kimera/execution/parallel_test_databases.rb
+      kimera/execution/worker_databases.rb
       kimera/execution/verdicts.rb
       kimera/execution/worker_pool.rb
       kimera/execution/worker_pool/fleet.rb

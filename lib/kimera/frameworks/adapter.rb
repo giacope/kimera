@@ -46,44 +46,6 @@ class Kimera::Frameworks::Adapter
     "rspec #{(ids & test_ids).join(" ")} --order defined"
   end
 
-  @registry ||= {}
-
-  NO_LOADER = -> {}
-  ADAPTER_LOADERS = {
-    "rspec" => lambda do
-      require_relative "rspec_adapter"
-    end,
-    "minitest" => lambda do
-      require_relative "minitest_adapter"
-    end
-  }.freeze
-
-  class << self
-    attr_reader :registry
-
-    def load(name)
-      ADAPTER_LOADERS.fetch(name.to_s, NO_LOADER).call
-      fetch(name).build
-    rescue LoadError => error
-      raise(Kimera::Error, unloadable(name, error))
-    end
-
-    def unloadable(name, error)
-      "framework #{name} is configured but cannot be loaded (#{error.message}); " \
-        "set framework: rspec or minitest in .kimera.yml, or add it to the Gemfile"
-    end
-
-    def register(name, klass)
-      registry[name.to_s] = klass
-    end
-
-    def fetch(name)
-      registry.fetch(name.to_s) do
-        raise(Kimera::Error, "unknown test framework adapter: #{name}")
-      end
-    end
-  end
-
   HARNESS = File.expand_path("..", __dir__)
   FRAMES = 5
 
@@ -104,3 +66,5 @@ class Kimera::Frameworks::Adapter
     raise(Kimera::Error, "cannot load test file #{file} (#{error.class}: #{error.message})")
   end
 end
+
+require_relative "adapter_registry"

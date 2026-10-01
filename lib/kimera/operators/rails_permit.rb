@@ -3,9 +3,7 @@
 require_relative "base"
 
 class Kimera::Operators::RailsPermit < Kimera::Operators::Base
-  class << self
-    def key = "rails_permit"
-  end
+  def key = "rails_permit"
 
   def variants(node, **)
     return unless call(node).chained?(:permit)

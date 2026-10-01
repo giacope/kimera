@@ -11,22 +11,6 @@ class Kimera::MemoGuard
 
   Exemption = Data.define(:location, :operator)
 
-  class << self
-    def exemptions(source)
-      result = Kimera::Syntax.parse(source)
-      return [] if result.failure?
-      defs(result.value).flat_map { new(statements(it.body)).exemptions }
-    end
-
-    def statements(body) = body.is_a?(Kimera::SyntaxTypes::StatementsNode) ? body.body : []
-
-    def defs(node, found = [])
-      found << node if node.is_a?(Kimera::SyntaxTypes::DefNode)
-      node.compact_child_nodes.each { defs(it, found) }
-      found
-    end
-  end
-
   def initialize(statements)
     @guard, @flag, *@rest = statements
   end
@@ -64,3 +48,5 @@ class Kimera::MemoGuard
 
   def named?(node, kind) = node.is_a?(kind) && node.name == name
 end
+
+require_relative "memo_guard_source"

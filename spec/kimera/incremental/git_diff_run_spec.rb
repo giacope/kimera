@@ -44,13 +44,13 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
       commit("calc.rb", "def a\n  1\nend\n", "init")
       base = head("HEAD")
       edit("calc.rb", "def a\n  2\n  3\nend\n")
-      changed = described_class.lines(since: base, root: dir)
+      changed = described_class.new(since: base, root: dir).lines
       expect(changed["calc.rb"]).to(include(2))
     end
 
     it "raises rather than returning {} when the git command fails (bad ref)" do
       commit("calc.rb", "x = 1\n", "init")
-      expect { described_class.lines(since: "no-such-ref", root: dir) }
+      expect { described_class.new(since: "no-such-ref", root: dir).lines }
         .to(raise_error(Kimera::Incremental::DiffError, /git diff against "no-such-ref" failed \(unknown ref/))
     end
 
@@ -58,7 +58,7 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
       # A trailing bare `--` would force git to read "calc.rb" as a revision.
       commit("calc.rb", "def a\n  1\nend\n", "init")
       edit("calc.rb", "def a\n  2\nend\n")
-      changed = described_class.lines(since: "calc.rb", root: dir)
+      changed = described_class.new(since: "calc.rb", root: dir).lines
       expect(changed["calc.rb"]).to(include(2))
     end
 
@@ -66,7 +66,7 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
       git("config", "diff.noprefix", "true", dir: dir) && commit("calc.rb", "def a\n  1\nend\n", "init")
       base = head("HEAD")
       edit("calc.rb", "def a\n  2\n  3\nend\n")
-      changed = described_class.lines(since: base, root: dir)
+      changed = described_class.new(since: base, root: dir).lines
       expect(changed["calc.rb"]).to(include(2))
     end
 
@@ -74,7 +74,7 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
       commit("sub/app/calc.rb", "def a\n  1\nend\n", "init")
       base = head("HEAD")
       edit("sub/app/calc.rb", "def a\n  2\nend\n")
-      changed = described_class.lines(since: base, root: File.join(dir, "sub"))
+      changed = described_class.new(since: base, root: File.join(dir, "sub")).lines
       expect([changed.keys, changed["app/calc.rb"]]).to(match([["app/calc.rb"], include(2)]))
     end
 
@@ -82,7 +82,7 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
       commit("sub/app/calc.rb", "x = 1\n", "init") && commit("elsewhere.rb", "y = 1\n", "add outside")
       base = head("HEAD~1")
       edit("elsewhere.rb", "y = 2\n")
-      changed = described_class.lines(since: base, root: File.join(dir, "sub"))
+      changed = described_class.new(since: base, root: File.join(dir, "sub")).lines
       expect(changed).to(eq({}))
     end
 
@@ -90,7 +90,7 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
       commit("a.rb", "x = 1\n", "init") && commit("b.rb", "y = 1\n", "add b")
       base = head("HEAD~1")
       edit("a.rb", "x = 2\n") && edit("b.rb", "y = 2\n")
-      changed = described_class.lines(since: base, root: dir, paths: ["a.rb"])
+      changed = described_class.new(since: base, root: dir, paths: ["a.rb"]).lines
       expect(changed.keys).to(eq(["a.rb"]))
     end
   end
@@ -100,7 +100,7 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
       commit("calc.rb", "def a\n  1\nend\n", "init")
       base = head("HEAD")
       edit("calc.rb", "def a\n  9\nend\n")
-      expect(described_class.files(since: base, root: dir)).to(eq(["calc.rb"]))
+      expect(described_class.new(since: base, root: dir).files).to(eq(["calc.rb"]))
     end
   end
 

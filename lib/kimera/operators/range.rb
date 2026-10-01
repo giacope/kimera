@@ -3,9 +3,7 @@
 require_relative "base"
 
 class Kimera::Operators::Range < Kimera::Operators::Base
-  class << self
-    def key = "range"
-  end
+  def key = "range"
 
   def variants(node, **)
     return unless node.is_a?(RangeNode)

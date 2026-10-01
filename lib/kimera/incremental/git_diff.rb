@@ -16,21 +16,7 @@ class Kimera::Incremental::GitDiff
   BASEFLAGS = %w[diff --relative --unified=0 --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/].freeze
 
   class << self
-    def lines(**scope)
-      new(**scope).lines
-    end
-
-    def files(**scope)
-      new(**scope).files
-    end
-
-    def parse(text)
-      Changes.new.feed(decoded(text))
-    end
-
-    private
-
-    def decoded(text) = text.dup.force_encoding(Encoding::UTF_8).scrub
+    def parse(text) = Changes.new.feed(text.dup.force_encoding(Encoding::UTF_8).scrub)
   end
 
   class Changes

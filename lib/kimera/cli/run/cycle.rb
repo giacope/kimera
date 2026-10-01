@@ -38,7 +38,7 @@ class Kimera::CLI::Run::Cycle
   end
 
   def session(todo, ignored)
-    loaded = Kimera::Incremental::Session.load(@options[:session], registry: @registry)
+    loaded = Kimera::Incremental::Session.from(@options[:session], registry: @registry)
     perform(@options[:evaluate_ignored] ? todo + ignored : todo, loaded)
     conclude(todo, ignored, loaded)
   end
@@ -79,7 +79,7 @@ class Kimera::CLI::Run::Cycle
 
   def harness(remaining, loaded, env: ENV)
     env.update(Kimera::Execution::SUITE_ENV)
-    adapter = Kimera::Frameworks::Adapter.load(@options[:framework])
+    adapter = Kimera::Frameworks::ADAPTERS.load(@options[:framework])
     Kimera::CLI::Run::Pass.new(@registry, @options, adapter).call(remaining, loaded)
   end
 end

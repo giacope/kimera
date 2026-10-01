@@ -14,7 +14,7 @@ class Kimera::Execution::Boot
     @adapter.source(test_files)
     @adapter.start
     load!
-    Kimera::Execution::MemoryDatabases.keep!
+    keep!
   end
 
   def load!
@@ -32,6 +32,11 @@ class Kimera::Execution::Boot
   end
 
   private
+
+  def keep!
+    return unless defined?(ActiveRecord::ConnectionAdapters::PoolConfig)
+    ActiveRecord::ConnectionAdapters::PoolConfig.prepend(Kimera::Execution::MemoryDatabases::INHERITED)
+  end
 
   def application
     Rails.application

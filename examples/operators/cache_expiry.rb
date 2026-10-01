@@ -10,9 +10,7 @@ module MyApp
       NAMES = %i[fetch write].freeze
       KEYS = %w[expires_in expires_at race_condition_ttl].freeze
 
-      class << self
-        def key = "cache_expiry"
-      end
+      def key = "cache_expiry"
 
       def variants(node, **)
         return unless chained?(node, NAMES)

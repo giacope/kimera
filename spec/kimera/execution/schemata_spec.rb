@@ -10,7 +10,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
 
   after do
     FileUtils.remove_entry(dir)
-    Kimera::Runtime.reset!
+    Kimera::RUNTIME.reset!
   end
 
   def write(relative, body)
@@ -34,11 +34,11 @@ RSpec.describe(Kimera::Execution::Schemata) do
     expect(live).to(match_array(registry.each.map { |m, _p| m.id }))
 
     object = SchemataTarget.new
-    Kimera::Runtime.active = nil
+    Kimera::RUNTIME.active = nil
     expect(object.gt(2, 1)).to(be(true))
 
     mutant = registry.each.find { |m, _p| m.label == "> => <" }.first
-    Kimera::Runtime.active = mutant.id
+    Kimera::RUNTIME.active = mutant.id
     expect(object.gt(2, 1)).to(be(false))
   ensure
     Object.__send__(:remove_const, :SchemataTarget) if defined?(SchemataTarget)
@@ -60,7 +60,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
     registry = Kimera::RegistryScan.new(root: dir).build([path])
     described_class.new(registry, root: dir).overlay!
     expect(SchemataRequired.loads).to(eq(1))
-    Kimera::Runtime.active = registry.each.find { |m, _p| m.label == "> => <" }.first.id
+    Kimera::RUNTIME.active = registry.each.find { |m, _p| m.label == "> => <" }.first.id
     expect(SchemataRequired.new.gt(2, 1)).to(be(false))
   ensure
     Object.__send__(:remove_const, :SchemataRequired) if defined?(SchemataRequired)
@@ -78,7 +78,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
     write("real/sl_lazy.rb", "class SchemataLazy\n  def gt(a, b)\n    a > b\n  end\nend\n")
     linked = File.join(dir, "linked")
     File.symlink(File.join(dir, "real"), linked)
-    Kimera::Runtime.active = lazily(linked)
+    Kimera::RUNTIME.active = lazily(linked)
     paths = [File.join(linked, "sl_lazy.rb"), File.join(dir, "real", "sl_lazy.rb")]
     expect(paths.map { |path| require(path) }).to(eq([false, false]))
     expect(SchemataLazy.new.gt(2, 1)).to(be(false))
@@ -346,7 +346,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
       original, redeclared = procs
       klass = fake_model([fake_callback(:after, original)])
 
-      described_class.with_guards { klass.set_callback(:commit, :after, redeclared) }
+      Kimera::Execution::OverlayGuards.overlay { klass.set_callback(:commit, :after, redeclared) }
 
       expect(klass.registered).to(be_empty)
     end
@@ -358,7 +358,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
       fresh = -> { :fresh }
       klass = fake_model([fake_callback(:after, existing)])
 
-      described_class.with_guards { klass.set_callback(:commit, :after, fresh) }
+      Kimera::Execution::OverlayGuards.overlay { klass.set_callback(:commit, :after, fresh) }
 
       expect(klass.registered).to(eq([[:commit, [:after, fresh, {}], nil]]))
     end
@@ -373,7 +373,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
         end
       klass = fake_model([fake_callback(:before, validator.new([:title]))])
 
-      described_class.with_guards do
+      Kimera::Execution::OverlayGuards.overlay do
         klass.set_callback(:validate, :before, validator.new([:title]))       # re-run: dropped
         klass.set_callback(:validate, :before, validator.new([:description])) # new attrs: kept
       end
@@ -386,7 +386,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
       callbacks
       klass = fake_model([fake_callback(:before, :old_hook)])
 
-      described_class.with_guards do
+      Kimera::Execution::OverlayGuards.overlay do
         klass.set_callback(:save, :before, :old_hook, :new_hook)
       end
 
@@ -398,7 +398,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
       original, redeclared = procs
       klass = fake_model([fake_callback(:after, original)])
 
-      described_class.install!
+      Kimera::Execution::OverlayGuards.install!
       klass.set_callback(:commit, :after, redeclared)
 
       expect(klass.registered).to(eq([[:commit, [:after, redeclared], nil]]))
@@ -406,11 +406,11 @@ RSpec.describe(Kimera::Execution::Schemata) do
 
     it "installs the callback guard only once per process", :aggregate_failures do
       fixture = callbacks
-      described_class.install!
+      Kimera::Execution::OverlayGuards.install!
       ancestors = fixture.ancestors.size
-      described_class.install!
+      Kimera::Execution::OverlayGuards.install!
       expect(fixture.ancestors.size).to(eq(ancestors))
-      expect(fixture.ancestors).to(include(Kimera::Execution::OverlayGuardModules.callback))
+      expect(fixture.ancestors).to(include(Kimera::Execution::GuardModules.callback))
     end
 
     it "only dedupes against callbacks of the same kind" do
@@ -418,7 +418,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
       original, redeclared = procs
       klass = fake_model([fake_callback(:before, original)])
 
-      described_class.with_guards { klass.set_callback(:commit, :after, redeclared) }
+      Kimera::Execution::OverlayGuards.overlay { klass.set_callback(:commit, :after, redeclared) }
 
       expect(klass.registered).to(eq([[:commit, [:after, redeclared, {}], nil]]))
     end
@@ -449,7 +449,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
     it "clears the overlaying flag even when the overlay raises", :aggregate_failures do
       callbacks
       expect do
-        described_class.with_guards { raise(RuntimeError, "boom") }
+        Kimera::Execution::OverlayGuards.overlay { raise(RuntimeError, "boom") }
       end.to(raise_error("boom"))
       expect(Kimera::Execution::OverlayGuards).not_to(be_overlaying)
     end
@@ -471,7 +471,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
       stub_const("ActiveRecord::Base", base)
       klass = Class.new(base)
       klass.define_singleton_method(:type_for_attribute) { |_n| type }
-      described_class.install!
+      Kimera::Execution::OverlayGuards.install!
       klass
     end
 
@@ -479,7 +479,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
       wrapper = Struct.new(:cast_type)
       klass = records { wrapper.new(ActiveRecord::Type::Serialized.new) }
 
-      described_class.with_guards { klass.serialize(:actions, coder: JSON) }
+      Kimera::Execution::OverlayGuards.overlay { klass.serialize(:actions, coder: JSON) }
 
       expect(klass.calls).to(be_empty)
     end
@@ -487,7 +487,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
     it "passes serialize through for a plain attribute, and always outside overlay" do
       klass = records(Object.new)
 
-      described_class.with_guards { klass.serialize(:actions, coder: JSON) }
+      Kimera::Execution::OverlayGuards.overlay { klass.serialize(:actions, coder: JSON) }
       klass.serialize(:actions, coder: JSON)
 
       expect(klass.calls).to(eq(%i[actions actions]))
@@ -521,7 +521,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
       end
       stub_const("ActiveRecord", Module.new)
       stub_const("ActiveRecord::Reflection", reflection)
-      described_class.install!
+      Kimera::Execution::OverlayGuards.install!
       base = Class.new.extend(reflective)
       reflection.add_reflection(base, key, :old)
       [reflection, base]
@@ -538,7 +538,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
     it "hands an overlaid reflection to subclasses holding a stale private copy", :aggregate_failures do
       reflection, base = records(:primary)
       own, shared, redeclared = heirs(base, :primary)
-      described_class.with_guards { reflection.add_reflection(base, "primary", :new) }
+      Kimera::Execution::OverlayGuards.overlay { reflection.add_reflection(base, "primary", :new) }
       expect([base, own, shared, redeclared].map { |k| k._reflections[:primary] }).to(eq(%i[new new new theirs]))
       expect(own._reflections[:other]).to(eq(:x))
       expect([own.cleared, redeclared.cleared]).to(eq([1, 0]))
@@ -547,7 +547,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
     it "matches string-keyed reflections (Rails 7)" do
       reflection, base = records("primary")
       own, = heirs(base, "primary")
-      described_class.with_guards { reflection.add_reflection(base, :primary, :new) }
+      Kimera::Execution::OverlayGuards.overlay { reflection.add_reflection(base, :primary, :new) }
       expect(own._reflections["primary"]).to(eq(:new))
     end
 
@@ -557,7 +557,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
     it "keeps a redeclared reflection where it was declared", :aggregate_failures do
       reflection, base = records("memberships")
       reflection.add_reflection(base, "users", :through)
-      described_class.with_guards { reflection.add_reflection(base, "memberships", :new) }
+      Kimera::Execution::OverlayGuards.overlay { reflection.add_reflection(base, "memberships", :new) }
       expect(base._reflections).to(eq("memberships" => :new, "users" => :through))
       expect(base._reflections.keys).to(eq(%w[memberships users]))
     end
@@ -566,7 +566,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
       reflection, base = records(:primary)
       own, = heirs(base, :primary)
       reflection.add_reflection(base, :primary, :new)
-      described_class.with_guards { reflection.add_reflection(base, :fresh, :f) }
+      Kimera::Execution::OverlayGuards.overlay { reflection.add_reflection(base, :fresh, :f) }
       expect(own._reflections[:primary]).to(eq(:old))
       expect(own._reflections.key?(:fresh)).to(be(false))
     end
@@ -597,7 +597,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
         end
       stub_const("ActiveSupport", Module.new) unless defined?(ActiveSupport)
       stub_const("ActiveSupport::Concern", concern)
-      described_class.install!
+      Kimera::Execution::OverlayGuards.install!
       concern
     end
 
@@ -608,7 +608,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
       concern = Module.new.tap { |m| m.extend(ActiveSupport::Concern) }
       ran = []
       concern.included { ran << [:original, self] }
-      described_class.with_guards do
+      Kimera::Execution::OverlayGuards.overlay do
         expect { concern.included { |base| ran << [:overlaid, base] } }.not_to(raise_error)
       end
       later = Class.new
@@ -627,7 +627,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
       test_concern
       concern = Module.new.tap { |m| m.extend(ActiveSupport::Concern) }
       concern.prepended { :original }
-      described_class.with_guards do
+      Kimera::Execution::OverlayGuards.overlay do
         expect { concern.prepended { :overlaid } }.not_to(raise_error)
       end
     end
@@ -642,7 +642,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
     it "stores a first-time included/prepended block even during overlay", :aggregate_failures do
       test_concern
       concern = Module.new.tap { |m| m.extend(ActiveSupport::Concern) }
-      described_class.with_guards do
+      Kimera::Execution::OverlayGuards.overlay do
         concern.included { :first }
         concern.prepended { :first }
       end
@@ -660,7 +660,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
       heir = Class.new(includer)
       outsider = Class.new
       ran = []
-      described_class.with_guards { concern.included { ran << self } }
+      Kimera::Execution::OverlayGuards.overlay { concern.included { ran << self } }
       expect(ran).to(eq([includer]))
       expect(ran).not_to(include(heir, outsider))
     end
@@ -670,7 +670,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
       concern = Module.new.tap { |m| m.extend(ActiveSupport::Concern) }
       Class.new.include(concern)
       ran = []
-      described_class.with_guards { concern.included { ran << self } }
+      Kimera::Execution::OverlayGuards.overlay { concern.included { ran << self } }
       expect(ran).to(be_empty)
     end
 
@@ -680,7 +680,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
       concern.prepended { :original }
       prepender = Class.new.tap { |k| k.prepend(concern) }
       ran = []
-      described_class.with_guards { concern.prepended { ran << self } }
+      Kimera::Execution::OverlayGuards.overlay { concern.prepended { ran << self } }
       expect(ran).to(eq([prepender]))
     end
 
@@ -707,7 +707,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
       RUBY
       load(File.join(dir, path))
       invitation = SchemataInvitation
-      described_class.with_guards do
+      Kimera::Execution::OverlayGuards.overlay do
         concern.included do
           scope :expired, :mutated
           scope :before, :mutated
@@ -722,9 +722,9 @@ RSpec.describe(Kimera::Execution::Schemata) do
 
     it "installs the concern guard only once per process", :aggregate_failures do
       concern = test_concern
-      described_class.install!
-      described_class.install!
-      expect(concern.ancestors.count(Kimera::Execution::OverlayGuardModules.concern)).to(eq(1))
+      Kimera::Execution::OverlayGuards.install!
+      Kimera::Execution::OverlayGuards.install!
+      expect(concern.ancestors.count(Kimera::Execution::GuardModules.concern)).to(eq(1))
     end
   end
 

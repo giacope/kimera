@@ -5,9 +5,7 @@ require_relative "base"
 class Kimera::Operators::SymbolLiteral < Kimera::Operators::Base
   SUFFIX = "__kimera__"
 
-  class << self
-    def key = "symbol_literal"
-  end
+  def key = "symbol_literal"
 
   def variants(node, **)
     return unless node.is_a?(SymbolNode)

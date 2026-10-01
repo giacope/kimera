@@ -62,10 +62,10 @@ RSpec.describe("Mutant schemata") do
     end
 
     def flipped(live, id, calls)
-      Kimera::Runtime.active = id
+      Kimera::RUNTIME.active = id
       calls.map { |call| outcome(live, call) }
     ensure
-      Kimera::Runtime.active = nil
+      Kimera::RUNTIME.active = nil
     end
 
     it "behaves exactly like its bake on every input" do

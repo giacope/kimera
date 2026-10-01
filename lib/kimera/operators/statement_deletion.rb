@@ -6,11 +6,9 @@ class Kimera::Operators::StatementDeletion < Kimera::Operators::Base
   DIAGNOSTIC_NAMES = %i[puts print pp p].freeze
   LOGGER = %i[logger @logger].freeze
 
-  class << self
-    def key = Kimera::Operators::STATEMENT_DELETION
+  def key = Kimera::Operators::STATEMENT_DELETION
 
-    def statement? = true
-  end
+  def statement? = true
 
   def variants(node, **)
     return unless identifier?(node)

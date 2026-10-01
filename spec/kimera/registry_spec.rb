@@ -70,10 +70,10 @@ RSpec.describe(Kimera::Registry) do
 
     def written(path)
       expect(registry.write(path)).to(eq(path))
-      described_class.load(path)
+      described_class.from_file(path)
     end
 
-    it "round-trips to and from a file via write/load", :aggregate_failures do
+    it "round-trips to and from a file via write/from_file", :aggregate_failures do
       Dir.mktmpdir do |dir|
         reloaded = written(File.join(dir, "registry.json"))
         expect(reloaded.count).to(eq(registry.count))

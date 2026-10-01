@@ -18,7 +18,7 @@ RSpec.describe(Kimera::CLI::Run) do
   end
 
   def run(*argv, &)
-    allow(Kimera::Execution::Harness).to(receive(:new).and_wrap_original) do |original, **kwargs|
+    allow(Kimera::Execution::Harness).to(receive(:build).and_wrap_original) do |original, **kwargs|
       original.call(**kwargs).tap do |harness|
         allow(harness).to(receive(:warm!))
         allow(harness).to(receive(:run, &))

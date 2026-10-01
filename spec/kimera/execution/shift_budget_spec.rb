@@ -25,7 +25,7 @@ RSpec.describe(Kimera::Execution::Shift) do
 
   before { stub_const("Kimera::Execution::Shift::Deadline::CLOCK", -> { clock.first }) }
 
-  after { Kimera::Runtime.reset! }
+  after { Kimera::RUNTIME.reset! }
 
   # +script+ maps a test to its successive runs, as [seconds, passed?]
   # pairs; each run advances the fake clock. Unscripted runs are instant passes.
@@ -41,7 +41,7 @@ RSpec.describe(Kimera::Execution::Shift) do
 
       define_method(:run) do |ids|
         id = ids.first
-        @log << [id, Kimera::Runtime.active]
+        @log << [id, Kimera::RUNTIME.active]
         took, passed = @script.fetch(id, []).shift || [0.0, true]
         now[0] += took
         Kimera::Frameworks::RunOutcome.new(passed: passed, failed_ids: passed ? [] : [id])
