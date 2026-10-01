@@ -65,7 +65,7 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
       Dir.mktmpdir do |dir|
         committed(dir, old)
         File.write(File.join(dir, "f.rb"), new.map { "#{it}\n" }.join)
-        described_class.lines(since: "HEAD", root: dir).fetch("f.rb", Set.new)
+        described_class.new(since: "HEAD", root: dir).lines.fetch("f.rb", Set.new)
       end
     end
 

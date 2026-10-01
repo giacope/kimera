@@ -6,7 +6,7 @@ require "kimera/cli/mutant"
 require "kimera/cli/run/pass"
 require "kimera/execution/child_process"
 require "kimera/execution/harness"
-require "kimera/execution/parallel_test_databases"
+require "kimera/execution/worker_databases"
 require "kimera/execution/pool_driver"
 require "kimera/execution/reload"
 require "kimera/operators/node_swap"
@@ -94,7 +94,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
 
   it "exposes the harness skip map and delegates its spawner to the rig" do
     token = Object.new
-    harness = Kimera::Execution::Harness.new(registry: Object.new, adapter: Object.new)
+    harness = Kimera::Execution::Harness.build(registry: Object.new, adapter: Object.new)
     harness.instance_variable_set(:@_rig, instance_double(Kimera::Execution::Rig, spawner: token))
 
     expect(harness.skipped).to(eq({}))
@@ -103,13 +103,13 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
 
   it "reports teardown failures with the injected error stream" do
     errors = StringIO.new
-    databases = Kimera::Execution::ParallelTestDatabases.new(adapter: Object.new, jobs: 2, errors: errors)
+    databases = Kimera::Execution::WorkerDatabases.new(adapter: Object.new, jobs: 2, errors: errors)
     allow(databases).to(receive(:cleanup).and_raise(RuntimeError, "teardown boom"))
 
     databases.before_exit(1)
 
     expect(errors.string).to(eq("kimera: parallelize_teardown failed (RuntimeError: teardown boom)\n"))
-    fallback = Kimera::Execution::ParallelTestDatabases.new(adapter: Object.new, jobs: 2)
+    fallback = Kimera::Execution::WorkerDatabases.new(adapter: Object.new, jobs: 2)
     expect(fallback.__send__(:errors)).to(equal($stderr))
   end
 
@@ -117,7 +117,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     stub_const("ActiveRecord", Module.new)
     stub_const("ActiveRecord::Base", Class.new)
     errors = StringIO.new
-    databases = Kimera::Execution::ParallelTestDatabases.new(adapter: Object.new, jobs: 2, errors: errors)
+    databases = Kimera::Execution::WorkerDatabases.new(adapter: Object.new, jobs: 2, errors: errors)
     allow(databases).to(receive(:require).with("active_record/test_databases").and_raise(LoadError, "missing helper"))
 
     databases.__send__(:register!)
@@ -127,7 +127,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     expect(errors.string).to(eq(notice))
   end
 
-  def pool(database: instance_double(Kimera::Execution::ParallelTestDatabases))
+  def pool(database: instance_double(Kimera::Execution::WorkerDatabases))
     Kimera::Execution::Pool.new(
       adapter: Object.new, registry: Object.new, isolation: Object.new,
       coverage: {}, paralleldb: database, soft: 1.0, hard: 2.0, leak: 3, jobs: 1
@@ -140,7 +140,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     response = instance_spy(IO)
     pipes = instance_double(Kimera::Execution::Pool::Channels, req_r: request, res_w: response)
     duty = Kimera::Execution::Pool::Duty.new(:coverage, 4, pipes)
-    database = instance_double(Kimera::Execution::ParallelTestDatabases, before_exit: nil)
+    database = instance_double(Kimera::Execution::WorkerDatabases, before_exit: nil)
     duty.run(shift)
     duty.finish(database, nil)
 
@@ -151,7 +151,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
   end
 
   it "performs every pool child boot step and always finishes service" do
-    database = instance_double(Kimera::Execution::ParallelTestDatabases, after_fork: nil, before_exit: nil)
+    database = instance_double(Kimera::Execution::WorkerDatabases, after_fork: nil, before_exit: nil)
     runner = pool(database: database)
     pipes = instance_spy(Kimera::Execution::Pool::Channels)
     duty = instance_spy(Kimera::Execution::Pool::Duty, pipes: pipes, index: 5)
@@ -178,7 +178,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
   # Leading its own process group, the worker takes what its tests start
   # down with it when it is killed.
   it "boots a pool duty inside the fork block, as the leader of a process group" do
-    runner = pool(database: instance_double(Kimera::Execution::ParallelTestDatabases))
+    runner = pool(database: instance_double(Kimera::Execution::WorkerDatabases))
     duty = Object.new
     allow(runner).to(receive(:fork).and_yield.and_return(123))
     allow(runner).to(receive(:lead))
@@ -251,14 +251,12 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     expect(errand).to(have_received(:parent!))
   end
 
-  it "defines a frozen, keyed node-swap operator subclass" do
-    mutations = { Object => { label: "object", to: String } }
-    operator = Kimera::Operators::NodeSwap.define(:object_swap, mutations)
+  it "swaps a node by its class into the mutation the subclass names" do
+    operator = Kimera::Operators::BooleanLiteral.new
+    node = Kimera::Syntax.parse("true").value.statements.body.first
 
-    expect(operator.superclass).to(eq(Kimera::Operators::NodeSwap))
-    expect(operator::MUTATIONS).to(eq(mutations))
-    expect(operator::MUTATIONS).to(be_frozen)
-    expect(operator.key).to(eq(:object_swap))
+    expect(operator.key).to(eq("boolean_literal"))
+    expect(operator.variants(node).map(&:label)).to(eq(["true => false"]))
   end
 
   it "builds frozen directive lookup tables from alternating entries" do

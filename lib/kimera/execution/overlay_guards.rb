@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "overlay_guard_modules"
+require_relative "guard_modules"
 
 module Kimera
   module Execution
@@ -31,31 +31,31 @@ module Kimera
 
       def enum!
         return unless defined?(ActiveRecord::Base)
-        ActiveRecord::Base.singleton_class.prepend(OverlayGuardModules.enum)
+        ActiveRecord::Base.singleton_class.prepend(GuardModules.enum)
       end
 
       def callbacks!
         return unless defined?(ActiveSupport::Callbacks::ClassMethods)
-        ActiveSupport::Callbacks::ClassMethods.prepend(OverlayGuardModules.callback)
+        ActiveSupport::Callbacks::ClassMethods.prepend(GuardModules.callback)
       end
 
       def serialize!
         return unless defined?(ActiveRecord::Base)
-        ActiveRecord::Base.singleton_class.prepend(OverlayGuardModules.serialization)
+        ActiveRecord::Base.singleton_class.prepend(GuardModules.serialization)
       end
 
       def reflections!
         return unless defined?(ActiveRecord::Reflection)
-        ActiveRecord::Reflection.singleton_class.prepend(OverlayGuardModules.reflection)
+        ActiveRecord::Reflection.singleton_class.prepend(GuardModules.reflection)
       end
 
       def concern!
         return unless defined?(ActiveSupport::Concern)
-        ActiveSupport::Concern.prepend(OverlayGuardModules.concern)
+        ActiveSupport::Concern.prepend(GuardModules.concern)
       end
 
       def serialized?(type)
-        OverlayGuardModules.serialized?(type)
+        GuardModules.serialized?(type)
       end
     end
   end

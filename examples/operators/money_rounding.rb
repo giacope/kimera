@@ -9,9 +9,7 @@ module MyApp
     class MoneyRounding < Kimera::Operators::Base
       SWAPS = { floor: :ceil, ceil: :floor }.freeze
 
-      class << self
-        def key = "money_rounding"
-      end
+      def key = "money_rounding"
 
       def variants(node, **)
         return unless node.is_a?(Prism::CallNode) && node.receiver

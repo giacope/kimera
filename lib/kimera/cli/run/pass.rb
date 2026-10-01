@@ -36,7 +36,7 @@ class Kimera::CLI::Run::Pass
     run(remaining)
   end
 
-  def harness = @_harness ||= Kimera::Execution::Harness.new(**settings)
+  def harness = @_harness ||= Kimera::Execution::Harness.build(**settings)
 
   def files
     @_files ||= Kimera::CLI::Run::Sources.new.expand(

@@ -91,18 +91,13 @@ class Kimera::Registry
 
   class << self
     def from_h(hash)
-      new(root: hash["root"] || ".", operators: hash["operators"] || [], points: cast(hash["points"]))
+      points = Array(hash["points"]).map { |point| Kimera::MutationPoint.from_h(point) }
+      new(root: hash["root"] || ".", operators: hash["operators"] || [], points: points)
     end
 
-    def load(path)
-      from_h(JSON.parse(File.read(path, encoding: Encoding::UTF_8)))
-    end
+    def parse(json) = from_h(JSON.parse(json))
 
-    private
-
-    def cast(points)
-      Array(points).map { |p| Kimera::MutationPoint.from_h(p) }
-    end
+    def from_file(path) = parse(File.read(path, encoding: Encoding::UTF_8))
   end
 
   private

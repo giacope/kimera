@@ -5,9 +5,7 @@ require_relative "base"
 class Kimera::Operators::CollectionLiteral < Kimera::Operators::Base
   EMPTIED = { ArrayNode => "array => []", HashNode => "hash => {}" }.freeze
 
-  class << self
-    def key = "collection_literal"
-  end
+  def key = "collection_literal"
 
   def variants(node, **)
     case node

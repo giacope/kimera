@@ -18,5 +18,5 @@ rescue LoadError, StandardError => error
   exit(1)
 end
 
-status = Kimera::CLI.start(ARGV)
+status = Kimera::CLI.new.run(ARGV)
 exit(status.is_a?(Integer) ? status : 0)

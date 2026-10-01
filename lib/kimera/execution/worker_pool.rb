@@ -7,16 +7,10 @@ require_relative "child_process"
 class Kimera::Execution::WorkerPool
   include Kimera::Execution::ChildProcess
 
-  Context = Data.define(:queue, :spawner, :resolve, :lost, :options)
+  Context = Data.define(:queue, :spawner, :listeners, :options)
 
   POLL_INTERVAL = 0.2
   CHUNK = 65_536
-
-  class << self
-    def new(queue:, spawner:, resolve:, lost:, **options)
-      super(Context.new(queue, spawner, resolve, lost, options))
-    end
-  end
 
   def initialize(context)
     @context = context
@@ -37,11 +31,13 @@ class Kimera::Execution::WorkerPool
     worker.offer(id, recheck: fleet.recheck?(id))
   end
 
-  def lost(id, reason, stacks = nil) = context.lost.call(id, reason, stacks)
+  def lost(id, reason, stacks = nil) = listeners.lost.call(id, reason, stacks)
 
   private
 
   attr_reader :context
+
+  def listeners = context.listeners
 
   def limit = context.options.fetch(:hard_timeout)
 
@@ -88,7 +84,7 @@ class Kimera::Execution::WorkerPool
   end
 
   def relay(message)
-    context.resolve.call(message)
+    listeners.resolve.call(message)
     requeue = message["t"] == "requeue"
     fleet.requeue(message["id"]) if requeue
     requeue
@@ -97,11 +93,11 @@ class Kimera::Execution::WorkerPool
   def finish(worker, message)
     fleet.done!(message["id"])
     fleet.progress!
-    context.resolve.call(message)
+    listeners.resolve.call(message)
     worker.idle!
   end
 
-  def trace(slot, id) = context.options[:trace]&.call(slot, id)
+  def trace(slot, id) = listeners.trace&.call(slot, id)
 
   def close(worker) = shut(worker.retire(limit))
 
@@ -115,3 +111,4 @@ end
 
 require_relative "worker_pool/fleet"
 require_relative "worker_pool/worker"
+require_relative "worker_pool/listeners"

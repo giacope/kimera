@@ -54,17 +54,16 @@ RSpec.describe(Kimera::Operators) do
   end
 
   describe Kimera::Operators::Base do
-    it "requires subclasses to define .key" do
-      expect { described_class.key }.to(raise_error(NotImplementedError, /must define .key/))
+    it "requires subclasses to define #key" do
+      expect { described_class.new.key }.to(raise_error(NotImplementedError, /must define #key/))
     end
 
-    it "exposes the class key via the instance #key" do
-      klass = Class.new(described_class) { def self.key = "demo" }
-      expect(klass.new.key).to(eq("demo"))
+    it "is neither a statement nor a class-body operator unless a subclass says so" do
+      expect(described_class.new).to(have_attributes(statement?: false, body?: false))
     end
 
     it "requires subclasses to define #variants" do
-      klass = Class.new(described_class) { def self.key = "demo" }
+      klass = Class.new(described_class) { def key = "demo" }
       expect { klass.new.variants(nil, position: false) }.to(raise_error(NotImplementedError, /must define #variants/))
     end
   end

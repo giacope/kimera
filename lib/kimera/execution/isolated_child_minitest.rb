@@ -8,9 +8,7 @@ Minitest.seed ||= 1
 begin
   Minitest.class_variable_set(:@@installed_at_exit, :installed)
 rescue NameError, ArgumentError
-  class << Minitest
-    def run(*) = true
-  end
+  Minitest.singleton_class.prepend(Module.new { def run(*) = true })
 end
 
 ledger, request, pulse = ARGV

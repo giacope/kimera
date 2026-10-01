@@ -86,15 +86,15 @@ RSpec.describe("extended operators") do
     $VERBOSE = verbose
     yield(catalog.each.to_h { |m, _p| [m.label, m.id] }, catalog)
   ensure
-    Kimera::Runtime.reset!
+    Kimera::RUNTIME.reset!
     Object.__send__(:remove_const, :ExtOps) if defined?(ExtOps)
   end
 
   def active(id)
-    Kimera::Runtime.active = id
+    Kimera::RUNTIME.active = id
     yield
   ensure
-    Kimera::Runtime.active = nil
+    Kimera::RUNTIME.active = nil
   end
 
   it "arithmetic swaps binary operators", :aggregate_failures do
@@ -339,7 +339,7 @@ RSpec.describe("extended operators") do
       RUBY
       catalog = chained(src)
       result = Kimera::Overlay.new(catalog).synthesize("chain.rb", src)
-      Kimera::Overlay.evaluate(result.source, "chain.rb")
+      Kimera::Overlay::Source.new(result.source).evaluate("chain.rb")
       ids = catalog.each.to_h { |m, _p| [m.label, m.id] }
       object = ChainDemo.new
 
@@ -351,7 +351,7 @@ RSpec.describe("extended operators") do
         expect(object.evens_then_first([4, 2, 3])).to(eq(2))
       end
     ensure
-      Kimera::Runtime.reset!
+      Kimera::RUNTIME.reset!
       Object.__send__(:remove_const, :ChainDemo) if defined?(ChainDemo)
     end
   end

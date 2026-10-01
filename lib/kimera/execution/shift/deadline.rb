@@ -11,7 +11,7 @@ class Kimera::Execution::Shift::Deadline
   attr_reader :budget
 
   class << self
-    def new(seconds, clock: CLOCK, **) = super(seconds, watch: Kimera::Execution::Stopwatch.new(clock), **)
+    def build(seconds, clock: CLOCK, **) = new(seconds, watch: Kimera::Execution::Stopwatch.new(clock), **)
   end
 
   def initialize(seconds, watch:, beat: SILENT, budget: Kimera::Execution::TimeBudget::NONE)

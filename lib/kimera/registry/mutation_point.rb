@@ -38,13 +38,14 @@ module Kimera
       end
       class << self
         def parse(source)
-          new(**extent(source), **corners(source))
+          new(
+            start_offset: source.start_offset, span: source.length,
+            start_line: source.start_line, start_column: source.start_column,
+            end_line: source.end_line, end_column: source.end_column
+          )
         end
 
         def from_h(hash) = new(**hash.transform_keys { |key| key == "length" ? :span : key.to_sym })
-        def extent(source) = { start_offset: source.start_offset, span: source.length }
-        def anchor(source) = { start_line: source.start_line, start_column: source.start_column }
-        def corners(source) = anchor(source).merge(end_line: source.end_line, end_column: source.end_column)
       end
     end
 
@@ -74,20 +75,13 @@ class Kimera::MutationPoint
 
   class << self
     def from_h(hash)
-      new(**plain(hash), **rich(hash))
-    end
-
-    private
-
-    def plain(hash)
-      { point_id: hash["point_id"], file: hash["file"], operator: hash["operator"] }
-        .merge(node_type: hash["node_type"], original_source: hash["original_source"])
-    end
-
-    def rich(hash)
-      { location: Kimera::Location.from_h(hash["location"]), method_name: hash["method_name"] }
-        .merge(unsafe_reason: hash["unsafe_reason"], schema_safe: hash.fetch("schema_safe", SAFE))
-        .merge(mutants: Array(hash["mutants"]).map { |m| Kimera::Mutant.from_h(m) })
+      new(
+        point_id: hash["point_id"], file: hash["file"], operator: hash["operator"],
+        node_type: hash["node_type"], original_source: hash["original_source"],
+        location: Kimera::Location.from_h(hash["location"]), method_name: hash["method_name"],
+        unsafe_reason: hash["unsafe_reason"], schema_safe: hash.fetch("schema_safe", SAFE),
+        mutants: Array(hash["mutants"]).map { |m| Kimera::Mutant.from_h(m) }
+      )
     end
   end
 

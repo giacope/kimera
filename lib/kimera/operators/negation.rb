@@ -3,9 +3,7 @@
 require_relative "base"
 
 class Kimera::Operators::Negation < Kimera::Operators::Base
-  class << self
-    def key = "negation"
-  end
+  def key = "negation"
 
   def variants(node, **)
     return unless call(node).chained?(:!)

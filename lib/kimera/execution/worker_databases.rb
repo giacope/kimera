@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class Kimera::Execution::ParallelTestDatabases
+class Kimera::Execution::WorkerDatabases
   LOCK_WAITS = { /postg/i => "SET lock_timeout = '5s'", /mysql|trilogy/i => "SET SESSION lock_wait_timeout = 5" }.freeze
 
   def initialize(adapter:, jobs:, errors: nil)

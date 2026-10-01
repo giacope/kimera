@@ -4,7 +4,7 @@ require_relative "isolated_outcome"
 
 module Kimera
   module Execution
-    module IsolatedExecutionVerdict
+    module IsolatedVerdict
       private
 
       def evaluate(trial)
@@ -34,9 +34,13 @@ module Kimera
       def bake(trial, point)
         trial.file = point.file
         tests = plan.tests(trial.id, point)
-        return result(trial, :no_coverage, nil) unless tests
+        return result(trial, status: :no_coverage) unless tests
         outcome, duration = measure(trial, tests)
-        result(trial, outcome.status, duration, tests, failing_tests: outcome.failing, detail: outcome.detail)
+        result(
+          trial,
+          status: outcome.status, duration: duration, covering_tests: tests, failing_tests: outcome.failing,
+          detail: outcome.detail
+        )
       end
 
       def measure(trial, tests)
@@ -57,7 +61,7 @@ module Kimera
         Dir.mktmpdir("kimera-ledger") do |dir|
           ledger = File.join(dir, "ledger.json")
           stderr = File.join(dir, "stderr.log")
-          IsolatedOutcome.judge(launch(mirror, locations, ledger, stderr), ledger, captured(stderr))
+          IsolatedOutcome::Ruling.new(launch(mirror, locations, ledger, stderr), ledger, captured(stderr)).outcome
         end
       end
 
@@ -89,15 +93,9 @@ module Kimera
         end
       end
 
-      def result(trial, status, duration, cover = nil, **outcome)
-        MutantResult.new(
-          mutant_id: trial.id, status: status, file: trial.file, duration: duration, covering_tests: cover, **outcome
-        )
-      end
+      def result(trial, **outcome) = MutantResult.new(mutant_id: trial.id, file: trial.file, **outcome)
 
-      def error(trial, detail)
-        MutantResult.new(mutant_id: trial.id, status: :error, file: trial.file, detail: detail)
-      end
+      def error(trial, detail) = result(trial, status: :error, detail: detail)
 
       def now
         Process.clock_gettime(Process::CLOCK_MONOTONIC)

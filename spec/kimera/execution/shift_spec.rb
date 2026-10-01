@@ -25,7 +25,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       def test_ids = @catches.keys
 
       def run(ids)
-        active = Kimera::Runtime.active
+        active = Kimera::RUNTIME.active
         (active ? @runs : @controls) << ids
         raise(RuntimeError, "boom") if active && active == @failure
         sleep(5) if active && active == @timeout
@@ -80,7 +80,7 @@ RSpec.describe(Kimera::Execution::Shift) do
     )
   end
 
-  after { Kimera::Runtime.reset! }
+  after { Kimera::RUNTIME.reset! }
 
   describe "#run streaming protocol" do
     it "emits a result for each mutant and a final done", :aggregate_failures do
@@ -156,10 +156,10 @@ RSpec.describe(Kimera::Execution::Shift) do
 
     it "resets the active mutant when the request pipe closes" do
       target = ids.first
-      Kimera::Runtime.active = 999
+      Kimera::RUNTIME.active = 999
       request = StringIO.new("#{JSON.generate(id: target)}\n")
       worker(catches: { "t1" => [] }, coverage: { target => ["t1"] }).serve(request, response)
-      expect(Kimera::Runtime.active).to(be_nil)
+      expect(Kimera::RUNTIME.active).to(be_nil)
     end
 
     it "runs the leak check on the serve loop's own mutant index cadence" do
@@ -169,7 +169,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       # Calls 1 and 3 are the kill and its confirmation (call 2 is the control).
       adapter.define_singleton_method(:run) do |ids|
         calls += 1
-        active = Kimera::Runtime.active
+        active = Kimera::RUNTIME.active
         caught = [1, 3].include?(calls) && active ? ids : []
         Kimera::Frameworks::RunOutcome.new(passed: caught.empty?, failed_ids: caught)
       end
@@ -185,9 +185,9 @@ RSpec.describe(Kimera::Execution::Shift) do
   end
 
   describe "#evaluate classification" do
-    def evaluate(id, coverage:, **adapter_opts)
+    def evaluate(id, coverage:, **)
       described_class.new(
-        adapter: test_adapter_class.new(**adapter_opts),
+        adapter: test_adapter_class.new(**),
         registry: registry, coverage: coverage,
         soft_timeout: nil, leak_every: 0
       ).evaluate(id)
@@ -247,8 +247,8 @@ RSpec.describe(Kimera::Execution::Shift) do
         def test_ids = %w[t_reset t_catch]
         define_method(:run) do |test_ids|
           t = test_ids.first
-          Kimera::Runtime.reset! if t == "t_reset"
-          failed = t == "t_catch" && Kimera::Runtime.active ? [t] : []
+          Kimera::RUNTIME.reset! if t == "t_reset"
+          failed = t == "t_catch" && Kimera::RUNTIME.active ? [t] : []
           Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed)
         end
       end.new
@@ -368,7 +368,7 @@ RSpec.describe(Kimera::Execution::Shift) do
     it "resets isolation after every mutant, even a passing one" do
       resets = []
       isolation = Class.new do
-        define_method(:around) { |&blk| blk.call }
+        define_method(:around) { |&block| block.call }
         define_method(:reset!) { resets << true }
       end.new
       target = ids.first
@@ -409,16 +409,16 @@ RSpec.describe(Kimera::Execution::Shift) do
       worker = worker(catches: { "t1" => [] })
       request = StringIO.new("#{JSON.generate(id: "t1")}\n")
       expect { worker.coverage(request, StringIO.new) }
-        .not_to(change { Array(Kimera::Runtime.instance_variable_get(:@ledgers)).size })
+        .not_to(change { Array(Kimera::RUNTIME.instance_variable_get(:@ledgers)).size })
     end
 
     it "resets active and stops coverage when the request pipe closes", :aggregate_failures do
       request = StringIO.new("#{JSON.generate(id: "t1")}\n")
       # No mutant has this id (they count from 1): when self-hosted, a real id would
       # switch that mutant on for the rest of the example.
-      Kimera::Runtime.active = -1
+      Kimera::RUNTIME.active = -1
       worker(catches: { "t1" => [] }).coverage(request, response)
-      expect(Kimera::Runtime.active).to(be_nil)
+      expect(Kimera::RUNTIME.active).to(be_nil)
       expect(messages(response).last).to(eq("t" => "done"))
     end
 
@@ -426,8 +426,8 @@ RSpec.describe(Kimera::Execution::Shift) do
       touching = Class.new do
         def test_ids = %w[t1 t2]
         define_method(:run) do |test_ids|
-          Kimera::Runtime.active?(7) if test_ids == ["t1"]
-          Kimera::Runtime.active?(8) if test_ids == ["t2"]
+          Kimera::RUNTIME.active?(7) if test_ids == ["t1"]
+          Kimera::RUNTIME.active?(8) if test_ids == ["t2"]
           Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
         end
       end.new
@@ -502,7 +502,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       calls = 0
       adapter.define_singleton_method(:run) do |ids|
         calls += 1
-        active = Kimera::Runtime.active
+        active = Kimera::RUNTIME.active
         # The first kill and its confirmation (call 3) catch; the leak re-check doesn't.
         caught = [1, 3].include?(calls) && active ? ids : []
         Kimera::Frameworks::RunOutcome.new(passed: caught.empty?, failed_ids: caught)
@@ -521,7 +521,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       adapter = test_adapter_class.new(catches: {})
       seen = Hash.new(0)
       adapter.define_singleton_method(:run) do |ids|
-        active = Kimera::Runtime.active
+        active = Kimera::RUNTIME.active
         seen[ids] += 1 if active
         caught = active && seen[ids] <= 2 ? ids : []
         Kimera::Frameworks::RunOutcome.new(passed: caught.empty?, failed_ids: caught)
@@ -559,7 +559,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       survivor = b
       seen = Hash.new(0)
       adapter.define_singleton_method(:run) do |test_ids|
-        active = Kimera::Runtime.active
+        active = Kimera::RUNTIME.active
         seen[active] += 1
         caught = active.nil? || (active == survivor && seen[active] > 2) ? [] : test_ids
         Kimera::Frameworks::RunOutcome.new(passed: caught.empty?, failed_ids: caught)

@@ -4,7 +4,8 @@ require_relative "error"
 require_relative "operators/argument_drop"
 require_relative "operators/arithmetic"
 require_relative "operators/base"
-require_relative "operators/boolean"
+require_relative "operators/boolean_connective"
+require_relative "operators/boolean_literal"
 require_relative "operators/chain_link_deletion"
 require_relative "operators/collection_literal"
 require_relative "operators/comparison"
@@ -68,9 +69,9 @@ module Kimera
     DEFAULT_KEYS = [
       Comparison, BooleanConnective, BooleanLiteral,
       StatementDeletion, Negation, Conditional
-    ].map(&:key).freeze
+    ].map { it.new.key }.freeze
 
-    RAILS_KEYS = [RailsPermit, RailsValidation, RailsCallback, RailsAssociation].map(&:key).freeze
+    RAILS_KEYS = [RailsPermit, RailsValidation, RailsCallback, RailsAssociation].map { it.new.key }.freeze
 
     @registered = ALL.dup
 
@@ -79,11 +80,11 @@ module Kimera
     def build(keys: DEFAULT_KEYS)
       requested = expand(keys)
       validate!(requested)
-      registered.select { |operator| requested.include?(operator.key) }.map(&:new)
+      registered.map(&:new).select { |operator| requested.include?(operator.key) }
     end
 
     def keys
-      registered.map(&:key)
+      registered.map { |klass| key_of(klass) }
     end
 
     def registered
@@ -102,11 +103,13 @@ module Kimera
 
     def admit(klass)
       raise(UsageError, "not an operator class: #{klass.inspect}") unless operator?(klass)
-      key = klass.key
-      taken = registered.find { |operator| operator.key == key }
+      key = key_of(klass)
+      taken = registered.find { |operator| key_of(operator) == key }
       raise(UsageError, "operator key already registered: #{key} (#{taken})") if taken
       registered << klass
     end
+
+    def key_of(klass) = klass.new.key
 
     def operator?(klass)
       klass.is_a?(Class) && klass < Base
@@ -121,7 +124,7 @@ module Kimera
     end
 
     def groups
-      { "all" => keys, "rails" => RAILS_KEYS, "custom" => custom.map(&:key) }
+      { "all" => keys, "rails" => RAILS_KEYS, "custom" => custom.map { |klass| key_of(klass) } }
     end
 
     def expansion(key)

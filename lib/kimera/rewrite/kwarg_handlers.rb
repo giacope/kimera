@@ -2,7 +2,7 @@
 
 module Kimera
   module Rewrite
-    module DirectiveKwargHandlers
+    module KwargHandlers
       module_function
 
       def select(call, to)

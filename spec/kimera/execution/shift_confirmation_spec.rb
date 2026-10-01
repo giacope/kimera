@@ -23,7 +23,7 @@ RSpec.describe(Kimera::Execution::Shift) do
 
   let(:ids) { registry.each.map { |m, _p| m.id } }
 
-  after { Kimera::Runtime.reset! }
+  after { Kimera::RUNTIME.reset! }
 
   # +script+ maps a test to the outcomes of its successive runs, as
   # [active?, passed?] pairs are consumed in order; unscripted runs pass.
@@ -40,7 +40,7 @@ RSpec.describe(Kimera::Execution::Shift) do
 
       define_method(:run) do |ids|
         id = ids.first
-        @log << [id, Kimera::Runtime.active]
+        @log << [id, Kimera::RUNTIME.active]
         passed = @script.fetch(id, []).shift != :fail
         failed = passed ? [] : [id]
         Kimera::Frameworks::RunOutcome.new(
@@ -224,7 +224,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       Class.new do
         define_method(:test_ids) { %w[t1 t2] }
         define_method(:run) do |ids|
-          sleep(delay) if ids == ["t1"] && Kimera::Runtime.active
+          sleep(delay) if ids == ["t1"] && Kimera::RUNTIME.active
           Kimera::Frameworks::RunOutcome.new(passed: false, failed_ids: ids, failures: { ids.first => "interrupted" })
         rescue Timeout::ExitException
           Kimera::Frameworks::RunOutcome.new(passed: false, failed_ids: ids, failures: { ids.first => "interrupted" })
@@ -275,7 +275,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       target = ids.first
       adapter = scripted({ "t1" => [] })
       adapter.define_singleton_method(:run) do |ids|
-        on = Kimera::Runtime.active
+        on = Kimera::RUNTIME.active
         begin
           sleep(1.0) unless on
         rescue Timeout::ExitException

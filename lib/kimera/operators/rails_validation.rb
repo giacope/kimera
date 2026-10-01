@@ -5,9 +5,7 @@ require_relative "rails_declaration"
 class Kimera::Operators::RailsValidation < Kimera::Operators::RailsDeclaration
   NAMES = %i[validates validate validates_with validates_each].freeze
 
-  class << self
-    def key = "rails_validation"
-  end
+  def key = "rails_validation"
 
   private
 

@@ -319,26 +319,26 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
   describe "#build_adapter" do
     it "builds the rspec adapter" do
       # In-process, RSpec warns when the adapter re-points its streams.
-      built = hushed { Kimera::Frameworks::Adapter.load("rspec") }
+      built = hushed { Kimera::Frameworks::ADAPTERS.load("rspec") }
       expect(built).to(be_a(Kimera::Frameworks::RSpecAdapter))
     end
 
     it "builds the minitest adapter" do
-      expect(Kimera::Frameworks::Adapter.load("minitest")).to(be_a(Kimera::Frameworks::MinitestAdapter))
+      expect(Kimera::Frameworks::ADAPTERS.load("minitest")).to(be_a(Kimera::Frameworks::MinitestAdapter))
     end
 
     # The suite already loaded the adapters, so pin the require itself.
-    # require_relative is Kernel-private on Adapter; there is nothing else to stub.
+    # require_relative is Kernel-private on AdapterRegistry; there is nothing else to stub.
     def substitute
-      allow(Kimera::Frameworks::Adapter).to(receive(:fetch).and_return(Class.new { def self.build = new }))
-      allow(Kimera::Frameworks::Adapter).to(receive(:require_relative))
+      allow(Kimera::Frameworks::ADAPTERS).to(receive(:fetch).and_return(Class.new { def self.build = new }))
+      allow(Kimera::Frameworks::AdapterRegistry).to(receive(:require_relative))
     end
 
     it "requires each framework's adapter file before fetching it" do
       substitute
-      adapters = Kimera::Frameworks::Adapter
-      adapters.load("rspec")
-      adapters.load("minitest")
+      Kimera::Frameworks::ADAPTERS.load("rspec")
+      Kimera::Frameworks::ADAPTERS.load("minitest")
+      adapters = Kimera::Frameworks::AdapterRegistry
       expect(adapters).to(have_received(:require_relative).with("rspec_adapter"))
 
       expect(adapters).to(have_received(:require_relative).with("minitest_adapter"))
@@ -351,7 +351,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
 
     def waived(id)
-      Kimera::MutantResult.waived(id, registry.index[id]&.file)
+      Kimera::MutantResult.from_waiver(id, registry.index[id]&.file)
     end
 
     it "synthesizes an :ignored result carrying the point's file" do
@@ -492,11 +492,11 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
   end
 
-  describe "#changed_lines" do
+  describe "#changes" do
     it "delegates to GitDiff with the since ref and source root" do
-      stub = receive(:lines).with(since: "main", root: "/proj").and_return("x.rb" => Set[1])
-      allow(Kimera::Incremental::GitDiff).to(stub)
-      result = Kimera::CLI::Run::Sources.changed({ since: "main", source_root: "/proj" })
+      diff = instance_double(Kimera::Incremental::GitDiff, lines: { "x.rb" => Set[1] })
+      allow(Kimera::Incremental::GitDiff).to(receive(:new).with(since: "main", root: "/proj").and_return(diff))
+      result = described_class.new.__send__(:changes, { since: "main", source_root: "/proj" })
       expect(result).to(eq("x.rb" => Set[1]))
     end
   end
@@ -559,7 +559,8 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     def scope
       File.write("calc.rb", "def m(a, b)\n  a > b\nend\n")
       File.write("other.rb", "def n(a, b)\n  a < b\nend\n")
-      allow(Kimera::Incremental::GitDiff).to(receive(:lines).and_return("calc.rb" => Set[2]))
+      diff = instance_double(Kimera::Incremental::GitDiff, lines: { "calc.rb" => Set[2] })
+      allow(Kimera::Incremental::GitDiff).to(receive(:new).and_return(diff))
       registry = Kimera::RegistryScan.new.build(["calc.rb"])
       journal = File.join(dir, "session.json")
       saved(registry, journal)
@@ -673,19 +674,19 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
     def framework(**attrs)
       adapter = instance_double(Kimera::Frameworks::RSpecAdapter, **attrs)
-      allow(Kimera::Frameworks::Adapter).to(receive(:load).and_return(adapter))
+      allow(Kimera::Frameworks::ADAPTERS).to(receive(:load).and_return(adapter))
 
       adapter
     end
 
     def pass(registry, options, todo, session)
-      adapter = Kimera::Frameworks::Adapter.load(options[:framework])
+      adapter = Kimera::Frameworks::ADAPTERS.load(options[:framework])
       Kimera::CLI::Run::Pass.new(registry, options, adapter).call(todo, session)
     end
 
     def executor(**attrs)
       harness = instance_double(Kimera::Execution::Harness, **attrs)
-      allow(Kimera::Execution::Harness).to(receive(:new).and_return(harness))
+      allow(Kimera::Execution::Harness).to(receive(:build).and_return(harness))
       harness
     end
 
@@ -740,7 +741,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       _report, _harness, session, = warmed
       pass(registry, settings(relative_timeout: false, timeout_factor: 4.0, timeout_slack: 0.5), [1, 2], session)
       expect(Kimera::Execution::Harness).to(
-        have_received(:new).with(hash_including(relative_timeout: false, timeout_factor: 4.0, timeout_slack: 0.5))
+        have_received(:build).with(hash_including(relative_timeout: false, timeout_factor: 4.0, timeout_slack: 0.5))
       )
     end
 
@@ -844,7 +845,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       File.write("calc.rb", "def m(a, b)\n  a > b\nend\n")
       manifest = File.join(dir, "reg.json")
       Kimera::RegistryScan.new.source(File.read("calc.rb"), file: "calc.rb").write(manifest)
-      allow(Kimera::Frameworks::Adapter).to(receive(:load).and_return(nil))
+      allow(Kimera::Frameworks::ADAPTERS).to(receive(:load).and_return(nil))
       allow(Kimera::CLI::Run::Pass).to(receive(:new).and_raise(failure))
 
       manifest
@@ -913,7 +914,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
     def warmed
       expanded = nil
-      allow(Kimera::Execution::Harness).to(receive(:new).and_wrap_original) do |original, **kwargs|
+      allow(Kimera::Execution::Harness).to(receive(:build).and_wrap_original) do |original, **kwargs|
         harness = original.call(**kwargs)
         allow(harness).to(receive(:warm!) { |files, **| expanded = files })
         allow(harness).to(receive(:run).and_return(Kimera::RunReport.new(results: [])))
@@ -931,7 +932,14 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
     it "still passes quietly when an incremental diff selects zero mutants" do
       File.write("calc.rb", "def m(a, b)\n  a > b\nend\n")
-      allow(Kimera::Incremental::GitDiff).to(receive(:lines).and_return({}))
+      allow(Kimera::Incremental::GitDiff).to(
+        receive(:new).and_return(
+        instance_double(
+          Kimera::Incremental::GitDiff,
+          lines: {}
+      )
+      )
+      )
 
       status, = capture(["calc.rb", "--since", "main"])
       expect(status).to(eq(0))

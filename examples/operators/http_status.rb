@@ -10,9 +10,7 @@ module MyApp
       NAMES = %i[render redirect_to head].freeze
       KEY = "status"
 
-      class << self
-        def key = "http_status"
-      end
+      def key = "http_status"
 
       def variants(node, **)
         return unless matches?(node, NAMES) && status?(node)

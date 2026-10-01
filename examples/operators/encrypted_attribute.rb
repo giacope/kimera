@@ -9,13 +9,11 @@ module MyApp
     class EncryptedAttribute < Kimera::Operators::Base
       NAMES = %i[encrypts has_secure_password redact].freeze
 
-      class << self
-        def key = "encrypted_attribute"
+      def key = "encrypted_attribute"
 
-        def statement? = true
+      def statement? = true
 
-        def body? = true
-      end
+      def body? = true
 
       def variants(node, **)
         return unless bare?(node, NAMES)

@@ -5,14 +5,14 @@ require "tmpdir"
 
 RSpec.describe(Kimera::Incremental::Session) do
   it "loads a fresh empty session when the path is nil or missing", :aggregate_failures do
-    expect(described_class.load(nil).results).to(eq({}))
-    Dir.mktmpdir { |dir| expect(described_class.load(File.join(dir, "absent.json")).results).to(eq({})) }
+    expect(described_class.from(nil).results).to(eq({}))
+    Dir.mktmpdir { |dir| expect(described_class.from(File.join(dir, "absent.json")).results).to(eq({})) }
   end
 
   it "tolerates a file with no results or leaks keys" do
     Dir.mktmpdir do |dir|
       path = File.join(dir, "s.json").tap { |p| File.write(p, JSON.generate("version" => 1, "meta" => {})) }
-      session = described_class.load(path)
+      session = described_class.from(path)
       expect([session.results, session.leaks]).to(eq([{}, []]))
     end
   end

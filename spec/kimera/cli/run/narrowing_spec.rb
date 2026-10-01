@@ -61,7 +61,7 @@ RSpec.describe(Kimera::CLI::Run::Narrowing) do
     before { File.write("calc.rb", "def m(a, b)\n  a > b\nend\n") }
 
     def run(*argv)
-      allow(Kimera::Execution::Harness).to(receive(:new).and_wrap_original) do |original, **kwargs|
+      allow(Kimera::Execution::Harness).to(receive(:build).and_wrap_original) do |original, **kwargs|
         original.call(**kwargs).tap do |harness|
           allow(harness).to(receive(:warm!))
           allow(harness).to(receive(:run).and_return(Kimera::RunReport.new(results: [])))

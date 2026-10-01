@@ -28,7 +28,7 @@ class Kimera::Execution::Shift::LeakGuard
     "mutant #{id} killed earlier but survived re-run (state leakage suspected)"
   end
 
-  def emit(io, **msg)
-    io.puts(JSON.generate(msg))
+  def emit(io, **fields)
+    io.puts(JSON.generate(fields))
   end
 end

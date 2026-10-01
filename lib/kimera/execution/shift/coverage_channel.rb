@@ -8,7 +8,7 @@ class Kimera::Execution::Shift::CoverageChannel
   end
 
   def serve(request, response)
-    ledger = Kimera::Runtime.start!
+    ledger = Kimera::RUNTIME.start!
     drain(request, response, ledger)
     emit(response, t: "done")
   ensure
@@ -25,22 +25,22 @@ class Kimera::Execution::Shift::CoverageChannel
   end
 
   def step(response, testid, ledger)
-    Kimera::Runtime.active = nil
+    Kimera::RUNTIME.active = nil
     watch = Kimera::Execution::Stopwatch.new
     emit(response, **message(testid, ledger, watch.lap { @adapter.run([testid]) }), took: watch.last)
   end
 
   def message(testid, ledger, outcome)
     { t: "result", id: testid, passed: outcome.passed? }
-      .merge(touched: Kimera::Runtime.drain!(ledger), failure: outcome.failures[testid])
+      .merge(touched: ledger.drain!, failure: outcome.failures[testid])
   end
 
   def stop(ledger)
-    Kimera::Runtime.stop!(ledger)
-    Kimera::Runtime.active = nil
+    Kimera::RUNTIME.stop!(ledger)
+    Kimera::RUNTIME.active = nil
   end
 
-  def emit(io, **msg)
-    io.puts(JSON.generate(msg))
+  def emit(io, **fields)
+    io.puts(JSON.generate(fields))
   end
 end

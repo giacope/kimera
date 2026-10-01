@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- A custom operator declares its key on the instance: `def key =
+  "authorization"`, and `def statement? = true` or `def body? = true` when
+  it applies, in the class body rather than under `class << self`. An
+  operator written the old way fails to register (`must define #key`);
+  move its `def`s out of `class << self`. The operator audit is an
+  instance too: `Kimera::Operators::Audit.new(operators).faults(source)`.
+  Kimera's own code now follows rubocop-kata's rule that class methods only
+  construct, and its development tooling tracks rubocop-kata and hashira
+  from their main branches.
+
 - Kimera requires unparser 0.9.x (it accepted any 0.x). It patches unparser's
   range writer, local-variable scope and parser builder, and those are
   internals: another release could rename one, and the patch would silently

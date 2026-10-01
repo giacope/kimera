@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
 require_relative "../rewrite/ast_walk"
-require_relative "guardrail_value_objects"
+require_relative "guardrail_factories"
 
 class Kimera::SpliceReopening
-  FACTORIES = Kimera::GuardrailValueObjects::FACTORIES
+  FACTORIES = Kimera::GuardrailFactories::FACTORIES
   LEXICAL = "(is_a?(::Module) ? self : ::Object)"
 
   Assignment =

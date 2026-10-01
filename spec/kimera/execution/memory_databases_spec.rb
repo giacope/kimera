@@ -9,6 +9,8 @@ require "kimera/execution/memory_databases"
 # reconnected to an empty one: devise's suite read "no such table: users" and
 # 735 of its mutants went unjudged.
 RSpec.describe(Kimera::Execution::MemoryDatabases) do
+  let(:boot) { Kimera::Execution::Boot.new(adapter: nil, isolate: false) }
+
   def pools
     Class.new do
       attr_reader :discarded
@@ -22,7 +24,7 @@ RSpec.describe(Kimera::Execution::MemoryDatabases) do
   def discarded?(adapter, database)
     kind = pools
     stub_const("ActiveRecord::ConnectionAdapters::PoolConfig", kind)
-    described_class.keep!
+    boot.__send__(:keep!)
     kind.new(Struct.new(:adapter, :database).new(adapter, database)).tap(&:discard_pool!).discarded
   end
 
@@ -48,6 +50,6 @@ RSpec.describe(Kimera::Execution::MemoryDatabases) do
 
   it "does nothing without ActiveRecord" do
     hide_const("ActiveRecord")
-    expect(described_class.keep!).to(be_nil)
+    expect(boot.__send__(:keep!)).to(be_nil)
   end
 end

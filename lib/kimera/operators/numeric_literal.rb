@@ -12,9 +12,7 @@ class Kimera::Operators::NumericLiteral < Kimera::Operators::Base
         [value - 1, value + 1].tap { |all| all << 0 unless value.zero? }
       end
     end
-  class << self
-    def key = "numeric_literal"
-  end
+  def key = "numeric_literal"
 
   def variants(node, **)
     case node

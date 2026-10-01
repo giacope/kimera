@@ -9,11 +9,9 @@ module MyApp
     class Authorization < Kimera::Operators::Base
       NAMES = %i[authorize authorize! policy_scope verify_authorized require_login!].freeze
 
-      class << self
-        def key = "authorization"
+      def key = "authorization"
 
-        def statement? = true
-      end
+      def statement? = true
 
       def variants(node, **)
         return unless matches?(node, NAMES)

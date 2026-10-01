@@ -76,7 +76,7 @@
     },
     {
       "kind": "control_parameter",
-      "package": "Kimera::Execution::ParallelTestDatabases#before_exit",
+      "package": "Kimera::Execution::WorkerDatabases#before_exit",
       "reason": "a nil slot marks an injected spec spawner with no database to clean up"
     },
     {
@@ -96,12 +96,12 @@
     },
     {
       "kind": "manual_dispatch",
-      "package": "Kimera::Execution::OverlayGuardModules#unwrap",
+      "package": "Kimera::Execution::GuardModules#unwrap",
       "reason": "a duck-type probe at a framework boundary we do not own: the shape being tested belongs to Rails/Minitest/Prism and varies by their version, so trusting the duck type turns a version difference into a crash"
     },
     {
       "kind": "manual_dispatch",
-      "package": "Kimera::Execution::ParallelTestDatabases#configured?",
+      "package": "Kimera::Execution::WorkerDatabases#configured?",
       "reason": "a duck-type probe at a framework boundary we do not own: the shape being tested belongs to Rails/Minitest/Prism and varies by their version, so trusting the duck type turns a version difference into a crash"
     },
     {
@@ -166,7 +166,7 @@
     },
     {
       "kind": "data_clump",
-      "package": "Kimera::Rewrite::DirectiveExtraHandlers",
+      "package": "Kimera::Rewrite::ExtraHandlers",
       "reason": "a handler protocol, not a clump: every handler in the table is dispatched by one caller through the same fixed signature, so a parameter object would rename the protocol without removing a single argument"
     },
     {

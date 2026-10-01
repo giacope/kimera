@@ -12,7 +12,7 @@ RSpec.describe(Kimera::SuperclassPin) do
       end
       class KimeraPinnedPair < Struct.new(:a); end
     RUBY
-    2.times { Kimera::Overlay.evaluate(source, "pinned.rb") }
+    2.times { Kimera::Overlay::Source.new(source).evaluate("pinned.rb") }
     expect(KimeraPinned::Usage.new(used: 2).double).to(eq(4))
     expect(KimeraPinnedPair.new(1).a).to(eq(1))
   end
@@ -27,9 +27,9 @@ RSpec.describe(Kimera::SuperclassPin) do
         end
       end
     RUBY
-    Kimera::Overlay.evaluate(source, "rebound.rb")
+    Kimera::Overlay::Source.new(source).evaluate("rebound.rb")
     first = KimeraRebound::Row
-    Kimera::Overlay.evaluate(source, "rebound.rb")
+    Kimera::Overlay::Source.new(source).evaluate("rebound.rb")
     expect(KimeraRebound::PersonRow.superclass).to(equal(first))
     expect(KimeraRebound::PersonRow.new(cells: 4).wide?).to(be(true))
   end
@@ -37,9 +37,9 @@ RSpec.describe(Kimera::SuperclassPin) do
   it "pins a class named by a path against that path's owner", :aggregate_failures do
     stub_const("KimeraPinPath", Module.new)
     source = "KimeraPinPath::Base = Class.new\nclass KimeraPinPath::Leaf < KimeraPinPath::Base; end\n"
-    Kimera::Overlay.evaluate(source, "path.rb")
+    Kimera::Overlay::Source.new(source).evaluate("path.rb")
     first = KimeraPinPath::Base
-    Kimera::Overlay.evaluate(source, "path.rb")
+    Kimera::Overlay::Source.new(source).evaluate("path.rb")
     expect(KimeraPinPath::Leaf.superclass).to(equal(first))
     expect(described_class.pin("class ::KimeraRooted < Base; end\n"))
       .to(eq("class ::KimeraRooted < (::Kimera::SuperclassPin.existing(::Object, :KimeraRooted) || Base); end\n"))
@@ -55,7 +55,7 @@ RSpec.describe(Kimera::SuperclassPin) do
     stub_const("KimeraLexicalHost", Class.new)
     stub_const("KimeraLexicalHost::Row", Class.new(ArgumentError))
     source = "module KimeraLexical\n  KimeraLexicalHost.class_eval do\n    class Row < StandardError; end\n  end\nend\n"
-    Kimera::Overlay.evaluate(source, "lexical.rb")
+    Kimera::Overlay::Source.new(source).evaluate("lexical.rb")
     expect(KimeraLexical::Row.superclass).to(equal(StandardError))
   end
 
@@ -71,7 +71,7 @@ RSpec.describe(Kimera::SuperclassPin) do
     stub_const("KimeraShadow", Class.new(StandardError))
     stub_const("KimeraShadowed", Module.new)
     source = "module KimeraShadowed\n  class KimeraShadow < Struct.new(:a); end\nend\n"
-    Kimera::Overlay.evaluate(source, "shadow.rb")
+    Kimera::Overlay::Source.new(source).evaluate("shadow.rb")
     expect(KimeraShadowed::KimeraShadow.new(1).a).to(eq(1))
   end
 end

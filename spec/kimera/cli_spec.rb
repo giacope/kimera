@@ -16,7 +16,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     errors = $stderr
     $stdout = out
     $stderr = error
-    [out.string, error.string, described_class.start(argv)]
+    [out.string, error.string, described_class.new.run(argv)]
   ensure
     $stdout = output
     $stderr = errors
@@ -213,7 +213,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
 
     it "documents every registry flag in --help" do
       matcher = output(include(*snippets)).to_stdout
-      expect { described_class.start(["registry", "--help"]) }.to(raise_error(SystemExit).and(matcher))
+      expect { described_class.new.run(["registry", "--help"]) }.to(raise_error(SystemExit).and(matcher))
     end
   end
 end

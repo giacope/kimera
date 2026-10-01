@@ -5,9 +5,7 @@ require_relative "rails_declaration"
 class Kimera::Operators::RailsAssociation < Kimera::Operators::RailsDeclaration
   NAMES = %i[has_many has_one belongs_to has_and_belongs_to_many].freeze
 
-  class << self
-    def key = "rails_association"
-  end
+  def key = "rails_association"
 
   private
 

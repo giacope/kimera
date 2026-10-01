@@ -65,13 +65,14 @@ class Kimera::Execution::Pool
     @options[:budget] = budget
   end
 
-  def drive(queue, spawner, resolve:, lost:, trace: nil, jobs: @options.fetch(:jobs))
+  def drive(queue, spawner, listeners, jobs: @options.fetch(:jobs))
     database.before_fork
     Dir.mktmpdir("kimera-stacks") do |dir|
       @options[:stacks] = Kimera::Execution::StackDump.new(dir)
       Kimera::Execution::WorkerPool.new(
-        queue: queue, spawner: spawner, jobs: jobs,
-        hard_timeout: @options.fetch(:hard), resolve: resolve, lost: lost, trace: trace
+        Kimera::Execution::WorkerPool::Context.new(
+          queue, spawner, listeners, { jobs: jobs, hard_timeout: @options.fetch(:hard) }
+        )
       ).run
     end
   end

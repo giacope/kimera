@@ -9,9 +9,7 @@ class Kimera::Operators::MethodUnwrap < Kimera::Operators::Base
     uniq compact flatten sort reverse presence
   ].freeze
 
-  class << self
-    def key = "method_unwrap"
-  end
+  def key = "method_unwrap"
 
   def variants(node, **)
     name = syntax(node).unwrap(UNWRAPPABLE)

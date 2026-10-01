@@ -18,9 +18,9 @@ module Kimera
 end
 
 class Kimera::Execution::IsolatedExecution
-  include Kimera::Execution::IsolatedExecutionScheduling
-  include Kimera::Execution::IsolatedExecutionVerdict
-  include Kimera::Execution::IsolatedExecutionWatchdog
+  include Kimera::Execution::IsolatedScheduling
+  include Kimera::Execution::IsolatedVerdict
+  include Kimera::Execution::IsolatedWatchdog
 
   DEFAULT_HARD_TIMEOUT = 300.0
 
@@ -35,7 +35,8 @@ class Kimera::Execution::IsolatedExecution
     progress.note("isolated baseline (unmutated mirror)")
     outcome = with_mirror { |mirror| verdict(mirror, plan.suite) }
     return if outcome.status == :survived
-    raise(Kimera::Execution::BaselineFailure.mirrored(outcome.explain(limit), Kimera::Execution::IsolatedPlan::MIRROR_HINT))
+    mirror = Kimera::Execution::BaselineFailure::Mirror.new(outcome.explain(limit), Kimera::Execution::IsolatedPlan::MIRROR_HINT)
+    raise(Kimera::Execution::BaselineFailure, mirror.to_s)
   end
 
   def run(ids: self.ids, label: "mutants")

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require_relative "directive_extra_handlers"
-require_relative "directive_kwarg_handlers"
+require_relative "extra_handlers"
+require_relative "kwarg_handlers"
 
 module Kimera
   module Rewrite
@@ -30,14 +30,14 @@ module Kimera
           end
 
           def unlink
-            DirectiveKwargHandlers.block(node) do |call|
+            KwargHandlers.block(node) do |call|
               receiver, *rest = call.children
               call.updated(nil, [receiver.children[0], *rest])
             end
           end
 
           def send
-            DirectiveKwargHandlers.block(node) { |call| call.updated(:send, call.children) }
+            KwargHandlers.block(node) { |call| call.updated(:send, call.children) }
           end
 
           def retest
@@ -61,7 +61,7 @@ module Kimera
           end
 
           def drop
-            DirectiveKwargHandlers.block(node) do |call|
+            KwargHandlers.block(node) do |call|
               receiver, selector, *args = call.children
               args.delete_at(Integer(directive[INDEX]))
               call.updated(nil, [receiver, selector, *args])
@@ -73,8 +73,8 @@ module Kimera
           end
 
           def select
-            DirectiveKwargHandlers.block(node) do |call|
-              DirectiveKwargHandlers.select(call, target)
+            KwargHandlers.block(node) do |call|
+              KwargHandlers.select(call, target)
             end
           end
 
@@ -98,7 +98,7 @@ module Kimera
           end
 
           def kwargs(&)
-            DirectiveKwargHandlers.block(node) { |call| DirectiveKwargHandlers.rewrite(call, directive["key"], &) }
+            KwargHandlers.block(node) { |call| KwargHandlers.rewrite(call, directive["key"], &) }
           end
 
           def fetch
@@ -122,7 +122,7 @@ module Kimera
           end
 
           def extra
-            DirectiveExtraHandlers::Operation.new(node, directive)
+            ExtraHandlers::Operation.new(node, directive)
           end
 
           def ast(type, *children)

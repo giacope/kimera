@@ -6,7 +6,5 @@ class Kimera::Operators::Arithmetic < Kimera::Operators::BinarySwap
   MUTATIONS = { :+ => [:-], :- => [:+], :* => [:/] }.merge({ :/ => [:*], :% => [:*], :** => [:*] }).freeze
   DIRECTIVE = "op_swap"
 
-  class << self
-    def key = "arithmetic"
-  end
+  def key = "arithmetic"
 end

@@ -6,8 +6,8 @@ require_relative "../error"
 module Kimera
   Flag =
     Data.define(:switch, :key, :help, :type, :collect) do
-      def self.build(switch, key, help, type: nil, collect: false)
-        new(switch: switch, key: key, help: help, type: type, collect: collect)
+      def self.build(switch, key, help, **settings)
+        new(switch: switch, key: key, help: help, type: nil, collect: false, **settings)
       end
 
       def define(parser, options)

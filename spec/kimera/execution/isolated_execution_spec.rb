@@ -20,8 +20,8 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     described_class.new(registry: registry, root: ".", tests: ["t1"], **)
   end
 
-  def test_invoke_private(object, method, *, &)
-    object.__send__(method, *, &)
+  def test_invoke_private(object, method, *, **, &)
+    object.__send__(method, *, **, &)
   end
 
   def test_all_ids
@@ -588,7 +588,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
   describe "result builders" do
     it "coerces a nil duration to 0.0 and carries the covering tests", :aggregate_failures do
       trial = Kimera::Execution::Trial.new(5, nil, nil, "calc.rb")
-      result = test_invoke_private(runner, :result, trial, :survived, nil, ["t1"])
+      result = test_invoke_private(runner, :result, trial, status: :survived, duration: nil, covering_tests: ["t1"])
       expect(result.status).to(eq(:survived))
       expect(result.duration).to(eq(0.0))
       expect(result.covering_tests).to(eq(["t1"]))

@@ -13,7 +13,7 @@ RSpec.describe(Kimera::Execution::IsolatedOutcome) do
     Dir.mktmpdir do |dir|
       path = File.join(dir, "ledger.json")
       File.write(path, ledger) if ledger
-      described_class.judge(exit, path)
+      described_class::Ruling.new(exit, path).outcome
     end
   end
 
@@ -24,7 +24,7 @@ RSpec.describe(Kimera::Execution::IsolatedOutcome) do
     Dir.mktmpdir do |dir|
       path = File.join(dir, "ledger.json")
       File.write(path, ledger) if ledger
-      described_class.judge(exit, path, stderr)
+      described_class::Ruling.new(exit, path, stderr).outcome
     end
   end
 

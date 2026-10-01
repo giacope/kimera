@@ -2,7 +2,7 @@
 
 require "prism"
 require_relative "../support/syntax"
-require_relative "guardrail_value_objects"
+require_relative "guardrail_factories"
 
 module Kimera
   module BodyTrim
@@ -12,7 +12,7 @@ module Kimera
     RERUN = %i[require require_relative ruby2_keywords].freeze
     CONDITIONS = [Prism::IfNode, Prism::UnlessNode].freeze
     DECLARATIONS = %i[included prepended class_methods concerning class_eval module_eval class_exec module_exec].freeze
-    FACTORIES = Kimera::GuardrailValueObjects::FACTORIES
+    FACTORIES = Kimera::GuardrailFactories::FACTORIES
     LOCALS = [
       Prism::LocalVariableWriteNode, Prism::LocalVariableOperatorWriteNode,
       Prism::LocalVariableOrWriteNode, Prism::LocalVariableAndWriteNode

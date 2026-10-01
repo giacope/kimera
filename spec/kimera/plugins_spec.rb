@@ -21,12 +21,12 @@ RSpec.describe(Kimera::Plugins) do
       Dir.mktmpdir do |dir|
         plugin(dir, <<~RUBY)
           class Sentinel < Kimera::Operators::Base
-            def self.key = "sentinel"
+            def key = "sentinel"
             def variants(_node, **) = nil
           end
           Kimera::Operators.register(Sentinel)
         RUBY
-        expect(described_class.load!(["plugin.rb"], root: dir).map(&:key)).to(eq(["sentinel"]))
+        expect(described_class.load!(["plugin.rb"], root: dir).map { it.new.key }).to(eq(["sentinel"]))
       end
     end
 
@@ -69,7 +69,7 @@ RSpec.describe(Kimera::Plugins) do
     end
 
     it "registers one operator per example file" do
-      expect(Kimera::Operators.custom.map(&:key)).to(match_array(keys))
+      expect(Kimera::Operators.custom.map { it.new.key }).to(match_array(keys))
     end
 
     it "builds host operators alongside the built-ins under 'custom'" do

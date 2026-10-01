@@ -45,7 +45,8 @@ RSpec.describe(Kimera::DefaultRemoval) do
   # Prism recovers a tree from broken source; its signatures aren't trusted.
   it "finds nothing in source that does not parse, or in methods without parameters", :aggregate_failures do
     broken = "def m(a = 1, b = 2, c = 3, d: a.to_s, e: 1)\n  x =\nend\n"
-    expect([described_class.exemptions(broken), described_class.ranges(broken)]).to(eq([[], []]))
-    expect([described_class.exemptions("def m; end"), described_class.ranges("x { 1 }")]).to(eq([[], []]))
+    source = described_class::Source
+    expect([source.new(broken).exemptions, source.new(broken).ranges]).to(eq([[], []]))
+    expect([source.new("def m; end").exemptions, source.new("x { 1 }").ranges]).to(eq([[], []]))
   end
 end

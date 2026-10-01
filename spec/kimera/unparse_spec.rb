@@ -65,21 +65,21 @@ RSpec.describe(Kimera::Unparse) do
 
     it "binds no name for an anonymous block parameter", :aggregate_failures do
       anonymous = Kimera::Unparse.parse("def bid(&) = forward(&)").children[1].children.first
-      expect(described_class.names(anonymous)).to(eq([]))
+      expect(Kimera::Unparse::Declaration.new(anonymous).names).to(eq([]))
       expect(reemit("def bid(&) = forward(&)")).to(eq("def bid(&)\n  forward(&)\nend"))
     end
 
     # Under /x, a (?<name>) inside a comment names nothing, so the read stays a call.
     it "binds only the captures an extended regexp really names", :aggregate_failures do
       node = Kimera::Unparse.parse("/(?<real>.) # (?<fake>.)\n/x =~ value")
-      expect(described_class.names(node)).to(eq([:real]))
+      expect(Kimera::Unparse::Declaration.new(node).names).to(eq([:real]))
       plain = Kimera::Unparse.parse("/(?<real>.) # (?<also>.)/ =~ value")
-      expect(described_class.names(plain)).to(eq(%i[real also]))
+      expect(Kimera::Unparse::Declaration.new(plain).names).to(eq(%i[real also]))
     end
 
     it "binds nothing for nodes that bind nothing", :aggregate_failures do
-      expect(described_class.names(Kimera::Unparse.parse("chosen = 1"))).to(eq([]))
-      expect(described_class.names(Kimera::Unparse.parse("value"))).to(eq([]))
+      expect(Kimera::Unparse::Declaration.new(Kimera::Unparse.parse("chosen = 1")).names).to(eq([]))
+      expect(Kimera::Unparse::Declaration.new(Kimera::Unparse.parse("value")).names).to(eq([]))
     end
   end
 

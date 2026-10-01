@@ -5,13 +5,13 @@ require_relative "../rewrite/ast_walk"
 require_relative "../rewrite/directive"
 require_relative "guardrail_dispatch"
 require_relative "guardrail_interpolation"
-require_relative "guardrail_value_objects"
+require_relative "guardrail_factories"
 require_relative "source_map"
 
 class Kimera::Guardrail
   include Kimera::GuardrailDispatch
   include Kimera::GuardrailInterpolation
-  include Kimera::GuardrailValueObjects
+  include Kimera::GuardrailFactories
 
   attr_reader :applied
 

@@ -14,7 +14,7 @@ require_relative "boot"
 require_relative "child_process"
 require_relative "isolation"
 require_relative "null_progress"
-require_relative "parallel_test_databases"
+require_relative "worker_databases"
 require_relative "pool_driver"
 require_relative "reload"
 require_relative "rig"
@@ -32,9 +32,7 @@ class Kimera::Execution::Harness
   State = Struct.new(:skipped, :irrelevant, :isolation, :recovered)
 
   class << self
-    def new(registry:, adapter:, **options)
-      super(Context.new(registry, adapter, options), State.new({}, {}, nil, {}))
-    end
+    def build(registry:, adapter:, **options) = new(Context.new(registry, adapter, options), State.new({}, {}, nil, {}))
   end
 
   def initialize(context, state)
@@ -134,8 +132,8 @@ class Kimera::Execution::Harness
   end
 
   def parallel(pass)
-    pass.parallel!(jobs) do |ids, width, **channels|
-      driver.drive(ids, driver.method(:channel), jobs: width || jobs, **channels)
+    pass.parallel!(jobs) do |ids, width, listeners|
+      driver.drive(ids, driver.method(:channel), listeners, jobs: width || jobs)
     end
   end
 

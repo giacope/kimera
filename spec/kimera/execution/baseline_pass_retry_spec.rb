@@ -46,13 +46,13 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
   def measure(first, alone = {}, meter: progress, jobs: 1)
     rounds = []
     pass = described_class.new(adapter: adapter, registry: registry, progress: meter)
-    [pass.parallel!(jobs) { |queue, jobs, **channels| round(queue, jobs, channels, [first, alone], rounds) }, rounds]
+    [pass.parallel!(jobs) { |queue, jobs, listeners| round(queue, jobs, listeners, [first, alone], rounds) }, rounds]
   end
 
-  def round(queue, jobs, channels, scripts, rounds)
+  def round(queue, jobs, listeners, scripts, rounds)
     script = scripts.fetch(rounds.size)
-    rounds << { queue: queue, jobs: jobs, trace: channels[:trace] }
-    queue.each { |id| play(id, script.fetch(id, :pass), channels[:resolve], channels[:lost]) }
+    rounds << { queue: queue, jobs: jobs, trace: listeners.trace }
+    queue.each { |id| play(id, script.fetch(id, :pass), listeners.resolve, listeners.lost) }
   end
 
   def play(id, outcome, resolve, lost)

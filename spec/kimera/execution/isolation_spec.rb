@@ -21,10 +21,10 @@ RSpec.describe(Kimera::Execution) do
       events = []
       [
         Class.new do
-          define_method(:transaction) do |**_opts, &blk|
+          define_method(:transaction) do |**_opts, &block|
             events << :begin
             begin
-              blk.call
+              block.call
             rescue Kimera::Execution::TransactionIsolation::Rollback
               events << :rolled_back
             end
@@ -45,10 +45,10 @@ RSpec.describe(Kimera::Execution) do
       captured = [nil]
       [
         Class.new do
-          define_method(:transaction) do |**opts, &blk|
+          define_method(:transaction) do |**opts, &block|
             captured[0] = opts
             begin
-              blk.call
+              block.call
             rescue Kimera::Execution::TransactionIsolation::Rollback
               nil
             end
@@ -69,9 +69,9 @@ RSpec.describe(Kimera::Execution) do
   describe Kimera::Execution::CompositeIsolation do
     def strategy(tag, order)
       Class.new(Kimera::Execution::Isolation) do
-        define_method(:around) do |&blk|
+        define_method(:around) do |&block|
           order << :"#{tag}_in"
-          value = blk.call
+          value = block.call
           order << :"#{tag}_out"
           value
         end

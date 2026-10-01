@@ -10,9 +10,7 @@ class Kimera::Operators::SelectorSwap < Kimera::Operators::Base
     .merge({ detect: :first, find: :first })
     .freeze
 
-  class << self
-    def key = "selector_swap"
-  end
+  def key = "selector_swap"
 
   def variants(node, **)
     return unless node.is_a?(CallNode) && node.receiver

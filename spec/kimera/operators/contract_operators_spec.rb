@@ -46,21 +46,19 @@ RSpec.describe("contract operators") do
 
   def with_overlay(key)
     catalog = built(key)
-    Kimera::Overlay.evaluate(
-      Kimera::Overlay.new(catalog).synthesize("contracts.rb", contract_src).source,
-      File.expand_path("contracts.rb")
-    )
+    Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("contracts.rb", contract_src).source)
+      .evaluate(File.expand_path("contracts.rb"))
     yield(catalog.each.to_h { |m, _p| [m.label, m.id] }, catalog)
   ensure
-    Kimera::Runtime.reset!
+    Kimera::RUNTIME.reset!
     Object.__send__(:remove_const, :Contracts) if defined?(Contracts)
   end
 
   def active(id)
-    Kimera::Runtime.active = id
+    Kimera::RUNTIME.active = id
     yield
   ensure
-    Kimera::Runtime.active = nil
+    Kimera::RUNTIME.active = nil
   end
 
   describe "index_fetch" do
@@ -119,7 +117,7 @@ RSpec.describe("contract operators") do
       expect(sources).to(contain_exactly("h.fetch(k)", "h&.fetch(k)"))
 
       result = Kimera::Overlay.new(catalog).synthesize("spellings.rb", src)
-      Kimera::Overlay.evaluate(result.source, File.expand_path("spellings.rb"))
+      Kimera::Overlay::Source.new(result.source).evaluate(File.expand_path("spellings.rb"))
       ids = catalog.each.to_h { |m, p| [p.original_source, m.id] }
       object = Spellings.new
       expect(object.explicit({ a: 1 }, :nope)).to(be_nil)
@@ -130,7 +128,7 @@ RSpec.describe("contract operators") do
         expect { object.maybe({ a: 1 }, :nope) }.to(raise_error(KeyError))
       end
     ensure
-      Kimera::Runtime.reset!
+      Kimera::RUNTIME.reset!
       Object.__send__(:remove_const, :Spellings) if defined?(Spellings)
     end
   end

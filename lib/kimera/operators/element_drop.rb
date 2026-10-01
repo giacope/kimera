@@ -5,9 +5,7 @@ require_relative "base"
 class Kimera::Operators::ElementDrop < Kimera::Operators::Base
   SPLATS = { ArrayNode => SplatNode, HashNode => AssocSplatNode }.freeze
 
-  class << self
-    def key = "element_drop"
-  end
+  def key = "element_drop"
 
   def variants(node, **)
     parts = collection(node)

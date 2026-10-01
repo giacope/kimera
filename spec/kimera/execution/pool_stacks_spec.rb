@@ -14,11 +14,15 @@ RSpec.describe(Kimera::Execution::Pool) do
   end
 
   def driver(jobs: 2)
-    databases = Kimera::Execution::ParallelTestDatabases.new(adapter: nil, jobs: jobs)
+    databases = Kimera::Execution::WorkerDatabases.new(adapter: nil, jobs: jobs)
     described_class.new(
       adapter: nil, registry: registry, isolation: Kimera::Execution::Isolation.new, jobs: jobs,
       hard: 5.0, soft: nil, leak: 0, paralleldb: databases
     )
+  end
+
+  def listeners(resolve = ->(_m) {})
+    Kimera::Execution::WorkerPool::Listeners.new(resolve: resolve, lost: ->(*) {}, trace: nil)
   end
 
   # Records each slot it spawns into; its workers kill whatever they're sent.
@@ -39,7 +43,7 @@ RSpec.describe(Kimera::Execution::Pool) do
   it "runs a fleet as wide as asked, whatever its own width", :aggregate_failures do
     seen = []
     resolved = []
-    driver(jobs: 4).drive([1, 2, 3], answering(seen), resolve: ->(m) { resolved << m }, lost: ->(*) {}, jobs: 1)
+    driver(jobs: 4).drive([1, 2, 3], answering(seen), listeners(->(m) { resolved << m }), jobs: 1)
 
     expect(seen).to(eq([0]))
     expect(resolved.map { |m| m["id"] }).to(eq([1, 2, 3]))
@@ -47,7 +51,7 @@ RSpec.describe(Kimera::Execution::Pool) do
 
   it "defaults the fleet to the pool's own width" do
     seen = []
-    driver(jobs: 2).drive([1, 2, 3], answering(seen), resolve: ->(_m) {}, lost: ->(*) {})
+    driver(jobs: 2).drive([1, 2, 3], answering(seen), listeners)
     expect(seen).to(contain_exactly(0, 1))
   end
 
@@ -56,7 +60,7 @@ RSpec.describe(Kimera::Execution::Pool) do
     pool = driver
     launched = []
     spawner = ->(slot) { pool.worker(slot).tap { |worker| launched << worker.last }.tap { |worker| worker[1].close } }
-    pool.drive([1], spawner, resolve: ->(_m) {}, lost: ->(*) {})
+    pool.drive([1], spawner, listeners)
 
     expect(launched.first).to(be_a(Kimera::Execution::StackDump))
     expect(File.exist?(launched.first.instance_variable_get(:@dir))).to(be(false))

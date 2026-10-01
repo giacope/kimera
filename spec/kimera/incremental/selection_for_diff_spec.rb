@@ -15,7 +15,12 @@ RSpec.describe(Kimera::Incremental::Selection) do
   describe ".changed" do
     it "selects mutants on the lines GitDiff reports as changed" do
       changed = { "calc.rb" => Set[2] } # the `x > y` line
-      allow(Kimera::Incremental::GitDiff).to(receive(:lines).with(since: "main", root: ".").and_return(changed))
+      allow(Kimera::Incremental::GitDiff).to(
+        receive(:new).with(
+          since: "main",
+          root: "."
+        ).and_return(instance_double(Kimera::Incremental::GitDiff, lines: changed))
+      )
 
       ids = described_class.changed(registry, since: "main")
       sources = ids.map { |id| registry.index[id].original_source }.uniq
@@ -23,7 +28,12 @@ RSpec.describe(Kimera::Incremental::Selection) do
     end
 
     it "passes a custom root through to GitDiff" do
-      allow(Kimera::Incremental::GitDiff).to(receive(:lines).with(since: "dev", root: "/proj").and_return({}))
+      allow(Kimera::Incremental::GitDiff).to(
+        receive(:new).with(
+          since: "dev",
+          root: "/proj"
+        ).and_return(instance_double(Kimera::Incremental::GitDiff, lines: {}))
+      )
       expect(described_class.changed(registry, since: "dev", root: "/proj")).to(eq([]))
     end
   end

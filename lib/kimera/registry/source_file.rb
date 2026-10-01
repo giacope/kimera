@@ -28,9 +28,11 @@ class Kimera::RegistryScan::SourceFile
 
   private
 
-  def tainted = @_tainted ||= Kimera::Memoization.ranges(@source) + Kimera::DefaultRemoval.ranges(@source)
+  def tainted = @_tainted ||= Kimera::Memoization.ranges(@source) + removals.ranges
 
-  def guards = @_guards ||= Kimera::MemoGuard.exemptions(@source) + Kimera::DefaultRemoval.exemptions(@source)
+  def guards = @_guards ||= Kimera::MemoGuard::Source.new(@source).exemptions + removals.exemptions
+
+  def removals = @_removals ||= Kimera::DefaultRemoval::Source.new(@source)
 
   def mined(root)
     found = []
@@ -56,7 +58,7 @@ class Kimera::RegistryScan::SourceFile
     cursor.position ? chosen : chosen.reject(&:statement?)
   end
 
-  def guarded?(node, key) = guards.include?(Kimera::MemoGuard::Exemption.new(node.location, key))
+  def guarded?(node, key) = guards.any? { |guard| guard.location == node.location && guard.operator == key }
 
   def harvest(operators, node, position)
     operators.flat_map { |operator| operator.pairs(node, position: position) }

@@ -2,7 +2,7 @@
 
 module Kimera
   module Rewrite
-    module DirectiveExtraHandlers
+    module ExtraHandlers
       Operation =
         Data.define(:node, :directive) do
           def trim(pair)

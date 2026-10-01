@@ -15,23 +15,19 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
   class << self
     def build
       require("minitest")
-      Minitest.seed ||= 1
-      disable
-      new
-    end
-
-    private
-
-    def disable
-      Minitest.class_variable_set(:@@installed_at_exit, INSTALLED)
-    rescue NameError, ArgumentError
-      Minitest.define_singleton_method(:run) { |*| true }
+      new.disarmed
     end
   end
 
   def initialize
     super
     @methods = {}
+  end
+
+  def disarmed
+    Minitest.seed ||= 1
+    disarm
+    self
   end
 
   def source(files)
@@ -57,6 +53,12 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
   end
 
   private
+
+  def disarm
+    Minitest.class_variable_set(:@@installed_at_exit, INSTALLED)
+  rescue NameError, ArgumentError
+    Minitest.define_singleton_method(:run) { |*| true }
+  end
 
   def loads(ids)
     ids.filter_map { |id| origin(id) }.uniq.map { |file| "require File.expand_path(#{file.dump})" }.join("; ")
@@ -128,4 +130,4 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
   end
 end
 
-Kimera::Frameworks::Adapter.register(:minitest, Kimera::Frameworks::MinitestAdapter)
+Kimera::Frameworks::ADAPTERS.register(:minitest, Kimera::Frameworks::MinitestAdapter)

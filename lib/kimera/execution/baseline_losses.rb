@@ -3,6 +3,10 @@
 require_relative "baseline_failure"
 
 class Kimera::Execution::BaselineLosses
+  LOSSES = { timeout: "its worker was killed at the hard timeout (--hard-timeout) before reporting a result" }.freeze
+  CRASH = "its worker died before reporting a result"
+  ALONE = ", and again when rerun alone"
+
   def initialize
     @stalled = {}
     @stacks = {}
@@ -16,8 +20,8 @@ class Kimera::Execution::BaselineLosses
 
   def charge(test_id, reason, stacks)
     @stacks[test_id] = stacks
-    failure = Kimera::Execution::BaselineFailure
-    @stalled.key?(test_id) ? failure.relapsed(reason) : failure.lost(reason)
+    lost = LOSSES.fetch(reason, CRASH)
+    @stalled.key?(test_id) ? lost + ALONE : lost
   end
 
   def recovered(failed) = @stalled.reject { |test_id, _stacks| failed.key?(test_id) }

@@ -84,8 +84,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         script = <<~RUBY
           require "kimera/cli"
           report = ARGV.fetch(0)
-          abort("report failed") unless Kimera::CLI.start(["report", report]).zero?
-          abort("mutant failed") unless Kimera::CLI.start(["mutant", "1", "--report", report]).zero?
+          abort("report failed") unless Kimera::CLI.new.run(["report", report]).zero?
+          abort("mutant failed") unless Kimera::CLI.new.run(["mutant", "1", "--report", report]).zero?
         RUBY
         output, status = Open3.capture2e(Gem.ruby, "-I", File.expand_path("../../lib", __dir__), "-e", script, path)
         expect(status).to(be_success, output)
@@ -320,7 +320,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       cycle = Kimera::CLI::Run::Cycle.new({ framework: "rspec" }, registry, nil, digest: nil)
       env = {}
       seen = nil
-      allow(Kimera::Frameworks::Adapter).to(receive(:load) { seen = env["KIMERA"] })
+      allow(Kimera::Frameworks::ADAPTERS).to(receive(:load) { seen = env["KIMERA"] })
       allow(Kimera::CLI::Run::Pass).to(receive(:new).and_return(instance_double(Kimera::CLI::Run::Pass, call: nil)))
       cycle.__send__(:harness, [1], nil, env: env)
       expect(seen).to(eq("1"))

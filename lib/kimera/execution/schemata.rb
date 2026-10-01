@@ -16,16 +16,6 @@ class Kimera::Execution::Schemata
     @skipped = {}
   end
 
-  class << self
-    def install!
-      Kimera::Execution::OverlayGuards.install!
-    end
-
-    def with_guards(&)
-      Kimera::Execution::OverlayGuards.overlay(&)
-    end
-  end
-
   def overlay!
     Kimera::Execution::OverlayGuards.install!
     loaded = weave(@registry.files)

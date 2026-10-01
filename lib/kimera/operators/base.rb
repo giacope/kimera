@@ -8,25 +8,11 @@ class Kimera::Operators::Base
   include Kimera::SyntaxTypes
   include Kimera::Operators::Vocabulary
 
-  class << self
-    def key = raise(NotImplementedError, "#{self} must define .key")
+  def key = raise(NotImplementedError, "#{self.class} must define #key")
 
-    def statement? = false
+  def statement? = false
 
-    def body? = false
-  end
-
-  def key
-    self.class.key
-  end
-
-  def statement?
-    self.class.statement?
-  end
-
-  def body?
-    self.class.body?
-  end
+  def body? = false
 
   def variants(node, position:)
     raise(NotImplementedError, "#{self} must define #variants")

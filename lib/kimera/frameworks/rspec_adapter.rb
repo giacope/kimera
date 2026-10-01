@@ -2,7 +2,8 @@
 
 require "rspec/core"
 require_relative "adapter"
-require_relative "rspec_group_index"
+require_relative "group_scope"
+require_relative "group_tree"
 require_relative "../support/test_exit"
 
 module Kimera
@@ -12,24 +13,18 @@ end
 
 class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
   class << self
-    def build
-      configure
-      new
-    end
-
-    private
-
-    def configure
-      RSpec::Core::ConfigurationOptions.new([]).configure(RSpec.configuration)
-    rescue StandardError, ScriptError
-      nil
-    end
+    def build = new.configured
   end
 
   def initialize
     super
     @examples = {}
     @suite = nil
+  end
+
+  def configured
+    configure
+    self
   end
 
   def source(files)
@@ -69,6 +64,12 @@ class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
 
   private
 
+  def configure
+    RSpec::Core::ConfigurationOptions.new([]).configure(RSpec.configuration)
+  rescue StandardError, ScriptError
+    nil
+  end
+
   def outcome(selected)
     failed = selected.select { |ex| ex.execution_result.status == :failed }
     Kimera::Frameworks::RunOutcome.new(
@@ -106,7 +107,7 @@ class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
   end
 
   def index(top)
-    Kimera::Frameworks::RSpecGroupIndex.examples(top).each do |example|
+    Kimera::Frameworks::GroupTree.new(top).examples.each do |example|
       @examples[example.id] = example.extend(Kimera::TestExit::Example)
     end
   end
@@ -117,9 +118,9 @@ class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
 
   def execute(selected)
     reporter = RSpec::Core::Reporter.new(RSpec.configuration)
-    index = Kimera::Frameworks::RSpecGroupIndex
-    index.narrow(RSpec.world.filtered_examples, selected) { index.top(selected).each { |top| top.run(reporter) } }
+    index = Kimera::Frameworks::GroupScope.new(selected)
+    index.narrow(RSpec.world.filtered_examples) { index.tops.each { |top| top.run(reporter) } }
   end
 end
 
-Kimera::Frameworks::Adapter.register(:rspec, Kimera::Frameworks::RSpecAdapter)
+Kimera::Frameworks::ADAPTERS.register(:rspec, Kimera::Frameworks::RSpecAdapter)

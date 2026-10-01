@@ -3,9 +3,7 @@
 require_relative "base"
 
 class Kimera::Operators::DefaultArgument < Kimera::Operators::Base
-  class << self
-    def key = "default_argument"
-  end
+  def key = "default_argument"
 
   def variants(node, **)
     case node

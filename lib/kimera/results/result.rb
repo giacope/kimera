@@ -39,7 +39,10 @@ module Kimera
       end
 
       def waive
-        self.class.new(**self.class.outcome(outcome), **waiver, mutant_id: mutant_id, file: file)
+        self.class.new(
+          mutant_id: mutant_id, file: file, duration: duration, failing_tests: failing_tests,
+          covering_tests: covering_tests, note: note, **waiver
+        )
       end
 
       def waiver
@@ -72,22 +75,16 @@ module Kimera
 
       def noted = note ? { "note" => note } : {}
       class << self
-        def waived(id, file)
+        def from_waiver(id, file)
           new(mutant_id: id, status: :ignored, file: file, detail: "marked equivalent (ignored)")
         end
 
         def from_h(hash)
-          new(**identity(hash), **outcome(hash))
-        end
-
-        def identity(hash)
-          { mutant_id: hash["mutant_id"], status: hash["status"].to_sym, file: hash["file"] }
-            .merge(verdict: hash["verdict"]&.to_sym)
-        end
-
-        def outcome(hash)
-          { duration: hash["duration"], failing_tests: hash["failing_tests"] }
-            .merge(covering_tests: hash["covering_tests"], detail: hash["detail"], note: hash["note"])
+          new(
+            mutant_id: hash["mutant_id"], status: hash["status"].to_sym, file: hash["file"],
+            verdict: hash["verdict"]&.to_sym, duration: hash["duration"], failing_tests: hash["failing_tests"],
+            covering_tests: hash["covering_tests"], detail: hash["detail"], note: hash["note"]
+          )
         end
       end
     end

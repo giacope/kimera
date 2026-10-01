@@ -4,9 +4,7 @@ require "prism"
 require_relative "base"
 
 class Kimera::Operators::ChainLinkDeletion < Kimera::Operators::Base
-  class << self
-    def key = "chain_link_deletion"
-  end
+  def key = "chain_link_deletion"
 
   def variants(node, **)
     return unless deletable?(node)

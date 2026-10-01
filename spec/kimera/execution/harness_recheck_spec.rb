@@ -19,10 +19,10 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   let(:ids) { registry.each.map { |m, _p| m.id } }
 
-  after { Kimera::Runtime.reset! }
+  after { Kimera::RUNTIME.reset! }
 
   def harness(adapter, **)
-    described_class.new(registry: registry, adapter: adapter, **)
+    described_class.build(registry: registry, adapter: adapter, **)
   end
 
   # Every covering test of an active mutant blocks in a method the dump can name.
@@ -32,7 +32,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       def test_ids = ["t1"]
 
       def run(_ids)
-        wedge if Kimera::Runtime.active
+        wedge if Kimera::RUNTIME.active
         Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
       end
 

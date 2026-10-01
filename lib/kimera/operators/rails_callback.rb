@@ -11,9 +11,7 @@ class Kimera::Operators::RailsCallback < Kimera::Operators::RailsDeclaration
     after_initialize after_find after_touch
   ].freeze
 
-  class << self
-    def key = "rails_callback"
-  end
+  def key = "rails_callback"
 
   private
 

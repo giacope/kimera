@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "parallel_test_databases"
+require_relative "worker_databases"
 require_relative "pool_driver"
 require_relative "schedule"
 
@@ -18,7 +18,7 @@ class Kimera::Execution::Rig
   private
 
   def parallel
-    @_parallel ||= Kimera::Execution::ParallelTestDatabases.new(
+    @_parallel ||= Kimera::Execution::WorkerDatabases.new(
       adapter: @options.fetch(:adapter), jobs: @options.fetch(:jobs)
     )
   end
