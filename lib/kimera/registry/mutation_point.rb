@@ -67,6 +67,9 @@ end
 
 class Kimera::MutationPoint
   CLASS_BODY_REASON = "class-body DSL (runs at load; evaluate with --isolated)"
+  LOAD_REASON =
+    "runs only while the suite loads (a macro or hook called from a class body), " \
+      "so warm coverage cannot see it; evaluate with --isolated"
   UNMUTATABLE = "unmutatable: "
   SAFE = true
 
@@ -94,7 +97,7 @@ class Kimera::MutationPoint
   end
 
   def reloadable?
-    !body? && !unmutatable?
+    !body? && unsafe_reason != LOAD_REASON && !unmutatable?
   end
 
   def unmutatable?

@@ -35,7 +35,8 @@ class Kimera::Execution::Rig
     Kimera::Execution::Schedule.new(
       registry: @options.fetch(:registry), driver: driver, spawner: spawner,
       adapter: @options.fetch(:adapter), isolation: @options.fetch(:isolation),
-      root: @options.fetch(:root), progress: @options.fetch(:progress), hard: @options.fetch(:hard)
+      root: @options.fetch(:root), progress: @options.fetch(:progress), hard: @options.fetch(:hard),
+      aliases: @options[:aliases]
     )
   end
 end

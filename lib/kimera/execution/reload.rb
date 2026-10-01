@@ -4,6 +4,7 @@ require "json"
 require_relative "../runtime"
 require_relative "../synthesis/body_trim"
 require_relative "../synthesis/overlay"
+require_relative "aliases"
 require_relative "child_process"
 require_relative "overlay_guards"
 require_relative "reload_errand"
@@ -22,11 +23,13 @@ class Kimera::Execution::Reload
       end
     end
 
-  def initialize(registry:, adapter:, isolation:, root:)
+  Workspace = Data.define(:root, :aliases)
+
+  def initialize(registry:, adapter:, isolation:, workspace:)
     @registry = registry
     @adapter = adapter
     @isolation = isolation
-    @root = root
+    @workspace = workspace
   end
 
   def run(id, deadline:, tests: @adapter.test_ids)
@@ -77,7 +80,7 @@ class Kimera::Execution::Reload
   def mutate(errand)
     id = errand.id
     file = verdicts.point(id).file
-    overlay(file, File.join(File.expand_path(@root), file), id)
+    overlay(file, File.join(File.expand_path(@workspace.root), file), id)
     Kimera::RUNTIME.active = nil
     @isolation.around { hunt(errand) }
   end
@@ -94,8 +97,10 @@ class Kimera::Execution::Reload
   def overlay(file, path, id)
     source = Kimera::BodyTrim.trim(path, File.read(path, encoding: Encoding::UTF_8), [verdicts.point(id).location])
     baked = Kimera::Overlay.new(@registry).bake(file, source, id)
-    Kimera::Execution::OverlayGuards.overlay { Kimera::Overlay::Source.new(baked).evaluate(path) }
+    aliases.again { Kimera::Execution::OverlayGuards.overlay { Kimera::Overlay::Source.new(baked).evaluate(path) } }
   end
+
+  def aliases = @workspace.aliases || Kimera::Execution::Aliases.new([])
 
   def verdict(id, line, status = nil, deadline = nil)
     return verdicts.timeout(id, deadline) if line == :timeout

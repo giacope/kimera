@@ -114,8 +114,12 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
 - Operators: the default is the conservative core. `--operators all` enables
   the extended families; `--operators rails` (or `comparison,rails`) the
   Rails-aware ones.
-- `isolated_only` marks class-body DSL mutants that only `--isolated` can
-  judge. Run it for their verdicts; they never gate or count in the score.
+- `isolated_only` marks mutants that only `--isolated` can judge: class-body
+  DSL, and code in a method the suite only runs while it loads (a class macro
+  or `included` hook another file's class body calls). Run it for their
+  verdicts; they never gate or count in the score. A method reached through an
+  `alias` or `alias_method` declared in another file is judged warm like any
+  other.
 - Rails `enum` models overlay warm (the re-declaration is idempotent), so
   their method-body mutants are judged like any other. A file labeled
   `unmutatable` could not be overlaid (a distinct, reported reason); it is not

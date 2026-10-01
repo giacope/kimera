@@ -13,6 +13,7 @@ require_relative "baseline_stall"
 require_relative "boot"
 require_relative "child_process"
 require_relative "isolation"
+require_relative "load_trace"
 require_relative "null_progress"
 require_relative "worker_databases"
 require_relative "pool_driver"
@@ -29,7 +30,7 @@ class Kimera::Execution::Harness
   include Kimera::Execution::ChildProcess
 
   Context = Data.define(:registry, :adapter, :options)
-  State = Struct.new(:skipped, :irrelevant, :isolation, :recovered)
+  State = Struct.new(:skipped, :irrelevant, :isolation, :recovered, :aliases)
 
   class << self
     def build(registry:, adapter:, **options) = new(Context.new(registry, adapter, options), State.new({}, {}, nil, {}))
@@ -43,6 +44,7 @@ class Kimera::Execution::Harness
   def warm!(test_files)
     overlay!(test_files).tap do
       measure!
+      trace.quarantine!(coverage)
       notice
     end
   end
@@ -54,7 +56,7 @@ class Kimera::Execution::Harness
   end
 
   def overlay!(test_files)
-    boot.suite(test_files)
+    trace.record { boot.suite(test_files) }
     loader = Kimera::Execution::Schemata.new(registry, root: root, errors: errors)
     loader.overlay!.tap { complete(loader) }
   end
@@ -103,9 +105,11 @@ class Kimera::Execution::Harness
     @_rig ||= Kimera::Execution::Rig.new(
       registry: registry, adapter: adapter, isolation: isolation, root: root,
       soft: soft, hard: hard, leak: options.fetch(:leak_every, 10), jobs: jobs,
-      coverage: coverage, spawner: options[:spawner], progress: progress
+      coverage: coverage, spawner: options[:spawner], progress: progress, aliases: state.aliases
     )
   end
+
+  def trace = @_trace ||= Kimera::Execution::LoadTrace.new(registry, root)
 
   def boot
     @_boot ||= Kimera::Execution::Boot.new(adapter: adapter, isolate: options[:isolate_db], errors: errors)
@@ -113,6 +117,7 @@ class Kimera::Execution::Harness
 
   def complete(loader)
     state.skipped = loader.skipped
+    state.aliases = loader.aliases
     isolate!
   end
 

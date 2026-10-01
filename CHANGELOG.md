@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Code that the suite reaches through another file is no longer reported as
+  uncovered. A method called through an `alias` or `alias_method` declared in
+  another file kept running its unguarded body after the overlay, so its
+  mutants came out `no_coverage` even with `--isolated`, and `kimera ci`
+  failed on mutants the suite kills. The overlay (and the reload fallback) now
+  re-points every such alias at the redefined method, so those mutants are
+  judged warm. A method the suite only runs while it loads (a class macro that
+  `define_method`s, an `included` hook another file's class body triggers)
+  runs before any guard exists; its uncovered mutants are now `isolated_only`
+  with that reason, out of `--fail-on-no-coverage`, and `--isolated` judges
+  them against the whole suite.
+
 - A custom operator declares its key on the instance: `def key =
   "authorization"`, and `def statement? = true` or `def body? = true` when
   it applies, in the class body rather than under `class << self`. An

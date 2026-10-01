@@ -66,6 +66,22 @@ RSpec.describe(Kimera::Execution::Schemata) do
     Object.__send__(:remove_const, :SchemataRequired) if defined?(SchemataRequired)
   end
 
+  # An alias declared in another file copies the body before the overlay runs;
+  # left alone, it keeps calling the unguarded code and no test reaches the
+  # mutants through it.
+  it "re-points an alias declared in another file at the guarded method", :aggregate_failures do
+    path = File.join(dir, write("sl_aliased.rb", "module SchemataAliased\n  def gt(a, b)\n    a > b\n  end\nend\n"))
+    require(path)
+    holder = Class.new { include SchemataAliased }
+    holder.alias_method(:above, :gt)
+    registry = Kimera::RegistryScan.new(root: dir).build([path])
+    described_class.new(registry, root: dir).overlay!
+    Kimera::RUNTIME.active = registry.each.find { |m, _p| m.label == "> => <" }.first.id
+    expect(holder.new.above(2, 1)).to(be(false))
+  ensure
+    Object.__send__(:remove_const, :SchemataAliased) if defined?(SchemataAliased)
+  end
+
   def lazily(root)
     registry = Kimera::RegistryScan.new(root: root).build([File.join(root, "sl_lazy.rb")])
     described_class.new(registry, root: root).overlay!

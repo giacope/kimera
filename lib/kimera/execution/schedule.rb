@@ -110,8 +110,8 @@ class Kimera::Execution::Schedule
 
   def reloader
     @_reloader ||= Kimera::Execution::Reload.new(
-      registry: @registry, adapter: @options.fetch(:adapter),
-      isolation: @options.fetch(:isolation), root: @options.fetch(:root)
+      registry: @registry, adapter: @options.fetch(:adapter), isolation: @options.fetch(:isolation),
+      workspace: Kimera::Execution::Reload::Workspace.new(root: @options.fetch(:root), aliases: @options[:aliases])
     )
   end
 end

@@ -212,7 +212,10 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
   end
 
   it "performs every reload worker step" do
-    reload = Kimera::Execution::Reload.new(registry: Object.new, adapter: Object.new, isolation: Object.new, root: ".")
+    reload = Kimera::Execution::Reload.new(
+      registry: Object.new, adapter: Object.new, isolation: Object.new,
+      workspace: nil
+    )
     errand = instance_spy(Kimera::Execution::Reload::Errand, id: 9)
     allow(reload).to(receive(:lead))
     allow(errand).to(receive(:child!)) { expect(reload).to(have_received(:lead)) }
@@ -231,7 +234,10 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
   # The child leads its own process group, so the terminal's Ctrl-C never
   # reaches it: an interrupted kimera kills and reaps it on the way out.
   it "takes a reload child down with it when kimera is interrupted", :aggregate_failures do
-    reload = Kimera::Execution::Reload.new(registry: Object.new, adapter: Object.new, isolation: Object.new, root: ".")
+    reload = Kimera::Execution::Reload.new(
+      registry: Object.new, adapter: Object.new, isolation: Object.new,
+      workspace: nil
+    )
     pid = fork { sleep(300) }
     errand = instance_double(Kimera::Execution::Reload::Errand)
     allow(errand).to(receive(:await).and_raise(Interrupt))
@@ -241,7 +247,10 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
   end
 
   it "runs reload work inside the fork block before closing the parent writer" do
-    reload = Kimera::Execution::Reload.new(registry: Object.new, adapter: Object.new, isolation: Object.new, root: ".")
+    reload = Kimera::Execution::Reload.new(
+      registry: Object.new, adapter: Object.new, isolation: Object.new,
+      workspace: nil
+    )
     errand = instance_spy(Kimera::Execution::Reload::Errand)
     allow(reload).to(receive(:fork).and_yield.and_return(456))
     allow(reload).to(receive(:work))
