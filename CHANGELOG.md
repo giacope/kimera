@@ -12,6 +12,12 @@
   construct, and its development tooling tracks rubocop-kata and hashira
   from their main branches.
 
+- Kimera requires unparser 0.9.x (it accepted any 0.x). It patches unparser's
+  range writer, local-variable scope and parser builder, and those are
+  internals: another release could rename one, and the patch would silently
+  stop applying, so bakes would again read back as different programs. A spec
+  now fails if any patched method is no longer unparser's to patch.
+
 - `kimera doctor` no longer warns about a coverage floor that already
   applies only when an environment variable asks for it. It flagged any
   helper that mentioned `minimum_coverage` and not `KIMERA`, so pundit's
