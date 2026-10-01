@@ -40,7 +40,7 @@ class Kimera::Execution::Shift::CoverageChannel
     Kimera::Runtime.active = nil
   end
 
-  def emit(io, **msg)
-    io.puts(JSON.generate(msg))
+  def emit(io, **fields)
+    io.puts(JSON.generate(fields))
   end
 end

@@ -20,9 +20,9 @@ module Kimera
 
       CALLBACKGUARD =
         Module.new do
-        def set_callback(name, *filter_list, &block)
+        def set_callback(name, *arguments, &block)
           return super unless Kimera::Execution::OverlayGuards.overlaying?
-          type, filters, options = normalize_callback_params(filter_list.dup, block)
+          type, filters, options = normalize_callback_params(arguments.dup, block)
           fresh = Kimera::Execution::OverlayGuardModules.fresh(__send__(:get_callbacks, name), type, filters)
           return if fresh.empty?
           super(name, type, *fresh, options)

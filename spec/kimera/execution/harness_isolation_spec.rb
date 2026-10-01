@@ -16,10 +16,10 @@ RSpec.describe(Kimera::Execution::Harness) do
     ledger = events
     base =
       Class.new do
-        define_singleton_method(:transaction) do |**_opts, &blk|
+        define_singleton_method(:transaction) do |**_opts, &block|
           ledger << :begin
           begin
-            blk.call
+            block.call
           rescue Kimera::Execution::TransactionIsolation::Rollback
             ledger << :rollback
           end

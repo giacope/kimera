@@ -198,6 +198,11 @@
       "kind": "feature_envy",
       "package": "Kimera::MemoGuard#named?",
       "reason": "a memo guard is recognized by interrogating raw Prism nodes (see the accepted operator entries): matching a node against the guard ivar reads the node by construction"
+    },
+    {
+      "kind": "feature_envy",
+      "package": "Kimera::Execution::Shift#error",
+      "reason": "a verdict is the subject's to issue; error only picks which one from the exception, and moving that onto the subject would teach it about Timeout"
     }
   ]
 }

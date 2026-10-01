@@ -185,9 +185,9 @@ RSpec.describe(Kimera::Execution::Shift) do
   end
 
   describe "#evaluate classification" do
-    def evaluate(id, coverage:, **adapter_opts)
+    def evaluate(id, coverage:, **)
       described_class.new(
-        adapter: test_adapter_class.new(**adapter_opts),
+        adapter: test_adapter_class.new(**),
         registry: registry, coverage: coverage,
         soft_timeout: nil, leak_every: 0
       ).evaluate(id)
@@ -368,7 +368,7 @@ RSpec.describe(Kimera::Execution::Shift) do
     it "resets isolation after every mutant, even a passing one" do
       resets = []
       isolation = Class.new do
-        define_method(:around) { |&blk| blk.call }
+        define_method(:around) { |&block| block.call }
         define_method(:reset!) { resets << true }
       end.new
       target = ids.first
