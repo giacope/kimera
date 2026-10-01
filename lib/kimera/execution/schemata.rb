@@ -4,6 +4,7 @@ require "stringio"
 require_relative "../self_protection"
 require_relative "../synthesis/body_trim"
 require_relative "../synthesis/overlay"
+require_relative "aliases"
 require_relative "overlay_guards"
 
 class Kimera::Execution::Schemata
@@ -18,9 +19,10 @@ class Kimera::Execution::Schemata
 
   def overlay!
     Kimera::Execution::OverlayGuards.install!
-    loaded = weave(@registry.files)
-    (loaded + weave(unresolved)).tap { announce }
+    aliases.follow { weave(@registry.files) + weave(unresolved) }.tap { announce }
   end
+
+  def aliases = @_aliases ||= Kimera::Execution::Aliases.new(@registry.files.map { |path| File.join(root, path) })
 
   private
 

@@ -44,9 +44,10 @@ RSpec.describe(Kimera::Execution::Harness) do
   end
 
   def reloader(
-    adapter, catalog: registry, isolation: Kimera::Execution::Isolation.new, root: "."
+    adapter, catalog: registry, isolation: Kimera::Execution::Isolation.new, root: ".", aliases: nil
   )
-    Kimera::Execution::Reload.new(registry: catalog, adapter: adapter, isolation: isolation, root: root)
+    workspace = Kimera::Execution::Reload::Workspace.new(root: root, aliases: aliases)
+    Kimera::Execution::Reload.new(registry: catalog, adapter: adapter, isolation: isolation, workspace: workspace)
   end
 
   # Re-selects the outer mutant before reporting, like a suite that manages
@@ -510,6 +511,38 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(report.survived).to(be_empty)
       expect(report.score).to(eq(1.0))
       expect(report.summary).to(include("isolated_only=1"))
+    end
+  end
+
+  describe "load-time (isolated-only) routing" do
+    let(:dir) { Dir.mktmpdir }
+
+    after { FileUtils.remove_entry(dir) }
+
+    # The suite calls the macro while it loads, so its code runs before any
+    # guard exists and no test's coverage reaches it.
+    def loading(path)
+      Class.new(Kimera::Frameworks::Adapter) do
+        define_method(:source) { |_files| load(path) && HarnessMacro.charges(true) && self }
+        def test_ids = ["t1"]
+        def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+      end.new
+    end
+
+    def warmed
+      path = File.join(dir, "harness_macro.rb")
+      File.write(path, "module HarnessMacro\n  def self.charges(flag)\n    flag ? 1 : 2\n  end\nend\n")
+      registry = Kimera::RegistryScan.new(root: dir).build([path])
+      h = described_class.build(registry: registry, adapter: loading(path), source_root: dir, leak_every: 0)
+      h.warm!(["t1"])
+      h.run.results
+    end
+
+    it "reports the mutants of a method the suite ran while loading as isolated-only", :aggregate_failures do
+      stub_const("HarnessMacro", Module.new)
+      results = warmed
+      expect(results.map(&:status).uniq).to(eq([:isolated_only]))
+      expect(results.first.detail).to(eq(Kimera::MutationPoint::LOAD_REASON))
     end
   end
 
@@ -1495,6 +1528,19 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(HarnessRequired.instance_variable_get(:@loads)).to(eq(1))
     end
 
+    it "reaches the reloaded method through an alias declared in another file" do
+      stub_const("HarnessAliased", Class.new)
+      registry = writing(dir, "HarnessAliased")
+      load(File.join(dir, "harnessaliased.rb"))
+      stub_const("HarnessAliasing", Class.new(HarnessAliased) { alias_method :remembered, :memo })
+      HarnessAliasing.define_method(:memo) { |a, b| remembered(a, b) }
+      unsafe = registry.each.find { |m, p| !p.safe? && m.label == "< => >" }.first.id
+      aliases = Kimera::Execution::Aliases.new([File.join(dir, "harnessaliased.rb")]).tap { |a| a.follow { :captured } }
+      runner = reloader(observer("HarnessAliasing"), catalog: registry, root: dir, aliases: aliases)
+      status, = runner.__send__(:evaluate, errand(unsafe))
+      expect(status).to(eq(:killed))
+    end
+
     def reload(name)
       stub_const(name, Class.new)
       registry = writing(dir, name)
@@ -1718,6 +1764,20 @@ RSpec.describe(Kimera::Execution::Harness) do
       result, = unsafe
       expect(result).not_to(be_nil)
       expect(result.status).to(satisfy { |status| %i[killed survived no_coverage].include?(status) })
+    end
+
+    it "re-points an alias declared in another file at the reloaded mutant" do
+      stub_const("HarnessReached", Class.new)
+      registry = writing(dir, "HarnessReached")
+      load(File.join(dir, "harnessreached.rb"))
+      stub_const("HarnessReaching", Class.new(HarnessReached) { alias_method :remembered, :memo })
+      HarnessReaching.define_method(:memo) { |a, b| remembered(a, b) }
+      h = described_class.build(
+        registry: registry, adapter: observer("HarnessReaching"), source_root: dir, soft_timeout: nil, leak_every: 0
+      )
+      h.warm!(["t1"])
+      unsafe = registry.each.find { |m, p| !p.safe? && m.label == "< => >" }.first.id
+      expect(h.run(ids: [unsafe]).results.first.status).to(eq(:killed))
     end
 
     it "reports reload progress like the pool path and reaps the child", :aggregate_failures do
