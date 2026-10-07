@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/giacope/kimera/main/schema/kimera.schema.json
 # Example Kimera configuration. Copy to .kimera.yml and adjust.
 # Every key is optional; command-line flags override these values.
 

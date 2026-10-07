@@ -1,0 +1,294 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/giacope/kimera/main/schema/kimera.schema.json",
+  "title": ".kimera.yml",
+  "description": "Kimera mutation testing configuration. Every key also has a command-line flag; flags win.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "framework": {
+      "description": "Test framework: rspec or minitest.",
+      "enum": [
+        "rspec",
+        "minitest"
+      ]
+    },
+    "source_root": {
+      "description": "Project root for synthesis (default: .).",
+      "type": "string"
+    },
+    "paths": {
+      "description": "Source files to mutate: globs, directories or files (default: app/**/*.rb, lib/**/*.rb).",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "tests": {
+      "description": "Test files to load; each mutant runs only the tests that cover it (default: spec/**/*_spec.rb).",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "exclude": {
+      "description": "Source files to leave unmutated.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "exclude_tests": {
+      "description": "Test files to leave out, e.g. system tests that need a browser.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "operators": {
+      "description": "Operator keys, or the groups all, rails and custom (default: the conservative core).",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "require": {
+      "description": "Ruby files loaded before the scan, for custom operators.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "isolate_when_covered_by": {
+      "description": "Judge in a fresh process every mutant a test whose id contains one of these covers.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "soft_timeout": {
+      "description": "Seconds each covering test may run under a mutant before it is interrupted (default: 5).",
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "hard_timeout": {
+      "description": "Seconds before the watchdog kills a worker stuck in one test (default: soft_timeout x 3 + 1).",
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "relative_timeout": {
+      "description": "Count a mutant as a timeout when a covering test runs far past its baseline time (default: true).",
+      "type": "boolean"
+    },
+    "timeout_factor": {
+      "description": "Relative timeout: multiple of the test's baseline time (default: 10).",
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "timeout_slack": {
+      "description": "Relative timeout: seconds added to the multiple (default: 1).",
+      "type": "number",
+      "minimum": 0
+    },
+    "leak_every": {
+      "description": "Re-check every Nth kill for state leaked between tests (default: 10).",
+      "type": "integer",
+      "minimum": 1
+    },
+    "jobs": {
+      "description": "Parallel workers. Use 1 when tests share a directory, file or port (default: 1).",
+      "type": "integer",
+      "minimum": 1
+    },
+    "coverage": {
+      "description": "Run each mutant only against the tests that cover it (default: true).",
+      "type": "boolean"
+    },
+    "isolate_db": {
+      "description": "Wrap each mutant in a rolled-back ActiveRecord transaction (default: false).",
+      "type": "boolean"
+    },
+    "rejudge": {
+      "description": "Judge again in a fresh process what the warm pass could not (default: true).",
+      "type": "boolean"
+    },
+    "max_survivors": {
+      "description": "Gate: fail when more mutants than this survive (default: 0).",
+      "type": "integer",
+      "minimum": 0
+    },
+    "max_ignored": {
+      "description": "Gate: fail when more mutants than this are ignore-listed. Raise it in the diff that adds the entry it admits.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "max_errors": {
+      "description": "Gate: fail when more mutants than this could not be judged (default: 0).",
+      "type": "integer",
+      "minimum": 0
+    },
+    "fail_on_no_coverage": {
+      "description": "Gate: also fail when a mutant in scope has no covering test (default: false; kimera ci turns it on).",
+      "type": "boolean"
+    },
+    "baseline": {
+      "description": "YAML file of survivors accepted when adopting Kimera, from kimera baseline create.",
+      "type": "string"
+    },
+    "report": {
+      "description": "Where to write the JSON report (default: tmp/kimera/report.json), or false for none.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "const": false
+        }
+      ]
+    },
+    "format": {
+      "description": "Output format.",
+      "enum": [
+        "text",
+        "json",
+        "ndjson",
+        "github",
+        "sarif",
+        "markdown"
+      ]
+    },
+    "log": {
+      "description": "Also write the text report to this file.",
+      "type": "string"
+    },
+    "progress": {
+      "description": "Show progress on stderr (default: true).",
+      "type": "boolean"
+    },
+    "color": {
+      "description": "Color the text report (default: when stdout is a terminal, unless NO_COLOR is set).",
+      "type": "boolean"
+    },
+    "quiet": {
+      "description": "Print no text report (default: false).",
+      "type": "boolean"
+    },
+    "verbose": {
+      "description": "Print the resolved scope and settings (default: false).",
+      "type": "boolean"
+    },
+    "ignore": {
+      "description": "Known-equivalent mutants. An entry matches the mutants every anchor it lists matches; each needs a reason.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "file",
+          "reason"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "file": {
+            "description": "Glob of the file the mutant is in.",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Why no test can tell the mutant from the original. Name the mechanism.",
+            "type": "string",
+            "minLength": 1
+          },
+          "line": {
+            "description": "A line the mutated code spans.",
+            "type": "integer",
+            "minimum": 1
+          },
+          "starts": {
+            "description": "The line the mutated code starts on.",
+            "type": "integer",
+            "minimum": 1
+          },
+          "column": {
+            "description": "The 0-based column the mutated code starts at.",
+            "type": "integer",
+            "minimum": 0
+          },
+          "label": {
+            "description": "The mutation's label, e.g. \"> => >=\".",
+            "type": "string"
+          },
+          "method": {
+            "description": "The enclosing method's name.",
+            "type": "string"
+          },
+          "original": {
+            "description": "The original code, compared ignoring whitespace.",
+            "type": "string"
+          },
+          "operator": {
+            "description": "Operator key, or a list of them.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

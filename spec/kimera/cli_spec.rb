@@ -32,7 +32,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     it "prints usage, not a backtrace, for a mistyped flag" do
       _out, error, status = run("registry", "--nonsense")
       expect(status).to(eq(1))
-      expect(error).to(include("kimera: invalid option: --nonsense", "Usage: kimera registry"))
+      expect(error).to(eq("kimera: invalid option: --nonsense\nTry: kimera registry --help\n"))
     end
 
     # Exact match: the help banner also contains the version string.
@@ -54,8 +54,8 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
 
     it "warns and returns 1 on an unknown command" do
       out, error, status = run("frobnicate")
-      expect(error).to(include('unknown command "frobnicate"'))
-      expect(out).to(include("Usage: kimera <command>")) # falls through to help
+      expect(error).to(eq("kimera: unknown command \"frobnicate\"\nTry: kimera help\n"))
+      expect(out).to(eq(""))
       expect(status).to(eq(1))
     end
 

@@ -42,7 +42,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
       errors = StringIO.new
 
       argv = ["create", report, "--reason", "legacy", "--output", output]
-      status = Kimera::CLI::Baseline.new(errors: errors).run(argv)
+      status = Dir.chdir(dir) { Kimera::CLI::Baseline.new(errors: errors).run(argv) }
 
       expect(status).to(eq(1))
       expect(errors.string).to(include("unreadable report #{report}", detail))

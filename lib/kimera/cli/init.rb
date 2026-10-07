@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
 require "etc"
-require "yaml"
 require_relative "../error"
 require_relative "../scope/config"
 require_relative "../scope/file_set"
+require_relative "config_template"
 require_relative "flag"
 
 class Kimera::CLI::Init
@@ -19,7 +19,6 @@ class Kimera::CLI::Init
   HELPERS = %w[spec/spec_helper.rb spec/rails_helper.rb spec/helper.rb test/test_helper.rb test/helper.rb].freeze
   MINITEST_GLOBS = %w[test/**/*_test.rb test/**/test_*.rb test/**/spec_*.rb spec/**/*_spec.rb].freeze
   SYSTEM_TESTS = "test/system/**/*_test.rb"
-  AGENT_POINTER = "Mutation testing: before running kimera or triaging its results, read `bundle exec kimera skill`.\n"
 
   def initialize(io: $stdout, errors: $stderr, root: ".")
     @io = io
@@ -43,31 +42,23 @@ class Kimera::CLI::Init
   end
 
   def preview
-    @io.write(YAML.dump(detected))
+    @io.write(template)
     0
   end
 
   def write(options)
     path = File.join(@root, Kimera::Config::DEFAULT_PATH)
     overwrite(path) if File.exist?(path) && !options[:force]
-    File.write(path, YAML.dump(detected))
-    announce(*signpost)
+    File.write(path, template)
+    announce
   end
+
+  def template = Kimera::CLI::ConfigTemplate.new(detected).render
 
   def overwrite(path) = raise(Kimera::UsageError, "#{path} already exists (use --force to replace it)")
 
-  def signpost
-    path = File.join(@root, "AGENTS.md")
-    existing = File.file?(path) ? File.read(path) : ""
-    return [] if existing.include?("kimera skill")
-    File.write(path, pointed(existing))
-    ["Pointed AI agents to `kimera skill` in AGENTS.md."]
-  end
-
-  def pointed(text) = [text.rstrip, AGENT_POINTER].reject(&:empty?).join("\n\n")
-
-  def announce(*notes)
-    @io.puts("Created #{Kimera::Config::DEFAULT_PATH} for #{framework}.", *notes, "Next: kimera doctor")
+  def announce
+    @io.puts("Created #{Kimera::Config::DEFAULT_PATH} for #{framework}.", "Next: kimera doctor")
     0
   end
 

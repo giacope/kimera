@@ -138,7 +138,13 @@ module Kimera
     def validate!(requested)
       unknown = requested - keys
       return if unknown.empty?
-      raise(UsageError, "unknown operator(s): #{unknown.join(", ")} (valid: #{vocabulary})")
+      raise(UsageError, "unknown operator(s): #{unknown.join(", ")}#{nearest(unknown)} (valid: #{vocabulary})")
+    end
+
+    def nearest(unknown)
+      checker = DidYouMean::SpellChecker.new(dictionary: [*groups.keys, *keys])
+      guesses = unknown.filter_map { |key| checker.correct(key).first }
+      "; did you mean #{guesses.join(", ")}?" unless guesses.empty?
     end
   end
 end

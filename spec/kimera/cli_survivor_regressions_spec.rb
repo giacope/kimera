@@ -103,7 +103,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       Dir.mktmpdir do |dir|
         source = fixture(dir, "mutant_id" => 9, "status" => "survived", "file" => "x.rb", "line" => 2, "label" => "x")
         Dir.chdir(dir) do
-          expect(baseline(["create"])[2]).to(include("needs a report file"))
+          expect(baseline(%w[create --reason why])[2]).to(include("no such report: tmp/kimera/report.json"))
           expect(baseline(["create", source])[2]).to(include("requires --reason"))
           expect(baseline(["create", "missing.json", "--reason", "why"])[2]).to(include("no such report"))
         end
@@ -114,10 +114,12 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       Dir.mktmpdir do |dir|
         source = fixture(dir, "mutant_id" => 9, "status" => "survived", "file" => "x.rb", "line" => 2, "label" => "x")
         target = File.join(dir, "baseline.yml")
-        status, output, = baseline(["create", source, "--reason", "why", "--output", target])
-        expect(status).to(eq(0))
-        expect(output).to(include("Created #{target} with 1 accepted survivor(s).", "baseline: #{target}"))
-        expect(baseline(["create", source, "--reason", "why", "--output", target])[2]).to(include("already exists"))
+        Dir.chdir(dir) do
+          status, output, = baseline(["create", source, "--reason", "why", "--output", target])
+          expect(status).to(eq(0))
+          expect(output).to(include("Created #{target} with 1 accepted survivor(s).", "baseline: #{target}"))
+          expect(baseline(["create", source, "--reason", "why", "--output", target])[2]).to(include("already exists"))
+        end
       end
     end
 
@@ -355,7 +357,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         init = Kimera::CLI::Init.new(io: out, errors: errors, root: dir)
         expect(init.run([])).to(eq(0))
         expect(out.string).to(
-          eq("Created .kimera.yml for rspec.\nPointed AI agents to `kimera skill` in AGENTS.md.\nNext: kimera doctor\n")
+          eq("Created .kimera.yml for rspec.\nNext: kimera doctor\n")
         )
         expect(YAML.safe_load_file(File.join(dir, ".kimera.yml")).fetch("tests")).to(eq(["spec/**/*_spec.rb"]))
       end

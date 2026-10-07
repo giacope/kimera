@@ -31,7 +31,8 @@ class Kimera::CLI
     .freeze
   private_constant(:COMMANDS)
 
-  COMMAND_NAMES = COMMANDS.keys.grep_v(/\A-/).freeze
+  ALIASES = %w[dump survivors].freeze
+  COMMAND_NAMES = (COMMANDS.keys.grep_v(/\A-/) - ALIASES).freeze
 
   def initialize(io: $stdout, errors: $stderr)
     @io = io
@@ -54,10 +55,9 @@ class Kimera::CLI
     __send__(handler, argv)
   end
 
-  def unknown(command, argv)
+  def unknown(command, _argv)
     hint = Kimera::CLI::Suggestion.new(COMMAND_NAMES).hint(command)
     @errors.puts("kimera: unknown command #{command.inspect}#{hint}\nTry: kimera help")
-    dispatch(["help", *argv])
     1
   end
 
