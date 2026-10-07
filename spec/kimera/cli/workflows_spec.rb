@@ -302,7 +302,7 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     out, error = captured
     runner = instance_double(Kimera::CLI::Run, run: 0)
     allow(Kimera::CLI::Run).to(receive(:new).and_return(runner))
-    Kimera::CLI::CI.new(io: out, errors: error).run(["--format", "sarif", "--max-survivors", "2"])
+    Kimera::CLI::CI.new(io: out, errors: error, env: {}).run(["--format", "sarif", "--max-survivors", "2"])
     expect(runner).to(
       have_received(:run).with(
         eq(["--format", "sarif", "--max-survivors", "2", "--fail-on-no-coverage"])
@@ -310,11 +310,35 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     )
   end
 
+  it "mutates a pull request's changed lines and summarizes the job when GitHub Actions says how" do
+    out, error = captured
+    runner = instance_double(Kimera::CLI::Run, run: 0)
+    allow(Kimera::CLI::Run).to(receive(:new).and_return(runner))
+    env = { "GITHUB_BASE_REF" => "main", "GITHUB_STEP_SUMMARY" => "/tmp/step.md" }
+    Kimera::CLI::CI.new(io: out, errors: error, env: env).run([])
+    expect(runner).to(have_received(:run).with(include("--since", "origin/main", "--summary", "/tmp/step.md")))
+  end
+
+  it "leaves an explicit --since and --summary alone, and an empty environment variable unused", :aggregate_failures do
+    out, error = captured
+    runner = instance_double(Kimera::CLI::Run, run: 0)
+    allow(Kimera::CLI::Run).to(receive(:new).and_return(runner))
+    env = { "GITHUB_BASE_REF" => "main", "GITHUB_STEP_SUMMARY" => "/tmp/step.md" }
+    Kimera::CLI::CI.new(io: out, errors: error, env: env).run(["--since", "HEAD~1", "--summary=s.md"])
+    Kimera::CLI::CI.new(io: out, errors: error, env: { "GITHUB_BASE_REF" => "", "GITHUB_STEP_SUMMARY" => "" }).run([])
+    expect(runner).not_to(have_received(:run).with(include("origin/main")))
+    expect(runner).not_to(have_received(:run).with(include("/tmp/step.md")))
+    expect(runner).not_to(have_received(:run).with(include("--summary")))
+  end
+
   it "preserves equals-form CI overrides" do
     out, error = captured
     runner = instance_double(Kimera::CLI::Run, run: 0)
     allow(Kimera::CLI::Run).to(receive(:new).and_return(runner))
-    Kimera::CLI::CI.new(io: out, errors: error).run(["--format=sarif", "--max-survivors=2", "--report=out.json"])
+    Kimera::CLI::CI.new(
+      io: out, errors: error,
+      env: {}
+    ).run(["--format=sarif", "--max-survivors=2", "--report=out.json"])
     expect(runner).to(have_received(:run).with(include("--format=sarif", "--max-survivors=2", "--report=out.json")))
     expect(runner).not_to(have_received(:run).with(include("github")))
   end

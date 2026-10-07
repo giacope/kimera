@@ -54,6 +54,17 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
         .to(raise_error(Kimera::Incremental::DiffError, /git diff against "no-such-ref" failed \(unknown ref/))
     end
 
+    it "names a shallow clone as the likely cause of a missing ref, and only then", :aggregate_failures do
+      commit("calc.rb", "x = 1\n", "init")
+      commit("calc.rb", "x = 2\n", "next")
+      shallow = File.join(dir, "shallow")
+      git("clone", "-q", "--depth", "1", "file://#{dir}", shallow, dir: dir)
+      expect { described_class.new(since: "origin/nope", root: shallow).lines }
+        .to(raise_error(Kimera::Incremental::DiffError, /git missing\); this clone is shallow, so fetch the base ref/))
+      expect { described_class.new(since: "nope", root: dir).lines }
+        .to(raise_error(Kimera::Incremental::DiffError, /git missing\)\z/))
+    end
+
     it "appends no bare paths separator when paths is absent" do
       # A trailing bare `--` would force git to read "calc.rb" as a revision.
       commit("calc.rb", "def a\n  1\nend\n", "init")
@@ -110,6 +121,14 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
       out, ok = described_class.new(since: "HEAD", root: dir).__send__(:read)
 
       expect([out, ok]).to(eq(["", false]))
+    ensure
+      ENV["PATH"] = previous
+    end
+
+    it "fails without a shallow-clone hint when git itself is missing" do
+      previous = ENV.fetch("PATH", nil).tap { ENV["PATH"] = "/nonexistent-dir-for-kimera" }
+      expect { described_class.new(since: "HEAD", root: dir).lines }
+        .to(raise_error(Kimera::Incremental::DiffError, /git missing\)\z/))
     ensure
       ENV["PATH"] = previous
     end

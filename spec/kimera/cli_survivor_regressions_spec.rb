@@ -191,7 +191,12 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
   describe "run argument, cycle, and digest boundaries" do
     it "rejects an invalid output format before running" do
       expect { Kimera::CLI::Run::Arguments.new.parse(["--format", "xml"]) }
-        .to(raise_error(Kimera::UsageError, 'unknown report format "xml" (choose: text, json, ndjson, github, sarif)'))
+        .to(
+          raise_error(
+            Kimera::UsageError,
+            'unknown report format "xml" (choose: text, json, ndjson, github, sarif, markdown)'
+        )
+        )
     end
 
     it "sends machine formats to the output stream and text formats to the narration stream" do
@@ -227,7 +232,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     def emission(coverage)
-      { coverage: coverage, path: nil, format: "text", metadata: anything, log: nil, scope: nil }
+      { coverage: coverage, path: nil, format: "text", metadata: anything, log: nil, scope: nil, summary: nil }
     end
 
     it "writes report metadata only when supplied and respects color overrides" do
@@ -432,7 +437,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       allow(Kimera::CLI::Run).to(receive(:new).and_return(runner))
       Kimera::CLI::CI.new(
         io: out,
-        errors: errors
+        errors: errors,
+        env: {}
       ).run(
         [
           "--no-fail-on-no-coverage", "--report",
@@ -453,7 +459,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       out, errors = streams
       runner = instance_double(Kimera::CLI::Run, run: 0)
       allow(Kimera::CLI::Run).to(receive(:new).and_return(runner))
-      Kimera::CLI::CI.new(io: out, errors: errors).run([])
+      Kimera::CLI::CI.new(io: out, errors: errors, env: {}).run([])
       expect(runner).to(
         have_received(:run).with(
         [

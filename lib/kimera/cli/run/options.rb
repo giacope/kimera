@@ -52,7 +52,11 @@ module Kimera::CLI::RunOptions
       "--report FILE", :report, "Write the canonical JSON report to FILE (default: #{Kimera::CLI::ReportFile::DEFAULT})"
     ),
     Kimera::Flag.build("--no-report", :report, "Write no JSON report"),
-    Kimera::Flag.build("--format NAME", :format, "Output: text, json, ndjson, github, or sarif (default: text)")
+    Kimera::Flag.build("--summary FILE", :summary, "Append a Markdown summary to FILE (ci: $GITHUB_STEP_SUMMARY)"),
+    Kimera::Flag.build(
+      "--format NAME", :format,
+      "Output: text, json, ndjson, github, sarif, or markdown (default: text)"
+    )
   ].freeze
 
   OPTIONS = Kimera::FlagTable.new(

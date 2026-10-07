@@ -60,7 +60,7 @@ class Kimera::CLI::Run::Cycle
 
   def emission
     { path: @options[:report], format: @options.fetch(:format, "text"), metadata: provenance }
-      .merge(coverage: coverage, log: @options[:log], scope: narrowing.note)
+      .merge(coverage: coverage, log: @options[:log], scope: narrowing.note, summary: @options[:summary])
   end
 
   def inline = Kimera::CLI::Run::InlineIgnores.new(@registry, root: @options[:source_root]).rules

@@ -10,17 +10,26 @@ class Kimera::CLI::CI
     [%w[--format], %w[--format github]]
   ].freeze
 
-  def initialize(io: $stdout, errors: $stderr)
+  def initialize(io: $stdout, errors: $stderr, env: ENV)
     @io = io
     @errors = errors
+    @env = env
   end
 
   def run(argv)
-    args = DEFAULTS.reduce(argv.dup) { |given, (names, extra)| defaulted(given, names, extra) }
+    args = (DEFAULTS + actions).reduce(argv.dup) { |given, (names, extra)| defaulted(given, names, extra) }
     Kimera::CLI::Run.new(io: @io, errors: @errors).run(args)
   end
 
   private
+
+  def actions
+    base, summary = @env.values_at("GITHUB_BASE_REF", "GITHUB_STEP_SUMMARY").map(&:to_s)
+    pairs = []
+    pairs << [%w[--since], ["--since", "origin/#{base}"]] unless base.empty?
+    pairs << [%w[--summary], ["--summary", summary]] unless summary.empty?
+    pairs
+  end
 
   def defaulted(args, names, extra) = Kimera::CLI::Argv.any?(args, names) ? args : args + extra
 end

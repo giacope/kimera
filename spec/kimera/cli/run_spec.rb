@@ -61,7 +61,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         isolate_db: false,
         isolated: false, rejudge: true, fail_on_no_coverage: false,
         progress: nil, color: nil, quiet: false, verbose: false, log: nil,
-        pidfile: nil,
+        pidfile: nil, summary: nil,
         isolate_when_covered_by: [], methods: [], lines: {},
         paths: ["app/**/*.rb", "lib/**/*.rb"]
       }
