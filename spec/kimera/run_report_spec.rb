@@ -96,6 +96,13 @@ RSpec.describe(Kimera::RunReport) do
       expect(rep.summary).not_to(include("uncovered"))
     end
 
+    it "reports score=n/a, not a perfect score, when there was nothing to mutate", :aggregate_failures do
+      empty = described_class.new(results: [])
+      expect(empty.summary).to(end_with("score=n/a (nothing to mutate)"))
+      expect(empty.percent).to(eq("n/a"))
+      expect(described_class.new(results: [result(1, :killed), result(2, :survived)]).percent).to(eq("50.0%"))
+    end
+
     it "reports score=n/a when mutants exist but none were evaluated" do
       rep = described_class.new(results: [result(1, :no_coverage), result(2, :no_coverage)])
       expect(rep.summary).to(include("score=n/a (0 of 2 mutants evaluated)"))
@@ -169,6 +176,11 @@ RSpec.describe(Kimera::RunReport) do
         expect(enriched["label"]).to(eq(mutant.label))
       end
 
+      it "places the mutant by 1-based column, end and enclosing method", :aggregate_failures do
+        place = enriched.slice("line", "column", "end_line", "end_column", "method")
+        expect(place).to(eq("line" => 3, "column" => 5, "end_line" => 3, "end_column" => 9, "method" => "gt"))
+      end
+
       it "carries the original->mutated diff", :aggregate_failures do
         point = mutant_and_point.last
         expect(enriched["original"]).to(eq(point.original_source))
@@ -181,6 +193,35 @@ RSpec.describe(Kimera::RunReport) do
         .source("def gt(a, b)\n  a > b\nend\n", file: "cmp.rb")
       h = described_class.new(results: [result(999_999, :survived)], registry: registry).to_h
       expect(h["results"].first).not_to(have_key("line"))
+    end
+
+    describe "the test catalog" do
+      let(:named) do
+        { "t1" => { "name" => "one" }, "t2" => { "name" => "two" }, "t9" => { "name" => "unused" } }
+      end
+
+      def cited
+        killed = result(1, :killed).tap { |judged| judged.failing_tests = ["t2"] }
+        [result(2, :survived).tap { |judged| judged.covering_tests = %w[t1 t2] }, killed]
+      end
+
+      it "lists only the tests a result cites" do
+        h = described_class.new(results: cited, tests: named).to_h
+        expect(h["tests"]).to(eq(named.slice("t1", "t2")))
+      end
+
+      it "leaves the catalog out when no cited test is named" do
+        expect(described_class.new(results: cited).to_h).not_to(have_key("tests"))
+      end
+
+      it "keeps the names through merge, revise and described", :aggregate_failures do
+        base = described_class.new(results: cited, tests: named.slice("t1"))
+        merged = base.merge(described_class.new(results: [], tests: named.slice("t2")))
+        expect(merged.tests.keys).to(eq(%w[t1 t2]))
+        expect(merged.revise([]).tests.keys).to(eq(%w[t1 t2]))
+        expect(base.described(named.slice("t9")).tests.keys).to(eq(%w[t1 t9]))
+        expect([base.test("t1"), base.test("t5")]).to(eq([{ "name" => "one" }, {}]))
+      end
     end
 
     it "omits enrichment fields when no registry is available" do

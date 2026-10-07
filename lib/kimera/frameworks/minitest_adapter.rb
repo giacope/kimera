@@ -48,6 +48,8 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
     Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed, failures: failures)
   end
 
+  def locate(id) = { "location" => definition(*@methods.fetch(id)).join(":") }
+
   def reproduce(ids)
     "bundle exec ruby -Itest -rminitest/autorun -e #{quote(loads(ids))} -- -n #{quote(filter(ids))} --seed 1"
   end
@@ -66,11 +68,11 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
 
   def filter(ids) = "/^(?:#{ids.map { |id| Regexp.escape(id) }.join("|")})$/"
 
-  def origin(id)
-    klass, name = @methods[id]
-    return unless klass
-    path, = klass.instance_method(name).source_location
-    path.delete_prefix("#{Dir.pwd}#{File::SEPARATOR}")
+  def origin(id) = @methods[id]&.then { |found| definition(*found).first }
+
+  def definition(klass, name)
+    path, line = klass.instance_method(name).source_location
+    [path.delete_prefix("#{Dir.pwd}#{File::SEPARATOR}"), line]
   end
 
   def quote(text) = "'#{text.gsub("'") { "'\\''" }}'"

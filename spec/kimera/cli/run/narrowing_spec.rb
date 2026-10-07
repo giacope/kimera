@@ -74,7 +74,7 @@ RSpec.describe(Kimera::CLI::Run::Narrowing) do
 
     it "prints the note above the summary and records the narrowing", :aggregate_failures do
       lines, provenance = run("--tests", "spec/a_spec.rb")
-      summary = "mutants=0 killed=0 survived=0 timeout=0 error=0 no_coverage=0 score=100.0%"
+      summary = "mutants=0 killed=0 survived=0 timeout=0 error=0 no_coverage=0 score=n/a (nothing to mutate)"
       expect(lines.first(2)).to(eq([note, summary]))
       expect(provenance).to(include("narrowed" => true, "configured_tests" => ["spec/**/*_spec.rb"]))
     end

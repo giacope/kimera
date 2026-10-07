@@ -81,6 +81,15 @@ RSpec.describe(Kimera::Frameworks::RSpecAdapter) do
     expect(descriptions).to(include("KimeraDemo passes", "KimeraDemo is conditional", "KimeraDemo nested also passes"))
   end
 
+  it "catalogs known examples by description and file:line, leaving unknown ids out", :aggregate_failures do
+    passing = ids.find { |id| adapter.describe(id) == "KimeraDemo passes" }
+    catalog = adapter.catalog([passing, "no/such[1:1]"])
+    expect(catalog.keys).to(eq([passing]))
+    expect(catalog.fetch(passing)).to(include("name" => "KimeraDemo passes"))
+    expect(catalog.fetch(passing)["location"]).to(end_with("demo_spec.rb:2"))
+    expect(catalog.fetch(passing)["location"]).not_to(start_with("./"))
+  end
+
   it "describes an unknown id as itself" do
     expect(adapter.describe("no/such[1:1]")).to(eq("no/such[1:1]"))
   end

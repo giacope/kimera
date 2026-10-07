@@ -5,6 +5,9 @@ require_relative "coloring"
 require_relative "screen"
 require_relative "sections"
 require_relative "actions"
+require_relative "file_table"
+require_relative "../support/readout"
+require_relative "test_list"
 
 module Kimera
   module Report
@@ -15,8 +18,6 @@ class Kimera::Report::Text
   include Kimera::Report::Coloring
   include Kimera::Report::Sections
 
-  MAX_TESTS_SHOWN = 5
-
   def initialize(registry, io: $stdout, color: nil)
     @registry = registry
     @io = io
@@ -26,11 +27,10 @@ class Kimera::Report::Text
   COVERAGE_SECTIONS = { hint: :hint, list: :missing }.freeze
 
   def report(report, scope: nil, coverage: :hint, path: nil)
+    @tests = Kimera::Report::TestList.new(report, path)
     header(report, scope)
     survivors(report)
-    __send__(COVERAGE_SECTIONS.fetch(coverage), report, path)
-    leaks(report.leaks)
-    Kimera::Report::Actions.new(io: @io).show(report, path: path)
+    footer(report, coverage, path)
   end
 
   private
@@ -38,6 +38,13 @@ class Kimera::Report::Text
   def header(report, scope)
     @io.puts(scope) if scope
     @io.puts(summary(report))
+    Kimera::Report::FileTable.new(io: @io).show(report)
+  end
+
+  def footer(report, coverage, path)
+    __send__(COVERAGE_SECTIONS.fetch(coverage), report, path)
+    leaks(report.leaks)
+    Kimera::Report::Actions.new(io: @io).show(report, path: path)
   end
 
   def survivors(report)
@@ -93,15 +100,5 @@ class Kimera::Report::Text
     rest.each { |line| @io.puts("      #{line}") }
   end
 
-  def covering(result)
-    tests = Array(result.covering_tests)
-    return if tests.empty?
-    @io.puts("    covered by #{tests.size} test(s): #{names(tests)}")
-  end
-
-  def names(tests)
-    shown = tests.first(MAX_TESTS_SHOWN)
-    more = tests.size - shown.size
-    "#{shown.join(", ")}#{" (+#{more} more)" if more.positive?}"
-  end
+  def covering(result) = @tests.lines(result).each { |line| @io.puts("    #{line}") }
 end

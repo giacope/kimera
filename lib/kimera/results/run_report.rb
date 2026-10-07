@@ -8,31 +8,37 @@ module Kimera
 end
 
 class Kimera::RunReport
-  attr_reader :results, :leaks, :registry
+  attr_reader :results, :leaks, :registry, :tests
 
   CONDITIONAL = %i[harness_error ignored isolated_only unmutatable leaks].freeze
   LABELS = { total: "mutants", harness_error: "unjudged" }.freeze
   SCHEMA_VERSION = 1
 
-  def initialize(results:, leaks: [], registry: nil)
+  def initialize(results:, leaks: [], registry: nil, tests: {})
     @results = results
     @leaks = leaks
     @registry = registry
+    @tests = tests
   end
 
   def statuses(status)
     grouped.fetch(status, [])
   end
 
-  def merge(other)
-    Kimera::RunReport.new(results: @results + other.results, leaks: @leaks, registry: @registry)
-  end
+  def merge(other) = rebuilt(results: @results + other.results, tests: @tests.merge(other.tests))
 
   def revise(revised)
     fresh = revised.to_h { |judged| [judged.mutant_id, judged] }
-    results = @results.map { |result| fresh.fetch(result.mutant_id, result) }
-    Kimera::RunReport.new(results: results, leaks: @leaks, registry: @registry)
+    rebuilt(results: @results.map { |result| fresh.fetch(result.mutant_id, result) })
   end
+
+  def described(tests) = rebuilt(tests: @tests.merge(tests))
+
+  def test_ids = @results.flat_map { |result| Array(result.covering_tests) + Array(result.failing_tests) }.uniq
+
+  def test(id) = @tests.fetch(id, {})
+
+  def by_file = @results.group_by { |result| result.file.to_s }.transform_values { |part| rebuilt(results: part) }
 
   def killed
     @results.select(&:killed?)
@@ -60,6 +66,8 @@ class Kimera::RunReport
     Float(killed.size) / total
   end
 
+  def percent = covered.empty? ? "n/a" : format("%.1f%%", score * 100)
+
   def counts
     { total: @results.size, killed: killed.size, leaks: @leaks.size, **reported }
   end
@@ -84,13 +92,20 @@ class Kimera::RunReport
   def to_h
     { "schema_version" => SCHEMA_VERSION, "counts" => counts, "mutation_score" => score }
       .merge("results" => @results.map { |result| detailed(result) }, "leaks" => @leaks.map(&:to_h))
+      .merge(catalog)
   end
 
   private
 
+  def catalog
+    listed = @tests.slice(*test_ids)
+    listed.empty? ? {} : { "tests" => listed }
+  end
+
   def scoreline
-    return "score=n/a (0 of #{@results.size} mutants evaluated)" if covered.empty? && !@results.empty?
-    text = format("score=%.1f%%", score * 100)
+    return "score=n/a (nothing to mutate)" if @results.empty?
+    return "score=n/a (0 of #{@results.size} mutants evaluated)" if covered.empty?
+    text = "score=#{percent}"
     count = uncovered.size
     count.positive? ? "#{text} (#{count} uncovered not scored)" : text
   end
@@ -116,6 +131,10 @@ class Kimera::RunReport
   end
 
   def place(point, mutant)
-    { "line" => point.location.start_line, "operator" => point.operator, "label" => mutant.label }
+    point.location.position.merge("method" => point.method_name, "operator" => point.operator, "label" => mutant.label)
+  end
+
+  def rebuilt(results: @results, tests: @tests)
+    Kimera::RunReport.new(results: results, leaks: @leaks, registry: @registry, tests: tests)
   end
 end

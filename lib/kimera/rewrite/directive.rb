@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "prism"
 require_relative "../support/operator_protocol"
 require_relative "../support/unparse"
 
@@ -16,7 +17,22 @@ module Kimera
       module_function
 
       def render(source, directive)
-        shortcut(directive) || attempt(source, directive)
+        shortcut(directive) || forced(source, condition(directive)) || attempt(source, directive)
+      end
+
+      def condition(directive)
+        directive["to"] if directive[TYPE] == "condition"
+      end
+
+      def forced(source, value)
+        tree = Prism.parse(source)
+        splice(source, tree.value.statements.body.first.predicate.location, value) if value && tree.success?
+      rescue NoMethodError
+        nil
+      end
+
+      def splice(source, span, text)
+        source.byteslice(0, span.start_offset) + text + source.byteslice(span.end_offset..)
       end
 
       def shortcut(directive)

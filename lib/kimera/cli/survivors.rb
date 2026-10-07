@@ -7,7 +7,7 @@ require_relative "report_file"
 
 class Kimera::CLI::Survivors
   OPTIONS = Kimera::FlagTable.new(
-    banner: "Usage: kimera survivors REPORT.json [options] [FILE_SUBSTRING]\n" \
+    banner: "Usage: kimera report REPORT.json [options] [FILE_SUBSTRING]\n" \
       "Lists a report's surviving mutants; FILE_SUBSTRING keeps only " \
       "mutants whose file path contains it (e.g. models/discount).",
     flags: [
@@ -36,15 +36,16 @@ class Kimera::CLI::Survivors
 
   def attempt(argv)
     options = parse(argv)
-    results = load(options[:report]).fetch("results", [])
+    document = load(options[:report])
+    results = document.fetch("results", [])
     id = options[:id]
-    id ? show(results, id) : list(results, options)
+    id ? show(results, id, document) : list(results, options)
   end
 
   def parse(argv)
     options = { status: "survived", id: nil }
     report, filter = OPTIONS.parse(argv, options)
-    raise(Kimera::UsageError, "survivors: a report file is required (run with --report FILE first)") unless report
+    raise(Kimera::UsageError, "report: a report file is required (run with --report FILE first)") unless report
     options.merge(report: report, filter: filter)
   end
 
@@ -73,10 +74,11 @@ class Kimera::CLI::Survivors
     0
   end
 
-  def show(results, id)
+  def show(results, id, document)
     row = Kimera::CLI::ReportFile.row(results, id)
     return missing(id) unless row
-    Panel.new(io: @io).describe(row)
+    root = document.dig("run", "source_root") || "."
+    Panel.new(io: @io, tests: document.fetch("tests", {}), root: root).describe(row)
     0
   end
 

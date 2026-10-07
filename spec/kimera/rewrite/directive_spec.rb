@@ -35,6 +35,24 @@ RSpec.describe(Kimera::Rewrite::Directive) do
       expect(described_class.render("; boundary=", { "type" => "string_literal", "value" => "" })).to(eq('""'))
     end
 
+    # Unparsing the whole node would print a modifier `if` as an if/end block.
+    it "writes a forced condition into the original text, keeping its shape", :aggregate_failures do
+      forced = ->(source, to) { described_class.render(source, { "type" => "condition", "to" => to }) }
+      expect(forced.call("return false if order_total <= 0", "false")).to(eq("return false if false"))
+      expect(forced.call("x unless ready?", "true")).to(eq("x unless true"))
+      expect(forced.call("é < 0 ? 0 : é", "true")).to(eq("true ? 0 : é"))
+      expect(forced.call("if a\n  b\nend", "false")).to(eq("if false\n  b\nend"))
+    end
+
+    it "forces only a condition directive, never another one that names a target" do
+      expect(described_class.render("x if y", { "type" => "boolean_literal", "to" => "false" })).to(eq("false"))
+    end
+
+    it "falls back to unparsing a condition that does not parse alone" do
+      out = described_class.render("x if", { "type" => "condition", "to" => "true" })
+      expect(out).to(be_nil)
+    end
+
     it "returns nil when the snippet cannot be rendered cleanly" do
       expect(described_class.render("a > b", { "type" => "bogus" })).to(be_nil)
     end

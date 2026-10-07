@@ -43,7 +43,7 @@ class Kimera::Incremental::Session
   def report(evaluated, waived, registry)
     results = evaluated.filter_map { |id| @results[id] }
     results += waived.map { |id| waiver(id, registry) }
-    Kimera::RunReport.new(results: results, leaks: @leaks, registry: registry)
+    Kimera::RunReport.new(results: results, leaks: @leaks, registry: registry, tests: tests)
   end
 
   def waiver(id, registry)
@@ -53,6 +53,8 @@ class Kimera::Incremental::Session
   def merge!(report)
     report.results.each { |r| @results[r.mutant_id] = r }
     @leaks.concat(report.leaks)
+    named = report.tests
+    @meta = @meta.merge("tests" => tests.merge(named)) unless named.empty?
     self
   end
 
@@ -64,6 +66,8 @@ class Kimera::Incremental::Session
   end
 
   private
+
+  def tests = @meta.fetch("tests", {})
 
   def stale?(id, registry)
     stored = @fingerprints[id]

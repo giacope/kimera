@@ -113,8 +113,9 @@ RSpec.describe("kimera survivors", :aggregate_failures) do
     out, status = run(report_path, "--id", "12")
     expect(status).to(eq(0))
     expect(out).to(include("#12  timeout  app/models/bare.rb", "- z"))
-    absent = %w[operator: label: duration: detail: note: covering failing +]
+    absent = %w[at: operator: label: duration: detail: note: covering failing +]
     absent.each { |a| expect(out).not_to(include(a)) }
+    expect(out).to(eq("#12  timeout  app/models/bare.rb\n  - z\n"))
   end
 
   describe "multiline diffs" do
@@ -140,6 +141,85 @@ RSpec.describe("kimera survivors", :aggregate_failures) do
       out, = run(report_path, "--id", "3")
       expect(out).to(include("  - if x\n      :yes\n    end\n"))
       expect(out).to(include("  + if true\n      :yes\n    end\n"))
+    end
+  end
+
+  describe "a report with positions, test names and its source at hand" do
+    let(:report) do
+      {
+        "run" => { "source_root" => dir },
+        "tests" => {
+          "UserTest#test_active" => { "name" => "UserTest#test_active", "location" => "test/user_test.rb:4" }
+        },
+        "results" => [
+          {
+            "mutant_id" => 7, "status" => "killed", "file" => "app/user.rb", "line" => 3, "column" => 5,
+            "end_line" => 3, "method" => "active", "label" => "delete", "original" => "where(active: true)",
+            "covering_tests" => %w[UserTest#test_active UserTest#test_other],
+            "detail" => "Minitest::Assertion: \nExpected true\n\n    test/user_test.rb:5"
+          }
+        ]
+      }
+    end
+
+    def source(text)
+      FileUtils.mkdir_p(File.join(dir, "app"))
+      File.write(File.join(dir, "app/user.rb"), text)
+    end
+
+    it "shows where a mutant outside any method sits, naming no method" do
+      report["results"].first.delete("method")
+      File.write(report_path, JSON.generate(report))
+      out, = run(report_path, "--id", "7")
+      expect(out).to(include("  at:       app/user.rb:3:5\n"))
+    end
+
+    it "shows where the mutant sits and the enclosing method", :aggregate_failures do
+      out, = run(report_path, "--id", "7")
+      expect(out).to(include("  at:       app/user.rb:3:5  in active\n"))
+      listed, = run(report_path, "--status", "killed")
+      expect(listed).to(include("#7  app/user.rb:3  in active  [delete]"))
+    end
+
+    it "prints the lines around the mutant, marking its own" do
+      source("class User\n  def active\n    where(active: true)\n  end\nend\n")
+      out, = run(report_path, "--id", "7")
+      lines = ["    1 | class User", "    2 |   def active", "  > 3 |     where(active: true)", "    4 |   end"]
+      expect(out).to(include(["", *lines, "    5 | end", "", ""].join("\n")))
+    end
+
+    it "marks every line a multi-line mutant spans" do
+      report["results"].first["end_line"] = 4
+      File.write(report_path, JSON.generate(report))
+      source("class User\n  def active\n    where(active: true)\n  end\nend\n")
+      out, = run(report_path, "--id", "7")
+      expect(out).to(include("  > 3 |     where(active: true)\n  > 4 |   end\n"))
+    end
+
+    it "marks the mutant's line alone when the report has no end line" do
+      report["results"].first.delete("end_line")
+      File.write(report_path, JSON.generate(report))
+      source("class User\n  def active\n    where(active: true)\n  end\nend\n")
+      out, = run(report_path, "--id", "7")
+      expect(out).to(include("  > 3 |     where(active: true)\n    4 |   end\n"))
+    end
+
+    it "says so instead of printing context when the file has changed since the report", :aggregate_failures do
+      source("class User\nend\n")
+      out, = run(report_path, "--id", "7")
+      expect(out).to(include("  (app/user.rb changed since the report; no source context)\n"))
+      expect(out).not_to(include(" | "))
+    end
+
+    it "lays a multi-line detail out under its label, without blank lines or trailing spaces" do
+      out, = run(report_path, "--id", "7")
+      detail = "  detail:   Minitest::Assertion:\n            Expected true\n                test/user_test.rb:5\n"
+      expect(out).to(include(detail))
+    end
+
+    it "names the tests it knows and lists the rest by id" do
+      out, = run(report_path, "--id", "7")
+      expect(out).to(include("    test/user_test.rb:4  UserTest#test_active\n    UserTest#test_other\n"))
     end
   end
 

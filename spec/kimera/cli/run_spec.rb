@@ -673,7 +673,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
 
     def framework(**attrs)
-      adapter = instance_double(Kimera::Frameworks::RSpecAdapter, **attrs)
+      adapter = instance_double(Kimera::Frameworks::RSpecAdapter, catalog: {}, **attrs)
       allow(Kimera::Frameworks::ADAPTERS).to(receive(:load).and_return(adapter))
 
       adapter
@@ -709,15 +709,23 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     def verify(harness, session, report, adapter)
       expect(harness).to(have_received(:warm!).with(kind_of(Array)))
       expect(harness).to(have_received(:run).with(ids: [1, 2], label: "mutants"))
-      expect(session).to(have_received(:merge!).with(report))
+      expect(session).to(have_received(:merge!).with(having_attributes(results: report.results)))
       expect(adapter).to(have_received(:finish))
     end
 
     it "builds an adapter and harness, warms up, runs, and merges into the session" do
       report, harness, session, adapter = warmed
       returned = pass(registry, settings, [1, 2], session)
-      expect(returned).to(eq(report))
+      expect(returned.results).to(eq(report.results))
       verify(harness, session, report, adapter)
+    end
+
+    it "names the tests the verdicts cite, from the adapter" do
+      _harness, _runner, session = unjudged
+      named = { "t1" => { "name" => "M compares", "location" => "spec/m_spec.rb:3" } }
+      allow(Kimera::Frameworks::ADAPTERS.load("rspec")).to(receive(:catalog).and_return(named))
+      report = pass(registry, settings, [1, 2], session)
+      expect(report.tests).to(eq(named))
     end
 
     def routing

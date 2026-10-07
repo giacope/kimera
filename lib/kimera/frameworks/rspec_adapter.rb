@@ -42,6 +42,8 @@ class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
     ex ? ex.full_description : id
   end
 
+  def locate(id) = { "location" => @examples.fetch(id).location.delete_prefix("./") }
+
   def start
     pid = Process.pid
     return if @suite == pid

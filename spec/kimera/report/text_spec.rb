@@ -81,7 +81,7 @@ RSpec.describe(Kimera::Report::Text) do
   it "prints location, original-vs-mutation diff, and covering tests for survivors", :aggregate_failures do
     output = render(survivor)
     expect(output).to(include("survived ##{mutant.id}", "calc.rb:3", "[<= => <]", "- x <= y", "+ x < y"))
-    expect(output).to(include("covered by 1 test(s): ./spec/calc_spec.rb[1:1]"))
+    expect(output).to(include("covered by 1 test(s):\n      ./spec/calc_spec.rb[1:1]\n"))
   end
 
   it "omits the survivors section when everything is killed", :aggregate_failures do
@@ -108,7 +108,7 @@ RSpec.describe(Kimera::Report::Text) do
   it "indents continuation lines of a multiline diff under the marker", :aggregate_failures do
     output = diff
     expect(output).to(include("    - if x\n            :yes\n          end\n"))
-    expect(output).to(include("    + if true\n        :yes\n      end\n"))
+    expect(output).to(include("    + if true\n            :yes\n          end\n"))
   end
 
   it "omits the no-coverage section when show_no_coverage is set but nothing is uncovered" do
@@ -143,7 +143,7 @@ RSpec.describe(Kimera::Report::Text) do
 
   it "keeps the warm detail as a note under a re-judged survivor or unjudged mutant", :aggregate_failures do
     note = "\n    note: judged in a fresh isolated mirror; the warm pass could not: t1\n"
-    expect(render(rejudged(survivor))).to(include("covered by 1 test(s): ./spec/calc_spec.rb[1:1]#{note}"))
+    expect(render(rejudged(survivor))).to(include("covered by 1 test(s):\n      ./spec/calc_spec.rb[1:1]#{note}"))
     expect(render(rejudged(error))).to(include("worker crashed before result#{note}"))
     expect(render(survivor)).not_to(include("note:"))
   end

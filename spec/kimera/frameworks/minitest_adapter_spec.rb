@@ -132,6 +132,14 @@ RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
     end
   end
 
+  it "catalogs a test by its id and the file:line that defines it", :aggregate_failures do
+    Dir.chdir(dir) do
+      catalog = adapter.catalog(["DemoKimeraTest#test_passes", "Nope#test_x"])
+      named = { "name" => "DemoKimeraTest#test_passes", "location" => "demo_test.rb:3" }
+      expect(catalog).to(eq("DemoKimeraTest#test_passes" => named))
+    end
+  end
+
   it "describes an id as itself" do
     expect(adapter.describe("DemoKimeraTest#test_passes")).to(eq("DemoKimeraTest#test_passes"))
   end

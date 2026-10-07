@@ -33,6 +33,10 @@ module Kimera
         { "start_column" => start_column, "end_column" => end_column }
       end
 
+      def position
+        { "line" => start_line, "column" => start_column + 1 }.merge("end_line" => end_line, "end_column" => end_column)
+      end
+
       def offsets
         { "start_offset" => start_offset, "length" => span }
       end
