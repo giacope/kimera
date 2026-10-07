@@ -24,8 +24,8 @@ RSpec.describe(Kimera::Report::Text) do
   end
 
   def instructions
-    "1 mutant(s) have no covering test; re-run with --report FILE, " \
-      "then `kimera report FILE --status no_coverage` to list them"
+    "1 mutant(s) have no covering test; run without --no-report, " \
+      "then `kimera report --status no_coverage` to list them"
   end
 
   def render(result, **)
@@ -184,7 +184,7 @@ RSpec.describe(Kimera::Report::Text) do
       include(
         "\n\n2 ignored mutant(s) are now killed (their entries can be pruned); 1 still survive; " \
           "1 could not be judged.\n",
-        "2 ignored mutant(s) now killed: rerun with --report FILE, then `kimera baseline prune`"
+        "2 ignored mutant(s) now killed: run without --no-report, then `kimera baseline prune`"
       )
     )
     expect(waivers(path: "rep.json")).to(

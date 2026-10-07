@@ -7,9 +7,10 @@ require_relative "report_file"
 
 class Kimera::CLI::Survivors
   OPTIONS = Kimera::FlagTable.new(
-    banner: "Usage: kimera report REPORT.json [options] [FILE_SUBSTRING]\n" \
+    banner: "Usage: kimera report [REPORT.json] [options] [FILE_SUBSTRING]\n" \
       "Lists a report's surviving mutants; FILE_SUBSTRING keeps only " \
-      "mutants whose file path contains it (e.g. models/discount).",
+      "mutants whose file path contains it (e.g. models/discount).\n" \
+      "REPORT.json defaults to #{Kimera::CLI::ReportFile::DEFAULT}.",
     flags: [
       Kimera::Flag.build("--id ID|KEY", :id, "Show one mutant, by ID or key, in full detail"),
       Kimera::Flag.build(
@@ -44,14 +45,20 @@ class Kimera::CLI::Survivors
 
   def parse(argv)
     options = { status: "survived", id: nil }
-    report, filter = OPTIONS.parse(argv, options)
-    raise(Kimera::UsageError, "report: a report file is required (run with --report FILE first)") unless report
+    report, filter = positional(OPTIONS.parse(argv, options))
     options.merge(report: report, filter: filter)
   end
 
+  def positional(args)
+    first, second = args
+    report?(first) ? [first, second] : [Kimera::CLI::ReportFile::DEFAULT, first]
+  end
+
+  def report?(arg) = arg && (arg.end_with?(".json") || File.file?(arg))
+
   def load(path)
-    raise(Kimera::UsageError, "no such report: #{path}") unless File.file?(path)
-    Kimera::CLI::ReportFile.parse(path)
+    return Kimera::CLI::ReportFile.parse(path) if File.file?(path)
+    raise(Kimera::UsageError, "no such report: #{path} (run kimera run first, or pass REPORT.json)")
   end
 
   def list(results, options)

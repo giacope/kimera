@@ -146,8 +146,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect(errors.string).to(include("mutant ID is required"))
       errors.truncate(0)
       errors.rewind
-      expect(cli.run(["7"])).to(eq(1))
-      expect(errors.string).to(include("--report REPORT.json is required"))
+      Dir.mktmpdir { |dir| Dir.chdir(dir) { expect(cli.run(["7"])).to(eq(1)) } }
+      expect(errors.string).to(include("no such report: tmp/kimera/report.json (run kimera run first"))
 
       args = rerun(
         "framework" => "minitest", "source_root" => "src", "tests" => ["test/a_test.rb"],
@@ -457,8 +457,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect(runner).to(
         have_received(:run).with(
         [
-          "--max-survivors", "0", "--fail-on-no-coverage", "--report",
-          "tmp/kimera/report.json", "--format", "github"
+          "--max-survivors", "0", "--fail-on-no-coverage", "--format", "github"
       ]
       )
       )
@@ -509,7 +508,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       )
       expect(io.string).to(
         include(
-          "kimera run --report tmp/kimera.json", "rerun with --report tmp/kimera.json",
+          "run without --no-report to save one, then `kimera mutant 1`",
+          "run without --no-report, then `kimera report --status no_coverage`",
           "unjudged mutant(s): retry with `kimera run --isolated`"
         )
       )

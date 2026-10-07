@@ -7,7 +7,6 @@ class Kimera::CLI::CI
   DEFAULTS = [
     [%w[--max-survivors], %w[--max-survivors 0]],
     [%w[--fail-on-no-coverage --no-fail-on-no-coverage], %w[--fail-on-no-coverage]],
-    [%w[--report], %w[--report tmp/kimera/report.json]],
     [%w[--format], %w[--format github]]
   ].freeze
 

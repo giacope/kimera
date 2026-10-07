@@ -46,12 +46,14 @@ class Kimera::CLI::Run::Digest
   end
 
   def anchor(rule)
-    "kimera: warning: ignore entry matches no mutant (stale anchor?): #{spot(rule)} #{rule[:label]}".rstrip
+    "kimera: warning: #{kind(rule)} matches no mutant (stale anchor?): #{spot(rule)} #{rule[:label]}".rstrip
   end
+
+  def kind(rule) = rule[:starts] ? "kimera:disable comment" : "ignore entry"
 
   def moved(shift) = "kimera: warning: ignore entry re-anchored: #{shift} (update the entry to silence this)"
 
   def spot(rule)
-    [rule[:file], rule[:line]].compact.join(":")
+    [rule[:file], rule[:line] || rule[:starts]].compact.join(":")
   end
 end

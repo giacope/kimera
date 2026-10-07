@@ -305,8 +305,7 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     Kimera::CLI::CI.new(io: out, errors: error).run(["--format", "sarif", "--max-survivors", "2"])
     expect(runner).to(
       have_received(:run).with(
-        include("--format", "sarif", "--max-survivors", "2", "--fail-on-no-coverage")
-          .and(include("--report", "tmp/kimera/report.json"))
+        eq(["--format", "sarif", "--max-survivors", "2", "--fail-on-no-coverage"])
       )
     )
   end
@@ -387,7 +386,7 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
       expect(runner).to(
         have_received(:run).with(
           ["app/a.rb", "--focus", "app/a.rb:3:0123abcd", "--framework", "rspec", "--source-root", "."]
-            .push("--tests", "spec/**/*_spec.rb", "--operators", "comparison")
+            .push("--tests", "spec/**/*_spec.rb", "--operators", "comparison", "--no-report")
         )
       )
       expect(out.string).to(eq("Re-running mutant #7: app/a.rb:3:0123abcd\n"))

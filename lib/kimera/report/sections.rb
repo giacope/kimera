@@ -69,7 +69,7 @@ module Kimera::Report::Sections
 
   def command(path)
     return "list them with: kimera report #{path} --status no_coverage" if path
-    "re-run with --report FILE, then `kimera report FILE --status no_coverage` to list them"
+    "run without --no-report, then `kimera report --status no_coverage` to list them"
   end
 
   def missing(report, _path = nil) = section("Mutants with no covering test", report.uncovered) { |r| uncovered(r) }

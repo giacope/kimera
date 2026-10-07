@@ -266,11 +266,20 @@ RSpec.describe("kimera survivors", :aggregate_failures) do
     end.to(output(/no mutant #999/).to_stderr)
   end
 
-  it "fails cleanly without a report file" do
+  it "reads the default report when none is named, and says how to make one when it is missing" do
     expect do
-      _, status = run
+      _, status = Dir.chdir(dir) { run }
       expect(status).to(eq(1))
-    end.to(output(/report file is required/).to_stderr)
+    end.to(output(%r{no such report: tmp/kimera/report\.json \(run kimera run first, or pass REPORT\.json\)}).to_stderr)
+  end
+
+  it "reads the default report, taking a lone non-report argument as the file filter", :aggregate_failures do
+    FileUtils.mkdir_p(File.join(dir, "tmp/kimera"))
+    FileUtils.cp(report_path, File.join(dir, "tmp/kimera/report.json"))
+    out, status = Dir.chdir(dir) { run("book") }
+    expect(status).to(eq(0))
+    expect(out).to(include("#9"))
+    expect(out).not_to(include("#7"))
   end
 
   it "fails cleanly for a missing report path" do

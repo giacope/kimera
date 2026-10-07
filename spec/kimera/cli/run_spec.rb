@@ -53,7 +53,8 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         operators: Kimera::Operators::DEFAULT_KEYS,
         soft_timeout: 5.0, hard_timeout: nil, leak_every: 10,
         relative_timeout: true, timeout_factor: nil, timeout_slack: nil,
-        registry: nil, report: nil, format: "text", focus: [], gate: true, coverage: true, require: [],
+        registry: nil, report: "tmp/kimera/report.json", format: "text", focus: [], gate: true, coverage: true,
+        require: [],
         since: nil, session: nil, max_survivors: nil, max_ignored: nil,
         max_errors: 0, evaluate_ignored: false, baseline: nil,
         jobs: 1, exclude: [], exclude_tests: [], config: nil, ignore: [],
@@ -61,7 +62,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         isolated: false, rejudge: true, fail_on_no_coverage: false,
         progress: nil, color: nil, quiet: false, verbose: false, log: nil,
         pidfile: nil,
-        isolate_when_covered_by: [],
+        isolate_when_covered_by: [], methods: [], lines: {},
         paths: ["app/**/*.rb", "lib/**/*.rb"]
       }
     end

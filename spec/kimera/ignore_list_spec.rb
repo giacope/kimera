@@ -40,6 +40,20 @@ RSpec.describe(Kimera::IgnoreList) do
     expect(ids.size).to(eq(2)) # both > variants
   end
 
+  it "matches only points that start on the line given as starts:, not ones spanning it", :aggregate_failures do
+    multi = Kimera::RegistryScan.new.source("def m(a)\n  if a\n    a > 1\n  end\nend\n", file: "m.rb")
+    starting = described_class.ids(multi, [{ file: "m.rb", starts: 3 }])
+    spanning = described_class.ids(multi, [{ file: "m.rb", line: 3 }])
+    expect(starting.map { |id| multi.index[id].location.start_line }.uniq).to(eq([3]))
+    expect(spanning.size).to(be > starting.size)
+  end
+
+  it "matches by operator key, given as one key or several", :aggregate_failures do
+    expect(ids(file: "calc.rb", operator: "comparison")).to(eq(ids(file: "calc.rb")))
+    expect(ids(file: "calc.rb", operator: %w[arithmetic comparison])).to(eq(ids(file: "calc.rb")))
+    expect(ids(file: "calc.rb", operator: ["conditional"])).to(be_empty)
+  end
+
   it "supports glob file patterns" do
     expect(ids(file: "**/*.rb", line: 7)).not_to(be_empty)
   end

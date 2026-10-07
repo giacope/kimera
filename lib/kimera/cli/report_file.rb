@@ -10,6 +10,8 @@ class Kimera::CLI
 end
 
 module Kimera::CLI::ReportFile
+  DEFAULT = "tmp/kimera/report.json"
+
   module_function
 
   def row(results, token)
