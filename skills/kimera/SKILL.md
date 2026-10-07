@@ -23,14 +23,16 @@ bundle exec kimera doctor --check-baseline  # discovery, git, and a green suite
 - Gates: keep `max_survivors: 0`; every survivor is a decision, not a
   statistic. `max_ignored` rises only in the same diff as the entry it admits.
 - Adopting on a suite with existing survivors: `kimera baseline create
-  REPORT.json --reason TEXT` records them as reviewed debt, so the gate blocks
-  only new holes. Burn the baseline down; never grow it to pass a gate.
+  --reason TEXT --write` records the last report's survivors as reviewed debt
+  and sets `baseline:` in .kimera.yml, so the gate blocks only new holes. Burn
+  the baseline down; never grow it to pass a gate.
 - Fix line coverage first. `no_coverage` mutants are plain coverage gaps, and
   mutation results only mean something for code the tests execute.
-- CI shape: **PR gate is incremental** (`kimera ci --since origin/main
-  --session tmp/kimera.json`; `ci` defaults to `--max-survivors 0
-  --fail-on-no-coverage`): no new surviving mutants on changed lines.
-  **Full run nightly**, not per-PR.
+- CI shape: **PR gate is incremental** (`kimera ci --session tmp/kimera.json`;
+  `ci` defaults to `--max-survivors 0 --fail-on-no-coverage`, and on a GitHub
+  pull request to `--since origin/$GITHUB_BASE_REF` and `--summary
+  $GITHUB_STEP_SUMMARY`): no new surviving mutants on changed lines. **Full
+  run nightly**, not per-PR.
 - Exit codes: 0 pass; 1 invalid invocation or unmutated suite not green (fix
   the suite, not kimera); 2 gate failure (survivors, uncovered, ignore budget,
   or unjudged).
@@ -48,8 +50,10 @@ bundle exec kimera doctor --check-baseline  # discovery, git, and a green suite
 ```sh
 bundle exec kimera changed                      # changed lines only (vs origin/main)
 bundle exec kimera run                          # full, per .kimera.yml
-bundle exec kimera report REPORT.json --status survived
-bundle exec kimera mutant ID_OR_KEY --report REPORT.json [--rerun]
+bundle exec kimera run app/models/order.rb:40-60  # only those lines (or :42)
+bundle exec kimera run app --method total       # only inside methods named total
+bundle exec kimera report --status survived     # reads tmp/kimera/report.json
+bundle exec kimera mutant ID_OR_KEY [--rerun]   # one mutant: diff, source, tests
 bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
 ```
 
@@ -57,9 +61,15 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   `kimera: <phase> done/total …` line per phase start, at most every 30s, and at
   the end. `--no-progress` silences it.
 - `--session FILE` persists per-mutant verdicts and resumes interrupted runs.
-- `--report FILE` writes the machine-readable report. Each result carries
-  `mutant_id`, `key`, `status`, `file`, `line`, `operator`, and the
-  `original` -> `mutated` source; don't re-parse the human log.
+- Every run writes the machine-readable report to tmp/kimera/report.json
+  (`--report FILE` moves it, `--no-report` skips it), and `kimera report` and
+  `kimera mutant` read it by default. Each result carries `mutant_id`, `key`,
+  `status`, `file`, `line`, `column`, `method`, `operator`, the `original` ->
+  `mutated` source, and `covering_tests`/`failing_tests` ids; the report's
+  `tests` section names each id (`name`, `location` as file:line). Don't
+  re-parse the human log.
+- A path target that matches no mutant fails with the lines and methods that
+  do have mutants: aim again from that list.
 - Refer to a mutant by its `key` (`path:line:digest`), not its `mutant_id`.
   The ID numbers every mutant in that run, so it changes with the set of
   files scanned; the key doesn't. `kimera mutant` and `--focus` take either,
@@ -208,6 +218,10 @@ gap: test that side effect.
   had a "clearly equivalent" mutant that 11 specs actually kill).
 - Reviewers judge the `reason:`, not the number, so the entry and the raise
   land together.
+- An inline `# kimera:disable[-next-line] [OPERATOR ...]: REASON` comment is
+  an ignore entry too: it counts toward `max_ignored`, needs the same oracle
+  run and mechanism, and lands with the raise. A comment without a reason
+  fails the run.
 
 ## Strengthen
 
