@@ -2,6 +2,61 @@
 
 ## Unreleased
 
+- Survivors are easier to read. A report names each covering and failing
+  test by `file:line` and description (a `tests` section in the JSON report,
+  kept across `--session` resumes), not by RSpec's positional id alone. Each
+  result carries a 1-based `column`, `end_line`, `end_column` and the
+  enclosing `method`, and the text report places a mutant as
+  `file:line:col  in method`. `kimera mutant` prints the source lines around
+  the mutant, marking its own, or says the file changed since the report. A
+  run over several files opens with a per-file table, most survivors first.
+  A forced condition prints in its original form (`return false if false`),
+  not as an if/end block; a multi-line failure detail prints aligned, without
+  blank lines. A run with nothing to mutate reports `score=n/a`, not 100%.
+
+- Every run saves its JSON report to `tmp/kimera/report.json` unless given
+  `--report FILE` or `--no-report`, and `kimera report`, `kimera mutant` and
+  `kimera baseline create` read it when no report is named, so triage needs no
+  rerun. The next-action hints no longer suggest a full rerun or a report
+  file the run never wrote, and `mutant --rerun` leaves the saved report
+  alone.
+
+- `kimera run app/models/order.rb:42` (or `:40-60`) mutates only those
+  lines, and `--method NAME` only inside methods of that name. A target that
+  matches nothing fails, naming the lines and methods that have mutants.
+
+- A comment disables mutants inline:
+  `# kimera:disable[-next-line] [OPERATOR ...]: REASON` ignores the mutants
+  starting on that line (of those operators). The reason is required, the
+  operators are checked, the mutants count toward `max_ignored`, and a
+  comment that disables nothing is warned about. Ignore entries gain the
+  `starts:` and `operator:` anchors behind it.
+
+- CI output reads on its own. `--summary FILE` appends a Markdown summary of
+  the findings to FILE, and `kimera ci` points it at `$GITHUB_STEP_SUMMARY`;
+  `--format markdown` prints the same. `--format github` also writes the text
+  report to stderr, so the job log shows the counts and survivors. GitHub
+  annotations fold the mutants on one line into one, titled with the count,
+  placed by column and carrying each diff, and a notice says where the rest
+  are when a level passes the 10 GitHub shows per step. SARIF results carry
+  the region's columns and the diff. On a pull request `kimera ci` mutates
+  only the changed lines (`--since origin/$GITHUB_BASE_REF`), and a failed
+  diff in a shallow clone says to fetch the base ref.
+
+- Shorter errors: an unknown command, option or operator prints one line, a
+  "did you mean" where one is close, and the help command to run, not the
+  whole help text. Completion and suggestions leave out the old `dump` and
+  `survivors` aliases. `kimera baseline --help` lists its commands.
+
+- `kimera baseline create --write` sets `baseline: FILE` in `.kimera.yml`.
+
+- `kimera init` writes a commented `.kimera.yml` that names its JSON schema
+  (`schema/kimera.schema.json`, shipped in the gem), so editors complete and
+  check the keys. It no longer writes to `AGENTS.md`: `kimera skill` is how
+  agents get the guide. A spec checks the skill and the README against the
+  commands, flags, config keys and operators the CLI accepts, so neither can
+  drift from it.
+
 - Code that the suite reaches through another file is no longer reported as
   uncovered. A method called through an `alias` or `alias_method` declared in
   another file kept running its unguarded body after the overlay, so its

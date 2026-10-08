@@ -25,7 +25,8 @@ Gem::Specification.new do |spec|
     "rubygems_mfa_required" => "true"
   }
   spec.files = Dir[
-    "lib/**/*.rb", "skills/**/*.md", "schema/*.json", "exe/*", "README.md", "CHANGELOG.md", "LICENSE.txt", ".kimera.yml.example"
+    "lib/**/*.rb", "skills/**/*.md", "schema/*.json", "exe/*",
+    "README.md", "CHANGELOG.md", "LICENSE.txt", ".kimera.yml.example"
   ]
   spec.bindir = "exe"
   spec.executables = ["kimera"]

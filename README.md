@@ -35,13 +35,17 @@ and flips them at runtime, so your app boots once, not once per mutant.
   [unparser](https://github.com/mbj/unparser).
 
 ```sh
-$ bundle exec kimera run app --since origin/main --tests 'spec/**/*_spec.rb'
+$ bundle exec kimera run app --since origin/main
 mutants=28 killed=17 survived=5 timeout=0 error=0 no_coverage=6 score=77.3%
 
-  survived #1  app/models/discount.rb:18  [<= => <]
+  survived #3  app/models/discount.rb:18:21  in eligible?  [<= => <]
     - order_total <= 0
     + order_total < 0
-    covered by 7 test(s): ./spec/discount_spec.rb[1:1:1], …
+    covered by 7 test(s):
+      spec/discount_spec.rb:7  Discount#eligible? is false for non-positive totals
+      spec/discount_spec.rb:12  Discount#eligible? is eligible for large orders
+      spec/discount_spec.rb:17  Discount#eligible? is eligible for premium customers with a coupon
+      (+4 more; all of them: kimera mutant 3 --report tmp/kimera/report.json)
 ```
 
 This survivor says no test checks an order total of exactly `0`. Add that test
@@ -69,10 +73,13 @@ bundle install
 ```
 
 **2. Generate a config.** `init` detects RSpec or Minitest, your source roots
-(`app/`, `lib/`), and your test glob. It writes `.kimera.yml`, and adds a line
-to `AGENTS.md` pointing AI coding agents to `kimera skill`: a guide to running
-Kimera and triaging survivors without gaming the score. It matches your
-installed version and works with any agent that can run a shell command.
+(`app/`, `lib/`), and your test glob. It writes a commented `.kimera.yml`
+whose first line names its [JSON schema](schema/kimera.schema.json), so
+editors with a YAML language server complete and check the keys.
+
+AI coding agents get their guide from `kimera skill`: how to run Kimera and
+triage survivors without gaming the score. It matches your installed version
+and works with any agent that can run a shell command.
 
 ```sh
 bundle exec kimera init
@@ -97,16 +104,22 @@ bundle exec kimera run app/models   # one directory
 bundle exec kimera run              # every path in .kimera.yml
 ```
 
-**5. Triage survivors.** Save a report so you can dig in without rerunning the
-suite.
+**5. Triage survivors.** Every run saves its report to
+`tmp/kimera/report.json` (`--report FILE` moves it, `--no-report` skips it),
+so you can dig in without rerunning the suite. `report` and `mutant` read it
+when you name no other.
 
 ```sh
-bundle exec kimera run --report tmp/kimera/report.json
-bundle exec kimera report tmp/kimera/report.json --status survived
-bundle exec kimera mutant 42 --report tmp/kimera/report.json
-bundle exec kimera mutant app/models/discount.rb:44:8557dadd --report tmp/kimera/report.json
-bundle exec kimera mutant 42 --report tmp/kimera/report.json --rerun
+bundle exec kimera report --status survived
+bundle exec kimera mutant 42
+bundle exec kimera mutant app/models/discount.rb:44:8557dadd
+bundle exec kimera mutant 42 --rerun
+bundle exec kimera run app/models/discount.rb:40-48   # only these lines
+bundle exec kimera run app --method apply             # only inside apply
 ```
+
+`kimera mutant` shows the diff, the source lines around the mutant, and the
+tests that cover it and kill it, by file, line and description.
 
 A mutant has two names. Its ID (`42`) numbers every mutant the run scanned,
 so the same mutant gets a different ID when a run covers a different set of
@@ -119,12 +132,14 @@ and digest match exactly one mutant. `--rerun` re-evaluates only that mutant,
 focused by its key.
 
 For each survivor, write the test that kills it. If a mutant is truly
-equivalent, add it to `ignore:` in `.kimera.yml` with a reason (see
-[Configuration](#configuration)).
+equivalent, add it to `ignore:` in `.kimera.yml` with a reason, or mark the
+line in the source (see [Configuration](#configuration)).
 
 **6. Gate pull requests.** `kimera ci` fails on any survivor or uncovered
-mutant. It writes `tmp/kimera/report.json` and prints GitHub annotations. Pass
-`--since` to mutate only the PR's lines (this needs full Git history):
+mutant. It writes `tmp/kimera/report.json`, prints GitHub annotations beside
+the text report, and adds a Markdown summary to the job. On a pull request it
+mutates only the PR's lines (`--since origin/$GITHUB_BASE_REF`), which needs
+the base branch's history:
 
 ```yaml
 # .github/workflows/mutation.yml
@@ -140,13 +155,13 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
-      - run: bundle exec kimera ci --since origin/${{ github.base_ref }}
+      - run: bundle exec kimera ci
 ```
 
 > **Adopting on an existing suite?** Snapshot today's survivors as reviewed
 > debt, so the gate blocks only *new* holes:
-> `bundle exec kimera baseline create tmp/kimera/report.json --reason "adopting Kimera"`.
-> Then add the printed `baseline:` line to `.kimera.yml`.
+> `bundle exec kimera baseline create --reason "adopting Kimera" --write`.
+> It reads the last report and sets `baseline:` in `.kimera.yml`.
 
 ---
 
@@ -175,6 +190,12 @@ bundle exec kimera run app --since origin/main --fail-on-no-coverage
 
 # Evaluate only the given mutants, by report key or by ID (repeatable)
 bundle exec kimera run app/models/discount.rb --focus app/models/discount.rb:44:8557dadd
+
+# Mutate only some lines of a file, or only inside some methods (repeatable).
+# A target that matches nothing fails, naming the lines and methods that have
+# mutants
+bundle exec kimera run app/models/discount.rb:40-48
+bundle exec kimera run app --method apply --method eligible?
 
 # N warm workers pull from one shared queue, so this scales with cores
 # even on a single big file
@@ -206,19 +227,19 @@ bundle exec kimera run app --isolated
 
 ```sh
 # Mutate only the PR's changed lines (origin/main, falling back to main)
-bundle exec kimera changed --report tmp/kimera/report.json
+bundle exec kimera changed
 
-# Strict gate: zero survivors, no uncovered mutants, a JSON artifact, and
-# GitHub annotations. Override with --format sarif/json.
+# Strict gate: zero survivors, no uncovered mutants, a JSON artifact, GitHub
+# annotations and a job summary. Override with --format sarif/json.
 bundle exec kimera ci
 
-# Continue triage without rerunning the suite
-bundle exec kimera report tmp/kimera/report.json --status no_coverage
-bundle exec kimera mutant 42 --report tmp/kimera/report.json
+# Continue triage without rerunning the suite (reads tmp/kimera/report.json)
+bundle exec kimera report --status no_coverage
+bundle exec kimera mutant 42
 
-# Snapshot pre-existing survivors while adopting Kimera
-bundle exec kimera baseline create tmp/kimera/report.json --reason "adopting Kimera"
-# Add the printed `baseline:` entry to .kimera.yml, then review it in code review
+# Snapshot pre-existing survivors while adopting Kimera, and set baseline:
+# in .kimera.yml; then review the file in code review
+bundle exec kimera baseline create --reason "adopting Kimera" --write
 bundle exec kimera baseline review .kimera-baseline.yml
 
 # Burn the baseline down: evaluate the ignored mutants too, see which entries
@@ -242,9 +263,18 @@ drop. After an incremental `--since` run it never prunes an entry as stale.
 
 ### Output formats and exit codes
 
-- `--format json`, `ndjson`, `github`, and `sarif` write *only* that format to
-  stdout. Progress and diagnostics go to stderr.
-- `--report FILE` always writes the canonical JSON report for later triage.
+- `--format json`, `ndjson`, `github`, `sarif`, and `markdown` write *only*
+  that format to stdout. Progress and diagnostics go to stderr, and so does
+  the text report under `github`, so a CI log reads on its own.
+- The canonical JSON report goes to `tmp/kimera/report.json`, or to
+  `--report FILE`; `--no-report` skips it. Each result names its test ids, and
+  the report's `tests` section maps each id to its description and
+  `file:line`.
+- `--summary FILE` appends a Markdown summary of the findings to FILE.
+  `kimera ci` sets it to `$GITHUB_STEP_SUMMARY` when GitHub Actions does.
+- GitHub annotations fold the mutants on one line into one, with each diff.
+  GitHub shows 10 annotations of each level per step; past that, a notice
+  points at the job summary and the report.
 - Text output honors `NO_COLOR`. `--no-color` forces it off.
 - `--quiet` suits scripts that only need an artifact. `--verbose` prints the
   resolved scope. `--log FILE` keeps the final text report.
@@ -394,9 +424,12 @@ back on over a config's `false`.
 ## Configuration
 
 `.kimera.yml` in the project root sets defaults. Command-line flags override
-them.
+them. [`schema/kimera.schema.json`](schema/kimera.schema.json) describes every
+key; the `.kimera.yml` that `kimera init` writes names it on its first line,
+so editors with a YAML language server complete and check the file.
 
 ```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/giacope/kimera/main/schema/kimera.schema.json
 framework: rspec
 paths: ["app/**/*.rb"]
 tests: ["spec/**/*_spec.rb"]
@@ -417,13 +450,14 @@ fail_on_no_coverage: false
 max_ignored: 1
 
 # Accepted pre-adoption survivors, merged with the ignore rules below.
-# Uncomment only after creating the file with `kimera baseline create`.
+# `kimera baseline create --write` creates the file and sets this line.
 # baseline: .kimera-baseline.yml
 
 # Known-equivalent mutants. Equivalence is undecidable, so Kimera doesn't
 # guess: you mark a mutant and it stops being a survivor. An entry without
-# a reason: is rejected at startup. Anchors: file (a glob, required), line,
-# column, label, method, original. If a line anchor drifts (a line was added
+# a reason: is rejected at startup. Anchors: file (a glob, required), line
+# (spanned), starts (the line the mutated code starts on), column (0-based),
+# label, method, original, operator. If a line anchor drifts (a line was added
 # above), the entry still applies when its label (plus original/method, if
 # given) singles out one mutant in the file; Kimera warns so you can update it.
 ignore:
@@ -432,6 +466,21 @@ ignore:
     label: "> => >="
     reason: known equivalent at the 50 boundary (spend > 50 vs >= 50 both hit the tier)
 ```
+
+A comment in the source does the same for the mutants that start on its line,
+or on the next line with `-next-line`, optionally only those of the named
+operators:
+
+```ruby
+amount > 50 # kimera:disable comparison: spend > 50 and >= 50 both hit the tier
+
+# kimera:disable-next-line: the flush is redundant, IO.pipe write ends are sync
+io.flush
+```
+
+The reason is required, the operator keys are checked, and the mutants count
+toward `max_ignored` like any ignore entry. A comment that disables nothing is
+warned about.
 
 ---
 
