@@ -12,6 +12,8 @@ module Kimera
         end
         private
         def line?(value) = point.location.range.include?(Integer(value))
+        def starts?(value) = point.location.start_line == Integer(value)
+        def operator?(value) = Array(value).map(&:to_s).include?(point.operator)
         def column?(value) = point.location.start_column == Integer(value)
         def label?(value) = value == mutant.label
         def method?(value) = value.to_s == point.method_name
@@ -46,7 +48,8 @@ module Kimera
       files.flat_map { |file| registry.at(file).flat_map { |point| point.mutants.map { |mutant| [mutant, point] } } }
     end
 
-    ANCHORS = { line: :line?, column: :column?, label: :label? }.merge(method: :method?, original: :original?).freeze
+    ANCHORS = { line: :line?, column: :column?, label: :label? }.merge(method: :method?, original: :original?)
+      .merge(starts: :starts?, operator: :operator?).freeze
 
     def match?(rule, point, mutant)
       Match.new(point, mutant).rule?(rule)

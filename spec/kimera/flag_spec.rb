@@ -37,11 +37,19 @@ RSpec.describe(Kimera::Flag) do
   end
 
   describe "FlagTable#parse" do
-    it "turns a mistyped flag into a UsageError carrying the usage banner" do
-      table = Kimera::FlagTable.new(banner: "Usage: kimera x", flags: [])
+    it "turns a mistyped flag into a UsageError pointing at the command's help" do
+      table = Kimera::FlagTable.new(banner: "Usage: kimera baseline create REPORT [options]", flags: [])
 
       expect { table.parse(["--nonsense"], {}) }
-        .to(raise_error(Kimera::UsageError, /invalid option: --nonsense\nUsage: kimera x/))
+        .to(raise_error(Kimera::UsageError, "invalid option: --nonsense\nTry: kimera baseline create --help"))
+    end
+
+    it "folds OptionParser's suggestion into one line" do
+      report = described_class.build("--report FILE", :report, "")
+      table = Kimera::FlagTable.new(banner: "Usage: kimera x", flags: [report])
+
+      expect { table.parse(["--reprot", "r.json"], {}) }
+        .to(raise_error(Kimera::UsageError, "invalid option: --reprot; did you mean --report?\nTry: kimera x --help"))
     end
   end
 

@@ -26,8 +26,14 @@ module Kimera
       def parse(argv, options)
         build(options).parse(argv)
       rescue OptionParser::ParseError => error
-        raise(UsageError, "#{error.message}\n#{banner}")
+        raise(UsageError, "#{suggested(error.message)}\nTry: #{command} --help")
       end
+
+      def suggested(message)
+        message.sub(/\n\s*Did you mean\?\s+(?<name>\S+).*/m) { "; did you mean --#{Regexp.last_match[:name]}?" }
+      end
+
+      def command = banner[/\AUsage: (kimera(?: [a-z]+)*)/, 1]
 
       def build(options)
         OptionParser.new do |parser|

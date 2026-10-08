@@ -1,7 +1,7 @@
 /.bundle/
 /vendor/bundle/
 /pkg/
-/tmp/
+tmp/
 /coverage/
 *.gem
 .kimera/

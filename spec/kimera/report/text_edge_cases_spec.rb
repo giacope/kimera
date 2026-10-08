@@ -70,7 +70,64 @@ RSpec.describe(Kimera::Report::Text) do
     tests = (1..8).map { |i| "spec[#{i}]" }
     out = render(results: [survivor(covering: tests)])
     expect(out).to(include("covered by 8 test(s):"))
-    expect(out).to(include("(+3 more)")) # 8 total, 5 shown
+    expect(out).to(include("(+5 more)")) # 8 total, 3 shown
+  end
+
+  it "points the truncation note at the full list when the report is saved" do
+    tests = (1..4).map { |i| "spec[#{i}]" }
+    io = StringIO.new
+    described_class.new(registry, io: io, color: false)
+      .report(Kimera::RunReport.new(results: [survivor(covering: tests)]), path: "r.json")
+    expect(io.string).to(include("(+1 more; all of them: kimera mutant #{mutant.id} --report r.json)"))
+  end
+
+  it "names each covering test by location and description when the report knows them", :aggregate_failures do
+    named = { "spec[1]" => { "name" => "Calc compares", "location" => "spec/calc_spec.rb:4" } }
+    io = StringIO.new
+    report = Kimera::RunReport.new(results: [survivor(covering: ["spec[1]", "spec[2]"])], tests: named)
+    described_class.new(registry, io: io, color: false).report(report)
+    expect(io.string).to(include("covered by 2 test(s):\n      spec/calc_spec.rb:4  Calc compares\n      spec[2]\n"))
+  end
+
+  it "places a survivor at its line, 1-based column and method" do
+    expect(render(results: [survivor])).to(include("survived ##{mutant.id}  calc.rb:2:3  in a  [<= => <]"))
+  end
+
+  it "places a mutant outside any method without naming one" do
+    lambda = Kimera::RegistryScan.new.source("check = -> { a > b }\n", file: "l.rb")
+    found = lambda.each.first.first
+    io = StringIO.new
+    result = Kimera::MutantResult.new(mutant_id: found.id, status: :survived, file: "l.rb")
+    described_class.new(lambda, io: io, color: false).report(Kimera::RunReport.new(results: [result]))
+    expect(io.string).to(include("survived ##{found.id}  l.rb:1:14  [#{found.label}]"))
+  end
+
+  def mixed
+    other = Kimera::RegistryScan.new.source("def b(x)\n  x > 1\nend\n", file: "b.rb")
+    both = Kimera::Registry.new(points: registry.points + other.points)
+    pick = ->(file) { both.each.find { |_, point| point.file == file }.first.id }
+    results = [
+      Kimera::MutantResult.new(mutant_id: pick.call("b.rb"), status: :no_coverage, file: "b.rb"),
+      survivor, Kimera::MutantResult.new(mutant_id: 99, status: :killed, file: "calc.rb")
+    ]
+    io = StringIO.new
+    described_class.new(both, io: io, color: false).report(Kimera::RunReport.new(results: results))
+    io.string
+  end
+
+  it "tables files with the most survivors first when a run spans several" do
+    expect(mixed).to(include(<<~TABLE))
+
+      Files (2, most survivors first):
+        survived  uncovered  killed   score  file
+               1          0       1   50.0%  calc.rb
+               0          1       0     n/a  b.rb
+
+    TABLE
+  end
+
+  it "leaves the file table out of a one-file run" do
+    expect(render(results: [survivor])).not_to(include("Files ("))
   end
 
   it "omits the truncation note when all covering tests are shown" do

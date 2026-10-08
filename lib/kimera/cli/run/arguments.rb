@@ -5,6 +5,7 @@ require_relative "../../report/formats"
 require_relative "../../scope/config"
 require_relative "../../scope/file_set"
 require_relative "options"
+require_relative "targets"
 
 class Kimera::CLI::Run::Arguments
   def parse(argv)
@@ -22,10 +23,10 @@ class Kimera::CLI::Run::Arguments
   def validate(options) = Kimera::Report::Formats.new.normalize(options[:format])
 
   def scoped(options, rest)
-    {
-      tests: tests(options[:cli_tests], options), configured_tests: tests([], options),
-      paths: Kimera::Config.prefer(rest, options[:paths], Kimera::FileSet::DEFAULT_GLOBS)
-    }.merge(arrays(options))
+    targets = Kimera::CLI::Run::Targets.new(rest)
+    { tests: tests(options[:cli_tests], options), configured_tests: tests([], options) }
+      .merge(paths: Kimera::Config.prefer(targets.paths, options[:paths], Kimera::FileSet::DEFAULT_GLOBS))
+      .merge(lines: targets.lines).merge(arrays(options))
   end
 
   def tests(cli, options) = Kimera::Config.prefer(cli, options[:tests], Kimera::CLI::RunOptions::DEFAULT_TESTS)
@@ -33,6 +34,7 @@ class Kimera::CLI::Run::Arguments
   def arrays(options)
     { exclude: Array(options[:exclude]), ignore: Kimera::Config.ignores(options) }
       .merge(isolate_when_covered_by: Array(options[:isolate_when_covered_by]), focus: Array(options[:focus]))
+      .merge(methods: Array(options[:methods]))
   end
 
   def defaults
@@ -44,7 +46,8 @@ class Kimera::CLI::Run::Arguments
       .merge(paths: nil, operators: Kimera::Operators::DEFAULT_KEYS, soft_timeout: 5.0)
       .merge(hard_timeout: nil, leak_every: 10, registry: nil)
       .merge(relative_timeout: true, timeout_factor: nil, timeout_slack: nil)
-      .merge(report: nil, format: "text", focus: [], gate: true, coverage: true, require: [])
+      .merge(report: Kimera::CLI::ReportFile::DEFAULT, format: "text", focus: [], gate: true, coverage: true)
+      .merge(require: [])
   end
 
   def gates
@@ -56,8 +59,8 @@ class Kimera::CLI::Run::Arguments
     { exclude: [], exclude_tests: [], config: nil }
       .merge(ignore: [], isolate_db: false, isolated: false, rejudge: true)
       .merge(fail_on_no_coverage: false, progress: nil, color: nil, quiet: false, verbose: false, log: nil)
-      .merge(pidfile: nil)
-      .merge(isolate_when_covered_by: [])
+      .merge(pidfile: nil, summary: nil)
+      .merge(isolate_when_covered_by: [], methods: [])
       .merge(cli_tests: [])
   end
 end

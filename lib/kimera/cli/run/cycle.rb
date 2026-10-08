@@ -3,6 +3,8 @@
 require_relative "../../execution/suite_env"
 require_relative "../../incremental/selection"
 require_relative "../../incremental/session"
+require_relative "aim"
+require_relative "inline_ignores"
 require_relative "digest"
 require_relative "narrowing"
 require_relative "pass"
@@ -24,8 +26,8 @@ class Kimera::CLI::Run::Cycle
   private
 
   def scope(selected)
-    eligible = focus(selected || @registry.each.map { |mutant, _| mutant.id })
-    resolution = Kimera::IgnoreList.resolve(@registry, @options[:ignore])
+    eligible = focus(Kimera::CLI::Run::Aim.new(@registry, @options).restrict(selected || @registry.index.keys))
+    resolution = Kimera::IgnoreList.resolve(@registry, @options[:ignore] + inline)
     ignored = resolution.ids & eligible
     notify(selected, ignored, resolution)
     session(eligible - ignored, ignored)
@@ -58,8 +60,10 @@ class Kimera::CLI::Run::Cycle
 
   def emission
     { path: @options[:report], format: @options.fetch(:format, "text"), metadata: provenance }
-      .merge(coverage: coverage, log: @options[:log], scope: narrowing.note)
+      .merge(coverage: coverage, log: @options[:log], scope: narrowing.note, summary: @options[:summary])
   end
+
+  def inline = Kimera::CLI::Run::InlineIgnores.new(@registry, root: @options[:source_root]).rules
 
   def narrowing = @_narrowing ||= Kimera::CLI::Run::Narrowing.new(@options)
 

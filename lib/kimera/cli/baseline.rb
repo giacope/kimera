@@ -6,18 +6,18 @@ require_relative "flag"
 require_relative "report_file"
 
 class Kimera::CLI::Baseline
-  COMMANDS = { "create" => :create, "review" => :review, "prune" => :prune }.freeze
-  ENTRY_KEYS = %w[file line label].freeze
-  REPORT_FLAG = Kimera::Flag.build("--report FILE", :report, "Judge each entry against this report")
+  COMMANDS = { "create" => :create, "review" => :review, "prune" => :prune }
+    .merge("help" => :help, "--help" => :help, "-h" => :help).freeze
+  HELP = <<~HELP.freeze
+    Usage: kimera baseline <command> [options]
 
-  CREATE = Kimera::FlagTable.new(
-    banner: "Usage: kimera baseline create REPORT.json --reason TEXT [--output FILE]",
-    flags: [
-      Kimera::Flag.build("--reason TEXT", :reason, "Why this existing mutation debt is being accepted"),
-      Kimera::Flag.build("--output FILE", :output, "Baseline file to write (default: .kimera-baseline.yml)"),
-      Kimera::FORCE_FLAG.with(help: "Replace an existing baseline file")
-    ]
-  )
+      create [REPORT.json] --reason TEXT [--write]  Accept a report's survivors as reviewed debt
+      review BASELINE.yml [--report REPORT.json]    List the entries, or judge them against a report
+      prune BASELINE.yml --report REPORT.json       Drop the entries a report shows killed or stale
+
+    REPORT.json defaults to #{Kimera::CLI::ReportFile::DEFAULT}. Run kimera baseline <command> --help for its options.
+  HELP
+  REPORT_FLAG = Kimera::Flag.build("--report FILE", :report, "Judge each entry against this report")
 
   REVIEW = Kimera::FlagTable.new(
     banner: "Usage: kimera baseline review BASELINE.yml [--report REPORT.json]",
@@ -44,33 +44,17 @@ class Kimera::CLI::Baseline
   private
 
   def command(name)
-    COMMANDS.fetch(name) { raise(Kimera::UsageError, "usage: kimera baseline <create|review|prune> ...") }
+    COMMANDS.fetch(name) do
+      raise(Kimera::UsageError, "#{name ? "unknown baseline command #{name.inspect}" : "missing command"}\n#{HELP}")
+    end
   end
 
-  def create(argv)
-    options = { reason: nil, output: ".kimera-baseline.yml", force: false }
-    report, = CREATE.parse(argv, options)
-    check(report, options)
-    write(report, options[:output], options[:reason])
-  end
-
-  def check(report, options)
-    raise(Kimera::UsageError, "baseline create needs a report file") unless report
-    raise(Kimera::UsageError, "baseline create requires --reason TEXT") if options[:reason].to_s.strip.empty?
-    raise(Kimera::UsageError, "no such report: #{report}") unless File.file?(report)
-    output = options[:output]
-    overwrite(output) if File.exist?(output) && !options[:force]
-  end
-
-  def overwrite(output) = raise(Kimera::UsageError, "#{output} already exists (use --force to replace it)")
-
-  def write(report, output, reason)
-    ignored = survivors(report).map { |row| entry(row, reason) }
-    File.write(output, YAML.dump("format_version" => 1, "ignore" => ignored))
-    @io.puts("Created #{output} with #{ignored.size} accepted survivor(s).")
-    @io.puts("Add `baseline: #{output}` to .kimera.yml to apply it.")
+  def help(_argv)
+    @io.write(HELP)
     0
   end
+
+  def create(argv) = Kimera::CLI::Baseline::Creation.new(io: @io).run(argv)
 
   def review(argv)
     options = { report: nil }
@@ -108,20 +92,10 @@ class Kimera::CLI::Baseline
   end
 
   def line(entry) = "  #{entry["file"]}:#{entry["line"]} [#{entry["label"]}] — #{entry["reason"]}"
-
-  def survivors(path)
-    Kimera::CLI::ReportFile.parse(path).fetch("results", []).select { |row| row["status"] == "survived" }
-  end
-
-  def entry(row, reason)
-    id, *fields, original = row.values_at("mutant_id", *ENTRY_KEYS, "original")
-    ENTRY_KEYS.zip(fields).to_h { |key, value| [key, value || missing(key, id)] }
-      .merge({ "original" => original }.compact, "reason" => reason)
-  end
-
-  def missing(key, id) = raise(Kimera::UsageError, "report is missing #{key} for mutant ##{id}")
 end
 
+require_relative "baseline/creation"
 require_relative "baseline/ledger"
+require_relative "baseline/setting"
 require_relative "baseline/prune"
 require_relative "baseline/review"

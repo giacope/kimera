@@ -42,28 +42,30 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     end
   end
 
-  it "points AI agents to kimera skill in AGENTS.md exactly once" do
+  it "leaves the project's agent files alone" do
     Dir.mktmpdir do |dir|
       agents = File.join(dir, "AGENTS.md")
-      File.write(agents, "# Agents\n\n")
+      File.write(agents, "# Agents\n")
       out, error = captured
       Kimera::CLI::Init.new(io: out, errors: error, root: dir).run([])
-      expect(File.read(agents)).to(eq("# Agents\n\n#{Kimera::CLI::Init::AGENT_POINTER}"))
-      expect(out.string).to(include("Pointed AI agents to `kimera skill` in AGENTS.md."))
-      again = StringIO.new
-      Kimera::CLI::Init.new(io: again, errors: error, root: dir).run(["--force"])
-      expect(File.read(agents).scan("kimera skill").size).to(eq(1))
-      expect(again.string).not_to(include("AGENTS.md"))
+      expect(Dir.children(dir).sort).to(eq(%w[.kimera.yml AGENTS.md]))
+      expect(File.read(agents)).to(eq("# Agents\n"))
     end
   end
 
-  it "creates AGENTS.md with only the pointer when the project has none" do
+  it "writes a commented config that names its schema and loads back to what it detected", :aggregate_failures do
     Dir.mktmpdir do |dir|
+      FileUtils.mkdir_p(File.join(dir, "lib"))
+      File.write(File.join(dir, "lib", "thing.rb"), "")
       out, error = captured
       Kimera::CLI::Init.new(io: out, errors: error, root: dir).run([])
-      expect(File.read(File.join(dir, "AGENTS.md"))).to(eq(Kimera::CLI::Init::AGENT_POINTER))
-      Kimera::CLI::Init.new(io: out, errors: error, root: File.join(dir, "preview")).run(["--dry-run"])
-      expect(File).not_to(exist(File.join(dir, "preview", "AGENTS.md")))
+      text = File.read(File.join(dir, ".kimera.yml"))
+      expect(text).to(start_with("# yaml-language-server: $schema=#{Kimera::CLI::ConfigTemplate::SCHEMA}\n"))
+      expect(text).to(include("\n# Test framework: rspec or minitest.\nframework: rspec\n\n# Source files to mutate"))
+      expect(text).to(include("\n# baseline: .kimera-baseline.yml\n", "# kimera:disable[-next-line]"))
+      expect(text.lines.map(&:chomp)).to(all(satisfy { |line| line.size <= 120 }))
+      keys = %w[framework paths tests jobs max_survivors max_errors fail_on_no_coverage]
+      expect(YAML.safe_load(text).keys).to(eq(keys))
     end
   end
 
@@ -302,20 +304,43 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     out, error = captured
     runner = instance_double(Kimera::CLI::Run, run: 0)
     allow(Kimera::CLI::Run).to(receive(:new).and_return(runner))
-    Kimera::CLI::CI.new(io: out, errors: error).run(["--format", "sarif", "--max-survivors", "2"])
+    Kimera::CLI::CI.new(io: out, errors: error, env: {}).run(["--format", "sarif", "--max-survivors", "2"])
     expect(runner).to(
       have_received(:run).with(
-        include("--format", "sarif", "--max-survivors", "2", "--fail-on-no-coverage")
-          .and(include("--report", "tmp/kimera/report.json"))
+        eq(["--format", "sarif", "--max-survivors", "2", "--fail-on-no-coverage"])
       )
     )
+  end
+
+  it "mutates a pull request's changed lines and summarizes the job when GitHub Actions says how" do
+    out, error = captured
+    runner = instance_double(Kimera::CLI::Run, run: 0)
+    allow(Kimera::CLI::Run).to(receive(:new).and_return(runner))
+    env = { "GITHUB_BASE_REF" => "main", "GITHUB_STEP_SUMMARY" => "/tmp/step.md" }
+    Kimera::CLI::CI.new(io: out, errors: error, env: env).run([])
+    expect(runner).to(have_received(:run).with(include("--since", "origin/main", "--summary", "/tmp/step.md")))
+  end
+
+  it "leaves an explicit --since and --summary alone, and an empty environment variable unused", :aggregate_failures do
+    out, error = captured
+    runner = instance_double(Kimera::CLI::Run, run: 0)
+    allow(Kimera::CLI::Run).to(receive(:new).and_return(runner))
+    env = { "GITHUB_BASE_REF" => "main", "GITHUB_STEP_SUMMARY" => "/tmp/step.md" }
+    Kimera::CLI::CI.new(io: out, errors: error, env: env).run(["--since", "HEAD~1", "--summary=s.md"])
+    Kimera::CLI::CI.new(io: out, errors: error, env: { "GITHUB_BASE_REF" => "", "GITHUB_STEP_SUMMARY" => "" }).run([])
+    expect(runner).not_to(have_received(:run).with(include("origin/main")))
+    expect(runner).not_to(have_received(:run).with(include("/tmp/step.md")))
+    expect(runner).not_to(have_received(:run).with(include("--summary")))
   end
 
   it "preserves equals-form CI overrides" do
     out, error = captured
     runner = instance_double(Kimera::CLI::Run, run: 0)
     allow(Kimera::CLI::Run).to(receive(:new).and_return(runner))
-    Kimera::CLI::CI.new(io: out, errors: error).run(["--format=sarif", "--max-survivors=2", "--report=out.json"])
+    Kimera::CLI::CI.new(
+      io: out, errors: error,
+      env: {}
+    ).run(["--format=sarif", "--max-survivors=2", "--report=out.json"])
     expect(runner).to(have_received(:run).with(include("--format=sarif", "--max-survivors=2", "--report=out.json")))
     expect(runner).not_to(have_received(:run).with(include("github")))
   end
@@ -323,7 +348,8 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
   it "prints shell completion scripts and a command suggestion" do
     out, error = captured
     expect(Kimera::CLI::Completion.new(io: out, errors: error).run(["bash"])).to(eq(0))
-    expect(out.string).to(include("complete -F _kimera kimera", "changed"))
+    expect(out.string).to(include("complete -F _kimera kimera", "changed", " report "))
+    expect(out.string).not_to(match(/\b(dump|survivors)\b/))
     expect(Kimera::CLI.new(io: out, errors: error).run(["rn"])).to(eq(1))
     expect(error.string).to(include('did you mean "run"?', "Try: kimera help"))
   end
@@ -334,7 +360,8 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
       baseline = File.join(dir, "baseline.yml")
       out, error = captured
       cli = Kimera::CLI::Baseline.new(io: out, errors: error)
-      expect(cli.run(["create", report, "--reason", "adoption debt", "--output", baseline])).to(eq(0))
+      created = Dir.chdir(dir) { cli.run(["create", report, "--reason", "adoption debt", "--output", baseline]) }
+      expect(created).to(eq(0))
       expect(YAML.safe_load_file(baseline).fetch("ignore").first).to(include("reason" => "adoption debt"))
       expect(cli.run(["review", baseline])).to(eq(0))
       expect(out.string).to(include("1 accepted mutant(s)", "app/a.rb:3 [> => >=] — adoption debt"))
@@ -345,7 +372,49 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     out, error = captured
     status = Kimera::CLI::Baseline.new(io: out, errors: error).run(["unknown"])
     expect(status).to(eq(1))
-    expect(error.string).to(include("usage: kimera baseline <create|review|prune> ..."))
+    expect(error.string).to(include('kimera: unknown baseline command "unknown"', "Usage: kimera baseline <command>"))
+    expect(Kimera::CLI::Baseline.new(io: out, errors: error).run([])).to(eq(1))
+    expect(error.string).to(include("kimera: missing command\n"))
+  end
+
+  it "prints the baseline commands for --help, -h and help", :aggregate_failures do
+    %w[--help -h help].each do |flag|
+      out, error = captured
+      expect(Kimera::CLI::Baseline.new(io: out, errors: error).run([flag])).to(eq(0))
+      expect(out.string).to(start_with("Usage: kimera baseline <command> [options]\n"))
+      commands = ["create [REPORT.json] --reason TEXT [--write]", "review BASELINE.yml", "prune BASELINE.yml"]
+      expect(out.string).to(include(*commands))
+    end
+  end
+
+  it "sets the new baseline in .kimera.yml under --write, replacing a commented or earlier line", :aggregate_failures do
+    Dir.mktmpdir do |dir|
+      Dir.chdir(dir) do
+        report = written(dir, "results" => [survivor.merge("line" => 3, "label" => "> => >=")])
+        File.write(".kimera.yml", "jobs: 2\n# baseline: old.yml\n")
+        out, error = captured
+        cli = Kimera::CLI::Baseline.new(io: out, errors: error)
+        expect(cli.run(["create", report, "--reason", "adopting", "--write"])).to(eq(0))
+        expect(File.read(".kimera.yml")).to(eq("jobs: 2\nbaseline: .kimera-baseline.yml\n"))
+        expect(out.string).to(include("Set `baseline: .kimera-baseline.yml` in .kimera.yml."))
+        File.write(".kimera.yml", "jobs: 2")
+        cli.run(["create", report, "--reason", "adopting", "--write", "--force", "--output", "b.yml"])
+        expect(File.read(".kimera.yml")).to(eq("jobs: 2\nbaseline: b.yml\n"))
+      end
+    end
+  end
+
+  it "refuses --write without a .kimera.yml, and reads the default report", :aggregate_failures do
+    Dir.mktmpdir do |dir|
+      Dir.chdir(dir) do
+        FileUtils.mkdir_p("tmp/kimera")
+        File.write("tmp/kimera/report.json", JSON.generate("results" => [survivor.merge("line" => 3, "label" => "x")]))
+        out, error = captured
+        expect(Kimera::CLI::Baseline.new(io: out, errors: error).run(%w[create --reason adopting --write])).to(eq(1))
+        expect(error.string).to(include("no .kimera.yml to set the baseline in (run kimera init first)"))
+        expect(File.read(".kimera-baseline.yml")).to(include("file: app/a.rb"))
+      end
+    end
   end
 
   it "uses report as the friendly survivors alias and mutant as focused detail" do
@@ -387,7 +456,7 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
       expect(runner).to(
         have_received(:run).with(
           ["app/a.rb", "--focus", "app/a.rb:3:0123abcd", "--framework", "rspec", "--source-root", "."]
-            .push("--tests", "spec/**/*_spec.rb", "--operators", "comparison")
+            .push("--tests", "spec/**/*_spec.rb", "--operators", "comparison", "--no-report")
         )
       )
       expect(out.string).to(eq("Re-running mutant #7: app/a.rb:3:0123abcd\n"))

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "../support/readout"
+
 module Kimera
   module Report
   end
@@ -27,7 +29,8 @@ module Kimera::Report::Sections
 
   def unjudge(result)
     id = result.mutant_id
-    @io.puts("  #{red("unjudged")} ##{id}  #{where(@registry.index[id], result)}  #{result.detail}")
+    @io.puts("  #{red("unjudged")} ##{id}  #{where(@registry.index[id], result)}")
+    Kimera::Readout.lines(result.detail).each { |line| @io.puts("    #{line}") }
     annotate(result)
   end
 
@@ -49,8 +52,12 @@ module Kimera::Report::Sections
 
   def named(status) = status == :harness_error ? "unjudged" : status
 
-  def where(point, result)
-    point ? "#{point.file}:#{point.location.start_line}" : result.file.to_s
+  def where(point, result) = point ? place(point) : result.file.to_s
+
+  def place(point)
+    location = point.location
+    method = point.method_name
+    "#{point.file}:#{location.start_line}:#{location.start_column + 1}#{"  in #{method}" if method}"
   end
 
   def hint(report, path)
@@ -62,7 +69,7 @@ module Kimera::Report::Sections
 
   def command(path)
     return "list them with: kimera report #{path} --status no_coverage" if path
-    "re-run with --report FILE, then `kimera report FILE --status no_coverage` to list them"
+    "run without --no-report, then `kimera report --status no_coverage` to list them"
   end
 
   def missing(report, _path = nil) = section("Mutants with no covering test", report.uncovered) { |r| uncovered(r) }
@@ -72,7 +79,7 @@ module Kimera::Report::Sections
   end
 
   def spotted(status, id, mutant, point)
-    @io.puts("  #{yellow(status)} ##{id}  #{point.file}:#{point.location.start_line}  [#{mutant.label}]")
+    @io.puts("  #{yellow(status)} ##{id}  #{place(point)}  [#{mutant.label}]")
   end
 
   def leaks(leaks)

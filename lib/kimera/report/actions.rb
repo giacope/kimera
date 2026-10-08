@@ -45,12 +45,12 @@ class Kimera::Report::Actions
   end
 
   class UnsavedHints
-    def survivors(id) = "surviving mutant(s): inspect ##{id} with `kimera run --report tmp/kimera.json`"
+    def survivors(id) = "surviving mutant(s): run without --no-report to save one, then `kimera mutant #{id}`"
 
-    def uncovered(_id) = "uncovered mutant(s): rerun with --report tmp/kimera.json"
+    def uncovered(_id) = "uncovered mutant(s): run without --no-report, then `kimera report --status no_coverage`"
 
     def unjudged(_id) = "unjudged mutant(s): retry with `kimera run --isolated`"
 
-    def lapsed(_id) = "ignored mutant(s) now killed: rerun with --report FILE, then `kimera baseline prune`"
+    def lapsed(_id) = "ignored mutant(s) now killed: run without --no-report, then `kimera baseline prune`"
   end
 end

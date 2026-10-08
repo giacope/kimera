@@ -42,6 +42,10 @@ class Kimera::Frameworks::Adapter
     id
   end
 
+  def locate(_id) = {}
+
+  def catalog(ids) = (ids & test_ids).to_h { |id| [id, { "name" => describe(id) }.merge(locate(id))] }
+
   def reproduce(ids)
     "rspec #{(ids & test_ids).join(" ")} --order defined"
   end

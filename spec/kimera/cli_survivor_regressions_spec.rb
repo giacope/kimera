@@ -103,7 +103,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       Dir.mktmpdir do |dir|
         source = fixture(dir, "mutant_id" => 9, "status" => "survived", "file" => "x.rb", "line" => 2, "label" => "x")
         Dir.chdir(dir) do
-          expect(baseline(["create"])[2]).to(include("needs a report file"))
+          expect(baseline(%w[create --reason why])[2]).to(include("no such report: tmp/kimera/report.json"))
           expect(baseline(["create", source])[2]).to(include("requires --reason"))
           expect(baseline(["create", "missing.json", "--reason", "why"])[2]).to(include("no such report"))
         end
@@ -114,10 +114,12 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       Dir.mktmpdir do |dir|
         source = fixture(dir, "mutant_id" => 9, "status" => "survived", "file" => "x.rb", "line" => 2, "label" => "x")
         target = File.join(dir, "baseline.yml")
-        status, output, = baseline(["create", source, "--reason", "why", "--output", target])
-        expect(status).to(eq(0))
-        expect(output).to(include("Created #{target} with 1 accepted survivor(s).", "baseline: #{target}"))
-        expect(baseline(["create", source, "--reason", "why", "--output", target])[2]).to(include("already exists"))
+        Dir.chdir(dir) do
+          status, output, = baseline(["create", source, "--reason", "why", "--output", target])
+          expect(status).to(eq(0))
+          expect(output).to(include("Created #{target} with 1 accepted survivor(s).", "baseline: #{target}"))
+          expect(baseline(["create", source, "--reason", "why", "--output", target])[2]).to(include("already exists"))
+        end
       end
     end
 
@@ -146,8 +148,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect(errors.string).to(include("mutant ID is required"))
       errors.truncate(0)
       errors.rewind
-      expect(cli.run(["7"])).to(eq(1))
-      expect(errors.string).to(include("--report REPORT.json is required"))
+      Dir.mktmpdir { |dir| Dir.chdir(dir) { expect(cli.run(["7"])).to(eq(1)) } }
+      expect(errors.string).to(include("no such report: tmp/kimera/report.json (run kimera run first"))
 
       args = rerun(
         "framework" => "minitest", "source_root" => "src", "tests" => ["test/a_test.rb"],
@@ -191,7 +193,12 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
   describe "run argument, cycle, and digest boundaries" do
     it "rejects an invalid output format before running" do
       expect { Kimera::CLI::Run::Arguments.new.parse(["--format", "xml"]) }
-        .to(raise_error(Kimera::UsageError, 'unknown report format "xml" (choose: text, json, ndjson, github, sarif)'))
+        .to(
+          raise_error(
+            Kimera::UsageError,
+            'unknown report format "xml" (choose: text, json, ndjson, github, sarif, markdown)'
+        )
+        )
     end
 
     it "sends machine formats to the output stream and text formats to the narration stream" do
@@ -227,7 +234,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     def emission(coverage)
-      { coverage: coverage, path: nil, format: "text", metadata: anything, log: nil, scope: nil }
+      { coverage: coverage, path: nil, format: "text", metadata: anything, log: nil, scope: nil, summary: nil }
     end
 
     it "writes report metadata only when supplied and respects color overrides" do
@@ -350,7 +357,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         init = Kimera::CLI::Init.new(io: out, errors: errors, root: dir)
         expect(init.run([])).to(eq(0))
         expect(out.string).to(
-          eq("Created .kimera.yml for rspec.\nPointed AI agents to `kimera skill` in AGENTS.md.\nNext: kimera doctor\n")
+          eq("Created .kimera.yml for rspec.\nNext: kimera doctor\n")
         )
         expect(YAML.safe_load_file(File.join(dir, ".kimera.yml")).fetch("tests")).to(eq(["spec/**/*_spec.rb"]))
       end
@@ -432,7 +439,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       allow(Kimera::CLI::Run).to(receive(:new).and_return(runner))
       Kimera::CLI::CI.new(
         io: out,
-        errors: errors
+        errors: errors,
+        env: {}
       ).run(
         [
           "--no-fail-on-no-coverage", "--report",
@@ -453,12 +461,11 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       out, errors = streams
       runner = instance_double(Kimera::CLI::Run, run: 0)
       allow(Kimera::CLI::Run).to(receive(:new).and_return(runner))
-      Kimera::CLI::CI.new(io: out, errors: errors).run([])
+      Kimera::CLI::CI.new(io: out, errors: errors, env: {}).run([])
       expect(runner).to(
         have_received(:run).with(
         [
-          "--max-survivors", "0", "--fail-on-no-coverage", "--report",
-          "tmp/kimera/report.json", "--format", "github"
+          "--max-survivors", "0", "--fail-on-no-coverage", "--format", "github"
       ]
       )
       )
@@ -509,7 +516,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       )
       expect(io.string).to(
         include(
-          "kimera run --report tmp/kimera.json", "rerun with --report tmp/kimera.json",
+          "run without --no-report to save one, then `kimera mutant 1`",
+          "run without --no-report, then `kimera report --status no_coverage`",
           "unjudged mutant(s): retry with `kimera run --isolated`"
         )
       )

@@ -2,6 +2,9 @@
 
 require "fileutils"
 require "kimera/frameworks/minitest_adapter"
+# Examples stub Minitest before any adapter is built, so load it here, not by
+# whichever example happens to run first.
+require "minitest"
 require "tmpdir"
 
 RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
@@ -129,6 +132,14 @@ RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
     Dir.chdir(dir) do
       expect(adapter.reproduce(["It's#test"])).to(include("-n '/^(?:It'\\''s\\#test)$/'"))
       expect(adapter.reproduce(["DemoKimeraTest#test_passes"])).to(include("File.expand_path(\"demo_test.rb\")"))
+    end
+  end
+
+  it "catalogs a test by its id and the file:line that defines it", :aggregate_failures do
+    Dir.chdir(dir) do
+      catalog = adapter.catalog(["DemoKimeraTest#test_passes", "Nope#test_x"])
+      named = { "name" => "DemoKimeraTest#test_passes", "location" => "demo_test.rb:3" }
+      expect(catalog).to(eq("DemoKimeraTest#test_passes" => named))
     end
   end
 

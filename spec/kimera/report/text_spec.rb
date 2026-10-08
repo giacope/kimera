@@ -24,8 +24,8 @@ RSpec.describe(Kimera::Report::Text) do
   end
 
   def instructions
-    "1 mutant(s) have no covering test; re-run with --report FILE, " \
-      "then `kimera report FILE --status no_coverage` to list them"
+    "1 mutant(s) have no covering test; run without --no-report, " \
+      "then `kimera report --status no_coverage` to list them"
   end
 
   def render(result, **)
@@ -81,7 +81,7 @@ RSpec.describe(Kimera::Report::Text) do
   it "prints location, original-vs-mutation diff, and covering tests for survivors", :aggregate_failures do
     output = render(survivor)
     expect(output).to(include("survived ##{mutant.id}", "calc.rb:3", "[<= => <]", "- x <= y", "+ x < y"))
-    expect(output).to(include("covered by 1 test(s): ./spec/calc_spec.rb[1:1]"))
+    expect(output).to(include("covered by 1 test(s):\n      ./spec/calc_spec.rb[1:1]\n"))
   end
 
   it "omits the survivors section when everything is killed", :aggregate_failures do
@@ -108,7 +108,7 @@ RSpec.describe(Kimera::Report::Text) do
   it "indents continuation lines of a multiline diff under the marker", :aggregate_failures do
     output = diff
     expect(output).to(include("    - if x\n            :yes\n          end\n"))
-    expect(output).to(include("    + if true\n        :yes\n      end\n"))
+    expect(output).to(include("    + if true\n            :yes\n          end\n"))
   end
 
   it "omits the no-coverage section when show_no_coverage is set but nothing is uncovered" do
@@ -143,7 +143,7 @@ RSpec.describe(Kimera::Report::Text) do
 
   it "keeps the warm detail as a note under a re-judged survivor or unjudged mutant", :aggregate_failures do
     note = "\n    note: judged in a fresh isolated mirror; the warm pass could not: t1\n"
-    expect(render(rejudged(survivor))).to(include("covered by 1 test(s): ./spec/calc_spec.rb[1:1]#{note}"))
+    expect(render(rejudged(survivor))).to(include("covered by 1 test(s):\n      ./spec/calc_spec.rb[1:1]#{note}"))
     expect(render(rejudged(error))).to(include("worker crashed before result#{note}"))
     expect(render(survivor)).not_to(include("note:"))
   end
@@ -184,7 +184,7 @@ RSpec.describe(Kimera::Report::Text) do
       include(
         "\n\n2 ignored mutant(s) are now killed (their entries can be pruned); 1 still survive; " \
           "1 could not be judged.\n",
-        "2 ignored mutant(s) now killed: rerun with --report FILE, then `kimera baseline prune`"
+        "2 ignored mutant(s) now killed: run without --no-report, then `kimera baseline prune`"
       )
     )
     expect(waivers(path: "rep.json")).to(

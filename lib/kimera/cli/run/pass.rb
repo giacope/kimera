@@ -16,7 +16,7 @@ class Kimera::CLI::Run::Pass
   end
 
   def call(remaining, session)
-    report = with_adapter { perform(remaining) }
+    report = with_adapter { perform(remaining) }.then { |judged| judged.described(@adapter.catalog(judged.test_ids)) }
     session.merge!(report)
     report
   end

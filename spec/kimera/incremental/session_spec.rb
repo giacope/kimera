@@ -36,6 +36,12 @@ RSpec.describe(Kimera::Incremental::Session) do
     expect(JSON.parse(File.read(path))["meta"]).to(eq("since" => "main"))
   end
 
+  it "keeps the names of the tests its results cite across a resume" do
+    named = { "t1" => { "name" => "N", "location" => "spec/n_spec.rb:2" } }
+    path = seed(dir, Kimera::RunReport.new(results: [result(1, :killed)], tests: named))
+    expect(described_class.from(path).report([1], [], Kimera::Registry.new).tests).to(eq(named))
+  end
+
   it "merges new results into resumed ones" do
     path = seed(dir, report([result(1, :killed)]))
     resumed = described_class.from(path)
