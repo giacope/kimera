@@ -33,6 +33,11 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
   end
 
   describe "#tests" do
+    it "runs the whole suite for a point whose method also ran while the suite loaded" do
+      point.booted!
+      expect(plan(coverage: { mutant_id => ["spec/a_spec.rb[1:1]"] }).tests(mutant_id, point)).to(eq(%w[t1 t2 t3]))
+    end
+
     it "returns the measured covering set (integer-keyed) when present" do
       p = plan(coverage: { mutant_id => ["spec/a_spec.rb[1:1]"] })
       expect(p.tests(mutant_id, point)).to(eq(["spec/a_spec.rb[1:1]"]))

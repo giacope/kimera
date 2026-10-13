@@ -76,9 +76,14 @@ class Kimera::CLI::Run::Pass
   end
 
   def rejudged(report)
-    unjudged = report.errors
+    unjudged = report.errors + booted(report)
     return report if unjudged.empty? || @options[:rejudge] == false
     report.revise(isolation.rejudge(unjudged, label: "mutants (re-judged)"))
+  end
+
+  def booted(report)
+    report.survived.select { |result| @registry.index.fetch(result.mutant_id).booted? }
+      .map { |result| result.dup.tap { |copy| copy.detail = Kimera::MutationPoint::BOOT_REASON } }
   end
 
   def judge(ids)

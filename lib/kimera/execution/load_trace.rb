@@ -10,6 +10,8 @@ module Kimera
 end
 
 class Kimera::Execution::LoadTrace
+  LOADED = Kimera::MutationPoint::LOAD_REASON
+
   def initialize(registry, root)
     @registry = registry
     @root = root
@@ -22,7 +24,7 @@ class Kimera::Execution::LoadTrace
 
   def quarantine!(coverage)
     calls.each do |file, lines|
-      loaded(file, lines).each { |point| point.unsafe!(Kimera::MutationPoint::LOAD_REASON) if uncovered?(point, coverage) }
+      loaded(file, lines).each { |point| uncovered?(point, coverage) ? point.unsafe!(LOADED) : point.booted! }
     end
   end
 
