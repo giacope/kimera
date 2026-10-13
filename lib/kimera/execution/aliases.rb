@@ -11,6 +11,7 @@ class Kimera::Execution::Aliases
   HIDDEN = Module.instance_method(:private_instance_methods)
   LOOKUP = Module.instance_method(:instance_method)
   SINGLETON = Kernel.instance_method(:singleton_class)
+  INHERITED = false
 
   def initialize(files)
     @files = files
@@ -37,7 +38,7 @@ class Kimera::Execution::Aliases
   end
 
   def scan(holder)
-    names = OWN.bind_call(holder, false) + HIDDEN.bind_call(holder, false)
+    names = OWN.bind_call(holder, INHERITED) + HIDDEN.bind_call(holder, INHERITED)
     names.each { |name| track(holder, LOOKUP.bind_call(holder, name)) }
   end
 
