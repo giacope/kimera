@@ -744,7 +744,7 @@ RSpec.describe(Kimera::Overlay) do
         registry, result = spliced
         expect(result.mutant_ids.size).to(eq(registry.count))
         expect(result.source).to(include("ODDITY = :unemittable"))
-        expect(result.source).to(include("::MutantRuntime.active?"))
+        expect(result.source).to(include("::Kimera::RUNTIME.active?"))
         expect(Prism.parse(result.source)).to(be_success)
       end
 

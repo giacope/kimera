@@ -3,8 +3,14 @@
 RSpec.describe(Kimera::Runtime) do
   let(:runtime) { described_class.new }
 
-  it "is the one process-wide runtime that synthesized guards call as ::MutantRuntime" do
-    expect(MutantRuntime).to(equal(Kimera::RUNTIME))
+  it "is the one process-wide runtime, and the only constant kimera defines outside its namespace is Kimera" do
+    expect(Kimera::RUNTIME).to(be_a(described_class))
+  end
+
+  it "keeps the runtime a second copy of this file finds already bound" do
+    bound = Kimera::RUNTIME
+    Kimera::Warnings.silence { load(described_class::SOURCE_PATH) }
+    expect(Kimera::RUNTIME).to(equal(bound))
   end
 
   describe "#active / #active?" do
@@ -57,7 +63,16 @@ RSpec.describe(Kimera::Runtime) do
       ledger = runtime.start!
       runtime.stop!(ledger)
       runtime.active?(5)
-      expect(ledger).to(be_empty)
+      expect(ledger.drain!).to(be_empty)
+    end
+
+    # A guard in a hot loop runs millions of times; the ledger holds each id once.
+    it "keeps one entry per mutant however often its guard runs" do
+      ledger = runtime.start!
+      100_000.times { runtime.active?(7) }
+      expect(ledger.ids.size).to(eq(1))
+    ensure
+      runtime.stop!(ledger)
     end
 
     def close(ledger, mutant)

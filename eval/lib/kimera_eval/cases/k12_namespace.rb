@@ -19,7 +19,7 @@ module KimeraEval
 
     def constants
       script = 'before = Object.constants; require "kimera"; puts((Object.constants - before).sort)'
-      checkout.ruby("-e", script, chdir: checkout.path).out.split
+      Shell.new(chdir: checkout.path).run("ruby", "-I", File.join(checkout.path, "lib"), "-e", script).out.split
     end
   end
 end

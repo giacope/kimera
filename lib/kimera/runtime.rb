@@ -8,14 +8,12 @@ class Kimera::Runtime
 
   Ledger =
     Struct.new(:ids) do
-      def push(id) = ids.push(id)
-
-      def clear = ids.clear
-
-      def empty? = ids.empty?
+      def push(id)
+        ids[id] = true
+      end
 
       def drain!
-        touched = ids.uniq
+        touched = ids.keys
         ids.clear
         touched
       end
@@ -38,7 +36,7 @@ class Kimera::Runtime
   end
 
   def start!
-    ledger = Ledger.new([])
+    ledger = Ledger.new({})
     (@ledgers ||= []).push(ledger)
     ledger
   end
@@ -55,6 +53,4 @@ class Kimera::Runtime
   end
 end
 
-Kimera::RUNTIME = Kimera::Runtime.new
-
-MutantRuntime = Kimera::RUNTIME unless defined?(MutantRuntime)
+Kimera::RUNTIME = Kimera::Runtime.new unless Kimera.const_defined?(:RUNTIME, false)
