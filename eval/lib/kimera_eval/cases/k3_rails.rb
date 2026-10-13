@@ -4,63 +4,79 @@ module KimeraEval
   # K3: examples/rails_app (Rails 8.1, sqlite) end to end, Minitest and
   # RSpec, against an oracle that bakes each mutant and runs `bin/rails test`
   # (or `rspec`) fresh. Modes: serial, 4 workers with per-worker databases,
-  # --isolate-db with both, and --isolated.
+  # --isolate-db with both, and --isolated, also with the app placed so its
+  # Gemfile's relative path to kimera resolves (as a monorepo's engines do).
   class RailsCase < Case
     ID = "K3"
     TITLE = "Real Rails app end to end (validations, callbacks, transactions, per-worker DBs)"
     MODES = [%w[--jobs 1], %w[--jobs 4], %w[--isolate-db], %w[--jobs 4 --isolate-db], %w[--isolated --jobs 4]].freeze
-    SUITES = { "minitest" => [[], %w[bin/rails test]], "rspec" => [%w[--config .kimera-rspec.yml], %w[bundle exec rspec]] }.freeze
+    SUITES = { "minitest" => [[], %w[bin/rails test]], "rspec" => [%w[--config .kimera-rspec.yml], RSPEC] }.freeze
+    DISPOSABLE = %w[storage tmp log Gemfile.lock].freeze
+    LINKED = %w[lib exe kimera.gemspec README.md CHANGELOG.md LICENSE.txt skills schema].freeze
 
     def call
-      app = prepare
-      @oracles = {}
-      runs = SUITES.to_h { |name, (args, command)| [name, suite(name, app, args, command)] }
+      app = prepare(sandbox.copy(File.join(ROOT, "examples", "rails_app"), "rails_app"), environment)
+      runs = SUITES.to_h { |name, (args, command)| [name, suite(app, args, command)] }
       runs["minitest"]["--isolated, relative path gem"] = relative(app)
-      flat = runs.values.flat_map(&:values)
-      total = totals(flat)
-      { "pass" => total.values_at("false_survived", "false_killed", "errors").sum.zero? && flat.sum { |run| run["leaks"].to_i }.zero?, "summary" => headline(total, flat) }
-        .merge("totals" => total, "runs" => runs)
+      measured(runs)
     end
 
     private
 
-    def env = { "BUNDLE_GEMFILE" => File.join(@app, "Gemfile"), "KIMERA_PATH" => checkout.path, "PARALLEL_WORKERS" => "1" }
-
-    def prepare
-      @app = sandbox.copy(File.join(ROOT, "examples", "rails_app"), "rails_app")
-      FileUtils.rm_rf(%w[storage tmp log Gemfile.lock].map { |entry| File.join(@app, entry) })
-      install = Shell.new(env: env, chdir: @app, timeout: 900).run("bundle", "install")
-      raise("rails_app bundle install failed:\n#{install.output[-2000..]}") unless install.ok?
-      @app
+    def environment(app = nil)
+      { "BUNDLE_GEMFILE" => app && File.join(app, "Gemfile"), "KIMERA_PATH" => checkout.path }
+        .merge("PARALLEL_WORKERS" => "1")
     end
 
-    def suite(name, app, args, command)
-      truth = @oracles[name] = oracle(app, command: command, env: env)
-      differential(app, MODES, args: args, oracle: truth, env: env.merge("BUNDLE_GEMFILE" => "Gemfile"))
+    def prepare(app, env)
+      FileUtils.rm_rf(DISPOSABLE.map { |entry| File.join(app, entry) })
+      install(app, env).then { |result| result.ok? ? app : raise(SetupError, "bundle install failed in #{app}") }
     end
 
-    # The Gemfile names kimera by a relative path (../..), as a monorepo
-    # names its engines: the app sits at examples/rails_app under a tree
-    # whose root links to the checkout.
+    def install(app, env)
+      Shell.new(env: env.merge("BUNDLE_GEMFILE" => File.join(app, "Gemfile")), chdir: app, timeout: 900)
+        .run("bundle", "install")
+    end
+
+    def suite(app, args, command)
+      env = environment(app)
+      @truth ||= {}
+      truth = @truth[command] = oracle(app, Oracle::Runner.new(command, env))
+      differential(target(app, args: args, env: env.merge("BUNDLE_GEMFILE" => "Gemfile")), MODES, truth)
+    end
+
     def relative(app)
-      tree = File.join(sandbox.root, "relative")
-      FileUtils.mkdir_p(File.join(tree, "examples"))
-      %w[lib exe kimera.gemspec README.md CHANGELOG.md LICENSE.txt skills schema].each do |entry|
-        FileUtils.ln_s(File.join(checkout.path, entry), File.join(tree, entry)) if File.exist?(File.join(checkout.path, entry))
-      end
-      placed = File.join(tree, "examples", "rails_app")
-      FileUtils.cp_r(app, placed)
-      local = { "BUNDLE_GEMFILE" => File.join(placed, "Gemfile"), "KIMERA_PATH" => nil, "PARALLEL_WORKERS" => "1" }
-      FileUtils.rm_f(File.join(placed, "Gemfile.lock"))
-      Shell.new(env: local, chdir: placed, timeout: 900).run("bundle", "install")
-      Differential.new(checkout, placed, oracle: @oracles.fetch("minitest"), env: local).call(%w[--isolated --jobs 4])
+      placed = place(app)
+      local = environment(placed).merge("KIMERA_PATH" => nil)
+      prepare(placed, local)
+      Differential.new(checkout, target(placed, env: local), oracle: @truth.fetch(SUITES["minitest"].last))
+        .call(%w[--isolated --jobs 4])
     end
 
-    def headline(total, flat)
-      judged = total["mutants"] - total["abstained"] - total["unbakeable"]
-      total.slice("false_survived", "false_killed", "abstained", "errors")
-        .merge("agreement_pct" => judged.zero? ? nil : (100.0 * total["agree"] / judged).round(1))
-        .merge("leaks" => flat.sum { |run| run["leaks"].to_i }, "rejudged" => flat.sum { |run| run["rejudged"].to_i })
+    def place(app)
+      placed = File.join(sandbox.root, "relative", "examples", "rails_app")
+      LINKED.each { |entry| link(entry, File.dirname(placed, 2)) }
+      FileUtils.cp_r(app, placed)
+      placed
+    end
+
+    def link(entry, tree)
+      source = File.join(checkout.path, entry)
+      FileUtils.mkdir_p(File.join(tree, "examples"))
+      FileUtils.ln_s(source, File.join(tree, entry)) if File.exist?(source)
+    end
+
+    def measured(runs)
+      flat = runs.values.flat_map(&:values)
+      total = totals(flat)
+      leaks = flat.sum { |run| run["leaks"].to_i }
+      { "pass" => total.values_at("false_survived", "false_killed", "errors").sum.zero? && leaks.zero? }
+        .merge("summary" => summary(total, flat, leaks), "totals" => total, "runs" => runs)
+    end
+
+    def summary(total, flat, leaks)
+      rejudged = flat.sum { it["rejudged"].to_i }
+      headline(total).merge("errors" => total["errors"], "leaks" => leaks, "rejudged" => rejudged)
         .merge("wall_s" => flat.sum { |run| run["wall_s"].to_f }.round(1))
     end
   end

@@ -860,10 +860,10 @@ children that inject the model's faults (fault injection, not conformance).
 (`sample_app` for RSpec, `minitest_app` for Minitest) and a Rails app CI runs
 end to end (`rails_app`, `bin/e2e`).
 
-`eval/run --kimera PATH` measures a kimera checkout against the gaps an
-independent review found, each verdict checked against an oracle that bakes
-the mutant into a copy of the project and runs the plain test command in a
-fresh process. [`eval/results/README.md`](eval/results/README.md) has the
+`eval/run` measures a kimera checkout (give it the checkout's path)
+against the gaps an independent review found, each verdict checked against
+an oracle that bakes the mutant into a copy of the project and runs the plain
+test command in a fresh process. [`eval/results/README.md`](eval/results/README.md) has the
 cases and the numbers before and after the fixes.
 
 ## License

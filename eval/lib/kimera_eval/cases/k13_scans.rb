@@ -21,17 +21,29 @@ module KimeraEval
       Kimera::Execution::Aliases.new(files).follow { [] }
       puts "modules=\#{modules} seconds=\#{Process.clock_gettime(Process::CLOCK_MONOTONIC) - started}"
     RUBY
+    DISPOSABLE = %w[storage tmp log Gemfile.lock].freeze
 
     def call
-      app = sandbox.copy(File.join(ROOT, "examples", "rails_app"), "rails_app")
-      FileUtils.rm_rf(%w[storage tmp log Gemfile.lock].map { |entry| File.join(app, entry) })
+      bench = measure(sandbox.copy(File.join(ROOT, "examples", "rails_app"), "rails_app"))
+      seconds = bench.stdout[/seconds=([\d.]+)/, 1].to_f
+      warnings = bench.stderr.scan(/DEPRECATION WARNING.*Aliases/).size
+      summary = { "scan_s" => seconds.round(3), "deprecation_warnings" => warnings }
+      { "pass" => warnings.zero? && seconds < 1.0, "summary" => summary }
+        .merge("modules" => bench.stdout[/modules=(\d+)/, 1].to_i, "exit" => bench.code)
+    end
+
+    private
+
+    def measure(app)
+      FileUtils.rm_rf(DISPOSABLE.map { |entry| File.join(app, entry) })
+      bench(app)
+    end
+
+    def bench(app)
       env = { "BUNDLE_GEMFILE" => File.join(app, "Gemfile"), "KIMERA_PATH" => checkout.path }
-      Shell.new(env: env, chdir: app, timeout: 900).run("bundle", "install")
-      bench = Shell.new(env: env, chdir: app).run("bundle", "exec", "ruby", "-e", BENCH)
-      seconds = bench.out[/seconds=([\d.]+)/, 1].to_f
-      warnings = bench.err.scan(/DEPRECATION WARNING.*Aliases/).size
-      { "pass" => warnings.zero? && seconds < 1.0, "summary" => { "scan_s" => seconds.round(3), "deprecation_warnings" => warnings } }
-        .merge("modules" => bench.out[/modules=(\d+)/, 1].to_i, "exit" => bench.code)
+      shell = Shell.new(env: env, chdir: app)
+      shell.run("bundle", "install")
+      shell.run("bundle", "exec", "ruby", "-e", BENCH)
     end
   end
 end

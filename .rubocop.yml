@@ -86,6 +86,22 @@ Elegant/NoRedundantVariable:
   Enabled: false
 
 # --------------------------------------------------------------------------
+# eval/: the measurement harness, run by hand, not shipped. Each case's
+# comment is the definition of what it measures; the harness is one
+# namespace; the oracle judges mutants on threads; the command prints.
+# --------------------------------------------------------------------------
+
+Kata/NoComments:
+  Exclude:
+    - eval/**/*
+Elegant/NoClassInModule:
+  Exclude:
+    - eval/**/*
+Kata/IoDiscipline:
+  Exclude:
+    - eval/**/*
+
+# --------------------------------------------------------------------------
 # kimera forks processes, not threads; a mutex here would only slow mutants.
 # --------------------------------------------------------------------------
 
@@ -101,6 +117,10 @@ ThreadSafety/ClassAndModuleAttributes:
     - lib/kimera/execution/overlay_guards.rb
 ThreadSafety/NewThread:
   Exclude:
+    # The oracle runs one mutant per sandbox copy at once.
+    - eval/lib/kimera_eval/oracle.rb
+    # Reads a child's two streams and samples its memory while it runs.
+    - eval/lib/kimera_eval/shell.rb
     # One thread per job is this file's purpose.
     - lib/kimera/execution/isolated_scheduling.rb
     # doctor waits on one suite process per job at once.

@@ -3,17 +3,31 @@
 require "yaml"
 
 module KimeraEval
-  # What every case gets: the checkout under evaluation, a sandbox for
-  # copies, and the fixed toolchain the oracles run on (this repo's bundle).
-  Context =
-    Data.define(:checkout, :sandbox, :options) do
-      def runner_env = { "BUNDLE_GEMFILE" => File.join(ROOT, "Gemfile"), "NO_COLOR" => "1" }
+  TOOLCHAIN = { "BUNDLE_GEMFILE" => File.join(ROOT, "Gemfile"), "NO_COLOR" => "1" }.freeze
+  LOADER = "Dir.glob('test/**/*_test.rb').sort.each { |f| require File.expand_path(f) }"
+  MINITEST = ["bundle", "exec", "ruby", "-Itest", "-e", LOADER].freeze
+  RSPEC = %w[bundle exec rspec].freeze
+  COUNTS = /(\d+) examples?, (\d+) failures?/
 
-      def quick? = options.fetch(:quick, false)
+  # What bin/spec reported.
+  Specs =
+    Data.define(:ok, :examples, :failures, :wall_s) do
+      def self.of(result)
+        examples, failures = result.stdout.scan(COUNTS).last
+        new(result.ok?, examples.to_i, failures.to_i, result.wall.round(1))
+      end
+
+      def to_h = super.transform_keys(&:to_s)
     end
+
+  # What every case gets: the checkout under evaluation, a sandbox for
+  # copies, and the run's settings.
+  Context = Data.define(:checkout, :sandbox, :settings)
 
   # A case measures one gap. #call returns a metrics hash with "pass".
   class Case
+    TOTALS = %w[mutants agree false_survived false_killed abstained unbakeable].freeze
+
     def initialize(context)
       @context = context
     end
@@ -26,35 +40,45 @@ module KimeraEval
 
     def sandbox = context.sandbox
 
+    def quick? = context.settings.quick
+
     def fixture(*parts) = File.join(FIXTURES, *parts)
 
-    def framework(dir) = YAML.safe_load_file(File.join(dir, ".kimera.yml")).fetch("framework", "rspec")
-
-    def oracle_command(dir)
-      return ["bundle", "exec", "rspec"] unless framework(dir) == "minitest"
-      ["bundle", "exec", "ruby", "-Itest", "-e", "Dir.glob('test/**/*_test.rb').sort.each { |f| require File.expand_path(f) }"]
+    def framework(dir)
+      config = File.join(dir, ".kimera.yml")
+      File.exist?(config) ? YAML.safe_load_file(config).fetch("framework", "rspec") : "rspec"
     end
 
-    def oracle(dir, command: oracle_command(dir), env: context.runner_env)
-      Oracle.new(dir, command: command, sandbox: sandbox, env: env).tap(&:baseline!)
+    def command(dir) = framework(dir) == "minitest" ? MINITEST : RSPEC
+
+    def oracle(dir, runner = Oracle::Runner.new(command(dir), TOOLCHAIN))
+      Oracle.new(dir, runner: runner, sandbox: sandbox).tap(&:baseline!)
     end
 
-    def differential(dir, modes, args: [], oracle: oracle(dir), env: {})
-      modes.to_h do |mode|
-        [mode.join(" "), Differential.new(checkout, sandbox.copy(dir), oracle: oracle, args: args, env: env).call(mode)]
-      end
+    def target(dir, args: [], env: {}) = Differential::Target.new(dir, args, env)
+
+    def differential(target, modes, truth = oracle(target.project))
+      modes.to_h { |mode| [mode.join(" "), Differential.new(checkout, copied(target), oracle: truth).call(mode)] }
     end
+
+    def copied(target) = target.with(project: sandbox.copy(target.project))
 
     def totals(runs)
-      keys = %w[mutants agree false_survived false_killed abstained unbakeable]
-      keys.to_h { |key| [key, runs.sum { |run| run.fetch(key, 0) }] }
-        .merge("errors" => runs.count { |run| run["error"] })
+      errors = runs.count { |run| run["error"] }
+      TOTALS.to_h { |key| [key, runs.sum { |run| run.fetch(key, 0) }] }.merge("errors" => errors)
     end
+
+    def headline(total)
+      agreement = Scoring.agreement(total.slice(*Differential::VERDICTS))
+      total.slice("mutants", "false_survived", "false_killed", "abstained").merge("agreement_pct" => agreement)
+    end
+
+    def specs(result) = Specs.of(result).to_h
   end
 end
 
 Dir[File.join(__dir__, "cases", "*.rb")].each { |file| require file }
 
 module KimeraEval
-  CASES = Case.subclasses.sort_by { |kind| kind::ID }.freeze
+  CASES = Case.subclasses.sort_by { |kind| [kind::ID[0], Integer(kind::ID[1..])] }.freeze
 end

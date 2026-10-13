@@ -13,20 +13,22 @@ module KimeraEval
   class Differential
     KILLS = %w[killed timeout error].freeze
     SURVIVALS = %w[survived no_coverage].freeze
+    VERDICTS = %w[agree false_survived false_killed abstained unbakeable].freeze
 
-    def initialize(checkout, project, oracle:, args: [], env: {})
+    Target = Data.define(:project, :args, :env)
+
+    def initialize(checkout, target, oracle:)
       @checkout = checkout
-      @project = project
+      @target = target
       @oracle = oracle
-      @args = args
-      @env = env
     end
 
     def call(mode)
-      report = File.join(@project, "tmp", "eval-#{mode.join("-").delete("-")}.json")
-      run = @checkout.kimera("run", *@args, *mode, "--report", report, "--no-progress", chdir: @project, env: @env)
+      report = File.join(@target.project, "tmp", "eval-#{mode.join.delete("-")}.json")
+      arguments = ["run", *@target.args, *mode, "--report", report, "--no-progress"]
+      run = @checkout.cli(*arguments, chdir: @target.project, env: @target.env)
       return failed(run, mode) unless File.exist?(report)
-      compare(JSON.parse(File.read(report, encoding: Encoding::UTF_8)), run).merge("rss" => run.rss)
+      compare(JSON.parse(File.read(report, encoding: Encoding::UTF_8)), run)
     end
 
     private
@@ -38,19 +40,18 @@ module KimeraEval
     def compare(report, run)
       results = report.fetch("results")
       truth = @oracle.verdicts(bake(results.map { |result| result["mutant_id"] }))
-      rows = results.map { |result| row(result, truth.fetch(result["mutant_id"].to_s)) }
-      summary(rows, run).merge("leaks" => Array(report["leaks"]).size, "rejudged" => results.count { |result| result["note"] })
+      summary(results.map { |result| row(result, truth.fetch(result["mutant_id"].to_s)) }, run)
+        .merge("leaks" => Array(report["leaks"]).size, "rejudged" => results.count { |row| row["note"] })
     end
 
     def bake(ids)
       script = File.join(__dir__, "bake.rb")
-      out = @checkout.ruby(script, *@args, chdir: @project, stdin: JSON.generate(ids))
-      JSON.parse(out.out)
+      JSON.parse(@checkout.script(script, *@target.args, chdir: @target.project, stdin: JSON.generate(ids)).stdout)
     end
 
     def row(result, oracle)
-      { "id" => result["mutant_id"], "file" => result["file"], "line" => result["line"], "label" => result["label"] }
-        .merge("kimera" => result["status"], "oracle" => oracle, "verdict" => judge(result["status"], oracle))
+      result.slice("file", "line", "label").merge("id" => result["mutant_id"], "kimera" => result["status"])
+        .merge("oracle" => oracle, "verdict" => judge(result["status"], oracle))
     end
 
     def judge(status, oracle)
@@ -62,18 +63,25 @@ module KimeraEval
 
     def summary(rows, run)
       tally = rows.map { |row| row["verdict"] }.tally
-      judged = rows.size - tally.fetch("abstained", 0) - tally.fetch("unbakeable", 0)
-      counts(tally, rows.size).merge(
-        "agreement_pct" => judged.zero? ? nil : (100.0 * tally.fetch("agree", 0) / judged).round(1),
-        "wall_s" => run.wall.round(2), "exit" => run.code, "statuses" => rows.map { |row| row["kimera"] }.tally,
-        "disagreements" => rows.reject { |row| row["verdict"] == "agree" }
-      )
+      counts(tally, rows.size).merge("agreement_pct" => Scoring.agreement(tally)).merge(measured(run))
+        .merge("statuses" => rows.map { |row| row["kimera"] }.tally)
+        .merge("disagreements" => rows.reject { |row| row["verdict"] == "agree" })
     end
 
+    def measured(run) = { "wall_s" => run.wall.round(2), "exit" => run.code, "rss" => run.rss }
+
     def counts(tally, total)
-      { "mutants" => total, "agree" => tally.fetch("agree", 0), "false_survived" => tally.fetch("false_survived", 0) }
-        .merge("false_killed" => tally.fetch("false_killed", 0), "abstained" => tally.fetch("abstained", 0))
-        .merge("unbakeable" => tally.fetch("unbakeable", 0))
+      { "mutants" => total }.merge(VERDICTS.to_h { |verdict| [verdict, tally.fetch(verdict, 0)] })
+    end
+  end
+
+  # Agreement over the mutants both sides judged.
+  module Scoring
+    module_function
+
+    def agreement(tally)
+      judged = tally.sum { |verdict, count| %w[abstained unbakeable].include?(verdict) ? 0 : count }
+      judged.zero? ? nil : (100.0 * tally.fetch("agree", 0) / judged).round(1)
     end
   end
 end

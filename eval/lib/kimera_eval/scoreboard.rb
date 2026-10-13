@@ -6,8 +6,11 @@ require "time"
 module KimeraEval
   # Collects case results, writes them as JSON and prints a Markdown table.
   class Scoreboard
-    def initialize(checkout)
+    HEADER = ["| Gap | Case | Pass | Headline |", "| --- | --- | --- | --- |"].freeze
+
+    def initialize(checkout, clock: Time)
       @checkout = checkout
+      @clock = clock
       @cases = {}
     end
 
@@ -17,7 +20,7 @@ module KimeraEval
 
     def to_h
       { "kimera" => @checkout.path, "revision" => @checkout.revision, "ruby" => RUBY_VERSION }
-        .merge("at" => Time.now.utc.iso8601, "cases" => @cases)
+        .merge("at" => @clock.now.utc.iso8601, "cases" => @cases)
     end
 
     def write(path)
@@ -25,19 +28,18 @@ module KimeraEval
       File.write(path, "#{JSON.pretty_generate(to_h)}\n")
     end
 
-    def markdown
-      rows = @cases.map { |id, result| "| #{id} | #{result["title"]} | #{mark(result)} | #{headline(result)} |" }
-      ["| Gap | Case | Pass | Headline |", "| --- | --- | --- | --- |", *rows].join("\n")
-    end
+    def markdown = [*HEADER, *@cases.map { |id, result| line(id, result) }].join("\n")
 
     private
+
+    def line(id, result) = "| #{id} | #{result["title"]} | #{mark(result)} | #{headline(result)} |"
 
     def mark(result) = result["pass"] ? "yes" : "**no**"
 
     def headline(result)
-      result.fetch("summary") { {} }.map { |key, value| "#{key}=#{value}" }.join(", ").then do |text|
-        result["error"] ? "error: #{result["error"].lines.first&.strip}" : text
-      end
+      error = result["error"]
+      return "error: #{error.lines.first&.strip}" if error
+      result.fetch("summary") { {} }.map { |key, value| "#{key}=#{value}" }.join(", ")
     end
   end
 end

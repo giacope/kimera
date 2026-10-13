@@ -8,20 +8,22 @@ module KimeraEval
     ID = "K4"
     TITLE = "Coverage memory stays bounded in a hot loop"
     LIMIT_MB = 150
+    MODES = [%w[--jobs 1], %w[--jobs 2]].freeze
 
     def call
-      runs = [%w[--jobs 1], %w[--jobs 2]].to_h { |mode| [mode.join(" "), measure(mode)] }
+      runs = MODES.to_h { |mode| [mode.join(" "), measure(mode)] }
       peak = runs.values.map { |run| run["max_process_mb"] }.max
-      { "pass" => peak < LIMIT_MB, "summary" => { "peak_rss_mb" => peak, "wall_s" => runs.values.sum { |run| run["wall_s"] }.round(1) } }
-        .merge("runs" => runs)
+      wall = runs.values.sum { |run| run["wall_s"] }.round(1)
+      { "pass" => peak < LIMIT_MB, "summary" => { "peak_rss_mb" => peak, "wall_s" => wall }, "runs" => runs }
     end
 
     private
 
     def measure(mode)
       dir = sandbox.copy(fixture("loop"))
-      result = checkout.kimera("run", *mode, "--report", File.join(dir, "tmp", "loop.json"), "--no-progress", chdir: dir)
-      result.rss.merge("wall_s" => result.wall.round(2), "exit" => result.code, "tail" => result.output.lines.last(2).join)
+      result = checkout.cli("run", *mode, "--report", File.join(dir, "tmp", "loop.json"), "--no-progress", chdir: dir)
+      result.rss.merge("wall_s" => result.wall.round(2), "exit" => result.code)
+        .merge("tail" => result.output.lines.last(2).join)
     end
   end
 end

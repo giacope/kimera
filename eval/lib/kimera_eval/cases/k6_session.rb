@@ -7,27 +7,28 @@ module KimeraEval
   class SessionCase < Case
     ID = "K6"
     TITLE = "--session drops verdicts once the tests change"
+    DELETED = /stays shut at 5|shuts above 50/
 
     def call
       dir = sandbox.copy(fixture("session"))
       session = File.join(dir, "tmp", "session.json")
-      FileUtils.mkdir_p(File.dirname(session))
-      run(dir, "first", session)
+      verdicts(dir, "first", session)
       prune(dir)
-      compare(run(dir, "resumed", session), run(dir, "fresh"))
+      compare(verdicts(dir, "resumed", session), verdicts(dir, "fresh"))
     end
 
     private
 
-    def run(dir, name, session = nil)
+    def verdicts(dir, name, session = nil)
       path = File.join(dir, "tmp", "#{name}.json")
-      checkout.kimera("run", *(session ? ["--session", session] : []), "--report", path, "--no-progress", chdir: dir)
+      FileUtils.mkdir_p(File.dirname(path))
+      checkout.cli("run", *(session ? ["--session", session] : []), "--report", path, "--no-progress", chdir: dir)
       JSON.parse(File.read(path)).fetch("results").to_h { |row| [row["key"], row["status"]] }
     end
 
     def prune(dir)
       spec = File.join(dir, "spec", "gate_spec.rb")
-      File.write(spec, File.readlines(spec).grep_v(/stays shut at 5|shuts above 50/).join)
+      File.write(spec, File.readlines(spec).grep_v(DELETED).join)
     end
 
     def compare(resumed, fresh)

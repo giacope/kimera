@@ -7,82 +7,84 @@ module KimeraEval
   # Ground truth for one mutant: its source baked into a copy of the project,
   # the whole suite run by the plain test command in a fresh process. Killed
   # when the command fails (or hangs); survived when it passes. Verdicts are
-  # cached by project contents, file and baked source.
+  # cached by project contents, command, file and baked source.
   class Oracle
     CACHE = File.join(ROOT, "eval", "tmp", "oracle-cache.json")
     LIMIT = 120
+    JOBS = 4
+    SKIPPED = %w[tmp/ log/ .git/ storage/].freeze
 
-    def initialize(project, command:, sandbox:, env: {}, jobs: 4)
+    Runner = Data.define(:command, :env)
+
+    LOCK = Mutex.new
+
+    def initialize(project, runner:, sandbox:)
       @project = project
-      @command = command
+      @runner = runner
       @sandbox = sandbox
-      @env = env
-      @jobs = jobs
     end
 
     def baseline!
-      result = shell(copies.first).run(*@command)
-      raise("oracle baseline is red in #{@project}:\n#{result.output[-3000..] || result.output}") unless result.ok?
+      result = shell(copies.first).run(*@runner.command)
+      return if result.ok?
+      raise(SetupError, "oracle baseline is red in #{@project}:\n#{result.output.lines.last(40).join}")
     end
 
     def verdicts(baked)
-      pending = baked.reject { |_id, bake| bake["error"] || cache.key?(key(bake)) }
-      judge(pending.to_a)
+      judge(baked.reject { |_id, bake| bake["error"] || cache.key?(key(bake)) }.values)
       save
-      baked.to_h { |id, bake| [id, bake["error"] ? "unbakeable" : cache.fetch(key(bake))] }
+      baked.transform_values { |bake| bake["error"] ? "unbakeable" : cache.fetch(key(bake)) }
     end
 
     private
 
     def judge(work)
       queue = Queue.new
-      work.each { |item| queue << item }
-      threads = copies.map { |copy| Thread.new { drain(queue, copy) } }
-      threads.each(&:join)
+      work.each { |bake| queue << bake }
+      queue.close
+      copies.map { |copy| Thread.new { drain(queue, copy) } }.each(&:join)
     end
 
     def drain(queue, copy)
-      loop do
-        _id, bake = queue.pop(true)
+      while (bake = queue.pop)
         verdict = trial(copy, bake)
-        lock.synchronize { cache[key(bake)] = verdict }
+        LOCK.synchronize { cache[key(bake)] = verdict }
       end
-    rescue ThreadError
-      nil
     end
 
     def trial(copy, bake)
       path = File.join(copy, bake["file"])
       original = File.binread(path)
-      File.write(path, bake["source"])
-      result = Shell.new(env: @env, chdir: copy, timeout: LIMIT).run(*@command)
-      verdict(result)
+      ran(copy, path, bake["source"])
     ensure
       File.binwrite(path, original) if original
     end
 
-    def verdict(result)
-      return "killed" if result.timed_out?
-      result.ok? ? "survived" : "killed"
+    def ran(copy, path, source)
+      File.write(path, source)
+      verdict(shell(copy).run(*@runner.command))
     end
 
-    def shell(dir) = Shell.new(env: @env, chdir: dir, timeout: LIMIT)
+    def verdict(result) = result.late? || !result.ok? ? "killed" : "survived"
 
-    def copies = @copies ||= Array.new(@jobs) { @sandbox.copy(@project, "oracle") }
+    def shell(dir) = Shell.new(env: @runner.env, chdir: dir, timeout: LIMIT)
 
-    def lock = @lock ||= Mutex.new
+    def copies = @_copies ||= Array.new(JOBS) { @sandbox.copy(@project, "oracle") }
 
-    def key(bake) = Digest::SHA256.hexdigest([signature, @command.join(" "), bake["file"], bake["source"]].join("\0"))
-
-    def signature
-      @signature ||= Digest::SHA256.hexdigest(
-        Dir.glob("**/*", File::FNM_DOTMATCH, base: @project).sort
-          .reject { |file| file.start_with?("tmp/", "log/", ".git/") || File.directory?(File.join(@project, file)) }
-          .map { |file| "#{file}\0#{Digest::SHA256.file(File.join(@project, file)).hexdigest}" }.join("\n")
-      )
+    def key(bake)
+      Digest::SHA256.hexdigest([signature, @runner.command.join(" "), bake["file"], bake["source"]].join("\0"))
     end
 
-    def cache = @cache ||= File.exist?(CACHE) ? JSON.parse(File.read(CACHE)) : {}
+    def signature = @_signature ||= Digest::SHA256.hexdigest(files.map { |file| "#{file}\0#{digest(file)}" }.join("\n"))
+
+    def files
+      Dir.glob("**/*", File::FNM_DOTMATCH, base: @project)
+        .reject { |file| file.start_with?(*SKIPPED) || File.directory?(File.join(@project, file)) }
+    end
+
+    def digest(file) = Digest::SHA256.file(File.join(@project, file)).hexdigest
+
+    def cache = @_cache ||= File.exist?(CACHE) ? JSON.parse(File.read(CACHE)) : {}
 
     def save
       FileUtils.mkdir_p(File.dirname(CACHE))

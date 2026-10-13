@@ -1,27 +1,27 @@
 # frozen_string_literal: true
 
 require "open3"
-require "timeout"
 
 module KimeraEval
   # Runs one command, capturing its output, wall time and the peak resident
   # memory of every process it starts (sampled from /proc).
   class Shell
     Result =
-      Data.define(:status, :out, :err, :wall, :rss) do
-        def ok? = status&.success?
+      Data.define(:status, :stdout, :stderr, :wall, :rss, :late) do
+        def ok? = !late && status.success?
 
-        def code = status&.exitstatus
+        def code = late ? nil : status.exitstatus
 
-        def output = out + err
+        def output = stdout + stderr
 
-        def timed_out? = status.nil?
+        def late? = late
       end
 
     INTERVAL = 0.05
     PAGE = 4096
+    CLEARED = %w[BUNDLE_GEMFILE RUBYOPT BUNDLER_SETUP BUNDLE_BIN_PATH].to_h { |name| [name, nil] }.freeze
 
-    def initialize(env: {}, chdir: Dir.pwd, timeout: 600, input: nil)
+    def initialize(chdir:, env: {}, timeout: 600, input: nil)
       @env = env
       @chdir = chdir
       @timeout = timeout
@@ -30,9 +30,9 @@ module KimeraEval
 
     def run(*argv)
       started = clock
-      Open3.popen3(clean.merge(@env), *argv, chdir: @chdir, pgroup: true) do |stdin, out, err, waiter|
+      Open3.popen3(CLEARED.merge(@env), *argv, chdir: @chdir, pgroup: true) do |stdin, out, errors, waiter|
         feed(stdin)
-        finish(waiter, [out, err].map { |io| Thread.new { io.read } }, started)
+        finish(waiter, [out, errors].map { |io| Thread.new { io.read } }, started)
       end
     end
 
@@ -46,24 +46,26 @@ module KimeraEval
       stdin.close
     end
 
-    def clean = { "BUNDLE_GEMFILE" => nil, "RUBYOPT" => nil, "BUNDLER_SETUP" => nil, "BUNDLE_BIN_PATH" => nil }
-
     def finish(waiter, readers, started)
       peak = Peak.new(waiter.pid)
       sampler = Thread.new { peak.sample until waiter.join(INTERVAL) }
-      status = wait(waiter)
+      status, late = wait(waiter)
       sampler.join
-      Result.new(status, *readers.map { |reader| reader.value.to_s.force_encoding(Encoding::UTF_8).scrub }, clock - started,
-                 peak.to_h)
+      Result.new(status, *readers.map { |reader| text(reader.value) }, clock - started, peak.to_h, late)
     end
 
+    def text(bytes) = bytes.to_s.force_encoding(Encoding::UTF_8).scrub
+
     def wait(waiter)
-      return waiter.value if waiter.join(@timeout)
+      done = waiter.join(@timeout)
+      stop(waiter) unless done
+      [waiter.value, !done]
+    end
+
+    def stop(waiter)
       Process.kill("KILL", -waiter.pid)
-      waiter.value
-      nil
     rescue Errno::ESRCH
-      waiter.value
+      false
     end
 
     def clock = Process.clock_gettime(Process::CLOCK_MONOTONIC)
@@ -75,21 +77,24 @@ module KimeraEval
         @root = root
         @single = 0
         @total = 0
-        @each = Hash.new(0)
       end
 
       def sample
         sizes = tree.to_h { |pid| [pid, rss(pid)] }
-        sizes.each { |pid, bytes| @each[pid] = [@each[pid], bytes].max }
+        sizes.each { |pid, bytes| seen[pid] = [seen[pid], bytes].max }
         @single = [@single, *sizes.values].max
         @total = [@total, sizes.values.sum].max
       end
 
-      def to_h = { "max_process_mb" => mb(@single), "max_tree_mb" => mb(@total), "processes" => @each.size }
+      def to_h
+        { "max_process_mb" => megabytes(@single), "max_tree_mb" => megabytes(@total), "processes" => seen.size }
+      end
 
       private
 
-      def mb(bytes) = (bytes / 1024.0 / 1024).round(1)
+      def seen = @_seen ||= Hash.new(0)
+
+      def megabytes(bytes) = (bytes / 1024.0 / 1024).round(1)
 
       def tree
         parents = table
@@ -99,7 +104,7 @@ module KimeraEval
       end
 
       def table
-        Dir.glob("/proc/[0-9]*/stat").each_with_object(Hash.new { |h, k| h[k] = [] }) do |path, children|
+        Dir.glob("/proc/[0-9]*/stat").each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |path, children|
           fields = stat(path)
           children[Integer(fields[1])] << Integer(fields[0]) if fields
         end
@@ -107,9 +112,7 @@ module KimeraEval
 
       def stat(path)
         text = File.read(path)
-        pid = text[/\A\d+/]
-        rest = text[(text.rindex(")") + 2)..].split
-        [pid, rest[1]]
+        [text[/\A\d+/], text[(text.rindex(")") + 2)..].split[1]]
       rescue SystemCallError, NoMethodError
         nil
       end
