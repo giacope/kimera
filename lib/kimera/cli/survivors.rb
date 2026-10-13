@@ -49,12 +49,12 @@ class Kimera::CLI::Survivors
     options.merge(report: report, filter: filter)
   end
 
-  def positional(args)
-    first, second = args
+  def positional(arguments)
+    first, second = arguments
     report?(first) ? [first, second] : [Kimera::CLI::ReportFile::DEFAULT, first]
   end
 
-  def report?(arg) = arg && (arg.end_with?(".json") || File.file?(arg))
+  def report?(argument) = argument && (argument.end_with?(".json") || File.file?(argument))
 
   def load(path)
     return Kimera::CLI::ReportFile.parse(path) if File.file?(path)

@@ -28,9 +28,9 @@ RSpec.describe("kimera under the C locale (end-to-end)", :aggregate_failures) do
     RUBY
   end
 
-  def cli(root, *args)
-    command = ["bundle", "exec", "ruby", File.join(test_repo_root, "exe", "kimera"), *args].shelljoin
-    gemfile = File.join(test_repo_root, "Gemfile").shellescape
+  def cli(root, *arguments)
+    command = ["bundle", "exec", "ruby", File.join(test_repository_root, "exe", "kimera"), *arguments].shelljoin
+    gemfile = File.join(test_repository_root, "Gemfile").shellescape
     `cd #{root.shellescape} && env LANG=C LC_ALL=C BUNDLE_GEMFILE=#{gemfile} #{command} 2>&1`
       .force_encoding(Encoding::UTF_8).then { |text| [text, $CHILD_STATUS.exitstatus] }
   end

@@ -57,7 +57,7 @@ module KimeraEval
       warn("eval: #{kind::ID} #{result["pass"] ? "pass" : "FAIL"} #{result["summary"]}")
     end
 
-    def clock = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    def clock(now = Process.clock_gettime(Process::CLOCK_MONOTONIC)) = now
 
     def attempt(kind, context)
       kind.new(context).call

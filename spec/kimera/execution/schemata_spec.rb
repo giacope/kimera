@@ -252,7 +252,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
       Class.new do
         def self.defined_enums = { "status" => {} }
 
-        def self.enum(*args, **_kwargs) = (@calls ||= []) << args
+        def self.enum(*arguments, **_kwargs) = (@calls ||= []) << arguments
 
         class << self
           attr_reader :calls
@@ -291,7 +291,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
   it "passes enum through when the model class has no defined_enums" do
     base =
       Class.new do
-        def self.enum(*args, **_kwargs) = (@calls ||= []) << args
+        def self.enum(*arguments, **_kwargs) = (@calls ||= []) << arguments
 
         class << self
           attr_reader :calls
@@ -481,7 +481,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
         Class.new do
           class << self
             def calls = @_calls ||= []
-            def serialize(attribute, *_args, **_options) = calls << attribute
+            def serialize(attribute, *_arguments, **_options) = calls << attribute
           end
         end
       stub_const("ActiveRecord::Base", base)

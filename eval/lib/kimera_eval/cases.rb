@@ -55,7 +55,7 @@ module KimeraEval
       Oracle.new(dir, runner: runner, sandbox: sandbox).tap(&:baseline!)
     end
 
-    def target(dir, args: [], env: {}) = Differential::Target.new(dir, args, env)
+    def target(dir, arguments: [], env: {}) = Differential::Target.new(dir, arguments, env)
 
     def differential(target, modes, truth = oracle(target.project))
       modes.to_h { |mode| [mode.join(" "), Differential.new(checkout, copied(target), oracle: truth).call(mode)] }

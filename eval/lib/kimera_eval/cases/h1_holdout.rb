@@ -39,12 +39,14 @@ module KimeraEval
     end
 
     def counts(found)
-      records = found.fetch("records")
-      uncovered = records.select { |record| record["tool"] == "no_coverage" }
       found.slice("compared", "agree").merge("mutants" => found["total"], "skipped" => found["skipped"].size)
         .merge("false_survived" => found["false_survivors"].size, "false_killed" => found["false_kills"].size)
-        .merge("no_coverage" => uncovered.size)
-        .merge("false_no_coverage" => uncovered.count { |row| row["oracle"] == "killed" })
+        .merge(uncovered(found.fetch("records")))
+    end
+
+    def uncovered(records)
+      found = records.select { |record| record["tool"] == "no_coverage" }
+      { "no_coverage" => found.size, "false_no_coverage" => found.count { |row| row["oracle"] == "killed" } }
     end
 
     def sum(runs)

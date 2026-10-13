@@ -20,7 +20,7 @@ RSpec.describe(Kimera::CLI::Mutant, :aggregate_failures) do
   def rerun(id, document)
     argv = []
     runner = instance_double(Kimera::CLI::Run)
-    allow(runner).to(receive(:run) { |args| argv.concat(args).size })
+    allow(runner).to(receive(:run) { |arguments| argv.concat(arguments).size })
     allow(Kimera::CLI::Run).to(receive(:new).and_return(runner))
     Dir.mktmpdir do |dir|
       path = File.join(dir, "report.json")

@@ -11,8 +11,8 @@ module Kimera
           def target = directive["to"]&.to_sym
 
           def swap
-            receiver, _selector, *args = node.children
-            node.updated(:send, [receiver, target, *args])
+            receiver, _selector, *arguments = node.children
+            node.updated(:send, [receiver, target, *arguments])
           end
 
           def retype = node.updated(target, node.children)
@@ -62,9 +62,9 @@ module Kimera
 
           def drop
             KwargHandlers.block(node) do |call|
-              receiver, selector, *args = call.children
-              args.delete_at(Integer(directive[INDEX]))
-              call.updated(nil, [receiver, selector, *args])
+              receiver, selector, *arguments = call.children
+              arguments.delete_at(Integer(directive[INDEX]))
+              call.updated(nil, [receiver, selector, *arguments])
             end
           end
 

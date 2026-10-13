@@ -40,8 +40,11 @@ module KimeraEval
     def compare(report, run)
       results = report.fetch("results")
       truth = @oracle.verdicts(bake(results.map { |result| result["mutant_id"] }))
-      summary(results.map { |result| row(result, truth.fetch(result["mutant_id"].to_s)) }, run)
-        .merge("leaks" => Array(report["leaks"]).size, "rejudged" => results.count { |row| row["note"] })
+      summary(results.map { |result| row(result, truth.fetch(result["mutant_id"].to_s)) }, run).merge(notes(report))
+    end
+
+    def notes(report)
+      { "leaks" => Array(report["leaks"]).size, "rejudged" => report.fetch("results").count { |row| row["note"] } }
     end
 
     def bake(ids)

@@ -50,10 +50,10 @@ RSpec.describe("kimera run re-judges what the warm pass could not (end-to-end)",
 
   def test_statuses(report) = report["results"].to_h { |row| [row["mutant_id"], row["status"]] }
 
-  def test_catalog_run(args, &)
+  def test_catalog_run(arguments, &)
     Dir.mktmpdir("kimera-rejudge") do |root|
       test_catalog(root)
-      test_run(cwd: root, args: ["--no-progress", *args], &)
+      test_run(cwd: root, arguments: ["--no-progress", *arguments], &)
     end
   end
 

@@ -19,7 +19,8 @@ RSpec.describe("machine-readable stdout") do
 
   def command(format, extra)
     [
-      "bundle", "exec", "ruby", "-I", File.join(test_repo_root, "lib"), File.join(test_repo_root, "exe", "kimera"),
+      "bundle", "exec", "ruby", "-I", File.join(test_repository_root, "lib"),
+      File.join(test_repository_root, "exe", "kimera"),
       "run", "app", "--tests", "spec/**/*_spec.rb", "--format", format, *extra
     ]
   end
@@ -28,7 +29,7 @@ RSpec.describe("machine-readable stdout") do
   def run_with(format, *extra)
     Dir.mktmpdir("kimera-machine-stdout") do |fixture|
       write(fixture)
-      env = { "BUNDLE_GEMFILE" => File.join(test_repo_root, "Gemfile") }
+      env = { "BUNDLE_GEMFILE" => File.join(test_repository_root, "Gemfile") }
       Open3.capture3(env, *command(format, extra), chdir: fixture)
     end
   end

@@ -11,7 +11,7 @@ RSpec.describe("coverage-driven selection") do
   end
 
   it "without coverage, untouched mutants run against everything and survive", :aggregate_failures do
-    test_run(cwd: test_sample, args: ["--no-coverage"]) do |output, report, _status|
+    test_run(cwd: test_sample, arguments: ["--no-coverage"]) do |output, report, _status|
       expect(report).not_to(be_nil, "no report; output:\n#{output}")
       # The 6 uncovered mutants join the 5 survivors.
       expect(report["counts"]).to(include("no_coverage" => 0, "survived" => 11))

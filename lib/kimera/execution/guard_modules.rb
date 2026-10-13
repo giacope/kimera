@@ -11,23 +11,23 @@ module Kimera
 
       ENUMGUARD =
         Module.new do
-        def enum(*args, **kwargs, &)
-          name = args.find { |a| a.is_a?(Symbol) || a.is_a?(String) } || kwargs.keys.first
-          return if name && respond_to?(:defined_enums) && defined_enums.key?(name.to_s)
-          super
+          def enum(*words, **kwargs, &)
+            name = words.find { |a| a.is_a?(Symbol) || a.is_a?(String) } || kwargs.keys.first
+            return if name && respond_to?(:defined_enums) && defined_enums.key?(name.to_s)
+            super
+          end
         end
-      end
 
       CALLBACKGUARD =
         Module.new do
-        def set_callback(name, *arguments, &block)
-          return super unless Kimera::Execution::OverlayGuards.overlaying?
-          type, filters, options = normalize_callback_params(arguments.dup, block)
-          fresh = Kimera::Execution::GuardModules.fresh(__send__(:get_callbacks, name), type, filters)
-          return if fresh.empty?
-          super(name, type, *fresh, options)
+          def set_callback(name, *arguments, &block)
+            return super unless Kimera::Execution::OverlayGuards.overlaying?
+            type, filters, options = normalize_callback_params(arguments.dup, block)
+            fresh = Kimera::Execution::GuardModules.fresh(__send__(:get_callbacks, name), type, filters)
+            return if fresh.empty?
+            super(name, type, *fresh, options)
+          end
         end
-      end
 
       def enum = ENUMGUARD
 
@@ -45,23 +45,23 @@ module Kimera
 
       SERIALIZEGUARD =
         Module.new do
-        def serialize(attribute, *args, **options, &)
-          return if OverlayGuards.overlaying? && GuardModules.serialized?(type_for_attribute(attribute))
-          super
+          def serialize(attribute, *words, **options, &)
+            return if OverlayGuards.overlaying? && GuardModules.serialized?(type_for_attribute(attribute))
+            super
+          end
         end
-      end
 
       CONCERNGUARD =
         Module.new do
-        %i[included prepended].each do |hook|
-          stored = :"@_#{hook}_block"
-          define_method(hook) do |base = nil, &block|
-            next super(base, &block) unless block && GuardModules.replacing?(self, stored, base)
-            instance_variable_set(stored, GuardModules.chain(instance_variable_get(stored), block))
-            GuardModules.reapply(self, block)
+          %i[included prepended].each do |hook|
+            stored = :"@_#{hook}_block"
+            define_method(hook) do |base = nil, &block|
+              next super(base, &block) unless block && GuardModules.replacing?(self, stored, base)
+              instance_variable_set(stored, GuardModules.chain(instance_variable_get(stored), block))
+              GuardModules.reapply(self, block)
+            end
           end
         end
-      end
 
       def serialization = SERIALIZEGUARD
 
@@ -85,9 +85,9 @@ module Kimera
       def mixes?(klass, concern) = MIXES.bind_call(klass, concern)
 
       def chain(original, trimmed)
-        proc do |*args|
-          class_exec(*args, &original)
-          class_exec(*args, &trimmed)
+        proc do |*words|
+          class_exec(*words, &original)
+          class_exec(*words, &trimmed)
         end
       end
 

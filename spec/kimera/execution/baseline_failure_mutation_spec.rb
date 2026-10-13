@@ -188,7 +188,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
       eq(
         registry: registry, root: "/root", tests: %w[t1 t2], coverage: { 1 => ["t1"] },
         progress: pass.__send__(:progress), jobs: 3, framework: "rspec", test_files: ["a_spec.rb"]
-    )
+      )
     )
   end
 

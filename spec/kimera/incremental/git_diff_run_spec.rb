@@ -6,9 +6,9 @@ require "open3"
 require "tmpdir"
 
 RSpec.describe(Kimera::Incremental::GitDiff) do
-  def git(*args, dir:)
-    out, error, status = Open3.capture3("git", "-C", dir, *args)
-    raise(RuntimeError, "git #{args.join(" ")} failed: #{error}") unless status.success?
+  def git(*arguments, dir:)
+    out, error, status = Open3.capture3("git", "-C", dir, *arguments)
+    raise(RuntimeError, "git #{arguments.join(" ")} failed: #{error}") unless status.success?
     out
   end
 

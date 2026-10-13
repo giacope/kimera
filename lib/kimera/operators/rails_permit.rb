@@ -7,20 +7,20 @@ class Kimera::Operators::RailsPermit < Kimera::Operators::Base
 
   def variants(node, **)
     return unless call(node).chained?(:permit)
-    args = arguments(node)
-    return unless args.all? { |a| plain?(a) }
-    indexed(args)
+    words = arguments(node)
+    return unless words.all? { |a| plain?(a) }
+    indexed(words)
   end
 
   private
 
-  def indexed(args)
-    args.each_index.map { |index| variant(args, index) }
+  def indexed(words)
+    words.each_index.map { |index| variant(words, index) }
   end
 
-  def variant(args, index)
+  def variant(words, index)
     Kimera::Operators::Variant.new(
-      label: "permit: drop #{args[index].location.slice}",
+      label: "permit: drop #{words[index].location.slice}",
       directive: directive("drop_argument", index: index)
     )
   end

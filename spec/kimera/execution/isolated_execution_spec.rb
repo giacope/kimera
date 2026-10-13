@@ -46,8 +46,8 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end.new(sink)
   end
 
-  def test_canned_runner(root:, **opts, &verdict)
-    opts = { progress: test_recording_bar([]) }.merge(opts)
+  def test_canned_runner(root:, **options, &verdict)
+    options = { progress: test_recording_bar([]) }.merge(options)
     Class.new(described_class) do
       define_method(:evaluate) do |trial|
         id = trial.id
@@ -56,7 +56,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
           duration: 0.0
         )
       end
-    end.new(registry: registry, root: root, tests: ["t1"], **opts)
+    end.new(registry: registry, root: root, tests: ["t1"], **options)
   end
 
   describe "#waitfor" do
@@ -413,7 +413,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
         File.write(File.join(root, "calc.rb"), test_source_fixture)
         r =
           Class.new(described_class) do
-            define_method(:verdict) do |mirror, _locs|
+            define_method(:verdict) do |mirror, _locations|
               baked = File.read(File.join(mirror, "calc.rb"))
               sleep(pause) if pause
               Kimera::Execution::IsolatedOutcome.new(:killed, ["t1[1:1]"])
@@ -502,18 +502,18 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
   describe "#verdict (command stubbed on the runner)" do
     # verdict only consumes the plan's command, so no real bake is needed. A
     # callable cmd receives the ledger path, as the real children do in argv.
-    def command(cmd, **)
+    def command(invocation, **)
       plan = Object.new
       plan.define_singleton_method(:command) do |_mirror, _locations, ledger|
-        [{}, cmd.respond_to?(:call) ? cmd.call(ledger) : cmd]
+        [{}, invocation.respond_to?(:call) ? invocation.call(ledger) : invocation]
       end
       r = runner(**)
       r.instance_variable_set(:@_plan, plan)
       r
     end
 
-    def test_verdict_of(cmd, **)
-      Dir.mktmpdir { |m| test_invoke_private(command(cmd, **), :verdict, m, []) }
+    def test_verdict_of(invocation, **)
+      Dir.mktmpdir { |m| test_invoke_private(command(invocation, **), :verdict, m, []) }
     end
 
     # A child that reports its failures to the ledger, then exits with `code`.

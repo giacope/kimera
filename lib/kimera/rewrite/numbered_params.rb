@@ -34,9 +34,9 @@ module Kimera
       end
 
       def arguments(names)
-        args = names.map { Parser::AST::Node.new(:arg, [it]) }
-        args = [Parser::AST::Node.new(:procarg0, args)] if args.one?
-        Parser::AST::Node.new(:args, args)
+        parameters = names.map { Parser::AST::Node.new(:arg, [it]) }
+        parameters = [Parser::AST::Node.new(:procarg0, parameters)] if parameters.one?
+        Parser::AST::Node.new(:args, parameters)
       end
 
       def rename(node, renames)

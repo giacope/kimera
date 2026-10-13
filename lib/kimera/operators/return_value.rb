@@ -27,8 +27,8 @@ class Kimera::Operators::ReturnValue < Kimera::Operators::Base
   end
 
   def returned(node)
-    args = arguments(node)
-    return if args.empty? || (args in [NilNode])
+    words = arguments(node)
+    return if words.empty? || (words in [NilNode])
     solo("return => return nil", "return_nil")
   end
 end

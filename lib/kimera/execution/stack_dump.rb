@@ -14,7 +14,7 @@ class Kimera::Execution::StackDump
   HARNESS = File.expand_path("..", __dir__)
   HEADER = "threads in the worker when it was killed:"
   PAUSE = Kernel.method(:sleep)
-  CLOCK = -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }
+  CLOCK = ->(reading = Process.clock_gettime(Process::CLOCK_MONOTONIC)) { reading }
   UNANSWERED = "no backtraces: the worker did not answer SIG#{SIGNAL} within #{GRACE}s " \
     "(blocked in native code without releasing the GVL?)".freeze
 

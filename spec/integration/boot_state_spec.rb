@@ -38,7 +38,7 @@ RSpec.describe("kimera run on a method that also ran while the suite loaded (end
   it "judges its warm survivors again against the whole suite, in fresh mirrors" do
     Dir.mktmpdir("kimera-boot") do |root|
       project(root)
-      test_run(cwd: root, args: ["--no-progress"]) do |output, report, status|
+      test_run(cwd: root, arguments: ["--no-progress"]) do |output, report, status|
         expect(report.fetch("results").map { |row| row["status"] }.uniq).to(eq(["killed"]), output)
         expect(report.fetch("results").filter_map { |row| row["note"] }.size).to(eq(2))
         expect(status).to(eq(0))

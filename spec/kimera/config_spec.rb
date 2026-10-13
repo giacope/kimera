@@ -41,8 +41,8 @@ RSpec.describe(Kimera::Config) do
   end
 
   it "wraps a scalar value under a list key in an array" do
-    with_config("paths: lib/core.rb\n") do |opts|
-      expect(opts[:paths]).to(eq(["lib/core.rb"]))
+    with_config("paths: lib/core.rb\n") do |options|
+      expect(options[:paths]).to(eq(["lib/core.rb"]))
     end
   end
 
@@ -51,37 +51,37 @@ RSpec.describe(Kimera::Config) do
   end
 
   it "normalizes the framework and jobs keys", :aggregate_failures do
-    with_config(normalized_yaml) do |opts|
-      expect(opts[:framework]).to(eq("minitest"))
-      expect(opts[:jobs]).to(eq(4))
+    with_config(normalized_yaml) do |options|
+      expect(options[:framework]).to(eq("minitest"))
+      expect(options[:jobs]).to(eq(4))
     end
   end
 
   it "normalizes the survivor and ignored count keys", :aggregate_failures do
-    with_config(normalized_yaml) do |opts|
-      expect(opts[:max_survivors]).to(eq(0))
-      expect(opts[:max_ignored]).to(eq(3))
+    with_config(normalized_yaml) do |options|
+      expect(options[:max_survivors]).to(eq(0))
+      expect(options[:max_ignored]).to(eq(3))
     end
   end
 
   it "normalizes boolean keys", :aggregate_failures do
-    with_config(normalized_yaml) do |opts|
-      expect(opts[:coverage]).to(be(false))
-      expect(opts[:fail_on_no_coverage]).to(be(true))
+    with_config(normalized_yaml) do |options|
+      expect(options[:coverage]).to(be(false))
+      expect(options[:fail_on_no_coverage]).to(be(true))
     end
   end
 
   it "normalizes list keys", :aggregate_failures do
-    with_config(normalized_yaml) do |opts|
-      expect(opts[:paths]).to(eq(["app/**/*.rb"]))
-      expect(opts[:operators]).to(eq(%w[comparison boolean_connective]))
-      expect(opts[:exclude]).to(eq(["app/legacy/**/*.rb"]))
+    with_config(normalized_yaml) do |options|
+      expect(options[:paths]).to(eq(["app/**/*.rb"]))
+      expect(options[:operators]).to(eq(%w[comparison boolean_connective]))
+      expect(options[:exclude]).to(eq(["app/legacy/**/*.rb"]))
     end
   end
 
   it "normalizes the ignore key" do
-    with_config(normalized_yaml) do |opts|
-      expect(opts[:ignore]).to(eq(normalized_ignore))
+    with_config(normalized_yaml) do |options|
+      expect(options[:ignore]).to(eq(normalized_ignore))
     end
   end
 
@@ -102,21 +102,21 @@ RSpec.describe(Kimera::Config) do
   def accepted = { file: "app/models/old.rb", line: 4, label: "== => !=", reason: "pre-adoption debt" }
 
   it "keeps a reasoned baseline file's entries apart from the local ignore entries", :aggregate_failures do
-    opts = with_baseline
-    expect(opts.fetch(:ignore)).to(eq(normalized_ignore))
-    expect(opts.fetch(:baseline_ignore)).to(eq([accepted]))
+    options = with_baseline
+    expect(options.fetch(:ignore)).to(eq(normalized_ignore))
+    expect(options.fetch(:baseline_ignore)).to(eq([accepted]))
   end
 
   it "applies baseline entries after local ones unless --no-baseline cleared baseline", :aggregate_failures do
-    opts = with_baseline
-    expect(described_class.ignores(opts)).to(eq(normalized_ignore + [accepted]))
-    expect(described_class.ignores(opts.merge(baseline: false))).to(eq(normalized_ignore))
+    options = with_baseline
+    expect(described_class.ignores(options)).to(eq(normalized_ignore + [accepted]))
+    expect(described_class.ignores(options.merge(baseline: false))).to(eq(normalized_ignore))
     expect(described_class.ignores({})).to(eq([]))
   end
 
   it "omits keys that are not present" do
-    with_config("jobs: 2\n") do |opts|
-      expect(opts).to(eq(jobs: 2))
+    with_config("jobs: 2\n") do |options|
+      expect(options).to(eq(jobs: 2))
     end
   end
 

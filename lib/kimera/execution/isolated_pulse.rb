@@ -6,7 +6,7 @@ module Kimera
 end
 
 class Kimera::Execution::IsolatedPulse
-  CLOCK = -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }
+  CLOCK = ->(reading = Process.clock_gettime(Process::CLOCK_MONOTONIC)) { reading }
   Mark = Data.define(:beats, :deadline)
   UNSEEN = Mark.new(beats: -1, deadline: 0.0)
 

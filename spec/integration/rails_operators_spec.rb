@@ -33,14 +33,14 @@ RSpec.describe("rails class-body operators (end-to-end)") do
       write(fixture)
       ops = ["--operators", "rails_validation"]
 
-      test_run(cwd: fixture, args: ops) do |output, report, status|
+      test_run(cwd: fixture, arguments: ops) do |output, report, status|
         expect(report).not_to(be_nil, "no report; output:\n#{output}")
         expect(report["counts"]["isolated_only"]).to(eq(1))
         expect(report["counts"]["survived"]).to(eq(0))
         expect(status).to(eq(0))
       end
 
-      test_run(cwd: fixture, args: [*ops, "--isolated"]) do |output, report, _status|
+      test_run(cwd: fixture, arguments: [*ops, "--isolated"]) do |output, report, _status|
         expect(report).not_to(be_nil, "no report; output:\n#{output}")
         expect(report["counts"]["killed"]).to(eq(1))
         expect(report["counts"]["isolated_only"]).to(eq(0))

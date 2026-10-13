@@ -59,7 +59,7 @@ RSpec.describe("kimera run on code reached through another file (end-to-end)", :
   it "kills the aliased mutants and sends the macro's to the isolated tier, never uncovered" do
     Dir.mktmpdir("kimera-reach") do |root|
       test_shop(root)
-      test_run(cwd: root, args: ["--fail-on-no-coverage"]) do |output, report, status|
+      test_run(cwd: root, arguments: ["--fail-on-no-coverage"]) do |output, report, status|
         expect(report).not_to(be_nil, "no JSON report; output:\n#{output}")
         results = report["results"]
         pricing, fees = %w[app/shop/pricing.rb app/shop/fees.rb].map { |file| results.select { |r| r["file"] == file } }
@@ -75,7 +75,7 @@ RSpec.describe("kimera run on code reached through another file (end-to-end)", :
   it "kills every one of them with --isolated" do
     Dir.mktmpdir("kimera-reach") do |root|
       test_shop(root)
-      test_run(cwd: root, args: ["--isolated"]) do |output, report, status|
+      test_run(cwd: root, arguments: ["--isolated"]) do |output, report, status|
         expect(report).not_to(be_nil, "no JSON report; output:\n#{output}")
         expect(report["results"].map { |r| r["status"] }.uniq).to(eq(["killed"]))
         expect(report["counts"]["total"]).to(eq(4))

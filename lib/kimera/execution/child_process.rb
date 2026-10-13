@@ -59,9 +59,7 @@ module Kimera
         nil
       end
 
-      def now
-        Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      end
+      def now(reading = Process.clock_gettime(Process::CLOCK_MONOTONIC)) = reading
     end
   end
 end

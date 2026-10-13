@@ -64,9 +64,9 @@ RSpec.describe(Kimera::Execution::Shift) do
   describe "#run streaming protocol" do
     it "emits a result for each mutant and a final done", :aggregate_failures do
       worker(coverage: ids.to_h { |id| [id, ["t1"]] }).run(ids, io)
-      msgs = messages(io)
-      expect(msgs.count { |m| m["t"] == "result" }).to(eq(ids.size))
-      expect(msgs.last["t"]).to(eq("done"))
+      notes = messages(io)
+      expect(notes.count { |m| m["t"] == "result" }).to(eq(ids.size))
+      expect(notes.last["t"]).to(eq("done"))
     end
 
     it "marks a mutant survived when no covering test fails" do
@@ -94,8 +94,8 @@ RSpec.describe(Kimera::Execution::Shift) do
         registry: registry, coverage: coverage, soft_timeout: nil, zygote: InlineZygote.new
       ).run([target], io)
 
-      msgs = messages(io)
-      result = msgs.find { |m| m["t"] == "result" }
+      notes = messages(io)
+      result = notes.find { |m| m["t"] == "result" }
       expect(result.keys).to(contain_exactly("t", "id", "status", "ms", "fails", "cover", "detail"))
       expect(result["id"]).to(eq(target))
       expect(result["status"]).to(eq("killed"))
@@ -127,9 +127,9 @@ RSpec.describe(Kimera::Execution::Shift) do
         registry: registry, coverage: coverage, soft_timeout: nil, zygote: InlineZygote.new
       ).serve(request, response)
 
-      msgs = messages(response)
-      expect(msgs.map { |m| m["t"] }).to(eq(%w[result ready result ready done]))
-      results = msgs.select { |m| m["t"] == "result" }
+      notes = messages(response)
+      expect(notes.map { |m| m["t"] }).to(eq(%w[result ready result ready done]))
+      results = notes.select { |m| m["t"] == "result" }
       expect(results.map { |m| [m["id"], m["status"]] }).to(eq([[target, "killed"], [other, "survived"]]))
     end
 
@@ -374,15 +374,15 @@ RSpec.describe(Kimera::Execution::Shift) do
         soft_timeout: nil, zygote: InlineZygote.new
       ).coverage(request, response)
 
-      msgs = messages(response)
-      expect(msgs.map { |m| m["t"] }).to(eq(%w[result ready result ready done]))
-      expect(msgs.select { |m| m["t"] == "result" }.map { |m| m["id"] }).to(eq(%w[t1 t2]))
-      result = msgs.first
+      notes = messages(response)
+      expect(notes.map { |m| m["t"] }).to(eq(%w[result ready result ready done]))
+      expect(notes.select { |m| m["t"] == "result" }.map { |m| m["id"] }).to(eq(%w[t1 t2]))
+      result = notes.first
       expect(result.keys).to(contain_exactly("t", "id", "touched", "passed", "failure", "took"))
       # When self-hosted, the loop's own guards land in the ledger too.
       expect(result["passed"]).to(be(true))
       expect(result["touched"]).to(be_an(Array))
-      expect(msgs[1]).to(eq("t" => "ready"))
+      expect(notes[1]).to(eq("t" => "ready"))
     end
 
     it "leaves no ledger behind when the request pipe closes" do

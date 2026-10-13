@@ -20,16 +20,16 @@ module KimeraEval
     def call
       summarize(
         Dir[fixture("state", "*")].to_h { |dir| [File.basename(dir), differential(target(dir), MODES)] },
-        CONTROLS.to_h { |name, args| [name, control(name, args)] }
+        CONTROLS.to_h { |name, arguments| [name, control(name, arguments)] }
       )
     end
 
     private
 
-    def control(name, args)
+    def control(name, arguments)
       dir = File.join(EXAMPLES, name)
       runner = Oracle::Runner.new(name == "minitest_app" ? MINITEST : RSPEC, TOOLCHAIN)
-      differential(target(dir, args: args), MODES, oracle(dir, runner))
+      differential(target(dir, arguments: arguments), MODES, oracle(dir, runner))
     end
 
     def summarize(corpus, control)

@@ -47,7 +47,7 @@ module KimeraEval
     end
 
     def judged(dir, env, truth)
-      run = differential(target(dir, args: INFLECTED, env: env), [%w[--jobs 4]], truth).values.first
+      run = differential(target(dir, arguments: INFLECTED, env: env), [%w[--jobs 4]], truth).values.first
       run.merge("disagreements" => run["disagreements"]&.first(20))
     end
 

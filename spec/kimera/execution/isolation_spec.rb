@@ -21,7 +21,7 @@ RSpec.describe(Kimera::Execution) do
       events = []
       [
         Class.new do
-          define_method(:transaction) do |**_opts, &block|
+          define_method(:transaction) do |**_options, &block|
             events << :begin
             begin
               block.call
@@ -45,8 +45,8 @@ RSpec.describe(Kimera::Execution) do
       captured = [nil]
       [
         Class.new do
-          define_method(:transaction) do |**opts, &block|
-            captured[0] = opts
+          define_method(:transaction) do |**options, &block|
+            captured[0] = options
             begin
               block.call
             rescue Kimera::Execution::TransactionIsolation::Rollback

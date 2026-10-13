@@ -70,7 +70,7 @@ RSpec.describe(Kimera::RegistryScan) do
   end
 
   it "marks only the def body's last statement as the implicit-return tail" do
-    src = <<~RUBY
+    code = <<~RUBY
       def m(a, b)
         if a
           a + b
@@ -79,23 +79,23 @@ RSpec.describe(Kimera::RegistryScan) do
       end
     RUBY
     builder = described_class.new(operators: Kimera::Operators.build(keys: ["return_value"]))
-    registry = builder.source(src, file: "tail.rb")
+    registry = builder.source(code, file: "tail.rb")
     tails = registry.each.select { |m, _p| m.label == "tail => nil" }.map { |_m, p| p.original_source }
     expect(tails).to(eq(["a - b"]))
   end
 
   describe "statement positions inside interpolation" do
-    def scan(src, keys: Kimera::Operators::DEFAULT_KEYS)
+    def scan(code, keys: Kimera::Operators::DEFAULT_KEYS)
       described_class.new(operators: Kimera::Operators.build(keys: keys))
-        .source("def m(o)\n#{src}\nend\n", file: "interp.rb")
+        .source("def m(o)\n#{code}\nend\n", file: "interp.rb")
     end
 
-    def deleted(src)
-      scan(src).points.select { |p| p.operator.include?("statement_deletion") }.map(&:original_source)
+    def deleted(code)
+      scan(code).points.select { |p| p.operator.include?("statement_deletion") }.map(&:original_source)
     end
 
     it "does not delete the value an interpolation embeds, in any interpolating literal" do
-      src = <<~'RUBY'
+      code = <<~'RUBY'
         log "a #{o.inspect} b"
         s = :"s#{o.name}"
         t = `echo #{o.cmd}`
@@ -104,7 +104,7 @@ RSpec.describe(Kimera::RegistryScan) do
           hi #{o.who}
         TXT
       RUBY
-      expect(deleted(src)).to(eq(["log \"a \#{o.inspect} b\""]))
+      expect(deleted(code)).to(eq(["log \"a \#{o.inspect} b\""]))
     end
 
     it "still deletes the discarded statements before an interpolation's value" do
@@ -142,10 +142,10 @@ RSpec.describe(Kimera::RegistryScan) do
     end
 
     it "does not treat a bare statements list as a def body by default" do
-      stmts = Prism.parse("a.b\nc.d\n").value.statements
+      body = Prism.parse("a.b\nc.d\n").value.statements
       positions = []
       cur = cursor(inside_def: true)
-      walker.__send__(:walk, stmts, cur) { |_n, c| positions << c.position }
+      walker.__send__(:walk, body, cur) { |_n, c| positions << c.position }
       expect(positions).not_to(include(:tail))
     end
   end

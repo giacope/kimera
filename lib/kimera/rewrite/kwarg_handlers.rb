@@ -6,8 +6,8 @@ module Kimera
       module_function
 
       def select(call, to)
-        receiver, _selector, *args = call.children
-        call.updated(nil, [receiver, to, *args])
+        receiver, _selector, *arguments = call.children
+        call.updated(nil, [receiver, to, *arguments])
       end
 
       def block(node)
@@ -17,21 +17,21 @@ module Kimera
       end
 
       def rewrite(call, key, &)
-        receiver, selector, *args = call.children
-        position = index(args)
+        receiver, selector, *arguments = call.children
+        position = index(arguments)
         return call unless position
-        apply(args, position, key, &)
-        call.updated(nil, [receiver, selector, *args])
+        apply(arguments, position, key, &)
+        call.updated(nil, [receiver, selector, *arguments])
       end
 
-      def index(args)
-        args.rindex { |a| a.is_a?(Parser::AST::Node) && %i[kwargs hash].include?(a.type) }
+      def index(arguments)
+        arguments.rindex { |a| a.is_a?(Parser::AST::Node) && %i[kwargs hash].include?(a.type) }
       end
 
-      def apply(args, position, key)
-        hash = args[position]
+      def apply(arguments, position, key)
+        hash = arguments[position]
         pairs = hash.children.filter_map { |pair| matches?(pair, key) ? yield(pair) : pair }
-        pairs.empty? ? args.delete_at(position) : args[position] = hash.updated(nil, pairs)
+        pairs.empty? ? arguments.delete_at(position) : arguments[position] = hash.updated(nil, pairs)
       end
 
       def matches?(pair, key)

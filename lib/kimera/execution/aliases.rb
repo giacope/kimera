@@ -58,8 +58,11 @@ class Kimera::Execution::Aliases
   def track(holder, method)
     file = source(method)
     return unless renamed?(method) && watched.include?(file)
-    entry = Entry.new(holder, method.name, nil, method.original_name, compiled(method))
-    origin = holder.ancestors.find { |mod| resolves?(mod, entry.target, entry.body) }
+    enter(Entry.new(holder, method.name, nil, method.original_name, compiled(method)), file)
+  end
+
+  def enter(entry, file)
+    origin = entry.holder.ancestors.find { |mod| resolves?(mod, entry.target, entry.body) }
     @entries << (origin ? entry.with(origin: origin) : orphan(entry, file)) if origin || wrapped?(entry, file)
   end
 

@@ -104,9 +104,7 @@ class Kimera::Execution::Shift
     io.puts(JSON.generate(message))
   end
 
-  def monotonic
-    Process.clock_gettime(Process::CLOCK_MONOTONIC)
-  end
+  def monotonic(reading = Process.clock_gettime(Process::CLOCK_MONOTONIC)) = reading
 end
 
 require_relative "shift/attempt"

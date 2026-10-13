@@ -71,7 +71,7 @@ RSpec.describe("kimera run on a suite whose state outlives a test (end-to-end)",
     it "judges each mutant as a fresh run of the suite would, at --jobs #{jobs}" do
       Dir.mktmpdir("kimera-state") do |root|
         project(root)
-        test_run(cwd: root, args: ["--jobs", jobs.to_s, "--no-progress"]) do |output, report, _status|
+        test_run(cwd: root, arguments: ["--jobs", jobs.to_s, "--no-progress"]) do |output, report, _status|
           expect(report).not_to(be_nil, output)
           found = verdicts(report)
           expect(found.select { |key, _| key.start_with?("app/rate.rb") }.values.uniq).to(eq(["killed"]))

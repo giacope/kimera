@@ -77,29 +77,29 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
 
     it "splits --operators into an array of keys" do
-      opts = cli.__send__(:parse, ["--operators", "comparison,regexp"])
-      expect(opts[:operators]).to(eq(%w[comparison regexp]))
+      parsed = cli.__send__(:parse, ["--operators", "comparison,regexp"])
+      expect(parsed[:operators]).to(eq(%w[comparison regexp]))
     end
 
     it "merges config-file defaults, with flags overriding them" do
       File.write("custom.yml", "jobs: 7\nsoft_timeout: 3.5\n")
-      opts = cli.__send__(:parse, ["--config", "custom.yml"])
-      expect(opts[:jobs]).to(eq(7))
-      expect(opts[:soft_timeout]).to(eq(3.5))
+      parsed = cli.__send__(:parse, ["--config", "custom.yml"])
+      expect(parsed[:jobs]).to(eq(7))
+      expect(parsed[:soft_timeout]).to(eq(3.5))
       expect(cli.__send__(:parse, ["--config", "custom.yml", "--jobs", "2"])[:jobs]).to(eq(2))
     end
 
     # Appending would re-include the whole suite when scoping to one file.
     it "replaces the config tests: glob when --tests is given" do
       File.write("custom.yml", %(tests: ["spec/config_spec.rb"]\n))
-      opts = cli.__send__(:parse, ["--config", "custom.yml", "--tests", "spec/only_spec.rb"])
-      expect(opts[:tests]).to(eq(["spec/only_spec.rb"]))
+      parsed = cli.__send__(:parse, ["--config", "custom.yml", "--tests", "spec/only_spec.rb"])
+      expect(parsed[:tests]).to(eq(["spec/only_spec.rb"]))
     end
 
     it "keeps the config tests: glob to tell a narrowed run apart" do
       File.write("custom.yml", %(tests: ["spec/config_spec.rb"]\n))
-      opts = cli.__send__(:parse, ["--config", "custom.yml", "--tests", "spec/only_spec.rb"])
-      expect(opts[:configured_tests]).to(eq(["spec/config_spec.rb"]))
+      parsed = cli.__send__(:parse, ["--config", "custom.yml", "--tests", "spec/only_spec.rb"])
+      expect(parsed[:configured_tests]).to(eq(["spec/config_spec.rb"]))
     end
 
     it "keeps the config tests: glob when --tests is absent" do
@@ -148,10 +148,10 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
 
     it "parses scalar, repeatable, and toggle flags" do
-      opts = cli.__send__(:parse, arguments)
-      expect(opts).to(include(framework: "minitest", source_root: "src", tests: ["a/**/*.rb", "b/**/*.rb"]))
-      expect(opts).to(include(soft_timeout: 2.5, hard_timeout: 9.0, coverage: false))
-      expect(opts).to(include(jobs: 4, max_survivors: 2, exclude: ["x.rb", "y.rb"], isolate_db: true))
+      parsed = cli.__send__(:parse, arguments)
+      expect(parsed).to(include(framework: "minitest", source_root: "src", tests: ["a/**/*.rb", "b/**/*.rb"]))
+      expect(parsed).to(include(soft_timeout: 2.5, hard_timeout: 9.0, coverage: false))
+      expect(parsed).to(include(jobs: 4, max_survivors: 2, exclude: ["x.rb", "y.rb"], isolate_db: true))
     end
 
     it "toggles --fail-on-no-coverage on and back off" do
@@ -161,8 +161,8 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
 
     it "treats positional arguments as paths overriding the default" do
-      opts = cli.__send__(:parse, ["app/models", "lib/core.rb"])
-      expect(opts[:paths]).to(eq(["app/models", "lib/core.rb"]))
+      parsed = cli.__send__(:parse, ["app/models", "lib/core.rb"])
+      expect(parsed[:paths]).to(eq(["app/models", "lib/core.rb"]))
     end
 
     # An unconditional assignment would blank them back to the defaults.
@@ -703,8 +703,8 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       }.merge(over)
     end
 
-    def framework(**attrs)
-      adapter = instance_double(Kimera::Frameworks::RSpecAdapter, catalog: {}, **attrs)
+    def framework(**attributes)
+      adapter = instance_double(Kimera::Frameworks::RSpecAdapter, catalog: {}, **attributes)
       allow(Kimera::Frameworks::ADAPTERS).to(receive(:load).and_return(adapter))
 
       adapter
@@ -715,8 +715,8 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       Kimera::CLI::Run::Pass.new(registry, options, adapter).call(todo, session)
     end
 
-    def executor(**attrs)
-      harness = instance_double(Kimera::Execution::Harness, **attrs)
+    def executor(**attributes)
+      harness = instance_double(Kimera::Execution::Harness, **attributes)
       allow(Kimera::Execution::Harness).to(receive(:build).and_return(harness))
       harness
     end
@@ -915,8 +915,8 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
     it "isolates only mutants covered by a pool-unsafe spec and merges the reports" do
       harness, runner, session = partition
-      opts = settings(isolate_when_covered_by: ["end_to_end_spec"])
-      report = pass(registry, opts, [1, 2], session)
+      parsed = settings(isolate_when_covered_by: ["end_to_end_spec"])
+      report = pass(registry, parsed, [1, 2], session)
       expect(report.results.map(&:mutant_id)).to(contain_exactly(1, 2))
       distribute(harness, runner)
     end
@@ -1039,7 +1039,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         instance_double(
           Kimera::Incremental::GitDiff,
           lines: {}
-      )
+        )
       )
       )
 

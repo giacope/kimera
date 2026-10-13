@@ -79,7 +79,7 @@ RSpec.describe("contract operators") do
       m = built("index_fetch").each.first.first
       expect(m.directive).to(eq("type" => "index_to_fetch"))
 
-      src = <<~RUBY
+      code = <<~RUBY
         def m(h, a, keys)
           h[:k] = 1
           a[1, 2]
@@ -88,7 +88,7 @@ RSpec.describe("contract operators") do
         end
       RUBY
       catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["index_fetch"]))
-        .source(src, file: "i.rb")
+        .source(code, file: "i.rb")
       expect(catalog.each.map { |_mutant, point| point.original_source }).to(eq(["h[:k]"]))
     end
 
@@ -100,7 +100,7 @@ RSpec.describe("contract operators") do
 
     # Dropping `&.` too would mutate nil- and miss-tolerance at once, so a survivor is unattributable.
     it "rewrites the explicit and safe-navigated spellings, preserving &.", :aggregate_failures do
-      src = <<~RUBY
+      code = <<~RUBY
         class Spellings
           def explicit(h, k)
             h.[](k)
@@ -112,11 +112,11 @@ RSpec.describe("contract operators") do
         end
       RUBY
       catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["index_fetch"]))
-        .source(src, file: "spellings.rb")
+        .source(code, file: "spellings.rb")
       sources = catalog.each.map { |m, p| Kimera::Rewrite::Directive.render(p.original_source, m.directive) }
       expect(sources).to(contain_exactly("h.fetch(k)", "h&.fetch(k)"))
 
-      result = Kimera::Overlay.new(catalog).synthesize("spellings.rb", src)
+      result = Kimera::Overlay.new(catalog).synthesize("spellings.rb", code)
       Kimera::Overlay::Source.new(result.source).evaluate(File.expand_path("spellings.rb"))
       ids = catalog.each.to_h { |m, p| [p.original_source, m.id] }
       object = Spellings.new
@@ -144,7 +144,7 @@ RSpec.describe("contract operators") do
     end
 
     it "skips a receiver'd call, a block, and multi-argument Integer()" do
-      src = <<~RUBY
+      code = <<~RUBY
         def m(x, s)
           Foo.Array(x)
           Integer(s, 16)
@@ -153,7 +153,7 @@ RSpec.describe("contract operators") do
         end
       RUBY
       catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["kernel_coercion"]))
-        .source(src, file: "k.rb")
+        .source(code, file: "k.rb")
       expect(catalog.each.map { |m, _p| m.label }).to(eq(["delete String()"]))
     end
 
@@ -177,14 +177,14 @@ RSpec.describe("contract operators") do
     end
 
     it "accepts the private-methods arity but not a computed method name" do
-      src = <<~RUBY
+      code = <<~RUBY
         def m(x, name)
           x.respond_to?(:size, true)
           x.respond_to?(name)
         end
       RUBY
       catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["respond_to_guard"]))
-        .source(src, file: "r.rb")
+        .source(code, file: "r.rb")
       expect(catalog.each.map { |_m, p| p.original_source }).to(eq(["x.respond_to?(:size, true)"]))
     end
 
@@ -194,9 +194,9 @@ RSpec.describe("contract operators") do
         "receiverless" => "def m\n  respond_to?(:a)\nend\n",
         "block form" => "def m(x)\n  x.respond_to?(:a) { |y| y }\nend\n",
         "over-arity" => "def m(x)\n  x.respond_to?(:a, true, 1)\nend\n"
-      }.each do |name, src|
+      }.each do |name, code|
         catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["respond_to_guard"]))
-          .source(src, file: "r.rb")
+          .source(code, file: "r.rb")
         expect(catalog.each.count).to(eq(0), "#{name} should not match")
       end
     end
@@ -213,7 +213,7 @@ RSpec.describe("contract operators") do
 
     # A label (`tier:`) has no parser-side node, so it would report no_coverage forever.
     it "skips label position but keeps every expression spelling", :aggregate_failures do
-      src = <<~RUBY
+      code = <<~RUBY
         def m(o)
           o.f(tier: 1)
           {gold: 1, :silver => 2, "bronze": 3}
@@ -222,10 +222,10 @@ RSpec.describe("contract operators") do
         end
       RUBY
       catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["symbol_literal"]))
-        .source(src, file: "s.rb")
+        .source(code, file: "s.rb")
       expect(catalog.each.map { |_m, p| p.original_source }).to(contain_exactly(":silver", "copper", ":tin"))
 
-      result = Kimera::Overlay.new(catalog).synthesize("s.rb", src)
+      result = Kimera::Overlay.new(catalog).synthesize("s.rb", code)
       expect(result.mutant_ids.size).to(eq(catalog.each.count))
     end
 
@@ -294,7 +294,7 @@ RSpec.describe("contract operators") do
   # A point the overlay cannot apply is permanent no_coverage noise.
   it "applies every schema-safe point it proposes, across awkward positions", :aggregate_failures do
     keys = %w[index_fetch kernel_coercion respond_to_guard symbol_literal default_argument]
-    src = <<~RUBY
+    code = <<~RUBY
       class Awkward
         def indexes(h, a)
           h[:k] += 1
@@ -317,11 +317,11 @@ RSpec.describe("contract operators") do
         end
       end
     RUBY
-    catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(src, file: "awkward.rb")
+    catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(code, file: "awkward.rb")
     safe = catalog.points.select(&:safe?).flat_map(&:ids)
     expect(safe.size).to(be > 10)
 
-    result = Kimera::Overlay.new(catalog).synthesize("awkward.rb", src)
+    result = Kimera::Overlay.new(catalog).synthesize("awkward.rb", code)
     expect(result.mutant_ids).to(match_array(safe))
     expect { RubyVM::AbstractSyntaxTree.parse(result.source) }.not_to(raise_error)
   end

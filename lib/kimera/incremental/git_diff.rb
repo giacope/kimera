@@ -99,9 +99,9 @@ class Kimera::Incremental::GitDiff
   end
 
   def command
-    cmd = ["git", "-C", @root.to_s, *BASEFLAGS, base]
-    cmd += ["--", *Array(@paths)] if @paths
-    cmd
+    invocation = ["git", "-C", @root.to_s, *BASEFLAGS, base]
+    invocation += ["--", *Array(@paths)] if @paths
+    invocation
   end
 
   def base

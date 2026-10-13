@@ -73,9 +73,9 @@ class Kimera::Guardrail
   end
 
   def points(node)
-    expr = node.location&.expression
-    return [] unless expr
-    ranges.fetch(@map.span(expr), [])
+    expression = node.location&.expression
+    return [] unless expression
+    ranges.fetch(@map.span(expression), [])
   end
 
   def ranges

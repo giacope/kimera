@@ -16,7 +16,7 @@ module KimeraEval
 
     def call
       app = prepare(sandbox.copy(File.join(ROOT, "examples", "rails_app"), "rails_app"), environment)
-      runs = SUITES.to_h { |name, (args, command)| [name, suite(app, args, command)] }
+      runs = SUITES.to_h { |name, (arguments, command)| [name, suite(app, arguments, command)] }
       runs["minitest"]["--isolated, relative path gem"] = relative(app)
       measured(runs)
     end
@@ -38,11 +38,11 @@ module KimeraEval
         .run("bundle", "install")
     end
 
-    def suite(app, args, command)
+    def suite(app, arguments, command)
       env = environment(app)
       @truth ||= {}
       truth = @truth[command] = oracle(app, Oracle::Runner.new(command, env))
-      differential(target(app, args: args, env: env.merge("BUNDLE_GEMFILE" => "Gemfile")), MODES, truth)
+      differential(target(app, arguments: arguments, env: env.merge("BUNDLE_GEMFILE" => "Gemfile")), MODES, truth)
     end
 
     def relative(app)

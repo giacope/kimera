@@ -21,17 +21,19 @@ module KimeraEval
     def call
       runs = LOCALES.to_h { |name, env| [name, commands(env).merge("suite" => suite(env))] }
       failures = runs.values.sum { |run| run.values.count { |step| !step["ok"] } }
-      suites = runs.values.sum { |run| run["suite"]["failures"] }
-      { "pass" => failures.zero?, "runs" => runs }
-        .merge("summary" => { "failed_steps" => failures, "suite_failures" => suites })
+      { "pass" => failures.zero?, "runs" => runs }.merge("summary" => tally(runs, failures))
+    end
+
+    def tally(runs, failures)
+      { "failed_steps" => failures, "suite_failures" => runs.values.sum { |run| run["suite"]["failures"] } }
     end
 
     private
 
     def commands(env)
       dir = sandbox.copy(fixture("locale"))
-      steps(File.join(dir, "tmp", "locale.json")).to_h do |name, args|
-        [name, step(name, checkout.cli(*args, chdir: dir, env: env))]
+      steps(File.join(dir, "tmp", "locale.json")).to_h do |name, arguments|
+        [name, step(name, checkout.cli(*arguments, chdir: dir, env: env))]
       end
     end
 

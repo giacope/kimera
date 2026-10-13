@@ -28,9 +28,10 @@ module KimeraEval
       seconds = bench.stdout[/seconds=([\d.]+)/, 1].to_f
       warnings = bench.stderr.scan(/DEPRECATION WARNING.*Aliases/).size
       summary = { "scan_s" => seconds.round(3), "deprecation_warnings" => warnings }
-      { "pass" => warnings.zero? && seconds < 1.0, "summary" => summary }
-        .merge("modules" => bench.stdout[/modules=(\d+)/, 1].to_i, "exit" => bench.code)
+      { "pass" => warnings.zero? && seconds < 1.0, "summary" => summary }.merge(scanned(bench))
     end
+
+    def scanned(bench) = { "modules" => bench.stdout[/modules=(\d+)/, 1].to_i, "exit" => bench.code }
 
     private
 

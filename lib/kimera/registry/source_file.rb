@@ -86,7 +86,7 @@ class Kimera::RegistryScan::SourceFile
     operators.flat_map { |operator| operator.pairs(node, position: position) }
   end
 
-  def assemble(node, pairs, name) = Kimera::MutationPoint.new(**attrs(node, distinct(node.location, pairs), name))
+  def assemble(node, pairs, name) = Kimera::MutationPoint.new(**attributes(node, distinct(node.location, pairs), name))
 
   def classed(point, cursor)
     point.unsafe!(Kimera::MutationPoint::CLASS_BODY_REASON) unless cursor.inside_def
@@ -99,7 +99,7 @@ class Kimera::RegistryScan::SourceFile
 
   def outcomes = @_outcomes ||= Kimera::Rewrite::Outcomes.new(@source)
 
-  def attrs(node, pairs, name)
+  def attributes(node, pairs, name)
     location = node.location
     { point_id: @numbering.point, file: @file, operator: pairs.map(&:first).uniq.join("+") }
       .merge(node_type: node.type.to_s, location: Kimera::Location.parse(location), original_source: location.slice)

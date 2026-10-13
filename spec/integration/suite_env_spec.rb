@@ -32,10 +32,10 @@ RSpec.describe("KIMERA in the suite's environment") do
   end
 
   def launch(dir, *)
-    env = { "KIMERA" => nil, "BUNDLE_GEMFILE" => File.join(test_repo_root, "Gemfile") }
+    env = { "KIMERA" => nil, "BUNDLE_GEMFILE" => File.join(test_repository_root, "Gemfile") }
     command = [
-      "bundle", "exec", "ruby", "-I", File.join(test_repo_root, "lib"),
-      File.join(test_repo_root, "exe", "kimera")
+      "bundle", "exec", "ruby", "-I", File.join(test_repository_root, "lib"),
+      File.join(test_repository_root, "exe", "kimera")
     ]
     output, status = Open3.capture2e(env, *command, *, chdir: dir)
     [output.force_encoding(Encoding::UTF_8), status]

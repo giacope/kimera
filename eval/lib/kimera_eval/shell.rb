@@ -68,7 +68,7 @@ module KimeraEval
       false
     end
 
-    def clock = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    def clock(now = Process.clock_gettime(Process::CLOCK_MONOTONIC)) = now
 
     # Peak RSS across a process tree: the largest single process, and the
     # largest sum at any one sample.

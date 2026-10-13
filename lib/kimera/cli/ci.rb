@@ -17,8 +17,8 @@ class Kimera::CLI::CI
   end
 
   def run(argv)
-    args = (DEFAULTS + actions).reduce(argv.dup) { |given, (names, extra)| defaulted(given, names, extra) }
-    Kimera::CLI::Run.new(io: @io, errors: @errors).run(args)
+    arguments = (DEFAULTS + actions).reduce(argv.dup) { |given, (names, extra)| defaulted(given, names, extra) }
+    Kimera::CLI::Run.new(io: @io, errors: @errors).run(arguments)
   end
 
   private
@@ -31,5 +31,5 @@ class Kimera::CLI::CI
     pairs
   end
 
-  def defaulted(args, names, extra) = Kimera::CLI::Argv.any?(args, names) ? args : args + extra
+  def defaulted(arguments, names, extra) = Kimera::CLI::Argv.any?(arguments, names) ? arguments : arguments + extra
 end

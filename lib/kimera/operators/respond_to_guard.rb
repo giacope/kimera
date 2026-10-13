@@ -14,9 +14,9 @@ class Kimera::Operators::RespondToGuard < Kimera::Operators::Base
 
   def guard?(node)
     return false unless call(node).chained?(:respond_to?) && !node.block
-    args = arguments(node)
-    return false unless (1..2).cover?(args.length)
-    target = args.first
+    words = arguments(node)
+    return false unless (1..2).cover?(words.length)
+    target = words.first
     target.is_a?(SymbolNode) || target.is_a?(StringNode)
   end
 end

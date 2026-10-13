@@ -51,7 +51,7 @@ RSpec.describe("kimera run on a method wrapped by an alias chain in another file
     it "covers and kills the wrapped original's mutants when the wrapper is #{wrapper}.rb", :aggregate_failures do
       Dir.mktmpdir("kimera-alias") do |root|
         project(root, wrapper)
-        test_run(cwd: root, args: ["--no-progress"]) do |output, report, status|
+        test_run(cwd: root, arguments: ["--no-progress"]) do |output, report, status|
           expect(report).not_to(be_nil, output)
           original = report.fetch("results").select { |row| row["file"] == "app/order.rb" }
           expect(original).not_to(be_empty)

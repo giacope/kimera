@@ -41,8 +41,8 @@ Kimera::Execution::WorkerPool::Worker =
       autopsy.tap { kill(pid) }
     end
 
-    def renew(limit)
-      self.deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + limit
+    def renew(limit, now = Process.clock_gettime(Process::CLOCK_MONOTONIC))
+      self.deadline = now + limit
     end
 
     def expired?(now)

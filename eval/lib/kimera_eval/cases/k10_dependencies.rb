@@ -21,10 +21,14 @@ module KimeraEval
 
     def resolve
       dir = File.join(sandbox.root, "closure")
-      FileUtils.mkdir_p(dir)
-      File.write(File.join(dir, "Gemfile"), "source 'https://rubygems.org'\ngem 'kimera', path: #{checkout.path.dump}")
-      Shell.new(env: { "BUNDLE_GEMFILE" => File.join(dir, "Gemfile") }, chdir: dir).run("bundle", "lock")
+      locked(dir, File.join(dir, "Gemfile"))
       walk(Bundler::LockfileParser.new(File.read(File.join(dir, "Gemfile.lock"))).specs)
+    end
+
+    def locked(dir, gemfile)
+      FileUtils.mkdir_p(dir)
+      File.write(gemfile, "source 'https://rubygems.org'\ngem 'kimera', path: #{checkout.path.dump}")
+      Shell.new(env: { "BUNDLE_GEMFILE" => gemfile }, chdir: dir).run("bundle", "lock")
     end
 
     def walk(specs)

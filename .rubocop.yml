@@ -249,6 +249,8 @@ Kata/RealWords:
     - ndjson
     - sarif
     - github
+    # The `kimera init` subcommand, dispatched by that name.
+    - init
 
 Kata/EnvDiscipline:
   Exclude:
@@ -265,3 +267,23 @@ Kata/NoHashAsObject:
     - config/**/*
     # SARIF is a fixed external schema.
     - lib/kimera/report/formats.rb
+
+# --------------------------------------------------------------------------
+# Spec fixtures build their doubles, fake adapters and projects inline; an
+# extracted helper per branch would scatter one fixture across methods. Lib
+# and eval code keep the limits.
+# --------------------------------------------------------------------------
+
+Metrics/AbcSize:
+  inherit_mode:
+    merge:
+      - Exclude
+  Exclude:
+    - spec/**/*
+
+Metrics/CyclomaticComplexity:
+  inherit_mode:
+    merge:
+      - Exclude
+  Exclude:
+    - spec/**/*

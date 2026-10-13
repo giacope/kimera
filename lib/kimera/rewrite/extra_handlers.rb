@@ -17,13 +17,13 @@ module Kimera
           end
 
           def index(node)
-            receiver, *args = node.children
-            node.updated(:send, [receiver, :fetch, *args])
+            receiver, *arguments = node.children
+            node.updated(:send, [receiver, :fetch, *arguments])
           end
 
           def call(node)
-            receiver, _selector, *args = node.children
-            node.updated(nil, [receiver, :fetch, *args])
+            receiver, _selector, *arguments = node.children
+            node.updated(nil, [receiver, :fetch, *arguments])
           end
 
           def argument

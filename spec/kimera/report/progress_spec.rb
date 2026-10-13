@@ -13,9 +13,9 @@ RSpec.describe(Kimera::Report::Progress) do
 
   # interval: 0 disables throttling.
   def progress(io: fake_tty, enabled: true, interval: 0, clock: nil)
-    opts = { io: io, enabled: enabled, interval: interval }
-    opts[:clock] = clock if clock
-    [described_class.new(**opts), io]
+    options = { io: io, enabled: enabled, interval: interval }
+    options[:clock] = clock if clock
+    [described_class.new(**options), io]
   end
 
   def frames(io)

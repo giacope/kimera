@@ -178,10 +178,10 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     end
 
     def mixed
-      src = "def a(x, y)\n  x > y\nend\n"
+      code = "def a(x, y)\n  x > y\nend\n"
       Kimera::Registry.new(
-        points: Kimera::RegistryScan.new.source(src, file: "lib/x.rb").points +
-          Kimera::RegistryScan.new.source(src, file: "app/y.rb").points
+        points: Kimera::RegistryScan.new.source(code, file: "lib/x.rb").points +
+          Kimera::RegistryScan.new.source(code, file: "app/y.rb").points
       )
     end
 
@@ -203,11 +203,11 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
 
   describe "#mutables" do
     def nested
-      src = "def a(x, y)\n  x > y\nend\n"
+      code = "def a(x, y)\n  x > y\nend\n"
       Kimera::Registry.new(
-        points: Kimera::RegistryScan.new.source(src, file: "lib/a.rb").points +
-          Kimera::RegistryScan.new.source(src, file: "lib/deep/b.rb").points +
-          Kimera::RegistryScan.new.source(src, file: "app/c.rb").points
+        points: Kimera::RegistryScan.new.source(code, file: "lib/a.rb").points +
+          Kimera::RegistryScan.new.source(code, file: "lib/deep/b.rb").points +
+          Kimera::RegistryScan.new.source(code, file: "app/c.rb").points
       )
     end
 
@@ -231,8 +231,8 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     end
 
     it "copies a would-be link that holds a mutated file, so no mutant writes through it" do
-      src = "def a(x, y)\n  x > y\nend\n"
-      inside = Kimera::Registry.new(points: Kimera::RegistryScan.new.source(src, file: "vendor/a.rb").points)
+      code = "def a(x, y)\n  x > y\nend\n"
+      inside = Kimera::Registry.new(points: Kimera::RegistryScan.new.source(code, file: "vendor/a.rb").points)
       expect(plan(registry: inside).placement("vendor")).to(eq(:copy))
     end
   end
