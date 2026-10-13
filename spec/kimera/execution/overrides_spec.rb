@@ -49,6 +49,23 @@ RSpec.describe(Kimera::Execution::Overrides) do
       .to(contain_exactly([:total, own], [:make, own], [:build, own]))
   end
 
+  it "hands over only what the overlay redefined" do
+    boot
+    overrides = described_class.new(own, source)
+    overrides.keep { evaluate(OverridesOrder, "def total = 9", own) }
+    expect(overrides.displaced.map(&:name)).to(eq([:total]))
+  end
+
+  it "keeps a later file's top-level method", :aggregate_failures do
+    evaluate(Object, "def overrides_top = :own", own)
+    evaluate(Object, "def overrides_top = :later", later)
+    overrides = described_class.new(own, "def overrides_top = :own\n")
+    overrides.keep { evaluate(Object, "def overrides_top = :again", own) }
+    expect([overrides_top, overrides.displaced.map(&:name)]).to(eq([:later, [:overrides_top]]))
+  ensure
+    Object.__send__(:remove_method, :overrides_top)
+  end
+
   it "lets the overlay redefine what only its own file defined" do
     boot
     overlay(described_class.new(own, source))
@@ -63,7 +80,9 @@ RSpec.describe(Kimera::Execution::Overrides) do
   end
 
   it "skips a class it can't resolve, a def on another receiver, and a block's defs" do
-    code = "class OverridesMissing\n  def gone = 1\nend\n\ndef OverridesOrder.other = 1\n[1].each { def inside = 1 }\n"
+    code = "class OverridesMissing\n  def gone = 1\nend\n\ndef OverridesOrder.other = 1\n" \
+      "[1].each { def inside = 1 }\n" \
+      "class OverridesOrder\nend\nclass OverridesOrder\n  class << self\n  end\nend\n"
     expect(described_class.new(own, code).keep { :done }).to(eq(:done))
   end
 
@@ -71,5 +90,14 @@ RSpec.describe(Kimera::Execution::Overrides) do
     overrides = described_class.new(own, "class Broken\n  def oops(\nend\n")
     overrides.keep { :done }
     expect(overrides.displaced).to(be_empty)
+  end
+
+  describe Kimera::Execution::Redefinition do
+    it "names a file by its real path, and anything else as given", :aggregate_failures do
+      File.symlink(dir, File.join(dir, "linked"))
+      expect(described_class.canonical(File.join(dir, "linked", "order.rb").tap { own })).to(eq(File.realpath(own)))
+      expect(described_class.canonical("/no/such/file.rb")).to(eq("/no/such/file.rb"))
+      expect(described_class.canonical(nil)).to(be_nil)
+    end
   end
 end

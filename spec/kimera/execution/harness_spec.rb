@@ -1425,8 +1425,10 @@ RSpec.describe(Kimera::Execution::Harness) do
       stub_const("WarmOrdered", Class.new)
       registry = fixture("WarmOrdered")
       ids = registry.each.map { |m, _p| m.id }
-      h = described_class.build(registry: registry, adapter: ordered(ids), source_root: dir)
+      progress = journal
+      h = described_class.build(registry: registry, adapter: ordered(ids), source_root: dir, progress: progress)
       h.warm!(%w[t1 t2])
+      expect(progress.events).to(include([:note, "baseline (whole suite, in order)"]))
       expect(h.coverage.slice(*ids).values.flatten).to(be_empty)
       expect(registry.points.map(&:revisit).uniq).to(eq([Kimera::MutationPoint::ORDER_REASON]))
     end

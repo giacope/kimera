@@ -724,10 +724,10 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   block, then the mutated statements. A class keeps its superclass even if the
   constant naming it was reassigned, and a `Struct.new`, `Data.define`,
   `Class.new` or `Module.new` constant is reopened, not replaced. A file
-  nothing required before the overlay is evaluated whole. Files are overlaid
-  in the order the suite loaded them, and a method a later file redefined (a
-  wrapper around an `alias_method` chain) keeps that definition; the alias
-  then calls the overlaid original, so its mutants are covered.
+  nothing required before the overlay is evaluated whole. A method a file
+  loaded later redefined (a wrapper around an `alias_method` chain) keeps
+  that definition; the alias then calls the overlaid original, so its
+  mutants are covered.
 - **An un-emittable node costs one method, not a file.** `unparser` refuses to
   re-emit some valid Ruby (an interpolated `%r{}x` pattern, for example). When
   a whole file won't round-trip, Kimera guards and re-emits each method that

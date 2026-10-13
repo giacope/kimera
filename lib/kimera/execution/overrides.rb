@@ -35,9 +35,8 @@ class Kimera::Execution::Overrides
   def file = @_file ||= Kimera::Execution::Redefinition.canonical(@given)
 
   def defined
-    parsed = Prism.parse(@source)
     found = []
-    visit(parsed.value, [], :instance, found) if parsed.success?
+    visit(Prism.parse(@source).value, [], :instance, found)
     found.compact
   end
 

@@ -110,8 +110,23 @@ RSpec.describe(Kimera::Execution::Aliases) do
     origin = declared
     aliased = holder(origin) { alias_method :cost, :price }
     overlay(origin)
-    described_class.new([path]).follow { define(origin, 4, path) }
+    aliases = described_class.new([path])
+    aliases.follow do
+      define(origin, 4, path)
+      aliases.witness
+    end
     expect(aliased.new.cost(1)).to(eq(2))
+  end
+
+  it "re-points an alias it tracks whether or not each file is witnessed" do
+    origin = declared
+    aliased = holder(origin) { alias_method :cost, :price }
+    aliases = described_class.new([path])
+    aliases.follow do
+      overlay(origin)
+      aliases.witness
+    end
+    expect(aliased.new.cost(1)).to(eq(3))
   end
 
   it "matches a file loaded through its real path when given a symlinked one" do
@@ -154,6 +169,19 @@ RSpec.describe(Kimera::Execution::Aliases) do
         aliases.witness([Kimera::Execution::Overrides::Held.new(klass, :price, overlaid, :public)])
       end
       expect([klass.new.plain(1), klass.new.price(1)]).to(eq([3, 4]))
+    end
+
+    it "takes the overlaid original of its own name, not another one handed over with it" do
+      klass = wrapped
+      aliases = described_class.new([path])
+      aliases.follow do
+        overlay(klass)
+        overlaid = klass.instance_method(:price)
+        wrap(klass)
+        other = Kimera::Execution::Overrides::Held.new(klass, :plain, klass.instance_method(:plain), :public)
+        aliases.witness([other, Kimera::Execution::Overrides::Held.new(klass, :price, overlaid, :public)])
+      end
+      expect(klass.new.plain(1)).to(eq(3))
     end
 
     it "follows the original it finds in its own file again" do

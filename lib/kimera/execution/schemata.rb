@@ -6,7 +6,6 @@ require_relative "../synthesis/body_trim"
 require_relative "../synthesis/overlay"
 require_relative "aliases"
 require_relative "overrides"
-require_relative "redefinition"
 require_relative "overlay_guards"
 
 class Kimera::Execution::Schemata
@@ -21,7 +20,7 @@ class Kimera::Execution::Schemata
 
   def overlay!
     Kimera::Execution::OverlayGuards.install!
-    aliases.follow { weave(loaded(@registry.files)) + weave(unresolved) }.tap { announce }
+    aliases.follow { weave(@registry.files) + weave(unresolved) }.tap { announce }
   end
 
   def aliases = @_aliases ||= Kimera::Execution::Aliases.new(@registry.files.map { |path| File.join(root, path) })
@@ -29,15 +28,6 @@ class Kimera::Execution::Schemata
   private
 
   def weave(paths) = paths.flat_map { |path| load(path) }
-
-  def loaded(paths)
-    rank = $LOADED_FEATURES.each_with_index.to_h
-    paths.each_with_index.sort_by { |path, index| [order(rank, File.join(root, path)), index] }.map(&:first)
-  end
-
-  def order(rank, file)
-    [file, Kimera::Execution::Redefinition.canonical(file)].filter_map { |key| rank[key] }.min || rank.size
-  end
 
   def unresolved
     @skipped.keys.select { |path| @skipped[path].start_with?("NameError:") }.each { |path| @skipped.delete(path) }

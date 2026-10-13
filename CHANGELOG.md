@@ -3,9 +3,8 @@
 ## Unreleased
 
 - An `alias_method` chain reopened in another file no longer hides the
-  original's mutants: files are overlaid in the order the suite loaded them,
-  a method a later file redefined keeps that definition through the overlay,
-  and the alias follows the overlaid original. The original's 12 mutants in
+  original's mutants: a method a later file redefined keeps that definition
+  through the overlay, and the alias follows the overlaid original. The original's 12 mutants in
   the holdout's alias-chain project read `no_coverage`; they are now judged
   (and killed). Before, a wrapper whose file was not overlaid after the
   original's was replaced by the original, and the baseline went red.
