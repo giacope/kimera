@@ -195,10 +195,12 @@ RSpec.describe(Kimera::Execution::Aliases) do
       expect(klass.new.plain(1)).to(eq(3))
     end
 
-    it "leaves the alias alone when nothing hands it a new original" do
+    # Its own name now resolves to the wrapper, which must not become the alias.
+    it "leaves the alias alone when nothing hands it a new original", :aggregate_failures do
       klass = wrapped
-      described_class.new([path]).follow { :untouched }
-      expect(klass.new.plain(1)).to(eq(2))
+      aliases = described_class.new([path])
+      aliases.follow { aliases.witness }
+      expect([klass.new.plain(1), klass.new.price(1)]).to(eq([2, 3]))
     end
   end
 end
