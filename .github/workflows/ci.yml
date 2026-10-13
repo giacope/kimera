@@ -39,7 +39,7 @@ jobs:
       matrix:
         unparser: ["0.8.1", "0.8.2", "0.9.0"]
     env:
-      BUNDLE_GEMFILE: gemfiles/unparser.gemfile
+      BUNDLE_GEMFILE: ${{ github.workspace }}/gemfiles/unparser.gemfile
       UNPARSER: ${{ matrix.unparser }}
     steps:
       - uses: actions/checkout@v4
