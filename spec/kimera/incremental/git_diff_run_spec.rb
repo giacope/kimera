@@ -48,6 +48,19 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
       expect(changed["calc.rb"]).to(include(2))
     end
 
+    # main moved on after the branch point; only the branch's own changes,
+    # committed or not, belong to it.
+    it "diffs against the merge-base with the ref, keeping uncommitted work", :aggregate_failures do
+      commit("calc.rb", "a = 1\nb = 1\nc = 1\n", "init")
+      git("branch", "-q", "feature", dir: dir)
+      commit("calc.rb", "a = 1\nb = 2\nc = 1\n", "main moves on")
+      main = git("rev-parse", "--abbrev-ref", "HEAD", dir: dir).strip
+      git("checkout", "-q", "feature", dir: dir)
+      commit("calc.rb", "a = 2\nb = 1\nc = 1\n", "feature")
+      edit("calc.rb", "a = 2\nb = 1\nc = 3\n")
+      expect(described_class.new(since: main, root: dir).lines["calc.rb"].to_a).to(eq([1, 3]))
+    end
+
     it "raises rather than returning {} when the git command fails (bad ref)" do
       commit("calc.rb", "x = 1\n", "init")
       expect { described_class.new(since: "no-such-ref", root: dir).lines }

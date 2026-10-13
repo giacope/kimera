@@ -99,8 +99,15 @@ class Kimera::Incremental::GitDiff
   end
 
   def command
-    cmd = ["git", "-C", @root.to_s, *BASEFLAGS, @since.to_s]
+    cmd = ["git", "-C", @root.to_s, *BASEFLAGS, base]
     cmd += ["--", *Array(@paths)] if @paths
     cmd
+  end
+
+  def base
+    out, status = Open3.capture2("git", "-C", @root.to_s, "merge-base", @since.to_s, "HEAD", err: File::NULL)
+    status.success? ? out.strip : @since.to_s
+  rescue Errno::ENOENT
+    @since.to_s
   end
 end
