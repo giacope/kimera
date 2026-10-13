@@ -521,8 +521,14 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       $stdout = original
     end
 
+    # What the CLI stamps a session with when no flag changes the settings.
+    def stamp(registry)
+      options = Kimera::CLI::Run::Arguments.new.parse([])
+      Kimera::Incremental::Stamp.new(root: ".", sources: registry.files, options: options).to_s
+    end
+
     def saved(registry, path, status: :killed)
-      session = Kimera::Incremental::Session.new
+      session = Kimera::Incremental::Session.new.stamp!(stamp(registry))
       results =
         registry.each.map do |mutant, point|
           Kimera::MutantResult.new(mutant_id: mutant.id, status: status, file: point.file, duration: 0.0)

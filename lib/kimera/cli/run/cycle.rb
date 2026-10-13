@@ -3,6 +3,7 @@
 require_relative "../../execution/suite_env"
 require_relative "../../incremental/selection"
 require_relative "../../incremental/session"
+require_relative "../../incremental/stamp"
 require_relative "aim"
 require_relative "inline_ignores"
 require_relative "digest"
@@ -40,7 +41,7 @@ class Kimera::CLI::Run::Cycle
   end
 
   def session(todo, ignored)
-    loaded = Kimera::Incremental::Session.from(@options[:session], registry: @registry)
+    loaded = Kimera::Incremental::Session.from(@options[:session], registry: @registry, stamp: stamp)
     perform(@options[:evaluate_ignored] ? todo + ignored : todo, loaded)
     conclude(todo, ignored, loaded)
   end
@@ -61,6 +62,11 @@ class Kimera::CLI::Run::Cycle
   def emission
     { path: @options[:report], format: @options.fetch(:format, "text"), metadata: provenance }
       .merge(coverage: coverage, log: @options[:log], scope: narrowing.note, summary: @options[:summary])
+  end
+
+  def stamp
+    return unless @options[:session]
+    Kimera::Incremental::Stamp.new(root: @options[:source_root], sources: @registry.files, options: @options).to_s
   end
 
   def inline = Kimera::CLI::Run::InlineIgnores.new(@registry, root: @options[:source_root]).rules
