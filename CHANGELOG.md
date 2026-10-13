@@ -19,7 +19,9 @@
   tests, instead of only "not green". Tests that also pass alone (shared
   paths across workers) keep the `--jobs 1` advice.
 - `eval/holdout` holds 12 state-leak projects and an oracle written by
-  another agent blind to kimera's tests (eval case H1).
+  another agent blind to kimera's tests (eval case H1). main agrees with
+  that oracle on 74.6% of 394 compared mutants, with 100 false survivors and
+  13 false `no_coverage`; this branch on all 441, with none.
 - Verdicts no longer depend on state a test or an earlier mutant left
   behind. The parent boots the suite and overlays the schemata, then runs no
   test: each baseline test, and each mutant's covering tests, run in a
@@ -31,8 +33,8 @@
   and soft timeouts no longer retire workers, and nothing is requeued.
   `--leak-every` and `leak_every:` are gone: there is no warm state left to
   re-check. The cost is a fork per baseline test and per mutant, and a cold
-  start in each: 3% on dry-inflector at `--jobs 4`, 21-40% on a small Rails
-  suite at `--jobs 4` and about twice the time at `--jobs 1`
+  start in each: 3 to 26% on dry-inflector at `--jobs 4` (two runs), 21 to 53%
+  on a small Rails suite at `--jobs 4` and 2 to 3 times the time at `--jobs 1`
   (`eval/results/README.md`).
 - A warm survivor whose method also ran while the suite loaded (to build a
   constant, say) is judged again in a fresh mirror against the whole suite,
