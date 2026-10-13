@@ -58,7 +58,7 @@ class Kimera::Execution::Zygote
 
   private
 
-  def born(pipe, saved, &) = fork || spawned(pipe, saved, &)
+  def born(pipe, saved, &) = fork { spawned(pipe, saved, &) }
 
   def spawned(pipe, saved, &)
     restore(saved)

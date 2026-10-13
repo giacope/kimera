@@ -63,4 +63,14 @@ RSpec.describe(Kimera::RegistryScan) do
     registry = scan("class W\n  X = [1].map { |n| n > 0 }\n  Y = [2].map { |n| n > 0 }\nend\n")
     expect(registry.narrow!("widget.rb" => Set[3]).unmutated.map(&:start_line)).to(eq([3]))
   end
+
+  it "reports a block inside a class-level block as part of the outer one" do
+    registry = scan("class W\n  setup do\n    [1].each do |n|\n      n > 0\n    end\n  end\nend\n")
+    expect(registry.unmutated.map { |region| [region.start_line, region.end_line] }).to(eq([[2, 6]]))
+  end
+
+  it "takes a method defined from a block argument as no block body" do
+    call = Prism.parse("define_method(:x, &handler)").value.statements.body.first
+    expect(Kimera::Deferral.block(call)).to(be_nil)
+  end
 end

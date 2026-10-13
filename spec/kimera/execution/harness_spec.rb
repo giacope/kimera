@@ -614,6 +614,8 @@ RSpec.describe(Kimera::Execution::Harness) do
   end
 
   describe "#warm! wiring" do
+    include_context("with an inline zygote")
+
     let(:dir) { Dir.mktmpdir }
 
     after { FileUtils.remove_entry(dir) }
@@ -1105,6 +1107,8 @@ RSpec.describe(Kimera::Execution::Harness) do
   end
 
   describe "#verify!" do
+    include_context("with an inline zygote")
+
     it "passes silently when the suite is green" do
       h = harness(adapter(coverage: { "t1" => [] }))
       expect { h.__send__(:verify!) }.not_to(raise_error)
@@ -1353,6 +1357,8 @@ RSpec.describe(Kimera::Execution::Harness) do
   end
 
   describe "#warm!" do
+    include_context("with an inline zygote")
+
     let(:dir) { Dir.mktmpdir }
 
     after { FileUtils.remove_entry(dir) }

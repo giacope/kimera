@@ -139,4 +139,19 @@ RSpec.describe(Kimera::Execution::StackDump) do
     File.binwrite(File.join(dir, "#{Process.pid}.txt"), "caf\xC3\xA9 \xFF")
     expect(trapped("IGNORE") { dump.take(Process.pid) }).to(eq("café �"))
   end
+
+  # A worker in the pool's own process group gets the signal alone; only a
+  # worker that leads its own group has the group signalled.
+  it "signals a process in this group alone, and a group leader's whole group", :aggregate_failures do
+    member = fork { sleep(5) }
+    leader = fork { sleep(5) }
+    Process.setpgid(leader, leader)
+    allow(Process).to(receive(:kill).and_call_original)
+    allow(Process).to(receive(:kill).with(described_class::SIGNAL, anything))
+    [member, leader].each { |pid| dump.__send__(:ask, pid) }
+    expect(Process).to(have_received(:kill).with(described_class::SIGNAL, member))
+    expect(Process).to(have_received(:kill).with(described_class::SIGNAL, -leader))
+  ensure
+    [member, leader].compact.each { |pid| Process.kill("KILL", pid) && Process.wait(pid) }
+  end
 end

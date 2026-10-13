@@ -24,15 +24,13 @@ RSpec.describe(Kimera::Execution::Zygote) do
   end
 
   it "raises any other error here, naming its class", :aggregate_failures do
-    expect { zygote.call { raise(ArgumentError, "bad") } }.to(
-      raise_error(described_class::Raised, "bad") { |error| expect(error.kind).to(eq("ArgumentError")) }
-    )
+    expect { zygote.call { raise(ArgumentError, "bad") } }
+      .to(raise_error(described_class::Raised, "bad") { |error| expect(error.kind).to(eq("ArgumentError")) })
   end
 
   it "reports a child that exits without replying, with its status", :aggregate_failures do
-    expect { zygote.call { exit!(3) } }.to(
-      raise_error(described_class::Died, "") { |died| expect([died.code, died.signal]).to(eq([3, nil])) }
-    )
+    expect { zygote.call { exit!(3) } }
+      .to(raise_error(described_class::Died, "") { |died| expect([died.code, died.signal]).to(eq([3, nil])) })
   end
 
   it "reports a child killed by a signal, with the signal", :aggregate_failures do
@@ -48,10 +46,64 @@ RSpec.describe(Kimera::Execution::Zygote) do
     )
   end
 
-  it "ignores SIGQUIT here while the child runs, and hands the child the handler", :aggregate_failures do
+  it "ignores SIGQUIT here while the child runs, and hands the child the handler" do
     previous = Signal.trap("QUIT") { :dumped }
     during = zygote.call { Signal.trap("QUIT", "DEFAULT").class.name }
-    expect(during).to(eq("Proc"))
-    expect(Signal.trap("QUIT", previous)).to(be_a(Proc))
+    expect([during, Signal.trap("QUIT", previous).class]).to(eq(["Proc", Proc]))
+  end
+
+  describe "the reply, read in this process" do
+    it "reports a signal the block raised as the child's death" do
+      expect { InlineZygote.new.call { raise(SignalException, "TERM") } }
+        .to(raise_error(described_class::Died, /\ASignalException: SIGTERM/))
+    end
+
+    it "lets an interrupt through, so ^C still stops the run" do
+      expect { InlineZygote.new.call { raise(Interrupt) } }.to(raise_error(Interrupt))
+    end
+  end
+
+  # The child's half runs only in a forked child, where no coverage reaches;
+  # run it here, with its exit stubbed.
+  describe "the child's half, run here" do
+    def spawned(zygote, saved)
+      reader, writer = IO.pipe
+      allow(zygote).to(receive(:exit!))
+      zygote.__send__(:spawned, described_class::Pipe.new(reader.dup, writer), saved) { 7 }
+      reader.read
+    end
+
+    it "hands back the caller's QUIT handler, replies, and exits without unwinding", :aggregate_failures do
+      zygote = described_class.new
+      handler = proc {}
+      previous = Signal.trap("QUIT", "IGNORE")
+      reply = spawned(zygote, handler)
+      expect(Signal.trap("QUIT", previous)).to(be(handler))
+      expect(JSON.parse(reply)).to(eq("value" => 7))
+      expect(zygote).to(have_received(:exit!).with(0))
+    end
+  end
+
+  describe described_class::Pipe do
+    def pipe
+      reader, writer = IO.pipe
+      [described_class.new(reader.dup, writer), reader]
+    end
+
+    it "posts the reply and closes both of the child's ends", :aggregate_failures do
+      pipe, reader = pipe()
+      pipe.post("reply")
+      expect(reader.read).to(eq("reply"))
+      expect([pipe.reader, pipe.writer]).to(all(be_closed))
+    end
+
+    it "takes the reply and closes both of the parent's ends", :aggregate_failures do
+      reader, writer = IO.pipe
+      pipe = described_class.new(reader, writer.dup)
+      writer.write("reply")
+      writer.close
+      expect(pipe.take).to(eq("reply"))
+      expect([pipe.reader, pipe.writer]).to(all(be_closed))
+    end
   end
 end

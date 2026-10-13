@@ -149,18 +149,16 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     )
   end
 
-  # Without coverage the baseline runs in this process, whatever --jobs says.
+  # Without coverage the baseline runs in one process, whatever --jobs says.
   it "doesn't name --jobs 1 for the baseline it checks in one process" do
     outcome = Struct.new(:passed?, :failures, :failed_ids).new(false, { "t1" => "boom" }, ["t1"])
     adapter.define_singleton_method(:run) { |_ids| outcome }
     pass = described_class.new(adapter: adapter, registry: registry)
-    expect do
-  pass.check!
-end.to(
-  raise_error(
-    Kimera::Execution::BaselineFailure,
-    "baseline suite is not green: t1\n  t1:\n    boom\n  reproduce without kimera: rspec t1"
-)
-)
+    expect { pass.check!(InlineZygote.new) }.to(
+      raise_error(
+        Kimera::Execution::BaselineFailure,
+        "baseline suite is not green: t1\n  t1:\n    boom\n  reproduce without kimera: rspec t1"
+      )
+    )
   end
 end

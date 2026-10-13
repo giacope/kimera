@@ -57,4 +57,10 @@ RSpec.describe(Kimera::Incremental::Stamp) do
     write("spec/a_spec.rb", "changed")
     expect(stamp(tests: ["**/*_spec.rb"])).not_to(eq(before))
   end
+
+  it "ignores a file outside the sources when a test glob has no fixed root" do
+    before = stamp(tests: ["**/*_spec.rb"])
+    write("doc/x.md", "changed")
+    expect(stamp(tests: ["**/*_spec.rb"])).to(eq(before))
+  end
 end

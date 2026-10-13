@@ -170,6 +170,28 @@ RSpec.describe(Kimera::Execution::Shift) do
       expect(result.duration).to(eq(0.0))
     end
 
+    # Outside the test process (a broken adapter, say) the error is the real
+    # one, not the zygote's report of it.
+    it "names the class of an error raised outside the test process" do
+      subject = Kimera::Execution::Shift::Subject.new(ids.first, "calc.rb")
+      expect(subject.crashed(ArgumentError.new("bad"), 1.0).detail).to(eq("ArgumentError: bad"))
+    end
+
+    # The pool's worker dies the same way, so the parent sees the death.
+    it "lets the death of the test process through, unjudged" do
+      dead = Class.new { def call = raise(Kimera::Execution::Zygote::Died.new("gone", code: 3)) }.new
+      worker = described_class.new(
+        adapter: test_adapter_class.new(catches: { "t1" => [] }), registry: registry,
+        coverage: { ids.first => ["t1"] }, zygote: dead
+      )
+      expect { worker.evaluate(ids.first) }.to(raise_error(Kimera::Execution::Zygote::Died, "gone"))
+    end
+
+    it "runs each test in a forked zygote unless told otherwise" do
+      worker = described_class.new(adapter: test_adapter_class.new, registry: registry)
+      expect(worker.__send__(:zygote)).to(be_an_instance_of(Kimera::Execution::Zygote))
+    end
+
     it "classifies a soft-timeout hang as :timeout carrying the soft-timeout", :aggregate_failures do
       target = ids.first
       worker = described_class.new(

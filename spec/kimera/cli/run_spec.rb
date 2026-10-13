@@ -581,6 +581,24 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       [out, status, Kimera::Incremental::Selection.select(registry, "calc.rb" => Set[2])]
     end
 
+    def unmutated(*flags)
+      File.write("calc.rb", "def m(a, b)\n  a > b\nend\n\nPOSITIVE = [1].select { |x| x > 0 }\n")
+      diff = instance_double(Kimera::Incremental::GitDiff, lines: { "calc.rb" => Set[2] })
+      allow(Kimera::Incremental::GitDiff).to(receive(:new).and_return(diff))
+      journal = File.join(dir, "session.json")
+      saved(Kimera::RegistryScan.new.build(["calc.rb"]), journal)
+      capture(["calc.rb", "--session", journal, *flags]).first
+    end
+
+    it "lists the code it leaves unmutated" do
+      expect(unmutated).to(include("Not mutated (1 region(s)):", "calc.rb:5"))
+    end
+
+    it "lists unmutated code in an incremental run only where the diff reaches it" do
+      out = unmutated("--since", "main")
+      expect([out.include?("Incremental:"), out.include?("Not mutated")]).to(eq([true, false]))
+    end
+
     it "announces the incremental scope precisely and builds only changed files" do
       out, status, selected = scope
       expect(selected).not_to(be_empty)
@@ -834,6 +852,32 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(Kimera::Execution::IsolatedExecution).to(have_received(:new).with(settings))
     end
 
+    context "when one of two methods also ran while the suite loaded" do
+      let(:registry) do
+        Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n\ndef n(a, b)\n  a < b\nend\n", file: "x.rb")
+      end
+
+      def bootstrap
+        framework(test_ids: ["t1"], finish: nil)
+        harness = executor(coverage: { 1 => ["t1"], 2 => ["t1"] })
+        first, last = registry.each.map { |mutant, point| [mutant.id, point] }.uniq(&:last).first(2)
+        warm = Kimera::RunReport.new(results: [verdict(first.first, :survived), verdict(last.first, :survived)])
+        allow(harness).to(receive_messages(warm!: nil, run: warm))
+        runner = instance_double(Kimera::Execution::IsolatedExecution, rejudge: [verdict(last.first, :killed)])
+        allow(Kimera::Execution::IsolatedExecution).to(receive(:new).and_return(runner))
+        last.last.booted!
+        [runner, first.first, last.first]
+      end
+
+      it "re-judges a warm survivor whose method also ran while the suite loaded", :aggregate_failures do
+        runner, kept, booted = bootstrap
+        report = pass(registry, settings, [kept, booted], Kimera::Incremental::Session.new)
+        expect(report.results.map { |r| [r.mutant_id, r.status] }).to(eq([[kept, :survived], [booted, :killed]]))
+        rejudged = have_attributes(mutant_id: booted, status: :survived, detail: Kimera::MutationPoint::BOOT_REASON)
+        expect(runner).to(have_received(:rejudge).with([rejudged], label: "mutants (re-judged)"))
+      end
+    end
+
     it "leaves the warm verdicts alone under --no-rejudge" do
       runner, _warm, session = unjudged
       report = pass(registry, settings(rejudge: false), [1, 2], session)
@@ -949,6 +993,15 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expanded = warmed
       cli.run(["calc.rb", "--tests", "spec/**/*_spec.rb", "--exclude-test", "spec/flaky_spec.rb"])
       expect(expanded.call).to(eq(["spec/good_spec.rb"]))
+    end
+
+    it "stamps no session when the run keeps none" do
+      File.write("calc.rb", "def m(a, b)\n  a > b\nend\n")
+      diff = instance_double(Kimera::Incremental::GitDiff, lines: {})
+      allow(Kimera::Incremental::GitDiff).to(receive(:new).and_return(diff))
+      allow(Kimera::Incremental::Stamp).to(receive(:new).and_call_original)
+      capture(["calc.rb", "--since", "main"])
+      expect(Kimera::Incremental::Stamp).not_to(have_received(:new))
     end
 
     it "still passes quietly when an incremental diff selects zero mutants" do

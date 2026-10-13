@@ -51,7 +51,7 @@ class Kimera::RegistryScan::SourceFile
     found = []
     held = {}.compare_by_identity
     walk(root, origin) { |node, cursor| bank(found, node, cursor) || hold(held, node, cursor) }
-    [found, held.keys.map { |block| region(block) }]
+    [found, held.values]
   end
 
   def origin
@@ -70,7 +70,7 @@ class Kimera::RegistryScan::SourceFile
   def hold(held, node, cursor)
     block = cursor.block
     return unless block && !cursor.inside_def && harvest(skipped, node, cursor.position).any?
-    held[block] = true
+    held[block] = region(block)
   end
 
   def skipped = @operators.reject(&:body?).reject(&:statement?)

@@ -7,3 +7,12 @@ require "kimera/execution/zygote"
 class InlineZygote < Kimera::Execution::Zygote
   def call(&) = settle(JSON.generate(outcome(&)), nil)
 end
+
+# For a spec that drives the harness but is not about forking: a zygote
+# mutant then fails the zygote's own specs instead of ending this process.
+RSpec.shared_context("with an inline zygote") do
+  before do
+    inline = InlineZygote.new
+    allow(Kimera::Execution::Zygote).to(receive(:new).and_return(inline))
+  end
+end
