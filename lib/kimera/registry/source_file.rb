@@ -20,11 +20,9 @@ class Kimera::RegistryScan::SourceFile
     @numbering = numbering
   end
 
-  def points
-    parsed = Kimera::Syntax.parse(@source)
-    return [] if parsed.failure?
-    mined(parsed.value)
-  end
+  def points = scanned.first
+
+  def regions = scanned.last
 
   private
 
@@ -34,15 +32,32 @@ class Kimera::RegistryScan::SourceFile
 
   def removals = @_removals ||= Kimera::DefaultRemoval::Source.new(@source)
 
+  def scanned = @_scanned ||= scan(Kimera::Syntax.parse(@source))
+
+  def scan(parsed)
+    return [[], [unparsed(parsed.errors.first&.message)]] if parsed.failure?
+    mined(parsed.value)
+  end
+
+  def unparsed(error)
+    Kimera::Unmutated.new(@file, 1, [@source.lines.size, 1].max, "#{Kimera::Unmutated::UNPARSED}#{error}")
+  end
+
+  def region(block)
+    location = block.location
+    Kimera::Unmutated.new(@file, location.start_line, location.end_line, Kimera::Unmutated::BLOCK)
+  end
+
   def mined(root)
     found = []
-    walk(root, origin) { |node, cursor| bank(found, node, cursor) }
-    found
+    held = {}.compare_by_identity
+    walk(root, origin) { |node, cursor| bank(found, node, cursor) || hold(held, node, cursor) }
+    [found, held.keys.map { |block| region(block) }]
   end
 
   def origin
     Kimera::RegistryWalking::Cursor.new(
-      position: nil, inside_def: nil, in_pattern: nil, def_body: nil, defname: nil, embedded: nil
+      position: nil, inside_def: nil, in_pattern: nil, def_body: nil, defname: nil, embedded: nil, block: nil
     )
   end
 
@@ -52,6 +67,14 @@ class Kimera::RegistryScan::SourceFile
     return if pairs.empty?
     found << assemble(node, pairs, cursor).taint!(tainted)
   end
+
+  def hold(held, node, cursor)
+    block = cursor.block
+    return unless block && !cursor.inside_def && harvest(skipped(cursor), node, cursor.position).any?
+    held[block] = true
+  end
+
+  def skipped(_cursor) = @operators.reject { |operator| operator.body? || operator.statement? }
 
   def applicable(cursor)
     chosen = cursor.inside_def ? @operators : @operators.select(&:body?)

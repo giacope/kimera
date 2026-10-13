@@ -10,6 +10,13 @@ end
 module Kimera::Report::Sections
   private
 
+  def regions(found)
+    return if found.empty?
+    @io.puts
+    @io.puts(bold("Not mutated (#{found.size} region(s)):"))
+    found.each { |region| @io.puts("  #{region.place}  #{region.reason}") }
+  end
+
   def unjudged(report) = section("Mutants Kimera could not judge", report.errors) { |r| unjudge(r) }
 
   def waivers(report)

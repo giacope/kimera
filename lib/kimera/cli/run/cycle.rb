@@ -21,6 +21,7 @@ class Kimera::CLI::Run::Cycle
 
   def call
     @digest.verbose(@options) if @options[:verbose]
+    @registry.narrow!(@changed) if @changed
     scope(@changed && Kimera::Incremental::Selection.select(@registry, @changed))
   end
 

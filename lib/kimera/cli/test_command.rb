@@ -68,7 +68,7 @@ class Kimera::CLI::TestCommand
 
   def capture(command)
     output, status = Open3.capture2e(Kimera::Execution::SUITE_ENV, *command, chdir: @root)
-    [output.force_encoding(Encoding::UTF_8).scrub, status]
+    [output.dup.force_encoding(Encoding::UTF_8).scrub, status]
   end
 
   def shards(jobs) = Array.new(jobs) { |index| Thread.new { capture(shard(index, jobs)) } }.map(&:value)

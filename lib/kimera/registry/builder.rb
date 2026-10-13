@@ -40,9 +40,9 @@ class Kimera::RegistryScan
   end
 
   def collect(registry, source, file)
-    Kimera::RegistryScan::SourceFile
-      .new(source, file: file, operators: operators, numbering: numbering)
-      .points.each { |point| registry << point }
+    scanned = Kimera::RegistryScan::SourceFile.new(source, file: file, operators: operators, numbering: numbering)
+    scanned.points.each { |point| registry << point }
+    registry.unmutated.concat(scanned.regions)
     registry
   end
 

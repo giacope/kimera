@@ -38,6 +38,8 @@ class Kimera::RunReport
 
   def test(id) = @tests.fetch(id, {})
 
+  def unmutated = @registry ? @registry.unmutated : []
+
   def by_file = @results.group_by { |result| result.file.to_s }.transform_values { |part| rebuilt(results: part) }
 
   def killed
@@ -92,7 +94,7 @@ class Kimera::RunReport
   def to_h
     { "schema_version" => SCHEMA_VERSION, "counts" => counts, "mutation_score" => score }
       .merge("results" => @results.map { |result| detailed(result) }, "leaks" => @leaks.map(&:to_h))
-      .merge(catalog)
+      .merge("unmutated" => unmutated.map(&:to_h)).merge(catalog)
   end
 
   private

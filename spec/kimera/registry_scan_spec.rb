@@ -130,6 +130,7 @@ RSpec.describe(Kimera::RegistryScan) do
     def cursor(**overrides)
       Kimera::RegistryWalking::Cursor.new(
         position: false, inside_def: false, in_pattern: false, def_body: false, defname: nil, embedded: false,
+        block: nil,
         **overrides
       )
     end
