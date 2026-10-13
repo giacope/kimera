@@ -141,7 +141,8 @@ RSpec.describe(Kimera::Execution::Shift) do
 
     it "doesn't count a failure that doesn't come back with the mutant on", :aggregate_failures do
       target = ids.first
-      result = worker(scripted({ "t0" => [], "t1" => %i[fail pass pass pass] }), { target => %w[t0 t1] }).evaluate(target)
+      adapter = scripted({ "t0" => [], "t1" => %i[fail pass pass pass] })
+      result = worker(adapter, { target => %w[t0 t1] }).evaluate(target)
       expect(result.status).to(eq(:harness_error))
       expect(result.detail).to(start_with("t1 passed when rerun with the mutant still on, each run in a fresh"))
     end
