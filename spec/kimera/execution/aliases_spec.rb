@@ -2,6 +2,7 @@
 
 require "fileutils"
 require "kimera/execution/aliases"
+require "kimera/execution/overrides"
 require "tmpdir"
 
 RSpec.describe(Kimera::Execution::Aliases) do
@@ -125,5 +126,51 @@ RSpec.describe(Kimera::Execution::Aliases) do
 
   it "accepts a file that does not exist" do
     expect(described_class.new([File.join(dir, "missing.rb")]).follow { :ok }).to(eq(:ok))
+  end
+
+  # A wrapper in another file took over the original's name before the
+  # overlay; the overlay's version of the original reaches the alias.
+  describe "an alias whose original another file wrapped" do
+    let(:wrapper) { File.join(dir, "tax.rb").tap { |file| File.write(file, "") } }
+
+    let(:wrapping) { "def price(a) = plain(a) + 1" }
+
+    def wrap(klass) = klass.class_eval(wrapping, wrapper)
+
+    def wrapped
+      declared(Class.new).tap do |klass|
+        klass.alias_method(:plain, :price)
+        wrap(klass)
+      end
+    end
+
+    it "follows the overlaid original it is handed", :aggregate_failures do
+      klass = wrapped
+      aliases = described_class.new([path])
+      aliases.follow do
+        overlay(klass)
+        overlaid = klass.instance_method(:price)
+        wrap(klass)
+        aliases.witness([Kimera::Execution::Overrides::Held.new(klass, :price, overlaid, :public)])
+      end
+      expect([klass.new.plain(1), klass.new.price(1)]).to(eq([3, 4]))
+    end
+
+    it "follows the original it finds in its own file again" do
+      klass = wrapped
+      aliases = described_class.new([path])
+      aliases.follow do
+        overlay(klass)
+        aliases.witness
+        wrap(klass)
+      end
+      expect(klass.new.plain(1)).to(eq(3))
+    end
+
+    it "leaves the alias alone when nothing hands it a new original" do
+      klass = wrapped
+      described_class.new([path]).follow { :untouched }
+      expect(klass.new.plain(1)).to(eq(2))
+    end
   end
 end
