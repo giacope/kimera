@@ -8,12 +8,14 @@
   process forked from that clean, post-boot state. A memo cache another file
   fills, a cache that hid a later caller from coverage, a registry, a class
   variable, a leaked `ENV` flag: on a corpus of such suites the warm pass
-  reported 60 of 142 mutants survived that a fresh `rspec` kills, and 2
+  reported 64 of 152 mutants survived that a fresh `rspec` kills, and 2
   killed that it doesn't; it now agrees on every one (`eval/run`, K1). Doubts
   and soft timeouts no longer retire workers, and nothing is requeued.
   `--leak-every` and `leak_every:` are gone: there is no warm state left to
   re-check. The cost is a fork per baseline test and per mutant, and a cold
-  start in each (see `eval/results/README.md`).
+  start in each: 3% on dry-inflector at `--jobs 4`, 21-40% on a small Rails
+  suite at `--jobs 4` and about twice the time at `--jobs 1`
+  (`eval/results/README.md`).
 - A warm survivor whose method also ran while the suite loaded (to build a
   constant, say) is judged again in a fresh mirror against the whole suite,
   since what it computed at load never saw the mutant.
