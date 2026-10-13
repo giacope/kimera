@@ -5,6 +5,7 @@ require_relative "../error"
 require_relative "../runtime"
 require_relative "baseline_failure"
 require_relative "baseline_losses"
+require_relative "baseline_order"
 require_relative "baseline_tally"
 require_relative "worker_pool"
 require_relative "null_progress"
@@ -29,6 +30,11 @@ class Kimera::Execution::BaselinePass
 
   def sequence(zygote = Kimera::Execution::Zygote.new) = zygote.call { whole }
 
+  def alone?(test)
+    Kimera::RUNTIME.active = nil
+    quietly { @adapter.run([test]) }.passed?
+  end
+
   private
 
   def settle(jobs)
@@ -43,7 +49,7 @@ class Kimera::Execution::BaselinePass
 
   def report(jobs)
     failures = tally.failures
-    failure!(failures, jobs, ordered(failures)) unless failures.empty?
+    failure!(failures, jobs, Kimera::Execution::BaselineOrder.new(self).of(failures)) unless failures.empty?
     tally.measured(excluded, losses.recovered(@messages))
   end
 
@@ -119,12 +125,6 @@ class Kimera::Execution::BaselinePass
   def silence
     $stdout = StringIO.new
     $stderr = StringIO.new
-  end
-
-  def ordered(failed)
-    failed - Array(sequence["failed_ids"])
-  rescue Kimera::Execution::Zygote::Died, Kimera::Execution::Zygote::Raised, Timeout::Error
-    []
   end
 
   def failure!(failed, jobs, ordered = [])

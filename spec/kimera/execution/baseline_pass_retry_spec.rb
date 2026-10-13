@@ -165,11 +165,15 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
   describe "the whole suite, run once in order" do
     include_context("with an inline zygote")
 
-    def scripted(failed, touch: [])
-      outcome = Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed, failures: {})
-      adapter.define_singleton_method(:run) do |_ids|
+    def outcome(failed) = Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed, failures: {})
+
+    # +failed+ fail when the whole suite runs; a test run alone fails unless +alone+.
+    def scripted(failed, touch: [], alone: false)
+      whole = outcome(failed)
+      lone = outcome(alone ? [] : ["t"])
+      adapter.define_singleton_method(:run) do |ids|
         touch.each { |id| Kimera::RUNTIME.active?(id) }
-        outcome
+        ids.size > 1 ? whole : lone
       end
     end
 
@@ -193,6 +197,13 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
       scripted([])
       expect { measure({ "t1" => :fail }) }
         .to(raise_error(Kimera::Execution::BaselineFailure, /\Abaseline suite is order-dependent: t1/))
+    end
+
+    it "names none when the failing tests pass alone too: they share something across workers" do
+      scripted([], alone: true)
+      expect { measure({ "t1" => :fail }, jobs: 2) }.to(
+        raise_error(Kimera::Execution::BaselineFailure, /\Abaseline suite is not green: t1.*ran on 2 workers/m)
+      )
     end
 
     it "names none when the run in order can't finish", :aggregate_failures do
