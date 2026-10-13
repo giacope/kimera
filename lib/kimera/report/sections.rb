@@ -85,6 +85,8 @@ module Kimera::Report::Sections
 
   def uncovered(result)
     resolved(result) { |id, mutant, point| spotted("no coverage", id, mutant, point) }
+    reason = result.detail
+    @io.puts("    #{reason}") if reason
   end
 
   def spotted(status, id, mutant, point)

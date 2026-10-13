@@ -34,7 +34,7 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
 
   describe "#tests" do
     it "runs the whole suite for a point whose method also ran while the suite loaded" do
-      point.booted!
+      point.revisit!(Kimera::MutationPoint::BOOT_REASON)
       expect(plan(coverage: { mutant_id => ["spec/a_spec.rb[1:1]"] }).tests(mutant_id, point)).to(eq(%w[t1 t2 t3]))
     end
 

@@ -74,6 +74,9 @@ class Kimera::MutationPoint
   BOOT_REASON =
     "its method also runs while the suite loads, and what it computed then (a constant, a table) was " \
       "not mutated, so a warm survivor is judged again in a fresh mirror against the whole suite"
+  ORDER_REASON =
+    "no single test reaches it in a fresh process, but the suite does when its tests run in order " \
+      "(an earlier test leaves the state it needs), so it is judged in a fresh mirror against the whole suite"
   LOAD_REASON =
     "runs only while the suite loads (a macro or hook called from a class body), " \
       "so warm coverage cannot see it; evaluate with --isolated"
@@ -125,9 +128,9 @@ class Kimera::MutationPoint
     ids
   end
 
-  def booted! = @attributes.store(:booted, true)
+  def revisit!(reason) = @attributes.store(:revisit, reason)
 
-  def booted? = @attributes.fetch(:booted, false)
+  def revisit = @attributes[:revisit]
 
   def unsafe!(reason)
     @attributes[:schema_safe] = false

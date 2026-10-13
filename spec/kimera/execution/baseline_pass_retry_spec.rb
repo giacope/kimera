@@ -161,4 +161,45 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
       )
     )
   end
+
+  describe "the whole suite, run once in order" do
+    include_context("with an inline zygote")
+
+    def scripted(failed, touch: [])
+      outcome = Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed, failures: {})
+      adapter.define_singleton_method(:run) do |_ids|
+        touch.each { |id| Kimera::RUNTIME.active?(id) }
+        outcome
+      end
+    end
+
+    def summary = Kimera::Execution::BaselineFailure::Summary
+
+    it "reports which mutants it reached" do
+      scripted([], touch: [ids.first, ids.first])
+      expect(described_class.new(adapter: adapter, registry: registry).sequence["touched"]).to(eq([ids.first]))
+    end
+
+    it "names the failing tests that pass when the suite runs in order", :aggregate_failures do
+      scripted(["t2"])
+      expect { measure({ "t1" => :fail, "t2" => :fail }) }.to(
+        raise_error(Kimera::Execution::BaselineFailure) do |error|
+          expect(error.message).to(include("not green").and(end_with("#{summary::ORDERED}\n    t1")))
+        end
+      )
+    end
+
+    it "calls the suite order-dependent when it is green in order" do
+      scripted([])
+      expect { measure({ "t1" => :fail }) }
+        .to(raise_error(Kimera::Execution::BaselineFailure, /\Abaseline suite is order-dependent: t1/))
+    end
+
+    it "names none when the run in order can't finish", :aggregate_failures do
+      adapter.define_singleton_method(:run) { |_ids| raise(ArgumentError, "broken") }
+      expect { measure({ "t1" => :fail }) }.to(
+        raise_error(Kimera::Execution::BaselineFailure) { |error| expect(error.message).not_to(include(summary::ORDERED)) }
+      )
+    end
+  end
 end

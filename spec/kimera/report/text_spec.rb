@@ -97,6 +97,12 @@ RSpec.describe(Kimera::Report::Text) do
     expect(shown).to(include("no coverage ##{mutant.id}", "calc.rb:3", "[<= => <]"))
   end
 
+  it "gives the reason under an uncovered mutant that has one", :aggregate_failures do
+    reached = uncovered.tap { |result| result.detail = Kimera::MutationPoint::ORDER_REASON }
+    expect(render(reached, coverage: :list)).to(include("]\n    #{Kimera::MutationPoint::ORDER_REASON}\n"))
+    expect(render(uncovered, coverage: :list)).not_to(include(Kimera::MutationPoint::ORDER_REASON))
+  end
+
   # Uncovered mutants are listed only under a --fail-on-no-coverage gate.
   it "points at the survivors subcommand for uncovered mutants when they are not listed", :aggregate_failures do
     expect(render(uncovered, path: "rep.json")).to(include(listing))

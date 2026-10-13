@@ -1408,6 +1408,29 @@ RSpec.describe(Kimera::Execution::Harness) do
       end.new
     end
 
+    # Reaches the mutants only when both tests run in one process, in order.
+    def ordered(mids)
+      Class.new(Kimera::Frameworks::Adapter) do
+        define_method(:initialize) { |m| @mids = m }
+        def source(_files) = self
+        def test_ids = %w[t1 t2]
+        define_method(:run) do |ids|
+          @mids.each { |m| Kimera::RUNTIME.active?(m) } if ids.size > 1
+          Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+        end
+      end.new(mids)
+    end
+
+    it "sends a mutant only the suite run in order reaches to a second look", :aggregate_failures do
+      stub_const("WarmOrdered", Class.new)
+      registry = fixture("WarmOrdered")
+      adapter = ordered(registry.each.map { |m, _p| m.id })
+      h = described_class.build(registry: registry, adapter: adapter, source_root: dir)
+      h.warm!(%w[t1 t2])
+      expect(h.coverage.values.flatten).to(be_empty)
+      expect(registry.points.map(&:revisit).uniq).to(eq([Kimera::MutationPoint::ORDER_REASON]))
+    end
+
     it "runs the plain baseline check when coverage is disabled" do
       stub_const("WarmNoCov", Class.new)
       h = described_class.build(registry: fixture("WarmNoCov"), adapter: plain, source_root: dir)

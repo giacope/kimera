@@ -21,11 +21,13 @@ class Kimera::Execution::BaselinePass
   def parallel!(jobs, &) = settle(jobs) { dispatch(&) }
 
   def check!(zygote = Kimera::Execution::Zygote.new)
-    outcome = zygote.call { whole }
+    outcome = sequence(zygote)
     return if outcome["passed"]
     @messages = outcome["failures"]
     failure!(outcome["failed_ids"], 1)
   end
+
+  def sequence(zygote = Kimera::Execution::Zygote.new) = zygote.call { whole }
 
   private
 
@@ -41,7 +43,7 @@ class Kimera::Execution::BaselinePass
 
   def report(jobs)
     failures = tally.failures
-    failure!(failures, jobs) unless failures.empty?
+    failure!(failures, jobs, ordered(failures)) unless failures.empty?
     tally.measured(excluded, losses.recovered(@messages))
   end
 
@@ -49,7 +51,13 @@ class Kimera::Execution::BaselinePass
 
   def whole
     Kimera::RUNTIME.active = nil
-    outcome = quietly { @adapter.run(@adapter.test_ids) }
+    ledger = Kimera::RUNTIME.start!
+    summary(quietly { @adapter.run(@adapter.test_ids) }).merge("touched" => ledger.drain!)
+  ensure
+    Kimera::RUNTIME.stop!(ledger)
+  end
+
+  def summary(outcome)
     { "passed" => outcome.passed?, "failed_ids" => outcome.failed_ids, "failures" => outcome.failures }
   end
 
@@ -113,10 +121,16 @@ class Kimera::Execution::BaselinePass
     $stderr = StringIO.new
   end
 
-  def failure!(failed, jobs)
+  def ordered(failed)
+    failed - Array(sequence["failed_ids"])
+  rescue Kimera::Execution::Zygote::Died, Kimera::Execution::Zygote::Raised, Timeout::Error
+    []
+  end
+
+  def failure!(failed, jobs, ordered = [])
     summary = Kimera::Execution::BaselineFailure::Summary
     command = @adapter.reproduce(failed.first(summary::MAX_DETAILS))
-    context = summary::Context.new(workers: journal, stacks: losses.stacks, jobs: jobs)
+    context = summary::Context.new(workers: journal, stacks: losses.stacks, jobs: jobs, ordered: ordered)
     raise(Kimera::Execution::BaselineFailure, summary.new(failed, @messages, command, context).to_s)
   end
 end

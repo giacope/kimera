@@ -852,7 +852,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(Kimera::Execution::IsolatedExecution).to(have_received(:new).with(settings))
     end
 
-    context "when one of two methods also ran while the suite loaded" do
+    context "when one of two methods needs a second look" do
       let(:registry) do
         Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n\ndef n(a, b)\n  a < b\nend\n", file: "x.rb")
       end
@@ -865,7 +865,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         allow(harness).to(receive_messages(warm!: nil, run: warm))
         runner = instance_double(Kimera::Execution::IsolatedExecution, rejudge: [verdict(last.first, :killed)])
         allow(Kimera::Execution::IsolatedExecution).to(receive(:new).and_return(runner))
-        last.last.booted!
+        last.last.revisit!(Kimera::MutationPoint::BOOT_REASON)
         [runner, first.first, last.first]
       end
 
@@ -875,6 +875,34 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         expect(report.results.map { |r| [r.mutant_id, r.status] }).to(eq([[kept, :survived], [booted, :killed]]))
         rejudged = have_attributes(mutant_id: booted, status: :survived, detail: Kimera::MutationPoint::BOOT_REASON)
         expect(runner).to(have_received(:rejudge).with([rejudged], label: "mutants (re-judged)"))
+      end
+
+      def ordered
+        framework(test_ids: ["t1"], finish: nil)
+        harness = executor(coverage: { 1 => ["t1"] })
+        first, last = registry.each.map { |mutant, point| [mutant.id, point] }.uniq(&:last).first(2)
+        warm = Kimera::RunReport.new(results: [verdict(first.first, :no_coverage), verdict(last.first, :no_coverage)])
+        allow(harness).to(receive_messages(warm!: nil, run: warm))
+        runner = instance_double(Kimera::Execution::IsolatedExecution, rejudge: [verdict(last.first, :killed)])
+        allow(Kimera::Execution::IsolatedExecution).to(receive(:new).and_return(runner))
+        last.last.revisit!(Kimera::MutationPoint::ORDER_REASON)
+        [runner, first.first, last.first]
+      end
+
+      it "judges in the isolated tier a mutant only the suite run in order reaches", :aggregate_failures do
+        runner, plain, reached = ordered
+        report = pass(registry, settings, [plain, reached], Kimera::Incremental::Session.new)
+        expect(report.results.map { |r| [r.mutant_id, r.status] }).to(eq([[plain, :no_coverage], [reached, :killed]]))
+        rejudged = have_attributes(mutant_id: reached, detail: Kimera::MutationPoint::ORDER_REASON)
+        expect(runner).to(have_received(:rejudge).with([rejudged], label: "mutants (re-judged)"))
+      end
+
+      it "says why such a mutant has no covering test under --no-rejudge", :aggregate_failures do
+        runner, plain, reached = ordered
+        report = pass(registry, settings(rejudge: false), [plain, reached], Kimera::Incremental::Session.new)
+        expect(report.results.map { |r| [r.mutant_id, r.status, r.detail] })
+          .to(eq([[plain, :no_coverage, nil], [reached, :no_coverage, Kimera::MutationPoint::ORDER_REASON]]))
+        expect(runner).not_to(have_received(:rejudge))
       end
     end
 

@@ -31,7 +31,7 @@ class Kimera::Execution::IsolatedPlan
   def tests(id, point)
     all = selection.all
     return all if Kimera::SelfProtection.protected?(File.join(root, point.file))
-    return all if !point.safe? || point.booted?
+    return all if !point.safe? || point.revisit
     selection.recorded(id)
   end
 
