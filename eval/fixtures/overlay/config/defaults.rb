@@ -1,0 +1,1 @@
+DEFAULTS = { named: true }.freeze

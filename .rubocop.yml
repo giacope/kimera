@@ -7,6 +7,10 @@ AllCops:
   Exclude:
     # Fixture apps: specs pin their exact source (lines, operators, mutant counts).
     - examples/**/*
+    # Evaluation fixtures hold the code under test, bad on purpose (one does
+    # not parse); eval/tmp caches cloned projects.
+    - eval/fixtures/**/*
+    - eval/tmp/**/*
     # CI installs the bundle here; replacing Exclude drops RuboCop's default.
     - vendor/**/*
 

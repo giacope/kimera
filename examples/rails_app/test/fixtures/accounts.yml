@@ -1,0 +1,14 @@
+alice:
+  email: alice@example.com
+  credit_cents: 50000
+  api_token: alice-token
+
+bob:
+  email: bob@example.com
+  credit_cents: 3000
+  api_token: bob-token
+
+carol:
+  email: carol@example.com
+  credit_cents: 20000
+  suspended: true
