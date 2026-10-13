@@ -1,0 +1,2298 @@
+{
+  "kimera": "/tmp/claude-0/-home-user/826c9fc5-a8b5-53c7-bdbc-e3d4f5d63b82/scratchpad/kimera-work/base",
+  "revision": "758df8f",
+  "ruby": "3.4.7",
+  "at": "2026-10-13T15:41:11Z",
+  "cases": {
+    "K1": {
+      "title": "Verdicts agree with a fresh-process oracle on stateful suites",
+      "wall_s": 63.5,
+      "pass": false,
+      "summary": {
+        "mutants": 152,
+        "false_survived": 64,
+        "false_killed": 2,
+        "abstained": 2,
+        "agreement_pct": 56.0
+      },
+      "stateful": {
+        "mutants": 152,
+        "agree": 84,
+        "false_survived": 64,
+        "false_killed": 2,
+        "abstained": 2,
+        "unbakeable": 0,
+        "errors": 0,
+        "mode --jobs 1": {
+          "mutants": 76,
+          "agree": 26,
+          "false_survived": 47,
+          "false_killed": 2,
+          "abstained": 1,
+          "unbakeable": 0,
+          "errors": 0
+        },
+        "mode --jobs 4": {
+          "mutants": 76,
+          "agree": 58,
+          "false_survived": 17,
+          "false_killed": 0,
+          "abstained": 1,
+          "unbakeable": 0,
+          "errors": 0
+        }
+      },
+      "control": {
+        "mutants": 86,
+        "agree": 86,
+        "false_survived": 0,
+        "false_killed": 0,
+        "abstained": 0,
+        "unbakeable": 0,
+        "errors": 0
+      },
+      "runs": {
+        "s1_memo": {
+          "--jobs 1": {
+            "mutants": 15,
+            "agree": 1,
+            "false_survived": 14,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 6.7,
+            "wall_s": 1.84,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 48.0,
+              "max_tree_mb": 92.4,
+              "processes": 2
+            },
+            "statuses": {
+              "killed": 1,
+              "survived": 14
+            },
+            "disagreements": [
+              {
+                "file": "lib/cache.rb",
+                "line": 5,
+                "label": "drop arg `x`",
+                "id": 2,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "condition => true",
+                "id": 3,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "condition => false",
+                "id": 4,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "tail => nil",
+                "id": 5,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "> => >=",
+                "id": 6,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "> => <",
+                "id": 7,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "10 => 9",
+                "id": 8,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "10 => 11",
+                "id": 9,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "10 => 0",
+                "id": 10,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "2 => 1",
+                "id": 11,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "2 => 3",
+                "id": 12,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "2 => 0",
+                "id": 13,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "1 => 0",
+                "id": 14,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "1 => 2",
+                "id": 15,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              }
+            ],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4": {
+            "mutants": 15,
+            "agree": 5,
+            "false_survived": 10,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 33.3,
+            "wall_s": 2.48,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 48.7,
+              "max_tree_mb": 224.5,
+              "processes": 15
+            },
+            "statuses": {
+              "killed": 5,
+              "survived": 10
+            },
+            "disagreements": [
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "> => >=",
+                "id": 6,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "> => <",
+                "id": 7,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "10 => 9",
+                "id": 8,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "10 => 11",
+                "id": 9,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "10 => 0",
+                "id": 10,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "2 => 1",
+                "id": 11,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "2 => 3",
+                "id": 12,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "2 => 0",
+                "id": 13,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "1 => 0",
+                "id": 14,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "1 => 2",
+                "id": 15,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              }
+            ],
+            "leaks": 4,
+            "rejudged": 4
+          }
+        },
+        "s2_hidden": {
+          "--jobs 1": {
+            "mutants": 7,
+            "agree": 1,
+            "false_survived": 6,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 14.3,
+            "wall_s": 1.4,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 47.3,
+              "max_tree_mb": 47.3,
+              "processes": 1
+            },
+            "statuses": {
+              "killed": 1,
+              "survived": 6
+            },
+            "disagreements": [
+              {
+                "file": "lib/tax.rb",
+                "line": 3,
+                "label": "condition => true",
+                "id": 2,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/tax.rb",
+                "line": 3,
+                "label": "condition => false",
+                "id": 3,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/tax.rb",
+                "line": 3,
+                "label": "== => !=",
+                "id": 4,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/tax.rb",
+                "line": 7,
+                "label": "|| => &&",
+                "id": 5,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/tax.rb",
+                "line": 7,
+                "label": "== => !=",
+                "id": 6,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/tax.rb",
+                "line": 7,
+                "label": "== => !=",
+                "id": 7,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              }
+            ],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4": {
+            "mutants": 7,
+            "agree": 5,
+            "false_survived": 2,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 71.4,
+            "wall_s": 2.89,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 48.6,
+              "max_tree_mb": 222.0,
+              "processes": 19
+            },
+            "statuses": {
+              "killed": 5,
+              "survived": 2
+            },
+            "disagreements": [
+              {
+                "file": "lib/tax.rb",
+                "line": 7,
+                "label": "== => !=",
+                "id": 6,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/tax.rb",
+                "line": 7,
+                "label": "== => !=",
+                "id": 7,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              }
+            ],
+            "leaks": 4,
+            "rejudged": 4
+          }
+        },
+        "s3_stores": {
+          "--jobs 1": {
+            "mutants": 19,
+            "agree": 2,
+            "false_survived": 17,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 10.5,
+            "wall_s": 1.06,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 48.5,
+              "max_tree_mb": 92.7,
+              "processes": 2
+            },
+            "statuses": {
+              "survived": 18,
+              "killed": 1
+            },
+            "disagreements": [
+              {
+                "file": "lib/grade.rb",
+                "line": 3,
+                "label": "condition => true",
+                "id": 1,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/grade.rb",
+                "line": 3,
+                "label": "condition => false",
+                "id": 2,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/grade.rb",
+                "line": 3,
+                "label": ">= => >",
+                "id": 3,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/grade.rb",
+                "line": 3,
+                "label": ">= => <=",
+                "id": 4,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/grade.rb",
+                "line": 4,
+                "label": "condition => true",
+                "id": 5,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/grade.rb",
+                "line": 4,
+                "label": "condition => false",
+                "id": 6,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/grade.rb",
+                "line": 4,
+                "label": ">= => >",
+                "id": 7,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/grade.rb",
+                "line": 4,
+                "label": ">= => <=",
+                "id": 8,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/grade.rb",
+                "line": 9,
+                "label": "&& => ||",
+                "id": 9,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/grade.rb",
+                "line": 9,
+                "label": ">= => >",
+                "id": 10,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/grade.rb",
+                "line": 9,
+                "label": ">= => <=",
+                "id": 11,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/grade.rb",
+                "line": 9,
+                "label": "<= => <",
+                "id": 12,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/grade.rb",
+                "line": 9,
+                "label": "<= => >=",
+                "id": 13,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/grade.rb",
+                "line": 13,
+                "label": "condition => true",
+                "id": 14,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/grade.rb",
+                "line": 13,
+                "label": "condition => false",
+                "id": 15,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/grade.rb",
+                "line": 13,
+                "label": "delete !",
+                "id": 16,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/stores.rb",
+                "line": 13,
+                "label": "condition => true",
+                "id": 17,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              }
+            ],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4": {
+            "mutants": 19,
+            "agree": 19,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 8.06,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 51.1,
+              "max_tree_mb": 232.3,
+              "processes": 53
+            },
+            "statuses": {
+              "killed": 18,
+              "survived": 1
+            },
+            "disagreements": [],
+            "leaks": 17,
+            "rejudged": 17
+          }
+        },
+        "s4_env_leak": {
+          "--jobs 1": {
+            "mutants": 7,
+            "agree": 7,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 1.24,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 46.9,
+              "max_tree_mb": 91.9,
+              "processes": 2
+            },
+            "statuses": {
+              "survived": 3,
+              "killed": 4
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4": {
+            "mutants": 7,
+            "agree": 7,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 1.23,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 47.3,
+              "max_tree_mb": 132.5,
+              "processes": 3
+            },
+            "statuses": {
+              "survived": 3,
+              "killed": 4
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          }
+        },
+        "s5_registry": {
+          "--jobs 1": {
+            "mutants": 8,
+            "agree": 5,
+            "false_survived": 0,
+            "false_killed": 2,
+            "abstained": 1,
+            "unbakeable": 0,
+            "agreement_pct": 71.4,
+            "wall_s": 1.17,
+            "exit": 0,
+            "rss": {
+              "max_process_mb": 47.1,
+              "max_tree_mb": 92.6,
+              "processes": 2
+            },
+            "statuses": {
+              "isolated_only": 1,
+              "killed": 7
+            },
+            "disagreements": [
+              {
+                "file": "lib/plugins.rb",
+                "line": 6,
+                "label": "true => false",
+                "id": 1,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "lib/plugins.rb",
+                "line": 13,
+                "label": "condition => true",
+                "id": 3,
+                "kimera": "killed",
+                "oracle": "survived",
+                "verdict": "false_killed"
+              },
+              {
+                "file": "lib/plugins.rb",
+                "line": 17,
+                "label": "&& => ||",
+                "id": 7,
+                "kimera": "killed",
+                "oracle": "survived",
+                "verdict": "false_killed"
+              }
+            ],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4": {
+            "mutants": 8,
+            "agree": 7,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 1,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 1.26,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 47.3,
+              "max_tree_mb": 89.7,
+              "processes": 2
+            },
+            "statuses": {
+              "isolated_only": 1,
+              "killed": 5,
+              "survived": 2
+            },
+            "disagreements": [
+              {
+                "file": "lib/plugins.rb",
+                "line": 6,
+                "label": "true => false",
+                "id": 1,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              }
+            ],
+            "leaks": 0,
+            "rejudged": 0
+          }
+        },
+        "s6_constant": {
+          "--jobs 1": {
+            "mutants": 7,
+            "agree": 7,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 2.24,
+            "exit": 0,
+            "rss": {
+              "max_process_mb": 48.0,
+              "max_tree_mb": 92.9,
+              "processes": 5
+            },
+            "statuses": {
+              "killed": 7
+            },
+            "disagreements": [],
+            "leaks": 1,
+            "rejudged": 1
+          },
+          "--jobs 4": {
+            "mutants": 7,
+            "agree": 7,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 1.07,
+            "exit": 0,
+            "rss": {
+              "max_process_mb": 47.1,
+              "max_tree_mb": 226.3,
+              "processes": 5
+            },
+            "statuses": {
+              "killed": 7
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          }
+        },
+        "s7_minitest": {
+          "--jobs 1": {
+            "mutants": 8,
+            "agree": 0,
+            "false_survived": 8,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 0.0,
+            "wall_s": 1.27,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 45.3,
+              "max_tree_mb": 45.3,
+              "processes": 1
+            },
+            "statuses": {
+              "survived": 8
+            },
+            "disagreements": [
+              {
+                "file": "lib/band.rb",
+                "line": 3,
+                "label": "condition => true",
+                "id": 1,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/band.rb",
+                "line": 3,
+                "label": "condition => false",
+                "id": 2,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/band.rb",
+                "line": 3,
+                "label": "< => <=",
+                "id": 3,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/band.rb",
+                "line": 3,
+                "label": "< => >",
+                "id": 4,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/band.rb",
+                "line": 4,
+                "label": "condition => true",
+                "id": 5,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/band.rb",
+                "line": 4,
+                "label": "condition => false",
+                "id": 6,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/band.rb",
+                "line": 4,
+                "label": "< => <=",
+                "id": 7,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/band.rb",
+                "line": 4,
+                "label": "< => >",
+                "id": 8,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              }
+            ],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4": {
+            "mutants": 8,
+            "agree": 5,
+            "false_survived": 3,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 62.5,
+            "wall_s": 2.92,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 45.9,
+              "max_tree_mb": 212.1,
+              "processes": 19
+            },
+            "statuses": {
+              "killed": 5,
+              "survived": 3
+            },
+            "disagreements": [
+              {
+                "file": "lib/band.rb",
+                "line": 4,
+                "label": "condition => false",
+                "id": 6,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/band.rb",
+                "line": 4,
+                "label": "< => <=",
+                "id": 7,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/band.rb",
+                "line": 4,
+                "label": "< => >",
+                "id": 8,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              }
+            ],
+            "leaks": 5,
+            "rejudged": 5
+          }
+        },
+        "s8_boot": {
+          "--jobs 1": {
+            "mutants": 5,
+            "agree": 3,
+            "false_survived": 2,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 60.0,
+            "wall_s": 1.11,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 46.9,
+              "max_tree_mb": 46.9,
+              "processes": 1
+            },
+            "statuses": {
+              "killed": 3,
+              "survived": 2
+            },
+            "disagreements": [
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "condition => false",
+                "id": 2,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "> => >=",
+                "id": 3,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              }
+            ],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4": {
+            "mutants": 5,
+            "agree": 3,
+            "false_survived": 2,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 60.0,
+            "wall_s": 1.19,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 46.6,
+              "max_tree_mb": 135.4,
+              "processes": 4
+            },
+            "statuses": {
+              "killed": 3,
+              "survived": 2
+            },
+            "disagreements": [
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "condition => false",
+                "id": 2,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              },
+              {
+                "file": "lib/rate.rb",
+                "line": 3,
+                "label": "> => >=",
+                "id": 3,
+                "kimera": "survived",
+                "oracle": "killed",
+                "verdict": "false_survived"
+              }
+            ],
+            "leaks": 0,
+            "rejudged": 0
+          }
+        },
+        "sample_app": {
+          "--jobs 1": {
+            "mutants": 28,
+            "agree": 28,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 1.39,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 49.7,
+              "max_tree_mb": 97.6,
+              "processes": 2
+            },
+            "statuses": {
+              "killed": 17,
+              "survived": 5,
+              "no_coverage": 6
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4": {
+            "mutants": 28,
+            "agree": 28,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 1.45,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 49.7,
+              "max_tree_mb": 238.5,
+              "processes": 5
+            },
+            "statuses": {
+              "killed": 17,
+              "survived": 5,
+              "no_coverage": 6
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          }
+        },
+        "minitest_app": {
+          "--jobs 1": {
+            "mutants": 15,
+            "agree": 15,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 1.2,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 45.0,
+              "max_tree_mb": 87.0,
+              "processes": 2
+            },
+            "statuses": {
+              "killed": 14,
+              "survived": 1
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4": {
+            "mutants": 15,
+            "agree": 15,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 1.46,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 45.1,
+              "max_tree_mb": 211.0,
+              "processes": 5
+            },
+            "statuses": {
+              "killed": 14,
+              "survived": 1
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          }
+        }
+      }
+    },
+    "K2": {
+      "title": "No silently unmutated code (define_method, blocks, unparseable files)",
+      "wall_s": 4.3,
+      "candidate_lines": 10,
+      "silent_lines": 8,
+      "silent": [
+        "lib/widget.rb:6",
+        "lib/widget.rb:8",
+        "lib/widget.rb:9",
+        "lib/widget.rb:11",
+        "lib/widget.rb:21",
+        "lib/widget.rb:24",
+        "lib/widget.rb:27",
+        "lib/widget.rb:30"
+      ],
+      "unparseable_files": 1,
+      "unreported_unparseable": [
+        "lib/broken.rb"
+      ],
+      "differential": {
+        "mutants": 9,
+        "agree": 9,
+        "false_survived": 0,
+        "false_killed": 0,
+        "abstained": 0,
+        "unbakeable": 0,
+        "agreement_pct": 100.0,
+        "wall_s": 1.29,
+        "exit": 0,
+        "rss": {
+          "max_process_mb": 47.5,
+          "max_tree_mb": 93.2,
+          "processes": 2
+        },
+        "statuses": {
+          "killed": 9
+        },
+        "leaks": 0,
+        "rejudged": 0
+      },
+      "disagreements": [],
+      "pass": false,
+      "summary": {
+        "silent_lines": "8/10",
+        "unreported_unparseable": 1,
+        "false_verdicts": 0,
+        "mutants": 9
+      }
+    },
+    "K3": {
+      "title": "Real Rails app end to end (validations, callbacks, transactions, per-worker DBs)",
+      "wall_s": 291.7,
+      "pass": false,
+      "summary": {
+        "mutants": 560,
+        "false_survived": 0,
+        "false_killed": 0,
+        "abstained": 56,
+        "agreement_pct": 100.0,
+        "errors": 1,
+        "leaks": 81,
+        "rejudged": 0,
+        "wall_s": 160.0
+      },
+      "totals": {
+        "mutants": 560,
+        "agree": 504,
+        "false_survived": 0,
+        "false_killed": 0,
+        "abstained": 56,
+        "unbakeable": 0,
+        "errors": 1
+      },
+      "runs": {
+        "minitest": {
+          "--jobs 1": {
+            "mutants": 56,
+            "agree": 49,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 7,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 6.42,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 103.6,
+              "max_tree_mb": 199.8,
+              "processes": 4
+            },
+            "statuses": {
+              "isolated_only": 7,
+              "killed": 47,
+              "survived": 2
+            },
+            "disagreements": [
+              {
+                "file": "app/controllers/application_controller.rb",
+                "line": 2,
+                "label": "delete `before_action :authenticate`",
+                "id": 1,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 4,
+                "label": "has_many :orders, dependent: :destroy: drop dependent:",
+                "id": 20,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 6,
+                "label": "delete `validates :email, presence: true, format: { with: /\\A[^@\\s]+@[^@\\s]+\\z/ }`",
+                "id": 21,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 7,
+                "label": "delete `validates :credit_cents, numericality: { greater_than_or_equal_to: 0 }`",
+                "id": 22,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 9,
+                "label": "delete `before_validation :normalize_email`",
+                "id": 23,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/order.rb",
+                "line": 6,
+                "label": "delete `validates :quantity, numericality: { only_integer: true, greater_than: 0 }`",
+                "id": 39,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/order.rb",
+                "line": 8,
+                "label": "delete `before_save :compute_total`",
+                "id": 40,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              }
+            ],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4": {
+            "mutants": 56,
+            "agree": 49,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 7,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 5.82,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 102.9,
+              "max_tree_mb": 496.8,
+              "processes": 10
+            },
+            "statuses": {
+              "isolated_only": 7,
+              "killed": 47,
+              "survived": 2
+            },
+            "disagreements": [
+              {
+                "file": "app/controllers/application_controller.rb",
+                "line": 2,
+                "label": "delete `before_action :authenticate`",
+                "id": 1,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 4,
+                "label": "has_many :orders, dependent: :destroy: drop dependent:",
+                "id": 20,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 6,
+                "label": "delete `validates :email, presence: true, format: { with: /\\A[^@\\s]+@[^@\\s]+\\z/ }`",
+                "id": 21,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 7,
+                "label": "delete `validates :credit_cents, numericality: { greater_than_or_equal_to: 0 }`",
+                "id": 22,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 9,
+                "label": "delete `before_validation :normalize_email`",
+                "id": 23,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/order.rb",
+                "line": 6,
+                "label": "delete `validates :quantity, numericality: { only_integer: true, greater_than: 0 }`",
+                "id": 39,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/order.rb",
+                "line": 8,
+                "label": "delete `before_save :compute_total`",
+                "id": 40,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              }
+            ],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--isolate-db": {
+            "mutants": 56,
+            "agree": 49,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 7,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 6.24,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 103.9,
+              "max_tree_mb": 201.6,
+              "processes": 4
+            },
+            "statuses": {
+              "isolated_only": 7,
+              "killed": 47,
+              "survived": 2
+            },
+            "disagreements": [
+              {
+                "file": "app/controllers/application_controller.rb",
+                "line": 2,
+                "label": "delete `before_action :authenticate`",
+                "id": 1,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 4,
+                "label": "has_many :orders, dependent: :destroy: drop dependent:",
+                "id": 20,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 6,
+                "label": "delete `validates :email, presence: true, format: { with: /\\A[^@\\s]+@[^@\\s]+\\z/ }`",
+                "id": 21,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 7,
+                "label": "delete `validates :credit_cents, numericality: { greater_than_or_equal_to: 0 }`",
+                "id": 22,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 9,
+                "label": "delete `before_validation :normalize_email`",
+                "id": 23,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/order.rb",
+                "line": 6,
+                "label": "delete `validates :quantity, numericality: { only_integer: true, greater_than: 0 }`",
+                "id": 39,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/order.rb",
+                "line": 8,
+                "label": "delete `before_save :compute_total`",
+                "id": 40,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              }
+            ],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4 --isolate-db": {
+            "mutants": 56,
+            "agree": 49,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 7,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 6.71,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 102.8,
+              "max_tree_mb": 493.0,
+              "processes": 52
+            },
+            "statuses": {
+              "isolated_only": 7,
+              "killed": 47,
+              "survived": 2
+            },
+            "disagreements": [
+              {
+                "file": "app/controllers/application_controller.rb",
+                "line": 2,
+                "label": "delete `before_action :authenticate`",
+                "id": 1,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 4,
+                "label": "has_many :orders, dependent: :destroy: drop dependent:",
+                "id": 20,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 6,
+                "label": "delete `validates :email, presence: true, format: { with: /\\A[^@\\s]+@[^@\\s]+\\z/ }`",
+                "id": 21,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 7,
+                "label": "delete `validates :credit_cents, numericality: { greater_than_or_equal_to: 0 }`",
+                "id": 22,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 9,
+                "label": "delete `before_validation :normalize_email`",
+                "id": 23,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/order.rb",
+                "line": 6,
+                "label": "delete `validates :quantity, numericality: { only_integer: true, greater_than: 0 }`",
+                "id": 39,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/order.rb",
+                "line": 8,
+                "label": "delete `before_save :compute_total`",
+                "id": 40,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              }
+            ],
+            "leaks": 42,
+            "rejudged": 0
+          },
+          "--isolated --jobs 4": {
+            "mutants": 56,
+            "agree": 56,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 54.63,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 104.8,
+              "max_tree_mb": 493.1,
+              "processes": 64
+            },
+            "statuses": {
+              "killed": 54,
+              "survived": 2
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--isolated, relative path gem": {
+            "mode": "--isolated --jobs 4",
+            "error": "no report (exit 1):     \tfrom /tmp/claude-0/-home-user/826c9fc5-a8b5-53c7-bdbc-e3d4f5d63b82/scratchpad/gems/gems/bundler-4.0.20/lib/bundler/ui/shell.rb:122:in 'Bundler::UI::Shell#silence'\n    \tfrom /tmp/claude-0/-home-user/826c9fc5-a8b5-53c7-bdbc-e3d4f5d63b82/scratchpad/gems/gems/bundler-4.0.20/lib/bundler/setup.rb:32:in '<top (required)>'\n    \tfrom <internal:/tmp/claude-0/-home-user/826c9fc5-a8b5-53c7-bdbc-e3d4f5d63b82/scratchpad/ruby34/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'\n    \tfrom <internal:/tmp/claude-0/-home-user/826c9fc5-a8b5-53c7-bdbc-e3d4f5d63b82/scratchpad/ruby34/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'\n    \tfrom /tmp/claude-0/-home-user/826c9fc5-a8b5-53c7-bdbc-e3d4f5d63b82/scratchpad/ruby34/lib/ruby/3.4.0/rubygems.rb:1417:in '<top (required)>'\n    \tfrom <internal:gem_prelude>:2:in 'Kernel#require'\n    \tfrom <internal:gem_prelude>:2:in '<internal:gem_prelude>'\n  the mirror copies the project except .git, coverage (tmp, log start empty; vendor, node_modules, .bundle are symlinked)\n"
+          }
+        },
+        "rspec": {
+          "--jobs 1": {
+            "mutants": 56,
+            "agree": 49,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 7,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 6.01,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 112.3,
+              "max_tree_mb": 222.4,
+              "processes": 3
+            },
+            "statuses": {
+              "isolated_only": 7,
+              "killed": 42,
+              "survived": 2,
+              "no_coverage": 5
+            },
+            "disagreements": [
+              {
+                "file": "app/controllers/application_controller.rb",
+                "line": 2,
+                "label": "delete `before_action :authenticate`",
+                "id": 1,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 4,
+                "label": "has_many :orders, dependent: :destroy: drop dependent:",
+                "id": 20,
+                "kimera": "isolated_only",
+                "oracle": "survived",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 6,
+                "label": "delete `validates :email, presence: true, format: { with: /\\A[^@\\s]+@[^@\\s]+\\z/ }`",
+                "id": 21,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 7,
+                "label": "delete `validates :credit_cents, numericality: { greater_than_or_equal_to: 0 }`",
+                "id": 22,
+                "kimera": "isolated_only",
+                "oracle": "survived",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 9,
+                "label": "delete `before_validation :normalize_email`",
+                "id": 23,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/order.rb",
+                "line": 6,
+                "label": "delete `validates :quantity, numericality: { only_integer: true, greater_than: 0 }`",
+                "id": 39,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/order.rb",
+                "line": 8,
+                "label": "delete `before_save :compute_total`",
+                "id": 40,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              }
+            ],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4": {
+            "mutants": 56,
+            "agree": 49,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 7,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 6.22,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 111.0,
+              "max_tree_mb": 549.2,
+              "processes": 10
+            },
+            "statuses": {
+              "isolated_only": 7,
+              "killed": 42,
+              "survived": 2,
+              "no_coverage": 5
+            },
+            "disagreements": [
+              {
+                "file": "app/controllers/application_controller.rb",
+                "line": 2,
+                "label": "delete `before_action :authenticate`",
+                "id": 1,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 4,
+                "label": "has_many :orders, dependent: :destroy: drop dependent:",
+                "id": 20,
+                "kimera": "isolated_only",
+                "oracle": "survived",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 6,
+                "label": "delete `validates :email, presence: true, format: { with: /\\A[^@\\s]+@[^@\\s]+\\z/ }`",
+                "id": 21,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 7,
+                "label": "delete `validates :credit_cents, numericality: { greater_than_or_equal_to: 0 }`",
+                "id": 22,
+                "kimera": "isolated_only",
+                "oracle": "survived",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 9,
+                "label": "delete `before_validation :normalize_email`",
+                "id": 23,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/order.rb",
+                "line": 6,
+                "label": "delete `validates :quantity, numericality: { only_integer: true, greater_than: 0 }`",
+                "id": 39,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/order.rb",
+                "line": 8,
+                "label": "delete `before_save :compute_total`",
+                "id": 40,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              }
+            ],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--isolate-db": {
+            "mutants": 56,
+            "agree": 49,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 7,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 6.29,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 112.5,
+              "max_tree_mb": 223.1,
+              "processes": 3
+            },
+            "statuses": {
+              "isolated_only": 7,
+              "killed": 42,
+              "survived": 2,
+              "no_coverage": 5
+            },
+            "disagreements": [
+              {
+                "file": "app/controllers/application_controller.rb",
+                "line": 2,
+                "label": "delete `before_action :authenticate`",
+                "id": 1,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 4,
+                "label": "has_many :orders, dependent: :destroy: drop dependent:",
+                "id": 20,
+                "kimera": "isolated_only",
+                "oracle": "survived",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 6,
+                "label": "delete `validates :email, presence: true, format: { with: /\\A[^@\\s]+@[^@\\s]+\\z/ }`",
+                "id": 21,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 7,
+                "label": "delete `validates :credit_cents, numericality: { greater_than_or_equal_to: 0 }`",
+                "id": 22,
+                "kimera": "isolated_only",
+                "oracle": "survived",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 9,
+                "label": "delete `before_validation :normalize_email`",
+                "id": 23,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/order.rb",
+                "line": 6,
+                "label": "delete `validates :quantity, numericality: { only_integer: true, greater_than: 0 }`",
+                "id": 39,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/order.rb",
+                "line": 8,
+                "label": "delete `before_save :compute_total`",
+                "id": 40,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              }
+            ],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4 --isolate-db": {
+            "mutants": 56,
+            "agree": 49,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 7,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 8.04,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 108.1,
+              "max_tree_mb": 524.2,
+              "processes": 49
+            },
+            "statuses": {
+              "isolated_only": 7,
+              "killed": 42,
+              "survived": 2,
+              "no_coverage": 5
+            },
+            "disagreements": [
+              {
+                "file": "app/controllers/application_controller.rb",
+                "line": 2,
+                "label": "delete `before_action :authenticate`",
+                "id": 1,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 4,
+                "label": "has_many :orders, dependent: :destroy: drop dependent:",
+                "id": 20,
+                "kimera": "isolated_only",
+                "oracle": "survived",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 6,
+                "label": "delete `validates :email, presence: true, format: { with: /\\A[^@\\s]+@[^@\\s]+\\z/ }`",
+                "id": 21,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 7,
+                "label": "delete `validates :credit_cents, numericality: { greater_than_or_equal_to: 0 }`",
+                "id": 22,
+                "kimera": "isolated_only",
+                "oracle": "survived",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/account.rb",
+                "line": 9,
+                "label": "delete `before_validation :normalize_email`",
+                "id": 23,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/order.rb",
+                "line": 6,
+                "label": "delete `validates :quantity, numericality: { only_integer: true, greater_than: 0 }`",
+                "id": 39,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              },
+              {
+                "file": "app/models/order.rb",
+                "line": 8,
+                "label": "delete `before_save :compute_total`",
+                "id": 40,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              }
+            ],
+            "leaks": 39,
+            "rejudged": 0
+          },
+          "--isolated --jobs 4": {
+            "mutants": 56,
+            "agree": 56,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 53.6,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 115.1,
+              "max_tree_mb": 516.0,
+              "processes": 58
+            },
+            "statuses": {
+              "killed": 47,
+              "survived": 4,
+              "no_coverage": 5
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          }
+        }
+      }
+    },
+    "K4": {
+      "title": "Coverage memory stays bounded in a hot loop",
+      "wall_s": 45.3,
+      "pass": false,
+      "summary": {
+        "peak_rss_mb": 440.4,
+        "wall_s": 45.3
+      },
+      "runs": {
+        "--jobs 1": {
+          "max_process_mb": 440.4,
+          "max_tree_mb": 603.8,
+          "processes": 2,
+          "wall_s": 25.15,
+          "exit": 0,
+          "tail": "mutants=7 killed=7 survived=0 timeout=0 error=0 no_coverage=0 score=100.0%\n"
+        },
+        "--jobs 2": {
+          "max_process_mb": 437.6,
+          "max_tree_mb": 484.2,
+          "processes": 4,
+          "wall_s": 20.16,
+          "exit": 0,
+          "tail": "mutants=7 killed=7 survived=0 timeout=0 error=0 no_coverage=0 score=100.0%\n"
+        }
+      }
+    },
+    "K5": {
+      "title": "--since diffs against the merge-base, keeping uncommitted work",
+      "wall_s": 1.4,
+      "pass": false,
+      "summary": {
+        "selected": "alpha+beta+gamma",
+        "expected": "alpha+gamma"
+      },
+      "exit": 0
+    },
+    "K6": {
+      "title": "--session drops verdicts once the tests change",
+      "wall_s": 2.8,
+      "pass": false,
+      "summary": {
+        "stale_verdicts": 2,
+        "mutants": 5
+      },
+      "stale": [
+        "lib/gate.rb:3:fd089d1d: resumed killed, fresh survived",
+        "lib/gate.rb:3:7c1b290e: resumed killed, fresh survived"
+      ]
+    },
+    "K7": {
+      "title": "Locale-independent: LANG unset and LANG=C",
+      "wall_s": 74.3,
+      "pass": false,
+      "runs": {
+        "unset": {
+          "run": {
+            "ok": true,
+            "exit": 2,
+            "tail": "Next actions:\n  1 surviving mutant(s): inspect #3 with `kimera mutant 3 --report /tmp/kimera-eval20261013-24854-6cr8j9/locale-90/tmp/locale.json`\nkimera: gate failed: survivors=1 > max_survivors=0\n"
+          },
+          "report": {
+            "ok": true,
+            "exit": 0,
+            "tail": "    covered by 2 test(s)\n\ndetail: kimera mutant <ID|KEY> --report /tmp/kimera-eval20261013-24854-6cr8j9/locale-90/tmp/locale.json\n"
+          },
+          "mutant": {
+            "ok": false,
+            "exit": 1,
+            "tail": "\tfrom /tmp/claude-0/-home-user/826c9fc5-a8b5-53c7-bdbc-e3d4f5d63b82/scratchpad/kimera-work/base/lib/kimera/cli.rb:55:in 'Kimera::CLI#dispatch'\n\tfrom /tmp/claude-0/-home-user/826c9fc5-a8b5-53c7-bdbc-e3d4f5d63b82/scratchpad/kimera-work/base/lib/kimera/cli.rb:43:in 'Kimera::CLI#run'\n\tfrom /tmp/claude-0/-home-user/826c9fc5-a8b5-53c7-bdbc-e3d4f5d63b82/scratchpad/kimera-work/base/exe/kimera:21:in '<main>'\n"
+          },
+          "doctor": {
+            "ok": true,
+            "exit": 0,
+            "tail": "! Git: not a repository; `kimera changed` is unavailable\n✓ Runtime: no Rails-specific parallel setup required\n✓ Test loading: every test file loads\n"
+          },
+          "suite": {
+            "ok": false,
+            "examples": 10,
+            "failures": 5,
+            "wall_s": 32.5
+          }
+        },
+        "C": {
+          "run": {
+            "ok": true,
+            "exit": 2,
+            "tail": "Next actions:\n  1 surviving mutant(s): inspect #3 with `kimera mutant 3 --report /tmp/kimera-eval20261013-24854-6cr8j9/locale-91/tmp/locale.json`\nkimera: gate failed: survivors=1 > max_survivors=0\n"
+          },
+          "report": {
+            "ok": true,
+            "exit": 0,
+            "tail": "    covered by 2 test(s)\n\ndetail: kimera mutant <ID|KEY> --report /tmp/kimera-eval20261013-24854-6cr8j9/locale-91/tmp/locale.json\n"
+          },
+          "mutant": {
+            "ok": false,
+            "exit": 1,
+            "tail": "\tfrom /tmp/claude-0/-home-user/826c9fc5-a8b5-53c7-bdbc-e3d4f5d63b82/scratchpad/kimera-work/base/lib/kimera/cli.rb:55:in 'Kimera::CLI#dispatch'\n\tfrom /tmp/claude-0/-home-user/826c9fc5-a8b5-53c7-bdbc-e3d4f5d63b82/scratchpad/kimera-work/base/lib/kimera/cli.rb:43:in 'Kimera::CLI#run'\n\tfrom /tmp/claude-0/-home-user/826c9fc5-a8b5-53c7-bdbc-e3d4f5d63b82/scratchpad/kimera-work/base/exe/kimera:21:in '<main>'\n"
+          },
+          "doctor": {
+            "ok": true,
+            "exit": 0,
+            "tail": "! Git: not a repository; `kimera changed` is unavailable\n✓ Runtime: no Rails-specific parallel setup required\n✓ Test loading: every test file loads\n"
+          },
+          "suite": {
+            "ok": false,
+            "examples": 10,
+            "failures": 5,
+            "wall_s": 33.7
+          }
+        }
+      },
+      "summary": {
+        "failed_steps": 4,
+        "suite_failures": 10
+      }
+    },
+    "K8": {
+      "title": "TLA+ model and trace checks run reproducibly",
+      "wall_s": 39.1,
+      "pass": false,
+      "summary": {
+        "fetch": false,
+        "traces": false,
+        "model_check": false
+      },
+      "steps": {
+        "fetch": {
+          "ok": false,
+          "tail": "tla2tools.jar checksum mismatch\n",
+          "wall_s": 1.6
+        },
+        "traces": {
+          "ok": false,
+          "examples": 4,
+          "failures": 3,
+          "wall_s": 36.5
+        },
+        "model_check": {
+          "ok": false,
+          "wall_s": 1.0,
+          "tail": ""
+        }
+      }
+    },
+    "K9": {
+      "title": "Works on every unparser release it allows (and allows more than 0.9.x)",
+      "wall_s": 129.0,
+      "pass": false,
+      "runs": {
+        "0.6.15": {
+          "resolves": false,
+          "why": "Because every version of kimera depends on unparser ~> 0.9.0\n  unparser ~> 0.9.0 is required.\n"
+        },
+        "0.7.0": {
+          "resolves": false,
+          "why": "Because every version of kimera depends on unparser ~> 0.9.0\n  unparser ~> 0.9.0 is required.\n"
+        },
+        "0.8.0": {
+          "resolves": false,
+          "why": "Because every version of kimera depends on unparser ~> 0.9.0\n  unparser ~> 0.9.0 is required.\n"
+        },
+        "0.8.1": {
+          "resolves": false,
+          "why": "Because every version of kimera depends on unparser ~> 0.9.0\n  unparser ~> 0.9.0 is required.\n"
+        },
+        "0.8.2": {
+          "resolves": false,
+          "why": "Because every version of kimera depends on unparser ~> 0.9.0\n  unparser ~> 0.9.0 is required.\n"
+        },
+        "0.9.0": {
+          "ok": false,
+          "examples": 1652,
+          "failures": 1,
+          "wall_s": 119.7,
+          "resolves": true,
+          "failed": [
+            "rspec ./spec/kimera/frameworks/rspec_adapter_spec.rb:357"
+          ]
+        }
+      },
+      "summary": {
+        "allowed": "0.9.0",
+        "broken": ""
+      }
+    },
+    "K10": {
+      "title": "README names the whole runtime dependency closure",
+      "wall_s": 1.6,
+      "pass": false,
+      "summary": {
+        "closure": 6,
+        "unnamed": "parser racc"
+      },
+      "closure": [
+        "ast",
+        "diff-lcs",
+        "parser",
+        "prism",
+        "racc",
+        "unparser"
+      ]
+    },
+    "K11": {
+      "title": "Overlay files get load semantics (own top-level scope)",
+      "wall_s": 1.4,
+      "pass": false,
+      "summary": {
+        "false_verdicts": 0,
+        "statuses": null
+      },
+      "run": {
+        "mode": "--jobs 1",
+        "error": "no report (exit 1):     \n    Diff:\n    @@ -1 +1 @@\n    -[true, false]\n    +[false, false]\n    \n        ./spec/scope_spec.rb:5:in 'block (2 levels) in <top (required)>'\n  reproduce without kimera: rspec ./spec/scope_spec.rb[1:1] --order defined\n"
+      }
+    },
+    "K12": {
+      "title": "Kimera adds no top-level constant but Kimera",
+      "wall_s": 1.5,
+      "pass": false,
+      "summary": {
+        "top_level": "Kimera MutantRuntime",
+        "collision_run": "error"
+      },
+      "run": {
+        "mode": "--jobs 1",
+        "error": "no report (exit 1): kimera: cannot load test file spec/mutant_runtime_spec.rb (TypeError: MutantRuntime is not a class\n/tmp/claude-0/-home-user/826c9fc5-a8b5-53c7-bdbc-e3d4f5d63b82/scratchpad/kimera-work/base/lib/kimera/runtime.rb:60: previous definition of MutantRuntime was here)\n"
+      }
+    },
+    "K13": {
+      "title": "Overlay-time ObjectSpace scans: cost and side effects on a Rails app",
+      "wall_s": 7.8,
+      "pass": false,
+      "summary": {
+        "scan_s": 0.174,
+        "deprecation_warnings": 16
+      },
+      "modules": 4186,
+      "exit": 0
+    },
+    "S1": {
+      "title": "Speed on real suites (sample_app, dry-inflector, kimera self-host subset)",
+      "wall_s": 1169.3,
+      "pass": true,
+      "summary": {
+        "sample_app --jobs 1": 1.36,
+        "sample_app --jobs 4": 1.36,
+        "dry-inflector --jobs 4": 88.52,
+        "self-host subset --jobs 4": 421.1
+      },
+      "runs": {
+        "sample_app --jobs 1": {
+          "wall_s": 1.36,
+          "exit": 2
+        },
+        "sample_app --jobs 4": {
+          "wall_s": 1.36,
+          "exit": 2
+        },
+        "dry-inflector --jobs 4": {
+          "mutants": 738,
+          "agree": 738,
+          "false_survived": 0,
+          "false_killed": 0,
+          "abstained": 0,
+          "unbakeable": 0,
+          "agreement_pct": 100.0,
+          "wall_s": 88.52,
+          "exit": 2,
+          "rss": {
+            "max_process_mb": 219.9,
+            "max_tree_mb": 580.2,
+            "processes": 9
+          },
+          "statuses": {
+            "killed": 692,
+            "survived": 46
+          },
+          "disagreements": [],
+          "leaks": 0,
+          "rejudged": 0
+        },
+        "self-host subset --jobs 4": {
+          "wall_s": 421.1,
+          "exit": 0,
+          "tail": "mutants=425 killed=425 leaks=4 survived=0 timeout=0 error=0 score=100.0% no_coverage=0"
+        }
+      }
+    },
+    "X1": {
+      "title": "--session into a missing directory saves instead of crashing",
+      "wall_s": 1.1,
+      "pass": false,
+      "summary": {
+        "saved": false,
+        "exit": 1
+      }
+    }
+  }
+}

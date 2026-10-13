@@ -14,10 +14,10 @@ and flips them at runtime, so your app boots once, not once per mutant.
 
 - **Fast.** [Stryker](https://stryker-mutator.io)-style mutant schemata
   ([Untch, Offutt & Harrold, 1993](https://doi.org/10.1145/154183.154265)): no
-  reparse or reload per mutant. On an 8-core Apple M3, dry-inflector's `lib`
-  (742 mutants, `--operators all`) runs in 17s with `--jobs 4`. Kimera's own
-  codebase (2,552 mutants) takes about 6 minutes with `--jobs 8`, mostly in the
-  fresh-process tier for harness-critical files.
+  reparse or reload per mutant. On a 4-vCPU cloud VM, dry-inflector's `lib`
+  (738 mutants, `--operators all`) runs in 91s with `--jobs 4`, 3% slower than
+  before each mutant got a fresh process; a small Rails suite pays more
+  ([`eval/results`](eval/results/README.md)).
 - **Parallel.** Warm workers, forked once, pull mutants from one shared
   heaviest-first queue. A single large file spreads across every core.
 - **Rails-ready.** Opt-in transaction rollback (`--isolate-db`), per-worker
