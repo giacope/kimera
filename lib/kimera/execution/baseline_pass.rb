@@ -6,10 +6,9 @@ require_relative "../runtime"
 require_relative "baseline_failure"
 require_relative "baseline_losses"
 require_relative "baseline_tally"
-require_relative "signal_guard"
-require_relative "stopwatch"
 require_relative "worker_pool"
 require_relative "null_progress"
+require_relative "zygote"
 
 class Kimera::Execution::BaselinePass
   def initialize(adapter:, registry:, progress: Kimera::Execution::NullProgress)
@@ -19,16 +18,13 @@ class Kimera::Execution::BaselinePass
     @messages = {}
   end
 
-  def measure! = settle(1) { serial }
-
   def parallel!(jobs, &) = settle(jobs) { dispatch(&) }
 
-  def check!
-    Kimera::RUNTIME.active = nil
-    outcome = quietly { @adapter.run(@adapter.test_ids) }
-    return if outcome.passed?
-    @messages = outcome.failures
-    failure!(outcome.failed_ids, 1)
+  def check!(zygote = Kimera::Execution::Zygote.new)
+    outcome = zygote.call { whole }
+    return if outcome["passed"]
+    @messages = outcome["failures"]
+    failure!(outcome["failed_ids"], 1)
   end
 
   private
@@ -51,26 +47,10 @@ class Kimera::Execution::BaselinePass
 
   def excluded = tally.irrelevant.to_h { |test_id| [test_id, @messages[test_id]] }
 
-  def serial
-    ledger = Kimera::RUNTIME.start!
-    @adapter.test_ids.each { |test_id| attempt(ledger, test_id) }
-  ensure
-    Kimera::RUNTIME.stop!(ledger)
-  end
-
-  def attempt(ledger, test_id)
+  def whole
     Kimera::RUNTIME.active = nil
-    ledger.clear
-    watch = Kimera::Execution::Stopwatch.new
-    record(test_id, watch.lap { sheltered(test_id) }, ledger.drain!, watch.last)
-  end
-
-  def sheltered(test_id) = Kimera::Execution::SignalGuard.run(test_id) { quietly { @adapter.run([test_id]) } }
-
-  def record(test_id, outcome, touched, took)
-    tally.cover(test_id, touched, took)
-    bank(test_id, touched, message: outcome.failures[test_id]) unless outcome.passed?
-    @progress.tick
+    outcome = quietly { @adapter.run(@adapter.test_ids) }
+    { "passed" => outcome.passed?, "failed_ids" => outcome.failed_ids, "failures" => outcome.failures }
   end
 
   def dispatch(&)

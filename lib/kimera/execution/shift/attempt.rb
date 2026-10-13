@@ -1,39 +1,67 @@
 # frozen_string_literal: true
 
 require_relative "deadline"
+require_relative "finding"
+require_relative "overrun"
+require_relative "probe"
 require_relative "suspect"
-require_relative "trial"
 
 class Kimera::Execution::Shift::Attempt
-  def initialize(adapter:, isolation:, killers:, deadline:)
-    @adapter = adapter
+  def initialize(probe:, isolation:, killers:, zygote:)
+    @probe = probe
     @isolation = isolation
     @killers = killers
-    @deadline = deadline
+    @zygote = zygote
   end
 
-  def run(id, tests, mode = :warm)
-    @isolation.around { __send__(mode, verdicts(id, tests)) }
-  end
+  def run(id, tests) = hunt(id, @killers.order(tests), [])
 
   private
 
-  def verdicts(id, tests) = @killers.order(tests).lazy.filter_map { |testid| kill(id, testid) }
-
-  def warm(verdicts) = verdicts.first
-
-  def recheck(verdicts)
-    doubts = []
-    verdicts.find { |verdict| decisive?(verdict, doubts) } || doubts.first&.final
+  def hunt(id, tests, doubts)
+    found = fresh { @probe.sweep(id, tests) }
+    return doubts.first&.final unless found
+    finding = Kimera::Execution::Shift::Finding.new(tests, found)
+    settle(id, finding, doubts, judge(id, finding))
   end
 
-  def decisive?(verdict, doubts)
-    return true unless verdict.is_a?(Kimera::Execution::Shift::Suspect)
-    doubts << verdict
-    false
+  def settle(id, finding, doubts, verdict)
+    return verdict if verdict && !verdict.is_a?(Kimera::Execution::Shift::Suspect)
+    hunt(id, finding.rest, doubts + [verdict].compact)
   end
 
-  def kill(id, testid)
-    Kimera::Execution::Shift::Trial.new(@adapter, id, testid, @deadline).verdict { @killers.remember(testid) }
+  def judge(id, finding) = finding.overran? ? lagged(id, finding) : failed(id, finding)
+
+  def failed(id, finding)
+    solo = replay(id, [finding.test])
+    return kill(finding.test, solo) unless solo["passed"]
+    control = replay(nil, finding.through)
+    control["passed"] ? confirm(id, finding) : finding.refuted(id, control)
   end
+
+  def confirm(id, finding)
+    again = replay(id, finding.through)
+    again["passed"] ? finding.doubted(id) : kill(finding.test, again)
+  end
+
+  def lagged(id, finding)
+    calm = replay(nil, [finding.test])
+    return unless calm["passed"] && !calm["overran"]
+    again = replay(id, [finding.test])
+    overrun(finding, calm, again) if again["overran"]
+  end
+
+  def overrun(finding, calm, again)
+    runs = [finding.elapsed, again["elapsed"]]
+    Kimera::Execution::Shift::Overrun.new(finding.test, runs, calm["elapsed"], @probe.deadline.budget)
+  end
+
+  def kill(test, result)
+    @killers.remember(test)
+    Kimera::Execution::Shift::Finding::Kill.new(result["failed_ids"], result["failures"])
+  end
+
+  def replay(active, tests) = fresh { @probe.replay(active, tests) }
+
+  def fresh(&) = @zygote.call { @isolation.around(&) }
 end

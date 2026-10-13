@@ -5,15 +5,14 @@ require "timeout"
 require_relative "../results/result"
 require_relative "../runtime"
 require_relative "isolation"
+require_relative "zygote"
 
 class Kimera::Execution::Shift
-  MODES = { true => :recheck }.freeze
-  Job = Data.define(:id, :mode)
   Channel =
     Data.define(:requests, :responses) do
       def each_request
         while (line = requests.gets)
-          break unless yield(line, responses)
+          yield(line, responses)
         end
       end
     end
@@ -26,7 +25,7 @@ class Kimera::Execution::Shift
   end
 
   def serve(requests, responses)
-    listen(Channel.new(requests, responses))
+    Channel.new(requests, responses).each_request { |line, io| step(line, io) }
     emit(responses, t: "done")
   ensure
     Kimera::RUNTIME.active = nil
@@ -35,15 +34,14 @@ class Kimera::Execution::Shift
   def coverage(requests, responses) = channel.serve(requests, responses)
 
   def run(ids, io)
-    history = []
-    ids.each_with_index { |id, index| process(Job.new(id, :warm), io, history, index) }
+    ids.each { |id| emit(io, **evaluate(id).message) }
     emit(io, t: "done")
   ensure
     Kimera::RUNTIME.active = nil
   end
 
-  def evaluate(id, mode = :warm)
-    safely(Subject.new(id, @registry.index[id]&.file), mode)
+  def evaluate(id)
+    safely(Subject.new(id, @registry.index[id]&.file))
   ensure
     Kimera::RUNTIME.active = nil
     isolation.reset!
@@ -55,60 +53,46 @@ class Kimera::Execution::Shift
 
   def timeout = @options.fetch(:soft_timeout, 5.0)
 
+  def zygote = @options.fetch(:zygote) { Kimera::Execution::Zygote.new }
+
   def attempt
     kind = self.class
-    @_attempt ||= kind::Attempt.new(
-      adapter: @adapter, isolation: isolation, killers: kind::KillerMemory.new,
-      deadline: kind::Deadline.build(timeout, beat: @options.fetch(:pulse, kind::Deadline::SILENT), **budget)
-    )
+    @_attempt ||= kind::Attempt.new(probe: probe, isolation: isolation, killers: kind::KillerMemory.new, zygote: zygote)
+  end
+
+  def probe
+    kind = self.class
+    beat = @options.fetch(:pulse, kind::Deadline::SILENT)
+    kind::Probe.new(@adapter, kind::Deadline.build(timeout, beat: beat, **budget))
   end
 
   def budget = @options.slice(:budget)
 
-  def leaks = @_leaks ||= self.class::LeakGuard.new(@options.fetch(:leak_every, 10)) { |id| evaluate(id) }
+  def channel = @_channel ||= self.class::CoverageChannel.new(@adapter, zygote: zygote)
 
-  def channel = @_channel ||= self.class::CoverageChannel.new(@adapter)
-
-  def listen(connection)
-    history = []
-    index = 0
-    connection.each_request { |line, responses| index = step(line, responses, history, index) }
-  end
-
-  def step(line, responses, history, index)
-    return if tainted?(process(job(line), responses, history, index))
+  def step(line, responses)
+    emit(responses, **evaluate(JSON.parse(line)["id"]).message)
     emit(responses, t: "ready")
-    index + 1
   end
 
-  def job(line)
-    request = JSON.parse(line)
-    Job.new(request["id"], MODES.fetch(request["recheck"], :warm))
-  end
-
-  def tainted?(result) = result.is_a?(Suspect) || result.status == :timeout
-
-  def safely(subject, mode)
-    tests = available(subject.id)
-    return subject.verdict(:no_coverage) if tests.empty?
-    outcome(subject, tests, mode)
+  def safely(subject)
+    covered(subject)
   rescue StandardError, ScriptError => error
+    raise if error.is_a?(Kimera::Execution::Zygote::Died)
     subject.crashed(error, timeout)
   end
 
-  def outcome(subject, tests, mode)
-    started = monotonic
-    outcome = attempt.run(subject.id, tests, mode)
-    return outcome.ruling(subject) if outcome.is_a?(Suspect)
-    subject.judged(outcome, tests, monotonic - started)
+  def covered(subject)
+    tests = available(subject.id)
+    return subject.verdict(:no_coverage) if tests.empty?
+    outcome(subject, tests)
   end
 
-  def process(job, io, history, index)
-    result = evaluate(*job.deconstruct)
-    emit(io, **result.message)
-    history << job.id if result.killed?
-    leaks.check(io, history, index) unless tainted?(result)
-    result
+  def outcome(subject, tests)
+    started = monotonic
+    outcome = attempt.run(subject.id, tests)
+    return outcome.ruling(subject) if outcome.is_a?(Doubt)
+    subject.judged(outcome, tests, monotonic - started)
   end
 
   def available(id)
@@ -128,6 +112,5 @@ end
 require_relative "shift/attempt"
 require_relative "shift/coverage_channel"
 require_relative "shift/killer_memory"
-require_relative "shift/leak_guard"
 require_relative "shift/subject"
 require_relative "shift/suspect"

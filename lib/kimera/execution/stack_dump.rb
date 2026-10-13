@@ -30,13 +30,17 @@ class Kimera::Execution::StackDump
   end
 
   def take(pid)
-    Process.kill(SIGNAL, pid)
+    ask(pid)
     collect(path(pid))
   rescue Errno::ESRCH
     nil
   end
 
   private
+
+  def ask(pid) = Process.kill(SIGNAL, leader?(pid) ? -pid : pid)
+
+  def leader?(pid) = pid != Process.pid && Process.getpgid(pid) == pid
 
   def path(pid) = File.join(@dir, "#{pid}.txt")
 

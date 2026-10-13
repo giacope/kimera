@@ -51,7 +51,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       {
         framework: "rspec", source_root: ".", tests: ["spec/**/*_spec.rb"], configured_tests: ["spec/**/*_spec.rb"],
         operators: Kimera::Operators::DEFAULT_KEYS,
-        soft_timeout: 5.0, hard_timeout: nil, leak_every: 10,
+        soft_timeout: 5.0, hard_timeout: nil,
         relative_timeout: true, timeout_factor: nil, timeout_slack: nil,
         registry: nil, report: "tmp/kimera/report.json", format: "text", focus: [], gate: true, coverage: true,
         require: [],
@@ -114,7 +114,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     def flags
       %w[
         framework tests source-root registry operators soft-timeout
-        hard-timeout relative-timeout timeout-factor timeout-slack leak-every coverage since session max-survivors
+        hard-timeout relative-timeout timeout-factor timeout-slack coverage since session max-survivors
         max-ignored fail-on-no-coverage jobs progress isolate-db isolated
         isolate-when-covered-by rejudge exclude config pidfile evaluate-ignored no-baseline
       ]
@@ -141,7 +141,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       [
         "--framework", "minitest", "--source-root", "src",
         "--tests", "a/**/*.rb", "--tests", "b/**/*.rb",
-        "--soft-timeout", "2.5", "--hard-timeout", "9", "--leak-every", "3",
+        "--soft-timeout", "2.5", "--hard-timeout", "9",
         "--no-coverage", "--jobs", "4", "--max-survivors", "2",
         "--exclude", "x.rb", "--exclude", "y.rb", "--isolate-db"
       ]
@@ -150,7 +150,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     it "parses scalar, repeatable, and toggle flags" do
       opts = cli.__send__(:parse, arguments)
       expect(opts).to(include(framework: "minitest", source_root: "src", tests: ["a/**/*.rb", "b/**/*.rb"]))
-      expect(opts).to(include(soft_timeout: 2.5, hard_timeout: 9.0, leak_every: 3, coverage: false))
+      expect(opts).to(include(soft_timeout: 2.5, hard_timeout: 9.0, coverage: false))
       expect(opts).to(include(jobs: 4, max_survivors: 2, exclude: ["x.rb", "y.rb"], isolate_db: true))
     end
 
@@ -668,7 +668,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     def settings(**over)
       {
         framework: "rspec", source_root: ".", tests: ["spec/**/*_spec.rb"],
-        soft_timeout: 5.0, hard_timeout: nil, leak_every: 10, jobs: 1,
+        soft_timeout: 5.0, hard_timeout: nil, jobs: 1,
         isolate_db: false, coverage: true
       }.merge(over)
     end

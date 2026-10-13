@@ -27,7 +27,7 @@ class Kimera::Execution::Rig
     Kimera::Execution::Pool.new(
       adapter: @options.fetch(:adapter), registry: @options.fetch(:registry),
       isolation: @options.fetch(:isolation), jobs: @options.fetch(:jobs), hard: @options.fetch(:hard),
-      soft: @options.fetch(:soft), leak: @options.fetch(:leak), paralleldb: parallel, coverage: @options[:coverage]
+      soft: @options.fetch(:soft), paralleldb: parallel, coverage: @options[:coverage]
     )
   end
 

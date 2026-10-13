@@ -104,7 +104,7 @@ class Kimera::Execution::Harness
   def rig
     @_rig ||= Kimera::Execution::Rig.new(
       registry: registry, adapter: adapter, isolation: isolation, root: root,
-      soft: soft, hard: hard, leak: options.fetch(:leak_every, 10), jobs: jobs,
+      soft: soft, hard: hard, jobs: jobs,
       coverage: coverage, spawner: options[:spawner], progress: progress, aliases: state.aliases
     )
   end
@@ -124,7 +124,7 @@ class Kimera::Execution::Harness
   def mutants = registry.each.map { |mutant, _path| mutant.id }
 
   def measure!
-    measured = jobs > 1 ? parallel(baseline) : baseline.measure!
+    measured = parallel(baseline)
     options[:coverage] = measured.coverage
     arm(measured.timings)
     state.irrelevant = measured.irrelevant

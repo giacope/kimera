@@ -51,7 +51,7 @@ RSpec.describe(Kimera::Execution::Shift) do
 
   def worker(adapter, tests, **)
     described_class.new(
-      adapter: adapter, registry: registry, coverage: { target => tests }, soft_timeout: 5.0, leak_every: 0,
+      adapter: adapter, registry: registry, coverage: { target => tests }, soft_timeout: 5.0, zygote: InlineZygote.new,
       budget: budget, **
     )
   end
@@ -108,7 +108,7 @@ RSpec.describe(Kimera::Execution::Shift) do
   end
 
   it "still kills on a failing test, however slow" do
-    adapter = timed({ "t1" => [[2.0, false], fast, [2.0, false]] })
+    adapter = timed({ "t1" => [[2.0, false], [2.0, false]] })
     expect(worker(adapter, %w[t1]).evaluate(target).status).to(eq(:killed))
   end
 
@@ -120,12 +120,12 @@ RSpec.describe(Kimera::Execution::Shift) do
   it "keeps the old behavior without a budget" do
     adapter = timed({ "t1" => [slow] })
     shift = described_class.new(
-      adapter: adapter, registry: registry, coverage: { target => %w[t1] }, soft_timeout: 5.0, leak_every: 0
+      adapter: adapter, registry: registry, coverage: { target => %w[t1] }, soft_timeout: 5.0, zygote: InlineZygote.new
     )
     expect(shift.evaluate(target).status).to(eq(:survived))
   end
 
-  it "settles a recheck on a fresh worker too" do
+  it "settles a mutant offered with a recheck flag the same way" do
     request = StringIO.new("#{JSON.generate(id: target, recheck: true)}\n")
     response = StringIO.new
     worker(timed({ "t1" => [slow, fast, slow] }), %w[t1]).serve(request, response)

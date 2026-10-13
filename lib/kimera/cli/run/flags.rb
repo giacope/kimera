@@ -54,7 +54,6 @@ module Kimera::CLI::RunFlags
       "--timeout-slack SEC", :timeout_slack, "Relative timeout: seconds added to the multiple (default 1)",
       type: Float
     ),
-    Kimera::Flag.build("--leak-every N", :leak_every, "Re-check a killed mutant every N", type: Integer),
     Kimera::Flag.build("--[no-]coverage", :coverage, "Run each mutant only against covering tests (default: on)"),
     Kimera::Flag.build("--jobs N", :jobs, "Concurrent workers (warm pool / isolated mirrors)", type: Integer),
     Kimera::Flag.build(

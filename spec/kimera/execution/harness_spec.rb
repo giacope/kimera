@@ -319,12 +319,13 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(h.coverage).not_to(have_key(9_999_991))
     end
 
-    # Serial in the parent so `quietly` can swallow suite writes.
-    it "runs the baseline in this very process at jobs == 1" do
+    # The workers fork from a process no test has run in, so no test's
+    # state reaches a mutant.
+    it "runs no baseline test in this process, even at jobs == 1" do
       pids = []
       h = harness(processes(pids))
       h.__send__(:measure!)
-      expect(pids).to(eq([Process.pid]))
+      expect(pids).to(be_empty) # children append to their own copy
     end
 
     it "fans the baseline out to forked workers at jobs > 1" do
