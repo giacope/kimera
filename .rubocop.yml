@@ -12,6 +12,8 @@ AllCops:
     # Evaluation fixtures hold the code under test, bad on purpose (one does
     # not parse); eval/tmp caches cloned projects.
     - eval/fixtures/**/*
+    # The external holdout corpus and its oracle, kept as their author wrote them.
+    - eval/holdout/**/*
     - eval/tmp/**/*
     # CI installs the bundle here; replacing Exclude drops RuboCop's default.
     - vendor/**/*

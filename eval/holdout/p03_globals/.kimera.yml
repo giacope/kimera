@@ -1,0 +1,2 @@
+paths: [lib/**/*.rb]
+tests: ["spec/**/*_spec.rb"]
