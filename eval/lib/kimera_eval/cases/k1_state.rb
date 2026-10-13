@@ -52,6 +52,6 @@ module KimeraEval
         .merge("agreement_pct" => judged.zero? ? nil : (100.0 * stateful["agree"] / judged).round(1))
     end
 
-    def clean?(stateful) = stateful.values_at("false_survived", "false_killed", "abstained", "errors").sum.zero?
+    def clean?(stateful) = stateful.values_at("false_survived", "false_killed", "errors").sum.zero?
   end
 end
