@@ -2,6 +2,53 @@
 
 ## Unreleased
 
+- Verdicts no longer depend on state a test or an earlier mutant left
+  behind. The parent boots the suite and overlays the schemata, then runs no
+  test: each baseline test, and each mutant's covering tests, run in a
+  process forked from that clean, post-boot state. A memo cache another file
+  fills, a cache that hid a later caller from coverage, a registry, a class
+  variable, a leaked `ENV` flag: on a corpus of such suites the warm pass
+  reported 60 of 142 mutants survived that a fresh `rspec` kills, and 2
+  killed that it doesn't; it now agrees on every one (`eval/run`, K1). Doubts
+  and soft timeouts no longer retire workers, and nothing is requeued.
+  `--leak-every` and `leak_every:` are gone: there is no warm state left to
+  re-check. The cost is a fork per baseline test and per mutant, and a cold
+  start in each (see `eval/results/README.md`).
+- A warm survivor whose method also ran while the suite loaded (to build a
+  constant, say) is judged again in a fresh mirror against the whole suite,
+  since what it computed at load never saw the mutant.
+- `define_method`, `define_singleton_method`, `lambda`, `proc` and `Proc.new`
+  block bodies are mutated like method bodies. Code the scan doesn't mutate
+  (any other block outside a method, a file that does not parse) is listed
+  under "Not mutated" in the text report and `unmutated` in the JSON report
+  and registry, with the reason, instead of being skipped in silence.
+- `--since REF` diffs against `git merge-base REF HEAD` (keeping uncommitted
+  work), so lines main changed after the branch point are no longer mutated.
+- A `--session` is resumed only while its stamp matches: the sources, every
+  file under the test roots, `.rspec`, `Gemfile.lock` and the judging
+  settings. A kill no longer outlives the test that made it. `--session`
+  creates the directory it saves into.
+- Kimera runs with `LANG` unset or `LANG=C`: its reads, reports and pipes
+  are UTF-8. `kimera mutant` and `kimera doctor` crashed on UTF-8 text there.
+- Overlaid files run as `load` runs them, each in its own top-level scope;
+  a top-level local one file set no longer leaked into another's lambdas.
+- Guards dispatch through `::Kimera::RUNTIME`; `::MutantRuntime` is gone, so
+  a project may define its own.
+- A coverage ledger keeps each mutant id once: a covering test that loops
+  3M times peaked at 440 MB, now 46 MB.
+- `--isolated` mirrors run under the project's own Gemfile, so a gem named
+  by a relative `path:` resolves; the overlay's alias scan no longer trips
+  Rails' deprecated-constant proxies (16 warnings a run) and skips
+  non-aliases.
+- unparser 0.8.1 to 0.9.x are supported (was `~> 0.9.0`); CI runs the suite
+  on each. The README names the whole runtime closure: prism, unparser,
+  parser, ast, diff-lcs, racc.
+- `examples/rails_app` (Rails 8.1, sqlite, Minitest and RSpec) runs end to
+  end in CI in every mode against expected verdicts (`bin/e2e`).
+- `bin/model-check` pins TLA+ tools v1.7.4: the v1.8.0 jar is re-published
+  nightly, so its checksum never held. Trace validation passes again.
+- `eval/run --kimera PATH` measures a checkout against these gaps.
+
 - Survivors are easier to read. A report names each covering and failing
   test by `file:line` and description (a `tests` section in the JSON report,
   kept across `--session` resumes), not by RSpec's positional id alone. Each

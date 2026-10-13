@@ -22,17 +22,23 @@ and flips them at runtime, so your app boots once, not once per mutant.
   heaviest-first queue. A single large file spreads across every core.
 - **Rails-ready.** Opt-in transaction rollback (`--isolate-db`), per-worker
   test databases via Rails' parallel-testing hooks, and 4 Rails operator
-  families (strong params, validations, callbacks, associations).
+  families (strong params, validations, callbacks, associations). CI runs it
+  end to end on a Rails 8.1 app ([`examples/rails_app`](examples/rails_app)),
+  with Minitest and RSpec, in every mode.
 - **Built for CI.** `kimera changed` mutates only the lines a PR touched.
   `kimera ci` fails the build on any survivor or untested change.
 - **Low noise.** A small default operator set. 19 extended families are one
   flag away, and you can write your own.
-- **Honest verdicts.** Code the warm path can't judge safely is reported
-  separately, never scored. `--isolated` re-checks any mutant in a fresh
-  process.
+- **Honest verdicts.** Your suite boots once, but every test and every
+  mutant runs in a process forked from one no test has run in, so no cache,
+  registry or flag a test left behind decides a verdict. Code the warm path
+  can't judge is reported separately, never scored, and code it doesn't
+  mutate is listed with the reason. `--isolated` re-checks any mutant in a
+  fresh process.
 - **Small.** Ruby >= 3.4 (CI covers 3.4 and 4.0), RSpec or Minitest, and two
-  dependencies: [Prism](https://github.com/ruby/prism) and
-  [unparser](https://github.com/mbj/unparser).
+  direct dependencies: [Prism](https://github.com/ruby/prism) and
+  [unparser](https://github.com/mbj/unparser) (0.8.1 to 0.9.x), which bring
+  parser, ast, diff-lcs and racc.
 
 ```sh
 $ bundle exec kimera run app --since origin/main
@@ -99,7 +105,7 @@ bundle exec kimera doctor --check-baseline
 **4. Run it.** Start with the code your branch changed, then widen.
 
 ```sh
-bundle exec kimera changed          # lines changed since origin/main (or main)
+bundle exec kimera changed          # lines changed since the branch left origin/main (or main)
 bundle exec kimera run app/models   # one directory
 bundle exec kimera run              # every path in .kimera.yml
 ```
@@ -180,7 +186,9 @@ bundle exec kimera run app --tests 'spec/**/*_spec.rb'
 # Minitest
 bundle exec kimera run app --framework minitest --tests 'test/**/*_test.rb'
 
-# Incremental: mutate only lines changed since main, gate CI, resume on retry
+# Incremental: mutate only lines changed since the merge-base with main, gate
+# CI, resume on retry (a session is resumed only while the sources, every file
+# under the test roots, .rspec, Gemfile.lock and the judging settings match)
 bundle exec kimera run app --since origin/main \
   --session tmp/kimera.json --max-survivors 0 --report tmp/report.json
 
@@ -329,24 +337,25 @@ mirror. If it isn't green there, the run stops with exit 1 and the error.
 
 ### Re-judging what the warm pass could not
 
-Some mutants change state that stays changed after the warm worker switches
-them off: a memoized class-level table, a `require` a later test relies on,
-rows a crashed `before(:all)` left behind. The confirming run without the
-mutant then fails too, even on a fresh worker, so the warm pass can't tell a
-kill from a leak, and the mutant would be `harness_error`. The same goes for a
-mutant whose warm or reload worker died before it replied.
+The warm pass can't judge a mutant whose process died before it replied (the
+mutant makes the code call `exit!`, or crash), or whose only failing test
+also fails without the mutant after the covering tests run before it: that
+mutant would be `harness_error`. Nor can it change what a method computed
+while the suite loaded (a constant table built from it): the guards are
+installed after boot. So a warm survivor whose method the suite also ran
+while it loaded is judged again too.
 
 After the warm pass, Kimera judges each such mutant again in the isolated
 tier, in a fresh mirror of its own, against its covering tests only (every
-test under `--no-coverage`). A fresh process never sees the state the warm
-worker kept. A kill (or timeout) stands only if those tests then pass in
-another fresh mirror without the mutant. The report carries the fresh
+test under `--no-coverage`, and for a method that ran at load). A kill (or
+timeout) stands only if those tests then pass in another fresh mirror
+without the mutant. The report carries the fresh
 verdict, and the row's `note` keeps what the warm pass said. The text report
 tallies these mutants, and `github`/`sarif` findings append the note.
 
 - If the tests fail without the mutant too, or the mirror can't run them,
   the mutant stays `harness_error`, with the reason as its `detail`.
-- Only the unjudged mutants are re-judged, `--jobs` at a time, each under
+- Only these mutants are re-judged, `--jobs` at a time, each under
   `--hard-timeout` for its whole run (300s when unset). No full-suite
   baseline runs first; the confirming run replaces it.
 - `--no-rejudge` (or `rejudge: false` in `.kimera.yml`) turns this off: the
@@ -643,25 +652,34 @@ expect(faults).to(be_empty)
 source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ synthesis (unparser) ─▶ schemata
                                                       └─▶ reporting
                                                                 │
-   suite ─load once─▶ overlay schemata ─▶ baseline+coverage ─▶ warm worker-pool kill loop
+   suite ─load once─▶ overlay schemata ─▶ fork workers ─▶ per test: fork, run, record coverage
+                                                        └▶ per mutant: fork, run covering tests
 ```
 
 1. **Registry.** Walk the Prism AST and record every mutation point: operator,
    byte/line span, original node, and variant directives. Each gets a globally
    unique integer id. The JSON registry is the single source of truth.
 2. **Synthesis.** Replace each schema-safe point with a nested guarded dispatch
-   (`if ::MutantRuntime.active?(102) … else …end`) and unparse. Memoized
-   expressions (`@x ||= …`) and load-time-only code go to a reload fallback, so
-   they can never read as a false "survived".
-3. **Execution.** Load the suite once and overlay the schemata. Check the
-   baseline is green while recording per-test coverage. With `--jobs N`, the
-   coverage pass also fans out across the warm pool (each worker runs a slice
-   of the examples). Then fork the warm pool and stream mutants to it from one
-   shared, heaviest-first queue. For each mutant, flip `Kimera::RUNTIME.active` and run
-   only its covering tests. The queue is shared, not split by file, so
-   `--jobs N` scales with cores even when mutants sit in one large file.
-   Mutants the warm pass could not judge are then judged again, each in a
-   fresh mirror of its own (see [re-judging](#re-judging-what-the-warm-pass-could-not)).
+   (`if ::Kimera::RUNTIME.active?(102) … else …end`) and unparse. Memoized
+   expressions (`@x ||= …`) go to a reload fallback that bakes the mutant into
+   a fresh process; code that only runs while the suite loads goes to the
+   isolated tier.
+3. **Execution.** Load the suite once and overlay the schemata. From then on
+   the parent runs no test: it stays in the post-boot, pre-test state, and
+   every test runs in a process forked from it. Fork `--jobs` workers (each
+   sets up its own test database on Rails). For the baseline, each worker
+   forks a child per test, which runs it and reports its coverage; so a
+   cache an earlier test filled can't hide a later caller. For each mutant,
+   a worker forks a child that flips `Kimera::RUNTIME.active` and runs the
+   mutant's covering tests, stopping at the first that fails; nothing it
+   changes outlives it. That failure is the kill when it came first in that
+   fresh process (the baseline ran the same test, first in a fresh process,
+   without the mutant); a later test's failure is confirmed by running it
+   alone, or after the same tests with the mutant off and then on. Mutants
+   come from one shared, heaviest-first queue, so `--jobs N` scales with
+   cores even when mutants sit in one large file. Mutants the warm pass could
+   not judge are then judged again, each in a fresh mirror of its own (see
+   [re-judging](#re-judging-what-the-warm-pass-could-not)).
 
 ---
 
@@ -670,7 +688,23 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
 - **Runs under your bundle.** `unparser` pulls in a `diff-lcs` version that can
   conflict with `rspec-expectations` outside a resolved bundle. Use
   `bundle exec`. A source checkout's `exe/kimera` activates the current
-  directory's Gemfile before booting Kimera.
+  directory's Gemfile before booting Kimera. `--isolated` mirrors run under
+  the project's own Gemfile and lockfile, so a gem named by a relative
+  `path:` (a monorepo's engines) resolves there too.
+- **unparser 0.8.1 to 0.9.x.** Kimera prepends onto three of unparser's
+  internals, which are not public API: `Unparser.parser` (to let a literal's
+  raw bytes through), `Unparser::AST::LocalVariableScopeEnumerator#enter` (to
+  bind pattern and block-argument names) and `Unparser::Emitter::Range`'s
+  `visit_begin_node`/`visit_end_node` (array endpoints).
+  `spec/kimera/unparse_patches_spec.rb` fails first when a release moves one,
+  and CI runs the suite on each release the gemspec allows.
+- **What is not mutated is listed.** The scan mutates method bodies, and the
+  bodies of blocks that run on each call: `define_method`,
+  `define_singleton_method`, `lambda`, `proc`, `Proc.new` and `->`. Any other
+  block outside a method that holds code it would mutate (a class-level
+  `map`, a DSL callback block), and any scanned file that does not parse, is
+  listed under "Not mutated" in the text report and `unmutated` in the JSON
+  report and the registry, with the reason.
 - **Schema-unsafe mutants.** Code that runs once at load (class/module bodies,
   constants) or is memoized can't be toggled in a warm process. Kimera mutates
   only inside method bodies and routes memoized points to a fork-per-mutant
@@ -694,16 +728,18 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   carries points and splices those back into the original text. The offending
   constant stays verbatim and the rest of the file stays mutatable.
 - **Standing risks and mitigations:**
-  - Global-state leakage: opt-in transaction rollback (`--isolate-db`), cache
-    resets, periodic kill-confirmation, one mutant per warm worker at a time.
-    Every warm kill is confirmed: the killing test must pass with the mutant
-    switched off, then fail again with it on. If it doesn't, state the worker
-    kept from earlier tests failed it, not the mutant. The worker is retired,
-    the mutant is judged again on a fresh one, and the report lists the test
-    under state-leak warnings. On the fresh worker, a test that still fails
-    without the mutant is left out. If no other test confirms a kill, the
-    warm pass can't judge the mutant, and Kimera judges it again in a fresh
-    mirror (see [re-judging](#re-judging-what-the-warm-pass-could-not)).
+  - State a test leaves behind: no process-local state (a memo cache, a
+    registry, a class variable, an `ENV` flag, a constant) carries from one
+    test to another in the baseline, or from one mutant to another: each runs
+    in its own forked process. What lives outside the process still does:
+    rows a non-transactional test commits (`--isolate-db` rolls each mutant's
+    back), files, servers. Within one mutant's run its covering tests share a
+    process, as in a plain run of the suite. A test that only fails when an
+    earlier test ran first with the mutant, and that does not run the
+    mutated code itself, does not kill it.
+  - The cost: one fork per baseline test and per mutant, and each forked
+    process starts cold (a Rails test reloads its fixtures in each). See the
+    numbers in `eval/results/README.md`.
   - Selector-induced hangs: a soft timeout on each covering test a mutant runs
     (`--soft-timeout`, 5s), plus a watchdog that SIGKILLs a worker whose test
     runs past `--hard-timeout`, so a replacement pulls from the shared queue.
@@ -716,9 +752,7 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     and puts them in the verdict's `detail`, or in the baseline error. A test
     interrupted by the soft timeout is a `timeout`, not the mutant's killer.
     The interrupt reaches only the test's own thread, so threads it started
-    may still hold connections and locks: after a soft timeout the worker
-    takes no more mutants and is replaced. A retiring worker's teardown stays
-    under the hard timeout too.
+    may still hold connections and locks; they end with the mutant's process.
   - Code under test that calls `exit` or `abort` (a rake task, a CLI entry
     point): RSpec and Minitest let the `SystemExit` through, so it would end
     the worker. Kimera records it as that test's failure instead, after the
@@ -730,9 +764,9 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   - A test that sends its own process a signal (`Process.kill("TERM",
     Process.pid)` to exercise graceful shutdown) behaves as it does outside
     Kimera: if nothing traps the signal, it ends the process. Trap it in the
-    test, or leave the test out with `--exclude-test`. A worker that dies this
-    way is reported with the signal, the exception and where it was raised; in
-    a serial baseline (`--jobs 1`) that test fails with the same detail.
+    test, or leave the test out with `--exclude-test`. A test or mutant whose
+    process dies this way is reported with the signal, the exception and
+    where it was raised.
   - Slow tests under parallel load: a baseline test whose worker hits the hard
     timeout reruns once, alone. If it passes, the run goes on with a notice and
     the stacks. If it times out again, the baseline is red.
@@ -773,11 +807,11 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     `exited 1`) and, if Ruby raised something, the exception and its frames.
   - Uncovered mutants don't lower the score, unlike some tools.
     `--fail-on-no-coverage` closes that gap.
-- **One top-level constant.** `require "kimera"` defines `::MutantRuntime`,
-  bound to `Kimera::RUNTIME`, the process's one `Kimera::Runtime`, unless
-  already bound. Every synthesized guard
-  dispatches through it. It stays top-level so an outer measurer can pre-bind
-  it. It is the only constant Kimera adds outside its namespace.
+- **No constant outside `Kimera`.** Every synthesized guard dispatches through
+  `::Kimera::RUNTIME`, the process's one `Kimera::Runtime`, bound once: a
+  second copy of `kimera/runtime.rb` keeps the runtime it finds.
+- **Locale.** Kimera reads its files, reports and pipes as UTF-8 whatever
+  `LANG` says, so it runs with `LANG` unset or `LANG=C`.
 
 ## Mutation-testing Kimera with Kimera
 
@@ -823,7 +857,14 @@ jobs, which says nothing about other sizes or about the Ruby code directly.
 children that inject the model's faults (fault injection, not conformance).
 
 `examples/` holds the runnable fixtures the integration tests drive
-(`sample_app` for RSpec, `minitest_app` for Minitest).
+(`sample_app` for RSpec, `minitest_app` for Minitest) and a Rails app CI runs
+end to end (`rails_app`, `bin/e2e`).
+
+`eval/run --kimera PATH` measures a kimera checkout against the gaps an
+independent review found, each verdict checked against an oracle that bakes
+the mutant into a copy of the project and runs the plain test command in a
+fresh process. [`eval/results/README.md`](eval/results/README.md) has the
+cases and the numbers before and after the fixes.
 
 ## License
 

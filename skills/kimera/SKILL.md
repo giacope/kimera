@@ -109,16 +109,21 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   worker, as it would end `rails test`: trap it in the test, or leave the test
   out with `--exclude-test`.
 - A kill's `detail` holds the killing test's failure message and first
-  frames. A state-leak warning names a test that failed in a warm worker for
-  reasons unrelated to the mutant. Kimera already judged that mutant again on
-  a fresh worker, but the test depends on state other tests leave behind:
-  fix the test, or its teardown.
-- A mutant the warm pass can't judge (its state outlives the switch-off, so
-  the confirming run fails too; or its worker died) is judged again in a
-  fresh isolated mirror of its own, against its covering tests. Its report
-  row carries that verdict plus a `note` with the warm detail. It stays
-  `harness_error` only if the tests also fail in a fresh mirror without the
-  mutant. `--no-rejudge` (`rejudge: false`) turns this off.
+  frames. Every baseline test and every mutant runs in a process forked from
+  one no test has run in, so a cache or flag another test left can't decide
+  a verdict; don't add resets to the suite to please kimera.
+- A mutant the warm pass can't judge (its process died; or its only failing
+  test also fails without it after the tests run before it) is judged again
+  in a fresh isolated mirror of its own, against its covering tests, and so
+  is a warm survivor whose method also ran while the suite loaded (against
+  the whole suite). Its report row carries that verdict plus a `note` with
+  the warm detail. It stays `harness_error` only if the tests also fail in a
+  fresh mirror without the mutant. `--no-rejudge` (`rejudge: false`) turns
+  this off.
+- "Not mutated" (`unmutated` in the JSON report) lists code the scan holds
+  no mutant for, with the reason: a block outside any method that isn't
+  `define_method`/`lambda`/`proc`, or a file that does not parse. It is not a
+  survivor; it's a place no verdict covers.
 - On a Rails app that uses `parallelize`, `--jobs > 1` gives each worker its
   own database, so there's no shared-DB fixture/RLS deadlock.
 - Operators: the default is the conservative core. `--operators all` enables
