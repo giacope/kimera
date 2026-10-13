@@ -167,4 +167,53 @@ RSpec.describe(Kimera::Runtime) do
       expect(reset).to(contain_exactly(3, 4))
     end
   end
+
+  # Asserted through our own ledger: a self-hosting harness may hold its own
+  # open too, and the child writes to both.
+  describe "touches made in a forked child" do
+    def forked(&)
+      ledger = Kimera::RUNTIME.start!
+      Process.wait(fork(&))
+      [ledger.drain!, ledger.spill]
+    ensure
+      Kimera::RUNTIME.stop!(ledger)
+    end
+
+    def child(mutant)
+      lambda do
+        Kimera::RUNTIME.active?(mutant)
+        exit!(0)
+      end
+    end
+
+    def grandchild(mutant)
+      lambda do
+        Process.wait(fork(&child(mutant)))
+        exit!(0)
+      end
+    end
+
+    it "reach the parent's ledger, and leave no spill file behind", :aggregate_failures do
+      touched, spill = forked(&child(41))
+      expect(touched).to(include(41))
+      expect(File.exist?(spill)).to(be(false))
+    end
+
+    it "reach it from a grandchild too" do
+      touched, = forked(&grandchild(42))
+      expect(touched).to(include(42))
+    end
+
+    it "are not looked for while no ledger is open" do
+      expect(runtime.leaks).to(be_nil)
+    end
+
+    it "write each mutant once" do
+      Dir.mktmpdir do |dir|
+        spill = described_class::Spill.new(File.join(dir, "spill"), {})
+        [3, 3, 4].each { spill.push(it) }
+        expect(File.read(spill.leak)).to(eq("3\n4\n"))
+      end
+    end
+  end
 end

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Code a test runs in a process it forks (a `fork { ... }` block, a forking
+  job runner) is covered: while a coverage ledger is open, a forked child
+  appends the mutants it touches to a spill file the parent's ledger reads
+  back, through `Process._fork`. Such mutants read `no_coverage` before, and
+  were never judged; kimera's own zygote child was one.
 - An `alias_method` chain reopened in another file no longer hides the
   original's mutants: a method a later file redefined keeps that definition
   through the overlay, and the alias follows the overlaid original. The original's 12 mutants in

@@ -47,6 +47,11 @@ jobs:
         with:
           ruby-version: "3.4"
           bundler-cache: true
+      # Specs that launch exe/kimera in this checkout use ./Gemfile, so install
+      # its bundle beside this one.
+      - run: bundle config set --local path vendor/bundle && bundle install
+        env:
+          BUNDLE_GEMFILE: ${{ github.workspace }}/Gemfile
       - run: bin/spec spec/kimera spec/property/schemata_spec.rb
 
   # A real Rails app end to end (examples/rails_app): each mode's verdicts,
