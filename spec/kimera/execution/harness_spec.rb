@@ -1424,10 +1424,10 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "sends a mutant only the suite run in order reaches to a second look", :aggregate_failures do
       stub_const("WarmOrdered", Class.new)
       registry = fixture("WarmOrdered")
-      adapter = ordered(registry.each.map { |m, _p| m.id })
-      h = described_class.build(registry: registry, adapter: adapter, source_root: dir)
+      ids = registry.each.map { |m, _p| m.id }
+      h = described_class.build(registry: registry, adapter: ordered(ids), source_root: dir)
       h.warm!(%w[t1 t2])
-      expect(h.coverage.values.flatten).to(be_empty)
+      expect(h.coverage.slice(*ids).values.flatten).to(be_empty)
       expect(registry.points.map(&:revisit).uniq).to(eq([Kimera::MutationPoint::ORDER_REASON]))
     end
 

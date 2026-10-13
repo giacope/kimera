@@ -179,9 +179,11 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
 
     def summary = Kimera::Execution::BaselineFailure::Summary
 
+    # Under a run of kimera on itself the outer run's guards fire too.
     it "reports which mutants it reached" do
       scripted([], touch: [ids.first, ids.first])
-      expect(described_class.new(adapter: adapter, registry: registry).sequence["touched"]).to(eq([ids.first]))
+      touched = described_class.new(adapter: adapter, registry: registry).sequence["touched"]
+      expect(touched.intersection(ids)).to(eq([ids.first]))
     end
 
     it "names the failing tests that pass when the suite runs in order", :aggregate_failures do
