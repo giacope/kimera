@@ -4,7 +4,10 @@ require_relative "../rewrite/directive"
 require_relative "result"
 
 module Kimera
-  LeakReport = Struct.new(:mutant_id, :detail, keyword_init: true)
+  LeakReport =
+    Struct.new(:mutant_id, :detail, keyword_init: true) do
+      def line = "- ##{mutant_id}  #{detail}"
+    end
 end
 
 class Kimera::RunReport

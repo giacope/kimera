@@ -34,25 +34,39 @@ class Kimera::Execution::Zygote
     end
   end
 
+  Pipe =
+    Data.define(:reader, :writer) do
+      def post(text)
+        reader.close
+        writer.write(text)
+        writer.close
+      end
+
+      def take
+        writer.close
+        reader.read.tap { reader.close }
+      end
+    end
+
   def call(&)
-    reader, writer = IO.pipe(Encoding::UTF_8)
+    pipe = Pipe.new(*IO.pipe(Encoding::UTF_8))
     saved = Signal.trap(SIGNAL, "IGNORE")
-    collect(born(reader, writer, saved, &), reader, writer)
+    collect(pipe, born(pipe, saved, &))
   ensure
     restore(saved)
   end
 
   private
 
-  def born(reader, writer, saved, &) = fork || spawned(reader, writer, saved, &)
+  def born(pipe, saved, &) = fork || spawned(pipe, saved, &)
 
-  def spawned(reader, writer, saved, &)
-    reader.close
+  def spawned(pipe, saved, &)
     restore(saved)
-    writer.write(JSON.generate(outcome(&)))
-    writer.close
+    pipe.post(JSON.generate(outcome(&)))
     exit!(0)
   end
+
+  def collect(pipe, pid) = settle(pipe.take, reap(pid))
 
   def restore(saved) = Signal.trap(SIGNAL, saved)
 
@@ -67,13 +81,6 @@ class Kimera::Execution::Zygote
   def last(error)
     raise(error) if error.is_a?(Interrupt)
     { "died" => Kimera::Execution::LastWords.new(error).to_s, "signal" => error.signo }
-  end
-
-  def collect(pid, reader, writer)
-    writer.close
-    text = reader.read
-    reader.close
-    settle(text, reap(pid))
   end
 
   def settle(text, status)

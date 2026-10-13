@@ -105,9 +105,10 @@ class Kimera::Incremental::GitDiff
   end
 
   def base
-    out, status = Open3.capture2("git", "-C", @root.to_s, "merge-base", @since.to_s, "HEAD", err: File::NULL)
-    status.success? ? out.strip : @since.to_s
+    since = @since.to_s
+    out, status = Open3.capture2("git", "-C", @root.to_s, "merge-base", since, "HEAD", err: File::NULL)
+    status.success? ? out.strip : since
   rescue Errno::ENOENT
-    @since.to_s
+    since
   end
 end

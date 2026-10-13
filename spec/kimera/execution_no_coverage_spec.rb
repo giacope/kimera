@@ -164,7 +164,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     expect(runner).to(have_received(:silence!))
     expect(database).to(have_received(:after_fork).with(5))
     expect(duty).to(have_received(:run).with(instance_of(Kimera::Execution::Shift)))
-    expect(duty).to(have_received(:finish).with(database, nil))
+    expect(duty).to(have_received(:retire).with(database, nil))
     expect(runner).to(have_received(:exit!).with(0))
     expect(runner.__send__(:build, duty)).to(be_a(Kimera::Execution::Shift))
   end

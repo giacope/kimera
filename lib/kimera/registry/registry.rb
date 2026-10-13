@@ -7,6 +7,7 @@ require_relative "unmutated"
 
 class Kimera::Registry
   FORMAT_VERSION = 1
+  ROWS = ->(list, kind) { Array(list).map { |row| kind.from_h(row) } }
 
   attr_reader :points, :operators, :root, :unmutated
 
@@ -98,8 +99,8 @@ class Kimera::Registry
 
   class << self
     def from_h(hash)
-      points = Array(hash["points"]).map { |point| Kimera::MutationPoint.from_h(point) }
-      unmutated = Array(hash["unmutated"]).map { |region| Kimera::Unmutated.from_h(region) }
+      points = ROWS.call(hash["points"], Kimera::MutationPoint)
+      unmutated = ROWS.call(hash["unmutated"], Kimera::Unmutated)
       new(root: hash["root"] || ".", operators: hash["operators"] || [], points: points, unmutated: unmutated)
     end
 

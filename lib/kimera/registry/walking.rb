@@ -9,7 +9,17 @@ module Kimera::RegistryWalking
     Kimera::SyntaxTypes::MatchPredicateNode
   ].freeze
 
-  Cursor = Data.define(:position, :inside_def, :in_pattern, :def_body, :defname, :embedded, :block)
+  Cursor =
+    Data.define(:position, :inside_def, :in_pattern, :def_body, :defname, :embedded, :block) do
+      def enter(node)
+        return with(defname: node.name.to_s) if node.is_a?(Kimera::SyntaxTypes::DefNode)
+        name = Kimera::Deferral.name(node)
+        return with(defname: name) if name
+        holds?(node) ? with(block: node) : self
+      end
+
+      def holds?(node) = !inside_def && !block && node.is_a?(Kimera::SyntaxTypes::BlockNode)
+    end
   Shape =
     Data.define(:statements, :tail, :matchnode, :defbody, :insidedef, :embeds, :deferred) do
       def advance(child, cursor)
@@ -30,20 +40,11 @@ module Kimera::RegistryWalking
 
   def walk(node, cursor, &)
     return unless node.is_a?(Kimera::SyntaxTypes::Node)
-    cursor = entered(node, cursor)
+    cursor = cursor.enter(node)
     yield(node, cursor) unless cursor.in_pattern
     shape = shape(node, cursor)
     node.compact_child_nodes.each { |child| walk(child, shape.advance(child, cursor), &) }
   end
-
-  def entered(node, cursor)
-    return cursor.with(defname: node.name.to_s) if node.is_a?(Kimera::SyntaxTypes::DefNode)
-    name = Kimera::Deferral.name(node)
-    return cursor.with(defname: name) if name
-    held?(node, cursor) ? cursor.with(block: node) : cursor
-  end
-
-  def held?(node, cursor) = !cursor.inside_def && !cursor.block && node.is_a?(Kimera::SyntaxTypes::BlockNode)
 
   def shape(node, cursor)
     statements = node.is_a?(Kimera::SyntaxTypes::StatementsNode) ? node.body : nil

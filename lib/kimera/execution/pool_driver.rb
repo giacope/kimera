@@ -97,8 +97,7 @@ class Kimera::Execution::Pool
   def serve(duty)
     duty.run(build(duty))
   ensure
-    duty.finish(database, $ERROR_INFO)
-    duty.echo($ERROR_INFO)
+    duty.retire(database, $ERROR_INFO)
   end
 
   def build(duty)

@@ -21,7 +21,7 @@ RSpec.describe(Kimera::Incremental::Stamp) do
 
   def stamp(**options)
     settings = { tests: ["spec/**/*_spec.rb"], operators: %w[comparison] }.merge(options)
-    described_class.new(root: root, sources: ["app/a.rb"], options: settings).to_s
+    described_class.new(root: root, sources: ["app/a.rb"], settings: settings).to_s
   end
 
   {
@@ -46,10 +46,10 @@ RSpec.describe(Kimera::Incremental::Stamp) do
     expect(stamp(operators: %w[comparison negation])).not_to(eq(stamp))
   end
 
-  it "ignores files outside the sources and test roots, and settings that don't judge" do
+  it "ignores files outside the sources and test roots" do
     before = stamp
     write("doc/x.md", "changed")
-    expect(stamp(jobs: 4)).to(eq(before))
+    expect(stamp).to(eq(before))
   end
 
   it "still reads the test files a glob with no fixed root names" do

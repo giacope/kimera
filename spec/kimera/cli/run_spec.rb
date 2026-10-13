@@ -523,8 +523,8 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
     # What the CLI stamps a session with when no flag changes the settings.
     def stamp(registry)
-      options = Kimera::CLI::Run::Arguments.new.parse([])
-      Kimera::Incremental::Stamp.new(root: ".", sources: registry.files, options: options).to_s
+      settings = Kimera::CLI::Run::Arguments.new.parse([]).slice(*Kimera::CLI::Run::Cycle::SETTINGS, :require)
+      Kimera::Incremental::Stamp.new(root: ".", sources: registry.files, settings: settings).to_s
     end
 
     def saved(registry, path, status: :killed)
@@ -543,7 +543,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       Kimera::RegistryScan.new.source(File.read("calc.rb"), file: "calc.rb")
     end
 
-    def reuse
+    def reuse(*flags)
       registry = calculation
       manifest = File.join(dir, "reg.json")
       registry.write(manifest)
@@ -551,8 +551,14 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       results = saved(registry, journal)
 
       output = File.join(dir, "report.json")
-      out, status = capture(["calc.rb", "--registry", manifest, "--session", journal, "--report", output])
+      out, status = capture(["calc.rb", "--registry", manifest, "--session", journal, "--report", output, *flags])
       [out, status, output, results]
+    end
+
+    # How many workers run a session doesn't change what they judge.
+    it "reuses the session at another --jobs" do
+      out, _status, _output, results = reuse("--jobs", "3")
+      expect(out).to(include("killed=#{results.size}"))
     end
 
     it "loads the registry, reuses session results, reports, and gates" do
@@ -626,7 +632,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       journal, results, status = persistence
       expect(status).to(eq(0))
       saved = JSON.parse(File.read(journal))
-      expect(saved["meta"]).to(eq("since" => nil))
+      expect(saved["meta"]).to(eq("since" => nil, "stamp" => stamp(calculation)))
       expect(saved["fingerprints"].size).to(eq(results.size))
     end
 

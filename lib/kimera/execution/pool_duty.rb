@@ -21,6 +21,11 @@ Kimera::Execution::Pool::Duty =
       pipes.res_w.puts(JSON.generate(t: "tick"))
     end
 
+    def retire(database, error)
+      finish(database, error)
+      echo(error)
+    end
+
     def finish(database, error)
       confess(error) unless words(error).empty?
       database.before_exit(index)

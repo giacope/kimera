@@ -10,11 +10,13 @@ end
 module Kimera::Report::Sections
   private
 
-  def regions(found)
-    return if found.empty?
+  def regions(found) = listing(bold("Not mutated (#{found.size} region(s)):"), found)
+
+  def listing(heading, rows)
+    return if rows.empty?
     @io.puts
-    @io.puts(bold("Not mutated (#{found.size} region(s)):"))
-    found.each { |region| @io.puts("  #{region.place}  #{region.reason}") }
+    @io.puts(heading)
+    rows.each { |row| @io.puts("  #{row.line}") }
   end
 
   def unjudged(report) = section("Mutants Kimera could not judge", report.errors) { |r| unjudge(r) }
@@ -89,10 +91,5 @@ module Kimera::Report::Sections
     @io.puts("  #{yellow(status)} ##{id}  #{place(point)}  [#{mutant.label}]")
   end
 
-  def leaks(leaks)
-    return if leaks.empty?
-    @io.puts
-    @io.puts(yellow("State-leak warnings (#{leaks.size}):"))
-    leaks.each { |leak| @io.puts("  - ##{leak.mutant_id}  #{leak.detail}") }
-  end
+  def leaks(leaks) = listing(yellow("State-leak warnings (#{leaks.size}):"), leaks)
 end

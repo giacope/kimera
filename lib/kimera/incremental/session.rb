@@ -32,7 +32,8 @@ class Kimera::Incremental::Session
   end
 
   def stamp!(stamp)
-    @stamp = stamp
+    [@results, @leaks].each(&:clear) unless @meta["stamp"] == stamp
+    @meta = @meta.merge("stamp" => stamp) if stamp
     self
   end
 
@@ -99,7 +100,7 @@ class Kimera::Incremental::Session
   def fingerprint(pair)
     return unless pair
     mutant, point = pair
-    [point.file, point.location.start_line, point.original_source, mutant.label, @stamp].compact.join(" ")
+    [point.file, point.location.start_line, point.original_source, mutant.label].join(" ")
   end
 end
 

@@ -7,6 +7,8 @@ AllCops:
   Exclude:
     # Fixture apps: specs pin their exact source (lines, operators, mutant counts).
     - examples/**/*
+    # CI matrix bundles: each reads the one gem version its job sets.
+    - gemfiles/**/*
     # Evaluation fixtures hold the code under test, bad on purpose (one does
     # not parse); eval/tmp caches cloned projects.
     - eval/fixtures/**/*
@@ -92,12 +94,21 @@ Elegant/NoRedundantVariable:
 # --------------------------------------------------------------------------
 
 Kata/NoComments:
+  inherit_mode:
+    merge:
+      - Exclude
   Exclude:
     - eval/**/*
 Elegant/NoClassInModule:
+  inherit_mode:
+    merge:
+      - Exclude
   Exclude:
     - eval/**/*
 Kata/IoDiscipline:
+  inherit_mode:
+    merge:
+      - Exclude
   Exclude:
     - eval/**/*
 

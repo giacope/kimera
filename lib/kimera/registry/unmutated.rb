@@ -7,6 +7,8 @@ module Kimera
 
       def place = start_line == end_line ? "#{file}:#{start_line}" : "#{file}:#{start_line}-#{end_line}"
 
+      def line = "#{place}  #{reason}"
+
       def touches?(lines) = lines.any? { |line| (start_line..end_line).cover?(line) }
     end
 

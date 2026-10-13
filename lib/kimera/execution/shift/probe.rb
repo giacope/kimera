@@ -4,12 +4,14 @@ require "timeout"
 
 Kimera::Execution::Shift::Probe =
   Data.define(:adapter, :deadline) do
-    def sweep(active, tests)
-      tests.each_with_index.lazy.filter_map { |test, index| finding(test, run(active, test), index) }.first
+    def sweep(lineup)
+      active = lineup.active
+      lineup.tests.each_with_index.lazy.filter_map { |test, index| finding(test, run(active, test), index) }.first
     end
 
-    def replay(active, tests)
-      tests.map { |test| report(test, run(active, test)) }.last
+    def replay(lineup)
+      active = lineup.active
+      lineup.tests.map { |test| report(test, run(active, test)) }.last
     end
 
     def finding(test, outcome, index)

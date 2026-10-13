@@ -43,11 +43,13 @@ class Kimera::Execution::Aliases
   end
 
   def track(holder, method)
-    return if method.original_name == method.name || !watched.include?(method.source_location&.first)
+    return unless renamed?(method) && watched.include?(method.source_location&.first)
     entry = Entry.new(holder, method.name, nil, method.original_name, compiled(method))
     origin = holder.ancestors.find { |mod| resolves?(mod, entry.target, entry.body) }
     @entries << entry.with(origin: origin) if origin
   end
+
+  def renamed?(method) = method.original_name != method.name
 
   def resolves?(mod, target, body)
     (mod.method_defined?(target) || mod.private_method_defined?(target)) &&

@@ -10,15 +10,14 @@ end
 class Kimera::Incremental::Stamp
   ROOTS = %w[.rspec Gemfile.lock].freeze
   GLOB = /[*?\[{]/
-  SETTINGS = %i[framework operators tests exclude_tests coverage isolated require].freeze
 
-  def initialize(root:, sources:, options:)
+  def initialize(root:, sources:, settings:)
     @given = root
     @sources = sources
-    @options = options
+    @settings = settings
   end
 
-  def to_s = Digest::SHA256.hexdigest([@options.slice(*SETTINGS).inspect, *entries].join("\n"))
+  def to_s = Digest::SHA256.hexdigest([@settings.inspect, *entries].join("\n"))
 
   private
 
@@ -30,7 +29,7 @@ class Kimera::Incremental::Stamp
 
   def suite = (patterns + folders.map { |folder| "#{folder}/**/*" }).flat_map { |glob| Dir.glob(glob, base: root) }
 
-  def patterns = Array(@options[:tests])
+  def patterns = Array(@settings[:tests])
 
   def folders = patterns.filter_map { |pattern| folder(pattern) }.uniq
 

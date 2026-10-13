@@ -272,6 +272,8 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
         offers = OfferTap.new(request, log)
         shift(script, offers).serve(offers, response)
         exit!(0)
+      rescue Kimera::Execution::Zygote::Died => error
+        Kimera::Execution::Pool::Duty.new.echo(error)
       end
     end
 

@@ -198,6 +198,26 @@
       "kind": "feature_envy",
       "package": "Kimera::MemoGuard#named?",
       "reason": "a memo guard is recognized by interrogating raw Prism nodes (see the accepted operator entries): matching a node against the guard ivar reads the node by construction"
+    },
+    {
+      "kind": "nil_check",
+      "package": "Kimera::Runtime#active?",
+      "reason": "already reported on main by the hashira release in Gemfile.lock; deliberate: a nil ledger table keeps every guard's hot path at one nil-safe call (about 5ns against about 40ns for iterating an empty array, measured on Ruby 3.4)"
+    },
+    {
+      "kind": "repeated_conditional",
+      "package": "Kimera::CLI::Run::Aim",
+      "reason": "already reported on main by the hashira release in Gemfile.lock; whether the run names methods is one input flag read by three small readers; a class per case would split a 50-line value in two"
+    },
+    {
+      "kind": "repeated_conditional",
+      "package": "Kimera::Execution::WorkerDatabases",
+      "reason": "already reported on main by the hashira release in Gemfile.lock; active? is the one guard that makes every Rails database hook a no-op outside --isolate-db; a null-object twin would duplicate each hook's signature"
+    },
+    {
+      "kind": "state_sprawl",
+      "package": "Kimera::Report::Text",
+      "reason": "already reported on main by the hashira release in Gemfile.lock; io, color, registry and tests are the four distinct inputs a text report needs; grouping them would be an undifferentiated bag"
     }
   ]
 }

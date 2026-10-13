@@ -12,6 +12,8 @@ require_relative "pass"
 require_relative "sources"
 
 class Kimera::CLI::Run::Cycle
+  SETTINGS = %i[framework source_root tests exclude_tests operators coverage isolated].freeze
+
   def initialize(options, registry, changed, digest:)
     @options = options
     @registry = registry
@@ -67,7 +69,8 @@ class Kimera::CLI::Run::Cycle
 
   def stamp
     return unless @options[:session]
-    Kimera::Incremental::Stamp.new(root: @options[:source_root], sources: @registry.files, options: @options).to_s
+    settings = @options.slice(*SETTINGS, :require)
+    Kimera::Incremental::Stamp.new(root: @options[:source_root], sources: @registry.files, settings: settings).to_s
   end
 
   def inline = Kimera::CLI::Run::InlineIgnores.new(@registry, root: @options[:source_root]).rules
@@ -84,8 +87,7 @@ class Kimera::CLI::Run::Cycle
   end
 
   def provenance
-    @options.slice(:framework, :source_root, :tests, :exclude_tests, :operators, :coverage, :isolated, :jobs, :since)
-      .transform_keys(&:to_s).merge(narrowing.provenance)
+    @options.slice(*SETTINGS, :jobs, :since).transform_keys(&:to_s).merge(narrowing.provenance)
   end
 
   def harness(remaining, loaded, env: ENV)
