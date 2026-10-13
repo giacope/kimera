@@ -1,0 +1,53 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Runs kimera on this app in every mode CI checks and compares each verdict
+# with expected.json, which holds what a fresh `bin/rails test` (or `rspec`)
+# run says about each mutant baked into the app (eval/run's K3 oracle).
+#
+#   bin/e2e            all suites and modes
+#   bin/e2e --write    record the current verdicts as expected.json
+require "json"
+require "fileutils"
+
+APP = File.expand_path("..", __dir__)
+EXPECTED = File.join(APP, "expected.json")
+SUITES = { "minitest" => [], "rspec" => %w[--config .kimera-rspec.yml] }.freeze
+MODES = {
+  "serial" => %w[--jobs 1], "jobs 4" => %w[--jobs 4], "isolate-db" => %w[--jobs 1 --isolate-db],
+  "jobs 4, isolate-db" => %w[--jobs 4 --isolate-db], "isolated" => %w[--isolated --jobs 4]
+}.freeze
+
+def verdicts(suite, mode)
+  report = File.join(APP, "tmp", "e2e.json")
+  FileUtils.rm_f(report)
+  args = [*SUITES.fetch(suite), *MODES.fetch(mode), "--no-gate", "--no-progress", "--report", report]
+  system("bundle", "exec", "kimera", "run", *args, chdir: APP, out: File::NULL) || abort("kimera run #{args.join(" ")} failed")
+  JSON.parse(File.read(report, encoding: Encoding::UTF_8)).fetch("results").to_h { |row| [row["key"], row["status"]] }
+end
+
+def tier(mode) = mode == "isolated" ? "isolated" : "warm"
+
+def write
+  found = SUITES.keys.to_h { |suite| [suite, %w[serial isolated].to_h { |mode| [tier(mode), verdicts(suite, mode)] }] }
+  File.write(EXPECTED, "#{JSON.pretty_generate(found)}\n")
+  puts("wrote #{EXPECTED}")
+end
+
+def check
+  expected = JSON.parse(File.read(EXPECTED))
+  wrong = SUITES.keys.product(MODES.keys).flat_map { |suite, mode| compare(suite, mode, expected) }
+  puts(wrong.empty? ? "e2e: every verdict as expected" : wrong)
+  exit(wrong.empty? ? 0 : 1)
+end
+
+def compare(suite, mode, expected)
+  want = expected.fetch(suite).fetch(tier(mode))
+  got = verdicts(suite, mode)
+  puts("e2e: #{suite}, #{mode}: #{got.size} mutants, #{got.values.tally}")
+  (want.keys | got.keys).filter_map do |key|
+    "#{suite}, #{mode}: #{key} expected #{want[key].inspect}, got #{got[key].inspect}" unless want[key] == got[key]
+  end
+end
+
+ARGV.include?("--write") ? write : check

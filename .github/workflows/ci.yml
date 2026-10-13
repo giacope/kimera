@@ -30,6 +30,42 @@ jobs:
           key: tla2tools-1.7.4
       - run: bin/spec
 
+  # Every supported unparser release: the unit suite and the schemata
+  # properties, which exercise everything kimera re-emits.
+  unparser:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        unparser: ["0.8.1", "0.8.2", "0.9.0"]
+    env:
+      BUNDLE_GEMFILE: gemfiles/unparser.gemfile
+      UNPARSER: ${{ matrix.unparser }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+      - run: bin/spec spec/kimera spec/property/schemata_spec.rb
+
+  # A real Rails app end to end (examples/rails_app): each mode's verdicts,
+  # per-worker databases and --isolate-db included, against expected.json,
+  # what a fresh bin/rails test (or rspec) says of each mutant.
+  rails:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/rails_app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+          working-directory: examples/rails_app
+      - run: bin/e2e
+
   # Exhaustive check of the worker-pool protocol model (formal/README.md).
   model-check:
     runs-on: ubuntu-latest
