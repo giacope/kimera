@@ -33,8 +33,12 @@ class Kimera::Execution::Shift::Attempt
   def judge(id, finding) = finding.overran? ? lagged(id, finding) : failed(id, finding)
 
   def failed(id, finding)
+    return kill(finding.test, finding.found) if finding.index.zero?
     solo = replay(id, [finding.test])
-    return kill(finding.test, solo) unless solo["passed"]
+    solo["passed"] ? retrace(id, finding) : kill(finding.test, solo)
+  end
+
+  def retrace(id, finding)
     control = replay(nil, finding.through)
     control["passed"] ? confirm(id, finding) : finding.refuted(id, control)
   end

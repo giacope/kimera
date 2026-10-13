@@ -226,7 +226,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       adapter = test_adapter_class.new(catches: { "t1" => [target], "t2" => [target] })
       worker = worker(adapter: adapter, coverage: { target => %w[t1 t2] })
       expect(worker.evaluate(target).status).to(eq(:killed))
-      expect(adapter.runs).to(eq([["t1"], ["t1"]])) # the kill and its confirmation; t2 never ran
+      expect(adapter.runs).to(eq([["t1"]])) # t2 never ran
     end
 
     # The walk stops at the first failure, so order decides how many tests run.
@@ -245,7 +245,7 @@ RSpec.describe(Kimera::Execution::Shift) do
 
       adapter.runs.clear
       expect(worker.evaluate(b).status).to(eq(:killed))
-      expect(adapter.runs).to(eq([["killer"], ["killer"]])) # slow skipped this time
+      expect(adapter.runs).to(eq([["killer"]])) # slow skipped this time
     end
 
     # A duplicate would take a RECENT_KILLERS slot and evict "x" one kill early.

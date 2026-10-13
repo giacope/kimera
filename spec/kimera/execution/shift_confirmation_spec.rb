@@ -60,17 +60,27 @@ RSpec.describe(Kimera::Execution::Shift) do
   def messages(io) = io.string.each_line.map { |line| JSON.parse(line) }
 
   describe "a confirmed kill" do
-    it "runs the killer twice with the mutant on, and never with it off", :aggregate_failures do
+    # The coverage pass ran it without the mutant, first in a fresh process too.
+    it "takes a failing first test as the kill, running it once", :aggregate_failures do
       target = ids.first
-      adapter = scripted({ "t1" => %i[fail fail] })
+      adapter = scripted({ "t1" => %i[fail] })
       result = worker(adapter, { target => ["t1"] }).evaluate(target)
 
       expect(result.status).to(eq(:killed))
       expect(result.failing_tests).to(eq(["t1"]))
-      expect(adapter.log).to(eq([["t1", target], ["t1", target]]))
+      expect(adapter.log).to(eq([["t1", target]]))
     end
 
-    it "records the confirming run's failure as the detail" do
+    it "confirms a later test's failure by running it alone", :aggregate_failures do
+      target = ids.first
+      adapter = scripted({ "t0" => [], "t1" => %i[fail fail] })
+      result = worker(adapter, { target => %w[t0 t1] }).evaluate(target)
+
+      expect(result.failing_tests).to(eq(["t1"]))
+      expect(adapter.log).to(eq([["t0", target], ["t1", target], ["t1", target]]))
+    end
+
+    it "records the failure as the detail" do
       target = ids.first
       adapter = scripted({ "t1" => %i[fail fail] }, failures: { "t1" => "Assertion: expected 1\n    t.rb:3" })
       expect(worker(adapter, { target => ["t1"] }).evaluate(target).detail).to(eq("Assertion: expected 1\n    t.rb:3"))
@@ -131,15 +141,15 @@ RSpec.describe(Kimera::Execution::Shift) do
 
     it "doesn't count a failure that doesn't come back with the mutant on", :aggregate_failures do
       target = ids.first
-      result = worker(scripted({ "t1" => %i[fail pass pass pass] }), { target => ["t1"] }).evaluate(target)
+      result = worker(scripted({ "t0" => [], "t1" => %i[fail pass pass pass] }), { target => %w[t0 t1] }).evaluate(target)
       expect(result.status).to(eq(:harness_error))
       expect(result.detail).to(start_with("t1 passed when rerun with the mutant still on, each run in a fresh"))
     end
 
     it "lets a later covering test confirm the kill a doubtful one could not", :aggregate_failures do
       target = ids.first
-      adapter = scripted({ "t1" => %i[fail pass fail], "t2" => %i[fail fail] })
-      result = worker(adapter, { target => %w[t1 t2] }).evaluate(target)
+      adapter = scripted({ "t0" => [], "t1" => %i[fail pass fail], "t2" => %i[fail] })
+      result = worker(adapter, { target => %w[t0 t1 t2] }).evaluate(target)
 
       expect(result.status).to(eq(:killed))
       expect(result.failing_tests).to(eq(["t2"]))
@@ -147,8 +157,8 @@ RSpec.describe(Kimera::Execution::Shift) do
 
     it "starts each mutant with no doubts left from the last one", :aggregate_failures do
       a, b = ids.first(2)
-      adapter = scripted({ "t1" => %i[fail pass fail], "t2" => [] })
-      shift = worker(adapter, { a => %w[t1], b => %w[t2] })
+      adapter = scripted({ "t0" => [], "t1" => %i[fail pass fail], "t2" => [] })
+      shift = worker(adapter, { a => %w[t0 t1], b => %w[t2] })
 
       expect(shift.evaluate(a).status).to(eq(:harness_error))
       expect(shift.evaluate(b).status).to(eq(:survived))
