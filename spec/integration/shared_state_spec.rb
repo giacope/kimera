@@ -68,8 +68,8 @@ RSpec.describe("a suite that shares a path between tests (end-to-end)") do
     File.write(File.join(root, ".kimera.yml"), config, mode: "a")
     doctor = [File.join(test_repo_root, "exe", "kimera"), "doctor", "--check-baseline"]
     command = ["bundle", "exec", "ruby", "-I", File.join(test_repo_root, "lib"), *doctor].shelljoin
-    output = `cd #{root.shellescape} && BUNDLE_GEMFILE=#{test_gemfile} #{command} 2>&1`
-    [output.force_encoding(Encoding::UTF_8), $CHILD_STATUS.exitstatus]
+    `cd #{root.shellescape} && BUNDLE_GEMFILE=#{test_gemfile} #{command} 2>&1`
+      .force_encoding(Encoding::UTF_8).then { |text| [text, $CHILD_STATUS.exitstatus] }
   end
 
   let(:red) { "! Parallel baseline: red split across 2 processes (jobs: 2), green in one: " }

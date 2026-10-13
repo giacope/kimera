@@ -107,7 +107,9 @@ class Kimera::CLI::Doctor
       "skip it when ENV[\"KIMERA\"] is set (Kimera sets it)"
   end
 
-  def floor?(path) = File.file?(path) && Kimera::CLI::CoverageMinimum.ungated?(File.read(path, encoding: Encoding::UTF_8).scrub)
+  def floor?(path) = File.file?(path) && Kimera::CLI::CoverageMinimum.ungated?(text(path))
+
+  def text(path) = File.read(path, encoding: Encoding::UTF_8).scrub
 
   def baselines(config) = test_command(config).baselines
 

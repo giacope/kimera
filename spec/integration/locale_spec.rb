@@ -28,22 +28,22 @@ RSpec.describe("kimera under the C locale (end-to-end)", :aggregate_failures) do
     RUBY
   end
 
-  def kimera(root, *args)
+  def cli(root, *args)
     command = ["bundle", "exec", "ruby", File.join(test_repo_root, "exe", "kimera"), *args].shelljoin
     gemfile = File.join(test_repo_root, "Gemfile").shellescape
-    output = `cd #{root.shellescape} && env LANG=C LC_ALL=C BUNDLE_GEMFILE=#{gemfile} #{command} 2>&1`
-    [output.force_encoding(Encoding::UTF_8), $CHILD_STATUS.exitstatus]
+    `cd #{root.shellescape} && env LANG=C LC_ALL=C BUNDLE_GEMFILE=#{gemfile} #{command} 2>&1`
+      .force_encoding(Encoding::UTF_8).then { |text| [text, $CHILD_STATUS.exitstatus] }
   end
 
   it "runs, reports and shows a mutant with UTF-8 names and source, at --jobs 2" do
     Dir.mktmpdir("kimera-locale") do |root|
       project(root)
-      output, status = kimera(root, "run", "app", "--tests", "spec/**/*_spec.rb", "--jobs", "2", "--no-progress")
+      output, status = cli(root, "run", "app", "--tests", "spec/**/*_spec.rb", "--jobs", "2", "--no-progress")
       expect(status).to(eq(0), output)
       report = JSON.parse(File.read(File.join(root, "tmp", "kimera", "report.json"), encoding: Encoding::UTF_8))
       expect(report["results"].map { |row| row["status"] }.uniq).to(eq(["killed"]))
       expect(report["tests"].values.map { |test| test["name"] }).to(include("Cafe trouve 12 € « cher »"))
-      shown, = kimera(root, "mutant", "1")
+      shown, = cli(root, "mutant", "1")
       expect(shown).to(include("in libellé"))
     end
   end
