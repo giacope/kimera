@@ -78,7 +78,7 @@ class Kimera::CLI::Init
   def declared
     return "rspec" if File.file?(File.join(@root, ".rspec"))
     helper = HELPERS.map { |path| File.join(@root, path) }.find { |path| File.file?(path) }
-    helper && framework_named_in(File.read(helper))
+    helper && framework_named_in(File.read(helper, encoding: Encoding::UTF_8).scrub)
   end
 
   def framework_named_in(text)

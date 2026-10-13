@@ -48,5 +48,5 @@ class Kimera::CLI::ConfigTemplate
     end
   end
 
-  def properties = @_properties ||= JSON.parse(File.read(PATH)).fetch("properties")
+  def properties = @_properties ||= JSON.parse(File.read(PATH, encoding: Encoding::UTF_8)).fetch("properties")
 end

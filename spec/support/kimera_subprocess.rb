@@ -21,7 +21,7 @@ module KimeraSubprocess
       json = File.join(dir, report)
       yield(
         test_output(cwd, json, tests, args),
-        (File.exist?(json) ? JSON.parse(File.read(json)) : nil),
+        (File.exist?(json) ? JSON.parse(File.read(json, encoding: Encoding::UTF_8)) : nil),
         $CHILD_STATUS.exitstatus
       )
     end
@@ -31,6 +31,7 @@ module KimeraSubprocess
 
   def test_output(cwd, json, tests, args)
     `cd #{cwd.shellescape} && BUNDLE_GEMFILE=#{test_gemfile} #{test_command(json, tests, args)} 2>&1`
+      .force_encoding(Encoding::UTF_8)
   end
 
   def test_gemfile

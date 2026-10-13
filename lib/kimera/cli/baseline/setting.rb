@@ -11,7 +11,7 @@ class Kimera::CLI::Baseline::Setting
 
   def apply(output)
     raise(Kimera::UsageError, "no #{@config} to set the baseline in (run kimera init first)") unless File.file?(@config)
-    text = File.read(@config)
+    text = File.read(@config, encoding: Encoding::UTF_8)
     line = "baseline: #{output}"
     File.write(@config, text.match?(LINE) ? text.sub(LINE, line) : "#{text.chomp}\n#{line}\n")
   end

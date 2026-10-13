@@ -19,7 +19,7 @@ class Kimera::CLI::Survivors::Context
 
   def text
     path = File.join(@root, @row["file"].to_s)
-    File.readlines(path) if first && File.file?(path)
+    File.readlines(path, encoding: Encoding::UTF_8).map(&:scrub) if first && File.file?(path)
   end
 
   def first = @row["line"]

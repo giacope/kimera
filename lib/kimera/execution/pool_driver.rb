@@ -74,7 +74,7 @@ class Kimera::Execution::Pool
   end
 
   def channels
-    request, response = Array.new(2) { IO.pipe }
+    request, response = Array.new(2) { IO.pipe(Encoding::UTF_8) }
     Channels.new(*request, *response)
   end
 

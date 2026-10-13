@@ -1,4 +1,4 @@
-require_relative "../lib/café"
+require_relative "../lib/cafe"
 
 RSpec.describe Café do
   it("trouve 12 € « cher »") { expect(Café.libellé(12)).to eq("cher — 12 €") }

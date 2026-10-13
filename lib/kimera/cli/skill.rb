@@ -10,7 +10,7 @@ class Kimera::CLI::Skill
 
   def run(argv)
     return usage unless argv.empty?
-    @io.write(File.read(PATH))
+    @io.write(File.read(PATH, encoding: Encoding::UTF_8))
     0
   end
 

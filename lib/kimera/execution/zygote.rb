@@ -35,7 +35,7 @@ class Kimera::Execution::Zygote
   end
 
   def call(&)
-    reader, writer = IO.pipe
+    reader, writer = IO.pipe(Encoding::UTF_8)
     saved = Signal.trap(SIGNAL, "IGNORE")
     collect(born(reader, writer, saved, &), reader, writer)
   ensure
