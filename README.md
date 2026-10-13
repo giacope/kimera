@@ -669,7 +669,10 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
    every test runs in a process forked from it. Fork `--jobs` workers (each
    sets up its own test database on Rails). For the baseline, each worker
    forks a child per test, which runs it and reports its coverage; so a
-   cache an earlier test filled can't hide a later caller. For each mutant,
+   cache an earlier test filled can't hide a later caller. The whole suite
+   then runs once more, in order, in one fresh process: code that run reaches
+   but no single test does (a cache hit only an earlier test's state sets up)
+   is judged in the isolated tier against the whole suite. For each mutant,
    a worker forks a child that flips `Kimera::RUNTIME.active` and runs the
    mutant's covering tests, stopping at the first that fails; nothing it
    changes outlives it. That failure is the kill when it came first in that
@@ -721,7 +724,10 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   block, then the mutated statements. A class keeps its superclass even if the
   constant naming it was reassigned, and a `Struct.new`, `Data.define`,
   `Class.new` or `Module.new` constant is reopened, not replaced. A file
-  nothing required before the overlay is evaluated whole.
+  nothing required before the overlay is evaluated whole. Files are overlaid
+  in the order the suite loaded them, and a method a later file redefined (a
+  wrapper around an `alias_method` chain) keeps that definition; the alias
+  then calls the overlaid original, so its mutants are covered.
 - **An un-emittable node costs one method, not a file.** `unparser` refuses to
   re-emit some valid Ruby (an interpolated `%r{}x` pattern, for example). When
   a whole file won't round-trip, Kimera guards and re-emits each method that
@@ -734,12 +740,20 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     in its own forked process. What lives outside the process still does:
     rows a non-transactional test commits (`--isolate-db` rolls each mutant's
     back), files, servers. Within one mutant's run its covering tests share a
-    process, as in a plain run of the suite. A test that only fails when an
-    earlier test ran first with the mutant, and that does not run the
-    mutated code itself, does not kill it.
-  - The cost: one fork per baseline test and per mutant, and each forked
-    process starts cold (a Rails test reloads its fixtures in each). See the
-    numbers in `eval/results/README.md`.
+    process, as in a plain run of the suite. Code reached only through state
+    an earlier test leaves is found by the in-order run and judged against
+    the whole suite in a fresh mirror (under `--no-rejudge` it stays
+    `no_coverage`, with that reason in its detail). A test that only fails
+    when an earlier test ran first with the mutant, and that does not run
+    the mutated code itself, does not kill it.
+  - Order-dependent suites: a test that passes when the suite runs in order
+    but fails alone in a fresh process can't be judged this way. The run
+    stops at the baseline, calls the suite order-dependent, and names those
+    tests; make each set up the state it needs.
+  - The cost: one fork per baseline test and per mutant, each forked
+    process starting cold (a Rails test reloads its fixtures in each), and
+    one more run of the whole suite in order. See the numbers in
+    `eval/results/README.md`.
   - Selector-induced hangs: a soft timeout on each covering test a mutant runs
     (`--soft-timeout`, 5s), plus a watchdog that SIGKILLs a worker whose test
     runs past `--hard-timeout`, so a replacement pulls from the shared queue.

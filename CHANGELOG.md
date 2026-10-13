@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- An `alias_method` chain reopened in another file no longer hides the
+  original's mutants: files are overlaid in the order the suite loaded them,
+  a method a later file redefined keeps that definition through the overlay,
+  and the alias follows the overlaid original. The original's 12 mutants in
+  the holdout's alias-chain project read `no_coverage`; they are now judged
+  (and killed). Before, a wrapper whose file was not overlaid after the
+  original's was replaced by the original, and the baseline went red.
+- Code only an earlier test's state reaches (a cache hit) is judged: the
+  baseline runs the whole suite once more, in order, in a fresh process, and
+  a mutant that run reaches but no single test does is judged in a fresh
+  mirror against the whole suite. Under `--no-rejudge` it stays
+  `no_coverage`, with the reason as its detail (shown under the mutant in the
+  text report).
+- A baseline whose failing tests pass when the suite runs in order but fail
+  alone in a fresh process is reported as order-dependent, naming those
+  tests, instead of only "not green". Tests that also pass alone (shared
+  paths across workers) keep the `--jobs 1` advice.
+- `eval/holdout` holds 12 state-leak projects and an oracle written by
+  another agent blind to kimera's tests (eval case H1).
 - Verdicts no longer depend on state a test or an earlier mutant left
   behind. The parent boots the suite and overlays the schemata, then runs no
   test: each baseline test, and each mutant's covering tests, run in a
