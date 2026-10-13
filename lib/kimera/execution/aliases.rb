@@ -7,6 +7,10 @@ end
 
 class Kimera::Execution::Aliases
   Entry = Data.define(:holder, :name, :origin, :target, :body)
+  OWN = Module.instance_method(:instance_methods)
+  HIDDEN = Module.instance_method(:private_instance_methods)
+  LOOKUP = Module.instance_method(:instance_method)
+  SINGLETON = Kernel.instance_method(:singleton_class)
 
   def initialize(files)
     @files = files
@@ -29,16 +33,16 @@ class Kimera::Execution::Aliases
   def real(file) = File.exist?(file) ? [File.realpath(file)] : []
 
   def capture
-    ObjectSpace.each_object(Module) { |mod| [mod, mod.singleton_class].each { |holder| scan(holder) } }
+    ObjectSpace.each_object(Module) { |mod| [mod, SINGLETON.bind_call(mod)].each { |holder| scan(holder) } }
   end
 
   def scan(holder)
-    names = holder.instance_methods(false) + holder.private_instance_methods(false)
-    names.each { |name| track(holder, holder.instance_method(name)) }
+    names = OWN.bind_call(holder, false) + HIDDEN.bind_call(holder, false)
+    names.each { |name| track(holder, LOOKUP.bind_call(holder, name)) }
   end
 
   def track(holder, method)
-    return unless watched.include?(method.source_location&.first)
+    return if method.original_name == method.name || !watched.include?(method.source_location&.first)
     entry = Entry.new(holder, method.name, nil, method.original_name, compiled(method))
     origin = holder.ancestors.find { |mod| resolves?(mod, entry.target, entry.body) }
     @entries << entry.with(origin: origin) if origin

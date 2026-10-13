@@ -138,11 +138,11 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       end
     end
 
-    def bundled(locations)
+    def bundled(locations, root: Dir.mktmpdir)
       Dir.mktmpdir do |mirror|
         gemfile = File.join(mirror, "Gemfile")
         File.write(gemfile, "source 'https://rubygems.org'\n")
-        return [gemfile, *plan.command(mirror, locations, File.join(mirror, "l.json"))]
+        return [gemfile, *plan(root: root).command(mirror, locations, File.join(mirror, "l.json"))]
       end
     end
 
@@ -160,6 +160,16 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       expect(env).to(eq("KIMERA" => "1", "BUNDLE_GEMFILE" => gemfile))
       expect(argv[0...7]).to(eq(%w[bundle exec ruby -I lib -I spec]))
       expect(argv[7..].map { |a| File.basename(a) }).to(eq([File.basename(child), *ledgers]))
+    end
+
+    # A Gemfile names gems by paths relative to it (a monorepo's engines); the
+    # mirror sits elsewhere, so only the project's own Gemfile resolves them.
+    it "pins BUNDLE_GEMFILE to the project's own Gemfile when it has one" do
+      Dir.mktmpdir do |root|
+        File.write(File.join(root, "Gemfile"), "gem 'engine', path: '../engine'\n")
+        _gemfile, env, = bundled(["spec/a_spec.rb[1:1]"], root: root)
+        expect(env.fetch("BUNDLE_GEMFILE")).to(eq(File.join(root, "Gemfile")))
+      end
     end
 
     def mixed

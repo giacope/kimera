@@ -57,6 +57,6 @@ class Kimera::Execution::IsolatedPlan
   def selection = @_selection ||= TestSelection.new(all_tests: @tests, coverage: @options.fetch(:coverage, {}))
 
   def child
-    @_child ||= ChildCommand.new(framework: @options.fetch(:framework), test_files: @options.fetch(:test_files))
+    @_child ||= ChildCommand.new(framework: @options.fetch(:framework), test_files: @options.fetch(:test_files), root: root)
   end
 end
