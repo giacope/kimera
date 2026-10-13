@@ -23,11 +23,7 @@
 (*   reply  what the parent sent w in the same step: "offer", "close" or   *)
 (*          "none"; offer and recheck describe the offer                   *)
 (***************************************************************************)
-EXTENDS WorkerPool, Json
-
-CONSTANT TraceFile  \* JSON: {traces: <<[queue, slots, steps], ...>>}
-
-Traces == JsonDeserialize(TraceFile).traces
+EXTENDS WorkerPool, TraceData  \* TraceData: Traces == <<[queue, slots, steps], ...>>
 
 VARIABLES tr, l  \* the trace being matched, and its next step
 

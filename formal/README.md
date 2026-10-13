@@ -16,7 +16,11 @@ bin/model-check --safety 5 3 # invariants only, with symmetry reduction
 ```
 
 `bin/model-check` needs Java 11+ and downloads the pinned `tla2tools.jar`
-into `tmp/` on first use.
+(TLA+ tools v1.7.4, checked by SHA-256) into `tmp/` on first use. It pins
+v1.7.4, not v1.8.0: the v1.8.0 release is a rolling pre-release whose jar is
+re-published with each nightly build, so no checksum of it holds. v1.7.4
+has no `Json` module, so `spec/property/support/trace_check.rb` hands TLC
+each batch of traces as a generated `TraceData` module instead of JSON.
 
 ## What this establishes, and what it doesn't
 

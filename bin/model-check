@@ -24,8 +24,8 @@ class Kimera::ModelCheck
   TEXT
   ROOT = File.expand_path("..", __dir__)
   JAR = File.join(ROOT, "tmp", "tla2tools.jar")
-  JAR_URL = "https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar"
-  JAR_SHA256 = "ab4694601923fd5ac06452abbf847c366a5054a3d739552085edd6ed986c29ec"
+  JAR_URL = "https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar"
+  JAR_SHA256 = "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
   SPEC = File.join(ROOT, "formal", "WorkerPool.tla")
   CONFIG = File.join(ROOT, "formal", "WorkerPool.cfg")
   CI_CHECKS = [
@@ -57,9 +57,13 @@ class Kimera::ModelCheck
   def fetch
     return if File.exist?(JAR) && Digest::SHA256.file(JAR).hexdigest == JAR_SHA256
     FileUtils.mkdir_p(File.dirname(JAR))
-    body = URI.parse(JAR_URL).open("rb", &:read)
-    abort("tla2tools.jar checksum mismatch") unless Digest::SHA256.hexdigest(body) == JAR_SHA256
-    File.binwrite(JAR, body)
+    File.binwrite(JAR, verified(URI.parse(JAR_URL).open("rb", &:read)))
+  end
+
+  def verified(body)
+    digest = Digest::SHA256.hexdigest(body)
+    return body if digest == JAR_SHA256
+    abort("tla2tools.jar checksum mismatch: #{JAR_URL} has sha256 #{digest}, pinned #{JAR_SHA256}")
   end
 
   def check(mutants, jobs, scope)
@@ -78,9 +82,10 @@ class Kimera::ModelCheck
   end
 
   def explore(dir, config)
+    FileUtils.cp(SPEC, dir)
     system(
-      "java", "-XX:+UseParallelGC", "-cp", JAR, "tlc2.TLC", "-workers", "auto", "-cleanup", "-noGenerateSpecTE",
-      "-metadir", File.join(dir, "states"), "-config", config, SPEC, chdir: File.dirname(SPEC)
+      "java", "-XX:+UseParallelGC", "-cp", JAR, "tlc2.TLC", "-workers", "auto", "-cleanup",
+      "-metadir", File.join(dir, "states"), "-config", File.basename(config), File.basename(SPEC), chdir: dir
     )
   end
 
