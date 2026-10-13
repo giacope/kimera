@@ -1,7 +1,6 @@
 limit = 10
+FIRST_OVER = ->(value) { value > limit }
 
 module First
-  OVER = ->(value) { value > limit }
-
-  def self.over?(value) = OVER.call(value)
+  def self.over?(value) = FIRST_OVER.call(value)
 end

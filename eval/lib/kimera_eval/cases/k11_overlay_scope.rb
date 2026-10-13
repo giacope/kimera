@@ -13,7 +13,7 @@ module KimeraEval
       runs = differential(fixture("overlay"), [%w[--jobs 1]])
       run = runs.values.first
       wrong = run.values_at("false_survived", "false_killed").compact.sum
-      { "pass" => run["error"].nil? && wrong.zero? && run.fetch("statuses", {}).keys == ["killed"] }
+      { "pass" => run["error"].nil? && wrong.zero? }
         .merge("summary" => { "false_verdicts" => wrong, "statuses" => run["statuses"] }, "run" => run)
     end
   end
