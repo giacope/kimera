@@ -413,8 +413,8 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
         File.write(File.join(root, "calc.rb"), test_source_fixture)
         r =
           Class.new(described_class) do
-            define_method(:verdict) do |mirror, _locations|
-              baked = File.read(File.join(mirror, "calc.rb"))
+            define_method(:verdict) do |mirror, _locations, first: false|
+              baked = [File.read(File.join(mirror, "calc.rb")), first]
               sleep(pause) if pause
               Kimera::Execution::IsolatedOutcome.new(:killed, ["t1[1:1]"])
             end
@@ -437,8 +437,14 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       expect(result.duration).to(eq(2.5))
       expect(result.covering_tests).to(eq(["t1"]))
       expect(result.failing_tests).to(eq(["t1[1:1]"]))
-      expect(baked).not_to(eq(test_source_fixture))
+      expect(baked.first).not_to(eq(test_source_fixture))
       expect(restored).to(eq(test_source_fixture))
+    end
+
+    # Any failing test kills it, so its child stops at the first.
+    it "asks the mutant's test child to stop at the first failure" do
+      _result, (_source, first_failure), = test_baking_evaluate(first)
+      expect(first_failure).to(be(true))
     end
 
     it "times the verdict on the monotonic clock", :aggregate_failures do
@@ -504,7 +510,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     # callable cmd receives the ledger path, as the real children do in argv.
     def command(invocation, **)
       plan = Object.new
-      plan.define_singleton_method(:command) do |_mirror, _locations, ledger|
+      plan.define_singleton_method(:command) do |_mirror, _locations, ledger, **|
         [{}, invocation.respond_to?(:call) ? invocation.call(ledger) : invocation]
       end
       r = runner(**)

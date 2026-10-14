@@ -738,7 +738,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
     # finish runs the suite's after(:suite) teardown for what warm! set up.
     def verify(harness, session, report, adapter)
-      expect(harness).to(have_received(:warm!).with(kind_of(Array)))
+      expect(harness).to(have_received(:warm!).with(kind_of(Array), scope: [1, 2]))
       expect(harness).to(have_received(:run).with(ids: [1, 2], label: "mutants"))
       expect(session).to(have_received(:merge!).with(having_attributes(results: report.results)))
       expect(adapter).to(have_received(:finish))
@@ -772,7 +772,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
     # Isolated mode forces coverage on to pick each mutant's covering tests.
     def route(harness)
-      expect(harness).to(have_received(:warm!).with(kind_of(Array)))
+      expect(harness).to(have_received(:warm!).with(kind_of(Array), scope: kind_of(Array)))
       expect(harness).not_to(have_received(:run))
     end
 

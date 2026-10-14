@@ -125,7 +125,11 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
 
     it "requests the test ids and the test files" do
       expect(child(framework: "minitest", test_files: %w[test/a_test.rb]).request(["A#test_one"]))
-        .to(eq("tests" => ["A#test_one"], "files" => %w[test/a_test.rb]))
+        .to(eq("tests" => ["A#test_one"], "files" => %w[test/a_test.rb], "first_failure" => false))
+    end
+
+    it "asks to stop at the first failure only when told to" do
+      expect(child.request(["a"], first: true)).to(include("first_failure" => true))
     end
 
     it "is spec for rspec and test for minitest", :aggregate_failures do
@@ -189,8 +193,9 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       Dir.mktmpdir do |mirror|
         ledger = File.join(mirror, "l.json")
         many = Array.new(50_000) { |n| "spec/a_spec.rb[1:#{n}]" }
-        plan.command(mirror, many, ledger)
-        expect(JSON.parse(File.read("#{ledger}.request"))).to(eq("tests" => many, "files" => []))
+        plan.command(mirror, many, ledger, first: true)
+        request = JSON.parse(File.read("#{ledger}.request"))
+        expect(request).to(eq("tests" => many, "files" => [], "first_failure" => true))
       end
     end
 

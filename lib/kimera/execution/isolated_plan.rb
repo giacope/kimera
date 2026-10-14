@@ -35,8 +35,8 @@ class Kimera::Execution::IsolatedPlan
     selection.recorded(id)
   end
 
-  def command(mirror, locations, ledger)
-    child.command(mirror, locations, ledger: ledger, paths: mutables)
+  def command(mirror, locations, ledger, first: false)
+    child.command(mirror, child.request(locations, first: first), ledger: ledger, paths: mutables)
   end
 
   def suite = selection.all

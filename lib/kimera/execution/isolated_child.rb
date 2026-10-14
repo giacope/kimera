@@ -21,8 +21,9 @@ end
 
 ledger, request, pulse = ARGV
 RSpec.configuration.prepend_before(:example) { File.write(pulse, ".", mode: "a") } if pulse
-locations = JSON.parse(File.read(request, encoding: Encoding::UTF_8)).fetch("tests")
-code = RSpec::Core::Runner.run(locations)
+request = JSON.parse(File.read(request, encoding: Encoding::UTF_8))
+RSpec.configuration.fail_fast = 1 if request["first_failure"]
+code = RSpec::Core::Runner.run(request.fetch("tests"))
 
 failed = RSpec.world.all_examples.select { |example| example.execution_result.status == :failed }
 outside = RSpec.world.non_example_failure ? 1 : 0

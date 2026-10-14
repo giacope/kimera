@@ -42,6 +42,10 @@ class Kimera::Execution::Pool
     @options[:budget] = budget
   end
 
+  def timings=(timings)
+    @options[:timings] = timings
+  end
+
   def drive(queue, spawner, listeners, jobs: @options.fetch(:jobs))
     database.before_fork
     Dir.mktmpdir("kimera-stacks") do |dir|
@@ -104,7 +108,7 @@ class Kimera::Execution::Pool
     Kimera::Execution::Shift.new(
       adapter: @adapter, registry: @registry, coverage: coverage, isolation: @isolation,
       soft_timeout: @options.fetch(:soft), pulse: pulse(duty),
-      **@options.slice(:budget)
+      **@options.slice(:budget, :timings)
     )
   end
 

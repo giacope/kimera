@@ -3,13 +3,14 @@
 class Kimera::Execution::Shift::KillerMemory
   LIMIT = 16
 
-  def initialize
+  def initialize(timings = {})
     @recent = []
+    @timings = timings
   end
 
   def order(tests)
     likely = @recent & tests
-    likely + (tests - likely)
+    likely + fastest(tests - likely)
   end
 
   def remember(testid)
@@ -17,4 +18,8 @@ class Kimera::Execution::Shift::KillerMemory
     @recent.unshift(testid)
     @recent.pop while @recent.size > LIMIT
   end
+
+  private
+
+  def fastest(tests) = tests.sort_by.with_index { |test, index| [@timings[test] || Float::INFINITY, index] }
 end

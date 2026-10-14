@@ -32,7 +32,7 @@ class Kimera::CLI::Run::Pass
   end
 
   def perform(remaining)
-    warm
+    warm(remaining)
     run(remaining)
   end
 
@@ -55,9 +55,9 @@ class Kimera::CLI::Run::Pass
       .merge(@options.slice(:relative_timeout, :timeout_factor, :timeout_slack))
   end
 
-  def warm
+  def warm(remaining)
     if @options[:isolated] || @options[:coverage]
-      harness.warm!(files)
+      harness.warm!(files, scope: remaining)
     else
       harness.without_coverage!(files)
     end

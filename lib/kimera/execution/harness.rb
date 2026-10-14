@@ -42,10 +42,10 @@ class Kimera::Execution::Harness
     @state = state
   end
 
-  def warm!(test_files)
+  def warm!(test_files, scope: nil)
     overlay!(test_files).tap do
       measure!
-      sift!
+      sift!(scope)
       notice
     end
   end
@@ -126,15 +126,18 @@ class Kimera::Execution::Harness
     state.recovered = measured.recovered
   end
 
-  def sift!
+  def sift!(scope)
     trace.quarantine!(coverage)
+    order = Kimera::Execution::OrderTrace.new(registry)
+    return unless order.wanted?(scope, coverage)
     progress.note("baseline (whole suite, in order)")
-    Kimera::Execution::OrderTrace.new(registry).mark!(baseline, coverage)
+    order.mark!(baseline, coverage)
   end
 
   def arm(timings)
     driver.coverage = coverage
     driver.budget = budget(timings)
+    driver.timings = timings
   end
 
   def parallel(pass)

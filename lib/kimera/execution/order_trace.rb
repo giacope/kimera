@@ -22,7 +22,11 @@ class Kimera::Execution::OrderTrace
     end
   end
 
+  def wanted?(scope, coverage) = scope.nil? || scope.any? { |id| open?(@registry.point(id)&.last, coverage) }
+
   private
+
+  def open?(point, coverage) = point&.safe? && point.ids.any? { |id| uncovered?(id, coverage) }
 
   def reached(baseline)
     Array(baseline.sequence["touched"])
