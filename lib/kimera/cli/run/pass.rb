@@ -50,7 +50,7 @@ class Kimera::CLI::Run::Pass
 
   def base
     { registry: @registry, adapter: @adapter, source_root: @options[:source_root] }
-      .merge(soft_timeout: @options[:soft_timeout], leak_every: @options[:leak_every], jobs: @options[:jobs])
+      .merge(soft_timeout: @options[:soft_timeout], jobs: @options[:jobs])
       .merge(isolate_db: @options[:isolate_db], progress: progress)
       .merge(@options.slice(:relative_timeout, :timeout_factor, :timeout_slack))
   end
@@ -76,9 +76,17 @@ class Kimera::CLI::Run::Pass
   end
 
   def rejudged(report)
-    unjudged = report.errors
-    return report if unjudged.empty? || @options[:rejudge] == false
+    unjudged = report.errors + revisited(report)
+    return report if unjudged.empty?
+    return report.revise(unjudged) if @options[:rejudge] == false
     report.revise(isolation.rejudge(unjudged, label: "mutants (re-judged)"))
+  end
+
+  def revisited(report)
+    (report.survived + report.uncovered).filter_map do |result|
+      reason = @registry.index.fetch(result.mutant_id).revisit
+      result.dup.tap { |copy| copy.detail = reason } if reason
+    end
   end
 
   def judge(ids)

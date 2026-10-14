@@ -31,7 +31,7 @@ class Kimera::Execution::IsolatedPlan
   def tests(id, point)
     all = selection.all
     return all if Kimera::SelfProtection.protected?(File.join(root, point.file))
-    return all unless point.safe?
+    return all if !point.safe? || point.revisit
     selection.recorded(id)
   end
 
@@ -57,6 +57,8 @@ class Kimera::Execution::IsolatedPlan
   def selection = @_selection ||= TestSelection.new(all_tests: @tests, coverage: @options.fetch(:coverage, {}))
 
   def child
-    @_child ||= ChildCommand.new(framework: @options.fetch(:framework), test_files: @options.fetch(:test_files))
+    @_child ||= ChildCommand.new(
+      framework: @options.fetch(:framework), test_files: @options.fetch(:test_files), root: root
+    )
   end
 end

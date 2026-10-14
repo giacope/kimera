@@ -2,6 +2,80 @@
 
 ## Unreleased
 
+- Code a test runs in a process it forks (a `fork { ... }` block, a forking
+  job runner) is covered: while a coverage ledger is open, a forked child
+  appends the mutants it touches to a spill file the parent's ledger reads
+  back, through `Process._fork`. Such mutants read `no_coverage` before, and
+  were never judged; kimera's own zygote child was one.
+- An `alias_method` chain reopened in another file no longer hides the
+  original's mutants: a method a later file redefined keeps that definition
+  through the overlay, and the alias follows the overlaid original. The original's 12 mutants in
+  the holdout's alias-chain project read `no_coverage`; they are now judged
+  (and killed). Before, a wrapper whose file was not overlaid after the
+  original's was replaced by the original, and the baseline went red.
+- Code only an earlier test's state reaches (a cache hit) is judged: the
+  baseline runs the whole suite once more, in order, in a fresh process, and
+  a mutant that run reaches but no single test does is judged in a fresh
+  mirror against the whole suite. Under `--no-rejudge` it stays
+  `no_coverage`, with the reason as its detail (shown under the mutant in the
+  text report).
+- A baseline whose failing tests pass when the suite runs in order but fail
+  alone in a fresh process is reported as order-dependent, naming those
+  tests, instead of only "not green". Tests that also pass alone (shared
+  paths across workers) keep the `--jobs 1` advice.
+- `eval/holdout` holds 12 state-leak projects and an oracle written by
+  another agent blind to kimera's tests (eval case H1). main agrees with
+  that oracle on 74.6% of 394 compared mutants, with 100 false survivors and
+  13 false `no_coverage`; this branch on all 441, with none.
+- Verdicts no longer depend on state a test or an earlier mutant left
+  behind. The parent boots the suite and overlays the schemata, then runs no
+  test: each baseline test, and each mutant's covering tests, run in a
+  process forked from that clean, post-boot state. A memo cache another file
+  fills, a cache that hid a later caller from coverage, a registry, a class
+  variable, a leaked `ENV` flag: on a corpus of such suites the warm pass
+  reported 64 of 152 mutants survived that a fresh `rspec` kills, and 2
+  killed that it doesn't; it now agrees on every one (`eval/run`, K1). Doubts
+  and soft timeouts no longer retire workers, and nothing is requeued.
+  `--leak-every` and `leak_every:` are gone: there is no warm state left to
+  re-check. The cost is a fork per baseline test and per mutant, and a cold
+  start in each: 3 to 26% on dry-inflector at `--jobs 4` (two runs), 21 to 53%
+  on a small Rails suite at `--jobs 4` and 2 to 3 times the time at `--jobs 1`
+  (`eval/results/README.md`).
+- A warm survivor whose method also ran while the suite loaded (to build a
+  constant, say) is judged again in a fresh mirror against the whole suite,
+  since what it computed at load never saw the mutant.
+- `define_method`, `define_singleton_method`, `lambda`, `proc` and `Proc.new`
+  block bodies are mutated like method bodies. Code the scan doesn't mutate
+  (any other block outside a method, a file that does not parse) is listed
+  under "Not mutated" in the text report and `unmutated` in the JSON report
+  and registry, with the reason, instead of being skipped in silence.
+- `--since REF` diffs against `git merge-base REF HEAD` (keeping uncommitted
+  work), so lines main changed after the branch point are no longer mutated.
+- A `--session` is resumed only while its stamp matches: the sources, every
+  file under the test roots, `.rspec`, `Gemfile.lock` and the judging
+  settings. A kill no longer outlives the test that made it. `--session`
+  creates the directory it saves into.
+- Kimera runs with `LANG` unset or `LANG=C`: its reads, reports and pipes
+  are UTF-8. `kimera mutant` and `kimera doctor` crashed on UTF-8 text there.
+- Overlaid files run as `load` runs them, each in its own top-level scope;
+  a top-level local one file set no longer leaked into another's lambdas.
+- Guards dispatch through `::Kimera::RUNTIME`; `::MutantRuntime` is gone, so
+  a project may define its own.
+- A coverage ledger keeps each mutant id once: a covering test that loops
+  3M times peaked at 440 MB, now 46 MB.
+- `--isolated` mirrors run under the project's own Gemfile, so a gem named
+  by a relative `path:` resolves; the overlay's alias scan no longer trips
+  Rails' deprecated-constant proxies (16 warnings a run) and skips
+  non-aliases.
+- unparser 0.8.1 to 0.9.x are supported (was `~> 0.9.0`); CI runs the suite
+  on each. The README names the whole runtime closure: prism, unparser,
+  parser, ast, diff-lcs, racc.
+- `examples/rails_app` (Rails 8.1, sqlite, Minitest and RSpec) runs end to
+  end in CI in every mode against expected verdicts (`bin/e2e`).
+- `bin/model-check` pins TLA+ tools v1.7.4: the v1.8.0 jar is re-published
+  nightly, so its checksum never held. Trace validation passes again.
+- `eval/run --kimera PATH` measures a checkout against these gaps.
+
 - Survivors are easier to read. A report names each covering and failing
   test by `file:line` and description (a `tests` section in the JSON report,
   kept across `--session` resumes), not by RSpec's positional id alone. Each

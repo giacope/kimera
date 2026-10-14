@@ -75,10 +75,13 @@ class Kimera::CLI::Mutant
 
   def arguments_for(row, settings)
     [row.fetch("file"), "--focus", keyed(row), "--framework", settings.fetch("framework", "rspec")]
-      .push("--source-root", settings["source_root"])
-      .concat(Array(settings["tests"]).flat_map { |glob| ["--tests", glob] })
-      .push("--operators", Array(settings["operators"]).join(","))
+      .push("--source-root", settings["source_root"]).concat(scope(settings))
       .concat(modes(settings)).concat(waived(row)).push("--no-report")
+  end
+
+  def scope(settings)
+    Array(settings["tests"]).flat_map { |glob| ["--tests", glob] }
+      .push("--operators", Array(settings["operators"]).join(","))
   end
 
   def waived(row) = row["status"] == "ignored" ? ["--evaluate-ignored"] : []

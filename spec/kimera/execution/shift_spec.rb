@@ -47,36 +47,15 @@ RSpec.describe(Kimera::Execution::Shift) do
   let(:io) { StringIO.new }
   let(:response) { StringIO.new }
 
-  # Distinct points, so each mutant can be killed by its own test.
-  let(:wide_registry) do
-    Kimera::RegistryScan.new.source(<<~RUBY, file: "wide.rb")
-      def a(x, y)
-        x > y
-      end
-
-      def b(x, y)
-        x < y
-      end
-
-      def c(x, y)
-        x >= y
-      end
-    RUBY
-  end
-
-  def sample
-    wide_registry.points.map { |pt| pt.mutants.first.id }.first(3)
-  end
-
   def messages(io)
     io.string.each_line.map { |l| JSON.parse(l) }
   end
 
-  def worker(coverage: nil, catches: {}, adapter: nil, cadence: 0)
+  def worker(coverage: nil, catches: {}, adapter: nil)
     described_class.new(
       adapter: adapter || test_adapter_class.new(catches: catches),
       registry: registry, coverage: coverage,
-      soft_timeout: nil, leak_every: cadence
+      soft_timeout: nil, zygote: InlineZygote.new
     )
   end
 
@@ -85,9 +64,9 @@ RSpec.describe(Kimera::Execution::Shift) do
   describe "#run streaming protocol" do
     it "emits a result for each mutant and a final done", :aggregate_failures do
       worker(coverage: ids.to_h { |id| [id, ["t1"]] }).run(ids, io)
-      msgs = messages(io)
-      expect(msgs.count { |m| m["t"] == "result" }).to(eq(ids.size))
-      expect(msgs.last["t"]).to(eq("done"))
+      notes = messages(io)
+      expect(notes.count { |m| m["t"] == "result" }).to(eq(ids.size))
+      expect(notes.last["t"]).to(eq("done"))
     end
 
     it "marks a mutant survived when no covering test fails" do
@@ -112,11 +91,11 @@ RSpec.describe(Kimera::Execution::Shift) do
       io = StringIO.new
       described_class.new(
         adapter: test_adapter_class.new(catches: { "t1" => [target] }),
-        registry: registry, coverage: coverage, soft_timeout: nil, leak_every: 0
+        registry: registry, coverage: coverage, soft_timeout: nil, zygote: InlineZygote.new
       ).run([target], io)
 
-      msgs = messages(io)
-      result = msgs.find { |m| m["t"] == "result" }
+      notes = messages(io)
+      result = notes.find { |m| m["t"] == "result" }
       expect(result.keys).to(contain_exactly("t", "id", "status", "ms", "fails", "cover", "detail"))
       expect(result["id"]).to(eq(target))
       expect(result["status"]).to(eq("killed"))
@@ -145,12 +124,12 @@ RSpec.describe(Kimera::Execution::Shift) do
       response = StringIO.new
       described_class.new(
         adapter: test_adapter_class.new(catches: { "t1" => [target] }),
-        registry: registry, coverage: coverage, soft_timeout: nil, leak_every: 0
+        registry: registry, coverage: coverage, soft_timeout: nil, zygote: InlineZygote.new
       ).serve(request, response)
 
-      msgs = messages(response)
-      expect(msgs.map { |m| m["t"] }).to(eq(%w[result ready result ready done]))
-      results = msgs.select { |m| m["t"] == "result" }
+      notes = messages(response)
+      expect(notes.map { |m| m["t"] }).to(eq(%w[result ready result ready done]))
+      results = notes.select { |m| m["t"] == "result" }
       expect(results.map { |m| [m["id"], m["status"]] }).to(eq([[target, "killed"], [other, "survived"]]))
     end
 
@@ -161,27 +140,6 @@ RSpec.describe(Kimera::Execution::Shift) do
       worker(catches: { "t1" => [] }, coverage: { target => ["t1"] }).serve(request, response)
       expect(Kimera::RUNTIME.active).to(be_nil)
     end
-
-    it "runs the leak check on the serve loop's own mutant index cadence" do
-      target = ids.first
-      adapter = test_adapter_class.new(catches: { "t1" => [target] })
-      calls = 0
-      # Calls 1 and 3 are the kill and its confirmation (call 2 is the control).
-      adapter.define_singleton_method(:run) do |ids|
-        calls += 1
-        active = Kimera::RUNTIME.active
-        caught = [1, 3].include?(calls) && active ? ids : []
-        Kimera::Frameworks::RunOutcome.new(passed: caught.empty?, failed_ids: caught)
-      end
-      request = StringIO.new("#{JSON.generate(id: target)}\n")
-      response = StringIO.new
-      described_class.new(
-        adapter: adapter, registry: registry,
-        coverage: { target => ["t1"] },
-        soft_timeout: nil, leak_every: 1
-      ).serve(request, response)
-      expect(messages(response).any? { |m| m["t"] == "leak" }).to(be(true))
-    end
   end
 
   describe "#evaluate classification" do
@@ -189,7 +147,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       described_class.new(
         adapter: test_adapter_class.new(**),
         registry: registry, coverage: coverage,
-        soft_timeout: nil, leak_every: 0
+        soft_timeout: nil, zygote: InlineZygote.new
       ).evaluate(id)
     end
 
@@ -212,12 +170,34 @@ RSpec.describe(Kimera::Execution::Shift) do
       expect(result.duration).to(eq(0.0))
     end
 
+    # Outside the test process (a broken adapter, say) the error is the real
+    # one, not the zygote's report of it.
+    it "names the class of an error raised outside the test process" do
+      subject = Kimera::Execution::Shift::Subject.new(ids.first, "calc.rb")
+      expect(subject.crashed(ArgumentError.new("bad"), 1.0).detail).to(eq("ArgumentError: bad"))
+    end
+
+    # The pool's worker dies the same way, so the parent sees the death.
+    it "lets the death of the test process through, unjudged" do
+      dead = Class.new { def call = raise(Kimera::Execution::Zygote::Died.new("gone", code: 3)) }.new
+      worker = described_class.new(
+        adapter: test_adapter_class.new(catches: { "t1" => [] }), registry: registry,
+        coverage: { ids.first => ["t1"] }, zygote: dead
+      )
+      expect { worker.evaluate(ids.first) }.to(raise_error(Kimera::Execution::Zygote::Died, "gone"))
+    end
+
+    it "runs each test in a forked zygote unless told otherwise" do
+      worker = described_class.new(adapter: test_adapter_class.new, registry: registry)
+      expect(worker.__send__(:zygote)).to(be_an_instance_of(Kimera::Execution::Zygote))
+    end
+
     it "classifies a soft-timeout hang as :timeout carrying the soft-timeout", :aggregate_failures do
       target = ids.first
       worker = described_class.new(
         adapter: test_adapter_class.new(catches: { "t1" => [] }, timeout: target),
         registry: registry, coverage: { target => ["t1"] },
-        soft_timeout: 0.2, leak_every: 0
+        soft_timeout: 0.2, zygote: InlineZygote.new
       )
       result = worker.evaluate(target)
       expect(result.status).to(eq(:timeout))
@@ -256,7 +236,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       worker = described_class.new(
         adapter: resetting, registry: registry,
         coverage: { target => %w[t_reset t_catch] },
-        soft_timeout: nil, leak_every: 0
+        soft_timeout: nil, zygote: InlineZygote.new
       )
       result = worker.evaluate(target)
       expect(result.status).to(eq(:killed))
@@ -268,7 +248,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       adapter = test_adapter_class.new(catches: { "t1" => [target], "t2" => [target] })
       worker = worker(adapter: adapter, coverage: { target => %w[t1 t2] })
       expect(worker.evaluate(target).status).to(eq(:killed))
-      expect(adapter.runs).to(eq([["t1"], ["t1"]])) # the kill and its confirmation; t2 never ran
+      expect(adapter.runs).to(eq([["t1"]])) # t2 never ran
     end
 
     # The walk stops at the first failure, so order decides how many tests run.
@@ -279,7 +259,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       worker = described_class.new(
         adapter: adapter, registry: registry,
         coverage: { a => %w[slow killer], b => %w[slow killer] },
-        soft_timeout: nil, leak_every: 0
+        soft_timeout: nil, zygote: InlineZygote.new
       )
 
       expect(worker.evaluate(a).status).to(eq(:killed))
@@ -287,7 +267,7 @@ RSpec.describe(Kimera::Execution::Shift) do
 
       adapter.runs.clear
       expect(worker.evaluate(b).status).to(eq(:killed))
-      expect(adapter.runs).to(eq([["killer"], ["killer"]])) # slow skipped this time
+      expect(adapter.runs).to(eq([["killer"]])) # slow skipped this time
     end
 
     # A duplicate would take a RECENT_KILLERS slot and evict "x" one kill early.
@@ -316,7 +296,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       worker = described_class.new(
         adapter: adapter, registry: registry,
         coverage: { a => %w[ka kb], b => %w[ka kb] },
-        soft_timeout: nil, leak_every: 0
+        soft_timeout: nil, zygote: InlineZygote.new
       )
 
       expect(worker.evaluate(a).status).to(eq(:killed)) # promotes "ka"
@@ -375,7 +355,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       worker = described_class.new(
         adapter: test_adapter_class.new(catches: { "t1" => [] }),
         registry: registry, coverage: { target => ["t1"] },
-        isolation: isolation, soft_timeout: nil, leak_every: 0
+        isolation: isolation, soft_timeout: nil, zygote: InlineZygote.new
       )
       worker.run([target], StringIO.new)
       expect(resets.size).to(eq(1))
@@ -391,18 +371,18 @@ RSpec.describe(Kimera::Execution::Shift) do
       response = StringIO.new
       described_class.new(
         adapter: adapter, registry: registry,
-        soft_timeout: nil, leak_every: 0
+        soft_timeout: nil, zygote: InlineZygote.new
       ).coverage(request, response)
 
-      msgs = messages(response)
-      expect(msgs.map { |m| m["t"] }).to(eq(%w[result ready result ready done]))
-      expect(msgs.select { |m| m["t"] == "result" }.map { |m| m["id"] }).to(eq(%w[t1 t2]))
-      result = msgs.first
+      notes = messages(response)
+      expect(notes.map { |m| m["t"] }).to(eq(%w[result ready result ready done]))
+      expect(notes.select { |m| m["t"] == "result" }.map { |m| m["id"] }).to(eq(%w[t1 t2]))
+      result = notes.first
       expect(result.keys).to(contain_exactly("t", "id", "touched", "passed", "failure", "took"))
       # When self-hosted, the loop's own guards land in the ledger too.
       expect(result["passed"]).to(be(true))
       expect(result["touched"]).to(be_an(Array))
-      expect(msgs[1]).to(eq("t" => "ready"))
+      expect(notes[1]).to(eq("t" => "ready"))
     end
 
     it "leaves no ledger behind when the request pipe closes" do
@@ -438,7 +418,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       response = StringIO.new
       described_class.new(
         adapter: touching, registry: registry,
-        soft_timeout: nil, leak_every: 0
+        soft_timeout: nil, zygote: InlineZygote.new
       ).coverage(request, response)
 
       results = messages(response).select { |m| m["t"] == "result" }
@@ -447,139 +427,6 @@ RSpec.describe(Kimera::Execution::Shift) do
       expect(results[0]["touched"]).not_to(include(8))
       expect(results[1]["touched"]).to(include(8))
       expect(results[1]["touched"]).not_to(include(7))
-    end
-  end
-
-  describe "leak detection" do
-    it "never leak-checks when only survived mutants have run", :aggregate_failures do
-      # Re-checking a survivor would always report a false leak.
-      target = ids.first
-      adapter = test_adapter_class.new(catches: { "t1" => [] })
-      worker(adapter: adapter, coverage: { target => ["t1"] }, cadence: 1).run([target], io)
-      expect(messages(io).none? { |m| m["t"] == "leak" }).to(be(true))
-      expect(adapter.runs.size).to(eq(1))
-    end
-
-    it "emits no leak message when the re-check still kills", :aggregate_failures do
-      target = ids.first
-      adapter = test_adapter_class.new(catches: { "t1" => [target] }) # kills every time
-      worker(adapter: adapter, coverage: { target => ["t1"] }, cadence: 1).run([target], io)
-      expect(adapter.runs.size).to(eq(4)) # the re-check ran (each kill runs twice)...
-      expect(messages(io).none? { |m| m["t"] == "leak" }).to(be(true)) # ...quietly
-    end
-
-    it "treats a nil leak_every as disabled", :aggregate_failures do
-      target = ids.first
-      adapter = test_adapter_class.new(catches: { "t1" => [target] })
-      worker = worker(adapter: adapter, coverage: { target => ["t1"] }, cadence: nil)
-      expect { worker.run([target], io) }.not_to(raise_error)
-      expect(adapter.runs.size).to(eq(2))
-    end
-
-    it "re-checks after exactly leak_every mutants, in the serve loop too" do
-      a, b, c = sample
-      adapter = test_adapter_class.new(catches: { "t1" => [a], "t2" => [b], "t3" => [c] })
-      coverage = { a => ["t1"], b => ["t2"], c => ["t3"] }
-      request = StringIO.new("#{[a, b, c].map { |id| JSON.generate(id: id) }.join("\n")}\n")
-      response = StringIO.new
-      described_class.new(
-        adapter: adapter, registry: wide_registry, coverage: coverage,
-        soft_timeout: nil, leak_every: 3
-      ).serve(request, response)
-      expect(adapter.runs).to(eq([["t1"], ["t1"], ["t2"], ["t2"], ["t3"], ["t3"], ["t3"], ["t3"]]))
-    end
-
-    it "emits a leak message when a previously-killed mutant later survives", :aggregate_failures do
-      target = ids.first
-      adapter = test_adapter_class.new(catches: { "t1" => [target] })
-      coverage = { target => ["t1"] }
-      worker = described_class.new(
-        adapter: adapter, registry: registry,
-        coverage: coverage, soft_timeout: nil, leak_every: 1
-      )
-      io = StringIO.new
-
-      calls = 0
-      adapter.define_singleton_method(:run) do |ids|
-        calls += 1
-        active = Kimera::RUNTIME.active
-        # The first kill and its confirmation (call 3) catch; the leak re-check doesn't.
-        caught = [1, 3].include?(calls) && active ? ids : []
-        Kimera::Frameworks::RunOutcome.new(passed: caught.empty?, failed_ids: caught)
-      end
-
-      worker.run([target], io)
-      leak = messages(io).find { |m| m["t"] == "leak" }
-      expect(leak).not_to(be_nil)
-      expect(leak["id"]).to(eq(target))
-      expect(leak["detail"]).to(eq("mutant #{target} killed earlier but survived re-run (state leakage suspected)"))
-    end
-
-    # Kills on first eval (the kill and its confirmation) and survives any
-    # re-check, so every check leaks.
-    def counter(cadence, coverage)
-      adapter = test_adapter_class.new(catches: {})
-      seen = Hash.new(0)
-      adapter.define_singleton_method(:run) do |ids|
-        active = Kimera::RUNTIME.active
-        seen[ids] += 1 if active
-        caught = active && seen[ids] <= 2 ? ids : []
-        Kimera::Frameworks::RunOutcome.new(passed: caught.empty?, failed_ids: caught)
-      end
-      described_class.new(
-        adapter: adapter, registry: registry,
-        coverage: coverage, soft_timeout: nil, leak_every: cadence
-      )
-    end
-
-    it "does not run a leak check before the leak_every boundary is reached" do
-      a = ids.first
-      io = StringIO.new
-      counter(2, { a => ["ta"] }).run([a], io)
-      expect(messages(io).count { |m| m["t"] == "leak" }).to(eq(0))
-    end
-
-    it "runs exactly one leak check once the boundary is reached", :aggregate_failures do
-      a = ids.first
-      b = ids.last
-      io = StringIO.new
-      counter(2, { a => ["ta"], b => ["tb"] }).run([a, b], io)
-      msgs = messages(io)
-      expect(msgs.count { |m| m["t"] == "leak" }).to(eq(1))
-      types = msgs.map { |m| m["t"] }
-      expect(types).to(eq(%w[result result leak done]))
-    end
-
-    # Re-running a still kills but b survives, so only re-checking the latest
-    # kill leaks.
-    it "re-checks the most recently killed mutant, not the first", :aggregate_failures do
-      a = ids.first
-      b = ids.last
-      adapter = test_adapter_class.new(catches: {})
-      survivor = b
-      seen = Hash.new(0)
-      adapter.define_singleton_method(:run) do |test_ids|
-        active = Kimera::RUNTIME.active
-        seen[active] += 1
-        caught = active.nil? || (active == survivor && seen[active] > 2) ? [] : test_ids
-        Kimera::Frameworks::RunOutcome.new(passed: caught.empty?, failed_ids: caught)
-      end
-      io = StringIO.new
-      described_class.new(
-        adapter: adapter, registry: registry,
-        coverage: { a => ["ta"], b => ["tb"] },
-        soft_timeout: nil, leak_every: 2
-      ).run([a, b], io)
-
-      leak = messages(io).find { |m| m["t"] == "leak" }
-      expect(leak).not_to(be_nil)
-      expect(leak["id"]).to(eq(b))
-    end
-
-    it "does not run a leak check when leak_every is zero" do
-      target = ids.first
-      worker(catches: { "t1" => [target] }, coverage: { target => ["t1"] }).run([target], io)
-      expect(messages(io).any? { |m| m["t"] == "leak" }).to(be(false))
     end
   end
 end

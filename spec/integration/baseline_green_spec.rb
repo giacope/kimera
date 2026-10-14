@@ -7,7 +7,7 @@ require "kimera/synthesis/project"
 RSpec.describe("synthesized baseline") do
   it "runs the sample app suite green at active = nil", :aggregate_failures do
     root = test_sample
-    lib = File.join(test_repo_root, "lib")
+    lib = File.join(test_repository_root, "lib")
 
     Dir.mktmpdir("kimera-baseline") do |dir|
       registry = Kimera::RegistryScan.new(root: root).build(Dir["#{root}/app/**/*.rb"])

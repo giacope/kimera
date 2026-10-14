@@ -15,9 +15,10 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
   MINITEST_CHILD = File.expand_path("isolated_child_minitest.rb", __dir__)
   PULSE = ".pulse"
 
-  def initialize(framework:, test_files:)
+  def initialize(framework:, test_files:, root: nil)
     @framework = framework
     @test_files = test_files
+    @root = root
   end
 
   def command(mirror, locations, ledger:, paths:)
@@ -43,10 +44,14 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
   private
 
   def bundled(mirror, env, argv)
-    gemfile = File.join(mirror, "Gemfile")
-    return [env, argv] unless File.file?(gemfile)
-    env["BUNDLE_GEMFILE"] = gemfile
+    return [env, argv] unless File.file?(File.join(mirror, "Gemfile"))
+    env["BUNDLE_GEMFILE"] = gemfile(mirror)
     [env, ["bundle", "exec", *argv]]
+  end
+
+  def gemfile(mirror)
+    own = File.join(@root || mirror, "Gemfile")
+    File.file?(own) ? own : File.join(mirror, "Gemfile")
   end
 
   def minitest?

@@ -1,8 +1,31 @@
 # frozen_string_literal: true
 
+require "fileutils"
 require "json"
 require "open3"
 require "tmpdir"
+
+# The traces as a TLA+ module, so TLC needs no JSON module to read them:
+# arrays become sequences, hashes records.
+class TraceModule
+  def initialize(traces)
+    @traces = traces
+  end
+
+  def to_s = "---- MODULE TraceData ----\nEXTENDS Integers\nTraces == #{literal(@traces)}\n====\n"
+
+  private
+
+  def literal(value)
+    case value
+    when Array then "<<#{value.map { |item| literal(item) }.join(", ")}>>"
+    when Hash then "[#{value.map { |key, item| "#{key} |-> #{literal(item)}" }.join(", ")}]"
+    when String then value.dump
+    when true, false then value.to_s.upcase
+    else value.to_s
+    end
+  end
+end
 
 # Checks logged pool runs (support/pool_trace.rb) against the model with TLC
 # and formal/WorkerPoolTrace.tla: one TLC run per pool size, since the slots
@@ -33,23 +56,23 @@ class TraceCheck
 
   def replayed(name, traces)
     Dir.mktmpdir("traces") do |dir|
-      File.write(File.join(dir, "traces.json"), JSON.generate(traces: traces))
+      FileUtils.cp([SPEC, File.join(File.dirname(SPEC), "WorkerPool.tla")], dir)
+      File.write(File.join(dir, "TraceData.tla"), TraceModule.new(traces).to_s)
       judged(name, traces, explore(dir, configured(dir, traces)))
     end
   end
 
   def configured(dir, traces)
-    File.join(dir, "Trace.cfg").tap { |config| File.write(config, constants(dir, traces)) }
+    File.join(dir, "Trace.cfg").tap { |config| File.write(config, constants(traces)) }
   end
 
-  def constants(dir, traces)
+  def constants(traces)
     <<~CFG
       CONSTANTS
         Ids = {#{(1..traces.flat_map { |trace| trace[:queue] }.max).to_a.join(", ")}}
         Slots = {#{traces.first[:slots].join(", ")}}
         None = 0
         Blocking = FALSE
-        TraceFile = #{JSON.generate(File.join(dir, "traces.json"))}
       INIT TraceInit
       NEXT TraceNext
       INVARIANT Matched
@@ -59,7 +82,7 @@ class TraceCheck
   def explore(dir, config)
     Open3.capture2e(
       "java", "-cp", JAR, "tlc2.TLC", "-workers", "1", "-deadlock", "-cleanup",
-      "-metadir", File.join(dir, "states"), "-config", config, SPEC, chdir: File.dirname(SPEC)
+      "-metadir", File.join(dir, "states"), "-config", File.basename(config), File.basename(SPEC), chdir: dir
     ).first
   end
 

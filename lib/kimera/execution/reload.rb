@@ -33,7 +33,7 @@ class Kimera::Execution::Reload
   end
 
   def run(id, deadline:, tests: @adapter.test_ids)
-    errand = Errand.new(id, tests, *IO.pipe)
+    errand = Errand.new(id, tests, *IO.pipe(Encoding::UTF_8))
     collect(errand, child(errand), deadline)
   end
 

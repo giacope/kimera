@@ -38,4 +38,20 @@ RSpec.describe(Kimera::Execution::BaselineFailure::Summary) do
     expect(described_class.new(%w[t1], {}, "cmd", described_class::SERIAL.with(jobs: 2)).to_s)
       .to(eq("baseline suite is not green: t1\n  reproduce without kimera: cmd#{shared}"))
   end
+
+  def ordered(failed, ordered, jobs: 1)
+    described_class.new(failed, {}, "cmd", described_class::SERIAL.with(ordered: ordered, jobs: jobs)).to_s
+  end
+
+  it "calls a suite order-dependent when every failing test passes in order, and names them", :aggregate_failures do
+    text = ordered(%w[t1 t2], %w[t1 t2], jobs: 2)
+    expect(text).to(start_with("baseline suite is order-dependent: 2 tests failed:"))
+    expect(text).to(end_with("cmd\n  #{described_class::ORDERED}\n    t1\n    t2"))
+  end
+
+  it "keeps a red suite red and names only the tests that pass in order", :aggregate_failures do
+    text = ordered(%w[t1 t2], %w[t2], jobs: 2)
+    expect(text).to(start_with("baseline suite is not green: 2 tests failed:"))
+    expect(text).to(include("#{described_class::ORDERED}\n    t2\n  ran on 2 workers"))
+  end
 end

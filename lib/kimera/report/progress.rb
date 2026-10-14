@@ -9,7 +9,7 @@ module Kimera
 end
 
 class Kimera::Report::Progress
-  MONOTONIC = -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }
+  MONOTONIC = ->(reading = Process.clock_gettime(Process::CLOCK_MONOTONIC)) { reading }
 
   def initialize(io: $stderr, enabled: nil, interval: nil, clock: MONOTONIC)
     @io = io

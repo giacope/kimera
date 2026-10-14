@@ -38,10 +38,10 @@ RSpec.describe("kimera run's relative time budget (end-to-end)", :aggregate_fail
     RUBY
   end
 
-  def test_slowed(args, &)
+  def test_slowed(arguments, &)
     Dir.mktmpdir("kimera-budget") do |root|
       test_pusher(root)
-      test_run(cwd: root, args: ["--no-progress", *args], &)
+      test_run(cwd: root, arguments: ["--no-progress", *arguments], &)
     end
   end
 

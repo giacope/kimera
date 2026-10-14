@@ -51,7 +51,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       {
         framework: "rspec", source_root: ".", tests: ["spec/**/*_spec.rb"], configured_tests: ["spec/**/*_spec.rb"],
         operators: Kimera::Operators::DEFAULT_KEYS,
-        soft_timeout: 5.0, hard_timeout: nil, leak_every: 10,
+        soft_timeout: 5.0, hard_timeout: nil,
         relative_timeout: true, timeout_factor: nil, timeout_slack: nil,
         registry: nil, report: "tmp/kimera/report.json", format: "text", focus: [], gate: true, coverage: true,
         require: [],
@@ -77,29 +77,29 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
 
     it "splits --operators into an array of keys" do
-      opts = cli.__send__(:parse, ["--operators", "comparison,regexp"])
-      expect(opts[:operators]).to(eq(%w[comparison regexp]))
+      parsed = cli.__send__(:parse, ["--operators", "comparison,regexp"])
+      expect(parsed[:operators]).to(eq(%w[comparison regexp]))
     end
 
     it "merges config-file defaults, with flags overriding them" do
       File.write("custom.yml", "jobs: 7\nsoft_timeout: 3.5\n")
-      opts = cli.__send__(:parse, ["--config", "custom.yml"])
-      expect(opts[:jobs]).to(eq(7))
-      expect(opts[:soft_timeout]).to(eq(3.5))
+      parsed = cli.__send__(:parse, ["--config", "custom.yml"])
+      expect(parsed[:jobs]).to(eq(7))
+      expect(parsed[:soft_timeout]).to(eq(3.5))
       expect(cli.__send__(:parse, ["--config", "custom.yml", "--jobs", "2"])[:jobs]).to(eq(2))
     end
 
     # Appending would re-include the whole suite when scoping to one file.
     it "replaces the config tests: glob when --tests is given" do
       File.write("custom.yml", %(tests: ["spec/config_spec.rb"]\n))
-      opts = cli.__send__(:parse, ["--config", "custom.yml", "--tests", "spec/only_spec.rb"])
-      expect(opts[:tests]).to(eq(["spec/only_spec.rb"]))
+      parsed = cli.__send__(:parse, ["--config", "custom.yml", "--tests", "spec/only_spec.rb"])
+      expect(parsed[:tests]).to(eq(["spec/only_spec.rb"]))
     end
 
     it "keeps the config tests: glob to tell a narrowed run apart" do
       File.write("custom.yml", %(tests: ["spec/config_spec.rb"]\n))
-      opts = cli.__send__(:parse, ["--config", "custom.yml", "--tests", "spec/only_spec.rb"])
-      expect(opts[:configured_tests]).to(eq(["spec/config_spec.rb"]))
+      parsed = cli.__send__(:parse, ["--config", "custom.yml", "--tests", "spec/only_spec.rb"])
+      expect(parsed[:configured_tests]).to(eq(["spec/config_spec.rb"]))
     end
 
     it "keeps the config tests: glob when --tests is absent" do
@@ -114,7 +114,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     def flags
       %w[
         framework tests source-root registry operators soft-timeout
-        hard-timeout relative-timeout timeout-factor timeout-slack leak-every coverage since session max-survivors
+        hard-timeout relative-timeout timeout-factor timeout-slack coverage since session max-survivors
         max-ignored fail-on-no-coverage jobs progress isolate-db isolated
         isolate-when-covered-by rejudge exclude config pidfile evaluate-ignored no-baseline
       ]
@@ -141,17 +141,17 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       [
         "--framework", "minitest", "--source-root", "src",
         "--tests", "a/**/*.rb", "--tests", "b/**/*.rb",
-        "--soft-timeout", "2.5", "--hard-timeout", "9", "--leak-every", "3",
+        "--soft-timeout", "2.5", "--hard-timeout", "9",
         "--no-coverage", "--jobs", "4", "--max-survivors", "2",
         "--exclude", "x.rb", "--exclude", "y.rb", "--isolate-db"
       ]
     end
 
     it "parses scalar, repeatable, and toggle flags" do
-      opts = cli.__send__(:parse, arguments)
-      expect(opts).to(include(framework: "minitest", source_root: "src", tests: ["a/**/*.rb", "b/**/*.rb"]))
-      expect(opts).to(include(soft_timeout: 2.5, hard_timeout: 9.0, leak_every: 3, coverage: false))
-      expect(opts).to(include(jobs: 4, max_survivors: 2, exclude: ["x.rb", "y.rb"], isolate_db: true))
+      parsed = cli.__send__(:parse, arguments)
+      expect(parsed).to(include(framework: "minitest", source_root: "src", tests: ["a/**/*.rb", "b/**/*.rb"]))
+      expect(parsed).to(include(soft_timeout: 2.5, hard_timeout: 9.0, coverage: false))
+      expect(parsed).to(include(jobs: 4, max_survivors: 2, exclude: ["x.rb", "y.rb"], isolate_db: true))
     end
 
     it "toggles --fail-on-no-coverage on and back off" do
@@ -161,8 +161,8 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
 
     it "treats positional arguments as paths overriding the default" do
-      opts = cli.__send__(:parse, ["app/models", "lib/core.rb"])
-      expect(opts[:paths]).to(eq(["app/models", "lib/core.rb"]))
+      parsed = cli.__send__(:parse, ["app/models", "lib/core.rb"])
+      expect(parsed[:paths]).to(eq(["app/models", "lib/core.rb"]))
     end
 
     # An unconditional assignment would blank them back to the defaults.
@@ -521,8 +521,14 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       $stdout = original
     end
 
+    # What the CLI stamps a session with when no flag changes the settings.
+    def stamp(registry)
+      settings = Kimera::CLI::Run::Arguments.new.parse([]).slice(*Kimera::CLI::Run::Cycle::SETTINGS, :require)
+      Kimera::Incremental::Stamp.new(root: ".", sources: registry.files, settings: settings).to_s
+    end
+
     def saved(registry, path, status: :killed)
-      session = Kimera::Incremental::Session.new
+      session = Kimera::Incremental::Session.new.stamp!(stamp(registry))
       results =
         registry.each.map do |mutant, point|
           Kimera::MutantResult.new(mutant_id: mutant.id, status: status, file: point.file, duration: 0.0)
@@ -537,7 +543,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       Kimera::RegistryScan.new.source(File.read("calc.rb"), file: "calc.rb")
     end
 
-    def reuse
+    def reuse(*flags)
       registry = calculation
       manifest = File.join(dir, "reg.json")
       registry.write(manifest)
@@ -545,8 +551,14 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       results = saved(registry, journal)
 
       output = File.join(dir, "report.json")
-      out, status = capture(["calc.rb", "--registry", manifest, "--session", journal, "--report", output])
+      out, status = capture(["calc.rb", "--registry", manifest, "--session", journal, "--report", output, *flags])
       [out, status, output, results]
+    end
+
+    # How many workers run a session doesn't change what they judge.
+    it "reuses the session at another --jobs" do
+      out, _status, _output, results = reuse("--jobs", "3")
+      expect(out).to(include("killed=#{results.size}"))
     end
 
     it "loads the registry, reuses session results, reports, and gates" do
@@ -567,6 +579,24 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       saved(registry, journal)
       out, status = capture(["calc.rb", "other.rb", "--since", "main", "--session", journal])
       [out, status, Kimera::Incremental::Selection.select(registry, "calc.rb" => Set[2])]
+    end
+
+    def unmutated(*flags)
+      File.write("calc.rb", "def m(a, b)\n  a > b\nend\n\nPOSITIVE = [1].select { |x| x > 0 }\n")
+      diff = instance_double(Kimera::Incremental::GitDiff, lines: { "calc.rb" => Set[2] })
+      allow(Kimera::Incremental::GitDiff).to(receive(:new).and_return(diff))
+      journal = File.join(dir, "session.json")
+      saved(Kimera::RegistryScan.new.build(["calc.rb"]), journal)
+      capture(["calc.rb", "--session", journal, *flags]).first
+    end
+
+    it "lists the code it leaves unmutated" do
+      expect(unmutated).to(include("Not mutated (1 region(s)):", "calc.rb:5"))
+    end
+
+    it "lists unmutated code in an incremental run only where the diff reaches it" do
+      out = unmutated("--since", "main")
+      expect([out.include?("Incremental:"), out.include?("Not mutated")]).to(eq([true, false]))
     end
 
     it "announces the incremental scope precisely and builds only changed files" do
@@ -620,7 +650,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       journal, results, status = persistence
       expect(status).to(eq(0))
       saved = JSON.parse(File.read(journal))
-      expect(saved["meta"]).to(eq("since" => nil))
+      expect(saved["meta"]).to(eq("since" => nil, "stamp" => stamp(calculation)))
       expect(saved["fingerprints"].size).to(eq(results.size))
     end
 
@@ -668,13 +698,13 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     def settings(**over)
       {
         framework: "rspec", source_root: ".", tests: ["spec/**/*_spec.rb"],
-        soft_timeout: 5.0, hard_timeout: nil, leak_every: 10, jobs: 1,
+        soft_timeout: 5.0, hard_timeout: nil, jobs: 1,
         isolate_db: false, coverage: true
       }.merge(over)
     end
 
-    def framework(**attrs)
-      adapter = instance_double(Kimera::Frameworks::RSpecAdapter, catalog: {}, **attrs)
+    def framework(**attributes)
+      adapter = instance_double(Kimera::Frameworks::RSpecAdapter, catalog: {}, **attributes)
       allow(Kimera::Frameworks::ADAPTERS).to(receive(:load).and_return(adapter))
 
       adapter
@@ -685,8 +715,8 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       Kimera::CLI::Run::Pass.new(registry, options, adapter).call(todo, session)
     end
 
-    def executor(**attrs)
-      harness = instance_double(Kimera::Execution::Harness, **attrs)
+    def executor(**attributes)
+      harness = instance_double(Kimera::Execution::Harness, **attributes)
       allow(Kimera::Execution::Harness).to(receive(:build).and_return(harness))
       harness
     end
@@ -822,6 +852,60 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(Kimera::Execution::IsolatedExecution).to(have_received(:new).with(settings))
     end
 
+    context "when one of two methods needs a second look" do
+      let(:registry) do
+        Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n\ndef n(a, b)\n  a < b\nend\n", file: "x.rb")
+      end
+
+      def bootstrap
+        framework(test_ids: ["t1"], finish: nil)
+        harness = executor(coverage: { 1 => ["t1"], 2 => ["t1"] })
+        first, last = registry.each.map { |mutant, point| [mutant.id, point] }.uniq(&:last).first(2)
+        warm = Kimera::RunReport.new(results: [verdict(first.first, :survived), verdict(last.first, :survived)])
+        allow(harness).to(receive_messages(warm!: nil, run: warm))
+        runner = instance_double(Kimera::Execution::IsolatedExecution, rejudge: [verdict(last.first, :killed)])
+        allow(Kimera::Execution::IsolatedExecution).to(receive(:new).and_return(runner))
+        last.last.revisit!(Kimera::MutationPoint::BOOT_REASON)
+        [runner, first.first, last.first]
+      end
+
+      it "re-judges a warm survivor whose method also ran while the suite loaded", :aggregate_failures do
+        runner, kept, booted = bootstrap
+        report = pass(registry, settings, [kept, booted], Kimera::Incremental::Session.new)
+        expect(report.results.map { |r| [r.mutant_id, r.status] }).to(eq([[kept, :survived], [booted, :killed]]))
+        rejudged = have_attributes(mutant_id: booted, status: :survived, detail: Kimera::MutationPoint::BOOT_REASON)
+        expect(runner).to(have_received(:rejudge).with([rejudged], label: "mutants (re-judged)"))
+      end
+
+      def ordered
+        framework(test_ids: ["t1"], finish: nil)
+        harness = executor(coverage: { 1 => ["t1"] })
+        first, last = registry.each.map { |mutant, point| [mutant.id, point] }.uniq(&:last).first(2)
+        warm = Kimera::RunReport.new(results: [verdict(first.first, :no_coverage), verdict(last.first, :no_coverage)])
+        allow(harness).to(receive_messages(warm!: nil, run: warm))
+        runner = instance_double(Kimera::Execution::IsolatedExecution, rejudge: [verdict(last.first, :killed)])
+        allow(Kimera::Execution::IsolatedExecution).to(receive(:new).and_return(runner))
+        last.last.revisit!(Kimera::MutationPoint::ORDER_REASON)
+        [runner, first.first, last.first]
+      end
+
+      it "judges in the isolated tier a mutant only the suite run in order reaches", :aggregate_failures do
+        runner, plain, reached = ordered
+        report = pass(registry, settings, [plain, reached], Kimera::Incremental::Session.new)
+        expect(report.results.map { |r| [r.mutant_id, r.status] }).to(eq([[plain, :no_coverage], [reached, :killed]]))
+        rejudged = have_attributes(mutant_id: reached, detail: Kimera::MutationPoint::ORDER_REASON)
+        expect(runner).to(have_received(:rejudge).with([rejudged], label: "mutants (re-judged)"))
+      end
+
+      it "says why such a mutant has no covering test under --no-rejudge", :aggregate_failures do
+        runner, plain, reached = ordered
+        report = pass(registry, settings(rejudge: false), [plain, reached], Kimera::Incremental::Session.new)
+        expect(report.results.map { |r| [r.mutant_id, r.status, r.detail] })
+          .to(eq([[plain, :no_coverage, nil], [reached, :no_coverage, Kimera::MutationPoint::ORDER_REASON]]))
+        expect(runner).not_to(have_received(:rejudge))
+      end
+    end
+
     it "leaves the warm verdicts alone under --no-rejudge" do
       runner, _warm, session = unjudged
       report = pass(registry, settings(rejudge: false), [1, 2], session)
@@ -831,8 +915,8 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
     it "isolates only mutants covered by a pool-unsafe spec and merges the reports" do
       harness, runner, session = partition
-      opts = settings(isolate_when_covered_by: ["end_to_end_spec"])
-      report = pass(registry, opts, [1, 2], session)
+      parsed = settings(isolate_when_covered_by: ["end_to_end_spec"])
+      report = pass(registry, parsed, [1, 2], session)
       expect(report.results.map(&:mutant_id)).to(contain_exactly(1, 2))
       distribute(harness, runner)
     end
@@ -939,6 +1023,15 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(expanded.call).to(eq(["spec/good_spec.rb"]))
     end
 
+    it "stamps no session when the run keeps none" do
+      File.write("calc.rb", "def m(a, b)\n  a > b\nend\n")
+      diff = instance_double(Kimera::Incremental::GitDiff, lines: {})
+      allow(Kimera::Incremental::GitDiff).to(receive(:new).and_return(diff))
+      allow(Kimera::Incremental::Stamp).to(receive(:new).and_call_original)
+      capture(["calc.rb", "--since", "main"])
+      expect(Kimera::Incremental::Stamp).not_to(have_received(:new))
+    end
+
     it "still passes quietly when an incremental diff selects zero mutants" do
       File.write("calc.rb", "def m(a, b)\n  a > b\nend\n")
       allow(Kimera::Incremental::GitDiff).to(
@@ -946,7 +1039,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         instance_double(
           Kimera::Incremental::GitDiff,
           lines: {}
-      )
+        )
       )
       )
 

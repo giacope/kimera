@@ -3,8 +3,14 @@
 RSpec.describe(Kimera::Runtime) do
   let(:runtime) { described_class.new }
 
-  it "is the one process-wide runtime that synthesized guards call as ::MutantRuntime" do
-    expect(MutantRuntime).to(equal(Kimera::RUNTIME))
+  it "is the one process-wide runtime, and the only constant kimera defines outside its namespace is Kimera" do
+    expect(Kimera::RUNTIME).to(be_a(described_class))
+  end
+
+  it "keeps the runtime a second copy of this file finds already bound" do
+    bound = Kimera::RUNTIME
+    Kimera::Warnings.silence { load(described_class::SOURCE_PATH) }
+    expect(Kimera::RUNTIME).to(equal(bound))
   end
 
   describe "#active / #active?" do
@@ -57,7 +63,16 @@ RSpec.describe(Kimera::Runtime) do
       ledger = runtime.start!
       runtime.stop!(ledger)
       runtime.active?(5)
-      expect(ledger).to(be_empty)
+      expect(ledger.drain!).to(be_empty)
+    end
+
+    # A guard in a hot loop runs millions of times; the ledger holds each id once.
+    it "keeps one entry per mutant however often its guard runs" do
+      ledger = runtime.start!
+      100_000.times { runtime.active?(7) }
+      expect(ledger.ids.size).to(eq(1))
+    ensure
+      runtime.stop!(ledger)
     end
 
     def close(ledger, mutant)
@@ -150,6 +165,55 @@ RSpec.describe(Kimera::Runtime) do
 
     it "keeps open ledgers (and their contents) across reset!" do
       expect(reset).to(contain_exactly(3, 4))
+    end
+  end
+
+  # Asserted through our own ledger: a self-hosting harness may hold its own
+  # open too, and the child writes to both.
+  describe "touches made in a forked child" do
+    def forked(&)
+      ledger = Kimera::RUNTIME.start!
+      Process.wait(fork(&))
+      [ledger.drain!, ledger.spill]
+    ensure
+      Kimera::RUNTIME.stop!(ledger)
+    end
+
+    def child(mutant)
+      lambda do
+        Kimera::RUNTIME.active?(mutant)
+        exit!(0)
+      end
+    end
+
+    def grandchild(mutant)
+      lambda do
+        Process.wait(fork(&child(mutant)))
+        exit!(0)
+      end
+    end
+
+    it "reach the parent's ledger, and leave no spill file behind", :aggregate_failures do
+      touched, spill = forked(&child(41))
+      expect(touched).to(include(41))
+      expect(File.exist?(spill)).to(be(false))
+    end
+
+    it "reach it from a grandchild too" do
+      touched, = forked(&grandchild(42))
+      expect(touched).to(include(42))
+    end
+
+    it "are not looked for while no ledger is open" do
+      expect(runtime.leaks).to(be_nil)
+    end
+
+    it "write each mutant once" do
+      Dir.mktmpdir do |dir|
+        spill = described_class::Spill.new(File.join(dir, "spill"), {})
+        [3, 3, 4].each { spill.push(it) }
+        expect(File.read(spill.leak)).to(eq("3\n4\n"))
+      end
     end
   end
 end

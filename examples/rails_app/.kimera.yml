@@ -1,0 +1,4 @@
+framework: minitest
+paths: ["app/**/*.rb"]
+tests: ["test/**/*_test.rb"]
+operators: [comparison, boolean_connective, boolean_literal, statement_deletion, negation, conditional, rails]

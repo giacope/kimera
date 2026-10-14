@@ -43,6 +43,7 @@ class Kimera::Report::Text
 
   def footer(report, coverage, path)
     __send__(COVERAGE_SECTIONS.fetch(coverage), report, path)
+    regions(report.unmutated)
     leaks(report.leaks)
     Kimera::Report::Actions.new(io: @io).show(report, path: path)
   end

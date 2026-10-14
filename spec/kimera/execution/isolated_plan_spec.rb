@@ -33,6 +33,11 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
   end
 
   describe "#tests" do
+    it "runs the whole suite for a point whose method also ran while the suite loaded" do
+      point.revisit!(Kimera::MutationPoint::BOOT_REASON)
+      expect(plan(coverage: { mutant_id => ["spec/a_spec.rb[1:1]"] }).tests(mutant_id, point)).to(eq(%w[t1 t2 t3]))
+    end
+
     it "returns the measured covering set (integer-keyed) when present" do
       p = plan(coverage: { mutant_id => ["spec/a_spec.rb[1:1]"] })
       expect(p.tests(mutant_id, point)).to(eq(["spec/a_spec.rb[1:1]"]))
@@ -138,11 +143,11 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       end
     end
 
-    def bundled(locations)
+    def bundled(locations, root: Dir.mktmpdir)
       Dir.mktmpdir do |mirror|
         gemfile = File.join(mirror, "Gemfile")
         File.write(gemfile, "source 'https://rubygems.org'\n")
-        return [gemfile, *plan.command(mirror, locations, File.join(mirror, "l.json"))]
+        return [gemfile, *plan(root: root).command(mirror, locations, File.join(mirror, "l.json"))]
       end
     end
 
@@ -162,11 +167,21 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       expect(argv[7..].map { |a| File.basename(a) }).to(eq([File.basename(child), *ledgers]))
     end
 
+    # A Gemfile names gems by paths relative to it (a monorepo's engines); the
+    # mirror sits elsewhere, so only the project's own Gemfile resolves them.
+    it "pins BUNDLE_GEMFILE to the project's own Gemfile when it has one" do
+      Dir.mktmpdir do |root|
+        File.write(File.join(root, "Gemfile"), "gem 'engine', path: '../engine'\n")
+        _gemfile, env, = bundled(["spec/a_spec.rb[1:1]"], root: root)
+        expect(env.fetch("BUNDLE_GEMFILE")).to(eq(File.join(root, "Gemfile")))
+      end
+    end
+
     def mixed
-      src = "def a(x, y)\n  x > y\nend\n"
+      code = "def a(x, y)\n  x > y\nend\n"
       Kimera::Registry.new(
-        points: Kimera::RegistryScan.new.source(src, file: "lib/x.rb").points +
-          Kimera::RegistryScan.new.source(src, file: "app/y.rb").points
+        points: Kimera::RegistryScan.new.source(code, file: "lib/x.rb").points +
+          Kimera::RegistryScan.new.source(code, file: "app/y.rb").points
       )
     end
 
@@ -188,11 +203,11 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
 
   describe "#mutables" do
     def nested
-      src = "def a(x, y)\n  x > y\nend\n"
+      code = "def a(x, y)\n  x > y\nend\n"
       Kimera::Registry.new(
-        points: Kimera::RegistryScan.new.source(src, file: "lib/a.rb").points +
-          Kimera::RegistryScan.new.source(src, file: "lib/deep/b.rb").points +
-          Kimera::RegistryScan.new.source(src, file: "app/c.rb").points
+        points: Kimera::RegistryScan.new.source(code, file: "lib/a.rb").points +
+          Kimera::RegistryScan.new.source(code, file: "lib/deep/b.rb").points +
+          Kimera::RegistryScan.new.source(code, file: "app/c.rb").points
       )
     end
 
@@ -216,8 +231,8 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     end
 
     it "copies a would-be link that holds a mutated file, so no mutant writes through it" do
-      src = "def a(x, y)\n  x > y\nend\n"
-      inside = Kimera::Registry.new(points: Kimera::RegistryScan.new.source(src, file: "vendor/a.rb").points)
+      code = "def a(x, y)\n  x > y\nend\n"
+      inside = Kimera::Registry.new(points: Kimera::RegistryScan.new.source(code, file: "vendor/a.rb").points)
       expect(plan(registry: inside).placement("vendor")).to(eq(:copy))
     end
   end

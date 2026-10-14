@@ -68,9 +68,9 @@ module Kimera
       def captured(path) = File.read(path, encoding: Encoding::UTF_8).scrub
 
       def launch(mirror, locations, ledger, stderr)
-        env, cmd = plan.command(mirror, locations, ledger)
+        env, invocation = plan.command(mirror, locations, ledger)
         pulse = "#{ledger}#{Kimera::Execution::IsolatedPlan::ChildCommand::PULSE}"
-        waitfor(Process.spawn(env, *cmd, chdir: mirror, pgroup: true, out: File::NULL, err: stderr), pulse)
+        waitfor(Process.spawn(env, *invocation, chdir: mirror, pgroup: true, out: File::NULL, err: stderr), pulse)
       end
 
       def with_mirror
@@ -97,9 +97,7 @@ module Kimera
 
       def error(trial, detail) = result(trial, status: :error, detail: detail)
 
-      def now
-        Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      end
+      def now(reading = Process.clock_gettime(Process::CLOCK_MONOTONIC)) = reading
     end
   end
 end

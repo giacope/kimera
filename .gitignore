@@ -8,3 +8,4 @@ tmp/
 .kimera_session.json
 /tmp_self_report.json
 Gemfile.lock
+*.gemfile.lock

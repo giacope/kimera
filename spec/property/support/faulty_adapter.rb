@@ -33,15 +33,15 @@ end
 # that the real Shift, not a script, decides what goes down the pipe:
 # - killed: fails with the mutant on, passes with it off;
 # - survived: passes;
-# - leak: killed, then passes when LeakGuard runs it again;
-# - requeue: fails with the mutant off too (a Suspect: requeued warm, a
-#   Doubt and so harness_error on a recheck);
-# - tainted: outlasts the soft timeout (a timeout verdict ends the shift);
+# - leak: killed, then passes when run again in the same process;
+# - requeue: fails with the mutant off too;
+# - tainted: outlasts the soft timeout;
 # - crash: the process exits;
 # - hang: the process sleeps through the soft timeout, until the parent's
 #   watchdog kills it.
-# Kimera::RUNTIME.active names the mutant on each run a Trial makes, and is
-# nil on its control run, which belongs to the mutant run before it.
+# Kimera::RUNTIME.active names the mutant on each run, and is nil on a
+# control run, which belongs to the mutant run before it. Shift runs each
+# mutant in a child of its own, so a run counter starts over in each.
 class FaultyAdapter
   FAILING = %i[killed requeue].freeze
 

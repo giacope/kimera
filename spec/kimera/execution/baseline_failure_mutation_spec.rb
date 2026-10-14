@@ -77,22 +77,25 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     )
   end
 
-  it "records only the first killing test in the attempt memory" do
-    passed = Struct.new(:passed?).new(true)
-    killed = Struct.new(:passed?).new(false)
+  it "records only the first killing test in the attempt memory", :aggregate_failures do
+    passed = Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
     adapter = Object.new
-    adapter.define_singleton_method(:run) { |ids| ids == ["a"] || Kimera::RUNTIME.active.nil? ? passed : killed }
+    adapter.define_singleton_method(:run) do |ids|
+      next passed if ids == ["a"] || Kimera::RUNTIME.active.nil?
+      Kimera::Frameworks::RunOutcome.new(passed: false, failed_ids: ids, failures: { ids.first => "boom" })
+    end
     isolation = Object.new
     isolation.define_singleton_method(:around) { |&block| block.call }
     remembered = []
     killers = Object.new
     killers.define_singleton_method(:order) { |tests| tests }
     killers.define_singleton_method(:remember) { |id| remembered << id }
+    probe = Kimera::Execution::Shift::Probe.new(adapter, Kimera::Execution::Shift::Deadline.build(nil))
     attempt = Kimera::Execution::Shift::Attempt.new(
-      adapter: adapter, isolation: isolation, killers: killers, deadline: Kimera::Execution::Shift::Deadline.build(nil)
+      probe: probe, isolation: isolation, killers: killers, zygote: InlineZygote.new
     )
 
-    expect(attempt.run(9, %w[a b c])).to(equal(killed))
+    expect(attempt.run(9, %w[a b c]).to_h).to(eq(failed_ids: ["b"], failures: { "b" => "boom" }))
     expect(remembered).to(eq(["b"]))
   end
 
@@ -107,7 +110,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     response = StringIO.new
     before = Array(Kimera::RUNTIME.instance_variable_get(:@ledgers)).size
 
-    Kimera::Execution::Shift::CoverageChannel.new(adapter).serve(request, response)
+    Kimera::Execution::Shift::CoverageChannel.new(adapter, zygote: InlineZygote.new).serve(request, response)
 
     messages = response.string.lines.map { |line| JSON.parse(line) }
     expect(messages.first.except("touched", "took")).to(
@@ -120,36 +123,6 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     expect(Array(Kimera::RUNTIME.instance_variable_get(:@ledgers)).size).to(eq(before))
   ensure
     Kimera::RUNTIME.reset!
-  end
-
-  it "observes every leak-guard branch and its exact event" do
-    io = StringIO.new
-    calls = []
-    outcomes = [Struct.new(:killed?).new(true), Struct.new(:killed?).new(false)]
-    guard =
-      Kimera::Execution::Shift::LeakGuard.new(2) do |id|
-        calls << id
-        outcomes.shift
-      end
-
-    [[[3], 0], [[], 1], [[3], 1], [[4], 3]].each { |arguments| guard.check(io, *arguments) }
-
-    expect(calls).to(eq([3, 4]))
-    expect(io.string.lines.map { |line| JSON.parse(line) }).to(
-      eq(
-        [
-          {
-            "t" => "leak", "id" => 4,
-            "detail" => "mutant 4 killed earlier but survived re-run (state leakage suspected)"
-          }
-        ]
-      )
-    )
-  end
-
-  it "disables leak checks when no interval is configured" do
-    guard = Kimera::Execution::Shift::LeakGuard.new(nil) { raise(RuntimeError, "must not run") }
-    expect { guard.check(StringIO.new, [1], 0) }.not_to(raise_error)
   end
 
   it "matches callback values only by their supported identity protocol" do
@@ -215,7 +188,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
       eq(
         registry: registry, root: "/root", tests: %w[t1 t2], coverage: { 1 => ["t1"] },
         progress: pass.__send__(:progress), jobs: 3, framework: "rspec", test_files: ["a_spec.rb"]
-    )
+      )
     )
   end
 

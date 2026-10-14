@@ -28,10 +28,10 @@ RSpec.describe("abort in code under test (end-to-end)") do
   end
 
   # The killed mutant's detail, and how many mutants couldn't be judged.
-  def test_killer(args, tests: "spec/**/*_spec.rb")
+  def test_killer(arguments, tests: "spec/**/*_spec.rb")
     Dir.mktmpdir("kimera-abort") do |root|
       test_fixture(root)
-      test_run(cwd: root, tests: tests, args: args) do |output, report, _status|
+      test_run(cwd: root, tests: tests, arguments: arguments) do |output, report, _status|
         raise(ArgumentError, "no JSON report; output:\n#{output}") unless report
 
         killed = report["results"].find { |result| result["status"] == "killed" }
@@ -60,19 +60,19 @@ RSpec.describe("abort in code under test (end-to-end)") do
     expect(test_killer(["--framework", "minitest", "--isolated"], tests: tests)).to(include(errors: 0, killed: true))
   end
 
-  def test_red(root, args)
+  def test_red(root, arguments)
     test_fixture(root)
     File.write(File.join(root, "spec", "task_spec.rb"), <<~RUBY)
       require_relative "../app/task"
       RSpec.describe(Task) { it("runs unready") { Task.new.run(false) } }
     RUBY
-    test_run(cwd: root, args: args) { |output, _report, status| yield(output, status) }
+    test_run(cwd: root, arguments: arguments) { |output, _report, status| yield(output, status) }
   end
 
   it "reports a test that aborts as a failing baseline test, serially and in parallel", :aggregate_failures do
-    [["--jobs", "1"], ["--jobs", "2"]].each do |args|
+    [["--jobs", "1"], ["--jobs", "2"]].each do |arguments|
       Dir.mktmpdir("kimera-abort") do |root|
-        test_red(root, args) do |output, status|
+        test_red(root, arguments) do |output, status|
           expect(output).to(include("not green: ./spec/task_spec.rb[1:1]", "SystemExit: exit(1) called from app/"))
           expect(status).to(eq(1))
         end

@@ -9,7 +9,7 @@ end
 module Kimera::CLI::Argv
   module_function
 
-  def option?(args, name) = args.any? { |arg| arg == name || arg.start_with?("#{name}=") }
+  def option?(arguments, name) = arguments.any? { |argument| argument == name || argument.start_with?("#{name}=") }
 
-  def any?(args, names) = names.any? { |name| option?(args, name) }
+  def any?(arguments, names) = names.any? { |name| option?(arguments, name) }
 end

@@ -1,0 +1,52 @@
+# frozen_string_literal: true
+
+require_relative "overrun"
+require_relative "suspect"
+
+Kimera::Execution::Shift::Finding =
+  Data.define(:lineup, :found) do
+    def id = lineup.active
+
+    def tests = lineup.tests
+
+    def test = tests.fetch(index)
+
+    def index = found.fetch("index")
+
+    def first? = index.zero?
+
+    def onward = Kimera::Execution::Shift::Lineup.new(id, tests.drop(index + 1))
+
+    def overran? = found.fetch("kind") == "overran"
+
+    def solo = Kimera::Execution::Shift::Lineup.new(id, [test])
+
+    def calm = Kimera::Execution::Shift::Lineup.new(nil, [test])
+
+    def control = Kimera::Execution::Shift::Lineup.new(nil, through)
+
+    def again = Kimera::Execution::Shift::Lineup.new(id, through)
+
+    def kill(result, killers)
+      killers.remember(test)
+      Kimera::Execution::Shift::Finding::Kill.new(result["failed_ids"], result["failures"])
+    end
+
+    def doubted = suspect(found.fetch("failures")[test], contradicted: false)
+
+    def refuted(control) = suspect(control.fetch("failures")[test], contradicted: true)
+
+    def overrun(calm, again, budget)
+      Kimera::Execution::Shift::Overrun.new(test, [found.fetch("elapsed"), again["elapsed"]], calm["elapsed"], budget)
+    end
+
+    def through = tests.first(index + 1)
+
+    def suspect(failure, contradicted:)
+      Kimera::Execution::Shift::Suspect.new(mutant_id: id, test: test, failure: failure, contradicted: contradicted)
+    end
+  end
+
+Kimera::Execution::Shift::Lineup = Data.define(:active, :tests)
+
+Kimera::Execution::Shift::Finding::Kill = Data.define(:failed_ids, :failures)

@@ -66,9 +66,10 @@ RSpec.describe("a suite that shares a path between tests (end-to-end)") do
 
   def test_doctor(root, config = "")
     File.write(File.join(root, ".kimera.yml"), config, mode: "a")
-    doctor = [File.join(test_repo_root, "exe", "kimera"), "doctor", "--check-baseline"]
-    command = ["bundle", "exec", "ruby", "-I", File.join(test_repo_root, "lib"), *doctor].shelljoin
-    [`cd #{root.shellescape} && BUNDLE_GEMFILE=#{test_gemfile} #{command} 2>&1`, $CHILD_STATUS.exitstatus]
+    doctor = [File.join(test_repository_root, "exe", "kimera"), "doctor", "--check-baseline"]
+    command = ["bundle", "exec", "ruby", "-I", File.join(test_repository_root, "lib"), *doctor].shelljoin
+    `cd #{root.shellescape} && BUNDLE_GEMFILE=#{test_gemfile} #{command} 2>&1`
+      .force_encoding(Encoding::UTF_8).then { |text| [text, $CHILD_STATUS.exitstatus] }
   end
 
   let(:red) { "! Parallel baseline: red split across 2 processes (jobs: 2), green in one: " }
@@ -76,14 +77,14 @@ RSpec.describe("a suite that shares a path between tests (end-to-end)") do
   it "names --jobs 1 as the check when the baseline is red on two workers, and is green on one", :aggregate_failures do
     Dir.mktmpdir("kimera-shared") do |root|
       test_shared(root)
-      test_run(cwd: root, args: ["--jobs", "2", "--no-progress"]) do |output, _report, status|
+      test_run(cwd: root, arguments: ["--jobs", "2", "--no-progress"]) do |output, _report, status|
         expect(status).to(eq(1))
         expect(output).to(match(%r{not green: \d+ tests failed:\n    \./spec/[ab]_spec\.rb\[1:\d\]\n}))
         expect(output).to(
           include("\n  ran on 2 workers: if these pass with --jobs 1, the suite shares state between workers")
         )
       end
-      test_run(cwd: root, args: ["--jobs", "1", "--no-progress"]) do |output, report, _status|
+      test_run(cwd: root, arguments: ["--jobs", "1", "--no-progress"]) do |output, report, _status|
         expect(output).not_to(include("not green"))
         expect(report["counts"]["killed"]).to(be_positive)
       end
@@ -93,7 +94,7 @@ RSpec.describe("a suite that shares a path between tests (end-to-end)") do
   it "names --jobs 1 when the coverage pass of an --isolated run is red on two workers" do
     Dir.mktmpdir("kimera-shared") do |root|
       test_shared(root)
-      test_run(cwd: root, args: ["--isolated", "--jobs", "2", "--no-progress"]) do |output, _report, status|
+      test_run(cwd: root, arguments: ["--isolated", "--jobs", "2", "--no-progress"]) do |output, _report, status|
         expect([status, output]).to(match([1, a_string_including("ran on 2 workers: if these pass with --jobs 1")]))
       end
     end

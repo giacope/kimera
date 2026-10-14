@@ -10,10 +10,10 @@ class Kimera::Incremental::Session::Payload
   private
 
   def attributes
-    attrs = { leaks: leaks, meta: @data["meta"] || {} }
-    attrs[:results] = keys(@data["results"]) { |hash| Kimera::MutantResult.from_h(hash) }
-    attrs[:fingerprints] = keys(@data["fingerprints"]) { |fingerprint| fingerprint }
-    attrs
+    fields = { leaks: leaks, meta: @data["meta"] || {} }
+    fields[:results] = keys(@data["results"]) { |hash| Kimera::MutantResult.from_h(hash) }
+    fields[:fingerprints] = keys(@data["fingerprints"]) { |fingerprint| fingerprint }
+    fields
   end
 
   def leaks

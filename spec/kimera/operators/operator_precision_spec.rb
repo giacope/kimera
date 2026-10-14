@@ -6,13 +6,13 @@ require "kimera/runtime"
 require "kimera/synthesis/overlay"
 
 RSpec.describe("operator precision") do
-  def mutants(src, key, file: "p.rb")
-    catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: [key])).source(src, file: file)
+  def mutants(code, key, file: "p.rb")
+    catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: [key])).source(code, file: file)
     catalog.each.map { |m, _p| m }
   end
 
-  def only(src, key)
-    ms = mutants(src, key)
+  def only(code, key)
+    ms = mutants(code, key)
     expect(ms.size).to(eq(1), "expected exactly one mutant, got #{ms.map(&:label)}")
     ms.first
   end
@@ -25,11 +25,11 @@ RSpec.describe("operator precision") do
     end
 
     it "flips the float live through an overlay", :aggregate_failures do
-      src = "def rate\n  2.5\nend\n"
+      code = "def rate\n  2.5\nend\n"
       catalog = Kimera::RegistryScan.new(
         operators: Kimera::Operators.build(keys: ["numeric_literal"])
-      ).source(src, file: "p.rb")
-      result = Kimera::Overlay.new(catalog).synthesize("p.rb", src)
+      ).source(code, file: "p.rb")
+      result = Kimera::Overlay.new(catalog).synthesize("p.rb", code)
       mod = Module.new.tap { |m| m.module_eval(result.source) }
       object = Object.new.extend(mod)
       Kimera::RUNTIME.active = nil
@@ -76,11 +76,11 @@ RSpec.describe("operator precision") do
     end
 
     it "makes an exclusive range inclusive live through an overlay", :aggregate_failures do
-      src = "def s\n  (2...5)\nend\n"
+      code = "def s\n  (2...5)\nend\n"
       catalog = Kimera::RegistryScan.new(
         operators: Kimera::Operators.build(keys: ["range"])
-      ).source(src, file: "p.rb")
-      result = Kimera::Overlay.new(catalog).synthesize("p.rb", src)
+      ).source(code, file: "p.rb")
+      result = Kimera::Overlay.new(catalog).synthesize("p.rb", code)
       mod = Module.new.tap { |m| m.module_eval(result.source) }
       object = Object.new.extend(mod)
       Kimera::RUNTIME.active = nil
@@ -138,11 +138,11 @@ RSpec.describe("operator precision") do
     end
 
     it "flips a regexp to match-none live through an overlay", :aggregate_failures do
-      src = "def re(s)\n  s.match?(/ab+/)\nend\n"
+      code = "def re(s)\n  s.match?(/ab+/)\nend\n"
       catalog = Kimera::RegistryScan.new(
         operators: Kimera::Operators.build(keys: ["regexp"])
-      ).source(src, file: "p.rb")
-      result = Kimera::Overlay.new(catalog).synthesize("p.rb", src)
+      ).source(code, file: "p.rb")
+      result = Kimera::Overlay.new(catalog).synthesize("p.rb", code)
       mod = Module.new.tap { |m| m.module_eval(result.source) }
       object = Object.new.extend(mod)
       Kimera::RUNTIME.active = nil
@@ -167,8 +167,8 @@ RSpec.describe("operator precision") do
 
   # Pins the `node.arguments&.` safe navigation; `.` would raise on nil.
   describe "rails matchers tolerate argument-less DSL calls" do
-    def build(src, key)
-      Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: [key])).source(src, file: "app.rb")
+    def build(code, key)
+      Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: [key])).source(code, file: "app.rb")
     end
 
     it "rails_permit: a bare permit yields no mutant and does not raise", :aggregate_failures do
@@ -195,9 +195,9 @@ RSpec.describe("operator precision") do
   end
 
   describe "rails_association keys on dependent: specifically" do
-    def assocs(src)
+    def assocs(code)
       Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["rails_association"]))
-        .source(src, file: "app.rb").each.to_a
+        .source(code, file: "app.rb").each.to_a
     end
 
     it "emits a drop only for a real dependent: option", :aggregate_failures do
@@ -211,20 +211,20 @@ RSpec.describe("operator precision") do
     end
 
     it "labels a multi-line association with its stripped first line" do
-      src = <<~RUBY
+      code = <<~RUBY
         class Foo
           has_many :posts,
                    dependent: :destroy
         end
       RUBY
-      ms = assocs(src)
+      ms = assocs(code)
       expect(ms.map { |m, _p| m.label }).to(eq(["has_many :posts,: drop dependent:"]))
     end
   end
 
   # Dropping either of two equal neighbors leaves the same program.
   describe "drops of equal neighbors" do
-    def indexes(src, key) = mutants(src, key).map { |m| m.directive["index"] }
+    def indexes(code, key) = mutants(code, key).map { |m| m.directive["index"] }
 
     it "keeps one drop per run of equal neighbors", :aggregate_failures do
       expect(indexes("def m\n  [7, 7]\nend\n", "element_drop")).to(eq([0]))
@@ -258,7 +258,7 @@ RSpec.describe("operator precision") do
 
   # Forcing `if true` to true leaves it unchanged: a survivor no test can kill.
   describe "conditional on a literal condition" do
-    def labels(src) = mutants(src, "conditional").map(&:label)
+    def labels(code) = mutants(code, "conditional").map(&:label)
 
     it "only forces a literal condition to the other literal", :aggregate_failures do
       expect(labels("def m(a)\n  a if true\nend\n")).to(eq(["condition => false"]))
@@ -269,8 +269,8 @@ RSpec.describe("operator precision") do
 
   describe "argument_drop label slicing (multi-line / padded)" do
     it "labels a multi-line argument with its stripped first line", :aggregate_failures do
-      src = "def m\n  helper(build(\n    :deep\n  ), other)\nend\n"
-      labels = mutants(src, "argument_drop").map(&:label)
+      code = "def m\n  helper(build(\n    :deep\n  ), other)\nend\n"
+      labels = mutants(code, "argument_drop").map(&:label)
       expect(labels).to(include("drop arg `build(`"))
       expect(labels).to(include("drop arg `other`"))
       expect(labels).not_to(include("drop arg `  ), other`")) # would be `first`=>`last`

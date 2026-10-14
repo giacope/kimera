@@ -14,7 +14,7 @@ class Kimera::Execution::StackDump
   HARNESS = File.expand_path("..", __dir__)
   HEADER = "threads in the worker when it was killed:"
   PAUSE = Kernel.method(:sleep)
-  CLOCK = -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }
+  CLOCK = ->(reading = Process.clock_gettime(Process::CLOCK_MONOTONIC)) { reading }
   UNANSWERED = "no backtraces: the worker did not answer SIG#{SIGNAL} within #{GRACE}s " \
     "(blocked in native code without releasing the GVL?)".freeze
 
@@ -30,13 +30,17 @@ class Kimera::Execution::StackDump
   end
 
   def take(pid)
-    Process.kill(SIGNAL, pid)
+    ask(pid)
     collect(path(pid))
   rescue Errno::ESRCH
     nil
   end
 
   private
+
+  def ask(pid) = Process.kill(SIGNAL, leader?(pid) ? -pid : pid)
+
+  def leader?(pid) = pid != Process.pid && Process.getpgid(pid) == pid
 
   def path(pid) = File.join(@dir, "#{pid}.txt")
 

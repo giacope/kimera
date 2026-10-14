@@ -12,9 +12,9 @@ module Kimera
       GUARD =
         Module.new do
           MACROS.each do |macro|
-            define_method(macro) do |name = nil, *args, **options, &block|
+            define_method(macro) do |name = nil, *words, **options, &block|
               return if ConcernOverrides.skipping?(self, name)
-              super(name, *args, **options, &block)
+              super(name, *words, **options, &block)
             end
           end
         end
@@ -51,7 +51,7 @@ module Kimera
 
       def mixin?(call, tail)
         %i[include prepend].include?(call.name) &&
-          (call.arguments&.arguments || []).any? { |arg| arg.slice.split("::").last == tail }
+          (call.arguments&.arguments || []).any? { |argument| argument.slice.split("::").last == tail }
       end
 
       def declaration(call)

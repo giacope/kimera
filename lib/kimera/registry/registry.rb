@@ -3,16 +3,24 @@
 require "json"
 require_relative "mutation_point"
 require_relative "mutant_keys"
+require_relative "unmutated"
 
 class Kimera::Registry
   FORMAT_VERSION = 1
+  ROWS = ->(list, kind) { Array(list).map { |row| kind.from_h(row) } }
 
-  attr_reader :points, :operators, :root
+  attr_reader :points, :operators, :root, :unmutated
 
-  def initialize(points: [], operators: [], root: ".")
+  def initialize(points: [], operators: [], root: ".", unmutated: [])
     @points = points
     @operators = operators
     @root = root
+    @unmutated = unmutated
+  end
+
+  def narrow!(changed)
+    @unmutated.select! { |region| region.touches?(Array(changed[region.file])) }
+    self
   end
 
   def <<(point)
@@ -76,7 +84,7 @@ class Kimera::Registry
   def stats
     {
       "stats" => { "files" => files.size, "points" => size, "mutants" => count },
-      "points" => points.map(&:to_h)
+      "points" => points.map(&:to_h), "unmutated" => unmutated.map(&:to_h)
     }
   end
 
@@ -91,8 +99,9 @@ class Kimera::Registry
 
   class << self
     def from_h(hash)
-      points = Array(hash["points"]).map { |point| Kimera::MutationPoint.from_h(point) }
-      new(root: hash["root"] || ".", operators: hash["operators"] || [], points: points)
+      points = ROWS.call(hash["points"], Kimera::MutationPoint)
+      unmutated = ROWS.call(hash["unmutated"], Kimera::Unmutated)
+      new(root: hash["root"] || ".", operators: hash["operators"] || [], points: points, unmutated: unmutated)
     end
 
     def parse(json) = from_h(JSON.parse(json))

@@ -7,6 +7,14 @@ AllCops:
   Exclude:
     # Fixture apps: specs pin their exact source (lines, operators, mutant counts).
     - examples/**/*
+    # CI matrix bundles: each reads the one gem version its job sets.
+    - gemfiles/**/*
+    # Evaluation fixtures hold the code under test, bad on purpose (one does
+    # not parse); eval/tmp caches cloned projects.
+    - eval/fixtures/**/*
+    # The external holdout corpus and its oracle, kept as their author wrote them.
+    - eval/holdout/**/*
+    - eval/tmp/**/*
     # CI installs the bundle here; replacing Exclude drops RuboCop's default.
     - vendor/**/*
 
@@ -31,6 +39,8 @@ Kata/GoodMethodName:
     # RSpec and Minitest internals kimera extends each test with, to fail a test that calls exit.
     - with_around_example_hooks
     - capture_exceptions
+    # Ruby's fork hook, which Process.fork calls and the coverage runtime prepends to.
+    - _fork
     # unparser's range emitter internals, overridden to write array endpoints.
     - visit_begin_node
     - visit_end_node
@@ -82,6 +92,31 @@ Elegant/NoRedundantVariable:
   Enabled: false
 
 # --------------------------------------------------------------------------
+# eval/: the measurement harness, run by hand, not shipped. Each case's
+# comment is the definition of what it measures; the harness is one
+# namespace; the oracle judges mutants on threads; the command prints.
+# --------------------------------------------------------------------------
+
+Kata/NoComments:
+  inherit_mode:
+    merge:
+      - Exclude
+  Exclude:
+    - eval/**/*
+Elegant/NoClassInModule:
+  inherit_mode:
+    merge:
+      - Exclude
+  Exclude:
+    - eval/**/*
+Kata/IoDiscipline:
+  inherit_mode:
+    merge:
+      - Exclude
+  Exclude:
+    - eval/**/*
+
+# --------------------------------------------------------------------------
 # kimera forks processes, not threads; a mutex here would only slow mutants.
 # --------------------------------------------------------------------------
 
@@ -97,6 +132,10 @@ ThreadSafety/ClassAndModuleAttributes:
     - lib/kimera/execution/overlay_guards.rb
 ThreadSafety/NewThread:
   Exclude:
+    # The oracle runs one mutant per sandbox copy at once.
+    - eval/lib/kimera_eval/oracle.rb
+    # Reads a child's two streams and samples its memory while it runs.
+    - eval/lib/kimera_eval/shell.rb
     # One thread per job is this file's purpose.
     - lib/kimera/execution/isolated_scheduling.rb
     # doctor waits on one suite process per job at once.
@@ -212,6 +251,8 @@ Kata/RealWords:
     - ndjson
     - sarif
     - github
+    # The `kimera init` subcommand, dispatched by that name.
+    - init
 
 Kata/EnvDiscipline:
   Exclude:
@@ -228,3 +269,23 @@ Kata/NoHashAsObject:
     - config/**/*
     # SARIF is a fixed external schema.
     - lib/kimera/report/formats.rb
+
+# --------------------------------------------------------------------------
+# Spec fixtures build their doubles, fake adapters and projects inline; an
+# extracted helper per branch would scatter one fixture across methods. Lib
+# and eval code keep the limits.
+# --------------------------------------------------------------------------
+
+Metrics/AbcSize:
+  inherit_mode:
+    merge:
+      - Exclude
+  Exclude:
+    - spec/**/*
+
+Metrics/CyclomaticComplexity:
+  inherit_mode:
+    merge:
+      - Exclude
+  Exclude:
+    - spec/**/*

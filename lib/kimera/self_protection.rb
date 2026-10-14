@@ -29,10 +29,11 @@ module Kimera
       kimera/execution/shift/overrun.rb
       kimera/execution/shift/subject.rb
       kimera/execution/shift/suspect.rb
-      kimera/execution/shift/trial.rb
+      kimera/execution/shift/probe.rb
+      kimera/execution/shift/finding.rb
       kimera/execution/shift/coverage_channel.rb
       kimera/execution/shift/killer_memory.rb
-      kimera/execution/shift/leak_guard.rb
+      kimera/execution/zygote.rb
       kimera/execution/harness.rb
       kimera/execution/baseline_pass.rb
       kimera/execution/baseline_tally.rb

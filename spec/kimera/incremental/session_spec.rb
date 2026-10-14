@@ -23,6 +23,22 @@ RSpec.describe(Kimera::Incremental::Session) do
     path
   end
 
+  it "creates the directory it saves into" do
+    path = File.join(dir, "tmp", "kimera", "session.json")
+    described_class.new.save(path)
+    expect(File).to(exist(path))
+  end
+
+  # The tests or sources changed since: a kill may no longer stand.
+  it "drops verdicts saved under another stamp, and keeps those saved under the same", :aggregate_failures do
+    registry = Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n", file: "x.rb")
+    id = registry.each.first.first.id
+    path = File.join(dir, "session.json")
+    described_class.new.stamp!("one").merge!(report([result(id, :killed)])).save(path, registry: registry)
+    expect(described_class.from(path, registry: registry, stamp: "two").done?(id)).to(be(false))
+    expect(described_class.from(path, registry: registry, stamp: "one").done?(id)).to(be(true))
+  end
+
   it "records, persists, and resumes results" do
     path = seed(dir, report([result(1, :killed), result(2, :survived)]))
     resumed = described_class.from(path)

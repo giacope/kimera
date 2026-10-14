@@ -56,7 +56,14 @@ RSpec.describe(Kimera::Execution::LoadTrace) do
 
   it "leaves a method that did not run while loading", :aggregate_failures do
     traced
-    expect(point("a > b")).to(have_attributes(safe?: true, unsafe_reason: nil))
+    expect(point("a > b")).to(have_attributes(safe?: true, unsafe_reason: nil, revisit: nil))
+  end
+
+  # A test covers it too, so it stays warm; what it computed at load did not see the mutant.
+  it "marks a covered point of a method that ran while loading", :aggregate_failures do
+    ternary = point("flag ? 1 : 2")
+    traced({ ternary.ids.first => ["t1"] })
+    expect(ternary).to(have_attributes(safe?: true, revisit: Kimera::MutationPoint::BOOT_REASON))
   end
 
   it "leaves a point already sent elsewhere for a reason of its own" do

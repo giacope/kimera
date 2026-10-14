@@ -40,9 +40,9 @@ RSpec.describe(Kimera::Overlay) do
       "@memo ||= foo(a && b && c)"
     ].freeze
 
-    corpus.each do |expr|
-      it "produces valid, reparseable Ruby for: #{expr}", :aggregate_failures do
-        source = "def m(a = 1, b = 2, c = 3, d = 4, e = 5, f = 6, arr = [1, 2])\n  #{expr}\nend\n"
+    corpus.each do |snippet|
+      it "produces valid, reparseable Ruby for: #{snippet}", :aggregate_failures do
+        source = "def m(a = 1, b = 2, c = 3, d = 4, e = 5, f = 6, arr = [1, 2])\n  #{snippet}\nend\n"
         result, = synth(source)
         # Check MRI too: whitequark and prism disagree on some malformed output.
         expect { Unparser.parse(result.source) }.not_to(raise_error)
@@ -744,7 +744,7 @@ RSpec.describe(Kimera::Overlay) do
         registry, result = spliced
         expect(result.mutant_ids.size).to(eq(registry.count))
         expect(result.source).to(include("ODDITY = :unemittable"))
-        expect(result.source).to(include("::MutantRuntime.active?"))
+        expect(result.source).to(include("::Kimera::RUNTIME.active?"))
         expect(Prism.parse(result.source)).to(be_success)
       end
 
@@ -774,9 +774,9 @@ RSpec.describe(Kimera::Overlay) do
       def broken
         allow_any_instance_of(Kimera::Guardrail)
           .to(receive(:reopen).and_wrap_original) do |original, node|
-            raise(NoMethodError, "undefined method 'children' for nil") if node.type == :casgn
-            original.call(node)
-          end
+          raise(NoMethodError, "undefined method 'children' for nil") if node.type == :casgn
+          original.call(node)
+        end
       end
 
       it "refuses to splice when the rebuild fails, rather than the emission" do
@@ -879,17 +879,18 @@ RSpec.describe(Kimera::Overlay) do
       end
 
       it "leaves a file with nothing to splice unreopened" do
-        src = "Point = Data.define(:x) do\n  def big? = x > 10\nend\n"
-        registry = Kimera::RegistryScan.new.source(src, file: "p.rb")
+        code = "Point = Data.define(:x) do\n  def big? = x > 10\nend\n"
+        registry = Kimera::RegistryScan.new.source(code, file: "p.rb")
         allow(Unparser).to(receive(:unparse).and_raise(RuntimeError, "Could not find a round tripping solution"))
-        expect { described_class.new(registry).synthesize("p.rb", src) }.to(raise_error(RuntimeError, /round tripping/))
+        expect { described_class.new(registry).synthesize("p.rb", code) }
+          .to(raise_error(RuntimeError, /round tripping/))
       end
     end
 
     # giacope/kimera#7: a string interpolating a pattern binding sank every
     # mutant in the file, including ones in unrelated methods.
     it "weaves a file whose strings interpolate a case/in binding", :aggregate_failures do
-      src = <<~'RUBY'
+      code = <<~'RUBY'
         class PatternBid
           def big?(value) = value > 10
 
@@ -900,9 +901,9 @@ RSpec.describe(Kimera::Overlay) do
           end
         end
       RUBY
-      registry = Kimera::RegistryScan.new.source(src, file: "bid.rb")
+      registry = Kimera::RegistryScan.new.source(code, file: "bid.rb")
       result = nil
-      expect { result = described_class.new(registry).synthesize("bid.rb", src) }.not_to(output.to_stderr)
+      expect { result = described_class.new(registry).synthesize("bid.rb", code) }.not_to(output.to_stderr)
       expect(result.mutant_ids.size).to(eq(registry.count))
       mod = Module.new
       mod.module_eval(result.source)
@@ -910,9 +911,9 @@ RSpec.describe(Kimera::Overlay) do
     end
 
     it "does not warn when every point is guardable" do
-      src = "def m(a, b)\n  a > b\nend\n"
-      registry = Kimera::RegistryScan.new.source(src, file: "clean.rb")
-      expect { described_class.new(registry).synthesize("clean.rb", src) }.not_to(output.to_stderr)
+      code = "def m(a, b)\n  a > b\nend\n"
+      registry = Kimera::RegistryScan.new.source(code, file: "clean.rb")
+      expect { described_class.new(registry).synthesize("clean.rb", code) }.not_to(output.to_stderr)
     end
   end
 end

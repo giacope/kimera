@@ -5,11 +5,11 @@ require_relative "../error"
 require_relative "../runtime"
 require_relative "baseline_failure"
 require_relative "baseline_losses"
+require_relative "baseline_order"
 require_relative "baseline_tally"
-require_relative "signal_guard"
-require_relative "stopwatch"
 require_relative "worker_pool"
 require_relative "null_progress"
+require_relative "zygote"
 
 class Kimera::Execution::BaselinePass
   def initialize(adapter:, registry:, progress: Kimera::Execution::NullProgress)
@@ -19,16 +19,20 @@ class Kimera::Execution::BaselinePass
     @messages = {}
   end
 
-  def measure! = settle(1) { serial }
-
   def parallel!(jobs, &) = settle(jobs) { dispatch(&) }
 
-  def check!
+  def check!(zygote = Kimera::Execution::Zygote.new)
+    outcome = sequence(zygote)
+    return if outcome["passed"]
+    @messages = outcome["failures"]
+    failure!(outcome["failed_ids"], 1)
+  end
+
+  def sequence(zygote = Kimera::Execution::Zygote.new) = zygote.call { whole }
+
+  def alone?(test)
     Kimera::RUNTIME.active = nil
-    outcome = quietly { @adapter.run(@adapter.test_ids) }
-    return if outcome.passed?
-    @messages = outcome.failures
-    failure!(outcome.failed_ids, 1)
+    quietly { @adapter.run([test]) }.passed?
   end
 
   private
@@ -45,32 +49,22 @@ class Kimera::Execution::BaselinePass
 
   def report(jobs)
     failures = tally.failures
-    failure!(failures, jobs) unless failures.empty?
+    failure!(failures, jobs, Kimera::Execution::BaselineOrder.new(self).of(failures)) unless failures.empty?
     tally.measured(excluded, losses.recovered(@messages))
   end
 
   def excluded = tally.irrelevant.to_h { |test_id| [test_id, @messages[test_id]] }
 
-  def serial
+  def whole
+    Kimera::RUNTIME.active = nil
     ledger = Kimera::RUNTIME.start!
-    @adapter.test_ids.each { |test_id| attempt(ledger, test_id) }
+    summary(quietly { @adapter.run(@adapter.test_ids) }).merge("touched" => ledger.drain!)
   ensure
     Kimera::RUNTIME.stop!(ledger)
   end
 
-  def attempt(ledger, test_id)
-    Kimera::RUNTIME.active = nil
-    ledger.clear
-    watch = Kimera::Execution::Stopwatch.new
-    record(test_id, watch.lap { sheltered(test_id) }, ledger.drain!, watch.last)
-  end
-
-  def sheltered(test_id) = Kimera::Execution::SignalGuard.run(test_id) { quietly { @adapter.run([test_id]) } }
-
-  def record(test_id, outcome, touched, took)
-    tally.cover(test_id, touched, took)
-    bank(test_id, touched, message: outcome.failures[test_id]) unless outcome.passed?
-    @progress.tick
+  def summary(outcome)
+    { "passed" => outcome.passed?, "failed_ids" => outcome.failed_ids, "failures" => outcome.failures }
   end
 
   def dispatch(&)
@@ -133,10 +127,10 @@ class Kimera::Execution::BaselinePass
     $stderr = StringIO.new
   end
 
-  def failure!(failed, jobs)
+  def failure!(failed, jobs, ordered = [])
     summary = Kimera::Execution::BaselineFailure::Summary
     command = @adapter.reproduce(failed.first(summary::MAX_DETAILS))
-    context = summary::Context.new(workers: journal, stacks: losses.stacks, jobs: jobs)
+    context = summary::Context.new(workers: journal, stacks: losses.stacks, jobs: jobs, ordered: ordered)
     raise(Kimera::Execution::BaselineFailure, summary.new(failed, @messages, command, context).to_s)
   end
 end

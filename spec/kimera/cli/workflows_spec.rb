@@ -72,7 +72,8 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
   it "prints the bundled agent skill and rejects arguments" do
     out, error = captured
     expect(Kimera::CLI.new(io: out, errors: error).run(["skill"])).to(eq(0))
-    expect(out.string).to(eq(File.read(File.expand_path("../../../skills/kimera/SKILL.md", __dir__))))
+    skill = File.read(File.expand_path("../../../skills/kimera/SKILL.md", __dir__), encoding: Encoding::UTF_8)
+    expect(out.string).to(eq(skill))
     expect(out.string).to(start_with("---\nname: kimera\n"))
     expect(Kimera::CLI::Skill.new(io: out, errors: error).run(["extra"])).to(eq(1))
     expect(error.string).to(eq("kimera: usage: kimera skill\n"))

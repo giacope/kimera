@@ -7,5 +7,5 @@ $LOAD_PATH.unshift(File.expand_path("../spec", __dir__))
 require "bundler/setup"
 require "rspec/core"
 
-args = ARGV.empty? ? ["spec"] : ARGV
-exit RSpec::Core::Runner.run(args)
+arguments = ARGV.empty? ? ["spec"] : ARGV
+exit RSpec::Core::Runner.run(arguments)

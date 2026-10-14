@@ -27,8 +27,8 @@ module Kimera
       )
     end
 
-    def constant(base, sym, factory)
-      ast(:if, ast(:send, base, :const_defined?, sym, ast(:false)), ast(:send, base, :const_get, sym), factory)
+    def constant(base, symbol, factory)
+      ast(:if, ast(:send, base, :const_defined?, symbol, ast(:false)), ast(:send, base, :const_get, symbol), factory)
     end
 
     def context

@@ -5,7 +5,8 @@ require "kimera/support/unparse"
 # Kimera::Unparse prepends onto unparser's internals, which are not public
 # API. When an unparser upgrade renames or drops one of them, a prepended
 # override stops being called and the workaround silently lapses. These
-# checks fail first, so the gemspec's pin is raised only with the patches.
+# checks fail first, so the gemspec's range (>= 0.8.1, < 0.10, each release
+# run in CI's unparser job) is widened only with the patches.
 RSpec.describe(Kimera::Unparse) do
   def upstream?(method) = method && !method.owner.name.to_s.start_with?("Kimera::")
 

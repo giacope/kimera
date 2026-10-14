@@ -151,12 +151,12 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       Dir.mktmpdir { |dir| Dir.chdir(dir) { expect(cli.run(["7"])).to(eq(1)) } }
       expect(errors.string).to(include("no such report: tmp/kimera/report.json (run kimera run first"))
 
-      args = rerun(
+      arguments = rerun(
         "framework" => "minitest", "source_root" => "src", "tests" => ["test/a_test.rb"],
         "operators" => ["comparison"], "coverage" => false, "isolated" => true
       )
-      expect(args).to(include("--no-coverage", "--isolated", "--framework", "minitest", "--source-root", "src"))
-      expect(args.first(3)).to(eq(["app/x.rb", "--focus", "app/x.rb:1:0123abcd"]))
+      expect(arguments).to(include("--no-coverage", "--isolated", "--framework", "minitest", "--source-root", "src"))
+      expect(arguments.first(3)).to(eq(["app/x.rb", "--focus", "app/x.rb:1:0123abcd"]))
     end
 
     it "asks for a fresh report when the rerun row predates mutant keys" do
@@ -197,7 +197,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
           raise_error(
             Kimera::UsageError,
             'unknown report format "xml" (choose: text, json, ndjson, github, sarif, markdown)'
-        )
+          )
         )
     end
 
@@ -340,12 +340,12 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         FileUtils.mkdir_p(File.join(dir, "test"))
         File.write(File.join(dir, "thing.rb"), "class Thing; end\n")
         out, errors = streams
-        init = Kimera::CLI::Init.new(io: out, errors: errors, root: dir)
-        expect(init.run(["--dry-run"])).to(eq(0))
+        command = Kimera::CLI::Init.new(io: out, errors: errors, root: dir)
+        expect(command.run(["--dry-run"])).to(eq(0))
         expect(out.string).to(include("framework: minitest", "paths:", "lib/**/*.rb", "fail_on_no_coverage: false"))
         expect(YAML.safe_load(out.string).fetch("tests")).to(eq(["test/**/*_test.rb"]))
         expect(File).not_to(exist(File.join(dir, ".kimera.yml")))
-        expect(init.run(["--bogus"])).to(eq(1))
+        expect(command.run(["--bogus"])).to(eq(1))
       end
     end
 
@@ -354,8 +354,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         %w[test spec app].each { |name| FileUtils.mkdir_p(File.join(dir, name)) }
         File.write(File.join(dir, "app", "x.rb"), "class X; end\n")
         out, errors = streams
-        init = Kimera::CLI::Init.new(io: out, errors: errors, root: dir)
-        expect(init.run([])).to(eq(0))
+        command = Kimera::CLI::Init.new(io: out, errors: errors, root: dir)
+        expect(command.run([])).to(eq(0))
         expect(out.string).to(
           eq("Created .kimera.yml for rspec.\nNext: kimera doctor\n")
         )

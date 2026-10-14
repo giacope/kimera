@@ -135,7 +135,7 @@ RSpec.describe("extended operators") do
   end
 
   it "skips elsif arms (not a wrappable expression)" do
-    src = <<~RUBY
+    code = <<~RUBY
       def route(x)
         if x == 1
           :one
@@ -147,7 +147,7 @@ RSpec.describe("extended operators") do
       end
     RUBY
     catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["conditional"]))
-      .source(src, file: "route.rb")
+      .source(code, file: "route.rb")
     # Only the outer if contributes; the elsif arm is skipped.
     expect(catalog.each.count).to(eq(2))
   end
@@ -210,7 +210,7 @@ RSpec.describe("extended operators") do
   end
 
   it "return_value skips bare `return`, `return nil`, and identifier-call tails" do
-    src = <<~RUBY
+    code = <<~RUBY
       def a = (return)
       def b = (return nil)
       def c(x)
@@ -218,7 +218,7 @@ RSpec.describe("extended operators") do
       end
     RUBY
     catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["return_value"]))
-      .source(src, file: "r.rb")
+      .source(code, file: "r.rb")
     expect(catalog.each.count).to(eq(0))
   end
 
@@ -250,9 +250,9 @@ RSpec.describe("extended operators") do
   end
 
   it "element_drop skips single-element and splatted literals" do
-    src = "def m(rest)\n  a = [1]\n  b = [2, *rest]\n  [a, b]\nend\n"
+    code = "def m(rest)\n  a = [1]\n  b = [2, *rest]\n  [a, b]\nend\n"
     catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["element_drop"]))
-      .source(src, file: "e.rb")
+      .source(code, file: "e.rb")
     expect(catalog.each.map { |m, _p| m.label }).to(contain_exactly("drop `a`", "drop `b`"))
   end
 
@@ -273,20 +273,20 @@ RSpec.describe("extended operators") do
   end
 
   it "dedups identical directives across operators (permit vs argument_drop)" do
-    src = "def user_params\n  params.permit(:name, :admin)\nend\n"
+    code = "def user_params\n  params.permit(:name, :admin)\nend\n"
     catalog = Kimera::RegistryScan.new(
       operators: Kimera::Operators.build(keys: %w[rails_permit argument_drop])
-    ).source(src, file: "p.rb")
+    ).source(code, file: "p.rb")
     # The more specific rails label wins.
     expect(catalog.each.map { |m, _p| m.label }).to(contain_exactly("permit: drop :name", "permit: drop :admin"))
   end
 
   # The only family that mutates mid-expression, so it is checked on rendered source.
   describe "chain_link_deletion" do
-    def chained(src)
+    def chained(code)
       Kimera::RegistryScan.new(
         operators: Kimera::Operators.build(keys: ["chain_link_deletion"])
-      ).source(src, file: "chain.rb")
+      ).source(code, file: "chain.rb")
     end
 
     def rendered(catalog)
@@ -330,15 +330,15 @@ RSpec.describe("extended operators") do
     end
 
     it "rewrites a live chain when the mutant is selected", :aggregate_failures do
-      src = <<~RUBY
+      code = <<~RUBY
         class ChainDemo
           def evens_then_first(xs)
             xs.select(&:even?).sort.first
           end
         end
       RUBY
-      catalog = chained(src)
-      result = Kimera::Overlay.new(catalog).synthesize("chain.rb", src)
+      catalog = chained(code)
+      result = Kimera::Overlay.new(catalog).synthesize("chain.rb", code)
       Kimera::Overlay::Source.new(result.source).evaluate("chain.rb")
       ids = catalog.each.to_h { |m, _p| [m.label, m.id] }
       object = ChainDemo.new
@@ -357,7 +357,7 @@ RSpec.describe("extended operators") do
   end
 
   it "method_unwrap skips calls with arguments or blocks" do
-    src = <<~RUBY
+    code = <<~RUBY
       def work(xs)
         xs.sort { |a, b| a <=> b }
         xs.to_s(2)
@@ -365,7 +365,7 @@ RSpec.describe("extended operators") do
       end
     RUBY
     catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["method_unwrap"]))
-      .source(src, file: "work.rb")
+      .source(code, file: "work.rb")
     expect(catalog.each.map { |m, _p| m.label }).to(eq(["delete .uniq"]))
   end
 end

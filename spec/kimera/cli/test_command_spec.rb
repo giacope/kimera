@@ -37,7 +37,7 @@ RSpec.describe(Kimera::CLI::TestCommand) do
       have_received(:capture2e).with(
         { "KIMERA" => "1" }, "bundle", "exec", "rspec", "t.rb",
         chdir: "/app"
-    )
+      )
     )
   end
 

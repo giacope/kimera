@@ -72,7 +72,7 @@ RSpec.describe("processes a test starts") do
   it "go with a warm worker the watchdog kills", :aggregate_failures do
     Dir.mktmpdir("kimera-process-group") do |fixture|
       scaffold(fixture)
-      test_run(cwd: fixture, args: %w[--soft-timeout 30 --hard-timeout 1]) do |output, report, _status|
+      test_run(cwd: fixture, arguments: %w[--soft-timeout 30 --hard-timeout 1]) do |output, report, _status|
         expect(report).not_to(be_nil, "no report; output:\n#{output}")
         statuses = report["results"].to_h { |result| [result["label"], result["status"]] }
         expect(statuses["delete `ticks.push(:tick)`"]).to(eq("timeout"))

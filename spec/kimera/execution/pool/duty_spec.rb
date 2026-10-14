@@ -34,9 +34,58 @@ RSpec.describe(Kimera::Execution::Pool::Duty) do
     expect(duty.pipes.res_r.read).to(eq("#{JSON.generate(t: "tick")}\n"))
   end
 
+  it "retires by finishing, then dying the way the test process it ran died", :aggregate_failures do
+    duty = duty()
+    died = Kimera::Execution::Zygote::Died.new("SIGTERM in t1", code: 3)
+    pid = fork { duty.retire(database, died) }
+    duty.pipes.res_w.close
+    expect(JSON.parse(duty.pipes.res_r.read)).to(include("t" => "crash", "detail" => "SIGTERM in t1"))
+    expect(Process.wait2(pid).last.exitstatus).to(eq(3))
+  end
+
   it "still shuts down when the parent is no longer listening" do
     duty = duty()
     duty.pipes.res_r.close
     expect { duty.finish(database, RuntimeError.new("boom")) }.not_to(raise_error)
+  end
+
+  it "sends a dead test process's own words, not the exception carrying them" do
+    duty = duty()
+    duty.finish(database, Kimera::Execution::Zygote::Died.new("SIGTERM in t1"))
+    expect(JSON.parse(duty.pipes.res_r.read)).to(include("detail" => "SIGTERM in t1"))
+  end
+
+  def retired(error)
+    duty = duty()
+    allow(duty).to(receive(:exit!))
+    duty.retire(database, error)
+    [duty, JSON.parse(duty.pipes.res_r.read)]
+  end
+
+  it "exits with the code the test process it ran exited with, after saying why", :aggregate_failures do
+    duty, message = retired(Kimera::Execution::Zygote::Died.new("gone", code: 3))
+    expect(message).to(include("t" => "crash", "detail" => "gone"))
+    expect(duty).to(have_received(:exit!).with(3))
+  end
+
+  it "exits 1 for a test process that died with no code" do
+    duty, = retired(Kimera::Execution::Zygote::Died.new("gone"))
+    expect(duty).to(have_received(:exit!).with(1))
+  end
+
+  it "dies of the signal that killed the test process it ran", :aggregate_failures do
+    allow(Signal).to(receive(:trap))
+    allow(Process).to(receive(:kill))
+    duty, = retired(Kimera::Execution::Zygote::Died.new("killed", signal: 15))
+    expect(Signal).to(have_received(:trap).with(15, "SYSTEM_DEFAULT"))
+    expect(Process).to(have_received(:kill).with(15, Process.pid))
+    expect(duty).not_to(have_received(:exit!))
+  end
+
+  it "lives on after an error that is not a test process's death" do
+    duty = duty()
+    allow(duty).to(receive(:exit!))
+    duty.retire(database, RuntimeError.new("boom"))
+    expect(duty).not_to(have_received(:exit!))
   end
 end

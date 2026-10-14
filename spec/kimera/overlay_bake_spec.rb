@@ -37,36 +37,36 @@ RSpec.describe(Kimera::Overlay) do
     # Rebinding the constant would leave described_class on the original class,
     # so every baked mutant would falsely survive.
     def data
-      src = <<~RUBY
+      program = <<~RUBY
         Baked = Data.define(:v) do
           def self.build(v, flag: false)
             new(v: flag)
           end
         end
       RUBY
-      catalog = selected(%w[boolean_literal], src)
+      catalog = selected(%w[boolean_literal], program)
       [
-        src,
+        program,
         described_class.new(catalog).bake(
-          "x.rb", src, catalog.points.find { |x| x.original_source == "false" }.mutants.first.id
+          "x.rb", program, catalog.points.find { |x| x.original_source == "false" }.mutants.first.id
         )
       ]
     end
 
     it "reopens a bound Data/Struct class so held references see the baked mutation", :aggregate_failures do
       stub_const("Baked", nil)
-      src, baked = data
+      program, baked = data
       expect(baked).to(include("const_defined?(:Baked, false)"))
-      captured = TOPLEVEL_BINDING.eval(src).tap { TOPLEVEL_BINDING.eval(baked) }
+      captured = TOPLEVEL_BINDING.eval(program).tap { TOPLEVEL_BINDING.eval(baked) }
       expect([Object.const_get(:Baked).equal?(captured), captured.build(1).v]).to(eq([true, true]))
     end
 
     # An emptied segment leaves an empty str in a dstr, which unparser can't
     # round-trip. The guarded path never hits this.
-    def prune(src, keys, needle)
-      catalog = selected(keys, src)
+    def prune(program, keys, needle)
+      catalog = selected(keys, program)
       described_class.new(catalog).bake(
-        "x.rb", src, catalog.points.find { |point| point.original_source == needle }.mutants.first.id
+        "x.rb", program, catalog.points.find { |point| point.original_source == needle }.mutants.first.id
       )
     end
 
@@ -97,52 +97,52 @@ RSpec.describe(Kimera::Overlay) do
     end
 
     it "collapses a fully emptied juxtaposition to an empty string literal" do
-      src = "def m\n  \"\" \"b\"\nend\n"
-      catalog = selected(%w[string_literal], src)
+      program = "def m\n  \"\" \"b\"\nend\n"
+      catalog = selected(%w[string_literal], program)
       segment = catalog.points.find { |p| p.original_source == '"b"' }
-      baked = described_class.new(catalog).bake("x.rb", src, segment.mutants.first.id)
+      baked = described_class.new(catalog).bake("x.rb", program, segment.mutants.first.id)
       expect(baked).to(include('""'))
     end
 
     it "keeps an empty-string argument outside any interpolated literal" do
-      src = "def m(a, b)\n  q(\"\", a > b)\nend\n"
-      catalog = build(src)
+      program = "def m(a, b)\n  q(\"\", a > b)\nend\n"
+      catalog = build(program)
       mutant = catalog.each.find { |m, _p| m.label == "> => <" }.first
-      baked = described_class.new(catalog).bake("x.rb", src, mutant.id)
+      baked = described_class.new(catalog).bake("x.rb", program, mutant.id)
       expect(baked).to(include('q("", a < b)'))
     end
 
     it "leaves a plain xstr untouched by pruning" do
       # xstr interpolates, so pruning could degrade it to a plain str.
-      src = "def m(a, b)\n  [`ls`, a > b]\nend\n"
-      catalog = build(src)
+      program = "def m(a, b)\n  [`ls`, a > b]\nend\n"
+      catalog = build(program)
       mutant = catalog.each.find { |m, _p| m.label == "> => <" }.first
-      baked = described_class.new(catalog).bake("x.rb", src, mutant.id)
+      baked = described_class.new(catalog).bake("x.rb", program, mutant.id)
       expect(baked).to(include("[`ls`, a < b]"))
     end
 
     # unparser 0.9 raised on the array endpoint, so every mutant of the file
     # failed to bake.
     it "bakes a file with an array range endpoint" do
-      src = "def m(a, b)\n  r = ([a, a]...a)\n  a > b\nend\n"
-      catalog = build(src)
+      program = "def m(a, b)\n  r = ([a, a]...a)\n  a > b\nend\n"
+      catalog = build(program)
       mutant = catalog.each.find { |m, _p| m.label == "> => <" }.first
-      expect(described_class.new(catalog).bake("x.rb", src, mutant.id)).to(include("r = ([a, a]...a)", "a < b"))
+      expect(described_class.new(catalog).bake("x.rb", program, mutant.id)).to(include("r = ([a, a]...a)", "a < b"))
     end
 
     # unparser writes an interpolation only if it reads back as the same tree,
     # which an endpoint in parentheses did not.
     it "bakes a file interpolating a range with an array endpoint" do
-      src = "def m(a, b)\n  \"x\#{([a]...[b]).size}y\"\n  a > b\nend\n"
-      catalog = build(src)
+      program = "def m(a, b)\n  \"x\#{([a]...[b]).size}y\"\n  a > b\nend\n"
+      catalog = build(program)
       mutant = catalog.each.find { |m, _p| m.label == "> => <" }.first
-      expect(described_class.new(catalog).bake("x.rb", src, mutant.id)).to(include("([a]...[b]).size", "a < b"))
+      expect(described_class.new(catalog).bake("x.rb", program, mutant.id)).to(include("([a]...[b]).size", "a < b"))
     end
 
     # The swapped connective binds more loosely than the && around it.
     it "bakes a swapped connective with the grouping it had", :aggregate_failures do
-      src = "def m(p, q, r)\n  x = p && q && r\nend\n"
-      baked = prune(src, %w[boolean_connective], "p && q")
+      program = "def m(p, q, r)\n  x = p && q && r\nend\n"
+      baked = prune(program, %w[boolean_connective], "p && q")
       expect(baked).to(include("x = (p || q) && r"))
       mod = Module.new.tap { |m| m.module_eval(baked) }
       expect(mod.instance_method(:m).bind_call(Object.new.extend(mod), true, nil, false)).to(be(false))
@@ -159,10 +159,10 @@ RSpec.describe(Kimera::Overlay) do
       "a power in an interpolation" => ["\"x\#{0 ** 2}\"", "0", "0 => -1", "\"x\#{(-1) ** 2}\"", "x1"]
     }.each do |shape, (body, needle, label, written, value)|
       it "bakes a literal mutant under #{shape} as the program it names", :aggregate_failures do
-        src = "def m\n  #{body}\nend\n"
-        catalog = selected(%w[numeric_literal], src)
+        program = "def m\n  #{body}\nend\n"
+        catalog = selected(%w[numeric_literal], program)
         mutant = catalog.points.find { |p| p.original_source == needle }.mutants.find { |m| m.label == label }
-        baked = described_class.new(catalog).bake("x.rb", src, mutant.id)
+        baked = described_class.new(catalog).bake("x.rb", program, mutant.id)
         expect(baked).to(include(written))
         expect(Object.new.extend(Module.new.tap { |mod| mod.module_eval(baked) }).m).to(eq(value))
       end
@@ -172,25 +172,25 @@ RSpec.describe(Kimera::Overlay) do
     # one literal. The bake returned the file unchanged, a survivor with
     # --isolated where the warm run reports the point unmutatable.
     it "raises Unbakeable for a point the parser folds away, as the warm run reports it" do
-      src = "def m\n  --1\nend\n"
-      catalog = selected(%w[numeric_literal], src)
+      program = "def m\n  --1\nend\n"
+      catalog = selected(%w[numeric_literal], program)
       mutant = catalog.points.find { |p| p.original_source == "-1" }.mutants.first
-      expect { described_class.new(catalog).bake("x.rb", src, mutant.id) }.to(
+      expect { described_class.new(catalog).bake("x.rb", program, mutant.id) }.to(
         raise_error(described_class::Unbakeable, Kimera::Overlay::FileWeave::UNMATCHED)
       )
     end
 
     it "bakes a file with a string escape that is invalid UTF-8" do
-      src = "def scaled(size, data) = data.start_with?(\"\\xFF\\xD8\".b) ? size * 2 : size\n"
-      catalog = selected(%w[arithmetic], src)
-      baked = described_class.new(catalog).bake("x.rb", src, catalog.each.first.first.id)
+      program = "def scaled(size, data) = data.start_with?(\"\\xFF\\xD8\".b) ? size * 2 : size\n"
+      catalog = selected(%w[arithmetic], program)
+      baked = described_class.new(catalog).bake("x.rb", program, catalog.each.first.first.id)
       expect(baked).to(include('data.start_with?("\xFF\xD8".b)', "size / 2"))
     end
 
     # unparser can't write such a byte back into a plain heredoc. As a warm
     # run splices the file per method, a bake then writes the point's method alone.
     describe "in a file unparser can't write" do
-      let(:src) do
+      let(:program) do
         <<~'RUBY'
           module Sniffer
             LIMIT = 3
@@ -211,16 +211,16 @@ RSpec.describe(Kimera::Overlay) do
           end
         RUBY
       end
-      let(:catalog) { selected(%w[arithmetic comparison], src) }
+      let(:catalog) { selected(%w[arithmetic comparison], program) }
 
       def bake(needle)
         point = catalog.points.find { |p| p.original_source == needle }
-        described_class.new(catalog).bake("x.rb", src, point.mutants.first.id)
+        described_class.new(catalog).bake("x.rb", program, point.mutants.first.id)
       end
 
       it "writes the method that holds the point and keeps the rest verbatim", :aggregate_failures do
         baked = bake("size * LIMIT")
-        expect(baked).to(end_with(src.lines.drop(4).join.sub(" = size * LIMIT", "\n  size / LIMIT\nend")))
+        expect(baked).to(end_with(program.lines.drop(4).join.sub(" = size * LIMIT", "\n  size / LIMIT\nend")))
         expect(Prism.parse(baked)).to(be_success)
       end
 

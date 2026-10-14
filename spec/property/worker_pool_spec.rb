@@ -18,8 +18,7 @@ require_relative "property_helper"
 #
 # Each mutant's script is [warm, recheck]: what its child does when offered
 # it warm, and again on a fresh worker after a requeue. A scripted recheck
-# never requeues (Attempt#recheck settles on a Doubt); under Shift it may
-# try, and Shift must rule a harness_error instead. Every run is supervised in
+# never requeues; the real Shift never requeues at all. Every run is supervised in
 # its own process group with a deadline of its own, so a pool that stops
 # polling fails the example instead of hanging the suite. Each child leads a
 # process group of its own, as the pool's workers do, and starts a
@@ -257,24 +256,31 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
     def watchdog = 1.0
 
-    # A recheck that stays in doubt is ruled harness_error; it never requeues.
+    # Shift judges each mutant in fresh processes and never requeues: a test
+    # that fails first in one is the kill, whatever a rerun would do, so the
+    # warm script alone decides.
     def status(behavior)
-      { killed: "killed", leak: "killed", survived: "survived", tainted: "timeout", requeue: "harness_error" }
-        .fetch(behavior)
+      { killed: "killed", leak: "killed", survived: "survived", tainted: "timeout", requeue: "killed" }.fetch(behavior)
     end
+
+    def final(script) = script.map(&:first)
+
+    def requeued(_script) = []
 
     def child(script, log, grandchildren)
       founded(grandchildren) do |request, response|
         offers = OfferTap.new(request, log)
         shift(script, offers).serve(offers, response)
         exit!(0)
+      rescue Kimera::Execution::Zygote::Died => error
+        Kimera::Execution::Pool::Duty.new.echo(error)
       end
     end
 
     def shift(script, offers)
       Kimera::Execution::Shift.new(
         adapter: FaultyAdapter.new(script, offers), registry: Struct.new(:index).new({}),
-        coverage: (1..script.size).to_h { [it, ["t"]] }, soft_timeout: soft, leak_every: 1
+        coverage: (1..script.size).to_h { [it, ["t"]] }, soft_timeout: soft
       )
     end
 

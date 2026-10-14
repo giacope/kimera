@@ -10,8 +10,8 @@ class Kimera::Operators::ArgumentDrop < Kimera::Operators::Base
 
   def variants(node, **)
     return unless identifier?(node)
-    args = arguments(node)
-    return if args.any? { |a| SKIP_KINDS.any? { |k| a.is_a?(k) } }
-    drops(args, "drop_argument", label: "drop arg")
+    words = arguments(node)
+    return if words.any? { |a| SKIP_KINDS.any? { |k| a.is_a?(k) } }
+    drops(words, "drop_argument", label: "drop arg")
   end
 end

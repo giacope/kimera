@@ -14,6 +14,7 @@ require_relative "boot"
 require_relative "child_process"
 require_relative "isolation"
 require_relative "load_trace"
+require_relative "order_trace"
 require_relative "null_progress"
 require_relative "worker_databases"
 require_relative "pool_driver"
@@ -44,16 +45,12 @@ class Kimera::Execution::Harness
   def warm!(test_files)
     overlay!(test_files).tap do
       measure!
-      trace.quarantine!(coverage)
+      sift!
       notice
     end
   end
 
-  def without_coverage!(test_files)
-    overlay!(test_files).tap do
-      verify!
-    end
-  end
+  def without_coverage!(test_files) = overlay!(test_files).tap { verify! }
 
   def overlay!(test_files)
     trace.record { boot.suite(test_files) }
@@ -104,16 +101,14 @@ class Kimera::Execution::Harness
   def rig
     @_rig ||= Kimera::Execution::Rig.new(
       registry: registry, adapter: adapter, isolation: isolation, root: root,
-      soft: soft, hard: hard, leak: options.fetch(:leak_every, 10), jobs: jobs,
+      soft: soft, hard: hard, jobs: jobs,
       coverage: coverage, spawner: options[:spawner], progress: progress, aliases: state.aliases
     )
   end
 
   def trace = @_trace ||= Kimera::Execution::LoadTrace.new(registry, root)
 
-  def boot
-    @_boot ||= Kimera::Execution::Boot.new(adapter: adapter, isolate: options[:isolate_db], errors: errors)
-  end
+  def boot = @_boot ||= Kimera::Execution::Boot.new(adapter: adapter, isolate: options[:isolate_db], errors: errors)
 
   def complete(loader)
     state.skipped = loader.skipped
@@ -124,11 +119,17 @@ class Kimera::Execution::Harness
   def mutants = registry.each.map { |mutant, _path| mutant.id }
 
   def measure!
-    measured = jobs > 1 ? parallel(baseline) : baseline.measure!
+    measured = parallel(baseline)
     options[:coverage] = measured.coverage
     arm(measured.timings)
     state.irrelevant = measured.irrelevant
     state.recovered = measured.recovered
+  end
+
+  def sift!
+    trace.quarantine!(coverage)
+    progress.note("baseline (whole suite, in order)")
+    Kimera::Execution::OrderTrace.new(registry).mark!(baseline, coverage)
   end
 
   def arm(timings)
@@ -154,9 +155,7 @@ class Kimera::Execution::Harness
 
   def tuning = { factor: options[:timeout_factor], slack: options[:timeout_slack] }.compact
 
-  def baseline
-    Kimera::Execution::BaselinePass.new(adapter: adapter, registry: registry, progress: progress)
-  end
+  def baseline = Kimera::Execution::BaselinePass.new(adapter: adapter, registry: registry, progress: progress)
 
   def notice
     stall = Kimera::Execution::BaselineStall.new(state.recovered, hard: hard, jobs: jobs).to_s

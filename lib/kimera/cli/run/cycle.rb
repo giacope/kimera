@@ -3,6 +3,7 @@
 require_relative "../../execution/suite_env"
 require_relative "../../incremental/selection"
 require_relative "../../incremental/session"
+require_relative "../../incremental/stamp"
 require_relative "aim"
 require_relative "inline_ignores"
 require_relative "digest"
@@ -11,6 +12,8 @@ require_relative "pass"
 require_relative "sources"
 
 class Kimera::CLI::Run::Cycle
+  SETTINGS = %i[framework source_root tests exclude_tests operators coverage isolated].freeze
+
   def initialize(options, registry, changed, digest:)
     @options = options
     @registry = registry
@@ -20,6 +23,7 @@ class Kimera::CLI::Run::Cycle
 
   def call
     @digest.verbose(@options) if @options[:verbose]
+    @registry.narrow!(@changed) if @changed
     scope(@changed && Kimera::Incremental::Selection.select(@registry, @changed))
   end
 
@@ -40,7 +44,7 @@ class Kimera::CLI::Run::Cycle
   end
 
   def session(todo, ignored)
-    loaded = Kimera::Incremental::Session.from(@options[:session], registry: @registry)
+    loaded = Kimera::Incremental::Session.from(@options[:session], registry: @registry, stamp: stamp)
     perform(@options[:evaluate_ignored] ? todo + ignored : todo, loaded)
     conclude(todo, ignored, loaded)
   end
@@ -63,6 +67,12 @@ class Kimera::CLI::Run::Cycle
       .merge(coverage: coverage, log: @options[:log], scope: narrowing.note, summary: @options[:summary])
   end
 
+  def stamp
+    return unless @options[:session]
+    settings = @options.slice(*SETTINGS, :require)
+    Kimera::Incremental::Stamp.new(root: @options[:source_root], sources: @registry.files, settings: settings).to_s
+  end
+
   def inline = Kimera::CLI::Run::InlineIgnores.new(@registry, root: @options[:source_root]).rules
 
   def narrowing = @_narrowing ||= Kimera::CLI::Run::Narrowing.new(@options)
@@ -77,8 +87,7 @@ class Kimera::CLI::Run::Cycle
   end
 
   def provenance
-    @options.slice(:framework, :source_root, :tests, :exclude_tests, :operators, :coverage, :isolated, :jobs, :since)
-      .transform_keys(&:to_s).merge(narrowing.provenance)
+    @options.slice(*SETTINGS, :jobs, :since).transform_keys(&:to_s).merge(narrowing.provenance)
   end
 
   def harness(remaining, loaded, env: ENV)

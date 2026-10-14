@@ -27,8 +27,49 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: tmp/tla2tools.jar
-          key: tla2tools-1.8.0
+          key: tla2tools-1.7.4
       - run: bin/spec
+
+  # Every supported unparser release: the unit suite and the schemata
+  # properties, which exercise everything kimera re-emits.
+  unparser:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        unparser: ["0.8.1", "0.8.2", "0.9.0"]
+    env:
+      BUNDLE_GEMFILE: ${{ github.workspace }}/gemfiles/unparser.gemfile
+      UNPARSER: ${{ matrix.unparser }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+      # Specs that launch exe/kimera in this checkout use ./Gemfile, so install
+      # its bundle beside this one.
+      - run: bundle config set --local path vendor/bundle && bundle install
+        env:
+          BUNDLE_GEMFILE: ${{ github.workspace }}/Gemfile
+      - run: bin/spec spec/kimera spec/property/schemata_spec.rb
+
+  # A real Rails app end to end (examples/rails_app): each mode's verdicts,
+  # per-worker databases and --isolate-db included, against expected.json,
+  # what a fresh bin/rails test (or rspec) says of each mutant.
+  rails:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/rails_app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+          working-directory: examples/rails_app
+      - run: bin/e2e
 
   # Exhaustive check of the worker-pool protocol model (formal/README.md).
   model-check:
@@ -45,7 +86,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: tmp/tla2tools.jar
-          key: tla2tools-1.8.0
+          key: tla2tools-1.7.4
       - run: bin/model-check
 
   # Larger model instances (formal/README.md). Trigger manually from the
@@ -65,7 +106,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: tmp/tla2tools.jar
-          key: tla2tools-1.8.0
+          key: tla2tools-1.7.4
       - run: bin/model-check --deep
 
   # hashira fails on any coupling/complexity/duplication/smell finding not in
@@ -114,7 +155,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: tmp/tla2tools.jar
-          key: tla2tools-1.8.0
+          key: tla2tools-1.7.4
       - run: bin/spec spec/property
         env:
           PBT_SCALE: "10"

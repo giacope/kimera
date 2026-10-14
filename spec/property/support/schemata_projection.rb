@@ -4,7 +4,7 @@ require "kimera/registry/builder"
 require "kimera/synthesis/overlay"
 
 # Symbolic evaluation of a mutant schemata. Fixing which mutant is active
-# decides every `::MutantRuntime.active?(id)` guard, so the guarded program
+# decides every `::Kimera::RUNTIME.active?(id)` guard, so the guarded program
 # reduces to one plain program. That program must be the mutant's bake (the
 # single mutation applied directly), and with nothing active, the original:
 # then warm runs judge exactly the code the report shows, for every input.
@@ -85,7 +85,7 @@ module SchemataProjection
     condition = node.children[0]
     return unless node?(condition, :send) && condition.children[1] == :active?
     receiver = condition.children[0]
-    condition.children[2].children[0] if node?(receiver, :const) && receiver.children[1] == :MutantRuntime
+    condition.children[2].children[0] if node?(receiver, :const) && receiver.children[1] == :RUNTIME
   end
 
   def project(node, active)

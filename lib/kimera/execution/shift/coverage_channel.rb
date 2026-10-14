@@ -3,41 +3,45 @@
 require_relative "../stopwatch"
 
 class Kimera::Execution::Shift::CoverageChannel
-  def initialize(adapter)
+  Reading = Data.define(:passed, :touched, :failure, :took)
+
+  def initialize(adapter, zygote:)
     @adapter = adapter
+    @zygote = zygote
   end
 
   def serve(request, response)
-    ledger = Kimera::RUNTIME.start!
-    drain(request, response, ledger)
+    drain(request, response)
     emit(response, t: "done")
   ensure
-    stop(ledger)
+    Kimera::RUNTIME.active = nil
   end
 
   private
 
-  def drain(request, response, ledger)
+  def drain(request, response)
     while (line = request.gets)
-      step(response, JSON.parse(line)["id"], ledger)
+      step(response, JSON.parse(line)["id"])
       emit(response, t: "ready")
     end
   end
 
-  def step(response, testid, ledger)
+  def step(response, testid)
+    emit(response, t: "result", id: testid, **@zygote.call { measure(testid).to_h }.transform_keys(&:to_sym))
+  end
+
+  def measure(testid)
     Kimera::RUNTIME.active = nil
-    watch = Kimera::Execution::Stopwatch.new
-    emit(response, **message(testid, ledger, watch.lap { @adapter.run([testid]) }), took: watch.last)
-  end
-
-  def message(testid, ledger, outcome)
-    { t: "result", id: testid, passed: outcome.passed? }
-      .merge(touched: ledger.drain!, failure: outcome.failures[testid])
-  end
-
-  def stop(ledger)
+    ledger = Kimera::RUNTIME.start!
+    reading(testid, ledger)
+  ensure
     Kimera::RUNTIME.stop!(ledger)
-    Kimera::RUNTIME.active = nil
+  end
+
+  def reading(testid, ledger)
+    watch = Kimera::Execution::Stopwatch.new
+    outcome = watch.lap { @adapter.run([testid]) }
+    Reading.new(outcome.passed?, ledger.drain!, outcome.failures[testid], watch.last)
   end
 
   def emit(io, **fields)

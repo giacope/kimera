@@ -43,7 +43,7 @@ module Kimera
     end
 
     def active(id)
-      ast(:send, ast(:const, ast(:cbase), :MutantRuntime), :active?, ast(:int, id))
+      ast(:send, ast(:const, ast(:const, ast(:cbase), :Kimera), :RUNTIME), :active?, ast(:int, id))
     end
 
     def conditional(condition, truthy, fallback)

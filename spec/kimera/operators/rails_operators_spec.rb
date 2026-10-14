@@ -7,8 +7,8 @@ require "kimera/synthesis/overlay"
 
 # Class-body DSL runs once at load, so its points must go to the isolated oracle.
 RSpec.describe("rails operators") do
-  def registry(src, keys)
-    Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(src, file: "app.rb")
+  def registry(code, keys)
+    Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(code, file: "app.rb")
   end
 
   describe "rails_permit" do
@@ -27,8 +27,8 @@ RSpec.describe("rails operators") do
     end
 
     it "skips splatted allowlists (positions are unknowable)" do
-      src = "def p(fields)\n  params.permit(*fields)\nend\n"
-      expect(registry(src, ["rails_permit"]).each.count).to(eq(0))
+      code = "def p(fields)\n  params.permit(*fields)\nend\n"
+      expect(registry(code, ["rails_permit"]).each.count).to(eq(0))
     end
 
     it "actually narrows the allowlist through a live overlay", :aggregate_failures do
@@ -177,17 +177,17 @@ RSpec.describe("rails operators") do
 
   describe "class-body lambda bodies (scopes)" do
     it "treats lambda bodies as re-executing, schemata-safe code", :aggregate_failures do
-      src = <<~RUBY
+      code = <<~RUBY
         class Pricing
           DISCOUNT = ->(total) { total > 100 ? 10 : 0 }
         end
       RUBY
       catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["comparison"]))
-        .source(src, file: "pricing.rb")
+        .source(code, file: "pricing.rb")
       expect(catalog.each.count).to(eq(2)) # > gets its boundary + swap
       catalog.points.each { |point| expect(point.safe?).to(be(true)) }
 
-      result = Kimera::Overlay.new(catalog).synthesize("pricing.rb", src)
+      result = Kimera::Overlay.new(catalog).synthesize("pricing.rb", code)
       verbose = $VERBOSE
       $VERBOSE = nil
       TOPLEVEL_BINDING.eval(result.source, "pricing.rb")
@@ -203,70 +203,70 @@ RSpec.describe("rails operators") do
     end
 
     it "still excludes plain do-blocks at class body (run-once DSL)" do
-      src = "class M\n  configure do\n    limit > 5\n  end\nend\n"
+      code = "class M\n  configure do\n    limit > 5\n  end\nend\n"
       catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["comparison"]))
-        .source(src, file: "m.rb")
+        .source(code, file: "m.rb")
       expect(catalog.each.count).to(eq(0))
     end
   end
 
   describe "class-body matcher gates" do
     it "rails_association only fires in statement position" do
-      src = "class Foo\n  x = has_many(:posts, dependent: :destroy)\nend\n"
-      expect(registry(src, ["rails_association"]).each.count).to(eq(0))
+      code = "class Foo\n  x = has_many(:posts, dependent: :destroy)\nend\n"
+      expect(registry(code, ["rails_association"]).each.count).to(eq(0))
     end
 
     it "rails_association skips explicit-receiver calls" do
-      src = "class Foo\n  self.has_many :posts, dependent: :destroy\nend\n"
-      expect(registry(src, ["rails_association"]).each.count).to(eq(0))
+      code = "class Foo\n  self.has_many :posts, dependent: :destroy\nend\n"
+      expect(registry(code, ["rails_association"]).each.count).to(eq(0))
     end
 
     it "rails_association only matches association macro names" do
-      src = "class Foo\n  register :posts, dependent: :destroy\nend\n"
-      expect(registry(src, ["rails_association"]).each.count).to(eq(0))
+      code = "class Foo\n  register :posts, dependent: :destroy\nend\n"
+      expect(registry(code, ["rails_association"]).each.count).to(eq(0))
     end
 
     it "rails_association ignores a string-keyed dependent option" do
-      src = "class Foo\n  has_many :posts, \"dependent\" => :destroy\nend\n"
-      expect(registry(src, ["rails_association"]).each.count).to(eq(0))
+      code = "class Foo\n  has_many :posts, \"dependent\" => :destroy\nend\n"
+      expect(registry(code, ["rails_association"]).each.count).to(eq(0))
     end
 
     it "rails_callback only fires in statement position" do
-      src = "class Foo\n  x = before_action(:check)\nend\n"
-      expect(registry(src, ["rails_callback"]).each.count).to(eq(0))
+      code = "class Foo\n  x = before_action(:check)\nend\n"
+      expect(registry(code, ["rails_callback"]).each.count).to(eq(0))
     end
 
     it "rails_callback skips explicit-receiver calls" do
-      src = "class Foo\n  self.before_action :check\nend\n"
-      expect(registry(src, ["rails_callback"]).each.count).to(eq(0))
+      code = "class Foo\n  self.before_action :check\nend\n"
+      expect(registry(code, ["rails_callback"]).each.count).to(eq(0))
     end
 
     it "rails_callback only matches callback macro names" do
-      src = "class Foo\n  helper_method :check\nend\n"
-      expect(registry(src, ["rails_callback"]).each.count).to(eq(0))
+      code = "class Foo\n  helper_method :check\nend\n"
+      expect(registry(code, ["rails_callback"]).each.count).to(eq(0))
     end
 
     it "rails_validation only fires in statement position" do
-      src = "class Foo\n  x = validates(:email, presence: true)\nend\n"
-      expect(registry(src, ["rails_validation"]).each.count).to(eq(0))
+      code = "class Foo\n  x = validates(:email, presence: true)\nend\n"
+      expect(registry(code, ["rails_validation"]).each.count).to(eq(0))
     end
 
     it "rails_validation skips explicit-receiver calls" do
-      src = "class Foo\n  self.validates :email, presence: true\nend\n"
-      expect(registry(src, ["rails_validation"]).each.count).to(eq(0))
+      code = "class Foo\n  self.validates :email, presence: true\nend\n"
+      expect(registry(code, ["rails_validation"]).each.count).to(eq(0))
     end
 
     it "rails_validation only matches validation macro names" do
-      src = "class Foo\n  before_action :check\nend\n"
-      expect(registry(src, ["rails_validation"]).each.count).to(eq(0))
+      code = "class Foo\n  before_action :check\nend\n"
+      expect(registry(code, ["rails_validation"]).each.count).to(eq(0))
     end
   end
 
   describe "callback scope-walk gates" do
     it "steps over a kwsplat among the options", :aggregate_failures do
-      src = "class Foo\n  before_action :check, **defaults, only: [:edit]\nend\n"
+      code = "class Foo\n  before_action :check, **defaults, only: [:edit]\nend\n"
       catalog = nil
-      expect { catalog = registry(src, ["rails_callback"]) }.not_to(raise_error)
+      expect { catalog = registry(code, ["rails_callback"]) }.not_to(raise_error)
       expect(catalog.each.map { |m, _p| m.label }).to(
         contain_exactly(
           "delete `before_action :check, **defaults, only: [:edit]`",
@@ -276,21 +276,21 @@ RSpec.describe("rails operators") do
     end
 
     it "ignores array options under keys other than only:/except:" do
-      src = "class Foo\n  before_action :log, subset: [:index]\nend\n"
-      expect(registry(src, ["rails_callback"]).each.map { |m, _p| m.label })
+      code = "class Foo\n  before_action :log, subset: [:index]\nend\n"
+      expect(registry(code, ["rails_callback"]).each.map { |m, _p| m.label })
         .to(eq(["delete `before_action :log, subset: [:index]`"]))
     end
 
     it "ignores a non-array only: value", :aggregate_failures do
-      src = "class Foo\n  before_action :log, only: :index\nend\n"
+      code = "class Foo\n  before_action :log, only: :index\nend\n"
       catalog = nil
-      expect { catalog = registry(src, ["rails_callback"]) }.not_to(raise_error)
+      expect { catalog = registry(code, ["rails_callback"]) }.not_to(raise_error)
       expect(catalog.each.map { |m, _p| m.label }).to(eq(["delete `before_action :log, only: :index`"]))
     end
 
     it "ignores a string-keyed \"only\" option (symbol keys only)" do
-      src = "class Foo\n  before_action :log, \"only\" => [:index]\nend\n"
-      expect(registry(src, ["rails_callback"]).each.map { |m, _p| m.label })
+      code = "class Foo\n  before_action :log, \"only\" => [:index]\nend\n"
+      expect(registry(code, ["rails_callback"]).each.map { |m, _p| m.label })
         .to(eq(["delete `before_action :log, \"only\" => [:index]`"]))
     end
   end

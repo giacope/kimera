@@ -14,8 +14,8 @@ class Kimera::SourceMap
     @_ast ||= Kimera::Rewrite::NumberedParams.normalize(Kimera::Unparse.parse(@source))
   end
 
-  def span(expr)
-    [bytes[expr.begin_pos], bytes[expr.end_pos]]
+  def span(expression)
+    [bytes[expression.begin_pos], bytes[expression.end_pos]]
   end
 
   def restore(source)

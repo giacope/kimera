@@ -4,7 +4,10 @@ require_relative "../rewrite/directive"
 require_relative "result"
 
 module Kimera
-  LeakReport = Struct.new(:mutant_id, :detail, keyword_init: true)
+  LeakReport =
+    Struct.new(:mutant_id, :detail, keyword_init: true) do
+      def line = "- ##{mutant_id}  #{detail}"
+    end
 end
 
 class Kimera::RunReport
@@ -37,6 +40,8 @@ class Kimera::RunReport
   def test_ids = @results.flat_map { |result| Array(result.covering_tests) + Array(result.failing_tests) }.uniq
 
   def test(id) = @tests.fetch(id, {})
+
+  def unmutated = @registry ? @registry.unmutated : []
 
   def by_file = @results.group_by { |result| result.file.to_s }.transform_values { |part| rebuilt(results: part) }
 
@@ -92,7 +97,7 @@ class Kimera::RunReport
   def to_h
     { "schema_version" => SCHEMA_VERSION, "counts" => counts, "mutation_score" => score }
       .merge("results" => @results.map { |result| detailed(result) }, "leaks" => @leaks.map(&:to_h))
-      .merge(catalog)
+      .merge("unmutated" => unmutated.map(&:to_h)).merge(catalog)
   end
 
   private

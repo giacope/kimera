@@ -16,7 +16,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     ledger = events
     base =
       Class.new do
-        define_singleton_method(:transaction) do |**_opts, &block|
+        define_singleton_method(:transaction) do |**_options, &block|
           ledger << :begin
           begin
             block.call

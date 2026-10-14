@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "../support/deferral"
+
 module Kimera::RegistryWalking
   PATTERN_HOLDERS = [
     Kimera::SyntaxTypes::InNode,
@@ -7,12 +9,22 @@ module Kimera::RegistryWalking
     Kimera::SyntaxTypes::MatchPredicateNode
   ].freeze
 
-  Cursor = Data.define(:position, :inside_def, :in_pattern, :def_body, :defname, :embedded)
+  Cursor =
+    Data.define(:position, :inside_def, :in_pattern, :def_body, :defname, :embedded, :block) do
+      def enter(node)
+        return with(defname: node.name.to_s) if node.is_a?(Kimera::SyntaxTypes::DefNode)
+        name = Kimera::Deferral.name(node)
+        return with(defname: name) if name
+        holds?(node) ? with(block: node) : self
+      end
+
+      def holds?(node) = !inside_def && !block && node.is_a?(Kimera::SyntaxTypes::BlockNode)
+    end
   Shape =
-    Data.define(:statements, :tail, :matchnode, :defbody, :insidedef, :embeds) do
+    Data.define(:statements, :tail, :matchnode, :defbody, :insidedef, :embeds, :deferred) do
       def advance(child, cursor)
         cursor.with(
-          position: position(child), inside_def: insidedef,
+          position: position(child), inside_def: insidedef || child.equal?(deferred),
           in_pattern: cursor.in_pattern || child.equal?(matchnode), def_body: child.equal?(defbody),
           embedded: embeds
         )
@@ -28,7 +40,7 @@ module Kimera::RegistryWalking
 
   def walk(node, cursor, &)
     return unless node.is_a?(Kimera::SyntaxTypes::Node)
-    cursor = cursor.with(defname: node.name.to_s) if node.is_a?(Kimera::SyntaxTypes::DefNode)
+    cursor = cursor.enter(node)
     yield(node, cursor) unless cursor.in_pattern
     shape = shape(node, cursor)
     node.compact_child_nodes.each { |child| walk(child, shape.advance(child, cursor), &) }
@@ -39,7 +51,7 @@ module Kimera::RegistryWalking
     Shape.new(
       statements: deletable(statements, cursor), tail: cursor.def_body ? statements&.last : nil,
       matchnode: pattern(node), defbody: body(node), insidedef: cursor.inside_def || reexecuted?(node),
-      embeds: node.is_a?(Kimera::SyntaxTypes::EmbeddedStatementsNode)
+      embeds: node.is_a?(Kimera::SyntaxTypes::EmbeddedStatementsNode), deferred: deferred(node)
     )
   end
 
@@ -56,4 +68,6 @@ module Kimera::RegistryWalking
   def reexecuted?(node)
     node.is_a?(Kimera::SyntaxTypes::DefNode) || node.is_a?(Kimera::SyntaxTypes::LambdaNode)
   end
+
+  def deferred(node) = Kimera::Deferral.block(node)
 end

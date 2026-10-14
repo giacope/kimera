@@ -69,7 +69,7 @@ RSpec.describe("kimera run --operators all (end-to-end)") do
         end
       RUBY
 
-      test_run(cwd: fixture, args: ["--operators", "all"]) do |output, report, _status|
+      test_run(cwd: fixture, arguments: ["--operators", "all"]) do |output, report, _status|
         expect(report).not_to(be_nil, "no report; output:\n#{output}")
         counts = report["counts"]
         expect(counts["total"]).to(be > 25)

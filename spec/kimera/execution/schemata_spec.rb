@@ -252,7 +252,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
       Class.new do
         def self.defined_enums = { "status" => {} }
 
-        def self.enum(*args, **_kwargs) = (@calls ||= []) << args
+        def self.enum(*arguments, **_kwargs) = (@calls ||= []) << arguments
 
         class << self
           attr_reader :calls
@@ -291,7 +291,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
   it "passes enum through when the model class has no defined_enums" do
     base =
       Class.new do
-        def self.enum(*args, **_kwargs) = (@calls ||= []) << args
+        def self.enum(*arguments, **_kwargs) = (@calls ||= []) << arguments
 
         class << self
           attr_reader :calls
@@ -481,7 +481,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
         Class.new do
           class << self
             def calls = @_calls ||= []
-            def serialize(attribute, *_args, **_options) = calls << attribute
+            def serialize(attribute, *_arguments, **_options) = calls << attribute
           end
         end
       stub_const("ActiveRecord::Base", base)
@@ -765,5 +765,43 @@ RSpec.describe(Kimera::Execution::Schemata) do
     loader = described_class.new(registry, root: dir)
     expect { loader.overlay! }.to(output(/\Akimera: sl_orphan\.rb cannot run[^\n]*NameError[^\n]*\n\z/).to_stderr)
     expect(loader.skipped.keys).to(eq(["sl_orphan.rb"]))
+  end
+
+  # The overlay evaluates each file again; a method a file loaded later
+  # wrapped keeps its wrapper, whichever file sorts first.
+  it "overlays files in the order they were loaded, keeping a later file's wrapper", :aggregate_failures do
+    write("sl_wrap_order.rb", "class SchemataWrapped\n  def total(s)\n    s >= 10 ? s - 1 : s\n  end\nend\n")
+    write("sl_a_wrap.rb", <<~RUBY)
+      class SchemataWrapped
+        alias_method :plain, :total
+
+        def total(s)
+          t = plain(s)
+          t > 5 ? t * 2 : t
+        end
+      end
+    RUBY
+    files = %w[sl_wrap_order.rb sl_a_wrap.rb].map { |name| File.join(dir, name) }
+    files.each { |file| require(file) }
+    registry = Kimera::RegistryScan.new(root: dir).build(files.sort)
+    described_class.new(registry, root: dir).overlay!
+    Kimera::RUNTIME.active = nil
+    expect(SchemataWrapped.new.total(10)).to(eq(18))
+    mutant = registry.each.find { |m, p| p.file == "sl_wrap_order.rb" && m.label == ">= => >" }.first
+    Kimera::RUNTIME.active = mutant.id
+    expect(SchemataWrapped.new.total(10)).to(eq(20))
+  end
+
+  it "keeps a wrapper that a file it doesn't mutate defined after the overlaid one", :aggregate_failures do
+    write("sl_kept_order.rb", "class SchemataKept\n  def total(s)\n    s >= 10 ? s - 1 : s\n  end\nend\n")
+    write("sl_kept_wrap.rb", "class SchemataKept\n  alias_method :plain, :total\n  def total(s) = plain(s).succ\nend\n")
+    files = %w[sl_kept_order.rb sl_kept_wrap.rb].map { |name| File.join(dir, name) }
+    files.each { |file| require(file) }
+    registry = Kimera::RegistryScan.new(root: dir).build(files.first(1))
+    described_class.new(registry, root: dir).overlay!
+    Kimera::RUNTIME.active = nil
+    expect(SchemataKept.new.total(10)).to(eq(10))
+    Kimera::RUNTIME.active = registry.each.find { |m, _p| m.label == ">= => >" }.first.id
+    expect(SchemataKept.new.total(10)).to(eq(11))
   end
 end

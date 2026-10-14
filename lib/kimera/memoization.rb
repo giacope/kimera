@@ -2,6 +2,7 @@
 
 require_relative "support/syntax"
 require_relative "support/syntax_types"
+require_relative "support/deferral"
 
 module Kimera
   module Memoization
@@ -84,7 +85,8 @@ module Kimera
 
     def holes(node, holes = [])
       return holes unless node.is_a?(SyntaxTypes::Node)
-      return body(node, holes) if HOLE_NODES.any? { |kind| node.is_a?(kind) }
+      hole = HOLE_NODES.any? { |kind| node.is_a?(kind) } ? node : Kimera::Deferral.block(node)
+      return body(hole, holes) if hole
       node.compact_child_nodes.each { |child| holes(child, holes) }
       holes
     end

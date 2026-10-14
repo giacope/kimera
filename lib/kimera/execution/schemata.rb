@@ -5,6 +5,7 @@ require_relative "../self_protection"
 require_relative "../synthesis/body_trim"
 require_relative "../synthesis/overlay"
 require_relative "aliases"
+require_relative "overrides"
 require_relative "overlay_guards"
 
 class Kimera::Execution::Schemata
@@ -62,7 +63,8 @@ class Kimera::Execution::Schemata
   end
 
   def apply(result, file)
-    silence { result.install(file) }
+    overrides = Kimera::Execution::Overrides.new(file, result.source)
+    silence { overrides.keep { result.install(file) } }.tap { aliases.witness(overrides.displaced) }
   end
 
   def skip(path, reason)

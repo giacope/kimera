@@ -2,21 +2,21 @@
 
 RSpec.describe("kimera run --since (incremental CI mode)") do
   # Only method b changes in the working tree.
-  def test_build_repo(dir)
+  def test_build_repository(dir)
     FileUtils.mkdir_p(File.join(dir, "app", "models"))
     FileUtils.mkdir_p(File.join(dir, "spec"))
-    test_write_calc(dir, body: "x < y")
+    test_write_calculation(dir, body: "x < y")
     test_write_spec(dir, operator: :<)
     git(dir, "init -q")
     git(dir, "config user.email a@b.c")
     git(dir, "config user.name test")
     git(dir, "add -A")
     git(dir, "commit -q -m initial")
-    test_write_calc(dir, body: "x <= y")
+    test_write_calculation(dir, body: "x <= y")
     test_write_spec(dir, operator: :<=)
   end
 
-  def test_write_calc(dir, body:)
+  def test_write_calculation(dir, body:)
     File.write(File.join(dir, "app", "models", "calc.rb"), <<~RUBY)
       # frozen_string_literal: true
       class Calc
@@ -54,17 +54,17 @@ RSpec.describe("kimera run --since (incremental CI mode)") do
     RUBY
   end
 
-  def git(dir, args)
-    system("git -C #{dir.shellescape} #{args} > /dev/null 2>&1") ||
-      raise(Kimera::Error, "git #{args} failed")
+  def git(dir, arguments)
+    system("git -C #{dir.shellescape} #{arguments} > /dev/null 2>&1") ||
+      raise(Kimera::Error, "git #{arguments} failed")
   end
 
   it "evaluates only mutants on changed lines, and resumes from a session", :aggregate_failures do
     Dir.mktmpdir("kimera-incr") do |dir|
-      test_build_repo(dir)
+      test_build_repository(dir)
       session = File.join(dir, "session.json")
 
-      test_run(cwd: dir, args: ["--since", "HEAD", "--session", session]) do |output, report, status|
+      test_run(cwd: dir, arguments: ["--since", "HEAD", "--session", session]) do |output, report, status|
         expect(report).not_to(be_nil, "no report; output:\n#{output}")
         expect(output).to(match(/Incremental: \d+ mutants on lines changed/))
         # `<=` -> `<` and `>=`, both on b's changed line.
@@ -74,7 +74,7 @@ RSpec.describe("kimera run --since (incremental CI mode)") do
         expect(File).to(exist(session))
       end
 
-      test_run(cwd: dir, args: ["--since", "HEAD", "--session", session]) do |_output, report, _status|
+      test_run(cwd: dir, arguments: ["--since", "HEAD", "--session", session]) do |_output, report, _status|
         expect(report["counts"]["total"]).to(eq(2))
         expect(report["counts"]["killed"]).to(eq(2))
       end
@@ -84,12 +84,12 @@ end
 
 RSpec.describe("kimera run --max-survivors (threshold gating)") do
   it "passes when survivors are within the threshold and fails when they exceed it", :aggregate_failures do
-    test_run(cwd: test_sample, args: ["--max-survivors", "5"]) do |_o, report, status|
+    test_run(cwd: test_sample, arguments: ["--max-survivors", "5"]) do |_o, report, status|
       expect(report["counts"]["survived"]).to(eq(5))
       expect(status).to(eq(0))
     end
 
-    test_run(cwd: test_sample, args: ["--max-survivors", "2"]) do |_o, _report, status|
+    test_run(cwd: test_sample, arguments: ["--max-survivors", "2"]) do |_o, _report, status|
       expect(status).to(eq(2))
     end
   end

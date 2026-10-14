@@ -319,12 +319,13 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(h.coverage).not_to(have_key(9_999_991))
     end
 
-    # Serial in the parent so `quietly` can swallow suite writes.
-    it "runs the baseline in this very process at jobs == 1" do
+    # The workers fork from a process no test has run in, so no test's
+    # state reaches a mutant.
+    it "runs no baseline test in this process, even at jobs == 1" do
       pids = []
       h = harness(processes(pids))
       h.__send__(:measure!)
-      expect(pids).to(eq([Process.pid]))
+      expect(pids).to(be_empty) # children append to their own copy
     end
 
     it "fans the baseline out to forked workers at jobs > 1" do
@@ -613,6 +614,8 @@ RSpec.describe(Kimera::Execution::Harness) do
   end
 
   describe "#warm! wiring" do
+    include_context("with an inline zygote")
+
     let(:dir) { Dir.mktmpdir }
 
     after { FileUtils.remove_entry(dir) }
@@ -1104,6 +1107,8 @@ RSpec.describe(Kimera::Execution::Harness) do
   end
 
   describe "#verify!" do
+    include_context("with an inline zygote")
+
     it "passes silently when the suite is green" do
       h = harness(adapter(coverage: { "t1" => [] }))
       expect { h.__send__(:verify!) }.not_to(raise_error)
@@ -1352,6 +1357,8 @@ RSpec.describe(Kimera::Execution::Harness) do
   end
 
   describe "#warm!" do
+    include_context("with an inline zygote")
+
     let(:dir) { Dir.mktmpdir }
 
     after { FileUtils.remove_entry(dir) }
@@ -1399,6 +1406,31 @@ RSpec.describe(Kimera::Execution::Harness) do
         def test_ids = ["t1"]
         def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
       end.new
+    end
+
+    # Reaches the mutants only when both tests run in one process, in order.
+    def ordered(mids)
+      Class.new(Kimera::Frameworks::Adapter) do
+        define_method(:initialize) { |m| @mids = m }
+        def source(_files) = self
+        def test_ids = %w[t1 t2]
+        define_method(:run) do |ids|
+          @mids.each { |m| Kimera::RUNTIME.active?(m) } if ids.size > 1
+          Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+        end
+      end.new(mids)
+    end
+
+    it "sends a mutant only the suite run in order reaches to a second look", :aggregate_failures do
+      stub_const("WarmOrdered", Class.new)
+      registry = fixture("WarmOrdered")
+      ids = registry.each.map { |m, _p| m.id }
+      progress = journal
+      h = described_class.build(registry: registry, adapter: ordered(ids), source_root: dir, progress: progress)
+      h.warm!(%w[t1 t2])
+      expect(progress.events).to(include([:note, "baseline (whole suite, in order)"]))
+      expect(h.coverage.slice(*ids).values.flatten).to(be_empty)
+      expect(registry.points.map(&:revisit).uniq).to(eq([Kimera::MutationPoint::ORDER_REASON]))
     end
 
     it "runs the plain baseline check when coverage is disabled" do

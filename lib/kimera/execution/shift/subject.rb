@@ -18,7 +18,7 @@ Kimera::Execution::Shift::Subject =
     def crashed(error, limit)
       message = error.message
       return verdict(:timeout, duration: limit, detail: message) if error.is_a?(Timeout::Error)
-      verdict(:error, detail: "#{error.class}: #{message}")
+      verdict(:error, detail: "#{error.respond_to?(:kind) ? error.kind : error.class}: #{message}")
     end
 
     def killed(outcome, **fields)

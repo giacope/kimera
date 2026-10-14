@@ -11,8 +11,8 @@ end
 class Kimera::Synthesis::Project
   Manifest =
     Struct.new(:files, :mutant_files, :unsafe_mutants, keyword_init: true) do
-      def record(file, dest, result)
-        files[file] = dest
+      def record(file, destination, result)
+        files[file] = destination
         result.mutant_ids.each { |id| mutant_files[id] = file }
         unsafe_mutants.concat(result.skipped_unsafe)
       end
@@ -50,9 +50,9 @@ class Kimera::Synthesis::Project
   end
 
   def emit(file, outdir, result)
-    dest = File.join(outdir, file)
-    FileUtils.mkdir_p(File.dirname(dest))
-    File.write(dest, result.source)
-    manifest.record(file, dest, result)
+    destination = File.join(outdir, file)
+    FileUtils.mkdir_p(File.dirname(destination))
+    File.write(destination, result.source)
+    manifest.record(file, destination, result)
   end
 end

@@ -7,7 +7,7 @@ module Kimera
   module Config
     DEFAULT_PATH = ".kimera.yml"
 
-    SCALAR_KEYS = %w[framework source_root soft_timeout hard_timeout leak_every
+    SCALAR_KEYS = %w[framework source_root soft_timeout hard_timeout
       jobs max_survivors max_ignored max_errors coverage isolate_db
       fail_on_no_coverage progress color quiet verbose log format report baseline rejudge
       relative_timeout timeout_factor timeout_slack].freeze

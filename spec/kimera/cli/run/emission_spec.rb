@@ -34,7 +34,8 @@ RSpec.describe(Kimera::CLI::Run::Emission, :aggregate_failures) do
       path = File.join(dir, "steps/summary.md")
       emit(summary: path)
       emit(summary: path)
-      expect(File.read(path).scan("### Kimera: 1 surviving of 1 mutants (score 0.0%)").size).to(eq(2))
+      text = File.read(path, encoding: Encoding::UTF_8)
+      expect(text.scan("### Kimera: 1 surviving of 1 mutants (score 0.0%)").size).to(eq(2))
     end
   end
 end

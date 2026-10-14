@@ -139,11 +139,6 @@
       "type": "number",
       "minimum": 0
     },
-    "leak_every": {
-      "description": "Re-check every Nth kill for state leaked between tests (default: 10).",
-      "type": "integer",
-      "minimum": 1
-    },
     "jobs": {
       "description": "Parallel workers. Use 1 when tests share a directory, file or port (default: 1).",
       "type": "integer",

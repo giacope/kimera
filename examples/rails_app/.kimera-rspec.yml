@@ -1,0 +1,4 @@
+framework: rspec
+paths: ["app/**/*.rb"]
+tests: ["spec/**/*_spec.rb"]
+operators: [comparison, boolean_connective, boolean_literal, statement_deletion, negation, conditional, rails]

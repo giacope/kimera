@@ -1,39 +1,60 @@
 # frozen_string_literal: true
 
 require_relative "deadline"
+require_relative "finding"
+require_relative "probe"
 require_relative "suspect"
-require_relative "trial"
 
 class Kimera::Execution::Shift::Attempt
-  def initialize(adapter:, isolation:, killers:, deadline:)
-    @adapter = adapter
+  def initialize(probe:, isolation:, killers:, zygote:)
+    @probe = probe
     @isolation = isolation
     @killers = killers
-    @deadline = deadline
+    @zygote = zygote
   end
 
-  def run(id, tests, mode = :warm)
-    @isolation.around { __send__(mode, verdicts(id, tests)) }
-  end
+  def run(id, tests) = hunt(Kimera::Execution::Shift::Lineup.new(id, @killers.order(tests)), [])
 
   private
 
-  def verdicts(id, tests) = @killers.order(tests).lazy.filter_map { |testid| kill(id, testid) }
-
-  def warm(verdicts) = verdicts.first
-
-  def recheck(verdicts)
-    doubts = []
-    verdicts.find { |verdict| decisive?(verdict, doubts) } || doubts.first&.final
+  def hunt(lineup, doubts)
+    found = fresh { @probe.sweep(lineup) }
+    return doubts.first&.final unless found
+    finding = Kimera::Execution::Shift::Finding.new(lineup, found)
+    settle(finding, doubts, judge(finding))
   end
 
-  def decisive?(verdict, doubts)
-    return true unless verdict.is_a?(Kimera::Execution::Shift::Suspect)
-    doubts << verdict
-    false
+  def settle(finding, doubts, verdict)
+    return verdict if verdict && !verdict.is_a?(Kimera::Execution::Shift::Suspect)
+    hunt(finding.onward, doubts + [verdict].compact)
   end
 
-  def kill(id, testid)
-    Kimera::Execution::Shift::Trial.new(@adapter, id, testid, @deadline).verdict { @killers.remember(testid) }
+  def judge(finding) = finding.overran? ? lagged(finding) : failed(finding)
+
+  def failed(finding)
+    return finding.kill(finding.found, @killers) if finding.first?
+    solo = replay(finding.solo)
+    solo["passed"] ? retrace(finding) : finding.kill(solo, @killers)
   end
+
+  def retrace(finding)
+    control = replay(finding.control)
+    control["passed"] ? confirm(finding) : finding.refuted(control)
+  end
+
+  def confirm(finding)
+    again = replay(finding.again)
+    again["passed"] ? finding.doubted : finding.kill(again, @killers)
+  end
+
+  def lagged(finding)
+    calm = replay(finding.calm)
+    return unless calm["passed"] && !calm["overran"]
+    again = replay(finding.solo)
+    finding.overrun(calm, again, @probe.deadline.budget) if again["overran"]
+  end
+
+  def replay(lineup) = fresh { @probe.replay(lineup) }
+
+  def fresh(&) = @zygote.call { @isolation.around(&) }
 end

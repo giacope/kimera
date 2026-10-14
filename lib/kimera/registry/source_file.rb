@@ -20,11 +20,9 @@ class Kimera::RegistryScan::SourceFile
     @numbering = numbering
   end
 
-  def points
-    parsed = Kimera::Syntax.parse(@source)
-    return [] if parsed.failure?
-    mined(parsed.value)
-  end
+  def points = scanned.first
+
+  def regions = scanned.last
 
   private
 
@@ -34,15 +32,31 @@ class Kimera::RegistryScan::SourceFile
 
   def removals = @_removals ||= Kimera::DefaultRemoval::Source.new(@source)
 
+  def scanned = @_scanned ||= scan(Kimera::Syntax.parse(@source))
+
+  def scan(parsed)
+    return [[], [unparsed(parsed.errors.first&.message)]] if parsed.failure?
+    mined(parsed.value)
+  end
+
+  def unparsed(error)
+    Kimera::Unmutated.new(@file, 1, [@source.lines.size, 1].max, "#{Kimera::Unmutated::UNPARSED}#{error}")
+  end
+
+  def region(block)
+    Kimera::Unmutated.new(@file, *Kimera::Location.parse(block.location).range.minmax, Kimera::Unmutated::BLOCK)
+  end
+
   def mined(root)
     found = []
-    walk(root, origin) { |node, cursor| bank(found, node, cursor) }
-    found
+    held = {}.compare_by_identity
+    walk(root, origin) { |node, cursor| bank(found, node, cursor) || hold(held, node, cursor) }
+    [found, held.values]
   end
 
   def origin
     Kimera::RegistryWalking::Cursor.new(
-      position: nil, inside_def: nil, in_pattern: nil, def_body: nil, defname: nil, embedded: nil
+      position: nil, inside_def: nil, in_pattern: nil, def_body: nil, defname: nil, embedded: nil, block: nil
     )
   end
 
@@ -50,8 +64,16 @@ class Kimera::RegistryScan::SourceFile
     pairs = harvest(applicable(cursor), node, cursor.position).reject { |key, _| guarded?(node, key) }
     pairs = writable(node.location, pairs)
     return if pairs.empty?
-    found << assemble(node, pairs, cursor).taint!(tainted)
+    found << classed(assemble(node, pairs, cursor.defname), cursor).taint!(tainted)
   end
+
+  def hold(held, node, cursor)
+    block = cursor.block
+    return unless block && !cursor.inside_def && harvest(skipped, node, cursor.position).any?
+    held[block] = region(block)
+  end
+
+  def skipped = @operators.reject(&:body?).reject(&:statement?)
 
   def applicable(cursor)
     chosen = cursor.inside_def ? @operators : @operators.select(&:body?)
@@ -64,8 +86,9 @@ class Kimera::RegistryScan::SourceFile
     operators.flat_map { |operator| operator.pairs(node, position: position) }
   end
 
-  def assemble(node, pairs, cursor)
-    point = Kimera::MutationPoint.new(**attrs(node, distinct(node.location, pairs), cursor.defname))
+  def assemble(node, pairs, name) = Kimera::MutationPoint.new(**attributes(node, distinct(node.location, pairs), name))
+
+  def classed(point, cursor)
     point.unsafe!(Kimera::MutationPoint::CLASS_BODY_REASON) unless cursor.inside_def
     point
   end
@@ -76,7 +99,7 @@ class Kimera::RegistryScan::SourceFile
 
   def outcomes = @_outcomes ||= Kimera::Rewrite::Outcomes.new(@source)
 
-  def attrs(node, pairs, name)
+  def attributes(node, pairs, name)
     location = node.location
     { point_id: @numbering.point, file: @file, operator: pairs.map(&:first).uniq.join("+") }
       .merge(node_type: node.type.to_s, location: Kimera::Location.parse(location), original_source: location.slice)

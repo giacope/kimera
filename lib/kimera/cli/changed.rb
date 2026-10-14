@@ -11,9 +11,9 @@ class Kimera::CLI::Changed
   end
 
   def run(argv)
-    args = argv.dup
-    args.unshift("--since", reference) unless Kimera::CLI::Argv.option?(args, "--since")
-    Kimera::CLI::Run.new(io: @io, errors: @errors).run(args)
+    arguments = argv.dup
+    arguments.unshift("--since", reference) unless Kimera::CLI::Argv.option?(arguments, "--since")
+    Kimera::CLI::Run.new(io: @io, errors: @errors).run(arguments)
   end
 
   private

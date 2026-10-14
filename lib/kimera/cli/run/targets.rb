@@ -3,14 +3,14 @@
 class Kimera::CLI::Run::Targets
   PATTERN = /\A(?<path>.+?):(?<from>\d+)(?:-(?<to>\d+))?\z/
 
-  def initialize(args)
-    @args = args
+  def initialize(arguments)
+    @arguments = arguments
   end
 
-  def paths = @args.map { |arg| aimed(arg)&.[](:path) || arg }
+  def paths = @arguments.map { |argument| aimed(argument)&.[](:path) || argument }
 
   def lines
-    @args.filter_map { |arg| aimed(arg) }.each_with_object({}) do |match, found|
+    @arguments.filter_map { |argument| aimed(argument) }.each_with_object({}) do |match, found|
       from = match[:from]
       (found[match[:path]] ||= Set.new).merge(Integer(from, 10)..Integer(match[:to] || from, 10))
     end
@@ -18,8 +18,8 @@ class Kimera::CLI::Run::Targets
 
   private
 
-  def aimed(arg)
-    match = PATTERN.match(arg)
+  def aimed(argument)
+    match = PATTERN.match(argument)
     match if match && File.file?(match[:path])
   end
 end

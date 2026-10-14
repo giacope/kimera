@@ -6,7 +6,7 @@ module Kimera
 end
 
 class Kimera::Execution::Stopwatch
-  CLOCK = -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }
+  CLOCK = ->(reading = Process.clock_gettime(Process::CLOCK_MONOTONIC)) { reading }
 
   attr_reader :last
 

@@ -3,7 +3,7 @@
 require "json"
 require "tmpdir"
 require_relative "child_process"
-require_relative "last_words"
+require_relative "pool_duty"
 require_relative "shift"
 require_relative "stack_dump"
 require_relative "worker_pool"
@@ -22,29 +22,6 @@ class Kimera::Execution::Pool
       def child!
         req_w.close
         res_r.close
-      end
-    end
-
-  Duty =
-    Struct.new(:entry, :index, :pipes) do
-      def run(shift)
-        shift.public_send(entry, pipes.req_r, pipes.res_w)
-      end
-
-      def pulse
-        pipes.res_w.puts(JSON.generate(t: "tick"))
-      end
-
-      def finish(database, error)
-        confess(error) if error
-        database.before_exit(index)
-        pipes.res_w.close
-      end
-
-      def confess(error)
-        pipes.res_w.puts(JSON.generate(t: "crash", detail: Kimera::Execution::LastWords.new(error).to_s))
-      rescue IOError, SystemCallError
-        nil
       end
     end
 
@@ -97,7 +74,7 @@ class Kimera::Execution::Pool
   end
 
   def channels
-    request, response = Array.new(2) { IO.pipe }
+    request, response = Array.new(2) { IO.pipe(Encoding::UTF_8) }
     Channels.new(*request, *response)
   end
 
@@ -120,13 +97,13 @@ class Kimera::Execution::Pool
   def serve(duty)
     duty.run(build(duty))
   ensure
-    duty.finish(database, $ERROR_INFO)
+    duty.retire(database, $ERROR_INFO)
   end
 
   def build(duty)
     Kimera::Execution::Shift.new(
       adapter: @adapter, registry: @registry, coverage: coverage, isolation: @isolation,
-      soft_timeout: @options.fetch(:soft), leak_every: @options.fetch(:leak), pulse: pulse(duty),
+      soft_timeout: @options.fetch(:soft), pulse: pulse(duty),
       **@options.slice(:budget)
     )
   end
