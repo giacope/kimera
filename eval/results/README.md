@@ -34,6 +34,56 @@ another agent that did not read kimera's sources, tests or this eval
 Neither version produced a false kill. "False no_coverage" is a mutant kimera
 calls uncovered that the plain suite kills.
 
+## External holdout, batch 2 (H2)
+
+`eval/holdout2` holds 10 more projects, written by another agent blind to
+kimera, its tests and this eval, and never used to tune kimera
+(`eval/holdout2/README.md`); H1's oracle judges them. `holdout2.json` is one
+run at 7627b14 (`lib/` as on `main` at 97c8d90), Ruby 3.4.11, 4 vCPUs, with
+`--operators all --jobs 2`; two earlier runs gave the same counts.
+"Compared" leaves out `no_coverage` and the oracle's skips.
+
+| Project | mutants | compared / agree | false survived | false killed | no_coverage (false) | oracle skipped |
+| --- | --- | --- | --- | --- | --- | --- |
+| q01 `prepend` guard | 116 | 104 / 103 | 1 | 0 | 12 (0) | 0 |
+| q02 ghost methods | 141 | 138 / 135 | 0 | 3 | 2 (0) | 1 |
+| q03 refinements | kimera's baseline is red: no report | | | | | |
+| q04 `Thread.current` rates | 88 | 87 / 87 | 0 | 0 | 0 (0) | 1 |
+| q05 sorted versions | 206 | 196 / 191 | 5 | 0 | 9 (0) | 1 |
+| q06 unit classes | 141 | 137 / 137 | 0 | 0 | 4 (0) | 0 |
+| q07 `autoload` tariffs | 65 | 64 / 64 | 0 | 0 | 0 (0) | 1 |
+| q08 dynamic dispatch | 118 | 115 / 115 | 0 | 0 | 0 (0) | 3 |
+| q09 `before(:all)` catalog | 178 | 173 / 173 | 0 | 0 | 5 (0) | 0 |
+| q10 `catch`/`throw` outline | 106 | 102 / 102 | 0 | 0 | 0 (0) | 4 |
+| **total** | **1159 in 9 projects** | **1116 / 1107 (99.2%)** | **6** | **3** | **32 (0)** | **11** |
+
+Every disagreement reproduces by hand (mutant baked in, plain `rspec` in
+order, and the killing example alone); none is the oracle's doing:
+
+- q03: `lib/textkit/headline.rb` starts with `using TextKit::Refinements`.
+  Under kimera the refined methods are missing from that file
+  (`undefined method 'ordinalize' for an instance of Integer`), so the
+  baseline fails at `--jobs 1` and 2 and nothing is judged. Plain `rspec`
+  passes, in order, alone and under random seeds.
+- q01, `lib/ledger.rb:24`, `Audit#withdraw`'s `result` deleted: survived,
+  oracle killed. `spec/audit_spec.rb` prepends `Audit` to `Account` for the
+  rest of the run; in order, the later `spec/overdraft_spec.rb:15` and `:21`
+  withdraw through it and fail. Kimera judges the mutant only by
+  `audit_spec.rb`'s own example, which does not check the return value.
+- q02, `lib/settings.rb:35`, three mutants of `method_missing`'s
+  `raise ArgumentError, "...expected #{expected}..."`: killed, oracle
+  survived. In order, "returns defaults" has already defined `label`, so
+  "rejects arguments to a reader" gets Ruby's own `ArgumentError (given 1,
+  expected 0)` and never reaches line 35; run alone it does, and fails.
+  Kimera judges it as it runs alone.
+- q05, `lib/sem_ver.rb:38, 61, 72` (`split(".")`, `compare_pre`'s first
+  condition, `numeric?`), five mutants: survived, oracle killed.
+  `lib/releases.rb` sorts `SUPPORTED` and takes its `min` and `max` with
+  `SemVer#<=>` while it loads; with the mutant baked in the constants come
+  out in another order and the releases specs fail. Kimera judges them
+  against constants the original code built, and no example checks those
+  comparisons directly.
+
 ## Gaps
 
 | Gap | What is measured | main | branch |
@@ -100,7 +150,10 @@ wrong `--since` selection, a new top-level constant. About 5 minutes on a
 the 441 MB it guards against. Left out: S1 measures wall time; K3 and K13 need
 `examples/rails_app` (the `rails` job runs it end to end); K8 needs Java and
 downloads tla2tools.jar (the `model-check` job); K9 and K10 resolve gems from
-rubygems.org (the `unparser` job covers the allowed releases).
+rubygems.org (the `unparser` job covers the allowed releases). H2 is
+deterministic and takes 2 minutes, but it fails today, and a pass/fail gate
+cannot hold a case that already fails; once kimera passes it, record it in
+`after.json` and add it to the job's `CASES`.
 
 Before a release, run every case on the previous release and on the
 candidate, one after the other on the same machine, then update the tables
@@ -114,6 +167,7 @@ ruby eval/run --kimera . --baseline eval/results/after.json --out eval/results/a
 
 The full run needs network access, Java 21 and `rspec` outside the bundle;
 the last command exits 1 if a case regressed against the recorded
-`after.json`, which it reads before replacing. Wall times and memory (S1, K3's
+`after.json`, which it reads before replacing (until H2 passes, it fails
+on H2, which `after.json` does not hold). Wall times and memory (S1, K3's
 per-mode times, K4, K13) compare only between runs on the same machine;
 across machines, compare verdicts.
