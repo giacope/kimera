@@ -1,7 +1,9 @@
 # Evaluation results
 
-`before.json` is `main` at 758df8f; `after.json` is this branch at 8099360.
-Both ran with `ruby eval/run --kimera PATH --out FILE` (full mode), one after
+`before.json` is `main` at 758df8f; `after.json` is the branch merged in #44,
+at 8099360. They are a snapshot of those two commits, not of later ones; CI
+re-checks part of them on every change (see the last section). Both ran with
+`ruby eval/run --kimera PATH --out FILE` (full mode), one after
 the other on the same 4-vCPU Xeon VM (2.8 GHz, 15 GB, Ruby 3.4.7). Each
 case's oracle runs plain `rspec`/`ruby -Itest` in a fresh process on a copy of
 the project with the mutant baked into the source, so it shares nothing with
@@ -78,3 +80,40 @@ large: treat single-run differences under about 25% as noise.
 Summed resident memory across the process tree rises (dry-inflector 577 MB to
 980 MB) because the sampler counts each short-lived child's copy-on-write
 pages again; the largest single process does not grow (243 MB and 216 MB).
+
+## In CI, and before a release
+
+CI's `eval` job runs, on every push to main and every pull request, the
+cases that need no network, Java or Rails app and whose result does not ride
+on machine speed:
+
+```sh
+gem install rspec -v "~> 3.13"   # H1's oracle runs plain rspec, outside the bundle
+ruby eval/run --kimera . --only H1,K1,K2,K4,K5,K6,K7,K11,K12,X1 \
+  --baseline eval/results/after.json --out tmp/eval.json
+```
+
+It exits 1 when one of them fails that `after.json` records passing: a false
+survivor, false kill or false `no_coverage`, a silent line, a stale verdict, a
+wrong `--since` selection, a new top-level constant. About 5 minutes on a
+4-vCPU machine. K4 passes under 150 MB of peak RSS (46 MB measured), far from
+the 441 MB it guards against. Left out: S1 measures wall time; K3 and K13 need
+`examples/rails_app` (the `rails` job runs it end to end); K8 needs Java and
+downloads tla2tools.jar (the `model-check` job); K9 and K10 resolve gems from
+rubygems.org (the `unparser` job covers the allowed releases).
+
+Before a release, run every case on the previous release and on the
+candidate, one after the other on the same machine, then update the tables
+and the first paragraph:
+
+```sh
+git worktree add ../kimera-before PREVIOUS_RELEASE_COMMIT
+ruby eval/run --kimera ../kimera-before --out eval/results/before.json
+ruby eval/run --kimera . --baseline eval/results/after.json --out eval/results/after.json
+```
+
+The full run needs network access, Java 21 and `rspec` outside the bundle;
+the last command exits 1 if a case regressed against the recorded
+`after.json`, which it reads before replacing. Wall times and memory (S1, K3's
+per-mode times, K4, K13) compare only between runs on the same machine;
+across machines, compare verdicts.
