@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../registry/mutation_point"
+require_relative "null_progress"
 require_relative "zygote"
 
 module Kimera
@@ -10,9 +11,16 @@ end
 
 class Kimera::Execution::OrderTrace
   ORDERED = Kimera::MutationPoint::ORDER_REASON
+  NOTE = "baseline (whole suite, in order)"
 
   def initialize(registry)
     @registry = registry
+  end
+
+  def follow!(baseline, coverage, scope: nil, progress: Kimera::Execution::NullProgress)
+    return unless wanted?(scope, coverage)
+    progress.note(NOTE)
+    mark!(baseline, coverage)
   end
 
   def mark!(baseline, coverage)

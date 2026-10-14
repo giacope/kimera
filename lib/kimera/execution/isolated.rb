@@ -65,7 +65,8 @@ class Kimera::Execution::IsolatedExecution
   def plan
     @_plan ||= Kimera::Execution::IsolatedPlan.new(
       registry: @registry, root: @root, tests: @tests,
-      coverage: @options.fetch(:coverage, {}), framework: @options.fetch(:framework, "rspec"),
+      coverage: @options.fetch(:coverage, {}), timings: @options.fetch(:timings, {}),
+      framework: @options.fetch(:framework, "rspec"),
       test_files: @options.fetch(:test_files, [])
     )
   end

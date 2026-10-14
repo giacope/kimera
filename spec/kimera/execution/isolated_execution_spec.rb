@@ -407,6 +407,31 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       expect(result.status).to(eq(:no_coverage))
     end
 
+    def test_paced(given)
+      Class.new(described_class) do
+        define_method(:verdict) do |_mirror, locations, **|
+          given.concat(locations)
+          Kimera::Execution::IsolatedOutcome.new(:survived)
+        end
+      end
+    end
+
+    # The child runs them in the order given; the report keeps coverage order.
+    it "hands the mutant's child its covering tests fastest first by baseline time", :aggregate_failures do
+      given = []
+      Dir.mktmpdir do |root|
+        File.write(File.join(root, "calc.rb"), test_source_fixture)
+        paced = { coverage: { first => %w[slow fast] }, timings: { "fast" => 0.1, "slow" => 2.0 } }
+        r = test_paced(given).new(registry: registry, root: root, tests: [], **paced)
+        result =
+          Dir.mktmpdir do |mirror|
+            FileUtils.cp_r(File.join(root, "calc.rb"), File.join(mirror, "calc.rb"))
+            test_invoke_private(r, :evaluate, Kimera::Execution::Trial.new(first, mirror, Kimera::Overlay.new(registry)))
+          end
+        expect([given, result.covering_tests]).to(eq([%w[fast slow], %w[slow fast]]))
+      end
+    end
+
     def test_baking_evaluate(id, pause: nil)
       baked = nil
       Dir.mktmpdir do |root|
@@ -564,7 +589,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     it "has only a mutant's run stop at the first failure" do
       asked = []
       runner = command(test_ledger_child(0, [], 0), asked: asked)
-      Dir.mktmpdir { |m| [{}, { first: true }].each { |opts| test_invoke_private(runner, :verdict, m, [], **opts) } }
+      Dir.mktmpdir { |m| [{}, { first: true }].each { |ask| test_invoke_private(runner, :verdict, m, [], **ask) } }
       expect(asked).to(eq([false, true]))
     end
 

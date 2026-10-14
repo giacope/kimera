@@ -1447,12 +1447,14 @@ RSpec.describe(Kimera::Execution::Harness) do
       end.new(mids)
     end
 
-    it "kills each mutant with the covering test the baseline timed fastest" do
+    # The isolated tier orders its tests by the same timings.
+    it "kills each mutant with the covering test the baseline timed fastest", :aggregate_failures do
       stub_const("WarmRacing", Class.new)
       registry = fixture("WarmRacing")
       ids = registry.each.map { |m, _p| m.id }
       h = described_class.build(registry: registry, adapter: racing(ids), source_root: dir, soft_timeout: nil)
       h.warm!(%w[t1], scope: ids)
+      expect(h.timings.fetch("slow")).to(be > h.timings.fetch("fast"))
       expect(h.run(ids: ids).results.map(&:failing_tests).uniq).to(eq([["fast"]]))
     end
 

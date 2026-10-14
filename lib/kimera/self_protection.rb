@@ -33,6 +33,7 @@ module Kimera
       kimera/execution/shift/finding.rb
       kimera/execution/shift/coverage_channel.rb
       kimera/execution/shift/killer_memory.rb
+      kimera/execution/pace.rb
       kimera/execution/zygote.rb
       kimera/execution/harness.rb
       kimera/execution/baseline_pass.rb

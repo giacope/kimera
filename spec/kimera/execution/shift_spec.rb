@@ -292,12 +292,13 @@ RSpec.describe(Kimera::Execution::Shift) do
 
     # Ties and tests the baseline never timed keep their coverage order.
     it "tries the covering set fastest first by baseline time" do
-      memory = Kimera::Execution::Shift::KillerMemory.new({ "slow" => 2.0, "fast" => 0.1, "mid" => 0.5, "tie" => 0.5 })
+      pace = Kimera::Execution::Pace.new({ "slow" => 2.0, "fast" => 0.1, "mid" => 0.5, "tie" => 0.5 })
+      memory = Kimera::Execution::Shift::KillerMemory.new(pace)
       expect(memory.order(%w[slow untimed mid fast tie])).to(eq(%w[fast mid tie slow untimed]))
     end
 
     it "still tries a recent killer before a faster test" do
-      memory = Kimera::Execution::Shift::KillerMemory.new({ "slow" => 2.0, "fast" => 0.1 })
+      memory = Kimera::Execution::Shift::KillerMemory.new(Kimera::Execution::Pace.new({ "slow" => 2.0, "fast" => 0.1 }))
       memory.remember("slow")
       expect(memory.order(%w[fast slow])).to(eq(%w[slow fast]))
     end

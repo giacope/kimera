@@ -215,6 +215,13 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     end
   end
 
+  describe "#fastest" do
+    it "orders tests by their baseline time, keeping the given order without one", :aggregate_failures do
+      expect(plan(timings: { "t1" => 2.0, "t3" => 0.1 }).fastest(%w[t1 t2 t3])).to(eq(%w[t3 t1 t2]))
+      expect(plan.fastest(%w[t2 t1])).to(eq(%w[t2 t1]))
+    end
+  end
+
   describe "#mutables" do
     def nested
       code = "def a(x, y)\n  x > y\nend\n"

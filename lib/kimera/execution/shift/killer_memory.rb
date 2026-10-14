@@ -1,16 +1,18 @@
 # frozen_string_literal: true
 
+require_relative "../pace"
+
 class Kimera::Execution::Shift::KillerMemory
   LIMIT = 16
 
-  def initialize(timings = {})
+  def initialize(pace = Kimera::Execution::Pace::STILL)
     @recent = []
-    @timings = timings
+    @pace = pace
   end
 
   def order(tests)
     likely = @recent & tests
-    likely + fastest(tests - likely)
+    likely + @pace.fastest(tests - likely)
   end
 
   def remember(testid)
@@ -18,8 +20,4 @@ class Kimera::Execution::Shift::KillerMemory
     @recent.unshift(testid)
     @recent.pop while @recent.size > LIMIT
   end
-
-  private
-
-  def fastest(tests) = tests.sort_by.with_index { |test, index| [@timings[test] || Float::INFINITY, index] }
 end

@@ -100,7 +100,7 @@ class Kimera::CLI::Run::Pass
 
   def core
     { registry: @registry, root: @options[:source_root], tests: @adapter.test_ids }
-      .merge(coverage: harness.coverage, progress: progress, jobs: @options[:jobs])
+      .merge(coverage: harness.coverage, timings: harness.timings, progress: progress, jobs: @options[:jobs])
       .merge(framework: @options[:framework], test_files: files)
   end
 

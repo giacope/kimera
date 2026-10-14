@@ -68,6 +68,8 @@ class Kimera::Execution::Harness
 
   def coverage = options[:coverage]
 
+  def timings = options.fetch(:timings, {})
+
   def skipped = state.skipped
 
   private
@@ -121,6 +123,7 @@ class Kimera::Execution::Harness
   def measure!
     measured = parallel(baseline)
     options[:coverage] = measured.coverage
+    options[:timings] = measured.timings
     arm(measured.timings)
     state.irrelevant = measured.irrelevant
     state.recovered = measured.recovered
@@ -128,10 +131,7 @@ class Kimera::Execution::Harness
 
   def sift!(scope)
     trace.quarantine!(coverage)
-    order = Kimera::Execution::OrderTrace.new(registry)
-    return unless order.wanted?(scope, coverage)
-    progress.note("baseline (whole suite, in order)")
-    order.mark!(baseline, coverage)
+    Kimera::Execution::OrderTrace.new(registry).follow!(baseline, coverage, scope: scope, progress: progress)
   end
 
   def arm(timings)

@@ -3,6 +3,7 @@
 require_relative "../self_protection"
 require_relative "isolated_child_command"
 require_relative "isolated_test_selection"
+require_relative "pace"
 
 module Kimera
   module Execution
@@ -40,6 +41,8 @@ class Kimera::Execution::IsolatedPlan
   end
 
   def suite = selection.all
+
+  def fastest(tests) = Kimera::Execution::Pace.new(@options.fetch(:timings, {})).fastest(tests)
 
   def mutables
     @registry.files.map { |f| f.split(File::SEPARATOR).first }.uniq

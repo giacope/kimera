@@ -5,7 +5,8 @@ require "tmpdir"
 
 # Deleting `pool.shutdown` fails no test, but every test's setup then waits
 # out wait_for_termination. The coverage pass timed each test, so the first
-# covering test past baseline × factor + slack settles the mutant.
+# covering test run (the fastest in the baseline) past baseline × factor +
+# slack settles the mutant.
 RSpec.describe("kimera run's relative time budget (end-to-end)", :aggregate_failures) do
   def test_pusher(root)
     FileUtils.mkdir_p([File.join(root, "app"), File.join(root, "spec", "support")])
@@ -53,7 +54,7 @@ RSpec.describe("kimera run's relative time budget (end-to-end)", :aggregate_fail
       row = test_deletion(report)
       expect(row["status"]).to(eq("timeout"))
       expect(row["detail"])
-        .to(match(/\A\S+pusher_spec\.rb\[1:1\] ran past its relative time budget with the mutant on /))
+        .to(match(/\A\S+pusher_spec\.rb\[1:[1-4]\] ran past its relative time budget with the mutant on /))
       expect(row["detail"]).to(include("× 10.0 + 0.2s), and in "))
       expect(row["duration"]).to(be < 1.5)
     end
