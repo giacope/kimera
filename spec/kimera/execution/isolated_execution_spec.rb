@@ -508,9 +508,10 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
   describe "#verdict (command stubbed on the runner)" do
     # verdict only consumes the plan's command, so no real bake is needed. A
     # callable cmd receives the ledger path, as the real children do in argv.
-    def command(invocation, **)
+    def command(invocation, asked: [], **)
       plan = Object.new
-      plan.define_singleton_method(:command) do |_mirror, _locations, ledger, **|
+      plan.define_singleton_method(:command) do |_mirror, _locations, ledger, first:|
+        asked << first
         [{}, invocation.respond_to?(:call) ? invocation.call(ledger) : invocation]
       end
       r = runner(**)
@@ -558,6 +559,13 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       expect(outcome.status).to(eq(:harness_error))
       expect(outcome.detail).to(start_with("suite exited 2 with 0 failures"))
       expect(outcome.failing).to(be_nil)
+    end
+
+    it "has only a mutant's run stop at the first failure" do
+      asked = []
+      runner = command(test_ledger_child(0, [], 0), asked: asked)
+      Dir.mktmpdir { |m| [{}, { first: true }].each { |opts| test_invoke_private(runner, :verdict, m, [], **opts) } }
+      expect(asked).to(eq([false, true]))
     end
 
     it "hands the child a ledger path that does not exist yet" do

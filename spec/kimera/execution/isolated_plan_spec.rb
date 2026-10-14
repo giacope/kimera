@@ -199,6 +199,15 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       end
     end
 
+    # Only a mutant's run stops at its first failure; a baseline names every failing test.
+    it "asks the child to run every test unless told otherwise" do
+      Dir.mktmpdir do |mirror|
+        ledger = File.join(mirror, "l.json")
+        plan.command(mirror, ["spec/a_spec.rb[1:1]"], ledger)
+        expect(JSON.parse(File.read("#{ledger}.request"))).to(include("first_failure" => false))
+      end
+    end
+
     it "includes one -I per distinct mutated top dir" do
       _env, argv = bare(["loc"], registry: mixed)
       includes = argv.each_cons(2).filter_map { |flag, value| value if flag == "-I" }

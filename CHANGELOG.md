@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Faster, with the same verdicts. A mutant's covering tests now run fastest
+  first by their baseline time (after the worker's recent killers), so a
+  mutant most tests kill dies on a cheap unit test instead of after hundreds
+  of slow integration tests. The whole-suite run in order is skipped when
+  every mutant in scope already has a covering test, since it only marks
+  uncovered points and could change no verdict. The RSpec isolated child
+  stops at a mutant's first failing test, as the Minitest child already did
+  (the unmutated baseline in the mirror still runs every test). On kimera's
+  own suite, two files' 20 mutants went from 165s to 21s, `lib/kimera/operators`
+  plus `lib/kimera/rewrite` (426 mutants) from 322s to 29s, and three
+  harness-critical files judged in the isolated tier from 289s to 154s;
+  every verdict matched.
 - Code a test runs in a process it forks (a `fork { ... }` block, a forking
   job runner) is covered: while a coverage ledger is open, a forked child
   appends the mutants it touches to a spill file the parent's ledger reads
