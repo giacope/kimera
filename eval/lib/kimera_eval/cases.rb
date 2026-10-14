@@ -80,5 +80,6 @@ end
 Dir[File.join(__dir__, "cases", "*.rb")].each { |file| require file }
 
 module KimeraEval
-  CASES = Case.subclasses.sort_by { |kind| [kind::ID[0], Integer(kind::ID[1..])] }.freeze
+  CASES = Case.subclasses.flat_map { |kind| [kind, *kind.subclasses] }
+    .sort_by { |kind| [kind::ID[0], Integer(kind::ID[1..])] }.freeze
 end
