@@ -90,7 +90,7 @@ class Kimera::CLI::Run::Pass
   end
 
   def judge(ids)
-    isolation.verify!
+    isolation.verify!(ids)
     isolation.run(ids: ids, label: "mutants (isolated)")
   end
 

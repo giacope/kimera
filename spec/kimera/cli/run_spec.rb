@@ -793,7 +793,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     it "routes evaluation through the IsolatedExecution when --isolated" do
       harness, runner, session = routing
       pass(registry, settings(coverage: false, isolated: true), [1], session)
-      expect(runner).to(have_received(:verify!).ordered)
+      expect(runner).to(have_received(:verify!).with([1]).ordered)
       expect(runner).to(have_received(:run).with(ids: [1], label: "mutants (isolated)").ordered)
       route(harness)
     end

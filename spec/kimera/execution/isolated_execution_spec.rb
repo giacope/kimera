@@ -178,7 +178,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
   end
 
   describe "#verify!" do
-    def test_baseline(outcome, progress: Kimera::Execution::NullProgress)
+    def test_baseline(outcome, progress: Kimera::Execution::NullProgress, ids: nil, coverage: {})
       seen = []
       engine =
         Class.new(described_class) do
@@ -189,16 +189,25 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
         end
       Dir.mktmpdir do |root|
         File.write(File.join(root, "calc.rb"), "def a(x, y) = x > y\n")
-        engine.new(registry: registry, root: root, tests: %w[t1 t2], hard_timeout: 7, progress: progress).verify!
+        engine.new(registry: registry, root: root, tests: %w[t1 t2 t3], hard_timeout: 7, progress: progress, coverage:)
+          .verify!(*ids)
       end
       seen
+    end
+
+    # No other test can turn one of their verdicts into a false kill.
+    it "runs only the tests the mutants it is given will run, in suite order", :aggregate_failures do
+      green = Kimera::Execution::IsolatedOutcome.new(:survived)
+      coverage = { first => %w[t3 t1], 999 => %w[t2] }
+      expect(test_baseline(green, ids: [[first, 999]], coverage:)).to(eq([[true, %w[t1 t3]]]))
+      expect(test_baseline(green, ids: [[]], coverage:)).to(eq([]))
     end
 
     it "runs the whole suite once in a fresh mirror and passes when it is green", :aggregate_failures do
       green = Kimera::Execution::IsolatedOutcome.new(:survived)
       seen = nil
       expect { seen = test_baseline(green) }.not_to(output.to_stderr)
-      expect(seen).to(eq([[true, %w[t1 t2]]]))
+      expect(seen).to(eq([[true, %w[t1 t2 t3]]]))
     end
 
     it "notes the phase on the progress output before it runs" do
