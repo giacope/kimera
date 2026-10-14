@@ -7,13 +7,26 @@
   mutant most tests kill dies on a cheap unit test instead of after hundreds
   of slow integration tests. The whole-suite run in order is skipped when
   every mutant in scope already has a covering test, since it only marks
-  uncovered points and could change no verdict. The RSpec isolated child
-  stops at a mutant's first failing test, as the Minitest child already did
-  (the unmutated baseline in the mirror still runs every test). On kimera's
-  own suite, two files' 20 mutants went from 165s to 21s, `lib/kimera/operators`
-  plus `lib/kimera/rewrite` (426 mutants) from 322s to 29s, and three
-  harness-critical files judged in the isolated tier from 289s to 154s;
-  every verdict matched.
+  uncovered points and could change no verdict. In the isolated tier, a
+  mutant's child gets its tests fastest first and stops at the first one of
+  them that fails, as the Minitest child already did, and the unmutated
+  mirror baseline runs only the tests the isolated mutants will run (every
+  test still, when one of them needs the whole suite). On a 4-vCPU VM,
+  `--jobs 4`, against main:
+
+  | Run | main | now |
+  | --- | --- | --- |
+  | kimera, 2 files of `lib/kimera/operators` (20 mutants) | 165s | 21s |
+  | kimera, `lib/kimera/operators` + `lib/kimera/rewrite` (426) | 322s | 29s |
+  | kimera, `lib/kimera/report` (287) | 140s | 31s |
+  | kimera, 2 harness-critical files, isolated tier (21) | 254s | 38s |
+  | kimera, everything (`.kimera.yml`, 4138) | 84.2 min | 27.3 min |
+  | dry-inflector `lib`, `--operators all` (738) | 83s | 62s |
+
+  Every verdict matched main's, except on the whole of kimera, where 37 of
+  main's timeouts are now kills and 5 kills are timeouts (both count as
+  killed). What is left is mostly the suite itself: the baseline runs each
+  test once in a fresh fork, and a survivor runs every test that covers it.
 - Code a test runs in a process it forks (a `fork { ... }` block, a forking
   job runner) is covered: while a coverage ledger is open, a forked child
   appends the mutants it touches to a spill file the parent's ledger reads

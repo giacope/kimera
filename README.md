@@ -14,10 +14,12 @@ and flips them at runtime, so your app boots once, not once per mutant.
 
 - **Fast.** [Stryker](https://stryker-mutator.io)-style mutant schemata
   ([Untch, Offutt & Harrold, 1993](https://doi.org/10.1145/154183.154265)): no
-  reparse or reload per mutant. On a 4-vCPU cloud VM, dry-inflector's `lib`
-  (738 mutants, `--operators all`) runs in 79 to 91s with `--jobs 4`, 3 to 26%
-  slower than before each mutant got a fresh process; a small Rails suite
-  pays more ([`eval/results`](eval/results/README.md)).
+  reparse or reload per mutant. Each mutant's covering tests run fastest
+  first, so most mutants die on their cheapest test. On a 4-vCPU cloud VM,
+  dry-inflector's `lib` (738 mutants, `--operators all`) runs in 62s with
+  `--jobs 4`, and kimera's own `lib/kimera/operators` and `lib/kimera/rewrite`
+  (426 mutants) in 29s; a small Rails suite pays more for a fresh process per
+  test ([`eval/results`](eval/results/README.md)).
 - **Parallel.** Warm workers, forked once, pull mutants from one shared
   heaviest-first queue. A single large file spreads across every core.
 - **Rails-ready.** Opt-in transaction rollback (`--isolate-db`), per-worker
@@ -333,7 +335,10 @@ Each isolated mirror is a copy of the project root with some exceptions:
 `vendor/`, `node_modules/` and `.bundle/` are symlinked to the originals. The
 exception is a directory that holds a mutated file, which is always copied.
 Before judging any mutant, `--isolated` runs the unmutated suite once in a
-mirror. If it isn't green there, the run stops with exit 1 and the error.
+mirror: the tests its mutants will run, in suite order (every test, when one
+of them needs the whole suite). If it isn't green there, the run stops with
+exit 1 and the error. A mutant's mirror then runs its covering tests fastest
+first and stops at the first that fails.
 
 ### Re-judging what the warm pass could not
 
