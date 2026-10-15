@@ -139,13 +139,13 @@ on machine speed:
 
 ```sh
 gem install rspec -v "~> 3.13"   # H1's oracle runs plain rspec, outside the bundle
-ruby eval/run --kimera . --only H1,K1,K2,K4,K5,K6,K7,K11,K12,X1 \
+ruby eval/run --kimera . --only H1,K1,K2,K4,K5,K6,K7,K11,X1 \
   --baseline eval/results/after.json --out tmp/eval.json
 ```
 
 It exits 1 when one of them fails that `after.json` records passing: a false
 survivor, false kill or false `no_coverage`, a silent line, a stale verdict, a
-wrong `--since` selection, a new top-level constant. About 5 minutes on a
+wrong `--since` selection. About 5 minutes on a
 4-vCPU machine. K4 passes under 150 MB of peak RSS (46 MB measured), far from
 the 441 MB it guards against. Left out: S1 measures wall time; K3 and K13 need
 `examples/rails_app` (the `rails` job runs it end to end); K8 needs Java and
@@ -153,7 +153,10 @@ downloads tla2tools.jar (the `model-check` job); K9 and K10 resolve gems from
 rubygems.org (the `unparser` job covers the allowed releases). H2 is
 deterministic and takes 2 minutes, but it fails today, and a pass/fail gate
 cannot hold a case that already fails; once kimera passes it, record it in
-`after.json` and add it to the job's `CASES`.
+`after.json` and add it to the job's `CASES`. K12 is out for the same reason:
+since c5cf269 put `require "tmpdir"` in `lib/kimera/runtime.rb`, loading
+kimera also adds the top-level constants `Etc` and `FileUtils`. Put it back in
+`CASES` once that is fixed.
 
 Before a release, run every case on the previous release and on the
 candidate, one after the other on the same machine, then update the tables
