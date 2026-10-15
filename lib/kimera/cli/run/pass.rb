@@ -32,7 +32,7 @@ class Kimera::CLI::Run::Pass
   end
 
   def perform(remaining)
-    warm
+    warm(remaining)
     run(remaining)
   end
 
@@ -55,9 +55,9 @@ class Kimera::CLI::Run::Pass
       .merge(@options.slice(:relative_timeout, :timeout_factor, :timeout_slack))
   end
 
-  def warm
+  def warm(remaining)
     if @options[:isolated] || @options[:coverage]
-      harness.warm!(files)
+      harness.warm!(files, scope: remaining)
     else
       harness.without_coverage!(files)
     end
@@ -90,7 +90,7 @@ class Kimera::CLI::Run::Pass
   end
 
   def judge(ids)
-    isolation.verify!
+    isolation.verify!(ids)
     isolation.run(ids: ids, label: "mutants (isolated)")
   end
 
@@ -100,7 +100,7 @@ class Kimera::CLI::Run::Pass
 
   def core
     { registry: @registry, root: @options[:source_root], tests: @adapter.test_ids }
-      .merge(coverage: harness.coverage, progress: progress, jobs: @options[:jobs])
+      .merge(coverage: harness.coverage, timings: harness.timings, progress: progress, jobs: @options[:jobs])
       .merge(framework: @options[:framework], test_files: files)
   end
 

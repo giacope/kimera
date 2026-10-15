@@ -57,7 +57,10 @@ class Kimera::Execution::Shift
 
   def attempt
     kind = self.class
-    @_attempt ||= kind::Attempt.new(probe: probe, isolation: isolation, killers: kind::KillerMemory.new, zygote: zygote)
+    pace = Kimera::Execution::Pace.new(@options.fetch(:timings, {}))
+    @_attempt ||= kind::Attempt.new(
+      probe: probe, isolation: isolation, killers: kind::KillerMemory.new(pace), zygote: zygote
+    )
   end
 
   def probe

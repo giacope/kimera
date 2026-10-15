@@ -45,7 +45,7 @@ module Kimera
 
       def measure(trial, tests)
         started = now
-        [with_mutant(trial) { verdict(trial.mirror, tests) }, now - started]
+        [with_mutant(trial) { verdict(trial.mirror, plan.fastest(tests), first: true) }, now - started]
       rescue Kimera::Overlay::Unbakeable => error
         [IsolatedOutcome.new(:unmutatable, nil, "#{Kimera::MutationPoint::UNMUTATABLE}#{error.message}"), nil]
       end
@@ -57,18 +57,19 @@ module Kimera
         File.write(target, original) if original
       end
 
-      def verdict(mirror, locations)
+      def verdict(mirror, locations, first: false)
         Dir.mktmpdir("kimera-ledger") do |dir|
           ledger = File.join(dir, "ledger.json")
           stderr = File.join(dir, "stderr.log")
-          IsolatedOutcome::Ruling.new(launch(mirror, locations, ledger, stderr), ledger, captured(stderr)).outcome
+          command = plan.command(mirror, locations, ledger, first: first)
+          IsolatedOutcome::Ruling.new(launch(mirror, command, ledger, stderr), ledger, captured(stderr)).outcome
         end
       end
 
       def captured(path) = File.read(path, encoding: Encoding::UTF_8).scrub
 
-      def launch(mirror, locations, ledger, stderr)
-        env, invocation = plan.command(mirror, locations, ledger)
+      def launch(mirror, command, ledger, stderr)
+        env, invocation = command
         pulse = "#{ledger}#{Kimera::Execution::IsolatedPlan::ChildCommand::PULSE}"
         waitfor(Process.spawn(env, *invocation, chdir: mirror, pgroup: true, out: File::NULL, err: stderr), pulse)
       end

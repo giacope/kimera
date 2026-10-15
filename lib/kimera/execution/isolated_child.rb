@@ -21,8 +21,18 @@ end
 
 ledger, request, pulse = ARGV
 RSpec.configuration.prepend_before(:example) { File.write(pulse, ".", mode: "a") } if pulse
-locations = JSON.parse(File.read(request, encoding: Encoding::UTF_8)).fetch("tests")
-code = RSpec::Core::Runner.run(locations)
+request = JSON.parse(File.read(request, encoding: Encoding::UTF_8))
+if request["first_failure"]
+  RSpec.configuration.before(:suite) do
+    requested = RSpec.world.all_examples
+    stop = Object.new
+    stop.define_singleton_method(:example_failed) do |notification|
+      RSpec.world.wants_to_quit = true if requested.include?(notification.example)
+    end
+    RSpec.configuration.reporter.register_listener(stop, :example_failed)
+  end
+end
+code = RSpec::Core::Runner.run(request.fetch("tests"))
 
 failed = RSpec.world.all_examples.select { |example| example.execution_result.status == :failed }
 outside = RSpec.world.non_example_failure ? 1 : 0

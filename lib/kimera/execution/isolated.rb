@@ -31,9 +31,11 @@ class Kimera::Execution::IsolatedExecution
     @options = options
   end
 
-  def verify!
+  def verify!(ids = nil)
+    tests = ids ? needed(ids) : plan.suite
+    return if tests.empty?
     progress.note("isolated baseline (unmutated mirror)")
-    outcome = with_mirror { |mirror| verdict(mirror, plan.suite) }
+    outcome = with_mirror { |mirror| verdict(mirror, tests) }
     return if outcome.status == :survived
     mirror = Kimera::Execution::BaselineFailure::Mirror.new(outcome.explain(limit), Kimera::Execution::IsolatedPlan::MIRROR_HINT)
     raise(Kimera::Execution::BaselineFailure, mirror.to_s)
@@ -60,12 +62,18 @@ class Kimera::Execution::IsolatedExecution
 
   def limit = @options.fetch(:hard_timeout, DEFAULT_HARD_TIMEOUT)
 
+  def needed(ids)
+    index = plan.registry.index
+    plan.suite & ids.flat_map { |id| index.key?(id) ? Array(plan.tests(id, index[id])) : [] }
+  end
+
   def jobs = @_jobs ||= [Integer(@options.fetch(:jobs, 1)), 1].max
 
   def plan
     @_plan ||= Kimera::Execution::IsolatedPlan.new(
       registry: @registry, root: @root, tests: @tests,
-      coverage: @options.fetch(:coverage, {}), framework: @options.fetch(:framework, "rspec"),
+      coverage: @options.fetch(:coverage, {}), timings: @options.fetch(:timings, {}),
+      framework: @options.fetch(:framework, "rspec"),
       test_files: @options.fetch(:test_files, [])
     )
   end

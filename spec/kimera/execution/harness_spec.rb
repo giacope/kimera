@@ -1433,6 +1433,60 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(registry.points.map(&:revisit).uniq).to(eq([Kimera::MutationPoint::ORDER_REASON]))
     end
 
+    # Both tests kill every mutant; "slow" comes first in coverage order.
+    def racing(mids)
+      Class.new(Kimera::Frameworks::Adapter) do
+        define_method(:initialize) { |m| @mids = m }
+        def source(_files) = self
+        def test_ids = %w[slow fast]
+        define_method(:run) do |ids|
+          sleep(0.05) if ids == ["slow"]
+          hit = @mids.map { |m| Kimera::RUNTIME.active?(m) }.any?
+          Kimera::Frameworks::RunOutcome.new(passed: !hit, failed_ids: hit ? ids : [])
+        end
+      end.new(mids)
+    end
+
+    # The isolated tier orders its tests by the same timings.
+    it "kills each mutant with the covering test the baseline timed fastest", :aggregate_failures do
+      stub_const("WarmRacing", Class.new)
+      registry = fixture("WarmRacing")
+      ids = registry.each.map { |m, _p| m.id }
+      h = described_class.build(registry: registry, adapter: racing(ids), source_root: dir, soft_timeout: nil)
+      h.warm!(%w[t1], scope: ids)
+      expect(h.timings.fetch("slow")).to(be > h.timings.fetch("fast"))
+      expect(h.run(ids: ids).results.map(&:failing_tests).uniq).to(eq([["fast"]]))
+    end
+
+    def scoped(name, adapter, scope)
+      registry = fixture(name)
+      progress = journal
+      ids = registry.each.map { |m, _p| m.id }
+      described_class
+        .build(registry: registry, adapter: adapter.call(ids), source_root: dir, progress: progress)
+        .warm!(%w[t1 t2], scope: scope.call(registry))
+      [progress.events, registry.points.map(&:revisit).uniq]
+    end
+
+    it "runs the suite in order when a mutant in scope has no single test's coverage", :aggregate_failures do
+      stub_const("WarmScoped", Class.new)
+      events, reasons = scoped("WarmScoped", method(:ordered), ->(registry) { registry.each.map { |m, _p| m.id } })
+      expect(events).to(include([:note, "baseline (whole suite, in order)"]))
+      expect(reasons).to(eq([Kimera::MutationPoint::ORDER_REASON]))
+    end
+
+    # Its marks would reach no mutant the run judges, so it could change no verdict.
+    it "skips the run in order when every mutant in scope is covered, or none is in scope", :aggregate_failures do
+      stub_const("WarmCovered", Class.new)
+      stub_const("WarmOutside", Class.new)
+      all = ->(registry) { registry.each.map { |m, _p| m.id } }
+      runs = [scoped("WarmCovered", method(:touching), all), scoped("WarmOutside", method(:ordered), ->(_) { [] })]
+      runs.each do |events, reasons|
+        expect(events).not_to(include([:note, "baseline (whole suite, in order)"]))
+        expect(reasons).to(eq([nil]))
+      end
+    end
+
     it "runs the plain baseline check when coverage is disabled" do
       stub_const("WarmNoCov", Class.new)
       h = described_class.build(registry: fixture("WarmNoCov"), adapter: plain, source_root: dir)
