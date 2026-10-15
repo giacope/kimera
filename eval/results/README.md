@@ -40,7 +40,8 @@ calls uncovered that the plain suite kills.
 kimera, its tests and this eval, and never used to tune kimera
 (`eval/holdout2/README.md`); H1's oracle judges them. `holdout2.json` is one
 run at 7627b14 (`lib/` as on `main` at 97c8d90), Ruby 3.4.11, 4 vCPUs, with
-`--operators all --jobs 2`; two earlier runs gave the same counts.
+`--operators all --jobs 2`; two earlier runs gave the same counts, and so
+did a run at 396ed99, after #45 (faster mutation runs) merged into `main`.
 "Compared" leaves out `no_coverage` and the oracle's skips.
 
 | Project | mutants | compared / agree | false survived | false killed | no_coverage (false) | oracle skipped |
