@@ -34,6 +34,32 @@ RSpec.describe(Kimera::Execution::OrderTrace) do
     expect(reasons.last).to(be_nil)
   end
 
+  describe "#wanted?" do
+    let(:trace) { described_class.new(registry) }
+    let(:mutants) { registry.points.map(&:ids) }
+
+    it "wants the run when no scope narrows it" do
+      expect(trace.wanted?(nil, {})).to(be(true))
+    end
+
+    # One uncovered mutant is enough: the mark lands on its point, so on its siblings too.
+    it "wants the run when a mutant in scope sits on a point with an uncovered mutant", :aggregate_failures do
+      (covered, uncovered), = mutants
+      coverage = { covered => ["t1"], uncovered.to_s => [] }
+      expect(trace.wanted?([covered], coverage)).to(be(true))
+      expect(trace.wanted?([covered], coverage.merge(uncovered => ["t1"]))).to(be(false))
+    end
+
+    it "skips the run when every point in scope is covered, unsafe, or unknown", :aggregate_failures do
+      first, second = mutants
+      registry.points.last.unsafe!("class body")
+      coverage = first.to_h { |id| [id, ["t1"]] }
+      expect(trace.wanted?(first + second, coverage)).to(be(false))
+      expect(trace.wanted?([999], {})).to(be(false))
+      expect(trace.wanted?([], {})).to(be(false))
+    end
+  end
+
   it "marks nothing when the run in order dies" do
     dead = Object.new.tap { |run| run.define_singleton_method(:sequence) { raise(Kimera::Execution::Zygote::Died, "") } }
     described_class.new(registry).mark!(dead, {})

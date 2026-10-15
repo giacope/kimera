@@ -178,7 +178,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
   end
 
   describe "#verify!" do
-    def test_baseline(outcome, progress: Kimera::Execution::NullProgress)
+    def test_baseline(outcome, progress: Kimera::Execution::NullProgress, ids: nil, coverage: {})
       seen = []
       engine =
         Class.new(described_class) do
@@ -189,16 +189,25 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
         end
       Dir.mktmpdir do |root|
         File.write(File.join(root, "calc.rb"), "def a(x, y) = x > y\n")
-        engine.new(registry: registry, root: root, tests: %w[t1 t2], hard_timeout: 7, progress: progress).verify!
+        engine.new(registry: registry, root: root, tests: %w[t1 t2 t3], hard_timeout: 7, progress: progress, coverage:)
+          .verify!(*ids)
       end
       seen
+    end
+
+    # No other test can turn one of their verdicts into a false kill.
+    it "runs only the tests the mutants it is given will run, in suite order", :aggregate_failures do
+      green = Kimera::Execution::IsolatedOutcome.new(:survived)
+      coverage = { first => %w[t3 t1], 999 => %w[t2] }
+      expect(test_baseline(green, ids: [[first, 999]], coverage:)).to(eq([[true, %w[t1 t3]]]))
+      expect(test_baseline(green, ids: [[]], coverage:)).to(eq([]))
     end
 
     it "runs the whole suite once in a fresh mirror and passes when it is green", :aggregate_failures do
       green = Kimera::Execution::IsolatedOutcome.new(:survived)
       seen = nil
       expect { seen = test_baseline(green) }.not_to(output.to_stderr)
-      expect(seen).to(eq([[true, %w[t1 t2]]]))
+      expect(seen).to(eq([[true, %w[t1 t2 t3]]]))
     end
 
     it "notes the phase on the progress output before it runs" do
@@ -407,14 +416,39 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       expect(result.status).to(eq(:no_coverage))
     end
 
+    def test_paced(given)
+      Class.new(described_class) do
+        define_method(:verdict) do |_mirror, locations, **|
+          given.concat(locations)
+          Kimera::Execution::IsolatedOutcome.new(:survived)
+        end
+      end
+    end
+
+    # The child runs them in the order given; the report keeps coverage order.
+    it "hands the mutant's child its covering tests fastest first by baseline time", :aggregate_failures do
+      given = []
+      Dir.mktmpdir do |root|
+        File.write(File.join(root, "calc.rb"), test_source_fixture)
+        paced = { coverage: { first => %w[slow fast] }, timings: { "fast" => 0.1, "slow" => 2.0 } }
+        r = test_paced(given).new(registry: registry, root: root, tests: [], **paced)
+        result =
+          Dir.mktmpdir do |mirror|
+            FileUtils.cp_r(File.join(root, "calc.rb"), File.join(mirror, "calc.rb"))
+            test_invoke_private(r, :evaluate, Kimera::Execution::Trial.new(first, mirror, Kimera::Overlay.new(registry)))
+          end
+        expect([given, result.covering_tests]).to(eq([%w[fast slow], %w[slow fast]]))
+      end
+    end
+
     def test_baking_evaluate(id, pause: nil)
       baked = nil
       Dir.mktmpdir do |root|
         File.write(File.join(root, "calc.rb"), test_source_fixture)
         r =
           Class.new(described_class) do
-            define_method(:verdict) do |mirror, _locations|
-              baked = File.read(File.join(mirror, "calc.rb"))
+            define_method(:verdict) do |mirror, _locations, first: false|
+              baked = [File.read(File.join(mirror, "calc.rb")), first]
               sleep(pause) if pause
               Kimera::Execution::IsolatedOutcome.new(:killed, ["t1[1:1]"])
             end
@@ -437,8 +471,14 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       expect(result.duration).to(eq(2.5))
       expect(result.covering_tests).to(eq(["t1"]))
       expect(result.failing_tests).to(eq(["t1[1:1]"]))
-      expect(baked).not_to(eq(test_source_fixture))
+      expect(baked.first).not_to(eq(test_source_fixture))
       expect(restored).to(eq(test_source_fixture))
+    end
+
+    # Any failing test kills it, so its child stops at the first.
+    it "asks the mutant's test child to stop at the first failure" do
+      _result, (_source, first_failure), = test_baking_evaluate(first)
+      expect(first_failure).to(be(true))
     end
 
     it "times the verdict on the monotonic clock", :aggregate_failures do
@@ -502,9 +542,10 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
   describe "#verdict (command stubbed on the runner)" do
     # verdict only consumes the plan's command, so no real bake is needed. A
     # callable cmd receives the ledger path, as the real children do in argv.
-    def command(invocation, **)
+    def command(invocation, asked: [], **)
       plan = Object.new
-      plan.define_singleton_method(:command) do |_mirror, _locations, ledger|
+      plan.define_singleton_method(:command) do |_mirror, _locations, ledger, first:|
+        asked << first
         [{}, invocation.respond_to?(:call) ? invocation.call(ledger) : invocation]
       end
       r = runner(**)
@@ -552,6 +593,13 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       expect(outcome.status).to(eq(:harness_error))
       expect(outcome.detail).to(start_with("suite exited 2 with 0 failures"))
       expect(outcome.failing).to(be_nil)
+    end
+
+    it "has only a mutant's run stop at the first failure" do
+      asked = []
+      runner = command(test_ledger_child(0, [], 0), asked: asked)
+      Dir.mktmpdir { |m| [{}, { first: true }].each { |ask| test_invoke_private(runner, :verdict, m, [], **ask) } }
+      expect(asked).to(eq([false, true]))
     end
 
     it "hands the child a ledger path that does not exist yet" do

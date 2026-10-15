@@ -1,15 +1,18 @@
 # frozen_string_literal: true
 
+require_relative "../pace"
+
 class Kimera::Execution::Shift::KillerMemory
   LIMIT = 16
 
-  def initialize
+  def initialize(pace = Kimera::Execution::Pace::STILL)
     @recent = []
+    @pace = pace
   end
 
   def order(tests)
     likely = @recent & tests
-    likely + (tests - likely)
+    likely + @pace.fastest(tests - likely)
   end
 
   def remember(testid)

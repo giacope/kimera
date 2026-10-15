@@ -290,6 +290,29 @@ RSpec.describe(Kimera::Execution::Shift) do
       expect(memory.order(%w[z k1])).to(eq(%w[z k1]))
     end
 
+    # Ties and tests the baseline never timed keep their coverage order.
+    it "tries the covering set fastest first by baseline time" do
+      pace = Kimera::Execution::Pace.new({ "slow" => 2.0, "fast" => 0.1, "mid" => 0.5, "tie" => 0.5 })
+      memory = Kimera::Execution::Shift::KillerMemory.new(pace)
+      expect(memory.order(%w[slow untimed mid fast tie])).to(eq(%w[fast mid tie slow untimed]))
+    end
+
+    it "still tries a recent killer before a faster test" do
+      memory = Kimera::Execution::Shift::KillerMemory.new(Kimera::Execution::Pace.new({ "slow" => 2.0, "fast" => 0.1 }))
+      memory.remember("slow")
+      expect(memory.order(%w[fast slow])).to(eq(%w[slow fast]))
+    end
+
+    it "runs the covering test the baseline timed fastest first" do
+      a = ids.first
+      adapter = test_adapter_class.new(catches: { "ka" => [a], "kb" => [a] })
+      worker = described_class.new(
+        adapter: adapter, registry: registry, coverage: { a => %w[ka kb] },
+        soft_timeout: nil, zygote: InlineZygote.new, timings: { "ka" => 0.9, "kb" => 0.1 }
+      )
+      expect(worker.evaluate(a).failing_tests).to(eq(["kb"]))
+    end
+
     it "still runs the rest of the covering set after the promoted tests", :aggregate_failures do
       a, b = ids.first(2)
       adapter = test_adapter_class.new(catches: { "ka" => [a], "kb" => [b] })
