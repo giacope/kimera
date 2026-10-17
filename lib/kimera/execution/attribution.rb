@@ -7,6 +7,7 @@ end
 
 class Kimera::Execution::Attribution
   STRIPPED = %w[lib/ app/ src/].freeze
+  UNITS = { "spec" => "spec", "spec/unit" => "spec", "test" => "test", "test/unit" => "test" }.freeze
   GLOB = /[*?\[{]/
   MATCH = File::FNM_PATHNAME | File::FNM_EXTGLOB
 
@@ -14,7 +15,9 @@ class Kimera::Execution::Attribution
     @rules = rules
   end
 
-  def own?(test, source) = conventional(source).include?(test) || ruled?(test, source)
+  def own?(test, source)
+    conventional(source).any? { |pattern| File.fnmatch?(pattern, test, MATCH) } || ruled?(test, source)
+  end
 
   def expected(source) = conventional(source).first(2)
 
@@ -24,10 +27,13 @@ class Kimera::Execution::Attribution
     base = source.delete_suffix(".rb")
     trimmed = STRIPPED.filter_map { |root| base.delete_prefix(root) if base.start_with?(root) }
     kinds = base.start_with?("app/") ? trimmed.filter_map { |rest| rest.split("/", 2)[1] } : []
-    [*trimmed, base, *kinds].uniq.flat_map do |stem|
-      folder, name = File.split(stem)
-      ["spec/#{stem}_spec.rb", "test/#{stem}_test.rb", File.join("test", folder, "test_#{name}.rb").sub("/./", "/")]
-    end
+    [*trimmed, base, *kinds].uniq.flat_map { |stem| named(stem) }
+  end
+
+  def named(stem)
+    folder, name = File.split(stem)
+    ["spec/#{stem}_spec.rb", "test/#{stem}_test.rb", File.join("test", folder, "test_#{name}.rb").sub("/./", "/")] +
+      UNITS.flat_map { |root, kind| ["#{root}/#{stem}_#{kind}.rb", "#{root}/#{stem}/**/*_#{kind}.rb"] }
   end
 
   def ruled?(test, source)

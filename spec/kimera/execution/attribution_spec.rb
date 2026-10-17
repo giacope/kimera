@@ -13,6 +13,17 @@ RSpec.describe(Kimera::Execution::Attribution, :aggregate_failures) do
       expect(attribution.own?("test/kimera/cli/test_run.rb", "lib/kimera/cli/run.rb")).to(be(true))
     end
 
+    it "maps a file to its spec under spec/unit, and to every spec in a directory named after it" do
+      expect(attribution.own?("spec/unit/dry/inflector_spec.rb", "lib/dry/inflector.rb")).to(be(true))
+      expect(attribution.own?("spec/unit/dry/inflector/underscore_spec.rb", "lib/dry/inflector.rb")).to(be(true))
+      expect(attribution.own?("spec/dry/inflector/deep/camelize_spec.rb", "lib/dry/inflector.rb")).to(be(true))
+      expect(attribution.own?("test/unit/dry/inflector/pluralize_test.rb", "lib/dry/inflector.rb")).to(be(true))
+      expect(attribution.own?("test/unit/dry/inflector_test.rb", "lib/dry/inflector.rb")).to(be(true))
+      expect(attribution.own?("spec/unit/dry/inflector/rules.rb", "lib/dry/inflector.rb")).to(be(false))
+      expect(attribution.own?("spec/unit/dry/inflectors/x_spec.rb", "lib/dry/inflector.rb")).to(be(false))
+      expect(attribution.own?("test/dry/inflector/x_spec.rb", "lib/dry/inflector.rb")).to(be(false))
+    end
+
     it "maps a top-level lib file to a test_ file at the test root" do
       expect(attribution.own?("test/test_inflector.rb", "lib/inflector.rb")).to(be(true))
     end

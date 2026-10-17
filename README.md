@@ -403,7 +403,9 @@ models look tested when no test of theirs would notice. `attribution: unit`
 (`--attribution unit`) lets only a unit's own tests kill its mutants:
 
 - `lib/foo/bar.rb` is tested by `spec/foo/bar_spec.rb`,
-  `spec/lib/foo/bar_spec.rb`, `test/foo/bar_test.rb` or `test/foo/test_bar.rb`;
+  `spec/lib/foo/bar_spec.rb`, `test/foo/bar_test.rb` or `test/foo/test_bar.rb`,
+  the same under `spec/unit/` and `test/unit/`, and any spec or test in a
+  directory named after it (`spec/unit/foo/bar/camelize_spec.rb`);
 - `app/models/order.rb` by `spec/models/order_spec.rb`,
   `test/models/order_test.rb` or `spec/order_spec.rb`, so `spec/requests/`
   and `test/integration/` count for no unit;

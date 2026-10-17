@@ -57,7 +57,7 @@ class Kimera::Execution::TestFilter
 
   def eligible?(test, file)
     return false if @flaky.include?(test)
-    @attribution.nil? || @attribution.own?(@files[test] ||= @locate.call(test), file.to_s)
+    @attribution.nil? || @attribution.own?(@files[test] ||= @locate.call(test).to_s, file.to_s)
   end
 
   def unsteady(tests) = { status: :no_coverage, detail: "#{UNSTEADY}#{tests.join(", ")}" }
