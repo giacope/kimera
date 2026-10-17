@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../rewrite/directive"
+require_relative "report_rows"
 require_relative "result"
 
 module Kimera
@@ -11,7 +11,12 @@ module Kimera
 end
 
 class Kimera::RunReport
-  attr_reader :results, :leaks, :registry, :tests
+  include Kimera::ReportRows
+
+  Notes = Data.define(:counted)
+  NOTES = Notes.new(counted: [])
+
+  attr_reader :results, :leaks, :registry, :tests, :notes
 
   CONDITIONAL = %i[harness_error ignored isolated_only unmutatable leaks].freeze
   LABELS = { total: "mutants", harness_error: "unjudged" }.freeze
@@ -22,6 +27,7 @@ class Kimera::RunReport
     @leaks = leaks
     @registry = registry
     @tests = tests
+    @notes = NOTES
   end
 
   def statuses(status)
@@ -36,6 +42,12 @@ class Kimera::RunReport
   end
 
   def described(tests) = rebuilt(tests: @tests.merge(tests))
+
+  def annotate(**changes) = rebuilt.tap { |report| report.notes = @notes.with(**changes) }
+
+  def counting(statuses) = annotate(counted: statuses)
+
+  def counted = @notes.counted
 
   def test_ids = @results.flat_map { |result| Array(result.covering_tests) + Array(result.failing_tests) }.uniq
 
@@ -62,7 +74,7 @@ class Kimera::RunReport
   end
 
   def covered
-    @results.select(&:covered?)
+    @results.select { |result| result.covered? || @notes.counted.include?(result.status) }
   end
 
   def score
@@ -100,6 +112,10 @@ class Kimera::RunReport
       .merge("unmutated" => unmutated.map(&:to_h)).merge(catalog)
   end
 
+  protected
+
+  attr_writer :notes
+
   private
 
   def catalog
@@ -112,34 +128,17 @@ class Kimera::RunReport
     return "score=n/a (0 of #{@results.size} mutants evaluated)" if covered.empty?
     text = "score=#{percent}"
     count = uncovered.size
-    count.positive? ? "#{text} (#{count} uncovered not scored)" : text
+    return text unless count.positive?
+    "#{text} (#{count} uncovered #{@notes.counted.include?(:no_coverage) ? "scored as not killed" : "not scored"})"
   end
 
   def grouped
     @_grouped ||= @results.group_by(&:status)
   end
 
-  def detailed(result)
-    base = result.to_h
-    id = result.mutant_id
-    pair = @registry&.point(id)
-    pair ? base.merge("key" => @registry.keys[id]).merge(rewritten(pair)) : base
-  end
-
-  def rewritten(pair)
-    mutant, point = pair
-    place(point, mutant).merge(rendered(point.original_source, mutant))
-  end
-
-  def rendered(original, mutant)
-    { "original" => original, "mutated" => Kimera::Rewrite::Directive.render(original, mutant.directive) }
-  end
-
-  def place(point, mutant)
-    point.location.position.merge("method" => point.method_name, "operator" => point.operator, "label" => mutant.label)
-  end
-
   def rebuilt(results: @results, tests: @tests)
-    Kimera::RunReport.new(results: results, leaks: @leaks, registry: @registry, tests: tests)
+    Kimera::RunReport.new(results: results, leaks: @leaks, registry: @registry, tests: tests).tap do |report|
+      report.notes = @notes
+    end
   end
 end

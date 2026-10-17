@@ -42,6 +42,10 @@ max_ignored: 1
 # runs (--since), where "no coverage" means the diff adds untested logic.
 fail_on_no_coverage: false
 
+# Score uncovered mutants as not killed and fail on them, in every command
+# (kimera run too). Off by default: they are reported but not scored.
+count_no_coverage: false
+
 # Per-test soft timeout / per-mutant hard watchdog timeout, in seconds
 soft_timeout: 5.0
 # hard_timeout: 16.0

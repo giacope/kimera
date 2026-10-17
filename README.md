@@ -279,7 +279,8 @@ drop. After an incremental `--since` run it never prunes an entry as stale.
 - The canonical JSON report goes to `tmp/kimera/report.json`, or to
   `--report FILE`; `--no-report` skips it. Each result names its test ids, and
   the report's `tests` section maps each id to its description and
-  `file:line`.
+  `file:line`. [`schema/report.schema.json`](schema/report.schema.json)
+  describes every field.
 - `--summary FILE` appends a Markdown summary of the findings to FILE.
   `kimera ci` sets it to `$GITHUB_STEP_SUMMARY` when GitHub Actions does.
 - GitHub annotations fold the mutants on one line into one, with each diff.
@@ -298,7 +299,7 @@ Exit codes:
 - **`0`**: pass.
 - **`2`**: the gate failed. Survivors exceed the threshold (default: any
   survivor), or a mutant in scope has no covering test under
-  `--fail-on-no-coverage`, ignored mutants exceed `max_ignored`, or more
+  `--fail-on-no-coverage` or `--count-no-coverage`, ignored mutants exceed `max_ignored`, or more
   mutants than `--max-errors` (default 0) could not be judged.
 - **`1`**: the baseline is not green, the pool cannot keep a worker alive, or
   the invocation is invalid. Paths that match no source files, `--tests` that
@@ -456,6 +457,9 @@ max_survivors: 0
 # Fail when any mutant in scope lacks a covering test. Best on incremental
 # runs, where "no coverage" means the PR adds logic no test executes.
 fail_on_no_coverage: false
+# Score uncovered mutants as not killed too, and fail on them, in every
+# command (kimera run included). Off: they are reported but not scored.
+count_no_coverage: false
 
 # The gate fails when more than this many mutants are ignore-listed. Marking
 # one more mutant equivalent means raising this number in the same diff, so
@@ -828,8 +832,12 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     (default 0). A pool that never produces a result aborts the run. When a
     worker died, the `detail` says how (`died on signal 15 (SIGTERM)`,
     `exited 1`) and, if Ruby raised something, the exception and its frames.
-  - Uncovered mutants don't lower the score, unlike some tools.
-    `--fail-on-no-coverage` closes that gap.
+  - Uncovered mutants don't lower the score by default, unlike some tools.
+    `--fail-on-no-coverage` fails the gate on them; `count_no_coverage: true`
+    (`--count-no-coverage`) also scores each as not killed, so the score is
+    killed over every mutant a test could have killed, run or not, and the
+    gate fails on them in every command, `kimera run` included. The report's
+    `run` section records the setting.
 - **No constant outside `Kimera`.** Every synthesized guard dispatches through
   `::Kimera::RUNTIME`, the process's one `Kimera::Runtime`, bound once: a
   second copy of `kimera/runtime.rb` keeps the runtime it finds.

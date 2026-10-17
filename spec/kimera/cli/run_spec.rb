@@ -59,7 +59,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         max_errors: 0, evaluate_ignored: false, baseline: nil,
         jobs: 1, exclude: [], exclude_tests: [], config: nil, ignore: [],
         isolate_db: false,
-        isolated: false, rejudge: true, fail_on_no_coverage: false,
+        isolated: false, rejudge: true, fail_on_no_coverage: false, count_no_coverage: false,
         progress: nil, color: nil, quiet: false, verbose: false, log: nil,
         pidfile: nil, summary: nil,
         isolate_when_covered_by: [], methods: [], lines: {},
@@ -115,7 +115,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       %w[
         framework tests source-root registry operators soft-timeout
         hard-timeout relative-timeout timeout-factor timeout-slack coverage since session max-survivors
-        max-ignored fail-on-no-coverage jobs progress isolate-db isolated
+        max-ignored fail-on-no-coverage count-no-coverage jobs progress isolate-db isolated
         isolate-when-covered-by rejudge exclude config pidfile evaluate-ignored no-baseline
       ]
     end
@@ -287,6 +287,13 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     it "fails on uncovered mutants even when survivors are within threshold" do
       report = report(1, no_coverage: 1)
       expect(digest.gate(report, { max_survivors: 1, fail_on_no_coverage: true })).to(eq(2))
+    end
+
+    it "fails on uncovered mutants under count_no_coverage, naming that setting", :aggregate_failures do
+      options = { max_survivors: nil, count_no_coverage: true }
+      expect { expect(digest.gate(report(0, no_coverage: 2), options)).to(eq(2)) }
+        .to(output(/gate failed: 2 mutant\(s\) with no covering test \(count_no_coverage\)/).to_stderr)
+      expect(digest.gate(report(0), options)).to(eq(0))
     end
 
     it "passes with fail_on_no_coverage when everything is covered" do

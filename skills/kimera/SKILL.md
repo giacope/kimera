@@ -27,7 +27,9 @@ bundle exec kimera doctor --check-baseline  # discovery, git, and a green suite
   and sets `baseline:` in .kimera.yml, so the gate blocks only new holes. Burn
   the baseline down; never grow it to pass a gate.
 - Fix line coverage first. `no_coverage` mutants are plain coverage gaps, and
-  mutation results only mean something for code the tests execute.
+  mutation results only mean something for code the tests execute. They are
+  not scored by default; `count_no_coverage: true` scores each as not killed
+  and fails the gate on them in every command, `kimera run` included.
 - CI shape: **PR gate is incremental** (`kimera ci --session tmp/kimera.json`;
   `ci` defaults to `--max-survivors 0 --fail-on-no-coverage`, and on a GitHub
   pull request to `--since origin/$GITHUB_BASE_REF` and `--summary

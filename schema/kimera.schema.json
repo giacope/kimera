@@ -175,6 +175,10 @@
       "description": "Gate: also fail when a mutant in scope has no covering test (default: false; kimera ci turns it on).",
       "type": "boolean"
     },
+    "count_no_coverage": {
+      "description": "Score a mutant with no covering test as not killed, and fail the gate on it, in every command (default: false: uncovered mutants are reported but not scored).",
+      "type": "boolean"
+    },
     "baseline": {
       "description": "YAML file of survivors accepted when adopting Kimera, from kimera baseline create.",
       "type": "string"

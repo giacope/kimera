@@ -90,6 +90,34 @@ RSpec.describe(Kimera::RunReport) do
       expect(report.summary).to(include("score=80.0% (1 uncovered not scored)"))
     end
 
+    describe "counting uncovered mutants (count_no_coverage)" do
+      let(:counting) { report.counting([:no_coverage]) }
+
+      it "scores them as not killed", :aggregate_failures do
+        expect(counting.score).to(be_within(1e-9).of(4.0 / 6))
+        expect(counting.covered.map(&:mutant_id)).to(contain_exactly(1, 2, 3, 4, 5, 6))
+        expect(counting.summary).to(include("score=66.7% (1 uncovered scored as not killed)"))
+        expect(counting.to_h["mutation_score"]).to(be_within(1e-9).of(4.0 / 6))
+      end
+
+      it "keeps counting them in each file's report and after a merge", :aggregate_failures do
+        expect(counting.by_file.fetch("x.rb").score).to(be_within(1e-9).of(4.0 / 6))
+        merged = counting.merge(described_class.new(results: [result(8, :no_coverage)]))
+        expect(merged.score).to(be_within(1e-9).of(4.0 / 7))
+        expect(counting.counted).to(eq([:no_coverage]))
+      end
+
+      it "still keeps ignored mutants out of the score" do
+        expect(counting.covered.map(&:mutant_id)).not_to(include(7))
+      end
+
+      it "scores a run whose only mutants are uncovered at 0%, not n/a", :aggregate_failures do
+        only = described_class.new(results: [result(1, :no_coverage)]).counting([:no_coverage])
+        expect(only.score).to(eq(0.0))
+        expect(only.percent).to(eq("0.0%"))
+      end
+    end
+
     it "leaves the score unannotated when every mutant was covered", :aggregate_failures do
       rep = described_class.new(results: [result(1, :killed)])
       expect(rep.summary).to(include("score=100.0%"))

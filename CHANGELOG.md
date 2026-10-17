@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `count_no_coverage: true` (`--count-no-coverage`) scores each mutant with
+  no covering test as not killed, and fails the gate on it, in every command:
+  `kimera run` too, not only `kimera ci` or `--fail-on-no-coverage`, which
+  gate on uncovered mutants but leave them out of the score. Off by default.
+  `schema/report.schema.json` describes the JSON report, and its `run`
+  section records the setting.
 - Faster, with the same verdicts. A mutant's covering tests now run fastest
   first by their baseline time (after the worker's recent killers), so a
   mutant most tests kill dies on a cheap unit test instead of after hundreds

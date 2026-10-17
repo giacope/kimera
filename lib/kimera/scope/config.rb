@@ -9,7 +9,7 @@ module Kimera
 
     SCALAR_KEYS = %w[framework source_root soft_timeout hard_timeout
       jobs max_survivors max_ignored max_errors coverage isolate_db
-      fail_on_no_coverage progress color quiet verbose log format report baseline rejudge
+      fail_on_no_coverage count_no_coverage progress color quiet verbose log format report baseline rejudge
       relative_timeout timeout_factor timeout_slack].freeze
     LIST_KEYS = %w[paths tests operators exclude exclude_tests isolate_when_covered_by require].freeze
 

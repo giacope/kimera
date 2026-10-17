@@ -1,0 +1,365 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/giacope/kimera/main/schema/report.schema.json",
+  "title": "Kimera report",
+  "description": "The JSON report `kimera run` writes to tmp/kimera/report.json (or --report FILE) and prints with --format json. `kimera report`, `kimera mutant` and `kimera baseline` read it.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "counts",
+    "mutation_score",
+    "results",
+    "leaks",
+    "unmutated"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "description": "Version of this document's shape.",
+      "const": 1
+    },
+    "counts": {
+      "description": "Mutants per status. killed counts every detected mutant (killed, timeout, error).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total",
+        "killed",
+        "leaks",
+        "survived",
+        "timeout",
+        "error",
+        "no_coverage",
+        "harness_error",
+        "ignored",
+        "isolated_only",
+        "unmutatable"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Mutants in scope."
+        },
+        "killed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Detected mutants: killed, timeout and error."
+        },
+        "leaks": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "State-leak warnings."
+        },
+        "survived": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Mutants whose status is survived."
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Mutants whose status is timeout."
+        },
+        "error": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Mutants whose status is error."
+        },
+        "no_coverage": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Mutants whose status is no_coverage."
+        },
+        "harness_error": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Mutants whose status is harness_error."
+        },
+        "ignored": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Mutants whose status is ignored."
+        },
+        "isolated_only": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Mutants whose status is isolated_only."
+        },
+        "unmutatable": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Mutants whose status is unmutatable."
+        }
+      }
+    },
+    "mutation_score": {
+      "description": "killed / scored mutants, from 0 to 1 (1 when nothing was scored). Scored mutants exclude no_coverage (unless count_no_coverage), ignored, isolated_only, unmutatable and harness_error.",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "results": {
+      "description": "One row per mutant in scope.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "mutant_id",
+          "status",
+          "file",
+          "duration",
+          "failing_tests",
+          "covering_tests",
+          "detail"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "mutant_id": {
+            "description": "The mutant's number in this run; changes with the set of files scanned.",
+            "type": "integer"
+          },
+          "key": {
+            "description": "Stable name: path:line:digest of the mutant's own code.",
+            "type": "string"
+          },
+          "status": {
+            "description": "The verdict.",
+            "enum": [
+              "killed",
+              "survived",
+              "timeout",
+              "error",
+              "no_coverage",
+              "harness_error",
+              "ignored",
+              "isolated_only",
+              "unmutatable"
+            ]
+          },
+          "verdict": {
+            "description": "What an ignored mutant was judged under --evaluate-ignored.",
+            "enum": [
+              "killed",
+              "survived",
+              "timeout",
+              "error",
+              "no_coverage",
+              "harness_error",
+              "ignored",
+              "isolated_only",
+              "unmutatable"
+            ]
+          },
+          "file": {
+            "description": "Source file, relative to the project root.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "duration": {
+            "description": "Seconds spent judging the mutant.",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "failing_tests": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Ids of the tests that failed in the run that decided the verdict."
+          },
+          "covering_tests": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Ids of the tests the mutant was judged against (its covering tests)."
+          },
+          "detail": {
+            "description": "The killing failure, the reason it was not judged, or other context.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "description": "What the warm pass said of a mutant judged again in a fresh mirror.",
+            "type": "string"
+          },
+          "line": {
+            "description": "1-based line the mutated code starts on.",
+            "type": "integer"
+          },
+          "column": {
+            "description": "1-based column the mutated code starts at.",
+            "type": "integer"
+          },
+          "end_line": {
+            "description": "Line the mutated code ends on.",
+            "type": "integer"
+          },
+          "end_column": {
+            "description": "0-based column the mutated code ends at.",
+            "type": "integer"
+          },
+          "method": {
+            "description": "The enclosing method's name.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operator": {
+            "description": "The operator key.",
+            "type": "string"
+          },
+          "label": {
+            "description": "The mutation's label, e.g. \"> => >=\".",
+            "type": "string"
+          },
+          "original": {
+            "description": "The original code.",
+            "type": "string"
+          },
+          "mutated": {
+            "description": "The mutated code, when it renders.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "leaks": {
+      "description": "State-leak warnings.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "mutant_id": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "unmutated": {
+      "description": "Code the scan holds no mutant for, with the reason.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "file",
+          "start_line",
+          "end_line",
+          "reason"
+        ],
+        "properties": {
+          "file": {
+            "type": "string"
+          },
+          "start_line": {
+            "type": "integer"
+          },
+          "end_line": {
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "tests": {
+      "description": "Each test id the report names, with its description and file:line.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "run": {
+      "description": "The settings the run was made with.",
+      "type": "object",
+      "properties": {
+        "framework": {
+          "type": "string"
+        },
+        "source_root": {
+          "type": "string"
+        },
+        "tests": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "exclude_tests": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "operators": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "coverage": {
+          "type": "boolean"
+        },
+        "isolated": {
+          "type": "boolean"
+        },
+        "jobs": {
+          "type": "integer"
+        },
+        "since": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "count_no_coverage": {
+          "description": "Whether no_coverage mutants were scored as not killed.",
+          "type": "boolean"
+        },
+        "narrowed": {
+          "description": "Whether --tests narrowed the configured tests.",
+          "type": "boolean"
+        },
+        "configured_tests": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

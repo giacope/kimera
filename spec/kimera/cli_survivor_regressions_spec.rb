@@ -233,6 +233,26 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect(digest).to(have_received(:emit).with(anything, registry, **emission(:list)))
     end
 
+    it "lists, scores and records uncovered mutants under count_no_coverage", :aggregate_failures do
+      registry = Kimera::RegistryScan.new.source("def x; 1; end\n", file: "x.rb")
+      loaded = instance_double(Kimera::Incremental::Session, report: report)
+      digest = instance_double(Kimera::CLI::Run::Digest, emit: nil, gate: 0)
+      options = {
+        report: nil, format: "text", fail_on_no_coverage: false, count_no_coverage: true, log: nil,
+        framework: "rspec", source_root: ".", tests: [], exclude_tests: [], operators: [], jobs: 1
+      }
+      Kimera::CLI::Run::Cycle.new(options, registry, nil, digest: digest).__send__(:conclude, [], [], loaded)
+      expect(digest).to(have_received(:emit).with(anything, registry, **emission(:list))) do |emitted, *|
+        expect(emitted.counted).to(eq([:no_coverage]))
+      end
+      recorded = hash_including(metadata: hash_including("count_no_coverage" => true))
+      expect(digest).to(have_received(:emit).with(anything, anything, recorded))
+      plain = Kimera::CLI::Run::Cycle.new(options.merge(count_no_coverage: false), registry, nil, digest: digest)
+      plain.__send__(:conclude, [], [], loaded)
+      uncounted = satisfy { |emitted| emitted.counted.empty? }
+      expect(digest).to(have_received(:emit).with(uncounted, registry, **emission(:hint)))
+    end
+
     def emission(coverage)
       { coverage: coverage, path: nil, format: "text", metadata: anything, log: nil, scope: nil, summary: nil }
     end

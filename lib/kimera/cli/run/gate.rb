@@ -25,8 +25,9 @@ class Kimera::CLI::Run::Gate
 
   def coverage
     uncovered = @report.uncovered.size
-    return unless @options[:fail_on_no_coverage] && uncovered.positive?
-    "#{uncovered} mutant(s) with no covering test (--fail-on-no-coverage)"
+    return unless uncovered.positive?
+    return "#{uncovered} mutant(s) with no covering test (--fail-on-no-coverage)" if @options[:fail_on_no_coverage]
+    "#{uncovered} mutant(s) with no covering test (count_no_coverage)" if @options[:count_no_coverage]
   end
 
   def ignored

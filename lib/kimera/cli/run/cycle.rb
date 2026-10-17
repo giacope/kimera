@@ -57,7 +57,7 @@ class Kimera::CLI::Run::Cycle
   end
 
   def conclude(todo, ignored, loaded)
-    report = loaded.report(todo, ignored, @registry)
+    report = loaded.report(todo, ignored, @registry).counting(counted)
     @digest.emit(report, @registry, **emission)
     @options[:gate] == false ? 0 : @digest.gate(report, @options)
   end
@@ -77,7 +77,9 @@ class Kimera::CLI::Run::Cycle
 
   def narrowing = @_narrowing ||= Kimera::CLI::Run::Narrowing.new(@options)
 
-  def coverage = @options[:fail_on_no_coverage] ? :list : :hint
+  def coverage = @options[:fail_on_no_coverage] || @options[:count_no_coverage] ? :list : :hint
+
+  def counted = @options[:count_no_coverage] ? [:no_coverage] : []
 
   def focus(eligible)
     ids = Array(@options[:focus]).map { |token| @registry.keys.id(token) }
@@ -87,7 +89,7 @@ class Kimera::CLI::Run::Cycle
   end
 
   def provenance
-    @options.slice(*SETTINGS, :jobs, :since).transform_keys(&:to_s).merge(narrowing.provenance)
+    @options.slice(*SETTINGS, :jobs, :since, :count_no_coverage).transform_keys(&:to_s).merge(narrowing.provenance)
   end
 
   def harness(remaining, loaded, env: ENV)
