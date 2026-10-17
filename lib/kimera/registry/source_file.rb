@@ -48,6 +48,7 @@ class Kimera::RegistryScan::SourceFile
   end
 
   def mined(root)
+    @operators.each { |operator| operator.survey(root) }
     found = []
     held = {}.compare_by_identity
     walk(root, origin) { |node, cursor| bank(found, node, cursor) || hold(held, node, cursor) }
@@ -64,7 +65,7 @@ class Kimera::RegistryScan::SourceFile
     pairs = harvest(applicable(cursor), node, cursor.position).reject { |key, _| guarded?(node, key) }
     pairs = writable(node.location, pairs)
     return if pairs.empty?
-    found << classed(assemble(node, pairs, cursor.defname), cursor).taint!(tainted)
+    found << classed(assemble(node, pairs, cursor.defname), cursor, pairs).taint!(tainted)
   end
 
   def hold(held, node, cursor)
@@ -88,10 +89,12 @@ class Kimera::RegistryScan::SourceFile
 
   def assemble(node, pairs, name) = Kimera::MutationPoint.new(**attributes(node, distinct(node.location, pairs), name))
 
-  def classed(point, cursor)
-    point.unsafe!(Kimera::MutationPoint::CLASS_BODY_REASON) unless cursor.inside_def
+  def classed(point, cursor, pairs)
+    point.unsafe!(Kimera::MutationPoint::CLASS_BODY_REASON) unless cursor.inside_def || toggled?(pairs)
     point
   end
+
+  def toggled?(pairs) = pairs.all? { |key, _| @operators.any? { it.toggles? && it.key == key } }
 
   def writable(location, pairs) = outcomes.writable(location, pairs, &DIRECTIVE)
 

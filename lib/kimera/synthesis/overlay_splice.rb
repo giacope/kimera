@@ -77,7 +77,7 @@ module Kimera
 
     def points(definition, claimed)
       from, to = @map.span(definition.location.expression)
-      @safe.select { |point| !claimed.include?(point) && point.location.within?(from, to) }
+      @safe.select { |point| !claimed.include?(point) && point.location.inside?(from, to) }
     end
 
     def definitions(root)

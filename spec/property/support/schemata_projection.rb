@@ -14,7 +14,15 @@ require "kimera/synthesis/overlay"
 # - a lone expression in parentheses is that expression;
 # - adjacent string parts join and empty ones drop (unparser splits them);
 # - && and || chains are associative (unparser regroups them);
-# - minus on a numeric literal is the negative literal (`-(1)` is `-1`).
+# - minus on a numeric literal is the negative literal (`-(1)` is `-1`);
+# - a `nil` statement that is not a sequence's last is no statement (a
+#   visibility mutant's coverage probe reduces to one);
+# - `begin ... rescue/ensure ... end` holding only that clause is the clause
+#   (a guarded method body needs the begin; the parser reads both alike).
+#
+# A visibility mutant is not a guard: `::Kimera::RUNTIME.privatize(k, self,
+# :m)` registers a flip the runtime makes when k turns active, so it reduces
+# to `private(:m)` with k active and to nothing otherwise.
 #
 # One more rewrite is an assumption, not a behavior-preserving identity:
 # `required` reads a default that raises the missing-argument ArgumentError
@@ -44,6 +52,7 @@ module SchemataProjection
   INTERPOLATED = %i[dstr dsym xstr regexp].freeze
   NUMERIC = %i[int float rational complex].freeze
   DEFAULTS = { optarg: [:arg, "argument"], kwoptarg: [:kwarg, "keyword"] }.freeze
+  CLAUSES = %i[rescue ensure].freeze
 
   module_function
 
@@ -92,7 +101,17 @@ module SchemataProjection
     return node unless node.is_a?(Parser::AST::Node)
     id = guard(node)
     return project(node.children[id == active ? 1 : 2], active) if id
-    node.updated(nil, node.children.map { |child| project(child, active) })
+    hidden = privatized(node)
+    return hidden == active ? Parser::AST::Node.new(:send, [nil, :private, node.children[4]]) : VOID if hidden
+    node.updated(nil, node.children.map { |child| project(child, active) }.reject { |child| child.equal?(VOID) })
+  end
+
+  VOID = Object.new.freeze
+
+  def privatized(node)
+    return unless node?(node, :send) && node.children[1] == :privatize
+    receiver = node.children[0]
+    node.children[2].children[0] if node?(receiver, :const) && receiver.children[1] == :RUNTIME
   end
 
   def guards(node, found = [])
@@ -110,11 +129,27 @@ module SchemataProjection
 
   def simplify(node)
     type = node.type
-    return node.children[0] if type == :begin && node.children.one? && node?(node.children[0])
+    return sequence(statements(node)) if type == :begin
+    return enclosure(node) if type == :kwbegin
     return chain(node) if CHAINS.include?(type)
     return interpolation(node) if INTERPOLATED.include?(type)
     return required(node) if DEFAULTS.key?(type)
     negated(node)
+  end
+
+  def sequence(node)
+    only, *rest = node.children
+    rest.empty? && node?(only) ? only : node
+  end
+
+  def enclosure(node)
+    only, *rest = node.children
+    rest.empty? && CLAUSES.include?(only&.type) ? only : node
+  end
+
+  def statements(node)
+    *body, last = node.children
+    node.updated(nil, [*body.reject { |child| node?(child, :nil) }, last])
   end
 
   def negated(node)

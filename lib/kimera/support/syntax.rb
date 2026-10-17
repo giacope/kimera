@@ -5,7 +5,9 @@ require "prism"
 module Kimera
   module Syntax
     %i[
-      AndNode ArrayNode AssocNode AssocSplatNode BlockArgumentNode BlockNode BlockParametersNode
+      AndNode ArrayNode AssocNode AssocSplatNode BeginNode BlockArgumentNode BlockNode BlockParametersNode
+      BreakNode ClassNode ForwardingSuperNode LocalVariableTargetNode LocalVariableWriteNode ModuleNode
+      NextNode ProgramNode RescueModifierNode SingletonClassNode SuperNode
       CallNode ClassVariableOrWriteNode ClassVariableReadNode ClassVariableWriteNode
       CallOperatorWriteNode ClassVariableOperatorWriteNode ConstantOperatorWriteNode
       ConstantPathOperatorWriteNode GlobalVariableOperatorWriteNode
