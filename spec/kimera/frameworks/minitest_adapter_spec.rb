@@ -61,6 +61,55 @@ RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
     expect(adapter.test_ids).to(include(*ids))
   end
 
+  # Strict attribution maps each test to the file that declares its class.
+  it "names the file that declares a test's class", :aggregate_failures do
+    expect(adapter.test_file("DemoKimeraTest#test_passes")).to(eq(File.join(dir, "demo_test.rb")))
+    expect(adapter.test_file("NoSuchTest#test_x")).to(be_nil)
+  end
+
+  it "falls back to the test method's file for a class with no constant name" do
+    anonymous = Class.new(Minitest::Test) { define_method(:test_it) { true } }
+    adapter.instance_variable_get(:@_indexed)["anon#test_it"] = [anonymous, :test_it]
+    expect(adapter.test_file("anon#test_it")).to(eq(__FILE__.delete_prefix("#{Dir.pwd}/")))
+  ensure
+    Minitest::Runnable.runnables.delete(anonymous)
+  end
+
+  it "falls back to the test method's file when the class name is no constant" do
+    named = Class.new(Minitest::Test) { define_method(:test_it) { true } }
+    named.define_singleton_method(:name) { "a described thing" }
+    adapter.instance_variable_get(:@_indexed)["named#test_it"] = [named, :test_it]
+    expect(adapter.test_file("named#test_it")).to(eq(__FILE__.delete_prefix("#{Dir.pwd}/")))
+  ensure
+    Minitest::Runnable.runnables.delete(named)
+  end
+
+  def drawn(seed) = seeded(seed) { [adapter.run(["DemoKimeraTest#test_passes"]), rand(1_000_000)].last }
+
+  it "seeds each test's random numbers from the run's seed and its id, or leaves them alone", :aggregate_failures do
+    adapter
+    expected = Random.new(Kimera::Seed.new("KIMERA_SEED" => "42").for("DemoKimeraTest#test_passes")).rand(1_000_000)
+    expect([drawn(42), drawn(42)]).to(eq([expected, expected]))
+    srand(5)
+    expect(drawn(nil)).to(eq(Random.new(5).rand(1_000_000)))
+  end
+
+  it "orders and reproduces the suite by the run's seed, once given one", :aggregate_failures do
+    saved = Minitest.seed
+    undefine
+    seeded(77) { described_class.build.source([testfile]) }
+    expect(Minitest.seed).to(eq(77))
+    expect(adapter.reproduce(["DemoKimeraTest#test_passes"])).to(end_with("--seed 77"))
+  ensure
+    Minitest.seed = saved
+  end
+
+  it "indexes the tests its files defined when it sourced them, not a class defined later" do
+    sourced = adapter
+    later = Class.new(Minitest::Test) { define_method(:test_later) { pass } }
+    expect(sourced.test_ids).not_to(include("#{later}#test_later"))
+  end
+
   it "reports a passing run as passed with no failures", :aggregate_failures do
     outcome = adapter.run(["DemoKimeraTest#test_passes"])
     expect(outcome.passed?).to(be(true))

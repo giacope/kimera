@@ -279,7 +279,8 @@ drop. After an incremental `--since` run it never prunes an entry as stale.
 - The canonical JSON report goes to `tmp/kimera/report.json`, or to
   `--report FILE`; `--no-report` skips it. Each result names its test ids, and
   the report's `tests` section maps each id to its description and
-  `file:line`.
+  `file:line`. [`schema/report.schema.json`](schema/report.schema.json)
+  describes every field.
 - `--summary FILE` appends a Markdown summary of the findings to FILE.
   `kimera ci` sets it to `$GITHUB_STEP_SUMMARY` when GitHub Actions does.
 - GitHub annotations fold the mutants on one line into one, with each diff.
@@ -296,9 +297,9 @@ drop. After an incremental `--since` run it never prunes an entry as stale.
 Exit codes:
 
 - **`0`**: pass.
-- **`2`**: the gate failed. Survivors exceed the threshold (default: any
-  survivor), or a mutant in scope has no covering test under
-  `--fail-on-no-coverage`, ignored mutants exceed `max_ignored`, or more
+- **`2`**: the gate failed. Survivors (with `uncovered_by_unit` mutants)
+  exceed the threshold (default: any survivor), or a mutant in scope has no covering test under
+  `--fail-on-no-coverage` or `--count-no-coverage`, ignored mutants exceed `max_ignored`, or more
   mutants than `--max-errors` (default 0) could not be judged.
 - **`1`**: the baseline is not green, the pool cannot keep a worker alive, or
   the invocation is invalid. Paths that match no source files, `--tests` that
@@ -394,6 +395,103 @@ it was set.
   mutant into a fresh process, so there is no run without it to compare with,
   and a fresh process's first tests run slower than the warm baseline.
 
+### Strict attribution
+
+By default any covering test may kill a mutant, so a request spec that runs
+a whole controller stack kills mutants in every model it touches, and those
+models look tested when no test of theirs would notice. `attribution: unit`
+(`--attribution unit`) lets only a unit's own tests kill its mutants:
+
+- `lib/foo/bar.rb` is tested by `spec/foo/bar_spec.rb`,
+  `spec/lib/foo/bar_spec.rb`, `test/foo/bar_test.rb` or `test/foo/test_bar.rb`,
+  the same under `spec/unit/` and `test/unit/`, and any spec or test in a
+  directory named after it (`spec/unit/foo/bar/camelize_spec.rb`);
+- `app/models/order.rb` by `spec/models/order_spec.rb`,
+  `test/models/order_test.rb` or `spec/order_spec.rb`, so `spec/requests/`
+  and `test/integration/` count for no unit;
+- `unit_tests:` adds rules, source glob => test pattern(s). A pattern may name
+  `{path}`, the source's path under the glob's literal prefix, and `{name}`,
+  both without `.rb`; it matches as a glob. `--unit-tests GLOB=PATTERN`
+  (repeatable) replaces the config's rules.
+
+```yaml
+attribution: unit
+unit_tests:
+  "app/services/**/*.rb": "spec/services/{path}_spec.rb"
+  "lib/**/*.rb": ["test/**/{name}_test.rb"]
+```
+
+A test belongs to the file that declares it (an RSpec example to its spec
+file, a Minitest test to its class's file). A mutant only other units' tests
+reach is `uncovered_by_unit`, not killed: its row lists those tests (they are
+not run) and names the test files that would count. It is scored as not
+killed and counts toward `max_survivors` like a survivor, and `kimera
+baseline create` accepts it like one. A mutant no test reaches stays
+`no_coverage`. It needs the coverage baseline, so not with `--no-coverage`.
+
+### Test quality
+
+A run stops judging a mutant at its first failing test, so it says which
+mutants survive, not which tests earn their keep. `test_quality: true`
+(`--test-quality`), meant for a nightly full run, records every covering
+test that kills each killed mutant: after the usual verdict, each other
+covering test runs alone in a fresh fork with the mutant on, and fails,
+times out or crashes to count. The verdicts and the score don't change.
+
+Each killed result gains `killing_tests`, and the report a `test_quality`
+section:
+
+- `kills_nothing`: tests that cover a judged mutant and kill none of them;
+- `redundant`: tests that kill mutants, each of which another test kills
+  too. Each is redundant alone: dropping two of them may lose a kill;
+- `covers_nothing`: tests that run no mutant in scope (a run over part of
+  the code lists most of the suite here);
+- `standings`: for each test that covers a mutant, how many it covers, how
+  many it kills, and how many only it kills.
+
+The text report sums these up and names the first few of each. It costs one
+fork per covering test of each killed mutant, after the first: two
+dry-inflector files whose 15 mutants about 620 specs each cover took 89s
+against 14s, and its whole `lib` (738 mutants, about 820 covering specs
+each) would take over an hour against about a minute. Run it nightly, or
+over the part of the code you are reviewing. In the isolated
+tier a mutant's killers are the tests that fail in one run of all its
+covering tests; the reload tier (memoized code) records its first killer
+only. Under `attribution: unit`, a test counts only toward its own unit's
+mutants.
+
+### Seeds and flaky tests
+
+Every test runs in a process forked from the booted suite, and Ruby reseeds
+its random numbers in each fork, so a test that draws `rand` (or a factory
+that does) draws differently in the baseline and in each mutant's run. On
+Minitest the suite's order is fixed at `--seed 1`.
+
+- `seed: N` (`--seed N`) seeds each test's random numbers with `N` and the
+  test's id (`Kernel.srand`) before it runs, on the warm path, the reload
+  tier and in `--isolated` children alike, and gives Minitest `N` as its
+  seed. A test then draws the same numbers in the baseline, in every mutant's
+  run and in the next run with the same seed. `--seed random` draws `N`; the
+  report's `run` section records it, so `--seed N` repeats the run. Kimera
+  exports it to the suite as `KIMERA_SEED`. Unset
+  (the default) keeps today's behavior. A `--session` resumes only under the
+  same seed.
+- `flaky_runs: N` (`--flaky-runs N`, default 0) reruns the tests that cover
+  a mutant in scope `N` more times after the baseline, each in a fresh fork
+  under another seed (the run's seed plus 1, 2, ..., or drawn ones). A test
+  that passed the baseline and fails, times out or crashes in a rerun is
+  **flaky**: the report lists it under "Flaky tests", with the seeds it
+  failed under and why (`flaky_tests` in the JSON report), and it never kills
+  a mutant. A mutant only flaky tests cover is `no_coverage`, its detail
+  naming them. Each rerun costs about one baseline of the covering tests.
+
+Why a flaky test kills nothing: Kimera takes a covering test's failure, in a
+fresh process with the mutant on, as the kill. A flaky test fails without
+the mutant too, so its failure says nothing about the mutant, and counting
+it would score a hole in the suite as caught. Leaving it out errs the other
+way, toward a survivor or an uncovered mutant, which the gate shows and a
+person triages: fix the test, and its kills count again.
+
 ### Progress output
 
 During a run, progress for each phase goes to stderr, never stdout, so
@@ -456,6 +554,9 @@ max_survivors: 0
 # Fail when any mutant in scope lacks a covering test. Best on incremental
 # runs, where "no coverage" means the PR adds logic no test executes.
 fail_on_no_coverage: false
+# Score uncovered mutants as not killed too, and fail on them, in every
+# command (kimera run included). Off: they are reported but not scored.
+count_no_coverage: false
 
 # The gate fails when more than this many mutants are ignore-listed. Marking
 # one more mutant equivalent means raising this number in the same diff, so
@@ -868,6 +969,8 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   - Killed includes timeouts and errors (observable misbehaviour).
   - Evaluable excludes `no_coverage`, `ignored`, `isolated_only`,
     `unmutatable`, and `harness_error` mutants. Each is reported separately.
+    `uncovered_by_unit` (under `attribution: unit`) is evaluable and not
+    killed.
   - An `unmutatable` mutant is one Kimera could not instrument for the warm
     run (its file or method failed to re-emit or load); the detail says why.
     It never gates, and it is not `no_coverage`: a test may well run it.
@@ -877,8 +980,12 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     (default 0). A pool that never produces a result aborts the run. When a
     worker died, the `detail` says how (`died on signal 15 (SIGTERM)`,
     `exited 1`) and, if Ruby raised something, the exception and its frames.
-  - Uncovered mutants don't lower the score, unlike some tools.
-    `--fail-on-no-coverage` closes that gap.
+  - Uncovered mutants don't lower the score by default, unlike some tools.
+    `--fail-on-no-coverage` fails the gate on them; `count_no_coverage: true`
+    (`--count-no-coverage`) also scores each as not killed, so the score is
+    killed over every mutant a test could have killed, run or not, and the
+    gate fails on them in every command, `kimera run` included. The report's
+    `run` section records the setting.
 - **No constant outside `Kimera`.** Every synthesized guard dispatches through
   `::Kimera::RUNTIME`, the process's one `Kimera::Runtime`, bound once: a
   second copy of `kimera/runtime.rb` keeps the runtime it finds.

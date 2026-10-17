@@ -18,8 +18,7 @@ class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
 
   def initialize
     super
-    @examples = {}
-    @suite = nil
+    @suites = Set.new
   end
 
   def configured
@@ -29,39 +28,40 @@ class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
 
   def source(files)
     each_test_file(files) { |file| load(file) }
-    reindex
+    examples
     self
   end
 
   def test_ids
-    @examples.keys
+    examples.keys
   end
 
   def describe(id)
-    ex = @examples[id]
+    ex = examples[id]
     ex ? ex.full_description : id
   end
 
-  def locate(id) = { "location" => @examples.fetch(id).location.delete_prefix("./") }
+  def locate(id) = { "location" => examples.fetch(id).location.delete_prefix("./") }
+
+  def test_file(id) = examples[id]&.metadata&.fetch(:rerun_file_path, nil) || id[/\A(.+?)\[/, 1]
 
   def start
-    pid = Process.pid
-    return if @suite == pid
-    @suite = pid
+    return unless @suites.add?(Process.pid)
     hooks(:@before_suite_hooks)
   end
 
   def finish
-    return unless @suite == Process.pid
+    return unless @suites.include?(Process.pid)
     hooks(:@after_suite_hooks)
   end
 
   def run(ids)
-    selected = ids.filter_map { |id| @examples[id] }
+    selected = ids.filter_map { |id| examples[id] }
+    reseed(ids.first)
     reset
     clear(selected)
     execute(selected)
-    outcome(selected)
+    outcome(selected.select { |ex| ex.execution_result.status == :failed }.map { |ex| [ex.id, failure(ex)] })
   end
 
   private
@@ -70,14 +70,6 @@ class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
     RSpec::Core::ConfigurationOptions.new([]).configure(RSpec.configuration)
   rescue StandardError, ScriptError
     nil
-  end
-
-  def outcome(selected)
-    failed = selected.select { |ex| ex.execution_result.status == :failed }
-    Kimera::Frameworks::RunOutcome.new(
-      passed: failed.empty?, failed_ids: failed.map(&:id),
-      failures: failed.to_h { |example| [example.id, failure(example)] }
-    )
   end
 
   def hooks(store)
@@ -103,15 +95,10 @@ class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
 
   def load(file) = Kernel.load(File.expand_path(file))
 
-  def reindex
-    @examples = {}
-    RSpec.world.example_groups.each { |top| index(top) }
-  end
-
-  def index(top)
-    Kimera::Frameworks::GroupTree.new(top).examples.each do |example|
-      @examples[example.id] = example.extend(Kimera::TestExit::Example)
-    end
+  def examples
+    @_examples ||=
+      RSpec.world.example_groups.flat_map { |top| Kimera::Frameworks::GroupTree.new(top).examples }
+        .to_h { |example| [example.id, example.extend(Kimera::TestExit::Example)] }
   end
 
   def clear(examples)

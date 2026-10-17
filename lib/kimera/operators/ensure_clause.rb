@@ -7,6 +7,6 @@ class Kimera::Operators::EnsureClause < Kimera::Operators::Base
   def key = "ensure_clause"
 
   def variants(node, **)
-    solo("drop `ensure`", "drop_ensure") if Kimera::Operators::Clauses.begin(node)&.ensure_clause
+    solo("drop `ensure`", "drop_ensure") if Kimera::Operators::Clauses.new(node).begin&.ensure_clause
   end
 end

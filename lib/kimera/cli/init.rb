@@ -19,6 +19,7 @@ class Kimera::CLI::Init
   HELPERS = %w[spec/spec_helper.rb spec/rails_helper.rb spec/helper.rb test/test_helper.rb test/helper.rb].freeze
   MINITEST_GLOBS = %w[test/**/*_test.rb test/**/test_*.rb test/**/spec_*.rb spec/**/*_spec.rb].freeze
   SYSTEM_TESTS = "test/system/**/*_test.rb"
+  DOCUMENT = ->(**fields) { fields.transform_keys(&:to_s) }
 
   def initialize(io: $stdout, errors: $stderr, root: ".")
     @io = io
@@ -27,8 +28,7 @@ class Kimera::CLI::Init
   end
 
   def run(argv)
-    options = { force: false, dry_run: false }
-    OPTIONS.parse(argv, options)
+    _, options = OPTIONS.parse(argv, { force: false, dry_run: false })
     options[:dry_run] ? preview : write(options)
   rescue Kimera::UsageError => error
     usage(error)
@@ -63,7 +63,7 @@ class Kimera::CLI::Init
   end
 
   def detected
-    Kimera::Config.document(
+    DOCUMENT.call(
       framework: framework, paths: sources, tests: tests, **browserless,
       jobs: [Etc.nprocessors, 8].min, max_survivors: 0, max_errors: 0, fail_on_no_coverage: false
     )

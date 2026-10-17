@@ -32,32 +32,33 @@ RSpec.describe(Kimera::Rewrite::Conditions) do
 
   # What Ruby runs when the tree is written out.
   def rereads?(tree)
-    Prism.parse(Kimera::Unparse.unparse(tree)).value.inspect.match?(/FlipFlopNode|MatchLastLineNode/)
+    Prism.parse(Kimera::Unparse.new(tree).source).value.inspect.match?(/FlipFlopNode|MatchLastLineNode/)
   end
 
   literals.each do |kind, literal|
     it "flags a #{kind} literal exactly where Ruby reads it back as a condition", :aggregate_failures do
       forms.each do |form|
         tree = placed(form, literal)
-        expect(described_class.misread?(tree, tested: false)).to(eq(rereads?(tree)), form)
+        expect(described_class.new(tree, tested: false).misread?).to(eq(rereads?(tree)), form)
       end
     end
   end
 
   it "flags a literal in a tree that is itself tested", :aggregate_failures do
-    expect(described_class.misread?(Kimera::Unparse.parse("(1...2)"), tested: true)).to(be(true))
-    expect(described_class.misread?(Kimera::Unparse.parse("x || /r/"), tested: true)).to(be(true))
-    expect(described_class.misread?(Kimera::Unparse.parse("(1...2).to_a"), tested: true)).to(be(false))
-    expect(described_class.misread?(Kimera::Unparse.parse("(1...2)"), tested: false)).to(be(false))
+    expect(described_class.new(Kimera::Unparse.parse("(1...2)"), tested: true).misread?).to(be(true))
+    expect(described_class.new(Kimera::Unparse.parse("x || /r/"), tested: true).misread?).to(be(true))
+    expect(described_class.new(Kimera::Unparse.parse("(1...2).to_a"), tested: true).misread?).to(be(false))
+    expect(described_class.new(Kimera::Unparse.parse("(1...2)"), tested: false).misread?).to(be(false))
   end
 
   it "leaves what the source already tests alone" do
-    expect(described_class.misread?(Kimera::Unparse.parse("if (a..b) && /r/ then 1 end"), tested: false)).to(be(false))
+    tree = Kimera::Unparse.parse("if (a..b) && /r/ then 1 end")
+    expect(described_class.new(tree, tested: false).misread?).to(be(false))
   end
 
   it "finds the nodes where Ruby tests a condition" do
     tree = Kimera::Unparse.parse("if x && y.z then 1 end")
-    tested = described_class.places(tree).filter_map { |node, test| Kimera::Unparse.unparse(node) if test }
+    tested = described_class.new(tree).places.filter_map { |node, test| Kimera::Unparse.new(node).source if test }
     expect(tested).to(eq(["x && y.z", "x", "y.z"]))
   end
 end

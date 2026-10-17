@@ -2,9 +2,7 @@
 
 module Kimera
   module Execution
-    module NullProgress
-      module_function
-
+    class NullProgress
       def start(_total, _label = nil); end
 
       def tick(_status = nil); end
@@ -12,6 +10,8 @@ module Kimera
       def finish; end
 
       def note(_text); end
+
+      NONE = new.freeze
     end
   end
 end

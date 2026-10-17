@@ -37,7 +37,7 @@ class Kimera::SpliceReopening
 
   def constants
     found = []
-    Kimera::Rewrite::AstWalk.visit(@map.ast) { |node| found << assignment(node) if reopenable?(node) }
+    Kimera::Rewrite::AstWalk.new(@map.ast).visit { |node| found << assignment(node) if reopenable?(node) }
     found
   end
 

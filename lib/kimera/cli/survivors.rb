@@ -15,7 +15,7 @@ class Kimera::CLI::Survivors
       Kimera::Flag.build("--id ID|KEY", :id, "Show one mutant, by ID or key, in full detail"),
       Kimera::Flag.build(
         "--status NAME", :status,
-        "List a different status (survived, no_coverage, " \
+        "List a different status (survived, uncovered_by_unit, no_coverage, " \
           "timeout, error, killed, isolated_only, unmutatable)"
       )
     ]
@@ -37,15 +37,14 @@ class Kimera::CLI::Survivors
 
   def attempt(argv)
     options = parse(argv)
-    document = load(options[:report])
-    results = document.fetch("results", [])
+    report = load(options[:report])
     id = options[:id]
-    id ? show(results, id, document) : list(results, options)
+    id ? show(report, id) : list(report.results, options)
   end
 
   def parse(argv)
-    options = { status: "survived", id: nil }
-    report, filter = positional(OPTIONS.parse(argv, options))
+    arguments, options = OPTIONS.parse(argv, { status: "survived", id: nil })
+    report, filter = positional(arguments)
     options.merge(report: report, filter: filter)
   end
 
@@ -57,7 +56,7 @@ class Kimera::CLI::Survivors
   def report?(argument) = argument && (argument.end_with?(".json") || File.file?(argument))
 
   def load(path)
-    return Kimera::CLI::ReportFile.parse(path) if File.file?(path)
+    return Kimera::CLI::ReportFile.new(path) if File.file?(path)
     raise(Kimera::UsageError, "no such report: #{path} (run kimera run first, or pass REPORT.json)")
   end
 
@@ -81,9 +80,10 @@ class Kimera::CLI::Survivors
     0
   end
 
-  def show(results, id, document)
-    row = Kimera::CLI::ReportFile.row(results, id)
+  def show(report, id)
+    row = report.row(id)
     return missing(id) unless row
+    document = report.document
     root = document.dig("run", "source_root") || "."
     Panel.new(io: @io, tests: document.fetch("tests", {}), root: root).describe(row)
     0

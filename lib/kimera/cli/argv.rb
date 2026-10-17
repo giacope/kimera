@@ -6,10 +6,12 @@ end
 class Kimera::CLI
 end
 
-module Kimera::CLI::Argv
-  module_function
+class Kimera::CLI::Argv
+  def initialize(arguments)
+    @arguments = arguments
+  end
 
-  def option?(arguments, name) = arguments.any? { |argument| argument == name || argument.start_with?("#{name}=") }
+  def option?(name) = @arguments.any? { |argument| argument == name || argument.start_with?("#{name}=") }
 
-  def any?(arguments, names) = names.any? { |name| option?(arguments, name) }
+  def any?(names) = names.any? { |name| option?(name) }
 end

@@ -34,17 +34,11 @@ class Kimera::Execution::Pool
 
   def coverage = @options[:coverage]
 
-  def coverage=(measured)
-    @options[:coverage] = measured
+  def arm(coverage:, budget:, timings:)
+    @options.update(coverage: coverage, budget: budget, timings: timings)
   end
 
-  def budget=(budget)
-    @options[:budget] = budget
-  end
-
-  def timings=(timings)
-    @options[:timings] = timings
-  end
+  def narrow(coverage) = @options.update(coverage: coverage)
 
   def drive(queue, spawner, listeners, jobs: @options.fetch(:jobs))
     database.before_fork
@@ -108,7 +102,7 @@ class Kimera::Execution::Pool
     Kimera::Execution::Shift.new(
       adapter: @adapter, registry: @registry, coverage: coverage, isolation: @isolation,
       soft_timeout: @options.fetch(:soft), pulse: pulse(duty),
-      **@options.slice(:budget, :timings)
+      **@options.slice(:budget, :timings, :quality)
     )
   end
 

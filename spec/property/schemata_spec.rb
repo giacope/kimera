@@ -61,7 +61,7 @@ RSpec.describe("Mutant schemata") do
 
     # Generated code may test a literal (`if "s"`); Ruby's parse warning is noise.
     def loaded(source)
-      Object.new.extend(Module.new.tap { |mod| Kimera::Warnings.silence { mod.module_eval(source) } })
+      Object.new.extend(Module.new.tap { |mod| Kimera::Warnings::SILENCED.during { mod.module_eval(source) } })
     end
 
     # One live object serves every mutant; each bake is fresh, so the live

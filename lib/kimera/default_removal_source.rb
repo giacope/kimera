@@ -15,13 +15,13 @@ class Kimera::DefaultRemoval::Source
 
   def signatures
     result = Kimera::Syntax.parse(@text)
-    result.failure? ? [] : collect(result.value, [])
+    result.failure? ? [] : collect(result.value)
   end
 
-  def collect(node, found)
-    found << Kimera::DefaultRemoval.new(parameters(node), node.is_a?(Kimera::SyntaxTypes::BlockNode)) if callable?(node)
-    node.compact_child_nodes.each { collect(it, found) }
-    found
+  def collect(node)
+    nested = node.compact_child_nodes.flat_map { collect(it) }
+    return nested unless callable?(node)
+    [Kimera::DefaultRemoval.new(parameters(node), node.is_a?(Kimera::SyntaxTypes::BlockNode)), *nested]
   end
 
   def callable?(node) = CALLABLES.any? { node.is_a?(it) } && node.parameters

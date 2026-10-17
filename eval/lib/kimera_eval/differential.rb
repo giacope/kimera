@@ -65,8 +65,7 @@ module KimeraEval
     end
 
     def summary(rows, run)
-      tally = rows.map { |row| row["verdict"] }.tally
-      counts(tally, rows.size).merge("agreement_pct" => Scoring.agreement(tally)).merge(measured(run))
+      counts(rows.map { |row| row["verdict"] }.tally, rows.size).merge(measured(run))
         .merge("statuses" => rows.map { |row| row["kimera"] }.tally)
         .merge("disagreements" => rows.reject { |row| row["verdict"] == "agree" })
     end
@@ -75,16 +74,19 @@ module KimeraEval
 
     def counts(tally, total)
       { "mutants" => total }.merge(VERDICTS.to_h { |verdict| [verdict, tally.fetch(verdict, 0)] })
+        .merge("agreement_pct" => Agreement.new(tally).percent)
     end
   end
 
   # Agreement over the mutants both sides judged.
-  module Scoring
-    module_function
+  class Agreement
+    def initialize(tally)
+      @tally = tally
+    end
 
-    def agreement(tally)
-      judged = tally.sum { |verdict, count| %w[abstained unbakeable].include?(verdict) ? 0 : count }
-      judged.zero? ? nil : (100.0 * tally.fetch("agree", 0) / judged).round(1)
+    def percent
+      judged = @tally.sum { |verdict, count| %w[abstained unbakeable].include?(verdict) ? 0 : count }
+      judged.zero? ? nil : (100.0 * @tally.fetch("agree", 0) / judged).round(1)
     end
   end
 end

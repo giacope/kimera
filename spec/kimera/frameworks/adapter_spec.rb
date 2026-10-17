@@ -33,6 +33,10 @@ RSpec.describe(Kimera::Frameworks) do
     it "describes an id as itself by default" do
       expect(described_class.new.describe("Foo#bar")).to(eq("Foo#bar"))
     end
+
+    it "knows no test's file by default" do
+      expect(described_class.new.test_file("Foo#bar")).to(eq(""))
+    end
   end
 
   describe Kimera::Frameworks::AdapterRegistry do

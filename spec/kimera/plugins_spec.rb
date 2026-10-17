@@ -7,16 +7,16 @@ require "kimera/plugins"
 require_relative "../../examples/operators/kimera_plugin"
 
 # The example plugin registers on load; reset so each example starts from the built-ins.
-Kimera::Operators.reset!
+Kimera::Operators::CATALOG.reset!
 
 RSpec.describe(Kimera::Plugins) do
-  after { Kimera::Operators.reset! }
+  after { Kimera::Operators::CATALOG.reset! }
 
   def plugin(dir, body)
     File.join(dir, "plugin.rb").tap { |path| File.write(path, body) }
   end
 
-  describe ".load!" do
+  describe "#load!" do
     it "loads a plugin relative to the source root and returns what it registered" do
       Dir.mktmpdir do |dir|
         plugin(dir, <<~RUBY)
@@ -26,13 +26,13 @@ RSpec.describe(Kimera::Plugins) do
           end
           Kimera::Operators.register(Sentinel)
         RUBY
-        expect(described_class.load!(["plugin.rb"], root: dir).map { it.new.key }).to(eq(["sentinel"]))
+        expect(described_class.new(["plugin.rb"], root: dir).load!.map { it.new.key }).to(eq(["sentinel"]))
       end
     end
 
     it "raises a usage error naming a plugin that does not exist" do
       Dir.mktmpdir do |dir|
-        expect { described_class.load!(["nope.rb"], root: dir) }
+        expect { described_class.new(["nope.rb"], root: dir).load! }
           .to(raise_error(Kimera::UsageError, /cannot load nope\.rb: LoadError: cannot load such file/))
       end
     end
@@ -40,7 +40,7 @@ RSpec.describe(Kimera::Plugins) do
     it "raises a usage error carrying the parse error from a broken plugin" do
       Dir.mktmpdir do |dir|
         path = plugin(dir, "def broken(")
-        expect { described_class.load!([path], root: dir) }
+        expect { described_class.new([path], root: dir).load! }
           .to(raise_error(Kimera::UsageError, /cannot load .*plugin\.rb: SyntaxError: .+/))
       end
     end
@@ -48,13 +48,13 @@ RSpec.describe(Kimera::Plugins) do
     it "lets a usage error raised by the plugin itself through untouched" do
       Dir.mktmpdir do |dir|
         path = plugin(dir, "Kimera::Operators.register(Object)")
-        expect { described_class.load!([path], root: dir) }
+        expect { described_class.new([path], root: dir).load! }
           .to(raise_error(Kimera::UsageError, "not an operator class: Object"))
       end
     end
 
     it "does nothing when no plugins are configured" do
-      expect(described_class.load!(nil)).to(eq([]))
+      expect(described_class.new(nil).load!).to(eq([]))
     end
   end
 
@@ -69,7 +69,7 @@ RSpec.describe(Kimera::Plugins) do
     end
 
     it "registers one operator per example file" do
-      expect(Kimera::Operators.custom.map { it.new.key }).to(match_array(keys))
+      expect(Kimera::Operators::CATALOG.custom.map { it.new.key }).to(match_array(keys))
     end
 
     it "builds host operators alongside the built-ins under 'custom'" do

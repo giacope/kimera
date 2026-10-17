@@ -58,7 +58,7 @@ class Kimera::Execution::IsolatedExecution
 
   private
 
-  def progress = @options.fetch(:progress, Kimera::Execution::NullProgress)
+  def progress = @options.fetch(:progress, Kimera::Execution::NullProgress::NONE)
 
   def limit = @options.fetch(:hard_timeout, DEFAULT_HARD_TIMEOUT)
 
@@ -74,7 +74,8 @@ class Kimera::Execution::IsolatedExecution
       registry: @registry, root: @root, tests: @tests,
       coverage: @options.fetch(:coverage, {}), timings: @options.fetch(:timings, {}),
       framework: @options.fetch(:framework, "rspec"),
-      test_files: @options.fetch(:test_files, [])
+      test_files: @options.fetch(:test_files, []), filter: @options[:filter], seed: @options[:seed],
+      quality: @options[:test_quality]
     )
   end
 

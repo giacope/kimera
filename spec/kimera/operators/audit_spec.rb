@@ -5,7 +5,7 @@ require "kimera/operators/audit"
 require_relative "../../../examples/operators/kimera_plugin"
 
 # Loading the plugin registers its operators; reset so other specs see only built-ins.
-Kimera::Operators.reset!
+Kimera::Operators::CATALOG.reset!
 
 # Unrenderable and identity directives hide in a report: one scores as an error or kill, the other survives.
 RSpec.describe(Kimera::Operators::Audit) do

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../error"
+require_relative "../support/seed"
 
 module Kimera
   module Frameworks
@@ -44,6 +45,8 @@ class Kimera::Frameworks::Adapter
 
   def locate(_id) = {}
 
+  def test_file(_id) = ""
+
   def catalog(ids) = (ids & test_ids).to_h { |id| [id, { "name" => describe(id) }.merge(locate(id))] }
 
   def reproduce(ids)
@@ -54,6 +57,15 @@ class Kimera::Frameworks::Adapter
   FRAMES = 5
 
   private
+
+  def reseed(test)
+    seed = Kimera::Seed.new
+    Kernel.srand(seed.for(test)) if seed.value
+  end
+
+  def outcome(failed)
+    Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed.map(&:first), failures: failed.to_h)
+  end
 
   def frames(backtrace)
     Array(backtrace).take_while { |frame| !frame.start_with?(HARNESS) }.first(FRAMES)

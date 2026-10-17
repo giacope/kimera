@@ -6,12 +6,12 @@ class Kimera::Overlay::Source
   end
 
   def evaluate(path)
-    Kimera::Warnings.silence { compiled(path).eval }
+    Kimera::Warnings::SILENCED.during { compiled(path).eval }
   end
 
   private
 
   def compiled(path)
-    RubyVM::InstructionSequence.compile(Kimera::SuperclassPin.pin(@text), path, File.expand_path(path))
+    RubyVM::InstructionSequence.compile(Kimera::SuperclassPin.new(@text).pinned, path, File.expand_path(path))
   end
 end

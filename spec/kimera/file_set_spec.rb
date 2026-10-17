@@ -20,12 +20,12 @@ RSpec.describe(Kimera::FileSet) do
     relative
   end
 
-  describe ".unused" do
+  describe "#unused" do
     it "returns only the exclude patterns that removed nothing" do
       touch("app/a.rb")
       touch("app/legacy/old.rb")
 
-      noop = described_class.unused(["app"], ["app/legacy/**/*.rb", "app/typo/**/*.rb", "app/a.rb"])
+      noop = described_class.new(["app"], exclude: ["app/legacy/**/*.rb", "app/typo/**/*.rb", "app/a.rb"]).unused
       expect(noop).to(eq(["app/typo/**/*.rb"]))
     end
 
@@ -34,56 +34,56 @@ RSpec.describe(Kimera::FileSet) do
       touch("app/a.rb")
       touch("app/legacy/old.rb")
 
-      expect(described_class.unused(["app"], ["app/legacy"])).to(eq([]))
+      expect(described_class.new(["app"], exclude: ["app/legacy"]).unused).to(eq([]))
     end
 
     it "is empty when no excludes were given" do
       touch("app/a.rb")
-      expect(described_class.unused(["app"], [])).to(eq([]))
+      expect(described_class.new(["app"], exclude: []).unused).to(eq([]))
     end
   end
 
-  describe ".expand" do
+  describe "#files" do
     it "expands a directory recursively to its .rb files, sorted and unique" do
       touch("app/a.rb")
       touch("app/sub/b.rb")
       touch("app/note.txt")
 
-      expect(described_class.expand(["app"])).to(eq(["app/a.rb", "app/sub/b.rb"]))
+      expect(described_class.new(["app"]).files).to(eq(["app/a.rb", "app/sub/b.rb"]))
     end
 
     it "keeps explicit file paths and globs, de-duplicating overlap" do
       touch("lib/x.rb")
       touch("lib/y.rb")
 
-      result = described_class.expand(["lib/x.rb", "lib/*.rb"])
+      result = described_class.new(["lib/x.rb", "lib/*.rb"]).files
       expect(result).to(eq(["lib/x.rb", "lib/y.rb"]))
     end
 
     it "filters a glob to existing .rb files only" do
       touch("a.rb")
       File.write(File.join(dir, "a.txt"), "x")
-      expect(described_class.expand(["*.rb", "*.txt"])).to(eq(["a.rb"]))
+      expect(described_class.new(["*.rb", "*.txt"]).files).to(eq(["a.rb"]))
     end
 
     it "merges the include: patterns into the result" do
       touch("app/a.rb")
       touch("extra/b.rb")
-      result = described_class.expand(["app"], include: ["extra/b.rb"])
+      result = described_class.new(["app"], include: ["extra/b.rb"]).files
       expect(result).to(eq(["app/a.rb", "extra/b.rb"]))
     end
 
     it "drops files resolved from an exclude path" do
       touch("app/keep.rb")
       touch("app/drop.rb")
-      result = described_class.expand(["app"], exclude: ["app/drop.rb"])
+      result = described_class.new(["app"], exclude: ["app/drop.rb"]).files
       expect(result).to(eq(["app/keep.rb"]))
     end
 
     it "drops files matching an exclude glob via fnmatch" do
       touch("app/models/x.rb")
       touch("app/legacy/y.rb")
-      result = described_class.expand(["app"], exclude: ["app/legacy/**/*.rb"])
+      result = described_class.new(["app"], exclude: ["app/legacy/**/*.rb"]).files
       expect(result).to(eq(["app/models/x.rb"]))
     end
 
@@ -92,31 +92,33 @@ RSpec.describe(Kimera::FileSet) do
       touch("app/a.rb")
       touch("app/sub/b.rb")
       touch("lib/keep.rb")
-      result = described_class.expand(%w[app lib], exclude: ["app"])
+      result = described_class.new(%w[app lib], exclude: ["app"]).files
       expect(result).to(eq(["lib/keep.rb"]))
     end
 
     it "returns everything when the exclude list is empty" do
       touch("a.rb")
-      expect(described_class.expand(["a.rb"], exclude: [])).to(eq(["a.rb"]))
+      expect(described_class.new(["a.rb"], exclude: []).files).to(eq(["a.rb"]))
     end
 
     it "accepts a bare String pattern (wrapped via Array)" do
       touch("only.rb")
-      expect(described_class.expand("only.rb")).to(eq(["only.rb"]))
+      expect(described_class.new("only.rb").files).to(eq(["only.rb"]))
     end
   end
 
-  describe ".resolve" do
+  describe "#resolve" do
     it "returns [] for a pattern that matches nothing" do
-      expect(described_class.resolve("nope/*.rb")).to(eq([]))
+      expect(described_class.new([]).__send__(:resolve, "nope/*.rb")).to(eq([]))
     end
   end
 
-  describe ".matches?" do
+  describe "#matches?" do
+    def matches?(file, patterns) = described_class.new([]).__send__(:matches?, file, patterns)
+
     it "is true only when a pattern matches the file path", :aggregate_failures do
-      expect(described_class.matches?("app/legacy/x.rb", ["app/legacy/**/*.rb"])).to(be(true))
-      expect(described_class.matches?("app/models/x.rb", ["app/legacy/**/*.rb"])).to(be(false))
+      expect(matches?("app/legacy/x.rb", ["app/legacy/**/*.rb"])).to(be(true))
+      expect(matches?("app/models/x.rb", ["app/legacy/**/*.rb"])).to(be(false))
     end
   end
 end

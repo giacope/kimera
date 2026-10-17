@@ -4,11 +4,9 @@ require "kimera/cli/run"
 require "kimera/cli/synthesize"
 
 RSpec.describe(Kimera::Flag) do
-  describe "#define" do
+  describe "#stored" do
     def parse(flag, argv)
-      options = { value: nil, list: [] }
-      OptionParser.new { |o| flag.define(o, options) }.parse(argv)
-      options
+      Kimera::FlagTable.new(banner: "Usage: kimera x", flags: [flag]).parse(argv, { value: nil, list: [] }).last
     end
 
     it "assigns the parsed value to its key" do
@@ -59,8 +57,8 @@ RSpec.describe(Kimera::Flag) do
         Dir.chdir(dir) { Kimera::CLI::Run.new.__send__(:parse, []) }
       end.keys
 
-      # resolve_globs consumes :cli_tests.
-      expect(Kimera::CLI::Run::OPTIONS.keys - declared).to(eq([:cli_tests]))
+      # resolve_globs consumes :cli_tests, and attribution :cli_unit_tests.
+      expect(Kimera::CLI::Run::OPTIONS.keys - declared).to(eq(%i[cli_tests cli_unit_tests]))
     end
 
     it "defines each switch exactly once" do

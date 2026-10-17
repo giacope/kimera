@@ -63,9 +63,6 @@ module Kimera
         end
       end
 
-    module_function
-
-    def parse(source) = Prism.parse(source)
-    def view(node) = View.new(node)
+    def self.parse(source) = Prism.parse(source)
   end
 end

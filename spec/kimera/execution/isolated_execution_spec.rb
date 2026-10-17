@@ -2,6 +2,7 @@
 
 require "json"
 require "kimera/execution/isolated"
+require "kimera/execution/test_filter"
 require "kimera/registry/builder"
 require "timeout"
 
@@ -178,7 +179,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
   end
 
   describe "#verify!" do
-    def test_baseline(outcome, progress: Kimera::Execution::NullProgress, ids: nil, coverage: {})
+    def test_baseline(outcome, progress: Kimera::Execution::NullProgress::NONE, ids: nil, coverage: {})
       seen = []
       engine =
         Class.new(described_class) do
@@ -380,7 +381,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     def unannounced(root)
       File.write(File.join(root, "calc.rb"), "def a(x, y) = x > y\n")
-      test_canned_runner(root: root, jobs: 1, progress: Kimera::Execution::NullProgress)
+      test_canned_runner(root: root, jobs: 1, progress: Kimera::Execution::NullProgress::NONE)
     end
 
     it "prints nothing per verdict; progress alone reports the run" do
@@ -441,7 +442,22 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       end
     end
 
-    def test_baking_evaluate(id, pause: nil)
+    it "settles a mutant whose tests the screen drops, without staging or running it", :aggregate_failures do
+      given = []
+      registry.index.fetch(first).revisit!(Kimera::MutationPoint::BOOT_REASON)
+      filter = Kimera::Execution::TestFilter.new(registry: registry, flaky: %w[t1])
+      r = test_paced(given).new(registry: registry, root: ".", tests: %w[t1], filter: filter)
+      trial = Kimera::Execution::Trial.new(first, "/nonexistent", Kimera::Overlay.new(registry))
+      result = test_invoke_private(r, :evaluate, trial)
+      expect(
+        [
+          result.status, result.detail,
+          given
+        ]
+      ).to(eq([:no_coverage, "covered only by flaky test(s), which never kill: t1", []]))
+    end
+
+    def test_baking_evaluate(id, pause: nil, quality: {})
       baked = nil
       Dir.mktmpdir do |root|
         File.write(File.join(root, "calc.rb"), test_source_fixture)
@@ -452,7 +468,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
               sleep(pause) if pause
               Kimera::Execution::IsolatedOutcome.new(:killed, ["t1[1:1]"])
             end
-          end.new(registry: registry, root: root, tests: ["t1"], coverage: { id => ["t1"] })
+          end.new(registry: registry, root: root, tests: ["t1"], coverage: { id => ["t1"] }, **quality)
         allow(r).to(receive(:now).and_return(10.0, 12.5)) unless pause
         Dir.mktmpdir do |mirror|
           FileUtils.cp_r(File.join(root, "calc.rb"), File.join(mirror, "calc.rb"))
@@ -479,6 +495,13 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     it "asks the mutant's test child to stop at the first failure" do
       _result, (_source, first_failure), = test_baking_evaluate(first)
       expect(first_failure).to(be(true))
+    end
+
+    it "has the child run every covering test and records the failing ones as killers under test quality",
+      :aggregate_failures do
+      result, (_source, first_failure), = test_baking_evaluate(first, quality: { test_quality: true })
+      expect([first_failure, result.killing_tests]).to(eq([false, ["t1[1:1]"]]))
+      expect(test_baking_evaluate(first).first.killing_tests).to(be_nil)
     end
 
     it "times the verdict on the monotonic clock", :aggregate_failures do
@@ -510,7 +533,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     # The mirror keeps its copy, and the mutant gets no :error, which counts as killed.
     it "reports :unmutatable, with the reason, for a mutant unparser can't bake", :aggregate_failures do
-      allow(Kimera::Unparse).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
+      allow(Unparser).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
       result, baked, restored = test_baking_evaluate(first)
       expect([result.status, result.file, result.covering_tests]).to(eq([:unmutatable, "calc.rb", ["t1"]]))
       expect(result.detail).to(eq("unmutatable: unparser could not write its bake (KeyError: key not found: :lvar)"))

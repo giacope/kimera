@@ -35,7 +35,8 @@ class Kimera::CLI::Baseline
   end
 
   def run(argv)
-    __send__(command(argv.shift), argv)
+    name, *rest = argv
+    __send__(command(name), rest)
   rescue Kimera::UsageError => error
     @errors.puts("kimera: #{error.message}")
     1
@@ -57,24 +58,22 @@ class Kimera::CLI::Baseline
   def create(argv) = Kimera::CLI::Baseline::Creation.new(io: @io).run(argv)
 
   def review(argv)
-    options = { report: nil }
-    file = baseline(REVIEW, argv, options)
+    file, options = baseline(REVIEW, argv, { report: nil })
     report = options[:report]
     report ? Review.new(io: @io).show(ledger(file, report)) : list(file)
   end
 
   def prune(argv)
-    options = { dry_run: false }
-    file = baseline(PRUNE, argv, options)
+    file, options = baseline(PRUNE, argv, { dry_run: false })
     report = options.fetch(:report) { raise(Kimera::UsageError, "baseline prune needs --report FILE") }
     pruning = Prune.new(ledger(file, report), io: @io)
     options[:dry_run] ? pruning.preview : pruning.apply
   end
 
-  def baseline(table, argv, options)
-    file, *rest = table.parse(argv, options)
+  def baseline(table, argv, defaults)
+    (file, *rest), options = table.parse(argv, defaults)
     raise(Kimera::UsageError, table.banner) unless file && rest.empty?
-    existing(file)
+    [existing(file), options]
   end
 
   def existing(file) = File.file?(file) ? file : raise(Kimera::UsageError, "no such baseline: #{file}")

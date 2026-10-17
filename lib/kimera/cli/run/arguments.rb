@@ -8,31 +8,68 @@ require_relative "options"
 require_relative "targets"
 
 class Kimera::CLI::Run::Arguments
+  SEEDS = 2**31
+
   def parse(argv)
-    options = defaults.merge(Kimera::Config.parse(argv))
-    finish(options, Kimera::CLI::RunOptions::OPTIONS.parse(argv, options))
+    rest, options = Kimera::CLI::RunOptions::OPTIONS.parse(argv, defaults.merge(Kimera::Config.parse(argv).options))
+    finish(options, rest)
   end
 
   private
 
   def finish(options, rest)
     validate(options)
-    options.except(:cli_tests, :baseline_ignore).merge(scoped(options, rest))
+    options.except(:cli_tests, :cli_unit_tests, :baseline_ignore)
+      .merge(scoped(options, rest)).merge(attributed(options)).merge(seeded(options))
   end
 
   def validate(options) = Kimera::Report::Formats.new.normalize(options[:format])
 
+  def attributed(options)
+    attribution = Kimera::Config::Attribution.new(options)
+    mode = attribution.mode
+    measured(options, "--attribution unit") if mode == "unit"
+    { attribution: mode, unit_tests: attribution.rules }
+  end
+
+  def seeded(options)
+    runs = reruns(options[:flaky_runs])
+    measured(options, "--flaky-runs") if runs.positive?
+    { seed: seed(options[:seed]), flaky_runs: runs }
+  end
+
+  def seed(value)
+    return value if value.nil?
+    return Random.new_seed % SEEDS if value.to_s == "random"
+    Integer(value.to_s, 10).tap { |seed| raise(ArgumentError) unless seed.between?(0, SEEDS - 1) }
+  rescue ArgumentError
+    raise(Kimera::UsageError, "--seed takes a whole number from 0 to #{SEEDS - 1}, or random; got #{value.inspect}")
+  end
+
+  def reruns(value)
+    Integer(value.to_s, 10).tap { |runs| raise(ArgumentError) if runs.negative? }
+  rescue ArgumentError
+    raise(Kimera::UsageError, "--flaky-runs takes a whole number of reruns, got #{value.inspect}")
+  end
+
+  def measured(options, setting)
+    return unless options[:coverage] == false
+    raise(Kimera::UsageError, "#{setting} needs the coverage baseline; drop --no-coverage")
+  end
+
   def scoped(options, rest)
     targets = Kimera::CLI::Run::Targets.new(rest)
     { tests: tests(options[:cli_tests], options), configured_tests: tests([], options) }
-      .merge(paths: Kimera::Config.prefer(targets.paths, options[:paths], Kimera::FileSet::DEFAULT_GLOBS))
+      .merge(paths: Kimera::Config::Precedence.new(targets.paths, options[:paths]).chosen(Kimera::FileSet::DEFAULT_GLOBS))
       .merge(lines: targets.lines).merge(arrays(options))
   end
 
-  def tests(cli, options) = Kimera::Config.prefer(cli, options[:tests], Kimera::CLI::RunOptions::DEFAULT_TESTS)
+  def tests(cli, options)
+    Kimera::Config::Precedence.new(cli, options[:tests]).chosen(Kimera::CLI::RunOptions::DEFAULT_TESTS)
+  end
 
   def arrays(options)
-    { exclude: Array(options[:exclude]), ignore: Kimera::Config.ignores(options) }
+    { exclude: Array(options[:exclude]), ignore: Kimera::Config::Ignores.new(options).rules }
       .merge(isolate_when_covered_by: Array(options[:isolate_when_covered_by]), focus: Array(options[:focus]))
       .merge(methods: Array(options[:methods]))
   end
@@ -58,9 +95,11 @@ class Kimera::CLI::Run::Arguments
   def scope
     { exclude: [], exclude_tests: [], config: nil }
       .merge(ignore: [], isolate_db: false, isolated: false, rejudge: true)
-      .merge(fail_on_no_coverage: false, progress: nil, color: nil, quiet: false, verbose: false, log: nil)
+      .merge(fail_on_no_coverage: false, count_no_coverage: false)
+      .merge(progress: nil, color: nil, quiet: false, verbose: false, log: nil)
       .merge(pidfile: nil, summary: nil)
       .merge(isolate_when_covered_by: [], methods: [])
-      .merge(cli_tests: [])
+      .merge(cli_tests: [], attribution: "any", unit_tests: {}, cli_unit_tests: [], seed: nil, flaky_runs: 0)
+      .merge(test_quality: false)
   end
 end

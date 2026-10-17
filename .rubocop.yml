@@ -119,14 +119,51 @@ Kata/IoDiscipline:
     - eval/**/*
 
 # --------------------------------------------------------------------------
+# Object discipline: state a contract outside kimera's objects dictates.
+# --------------------------------------------------------------------------
+
+Kata/NoOutputArgument:
+  inherit_mode:
+    merge:
+      - AllowedNames
+      - Exclude
+  AllowedNames:
+    # Shared work queues worker threads drain; pop is the queue's own thread-safe API.
+    - queue
+    - sweep
+  Exclude:
+    # Swaps the wanted examples into RSpec's world.filtered_examples, the table RSpec runs groups from.
+    - lib/kimera/frameworks/group_scope.rb
+Kata/NoSetter:
+  inherit_mode:
+    merge:
+      - Exclude
+  Exclude:
+    # The process-wide switches every synthesized guard and Rails-prepended guard module reads.
+    - lib/kimera/runtime.rb
+    - lib/kimera/execution/overlay_guards.rb
+Kata/FrozenState:
+  inherit_mode:
+    merge:
+      - Exclude
+  Exclude:
+    # The injected runtime: its selector and open ledgers change by design, with no allocation on the hot path.
+    - lib/kimera/runtime.rb
+Kata/NoClassMethodLogic:
+  inherit_mode:
+    merge:
+      - AllowedNames
+  AllowedNames:
+    # Kimera::Operators.register, the documented API a custom-operator plugin file calls.
+    - register
+
+# --------------------------------------------------------------------------
 # kimera forks processes, not threads; a mutex here would only slow mutants.
 # --------------------------------------------------------------------------
 
 ThreadSafety/ClassInstanceVariable:
   Exclude:
     - spec/**/*
-    # Operator registry: written at load in the CLI parent, then read-only.
-    - lib/kimera/operators.rb
 ThreadSafety/ClassAndModuleAttributes:
   Exclude:
     - spec/**/*

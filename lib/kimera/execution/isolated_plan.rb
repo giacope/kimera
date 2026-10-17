@@ -30,17 +30,20 @@ class Kimera::Execution::IsolatedPlan
   def root = @_root ||= File.expand_path(@given)
 
   def tests(id, point)
-    all = selection.all
-    return all if Kimera::SelfProtection.protected?(File.join(root, point.file))
-    return all if !point.safe? || point.revisit
-    selection.recorded(id)
+    found = whole?(point) ? selection.all : selection.recorded(id)
+    screen = @options[:filter]
+    found && screen ? screen.keep(point.file, found) : found
   end
+
+  def settled(id, point) = @options[:filter]&.settle(id, whole?(point) ? selection.all : Array(selection.recorded(id)))
 
   def command(mirror, locations, ledger, first: false)
     child.command(mirror, child.request(locations, first: first), ledger: ledger, paths: mutables)
   end
 
   def suite = selection.all
+
+  def quality? = @options[:quality] == true
 
   def fastest(tests) = Kimera::Execution::Pace.new(@options.fetch(:timings, {})).fastest(tests)
 
@@ -57,11 +60,15 @@ class Kimera::Execution::IsolatedPlan
 
   private
 
+  def whole?(point)
+    Kimera::SelfProtection.new(File.join(root, point.file)).protected? || !point.safe? || point.revisit
+  end
+
   def selection = @_selection ||= TestSelection.new(all_tests: @tests, coverage: @options.fetch(:coverage, {}))
 
   def child
     @_child ||= ChildCommand.new(
-      framework: @options.fetch(:framework), test_files: @options.fetch(:test_files), root: root
+      framework: @options.fetch(:framework), test_files: @options.fetch(:test_files), root: root, seed: @options[:seed]
     )
   end
 end

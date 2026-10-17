@@ -71,6 +71,6 @@ RSpec.describe(Kimera::RegistryScan) do
 
   it "takes a method defined from a block argument as no block body" do
     call = Prism.parse("define_method(:x, &handler)").value.statements.body.first
-    expect(Kimera::Deferral.block(call)).to(be_nil)
+    expect(Kimera::Deferral.new(call).block).to(be_nil)
   end
 end

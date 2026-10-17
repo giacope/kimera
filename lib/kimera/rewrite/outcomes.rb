@@ -26,14 +26,15 @@ class Kimera::Rewrite::Outcomes
   private
 
   def misread?(node, directive)
-    Kimera::Rewrite::Conditions.misread?(Kimera::Rewrite::Directive.apply(node, directive), tested: tested[node])
+    applied = Kimera::Rewrite::Directive.new(directive).apply(node)
+    Kimera::Rewrite::Conditions.new(applied, tested: tested[node]).misread?
   rescue StandardError
     false
   end
 
-  def tested = @_tested ||= Kimera::Rewrite::Conditions.places(tree)
+  def tested = @_tested ||= Kimera::Rewrite::Conditions.new(tree).places
 
-  def tree = @_tree ||= Kimera::Rewrite::NumberedParams.normalize(Kimera::Unparse.parse(@source))
+  def tree = @_tree ||= Kimera::Rewrite::NumberedParams.new(Kimera::Unparse.parse(@source)).normalize
 
   def program(location, variant)
     programs[variant] ||= outcome(location, yield(variant))
@@ -45,23 +46,22 @@ class Kimera::Rewrite::Outcomes
 
   def rendered(location, directive)
     node = nodes[[location.start_offset, location.end_offset]]
-    node && form(Kimera::Rewrite::Directive.apply(node, directive))
+    node && form(Kimera::Rewrite::Directive.new(directive).apply(node))
   rescue StandardError
     nil
   end
 
   def nodes
-    @_nodes ||= index(tree, {})
+    @_nodes ||= spans(tree).uniq(&:first).to_h
   rescue StandardError
-    @_nodes = {}
+    @_nodes ||= {}
   end
 
-  def index(node, found)
-    return found unless node.is_a?(Parser::AST::Node)
+  def spans(node)
+    return [] unless node.is_a?(Parser::AST::Node)
     expression = node.location&.expression
-    found[[offsets[expression.begin_pos], offsets[expression.end_pos]]] ||= node if expression
-    node.children.each { |child| index(child, found) }
-    found
+    (expression ? [[[offsets[expression.begin_pos], offsets[expression.end_pos]], node]] : []) +
+      node.children.flat_map { |child| spans(child) }
   end
 
   def offsets = @_offsets ||= @source.each_char.with_object([0]) { |char, table| table << (table.last + char.bytesize) }

@@ -25,7 +25,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
   def harness(status)
     runner = instance_double(Kimera::CLI::Run::Pass)
-    allow(runner).to(receive(:call) { |ids, session| session.merge!(judged(ids, status)) })
+    allow(runner).to(receive(:call) { |ids| judged(ids, status) })
     allow(Kimera::CLI::Run::Pass).to(receive(:new).and_return(runner))
     allow(Kimera::Frameworks::ADAPTERS).to(receive(:load).and_return(nil))
     runner
@@ -44,7 +44,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
   def rows(document, status) = document["results"].select { |row| row["status"] == status }
 
-  def evaluated(ids) = have_received(:call).with(match_array(ids), anything)
+  def evaluated(ids) = have_received(:call).with(match_array(ids))
 
   def mutants = Kimera::RegistryScan.new.source(File.read("calc.rb"), file: "calc.rb").each.to_a
 

@@ -2,18 +2,26 @@
 
 module Kimera
   module Rewrite
-    module AstWalk
-      module_function
-
-      def rebuild(node, &)
-        return node unless node.is_a?(Parser::AST::Node)
-        yield(node.updated(nil, node.children.map { |child| rebuild(child, &) }), node)
+    class AstWalk
+      def initialize(root)
+        @root = root
       end
 
-      def visit(node, &)
+      def rebuild(&) = rebuilt(@root, &)
+
+      def visit(&) = visited(@root, &)
+
+      private
+
+      def rebuilt(node, &)
+        return node unless node.is_a?(Parser::AST::Node)
+        yield(node.updated(nil, node.children.map { |child| rebuilt(child, &) }), node)
+      end
+
+      def visited(node, &)
         return unless node.is_a?(Parser::AST::Node)
         yield(node)
-        node.children.each { |child| visit(child, &) }
+        node.children.each { |child| visited(child, &) }
       end
     end
   end

@@ -71,7 +71,7 @@ RSpec.describe(Kimera::CLI::Run) do
     stdout = report.last
     stdout.sync = false
     stdout.write("early,")
-    run = cli.tap { |detached| detached.__send__(:detach) }
+    run = cli.__send__(:detached)
     run.instance_variable_get(:@io).write("report")
     stdout.write("noise")
     stdout.flush

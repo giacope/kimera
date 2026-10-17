@@ -162,13 +162,13 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     allow(Kimera::CLI::Run::Sources).to(receive(:new).and_return(sources))
     diff = instance_double(Kimera::Incremental::GitDiff, lines: ["a.rb"])
     allow(Kimera::Incremental::GitDiff).to(receive(:new).with(since: "main", root: "/project").and_return(diff))
-    allow(Kimera::Plugins).to(receive(:load!).and_return([]))
+    allow(Kimera::Plugins).to(receive(:new).and_return(instance_double(Kimera::Plugins, load!: [])))
 
     cycle = runner.__send__(:cycle, options)
     expect(cycle).to(be_a(Kimera::CLI::Run::Cycle))
     expect(runner.__send__(:cycle, options.merge(since: nil))).to(be_a(Kimera::CLI::Run::Cycle))
     expect(runner.__send__(:digest)).to(be_a(Kimera::CLI::Run::Digest))
-    expect(Kimera::Plugins).to(have_received(:load!).with(["plugin.rb"], root: "/project").twice)
+    expect(Kimera::Plugins).to(have_received(:new).with(["plugin.rb"], root: "/project").twice)
     expect(diff).to(have_received(:lines).once)
   end
 
@@ -187,7 +187,8 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     expect(pass.__send__(:core)).to(
       eq(
         registry: registry, root: "/root", tests: %w[t1 t2], coverage: { 1 => ["t1"] }, timings: { "t1" => 0.5 },
-        progress: pass.__send__(:progress), jobs: 3, framework: "rspec", test_files: ["a_spec.rb"]
+        progress: pass.__send__(:progress), jobs: 3, framework: "rspec", test_files: ["a_spec.rb"],
+        filter: pass.__send__(:filter)
       )
     )
   end

@@ -4,7 +4,7 @@ require_relative "../support/syntax_types"
 require_relative "vocabulary"
 
 class Kimera::Operators::Base
-  SYNTAX = ->(node) { Kimera::Syntax.view(node) }
+  SYNTAX = ->(node) { Kimera::Syntax::View.new(node) }
   include Kimera::SyntaxTypes
   include Kimera::Operators::Vocabulary
 

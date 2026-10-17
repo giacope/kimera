@@ -9,18 +9,20 @@ end
 class Kimera::CLI
 end
 
-module Kimera::CLI::ReportFile
+class Kimera::CLI::ReportFile
   DEFAULT = "tmp/kimera/report.json"
 
-  module_function
-
-  def row(results, token)
-    results.find { |result| [result["mutant_id"].to_s, result["key"]].include?(token.to_s) }
+  def initialize(path)
+    @path = path
   end
 
-  def parse(path)
-    JSON.parse(File.read(path, encoding: Encoding::UTF_8))
+  def document
+    @_document ||= JSON.parse(File.read(@path, encoding: Encoding::UTF_8))
   rescue JSON::ParserError => error
-    raise(Kimera::UsageError, "unreadable report #{path}: #{error.message}")
+    raise(Kimera::UsageError, "unreadable report #{@path}: #{error.message}")
   end
+
+  def results = document.fetch("results", [])
+
+  def row(token) = results.find { |result| [result["mutant_id"].to_s, result["key"]].include?(token.to_s) }
 end

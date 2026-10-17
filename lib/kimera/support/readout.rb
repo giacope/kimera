@@ -5,18 +5,21 @@ require_relative "duration"
 module Kimera
 end
 
-module Kimera::Readout
-  module_function
+class Kimera::Readout
+  Label =
+    Data.define(:id, :entry) do
+      def text
+        name = entry["name"]
+        return id unless name
+        [entry["location"], name].compact.join("  ")
+      end
+    end
 
-  def label(id, entry)
-    name = entry["name"]
-    return id unless name
-    [entry["location"], name].compact.join("  ")
+  def initialize(value)
+    @value = value
   end
 
-  def lines(text)
-    text.to_s.split("\n").map(&:rstrip).reject(&:empty?)
-  end
+  def lines = @value.to_s.split("\n").map(&:rstrip).reject(&:empty?)
 
-  def brief(seconds) = Kimera::Duration.new(seconds).brief
+  def brief = Kimera::Duration.new(@value).brief
 end

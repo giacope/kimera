@@ -11,7 +11,11 @@ end
 class Kimera::Report::Formats
   NAMES = %w[text json ndjson github sarif markdown].freeze
   GITHUB_SHOWN = 10
-  FINDINGS = { "survived" => "surviving", "no_coverage" => "uncovered", "harness_error" => "unjudged" }.freeze
+  FINDINGS = {
+    "survived" => "surviving", "uncovered_by_unit" => "unit-uncovered", "no_coverage" => "uncovered",
+    "harness_error" => "unjudged"
+  }.freeze
+  SURVIVING = %w[survived uncovered_by_unit].freeze
   SUMMARY = %w[schema_version counts mutation_score run].freeze
   RECORDS = { "result" => "results", "leak" => "leaks" }.freeze
 
@@ -71,7 +75,7 @@ class Kimera::Report::Formats
 
   def findings(document) = document.fetch("results").select { |result| FINDINGS.key?(result.fetch("status")) }
 
-  def level(result) = result["status"] == "survived" ? "error" : "warning"
+  def level(result) = SURVIVING.include?(result["status"]) ? "error" : "warning"
 
   def fields(results)
     first = results.first

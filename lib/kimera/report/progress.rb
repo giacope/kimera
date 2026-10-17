@@ -19,7 +19,7 @@ class Kimera::Report::Progress
   end
 
   def start(total, label = "mutants")
-    tally.begin!(Integer(total), label, monotonic)
+    phases << Kimera::Report::Tally.new(Integer(total), label, @clock.call)
     emit if visible?
   end
 
@@ -29,7 +29,7 @@ class Kimera::Report::Progress
   end
 
   def finish
-    return surface.clear unless tally.complete?
+    return surface.clear unless phases.last.complete?
     surface.commit
   end
 
@@ -45,20 +45,20 @@ class Kimera::Report::Progress
 
   def surface = @_surface ||= screen.surface
 
-  def tally = @_tally ||= Kimera::Report::Tally.new
+  def tally = phases.last
+
+  def phases = @_phases ||= [Kimera::Report::Tally.new(0, nil, 0.0)]
 
   def visible? = enabled? && tally.running?
 
-  def due? = surface.due?(monotonic, cadence)
+  def due? = surface.due?(@clock.call, cadence)
 
   def cadence = @redraw || surface.cadence
 
   def emit
-    now = monotonic
+    now = @clock.call
     surface.paint(frame(now), now)
   end
 
   def frame(now) = screen.interactive? ? tally.line(now) : tally.plain(now)
-
-  def monotonic = @clock.call
 end

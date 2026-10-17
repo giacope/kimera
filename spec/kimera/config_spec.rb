@@ -7,7 +7,7 @@ RSpec.describe(Kimera::Config) do
   def with_config(yaml)
     Dir.mktmpdir do |dir|
       File.write(File.join(dir, ".kimera.yml"), yaml)
-      yield(described_class.root(root: dir))
+      yield(described_class.new(File.join(dir, ".kimera.yml")).options)
     end
   end
 
@@ -47,7 +47,7 @@ RSpec.describe(Kimera::Config) do
   end
 
   it "returns an empty hash when no config exists" do
-    Dir.mktmpdir { |dir| expect(described_class.root(root: dir)).to(eq({})) }
+    Dir.mktmpdir { |dir| expect(described_class.new(File.join(dir, ".kimera.yml")).options).to(eq({})) }
   end
 
   it "normalizes the framework and jobs keys", :aggregate_failures do
@@ -95,7 +95,7 @@ RSpec.describe(Kimera::Config) do
             reason: pre-adoption debt
       YAML
       File.write(File.join(dir, ".kimera.yml"), "baseline: .kimera-baseline.yml\n#{normalized_yaml.lines.last(5).join}")
-      described_class.root(root: dir)
+      described_class.new(File.join(dir, ".kimera.yml")).options
     end
   end
 
@@ -107,11 +107,13 @@ RSpec.describe(Kimera::Config) do
     expect(options.fetch(:baseline_ignore)).to(eq([accepted]))
   end
 
+  def ignores(options) = described_class::Ignores.new(options).rules
+
   it "applies baseline entries after local ones unless --no-baseline cleared baseline", :aggregate_failures do
     options = with_baseline
-    expect(described_class.ignores(options)).to(eq(normalized_ignore + [accepted]))
-    expect(described_class.ignores(options.merge(baseline: false))).to(eq(normalized_ignore))
-    expect(described_class.ignores({})).to(eq([]))
+    expect(ignores(options)).to(eq(normalized_ignore + [accepted]))
+    expect(ignores(options.merge(baseline: false))).to(eq(normalized_ignore))
+    expect(ignores({})).to(eq([]))
   end
 
   it "omits keys that are not present" do
@@ -144,7 +146,7 @@ RSpec.describe(Kimera::Config) do
       Dir.mktmpdir do |dir|
         path = File.join(dir, "custom.yml")
         File.write(path, "jobs: 7\n")
-        expect(described_class.parse(["--config", path, "app"])).to(eq(jobs: 7))
+        expect(described_class.parse(["--config", path, "app"]).options).to(eq(jobs: 7))
       end
     end
 
@@ -157,22 +159,56 @@ RSpec.describe(Kimera::Config) do
     it "falls back to .kimera.yml in the working directory" do
       Dir.mktmpdir do |dir|
         File.write(File.join(dir, ".kimera.yml"), "jobs: 3\n")
-        Dir.chdir(dir) { expect(described_class.parse(["app"])).to(eq(jobs: 3)) }
+        Dir.chdir(dir) { expect(described_class.parse(["app"]).options).to(eq(jobs: 3)) }
       end
     end
   end
 
-  describe ".prefer" do
+  describe described_class::Precedence do
+    def prefer(cli, configured, default) = described_class.new(cli, configured).chosen(default)
+
     it "takes the command line over the config file, and the config over the default", :aggregate_failures do
-      expect(described_class.prefer(["cli"], ["config"], ["default"])).to(eq(["cli"]))
-      expect(described_class.prefer([], ["config"], ["default"])).to(eq(["config"]))
-      expect(described_class.prefer([], [], ["default"])).to(eq(["default"]))
+      expect(prefer(["cli"], ["config"], ["default"])).to(eq(["cli"]))
+      expect(prefer([], ["config"], ["default"])).to(eq(["config"]))
+      expect(prefer([], [], ["default"])).to(eq(["default"]))
     end
 
     it "hands back a copy of the default, so a caller cannot mutate it" do
       default = ["app/**/*.rb"].freeze
 
-      expect { described_class.prefer([], [], default) << "x" }.not_to(raise_error)
+      expect { prefer([], [], default) << "x" }.not_to(raise_error)
+    end
+  end
+
+  describe Kimera::Config::Attribution do
+    def attribution(**options) = described_class.new(options)
+
+    it "takes any or unit, defaulting to any" do
+      modes = [nil, "unit", :any].map { |mode| attribution(attribution: mode).mode }
+      expect(modes).to(eq(%w[any unit any]))
+    end
+
+    it "rejects any other mode, naming the choices" do
+      expect { attribution(attribution: "strict").mode }
+        .to(raise_error(Kimera::UsageError, 'unknown attribution "strict" (choose: any, unit)'))
+    end
+
+    it "reads a config mapping, wrapping a lone pattern in a list", :aggregate_failures do
+      expect(attribution.rules).to(eq({}))
+      expect(attribution(unit_tests: { "lib/**/*.rb" => "t/{name}.rb", a: %w[b c] }).rules)
+        .to(eq("lib/**/*.rb" => ["t/{name}.rb"], "a" => %w[b c]))
+    end
+
+    it "reads --unit-tests GLOB=PATTERN pairs over the config's, splitting at the first =" do
+      given = attribution(cli_unit_tests: ["lib/**/*.rb=t/{name}=x.rb"], unit_tests: { "a" => "b" })
+      expect(given.rules).to(eq("lib/**/*.rb" => ["t/{name}=x.rb"]))
+    end
+
+    it "rejects a pair without both halves" do
+      %w[lib/**/*.rb =t.rb lib=].each do |bad|
+        expect { attribution(cli_unit_tests: [bad]).rules }
+          .to(raise_error(Kimera::UsageError, "--unit-tests takes SOURCE_GLOB=TEST_PATTERN, got #{bad.inspect}"))
+      end
     end
   end
 end

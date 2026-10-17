@@ -70,6 +70,8 @@ class Kimera::Execution::Harness
 
   def timings = options.fetch(:timings, {})
 
+  def flakes = options[:flakes]
+
   def skipped = state.skipped
 
   private
@@ -92,7 +94,7 @@ class Kimera::Execution::Harness
 
   def jobs = @_jobs ||= [Integer(options.fetch(:jobs, 1)), 1].max
 
-  def progress = options.fetch(:progress, Kimera::Execution::NullProgress)
+  def progress = options.fetch(:progress, Kimera::Execution::NullProgress::NONE)
 
   def driver = rig.driver
 
@@ -102,9 +104,9 @@ class Kimera::Execution::Harness
 
   def rig
     @_rig ||= Kimera::Execution::Rig.new(
-      registry: registry, adapter: adapter, isolation: isolation, root: root,
-      soft: soft, hard: hard, jobs: jobs,
-      coverage: coverage, spawner: options[:spawner], progress: progress, aliases: state.aliases
+      registry: registry, adapter: adapter, isolation: isolation, root: root, soft: soft, hard: hard, jobs: jobs,
+      coverage: coverage, spawner: options[:spawner], progress: progress, aliases: state.aliases,
+      **options.slice(:filter, :test_quality)
     )
   end
 
@@ -132,12 +134,11 @@ class Kimera::Execution::Harness
   def sift!(scope)
     trace.quarantine!(coverage)
     Kimera::Execution::OrderTrace.new(registry).follow!(baseline, coverage, scope: scope, progress: progress)
+    options[:flakes] = rig.hunt(coverage, scope, options)
   end
 
   def arm(timings)
-    driver.coverage = coverage
-    driver.budget = budget(timings)
-    driver.timings = timings
+    driver.arm(coverage: coverage, budget: budget(timings), timings: timings)
   end
 
   def parallel(pass)

@@ -13,25 +13,25 @@ class Kimera::Operators::Visibility < Kimera::Operators::Base
   ].freeze
   NAMED = /\A[a-z_]\w*[?!=]?\z/i
 
+  def initialize(listed = Kimera::Operators::Survey::NONE)
+    super()
+    @listed = listed
+  end
+
   def key = "visibility"
 
   def body? = true
 
   def toggles? = true
 
-  def survey(root)
-    @_listed = Kimera::Operators::PublicMethods.new(root)
-    self
-  end
+  def survey(root) = self.class.new(Kimera::Operators::PublicMethods.new(root))
 
   def variants(node, **)
-    return unless node.is_a?(DefNode) && listed.include?(node) && named?(node.name)
+    return unless node.is_a?(DefNode) && @listed.include?(node) && named?(node.name)
     solo("public => private (#{node.name})", "privatize")
   end
 
   private
-
-  def listed = @_listed || Kimera::Operators::Survey::NONE
 
   def named?(name) = name.match?(NAMED) && !PROTOCOL.include?(name)
 end

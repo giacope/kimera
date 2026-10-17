@@ -12,33 +12,42 @@ module Kimera
       BINDERS = /(ParameterNode|BlockLocalVariableNode)\z/
       WRITES = /LocalVariable\w*(Write|Target)Node\z/
 
+      class Scope
+        def initialize(names)
+          @names = Set.new(names)
+        end
+
+        def bound?(name) = @names.include?(name)
+
+        def bind(name) = @names.add(name)
+      end
+
       private
 
-      def collect(table) = table.tap { visit(@root, Set.new, table) }
+      def nodes = visit(@root, nil)
 
-      def visit(node, bound, table)
-        bound = Set.new(parameters(node)) if SCOPES.any? { |kind| node.is_a?(kind) }
-        bind(node, bound, table) if node.class.name.match?(WRITES)
-        node.compact_child_nodes.each { |child| visit(child, bound, table) }
+      def visit(node, scope)
+        scope = Scope.new(parameters(node)) if SCOPES.any? { |kind| node.is_a?(kind) }
+        (node.class.name.match?(WRITES) ? bind(node, scope) : []) +
+          node.compact_child_nodes.flat_map { |child| visit(child, scope) }
       end
 
-      def bind(node, bound, table)
-        name = node.name
-        table << node if rebound?(node, bound) && node.is_a?(SyntaxTypes::LocalVariableWriteNode)
-        bound << name
+      def bind(node, scope)
+        rebound = rebound?(node, scope) && node.is_a?(SyntaxTypes::LocalVariableWriteNode)
+        scope.bind(node.name)
+        rebound ? [node] : []
       end
 
-      def rebound?(node, bound) = node.depth.positive? || bound.include?(node.name)
+      def rebound?(node, scope) = node.depth.positive? || scope.bound?(node.name)
 
-      def parameters(node, found = [])
+      def parameters(node)
         held = node.respond_to?(:parameters) ? node.parameters : nil
-        names(held, found) if held
-        found
+        held ? names(held) : []
       end
 
-      def names(node, found)
-        found << node.name if node.class.name.match?(BINDERS) && node.respond_to?(:name) && node.name
-        node.compact_child_nodes.each { |child| names(child, found) }
+      def names(node)
+        (node.class.name.match?(BINDERS) && node.respond_to?(:name) && node.name ? [node.name] : []) +
+          node.compact_child_nodes.flat_map { |child| names(child) }
       end
     end
   end
