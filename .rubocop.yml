@@ -119,6 +119,18 @@ Kata/IoDiscipline:
     - eval/**/*
 
 # --------------------------------------------------------------------------
+# Object discipline: state a contract outside kimera's objects dictates.
+# --------------------------------------------------------------------------
+
+Kata/NoOutputArgument:
+  inherit_mode:
+    merge:
+      - AllowedNames
+  AllowedNames:
+    # Shared work queues worker threads drain; pop is the queue's own thread-safe API.
+    - queue
+
+# --------------------------------------------------------------------------
 # kimera forks processes, not threads; a mutex here would only slow mutants.
 # --------------------------------------------------------------------------
 

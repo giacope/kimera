@@ -75,24 +75,24 @@ module KimeraEval
     class Peak
       def initialize(root)
         @root = root
-        @single = 0
-        @total = 0
       end
 
       def sample
         sizes = tree.to_h { |pid| [pid, rss(pid)] }
         sizes.each { |pid, bytes| seen[pid] = [seen[pid], bytes].max }
-        @single = [@single, *sizes.values].max
-        @total = [@total, sizes.values.sum].max
+        totals << sizes.values.sum
       end
 
       def to_h
-        { "max_process_mb" => megabytes(@single), "max_tree_mb" => megabytes(@total), "processes" => seen.size }
+        { "max_process_mb" => megabytes([0, *seen.values].max), "max_tree_mb" => megabytes([0, *totals].max) }
+          .merge("processes" => seen.size)
       end
 
       private
 
       def seen = @_seen ||= Hash.new(0)
+
+      def totals = @_totals ||= []
 
       def megabytes(bytes) = (bytes / 1024.0 / 1024).round(1)
 
