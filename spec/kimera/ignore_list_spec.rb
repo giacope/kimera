@@ -26,7 +26,7 @@ RSpec.describe(Kimera::IgnoreList) do
   end
 
   def ids(rule)
-    described_class.ids(registry, [rule])
+    described_class.new([rule]).ids(registry)
   end
 
   it "matches by file + line + label" do
@@ -42,8 +42,8 @@ RSpec.describe(Kimera::IgnoreList) do
 
   it "matches only points that start on the line given as starts:, not ones spanning it", :aggregate_failures do
     multi = Kimera::RegistryScan.new.source("def m(a)\n  if a\n    a > 1\n  end\nend\n", file: "m.rb")
-    starting = described_class.ids(multi, [{ file: "m.rb", starts: 3 }])
-    spanning = described_class.ids(multi, [{ file: "m.rb", line: 3 }])
+    starting = described_class.new([{ file: "m.rb", starts: 3 }]).ids(multi)
+    spanning = described_class.new([{ file: "m.rb", line: 3 }]).ids(multi)
     expect(starting.map { |id| multi.index[id].location.start_line }.uniq).to(eq([3]))
     expect(spanning.size).to(be > starting.size)
   end
@@ -83,7 +83,7 @@ RSpec.describe(Kimera::IgnoreList) do
 
   it "returns nothing for a non-matching rule", :aggregate_failures do
     expect(ids(file: "calc.rb", line: 999)).to(be_empty)
-    expect(described_class.ids(registry, [])).to(be_empty)
+    expect(described_class.new([]).ids(registry)).to(be_empty)
   end
 
   it "matches nothing for a rule that omits the file field", :aggregate_failures do
@@ -112,21 +112,21 @@ RSpec.describe(Kimera::IgnoreList) do
   describe ".stale" do
     it "flags a rule whose file is in the registry but whose anchor drifted" do
       drifted = { file: "calc.rb", line: 999, label: "> => <", original: "x >= y" }
-      expect(described_class.stale(registry, [drifted])).to(eq([drifted]))
+      expect(described_class.new([drifted]).stale(registry)).to(eq([drifted]))
     end
 
     it "does not flag a matching rule" do
       live = { file: "calc.rb", line: 3, label: "> => <" }
-      expect(described_class.stale(registry, [live])).to(be_empty)
+      expect(described_class.new([live]).stale(registry)).to(be_empty)
     end
 
     it "does not flag a rule for a file outside this run's scope" do
       ignored = { file: "other/thing.rb", line: 3 }
-      expect(described_class.stale(registry, [ignored])).to(be_empty)
+      expect(described_class.new([ignored]).stale(registry)).to(be_empty)
     end
 
     it "ignores rules without a file field" do
-      expect(described_class.stale(registry, [{ line: 3 }])).to(be_empty)
+      expect(described_class.new([{ line: 3 }]).stale(registry)).to(be_empty)
     end
   end
 
@@ -149,7 +149,7 @@ RSpec.describe(Kimera::IgnoreList) do
       RUBY
     end
 
-    def resolve(*rules) = described_class.resolve(registry, rules)
+    def resolve(*rules) = described_class.new(rules).resolve(registry)
 
     def labeled(label, line)
       registry.each.find { |mutant, point| mutant.label == label && point.location.start_line == line }.first.id
@@ -183,7 +183,7 @@ RSpec.describe(Kimera::IgnoreList) do
       lone = Kimera::RegistryScan.new.source("def m(a)\n  !a\nend\n", file: "lone.rb")
       rule = { file: "lone.rb", line: 9 }
       expect(lone.count).to(eq(1))
-      expect(described_class.resolve(lone, [rule]).then { |found| [found.ids, found.stale] }).to(eq([[], [rule]]))
+      expect(described_class.new([rule]).resolve(lone).then { |found| [found.ids, found.stale] }).to(eq([[], [rule]]))
     end
 
     it "reports no move for a rule that still matches at its line" do

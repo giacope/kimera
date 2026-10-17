@@ -19,7 +19,7 @@ class Kimera::Execution::Schemata
   end
 
   def overlay!
-    Kimera::Execution::OverlayGuards.install!
+    Kimera::Execution::OverlayGuards.new.install!
     aliases.follow { weave(@registry.files) + weave(unresolved) }.tap { announce }
   end
 
@@ -43,7 +43,7 @@ class Kimera::Execution::Schemata
   def load(path)
     file = File.join(root, path)
     return [] unless File.file?(file)
-    return [] if Kimera::SelfProtection.protected?(file)
+    return [] if Kimera::SelfProtection.new(file).protected?
     overlay(path, file)
   end
 
@@ -59,7 +59,7 @@ class Kimera::Execution::Schemata
 
   def synthesize(path, file)
     source = File.read(file, encoding: Encoding::UTF_8)
-    synth.synthesize(path, Kimera::BodyTrim.trim(file, source, @registry.at(path).select(&:safe?).map(&:location)))
+    synth.synthesize(path, Kimera::BodyTrim.new(source, @registry.at(path).select(&:safe?).map(&:location)).trim(file))
   end
 
   def apply(result, file)
@@ -88,7 +88,7 @@ class Kimera::Execution::Schemata
 
   def silence(&)
     original, captured = capture
-    Kimera::Execution::OverlayGuards.overlay(&).tap { original.write(captured.string) }
+    Kimera::Execution::OverlayGuards.new.overlay(&).tap { original.write(captured.string) }
   ensure
     $stderr = original
   end

@@ -29,7 +29,7 @@ class Kimera::Execution::Overrides
 
   private
 
-  def file = @_file ||= Kimera::Execution::Redefinition.canonical(@given)
+  def file = @_file ||= Kimera::Execution::Origin.new(@given).canonical
 
   def defined = visit(Prism.parse(@source).value, [], :instance)
 
@@ -67,18 +67,18 @@ class Kimera::Execution::Overrides
   def elsewhere(holder, name)
     found = lookup(holder, name)
     return unless found && found.owner == holder && !here?(found)
-    Held.new(holder, name, found, Kimera::Execution::Redefinition.visibility(holder, name))
+    Held.new(holder, name, found, Kimera::Execution::Redefinition.new(holder, name).visibility)
   end
 
   def restore(entry)
     holder, name, kept, visibility = entry.deconstruct
     fresh = lookup(holder, name)
     return unless fresh && here?(fresh)
-    Kimera::Execution::Redefinition.redefine(holder, name, kept, visibility)
+    Kimera::Execution::Redefinition.new(holder, name).redefine(kept, visibility)
     entry.with(definition: fresh)
   end
 
-  def here?(method) = Kimera::Execution::Redefinition.canonical(Kimera::Execution::Redefinition.source(method)) == file
+  def here?(method) = Kimera::Execution::Origin.new(method.source_location&.first).canonical == file
 
   def lookup(holder, name)
     LOOKUP.bind_call(holder, name)

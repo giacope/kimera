@@ -12,7 +12,7 @@ require_relative "null_progress"
 require_relative "zygote"
 
 class Kimera::Execution::BaselinePass
-  def initialize(adapter:, registry:, progress: Kimera::Execution::NullProgress)
+  def initialize(adapter:, registry:, progress: Kimera::Execution::NullProgress::NONE)
     @adapter = adapter
     @registry = registry
     @progress = progress

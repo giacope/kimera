@@ -305,15 +305,15 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
   describe "path scoping" do
     it "strips the root prefix when the path is under root" do
       root = "/project"
-      expect(Kimera::FileSet.relative("/project/app/x.rb", root)).to(eq("app/x.rb"))
+      expect(Kimera::FileSet::Root.new(root).relative("/project/app/x.rb")).to(eq("app/x.rb"))
     end
 
     it "returns the original path when it is not under root" do
-      expect(Kimera::FileSet.relative("elsewhere/x.rb", "/project")).to(eq("elsewhere/x.rb"))
+      expect(Kimera::FileSet::Root.new("/project").relative("elsewhere/x.rb")).to(eq("elsewhere/x.rb"))
     end
 
     it "does not treat a sibling sharing a string prefix as under root" do
-      expect(Kimera::FileSet.relative("/project-two/x.rb", "/project")).to(eq("/project-two/x.rb"))
+      expect(Kimera::FileSet::Root.new("/project").relative("/project-two/x.rb")).to(eq("/project-two/x.rb"))
     end
   end
 
@@ -405,7 +405,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
     def options(**over)
       {
-        paths: ["calc.rb"], exclude: [], operators: Kimera::Operators.keys,
+        paths: ["calc.rb"], exclude: [], operators: Kimera::Operators::CATALOG.keys,
         source_root: ".", registry: nil
       }.merge(over)
     end
@@ -577,7 +577,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       journal = File.join(dir, "session.json")
       saved(registry, journal)
       out, status = capture(["calc.rb", "other.rb", "--since", "main", "--session", journal])
-      [out, status, Kimera::Incremental::Selection.select(registry, "calc.rb" => Set[2])]
+      [out, status, Kimera::Incremental::Selection.new("calc.rb" => Set[2]).ids(registry)]
     end
 
     def unmutated(*flags)

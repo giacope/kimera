@@ -26,7 +26,7 @@ class Kimera::RegistryScan::SourceFile
 
   private
 
-  def tainted = @_tainted ||= Kimera::Memoization.ranges(@source) + removals.ranges
+  def tainted = @_tainted ||= Kimera::Memoization.new(@source).ranges + removals.ranges
 
   def guards = @_guards ||= Kimera::MemoGuard::Source.new(@source).exemptions + removals.exemptions
 

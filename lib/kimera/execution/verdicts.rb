@@ -66,7 +66,7 @@ class Kimera::Execution::Verdicts
   end
 
   def harness?(result)
-    Kimera::SelfProtection.critical?(result.file)
+    Kimera::SelfProtection.new(result.file).critical?
   end
 
   def detail(status)

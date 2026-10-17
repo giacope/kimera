@@ -238,7 +238,7 @@ RSpec.describe(Kimera::Overlay) do
       end
 
       it "raises Unbakeable when the spliced method would not parse" do
-        allow(Kimera::Unparse).to(receive(:unparse).and_wrap_original) do |original, node|
+        allow(Unparser).to(receive(:unparse).and_wrap_original) do |original, node|
           %i[def defs].include?(node.type) ? "def broken(" : original.call(node)
         end
         expect { bake("size * LIMIT") }.to(raise_error(described_class::Unbakeable, /could not write its bake/))
@@ -247,7 +247,7 @@ RSpec.describe(Kimera::Overlay) do
 
     it "raises Unbakeable, naming the unparser failure, when unparser can't write the bake" do
       mutant = registry.each.first.first
-      allow(Kimera::Unparse).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
+      allow(Unparser).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
       expect { synth.bake("x.rb", source, mutant.id) }.to(
         raise_error(described_class::Unbakeable, "unparser could not write its bake (KeyError: key not found: :lvar)")
       )

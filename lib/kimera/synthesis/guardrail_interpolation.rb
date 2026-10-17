@@ -39,7 +39,7 @@ module Kimera
     end
 
     def prune(node)
-      Kimera::Rewrite::AstWalk.rebuild(node) do |rebuilt, _original|
+      Kimera::Rewrite::AstWalk.new(node).rebuild do |rebuilt, _original|
         INTERPOLATING.include?(rebuilt.type) ? filter(rebuilt) : rebuilt
       end
     end

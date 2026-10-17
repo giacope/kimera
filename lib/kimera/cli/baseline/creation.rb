@@ -61,7 +61,7 @@ class Kimera::CLI::Baseline::Creation
   end
 
   def survivors(path)
-    Kimera::CLI::ReportFile.parse(path).fetch("results", []).select { |row| row["status"] == "survived" }
+    Kimera::CLI::ReportFile.new(path).results.select { |row| row["status"] == "survived" }
   end
 
   def entry(row, reason)

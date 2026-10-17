@@ -26,14 +26,15 @@ class Kimera::Rewrite::Outcomes
   private
 
   def misread?(node, directive)
-    Kimera::Rewrite::Conditions.misread?(Kimera::Rewrite::Directive.apply(node, directive), tested: tested[node])
+    applied = Kimera::Rewrite::Directive.new(directive).apply(node)
+    Kimera::Rewrite::Conditions.new(applied, tested: tested[node]).misread?
   rescue StandardError
     false
   end
 
-  def tested = @_tested ||= Kimera::Rewrite::Conditions.places(tree)
+  def tested = @_tested ||= Kimera::Rewrite::Conditions.new(tree).places
 
-  def tree = @_tree ||= Kimera::Rewrite::NumberedParams.normalize(Kimera::Unparse.parse(@source))
+  def tree = @_tree ||= Kimera::Rewrite::NumberedParams.new(Kimera::Unparse.parse(@source)).normalize
 
   def program(location, variant)
     programs[variant] ||= outcome(location, yield(variant))
@@ -45,7 +46,7 @@ class Kimera::Rewrite::Outcomes
 
   def rendered(location, directive)
     node = nodes[[location.start_offset, location.end_offset]]
-    node && form(Kimera::Rewrite::Directive.apply(node, directive))
+    node && form(Kimera::Rewrite::Directive.new(directive).apply(node))
   rescue StandardError
     nil
   end

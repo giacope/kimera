@@ -64,7 +64,7 @@ class Kimera::CLI::Run
   def parse(argv) = Kimera::CLI::Run::Arguments.new.parse(argv)
 
   def cycle(options)
-    Kimera::Plugins.load!(options[:require], root: options[:source_root])
+    Kimera::Plugins.new(options[:require], root: options[:source_root]).load!
     changed = changes(options)
     registry = Kimera::CLI::Run::Sources.new(errors: @errors).load(options, changed)
     Kimera::CLI::Run::Cycle.new(options, registry, changed, digest: digest(options))

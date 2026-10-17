@@ -20,7 +20,7 @@ class Kimera::Guardrail
       def apply(rebuilt, original)
         expression = original.location&.expression
         return rebuilt unless expression && map.span(expression) == span
-        Kimera::Rewrite::Directive.apply(rebuilt, directive)
+        Kimera::Rewrite::Directive.new(directive).apply(rebuilt)
       end
     end
 
@@ -35,7 +35,7 @@ class Kimera::Guardrail
   end
 
   def rewrite(node)
-    [Kimera::Unparse.unparse(transform(node)), applied]
+    [Kimera::Unparse.new(transform(node)).source, applied]
   end
 
   def transform(node) = weave(node).first
@@ -48,7 +48,7 @@ class Kimera::Guardrail
   private
 
   def spans
-    Set.new.tap { |found| Kimera::Rewrite::AstWalk.visit(@map.ast) { |node| found << span(node) } }
+    Set.new.tap { |found| Kimera::Rewrite::AstWalk.new(@map.ast).visit { |node| found << span(node) } }
   end
 
   def span(node)
@@ -67,7 +67,7 @@ class Kimera::Guardrail
 
   def overlay(target, directive)
     patch = Patch.new(@map, target, directive)
-    Kimera::Rewrite::AstWalk.rebuild(@map.ast) do |rebuilt, original|
+    Kimera::Rewrite::AstWalk.new(@map.ast).rebuild do |rebuilt, original|
       reopen(patch.apply(rebuilt, original))
     end
   end

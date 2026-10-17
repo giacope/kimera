@@ -4,46 +4,56 @@ require "prism"
 
 module Kimera
   module Execution
-    module ConcernOverrides
-      module_function
-
+    class ConcernOverrides
       MACROS = %i[scope has_many has_one belongs_to has_and_belongs_to_many].freeze
+      SLOT = :kimera_concern_overrides
+
+      Skipping =
+        Data.define(:klass) do
+          def include?(name)
+            held, names = Thread.current[SLOT]
+            held.equal?(klass) && names.include?(name.to_s)
+          end
+        end
 
       GUARD =
         Module.new do
           MACROS.each do |macro|
             define_method(macro) do |name = nil, *words, **options, &block|
-              return if ConcernOverrides.skipping?(self, name)
+              return if Skipping.new(self).include?(name)
               super(name, *words, **options, &block)
             end
           end
         end
 
-      def reapply(klass, concern, block)
-        klass.singleton_class.prepend(GUARD)
-        skipping(klass, declared(klass, concern)) { klass.class_eval(&block) }
+      def initialize(klass, concern)
+        @klass = klass
+        @concern = concern
       end
 
-      def skipping(klass, names, thread = Thread.current)
-        previous = thread[:kimera_concern_overrides]
-        thread[:kimera_concern_overrides] = [klass, names]
+      def reapply(block)
+        @klass.singleton_class.prepend(GUARD)
+        skipping(declared) { @klass.class_eval(&block) }
+      end
+
+      private
+
+      def skipping(names)
+        thread = Thread.current
+        previous = thread[SLOT]
+        thread[SLOT] = [@klass, names]
         yield
       ensure
-        thread[:kimera_concern_overrides] = previous
+        thread[SLOT] = previous
       end
 
-      def skipping?(klass, name)
-        held, names = Thread.current[:kimera_concern_overrides]
-        held.equal?(klass) && names.include?(name.to_s)
-      end
-
-      def declared(klass, concern)
-        after(calls(Prism.parse_file(source(klass)).value), concern.name.split("::").last)
+      def declared
+        after(calls(Prism.parse_file(source).value), @concern.name.split("::").last)
       rescue StandardError
         []
       end
 
-      def source(klass) = Object.const_source_location(klass.name).first
+      def source = Object.const_source_location(@klass.name).first
 
       def after(calls, tail)
         calls.drop_while { |call| !mixin?(call, tail) }.drop(1).filter_map { |call| declaration(call) }
@@ -59,10 +69,8 @@ module Kimera
         first.unescaped if MACROS.include?(call.name) && first.is_a?(Prism::SymbolNode)
       end
 
-      def calls(node, found = [])
-        found << node if node.is_a?(Prism::CallNode)
-        node.compact_child_nodes.each { |child| calls(child, found) }
-        found
+      def calls(node)
+        (node.is_a?(Prism::CallNode) ? [node] : []) + node.compact_child_nodes.flat_map { |child| calls(child) }
       end
     end
   end

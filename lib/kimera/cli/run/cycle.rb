@@ -24,14 +24,14 @@ class Kimera::CLI::Run::Cycle
   def call
     @digest.verbose(@options) if @options[:verbose]
     @registry.narrow!(@changed) if @changed
-    scope(@changed && Kimera::Incremental::Selection.select(@registry, @changed))
+    scope(@changed && Kimera::Incremental::Selection.new(@changed).ids(@registry))
   end
 
   private
 
   def scope(selected)
     eligible = focus(Kimera::CLI::Run::Aim.new(@registry, @options).restrict(selected || @registry.index.keys))
-    resolution = Kimera::IgnoreList.resolve(@registry, @options[:ignore] + inline)
+    resolution = Kimera::IgnoreList.new(@options[:ignore] + inline).resolve(@registry)
     ignored = resolution.ids & eligible
     notify(selected, ignored, resolution)
     session(eligible - ignored, ignored)

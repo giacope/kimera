@@ -70,7 +70,7 @@ module Kimera
 
     def definitions(root)
       nodes = []
-      Kimera::Rewrite::AstWalk.visit(root) { |node| nodes << node if %i[def defs].include?(node.type) }
+      Kimera::Rewrite::AstWalk.new(root).visit { |node| nodes << node if %i[def defs].include?(node.type) }
       nodes
     end
 

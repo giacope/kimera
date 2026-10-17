@@ -725,9 +725,9 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       explicit.run(["--since=HEAD", "app"])
       expect(explicit).not_to(have_received(:reference))
       expect(runner).to(have_received(:run).with(["--since=HEAD", "app"]))
-      expect(Kimera::CLI::Argv.option?(["--since", "main"], "--since")).to(be(true))
-      expect(Kimera::CLI::Argv.option?(["--since=main"], "--since")).to(be(true))
-      expect(Kimera::CLI::Argv.option?(["app"], "--since")).to(be(false))
+      expect(Kimera::CLI::Argv.new(["--since", "main"]).option?("--since")).to(be(true))
+      expect(Kimera::CLI::Argv.new(["--since=main"]).option?("--since")).to(be(true))
+      expect(Kimera::CLI::Argv.new(["app"]).option?("--since")).to(be(false))
     end
 
     it "prefers origin/main, then main, and otherwise explains the missing reference" do
@@ -755,7 +755,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     Dir.mktmpdir do |dir|
       path = File.join(dir, ".kimera.yml")
       File.write(path, "baseline: missing.yml\n")
-      expect { Kimera::Config.load(path) }.to(raise_error(Kimera::UsageError, /no such baseline file/))
+      expect { Kimera::Config.new(path).options }.to(raise_error(Kimera::UsageError, /no such baseline file/))
     end
   end
 end

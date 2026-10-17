@@ -92,7 +92,7 @@ class Kimera::Execution::Harness
 
   def jobs = @_jobs ||= [Integer(options.fetch(:jobs, 1)), 1].max
 
-  def progress = options.fetch(:progress, Kimera::Execution::NullProgress)
+  def progress = options.fetch(:progress, Kimera::Execution::NullProgress::NONE)
 
   def driver = rig.driver
 

@@ -88,12 +88,14 @@ RSpec.describe(Kimera::Execution::Overrides) do
     expect(described_class.new(own, "class Broken\n  def oops(\nend\n").keep { :done }).to(eq([:done, []]))
   end
 
-  describe Kimera::Execution::Redefinition do
+  describe Kimera::Execution::Origin do
+    def canonical(path) = described_class.new(path).canonical
+
     it "names a file by its real path, and anything else as given", :aggregate_failures do
       File.symlink(dir, File.join(dir, "linked"))
-      expect(described_class.canonical(File.join(dir, "linked", "order.rb").tap { own })).to(eq(File.realpath(own)))
-      expect(described_class.canonical("/no/such/file.rb")).to(eq("/no/such/file.rb"))
-      expect(described_class.canonical(nil)).to(be_nil)
+      expect(canonical(File.join(dir, "linked", "order.rb").tap { own })).to(eq(File.realpath(own)))
+      expect(canonical("/no/such/file.rb")).to(eq("/no/such/file.rb"))
+      expect(canonical(nil)).to(be_nil)
     end
   end
 end

@@ -270,7 +270,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
   end
 
   it "builds frozen directive lookup tables from alternating entries" do
-    table = Kimera::Rewrite::Directive.table("one", :first, "two", :second)
+    table = Kimera::Rewrite::Directive::TABLE.call("one", :first, "two", :second)
     expect(table).to(eq("one" => :first, "two" => :second))
     expect(table).to(be_frozen)
   end

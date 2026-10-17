@@ -4,13 +4,13 @@ require "kimera/memoization"
 
 RSpec.describe(Kimera::Memoization) do
   def reasons(source)
-    described_class.ranges(source).map(&:reason)
+    described_class.new(source).ranges.map(&:reason)
   end
 
   def covers?(source, snippet)
     at = source.index(snippet)
     finish = at + snippet.length
-    described_class.ranges(source).any? { |r| r.contains?(at, finish) }
+    described_class.new(source).ranges.any? { |r| r.contains?(at, finish) }
   end
 
   def find(node, klass)
@@ -55,15 +55,15 @@ RSpec.describe(Kimera::Memoization) do
   end
 
   it "returns [] for source that fails to parse" do
-    expect(described_class.ranges("def broken(")).to(eq([]))
+    expect(described_class.new("def broken(").ranges).to(eq([]))
   end
 
   it "returns [] even when a failed parse's partial AST contains memoization" do
-    expect(described_class.ranges("@x ||= 1\ndef broken(")).to(eq([]))
+    expect(described_class.new("@x ||= 1\ndef broken(").ranges).to(eq([]))
   end
 
   it "returns [] when there is no memoization" do
-    expect(described_class.ranges("def m(a, b)\n  a > b\nend\n")).to(eq([]))
+    expect(described_class.new("def m(a, b)\n  a > b\nend\n").ranges).to(eq([]))
   end
 
   describe "||= or-write forms" do
@@ -152,19 +152,17 @@ RSpec.describe(Kimera::Memoization) do
       result = Prism.parse("def m\n  @x = @@x || compute(1)\nend\n")
       write = find(result.value, Prism::InstanceVariableWriteNode)
       allow(write.value.left).to(receive(:name).and_return(:@x))
-      expect(described_class.cached(write)).to(be_nil)
+      expect(described_class.new("").__send__(:cached, write)).to(be_nil)
     end
   end
 
   describe "non-node and value-less inputs" do
-    it "visit tolerates a non-node argument", :aggregate_failures do
-      ranges = []
-      expect(described_class.visit(:not_a_node, ranges)).to(be_nil)
-      expect(ranges).to(eq([]))
+    it "visit tolerates a non-node argument" do
+      expect(described_class.new("").__send__(:visit, :not_a_node)).to(eq([]))
     end
 
-    it "holes returns the accumulator untouched for a non-node" do
-      expect(described_class.holes(:not_a_node)).to(eq([]))
+    it "holes finds none in a non-node" do
+      expect(described_class.new("").__send__(:holes, :not_a_node)).to(eq([]))
     end
 
     it "taints nothing for an or-write node without a value" do
@@ -175,7 +173,7 @@ RSpec.describe(Kimera::Memoization) do
         # stubs a valueless node on purpose
         def value; end
       end.new
-      expect(described_class.taint(fake)).to(be_nil)
+      expect(described_class.new("").__send__(:taint, fake)).to(be_nil)
     end
 
     it "taints nothing for a constant write without a value" do
@@ -185,7 +183,7 @@ RSpec.describe(Kimera::Memoization) do
         # stubs a valueless node on purpose
         def value; end
       end.new
-      expect(described_class.taint(fake)).to(be_nil)
+      expect(described_class.new("").__send__(:taint, fake)).to(be_nil)
     end
   end
 end

@@ -104,7 +104,7 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
       for_all(RubyPrograms.new(depth: 2), Pbt.array(Pbt.integer(min: 1, max: 8)), runs: 150) do |program, lines|
         registry = Kimera::RegistryScan.new.source(RubyPrograms.render(program), file: "x.rb")
         touched = Set.new(lines)
-        expect(described_class.select(registry, { "x.rb" => touched, "other.rb" => Set.new(1..8) }))
+        expect(described_class.new({ "x.rb" => touched, "other.rb" => Set.new(1..8) }).ids(registry))
           .to(eq(expected(registry, touched)))
       end
     end

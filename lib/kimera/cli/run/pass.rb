@@ -111,7 +111,7 @@ class Kimera::CLI::Run::Pass
     end
   end
 
-  def critical?(id) = Kimera::SelfProtection.critical?(@registry.index.fetch(id).file)
+  def critical?(id) = Kimera::SelfProtection.new(@registry.index.fetch(id).file).critical?
 
   def matches?(coverage, id, pattern)
     tests = coverage.fetch(id) { coverage.fetch(id.to_s, []) }

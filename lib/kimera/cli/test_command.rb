@@ -73,7 +73,9 @@ class Kimera::CLI::TestCommand
 
   def shards(jobs) = Array.new(jobs) { |index| Thread.new { capture(shard(index, jobs)) } }.map(&:value)
 
-  def shard(index, count) = ["bundle", "exec", "ruby", *Kimera::CLI::TestShard.argv(@framework, index, count), *@files]
+  def shard(index, count)
+    ["bundle", "exec", "ruby", *Kimera::CLI::TestShard.new(index, count).argv(@framework), *@files]
+  end
 
   def run = minitest? ? ruby(LOADER) : rspec
 
@@ -82,7 +84,7 @@ class Kimera::CLI::TestCommand
   def failing(output)
     ids = culprits(output.to_s)
     return "" if ids.empty?
-    "\n  failing tests:#{Kimera::Listing.lines(ids, "    ")}"
+    "\n  failing tests:#{Kimera::Listing.new(ids).lines("    ")}"
   end
 
   def culprits(output) = CULPRITS.flat_map { |pattern| output.scan(pattern).flatten }.uniq

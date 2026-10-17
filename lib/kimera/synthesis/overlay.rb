@@ -50,7 +50,7 @@ class Kimera::Overlay
   end
 
   def write(map, tree, point)
-    map.restore(Kimera::Unparse.unparse(tree))
+    map.restore(Kimera::Unparse.new(tree).source)
   rescue StandardError => error
     Kimera::Overlay::MethodBake.new(map, tree).source(point.location) ||
       raise(Unbakeable, "unparser could not write its bake (#{error.class}: #{error.message})")

@@ -32,7 +32,7 @@ class Kimera::RegistryScan
   def numbering = @_numbering ||= Kimera::RegistryScan::Numbering.new
 
   def ingest(path)
-    return if @shielded && Kimera::SelfProtection.protected?(path)
+    return if @shielded && Kimera::SelfProtection.new(path).protected?
     scan(File.read(path, encoding: Encoding::UTF_8), relative(path))
   rescue Errno::ENOENT
     nil

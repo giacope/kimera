@@ -17,7 +17,7 @@ class Kimera::Execution::OrderTrace
     @registry = registry
   end
 
-  def follow!(baseline, coverage, scope: nil, progress: Kimera::Execution::NullProgress)
+  def follow!(baseline, coverage, scope: nil, progress: Kimera::Execution::NullProgress::NONE)
     return unless wanted?(scope, coverage)
     progress.note(NOTE)
     mark!(baseline, coverage)

@@ -31,7 +31,7 @@ class Kimera::CLI::Synthesize
   end
 
   def run(argv)
-    defaults = Kimera::Config.scope({ out: nil, registry: nil, operators: Kimera::Operators::DEFAULT_KEYS }, argv)
+    defaults = Kimera::Config.parse(argv).scope({ out: nil, registry: nil, operators: Kimera::Operators::DEFAULT_KEYS })
     paths, options = OPTIONS.parse(argv, defaults)
     out = options[:out]
     out ? synthesize(paths, options, out) : missing
@@ -61,6 +61,6 @@ class Kimera::CLI::Synthesize
     stored = options[:registry]
     return Kimera::Registry.from_file(stored) if stored
     Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: options[:operators]))
-      .build(Kimera::FileSet.scoped(paths, options))
+      .build(Kimera::FileSet.from_options(paths, options).files)
   end
 end

@@ -24,7 +24,7 @@ class Kimera::Operators::Audit
       end
       private
       def reprinted
-        Kimera::Unparse.unparse(Kimera::Unparse.parse(original))
+        Kimera::Unparse.new(Kimera::Unparse.parse(original)).source
       rescue StandardError
         original
       end
@@ -54,7 +54,7 @@ class Kimera::Operators::Audit
   end
 
   def finding(key, original, mutant)
-    rendered = Kimera::Rewrite::Directive.render(original, mutant.directive)
+    rendered = Kimera::Rewrite::Directive.new(mutant.directive).render(original)
     Finding.new(
       operator: key, original: original, label: mutant.label,
       rendered: rendered, verdict: Rendering.new(original, rendered).verdict

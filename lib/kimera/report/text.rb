@@ -89,7 +89,7 @@ class Kimera::Report::Text
 
   def diff(point, mutant)
     original = point.original_source
-    variant = Kimera::Rewrite::Directive.render(original, mutant.directive)
+    variant = Kimera::Rewrite::Directive.new(mutant.directive).render(original)
     source(red("-"), original)
     source(green("+"), variant) if variant
   end

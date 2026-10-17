@@ -149,6 +149,13 @@ Kata/FrozenState:
   Exclude:
     # The injected runtime: its selector and open ledgers change by design, with no allocation on the hot path.
     - lib/kimera/runtime.rb
+Kata/NoClassMethodLogic:
+  inherit_mode:
+    merge:
+      - AllowedNames
+  AllowedNames:
+    # Kimera::Operators.register, the documented API a custom-operator plugin file calls.
+    - register
 
 # --------------------------------------------------------------------------
 # kimera forks processes, not threads; a mutex here would only slow mutants.
@@ -157,8 +164,6 @@ Kata/FrozenState:
 ThreadSafety/ClassInstanceVariable:
   Exclude:
     - spec/**/*
-    # Operator registry: written at load in the CLI parent, then read-only.
-    - lib/kimera/operators.rb
 ThreadSafety/ClassAndModuleAttributes:
   Exclude:
     - spec/**/*

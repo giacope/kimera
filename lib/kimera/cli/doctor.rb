@@ -29,7 +29,11 @@ class Kimera::CLI::Doctor
 
   def run(argv)
     _, options = OPTIONS.parse(argv, { check_baseline: false })
-    verdict(checks(Kimera::Config.root(root: @root).merge(options.slice(:jobs)), options))
+    verdict(
+      checks(
+        Kimera::Config.new(File.join(@root, Kimera::Config::DEFAULT_PATH)).options.merge(options.slice(:jobs)), options
+      )
+    )
   rescue Kimera::UsageError => error
     usage(error)
   end
@@ -106,7 +110,7 @@ class Kimera::CLI::Doctor
       "skip it when ENV[\"KIMERA\"] is set (Kimera sets it)"
   end
 
-  def floor?(path) = File.file?(path) && Kimera::CLI::CoverageMinimum.ungated?(text(path))
+  def floor?(path) = File.file?(path) && Kimera::CLI::CoverageMinimum.new(text(path)).ungated?
 
   def text(path) = File.read(path, encoding: Encoding::UTF_8).scrub
 
@@ -125,7 +129,7 @@ class Kimera::CLI::Doctor
 
   def test_files(config)
     excluded = Array(config[:exclude_tests]).map { |pattern| File.join(@root, pattern) }
-    Kimera::FileSet.exclude(glob(config.fetch(:tests, tests_for(config))), excluded)
+    Kimera::FileSet.new([], exclude: excluded).without(glob(config.fetch(:tests, tests_for(config))))
   end
 
   def tests_for(config) = minitest?(config) ? ["test/**/*_test.rb"] : ["spec/**/*_spec.rb"]

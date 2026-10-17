@@ -1722,7 +1722,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     # The reload child reports the reason; an :error would count as killed.
     it "reports a mutant unparser can't bake as unmutatable, with the reason", :aggregate_failures do
-      allow(Kimera::Unparse).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
+      allow(Unparser).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
       report, progress = cold
       result = report.results.first
       expect(result.status).to(eq(:unmutatable))
@@ -1753,7 +1753,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     it "classifies a bake unparser can't write as unmutatable, with the reason" do
-      allow(Kimera::Unparse).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
+      allow(Unparser).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
       expect(evaluation).to(
         eq([:unmutatable, [], "unmutatable: unparser could not write its bake (KeyError: key not found: :lvar)"])
       )

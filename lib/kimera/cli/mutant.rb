@@ -48,15 +48,15 @@ class Kimera::CLI::Mutant
   end
 
   def rerun(id, report)
-    document = Kimera::CLI::ReportFile.parse(report)
-    row = locate(document, id)
-    settings = provenance(document)
+    file = Kimera::CLI::ReportFile.new(report)
+    row = locate(file, id)
+    settings = provenance(file.document)
     @io.puts("Re-running mutant ##{row["mutant_id"]}: #{keyed(row)}")
     Kimera::CLI::Run.new(io: @io, errors: @errors).run(arguments_for(row, settings))
   end
 
-  def locate(document, id)
-    row = Kimera::CLI::ReportFile.row(document.fetch("results", []), id)
+  def locate(file, id)
+    row = file.row(id)
     raise(Kimera::UsageError, "no mutant ##{id} in this report") unless row
     raise(Kimera::UsageError, "mutant ##{id} has no source file") unless row["file"]
     row
