@@ -14,6 +14,8 @@ class Kimera::Operators::Base
 
   def body? = false
 
+  def survey(_root) = self
+
   def variants(node, position:)
     raise(NotImplementedError, "#{self} must define #variants")
   end

@@ -2,6 +2,9 @@
 
 module Kimera
   module GuardrailDispatch
+    DEFINITIONS = %i[def defs].freeze
+    CLAUSED = %i[rescue ensure].freeze
+
     private
 
     def group(points)
@@ -13,10 +16,23 @@ module Kimera
 
     def dispatch(rebuilt, bare, points)
       mutants = points.flat_map(&:mutants).reverse
-      return parameter(rebuilt, mutants) if %i[optarg kwoptarg].include?(rebuilt.type)
+      type = rebuilt.type
+      return parameter(rebuilt, mutants) if %i[optarg kwoptarg].include?(type)
+      return definition(rebuilt, bare, mutants) if mutants.any? && DEFINITIONS.include?(type)
       guarded = guard(mutants, rebuilt) { |mutant| variant(bare, mutant) }
       guarded.equal?(rebuilt) ? guarded : ast(:begin, guarded)
     end
+
+    def definition(rebuilt, bare, mutants)
+      children = rebuilt.children
+      rebuilt.updated(nil, [*children[...-1], reshape(children.last, bare, mutants)])
+    end
+
+    def reshape(body, bare, mutants)
+      guard(mutants, enclosed(body)) { |mutant| enclosed(variant(bare, mutant).children.last) }
+    end
+
+    def enclosed(body) = body && CLAUSED.include?(body.type) ? ast(:kwbegin, body) : body
 
     def branch(mutant, truthy, dispatch)
       id = mutant.id

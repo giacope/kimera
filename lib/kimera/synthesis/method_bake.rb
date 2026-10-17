@@ -11,7 +11,7 @@ class Kimera::Overlay::MethodBake
   end
 
   def source(location)
-    definition = definitions(@map.ast).find { |node| location.within?(*@map.span(node.location.expression)) }
+    definition = definitions(@map.ast).find { |node| location.inside?(*@map.span(node.location.expression)) }
     text = definition && written(counterpart(definition))
     text && graft(definition, text)
   end

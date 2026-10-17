@@ -51,17 +51,23 @@ RSpec.describe("Mutant schemata") do
     # ("wrong number of arguments", "missing keyword: :c"). That wording is
     # the one difference this comparison excuses; see SchemataProjection.
     def outcome(receiver, (positional, keyword))
-      [:returned, receiver.m(*positional, **(keyword == :omitted ? {} : { c: keyword }))]
+      [:returned, plain(receiver.m(*positional, **(keyword == :omitted ? {} : { c: keyword })))]
     rescue StandardError => error
       [:raised, error.class, SchemataProjection.worded(error)]
     end
+
+    # A returned nil mutant returns a fresh `Object.new`, equal to no other.
+    def plain(value) = value.instance_of?(Object) ? Object : value
 
     # Generated code may test a literal (`if "s"`); Ruby's parse warning is noise.
     def loaded(source)
       Object.new.extend(Module.new.tap { |mod| Kimera::Warnings.silence { mod.module_eval(source) } })
     end
 
+    # One live object serves every mutant; each bake is fresh, so the live
+    # one forgets the ivars (`@v`) an earlier mutant's calls set.
     def flipped(live, id, calls)
+      live.instance_variables.each { |name| live.remove_instance_variable(name) }
       Kimera::RUNTIME.active = id
       calls.map { |call| outcome(live, call) }
     ensure

@@ -21,6 +21,8 @@ module Kimera
         interior.cover?(start_offset) && interior.cover?(finish)
       end
 
+      def inside?(from, to) = start_offset >= from && finish <= to
+
       def to_h
         coordinates.merge(columns).merge(offsets)
       end

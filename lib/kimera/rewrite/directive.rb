@@ -4,6 +4,7 @@ require "prism"
 require_relative "../support/operator_protocol"
 require_relative "../support/unparse"
 
+require_relative "clause_handlers"
 require_relative "directive_handlers"
 require_relative "numbered_params"
 
@@ -64,13 +65,26 @@ module Kimera
         "kwarg_element_drop", :keyword, "kwarg_pair_drop", :option
       )
       HANDLERS = VALUE_HANDLERS.merge(STRUCTURAL_HANDLERS).freeze
+      CLAUSE_HANDLERS = table(
+        "drop_rescue", :rescued, "drop_ensure", :ensured,
+        "assigned_value", :value, "nil_object", :object, "regexp_source", :pattern
+      )
 
       def apply(node, directive)
-        DirectiveHandlers::Operation.new(node, directive).public_send(handler(directive))
+        operation(node, directive).public_send(handler(directive))
+      end
+
+      def operation(node, directive)
+        (CLAUSE_HANDLERS.key?(directive[TYPE]) ? ClauseHandlers : DirectiveHandlers)::Operation.new(node, directive)
       end
 
       def handler(directive)
-        HANDLERS.fetch(directive[TYPE]) { raise(ArgumentError, "unknown directive #{directive.inspect}") }
+        type = directive[TYPE]
+        HANDLERS.fetch(type) do
+          CLAUSE_HANDLERS.fetch(type) do
+            raise(ArgumentError, "unknown directive #{directive.inspect}")
+          end
+        end
       end
     end
   end

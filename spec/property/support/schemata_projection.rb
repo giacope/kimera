@@ -14,7 +14,9 @@ require "kimera/synthesis/overlay"
 # - a lone expression in parentheses is that expression;
 # - adjacent string parts join and empty ones drop (unparser splits them);
 # - && and || chains are associative (unparser regroups them);
-# - minus on a numeric literal is the negative literal (`-(1)` is `-1`).
+# - minus on a numeric literal is the negative literal (`-(1)` is `-1`);
+# - `begin ... rescue/ensure ... end` holding only that clause is the clause
+#   (a guarded method body needs the begin; the parser reads both alike).
 #
 # One more rewrite is an assumption, not a behavior-preserving identity:
 # `required` reads a default that raises the missing-argument ArgumentError
@@ -44,6 +46,7 @@ module SchemataProjection
   INTERPOLATED = %i[dstr dsym xstr regexp].freeze
   NUMERIC = %i[int float rational complex].freeze
   DEFAULTS = { optarg: [:arg, "argument"], kwoptarg: [:kwarg, "keyword"] }.freeze
+  CLAUSES = %i[rescue ensure].freeze
 
   module_function
 
@@ -110,11 +113,22 @@ module SchemataProjection
 
   def simplify(node)
     type = node.type
-    return node.children[0] if type == :begin && node.children.one? && node?(node.children[0])
+    return sequence(node) if type == :begin
+    return enclosure(node) if type == :kwbegin
     return chain(node) if CHAINS.include?(type)
     return interpolation(node) if INTERPOLATED.include?(type)
     return required(node) if DEFAULTS.key?(type)
     negated(node)
+  end
+
+  def sequence(node)
+    only, *rest = node.children
+    rest.empty? && node?(only) ? only : node
+  end
+
+  def enclosure(node)
+    only, *rest = node.children
+    rest.empty? && CLAUSES.include?(only&.type) ? only : node
   end
 
   def negated(node)

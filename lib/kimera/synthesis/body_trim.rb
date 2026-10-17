@@ -50,7 +50,7 @@ module Kimera
       location = node.location
       from = location.start_offset
       to = location.end_offset
-      locations.any? { |live| live.within?(from, to) }
+      locations.any? { |live| live.inside?(from, to) }
     end
 
     def kept?(node, defined)

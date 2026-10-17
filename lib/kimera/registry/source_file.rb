@@ -48,6 +48,7 @@ class Kimera::RegistryScan::SourceFile
   end
 
   def mined(root)
+    @operators.each { |operator| operator.survey(root) }
     found = []
     held = {}.compare_by_identity
     walk(root, origin) { |node, cursor| bank(found, node, cursor) || hold(held, node, cursor) }
