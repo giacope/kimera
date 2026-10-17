@@ -47,9 +47,9 @@ RSpec.describe(Kimera::CLI::Run::Narrowing) do
   end
 
   it "doesn't expand the globs when --tests is the configured glob", :aggregate_failures do
-    allow(Kimera::FileSet).to(receive(:expand).and_call_original)
+    allow(Kimera::FileSet).to(receive(:new).and_call_original)
     expect(narrowing(["spec/**/*_spec.rb"]).note).to(be_nil)
-    expect(Kimera::FileSet).not_to(have_received(:expand))
+    expect(Kimera::FileSet).not_to(have_received(:new))
   end
 
   it "groups thousands in the counts" do

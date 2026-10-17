@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "extra_handlers"
-require_relative "kwarg_handlers"
+require_relative "invocation"
 
 module Kimera
   module Rewrite
@@ -30,14 +30,14 @@ module Kimera
           end
 
           def unlink
-            KwargHandlers.block(node) do |call|
+            Invocation.new(node).block do |call|
               receiver, *rest = call.children
               call.updated(nil, [receiver.children[0], *rest])
             end
           end
 
           def send
-            KwargHandlers.block(node) { |call| call.updated(:send, call.children) }
+            Invocation.new(node).block { |call| call.updated(:send, call.children) }
           end
 
           def retest
@@ -61,7 +61,7 @@ module Kimera
           end
 
           def drop
-            KwargHandlers.block(node) do |call|
+            Invocation.new(node).block do |call|
               receiver, selector, *arguments = call.children
               arguments.delete_at(Integer(directive[INDEX]))
               call.updated(nil, [receiver, selector, *arguments])
@@ -73,8 +73,8 @@ module Kimera
           end
 
           def select
-            KwargHandlers.block(node) do |call|
-              KwargHandlers.select(call, target)
+            Invocation.new(node).block do |call|
+              Invocation.new(call).select(target)
             end
           end
 
@@ -98,7 +98,7 @@ module Kimera
           end
 
           def kwargs(&)
-            KwargHandlers.block(node) { |call| KwargHandlers.rewrite(call, directive["key"], &) }
+            Invocation.new(node).block { |call| Invocation.new(call).rewrite(directive["key"], &) }
           end
 
           def fetch

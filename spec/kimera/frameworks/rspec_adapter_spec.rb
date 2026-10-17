@@ -81,6 +81,14 @@ RSpec.describe(Kimera::Frameworks::RSpecAdapter) do
     expect(descriptions).to(include("KimeraDemo passes", "KimeraDemo is conditional", "KimeraDemo nested also passes"))
   end
 
+  it "indexes the examples its files defined when it sourced them, not a file loaded later" do
+    sourced = adapter
+    later = File.join(dir, "later_spec.rb")
+    File.write(later, %(RSpec.describe("KimeraLater") { it("is loaded later") { expect(1).to(eq(1)) } }\n))
+    quietly { Kernel.load(later) }
+    expect(sourced.test_ids.grep(/later_spec/)).to(be_empty)
+  end
+
   it "catalogs known examples by description and file:line, leaving unknown ids out", :aggregate_failures do
     passing = ids.find { |id| adapter.describe(id) == "KimeraDemo passes" }
     catalog = adapter.catalog([passing, "no/such[1:1]"])

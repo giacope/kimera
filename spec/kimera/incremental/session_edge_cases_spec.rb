@@ -24,10 +24,11 @@ RSpec.describe(Kimera::Incremental::Session) do
     expect([session.done?(1), session.results[1].killed?, session.leaks]).to(eq([true, true, [leak]]))
   end
 
-  it "merges meta across saves" do
-    session = described_class.new; Dir.mktmpdir do |dir|
+  it "merges the meta it saves into the meta it resumed" do
+    Dir.mktmpdir do |dir|
       path = File.join(dir, "s.json")
-      [{ "since" => "main" }, { "extra" => "v" }].each { |m| session.save(path, meta: m) }
+      described_class.new.save(path, meta: { "since" => "main" })
+      described_class.from(path).save(path, meta: { "extra" => "v" })
       expect(JSON.parse(File.read(path))["meta"]).to(eq("since" => "main", "extra" => "v"))
     end
   end

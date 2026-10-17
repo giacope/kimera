@@ -13,16 +13,15 @@ module Kimera
 
       private
 
-      def collect(table) = table.tap { visit(@root, table) }
+      def nodes = visit(@root)
 
-      def visit(node, table)
-        return mark(node, table) if node.is_a?(SyntaxTypes::DefNode) && @names.include?(node.name)
-        node.compact_child_nodes.each { |child| visit(child, table) }
+      def visit(node)
+        return mark(node) if node.is_a?(SyntaxTypes::DefNode) && @names.include?(node.name)
+        node.compact_child_nodes.flat_map { |child| visit(child) }
       end
 
-      def mark(node, table)
-        table << node if @pick.call(node)
-        node.compact_child_nodes.each { |child| mark(child, table) }
+      def mark(node)
+        (@pick.call(node) ? [node] : []) + node.compact_child_nodes.flat_map { |child| mark(child) }
       end
     end
   end

@@ -39,9 +39,8 @@ class Kimera::Execution::Shift::CoverageChannel
   end
 
   def reading(testid, ledger)
-    watch = Kimera::Execution::Stopwatch.new
-    outcome = watch.lap { @adapter.run([testid]) }
-    Reading.new(outcome.passed?, ledger.drain!, outcome.failures[testid], watch.last)
+    outcome, took = Kimera::Execution::Stopwatch.new.lap { @adapter.run([testid]) }
+    Reading.new(outcome.passed?, ledger.drain!, outcome.failures[testid], took)
   end
 
   def emit(io, **fields)

@@ -5,20 +5,24 @@ module Kimera
   end
 end
 
-module Kimera::Execution::Redefinition
-  module_function
-
-  def redefine(holder, name, method, visibility = visibility(holder, name))
-    holder.define_method(name, method)
-    holder.__send__(visibility, name)
+class Kimera::Execution::Redefinition
+  def initialize(holder, name)
+    @holder = holder
+    @name = name
   end
 
-  def visibility(holder, name)
-    return :private if holder.private_method_defined?(name)
-    holder.protected_method_defined?(name) ? :protected : :public
+  def redefine(method, visibility = self.visibility)
+    @holder.define_method(@name, method)
+    @holder.__send__(visibility, @name)
   end
 
-  def canonical(path) = path && File.exist?(path) ? File.realpath(path) : path
-
-  def source(method) = method.source_location&.first
+  def visibility
+    return :private if @holder.private_method_defined?(@name)
+    @holder.protected_method_defined?(@name) ? :protected : :public
+  end
 end
+
+Kimera::Execution::Origin =
+  Data.define(:path) do
+    def canonical = path && File.exist?(path) ? File.realpath(path) : path
+  end

@@ -15,9 +15,7 @@ class Kimera::MemoGuard::Source
 
   def statements(body) = body.is_a?(Kimera::SyntaxTypes::StatementsNode) ? body.body : []
 
-  def defs(node, found = [])
-    found << node if node.is_a?(Kimera::SyntaxTypes::DefNode)
-    node.compact_child_nodes.each { defs(it, found) }
-    found
+  def defs(node)
+    (node.is_a?(Kimera::SyntaxTypes::DefNode) ? [node] : []) + node.compact_child_nodes.flat_map { defs(it) }
   end
 end

@@ -14,7 +14,9 @@ RSpec.describe(Kimera::BodyTrim) do
     snippets.map { |text| Kimera::Location.new(start_offset: source.b.index(text.b), span: text.bytesize) }
   end
 
-  def trim(source, *snippets) = described_class.trimmed(source, live(source, snippets))
+  def trim(source, *snippets) = described_class.new(source, live(source, snippets)).trimmed
+
+  def loaded?(path) = described_class.new("", []).__send__(:loaded?, path)
 
   def lines(text) = text.lines.map(&:strip).reject(&:empty?)
 
@@ -229,7 +231,7 @@ RSpec.describe(Kimera::BodyTrim) do
   it "counts a mutant ending where its statement ends as live, and one reaching past it as not" do
     source = "class Pair\n  track :a\n  track :b\nend\n"
     reaching = Kimera::Location.new(start_offset: source.index(":b"), span: ":b\n".bytesize)
-    trimmed = described_class.trimmed(source, [*live(source, [":a"]), reaching])
+    trimmed = described_class.new(source, [*live(source, [":a"]), reaching]).trimmed
     expect(lines(trimmed)).to(eq(["class Pair", "track :a", "end"]))
   end
 
@@ -254,8 +256,8 @@ RSpec.describe(Kimera::BodyTrim) do
     it "trims a file that has been required, and leaves one nothing required whole", :aggregate_failures do
       path = write("required.rb")
       require(path)
-      expect(described_class.trim(path, source, locations)).not_to(include("Comparable"))
-      expect(described_class.trim(write("never.rb"), source, locations)).to(eq(source))
+      expect(described_class.new(source, locations).trim(path)).not_to(include("Comparable"))
+      expect(described_class.new(source, locations).trim(write("never.rb"))).to(eq(source))
     end
 
     it "finds a required file under its real path or the path it was required by", :aggregate_failures do
@@ -264,10 +266,10 @@ RSpec.describe(Kimera::BodyTrim) do
       FileUtils.ln_s(dir, File.join(dir, "link"))
       require(real)
       require(File.join(dir, "link", "linked.rb"))
-      expect(described_class.loaded?(File.join(dir, "link", "real.rb"))).to(be(true))
-      expect(described_class.loaded?(File.join(dir, "link", "linked.rb"))).to(be(true))
-      expect(described_class.loaded?(linked)).to(be(false))
-      expect(described_class.loaded?(File.join(dir, "missing.rb"))).to(be(false))
+      expect(loaded?(File.join(dir, "link", "real.rb"))).to(be(true))
+      expect(loaded?(File.join(dir, "link", "linked.rb"))).to(be(true))
+      expect(loaded?(linked)).to(be(false))
+      expect(loaded?(File.join(dir, "missing.rb"))).to(be(false))
     end
   end
 end

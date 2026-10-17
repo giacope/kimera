@@ -8,7 +8,8 @@ RSpec.describe(Kimera::Unparse) do
   it "round-trips source without letting unparser's warnings through", :aggregate_failures do
     allow(Unparser).to(receive(:parse).and_wrap_original { |original, source| warn("noise") || original.call(source) })
     allow(Unparser).to(receive(:unparse).and_wrap_original { |original, node| warn("noise") || original.call(node) })
-    expect { expect(described_class.unparse(described_class.parse("a > b"))).to(eq("a > b")) }.not_to(output.to_stderr)
+    expect { expect(described_class.new(described_class.parse("a > b")).source).to(eq("a > b")) }
+      .not_to(output.to_stderr)
   end
 
   # Ruby and Prism read "\xFF" in a UTF-8 file as that byte, but the parser
@@ -21,13 +22,13 @@ RSpec.describe(Kimera::Unparse) do
       tree = described_class.parse(source)
       literal = tree.children.last.children.last.children.first
       expect(literal.children.first.bytes).to(eq([0xFF, 0xD8, 0xFF]))
-      expect(described_class.unparse(tree)).to(eq("def jpeg?(data)\n  data.start_with?(\"\\xFF\\xD8\\xFF\".b)\nend"))
+      expect(described_class.new(tree).source).to(eq("def jpeg?(data)\n  data.start_with?(\"\\xFF\\xD8\\xFF\".b)\nend"))
     end
 
     # unparser writes an interpolated string only once it parses back.
     it "writes it back interpolated, where unparser parses what it wrote" do
       interpolated = %("x\#{"\\xFF"}y")
-      expect(described_class.unparse(described_class.parse(interpolated))).to(eq(interpolated))
+      expect(described_class.new(described_class.parse(interpolated)).source).to(eq(interpolated))
     end
 
     it "still rejects what Ruby rejects, as an escape invalid in a regexp" do
@@ -38,7 +39,7 @@ RSpec.describe(Kimera::Unparse) do
     # unparser writes a command string's parts as they are, so the escape
     # would come back a raw byte and the file no longer load.
     it "refuses to write the raw bytes unparser leaves in a command string" do
-      expect { described_class.unparse(described_class.parse("`printf \\xFE\#{name}`")) }
+      expect { described_class.new(described_class.parse("`printf \\xFE\#{name}`")).source }
         .to(raise_error(EncodingError, "unparser wrote a literal's raw bytes, invalid in UTF-8"))
     end
   end
@@ -47,7 +48,7 @@ RSpec.describe(Kimera::Unparse) do
   # string interpolating any other local failed its round-trip check and took the
   # whole file down with it.
   describe(Kimera::Unparse::Binders) do
-    def reemit(source) = Kimera::Unparse.unparse(Kimera::Unparse.parse(source))
+    def reemit(source) = Kimera::Unparse.new(Kimera::Unparse.parse(source)).source
 
     {
       "a case/in binding" => "def bid(value) = (case value; in chosen then \"\#{chosen}\"; end)",
@@ -88,7 +89,7 @@ RSpec.describe(Kimera::Unparse) do
   # written only once it parses back to the very node, so a parenthesized
   # endpoint (a begin node the tree lacks) left the string unwritable.
   describe(Kimera::Unparse::RangeEndpoints) do
-    def reemit(source) = Kimera::Unparse.unparse(Kimera::Unparse.parse(source))
+    def reemit(source) = Kimera::Unparse.new(Kimera::Unparse.parse(source)).source
 
     {
       "([a, a]...a)" => "([a, a]...a)\n", "(0...[a, a])" => "(0...[a, a])\n",
@@ -142,14 +143,14 @@ RSpec.describe(Kimera::Unparse) do
     }.each do |source, written|
       it "writes `#{source}` as `#{written}` from its tree without parentheses", :aggregate_failures do
         tree = bare(Kimera::Unparse.parse(source))
-        expect(Kimera::Unparse.unparse(tree)).to(eq(written))
+        expect(Kimera::Unparse.new(tree).source).to(eq(written))
         expect(bare(Kimera::Unparse.parse(written))).to(eq(tree))
       end
     end
 
     it "leaves a tree that needs no parentheses as it is" do
       tree = Kimera::Unparse.parse("a && b || c.foo(d + e * f) - g")
-      expect(described_class.call(tree)).to(equal(tree))
+      expect(described_class.new(tree).call).to(equal(tree))
     end
 
     # Every nesting two deep of connectives and operators, in each context,
@@ -171,7 +172,8 @@ RSpec.describe(Kimera::Unparse) do
 
     it "writes every nested connective and operator so it reads back as written", :aggregate_failures do
       trees(2).flat_map { |tree| contexts(tree) }.each do |node|
-        expect(Kimera::Unparse.parse(Kimera::Unparse.unparse(node))).to(eq(described_class.call(node)), node.inspect)
+        written = Kimera::Unparse.new(node).source
+        expect(Kimera::Unparse.parse(written)).to(eq(described_class.new(node).call), node.inspect)
       end
     end
 
@@ -193,7 +195,8 @@ RSpec.describe(Kimera::Unparse) do
 
     it "writes every nested sign, power and call on a literal so it reads back as written", :aggregate_failures do
       numerals(2).flat_map { |tree| contexts(tree) }.each do |node|
-        expect(Kimera::Unparse.parse(Kimera::Unparse.unparse(node))).to(eq(described_class.call(node)), node.inspect)
+        written = Kimera::Unparse.new(node).source
+        expect(Kimera::Unparse.parse(written)).to(eq(described_class.new(node).call), node.inspect)
       end
     end
   end
@@ -208,7 +211,7 @@ RSpec.describe(Kimera::Unparse) do
 
     def s(...) = self.class.s(...)
 
-    def write(node) = Kimera::Unparse.unparse(node)
+    def write(node) = Kimera::Unparse.new(node).source
 
     def reemit(source) = write(Kimera::Unparse.parse(source))
 

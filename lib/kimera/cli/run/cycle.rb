@@ -24,14 +24,14 @@ class Kimera::CLI::Run::Cycle
   def call
     @digest.verbose(@options) if @options[:verbose]
     @registry.narrow!(@changed) if @changed
-    scope(@changed && Kimera::Incremental::Selection.select(@registry, @changed))
+    scope(@changed && Kimera::Incremental::Selection.new(@changed).ids(@registry))
   end
 
   private
 
   def scope(selected)
     eligible = focus(Kimera::CLI::Run::Aim.new(@registry, @options).restrict(selected || @registry.index.keys))
-    resolution = Kimera::IgnoreList.resolve(@registry, @options[:ignore] + inline)
+    resolution = Kimera::IgnoreList.new(@options[:ignore] + inline).resolve(@registry)
     ignored = resolution.ids & eligible
     notify(selected, ignored, resolution)
     session(eligible - ignored, ignored)
@@ -45,15 +45,15 @@ class Kimera::CLI::Run::Cycle
 
   def session(todo, ignored)
     loaded = Kimera::Incremental::Session.from(@options[:session], registry: @registry, stamp: stamp)
-    perform(@options[:evaluate_ignored] ? todo + ignored : todo, loaded)
-    conclude(todo, ignored, loaded)
+    conclude(todo, ignored, perform(@options[:evaluate_ignored] ? todo + ignored : todo, loaded))
   end
 
   def perform(todo, loaded)
     remaining = todo.reject { |id| loaded.done?(id) }
-    harness(remaining, loaded) unless remaining.empty?
+    judged = remaining.empty? ? loaded : loaded.merged(harness(remaining))
     path = @options[:session]
-    loaded.save(path, registry: @registry, meta: { "since" => @options[:since] }) if path
+    judged.save(path, registry: @registry, meta: { "since" => @options[:since] }) if path
+    judged
   end
 
   def conclude(todo, ignored, loaded)
@@ -90,9 +90,9 @@ class Kimera::CLI::Run::Cycle
     @options.slice(*SETTINGS, :jobs, :since).transform_keys(&:to_s).merge(narrowing.provenance)
   end
 
-  def harness(remaining, loaded, env: ENV)
+  def harness(remaining, env: ENV)
     env.update(Kimera::Execution::SUITE_ENV)
     adapter = Kimera::Frameworks::ADAPTERS.load(@options[:framework])
-    Kimera::CLI::Run::Pass.new(@registry, @options, adapter).call(remaining, loaded)
+    Kimera::CLI::Run::Pass.new(@registry, @options, adapter).call(remaining)
   end
 end

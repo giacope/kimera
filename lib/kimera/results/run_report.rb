@@ -132,7 +132,7 @@ class Kimera::RunReport
   end
 
   def rendered(original, mutant)
-    { "original" => original, "mutated" => Kimera::Rewrite::Directive.render(original, mutant.directive) }
+    { "original" => original, "mutated" => Kimera::Rewrite::Directive.new(mutant.directive).render(original) }
   end
 
   def place(point, mutant)

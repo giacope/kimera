@@ -28,7 +28,7 @@ class Kimera::Execution::BaselineFailure::Summary
 
   def listed
     count = @failed.size
-    count < 2 ? @failed.join : "#{count} tests failed:#{Kimera::Listing.lines(@failed, "    ")}"
+    count < 2 ? @failed.join : "#{count} tests failed:#{Kimera::Listing.new(@failed).lines("    ")}"
   end
 
   private
@@ -37,7 +37,7 @@ class Kimera::Execution::BaselineFailure::Summary
 
   def order
     ordered = @context.ordered
-    ordered.empty? ? "" : "\n  #{ORDERED}#{Kimera::Listing.lines(ordered, "    ")}"
+    ordered.empty? ? "" : "\n  #{ORDERED}#{Kimera::Listing.new(ordered).lines("    ")}"
   end
 
   def shared

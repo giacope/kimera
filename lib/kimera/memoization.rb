@@ -5,7 +5,7 @@ require_relative "support/syntax_types"
 require_relative "support/deferral"
 
 module Kimera
-  module Memoization
+  class Memoization
     OR_WRITE_NODES = [
       SyntaxTypes::InstanceVariableOrWriteNode,
       SyntaxTypes::ClassVariableOrWriteNode,
@@ -28,21 +28,24 @@ module Kimera
         end
       end
 
-    module_function
+    HOLE_NODES = [SyntaxTypes::DefNode, SyntaxTypes::LambdaNode].freeze
 
-    def ranges(source)
-      result = Kimera::Syntax.parse(source)
-      return [] if result.failure?
-      ranges = []
-      visit(result.value, ranges)
-      ranges
+    def initialize(source)
+      @source = source
     end
 
-    def visit(node, ranges)
-      return unless node.is_a?(SyntaxTypes::Node)
+    def ranges
+      result = Kimera::Syntax.parse(@source)
+      return [] if result.failure?
+      visit(result.value)
+    end
+
+    private
+
+    def visit(node)
+      return [] unless node.is_a?(SyntaxTypes::Node)
       taint = taint(node)
-      ranges << taint if taint
-      node.compact_child_nodes.each { |child| visit(child, ranges) }
+      (taint ? [taint] : []) + node.compact_child_nodes.flat_map { |child| visit(child) }
     end
 
     def taint(node)
@@ -81,20 +84,16 @@ module Kimera
       Range.new(start, finish, reason, holes(node))
     end
 
-    HOLE_NODES = [SyntaxTypes::DefNode, SyntaxTypes::LambdaNode].freeze
-
-    def holes(node, holes = [])
-      return holes unless node.is_a?(SyntaxTypes::Node)
-      hole = HOLE_NODES.any? { |kind| node.is_a?(kind) } ? node : Kimera::Deferral.block(node)
-      return body(hole, holes) if hole
-      node.compact_child_nodes.each { |child| holes(child, holes) }
-      holes
+    def holes(node)
+      return [] unless node.is_a?(SyntaxTypes::Node)
+      hole = HOLE_NODES.any? { |kind| node.is_a?(kind) } ? node : Kimera::Deferral.new(node).block
+      return body(hole) if hole
+      node.compact_child_nodes.flat_map { |child| holes(child) }
     end
 
-    def body(node, holes)
+    def body(node)
       value = node.body
-      holes << span(value) if value
-      holes
+      value ? [span(value)] : []
     end
 
     def span(node)
