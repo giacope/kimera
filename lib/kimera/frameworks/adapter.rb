@@ -55,6 +55,10 @@ class Kimera::Frameworks::Adapter
 
   private
 
+  def outcome(failed)
+    Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed.map(&:first), failures: failed.to_h)
+  end
+
   def frames(backtrace)
     Array(backtrace).take_while { |frame| !frame.start_with?(HARNESS) }.first(FRAMES)
   end

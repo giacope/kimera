@@ -17,16 +17,16 @@ RSpec.describe(Kimera::Execution::Shift::Deadline) do
   end
 
   it "returns what the run returns a moment before" do
-    expect(deadline(1.0, [10.0, 10.99]).guard("t1") { :ran }).to(eq(:ran))
+    expect(deadline(1.0, [10.0, 10.99]).guard("t1") { :ran }.first).to(eq(:ran))
   end
 
   it "never expires without a soft timeout" do
-    expect(deadline(nil, [10.0, 1e9]).guard("t1") { :ran }).to(eq(:ran))
+    expect(deadline(nil, [10.0, 1e9]).guard("t1") { :ran }.first).to(eq(:ran))
   end
 
   it "gives every test run its own budget" do
     budget = deadline(1.0, [0.0, 0.9, 5.0, 5.9])
-    expect([budget.guard("t1") { 1 }, budget.guard("t2") { 2 }]).to(eq([1, 2]))
+    expect([budget.guard("t1") { 1 }, budget.guard("t2") { 2 }].map(&:first)).to(eq([1, 2]))
   end
 
   it "interrupts a run that outlasts the budget" do
@@ -51,18 +51,14 @@ RSpec.describe(Kimera::Execution::Shift::Deadline) do
 
     it "times each run it guards", :aggregate_failures do
       guard = deadline([10.0, 10.25, 20.0, 20.5], budget)
-      guard.guard("t1") { :ran }
-      expect(guard.elapsed).to(eq(0.25))
-      guard.guard("t1") { :ran }
-      expect(guard.elapsed).to(eq(0.5))
+      expect(guard.guard("t1") { :ran }.last).to(eq(0.25))
+      expect(guard.guard("t1") { :ran }.last).to(eq(0.5))
     end
 
-    it "says whether the last run overran the test's budget", :aggregate_failures do
-      guard = deadline([0.0, 0.3, 1.0, 1.2], budget)
-      guard.guard("t1") { :ran }
-      expect(guard.overran?("t1")).to(be(true))
-      guard.guard("t1") { :ran }
-      expect(guard.overran?("t1")).to(be(false))
+    it "says whether a run's time overran the test's budget", :aggregate_failures do
+      guard = deadline([], budget)
+      expect(guard.overran?("t1", 0.3)).to(be(true))
+      expect(guard.overran?("t1", 0.2)).to(be(false))
     end
 
     it "holds the budget it checks against" do

@@ -55,10 +55,9 @@ class Kimera::Execution::LoadTrace
 
   def inside?(point, ranges) = ranges.any? { |range| point.location.within?(range.start_offset, range.end_offset) }
 
-  def defs(node, lines, found = [])
+  def defs(node, lines)
     location = node.location
-    found << location if node.is_a?(Prism::DefNode) && lines.include?(location.start_line)
-    node.compact_child_nodes.each { |child| defs(child, lines, found) }
-    found
+    (node.is_a?(Prism::DefNode) && lines.include?(location.start_line) ? [location] : []) +
+      node.compact_child_nodes.flat_map { |child| defs(child, lines) }
   end
 end

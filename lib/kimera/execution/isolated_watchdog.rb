@@ -16,6 +16,7 @@ module Kimera
 
       def outlast(pid, watch)
         loop do
+          watch = watch.observed
           step = attempt(pid, watch)
           return step unless step == :continue
         end

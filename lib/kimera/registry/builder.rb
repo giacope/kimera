@@ -56,4 +56,3 @@ end
 
 require_relative "numbering"
 require_relative "source_file"
-require_relative "tally"
