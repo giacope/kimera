@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- What each new setting costs, on dry-inflector's `lib` (`--operators all`,
+  738 mutants, `--jobs 4`, one run each on a shared 4-vCPU VM): default 67s
+  (main 72s, same verdicts); `--seed 1` 70s; `--count-no-coverage` 63s (the
+  report only); `--flaky-runs 3` 92s (three more runs of the covering
+  tests); `--attribution unit` 41s (the 535 `uncovered_by_unit` mutants run
+  no tests). `--test-quality` reruns every other covering test of each
+  killed mutant alone: two files whose 15 mutants about 620 specs each cover
+  took 89s against 14s, and the whole `lib`, about 820 covering specs a
+  mutant, ran past 20 minutes. On `examples/rails_app` every new setting
+  keeps the expected verdicts with Minitest and RSpec at `--jobs 1` and 4
+  (strict attribution turns the request-spec-only ones `uncovered_by_unit`).
 - Test quality: `test_quality: true` (`--test-quality`), meant for nightly
   runs, records every covering test that kills each mutant
   (`killing_tests`), each run alone in a fresh fork with the mutant on, not

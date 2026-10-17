@@ -450,8 +450,11 @@ section:
   many it kills, and how many only it kills.
 
 The text report sums these up and names the first few of each. It costs one
-fork per covering test of each killed mutant, after the first: on a suite
-whose mutants many tests cover, several times a plain run. In the isolated
+fork per covering test of each killed mutant, after the first: two
+dry-inflector files whose 15 mutants about 620 specs each cover took 89s
+against 14s, and its whole `lib` (738 mutants, about 820 covering specs
+each) would take over an hour against about a minute. Run it nightly, or
+over the part of the code you are reviewing. In the isolated
 tier a mutant's killers are the tests that fail in one run of all its
 covering tests; the reload tier (memoized code) records its first killer
 only. Under `attribution: unit`, a test counts only toward its own unit's
