@@ -2,6 +2,10 @@
 
 module Kimera
   module GuardrailDispatch
+    PRIVATIZE = "privatize"
+    DEFINITIONS = %i[def defs].freeze
+    CLAUSED = %i[rescue ensure].freeze
+
     private
 
     def group(points)
@@ -13,9 +17,32 @@ module Kimera
 
     def dispatch(rebuilt, bare, points)
       mutants = points.flat_map(&:mutants).reverse
-      return parameter(rebuilt, mutants) if %i[optarg kwoptarg].include?(rebuilt.type)
+      type = rebuilt.type
+      return parameter(rebuilt, mutants) if %i[optarg kwoptarg].include?(type)
+      return definition(rebuilt, bare, mutants) if mutants.any? && DEFINITIONS.include?(type)
       guarded = guard(mutants, rebuilt) { |mutant| variant(bare, mutant) }
       guarded.equal?(rebuilt) ? guarded : ast(:begin, guarded)
+    end
+
+    def definition(rebuilt, bare, mutants)
+      hidden, reshaped = mutants.partition { |mutant| mutant.directive[Kimera::Rewrite::TYPE] == PRIVATIZE }
+      children = rebuilt.children
+      defined = rebuilt.updated(nil, [*children[...-1], probed(reshape(children.last, bare, reshaped), hidden)])
+      hidden.empty? ? defined : ast(:begin, defined, *registrations(children[-3], hidden))
+    end
+
+    def reshape(body, bare, mutants)
+      guard(mutants, enclosed(body)) { |mutant| enclosed(variant(bare, mutant).children.last) }
+    end
+
+    def probed(body, hidden) = hidden.empty? ? body : ast(:begin, probe(hidden), *[body].compact)
+
+    def enclosed(body) = body && CLAUSED.include?(body.type) ? ast(:kwbegin, body) : body
+
+    def probe(mutants) = guard(mutants, ast(:nil)) { ast(:nil) }
+
+    def registrations(name, mutants)
+      mutants.map { |mutant| ast(:send, runtime, :privatize, ast(:int, mutant.id), ast(:self), ast(:sym, name)) }
     end
 
     def branch(mutant, truthy, dispatch)
@@ -43,8 +70,10 @@ module Kimera
     end
 
     def active(id)
-      ast(:send, ast(:const, ast(:const, ast(:cbase), :Kimera), :RUNTIME), :active?, ast(:int, id))
+      ast(:send, runtime, :active?, ast(:int, id))
     end
+
+    def runtime = ast(:const, ast(:const, ast(:cbase), :Kimera), :RUNTIME)
 
     def conditional(condition, truthy, fallback)
       ast(:if, condition, truthy, fallback)

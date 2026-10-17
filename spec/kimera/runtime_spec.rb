@@ -216,4 +216,40 @@ RSpec.describe(Kimera::Runtime) do
       end
     end
   end
+
+  describe "#privatize" do
+    let(:owner) { Class.new { def shown = 1 } }
+
+    it "flips a registered method on activation and back on deactivation", :aggregate_failures do
+      runtime.privatize(3, owner, :shown)
+      runtime.active = 3
+      expect(owner.private_method_defined?(:shown)).to(be(true))
+      runtime.active = 4
+      expect(owner.public_method_defined?(:shown)).to(be(true))
+      runtime.active = 3
+      runtime.reset!
+      expect(owner.public_method_defined?(:shown)).to(be(true))
+    end
+
+    it "flips the names that hold the registered definition, not a later redefinition", :aggregate_failures do
+      runtime.privatize(6, owner, :shown)
+      owner.class_eval do
+        alias_method :before, :shown
+        def shown = before + 1
+      end
+      runtime.active = 6
+      expect(owner.private_method_defined?(:before)).to(be(true))
+      expect(owner.public_method_defined?(:shown)).to(be(true))
+      runtime.active = nil
+      expect(owner.public_method_defined?(:before)).to(be(true))
+    end
+
+    it "clears a Rails controller's cached actions with each flip" do
+      controller = Class.new(owner) { def self.clear_action_methods! = (@cleared = (@cleared || 0) + 1) }
+      runtime.privatize(5, controller, :shown)
+      runtime.active = 5
+      runtime.active = nil
+      expect(controller.instance_variable_get(:@cleared)).to(eq(2))
+    end
+  end
 end
