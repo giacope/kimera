@@ -30,12 +30,16 @@ class RubyPrograms < Pbt::Arbitrary::Arbitrary
   }.freeze
   SIMPLEST = ["def m(a, b = %1, c: %2)", ["2"], ["2"]].freeze
   DEFAULTS = { literal: %w[1 2 nil], any: ["2", "3", "nil", '"s"', "(1 / a)", "a.to_s", "(a + 1)"] }.freeze
-  LEAVES = ["a", "b", "c", "0", "1", "2", "-1", "7", "nil", "true", "false", '"s"', '"\xFF"', ":k", "[]", "{}"].freeze
+  LEAVES = [
+    "a", "b", "c", "0", "1", "2", "-1", "7", "nil", "true", "false", '"s"', '"\xFF"', ":k", "[]", "{}",
+    "@v"
+  ].freeze
   UNARY = [
     "(!%1)", "(-%1)", "%1.to_s", "%1.to_s.size", "%1.abs", "%1&.succ", "%1.to_s.upcase", "Integer(%1)",
     "String(%1)", "%1.to_s.to_sym", "[%1].first", '"x#{%1}y"', "%1.to_s.match?(/1/)", "%1.nil?",
     "%1.to_s.to_i", "%1.respond_to?(:abs)", "Array(%1)", "(a...b).cover?(%1)", "%1.to_s.split(\"\").first",
-    "(!(a...b).cover?(%1))"
+    "(!(a...b).cover?(%1))", "%1.to_s.match?(/\\A-?\\d+\\z/)", "%1.to_s[/\\d{1,2}5?/]", "(Integer(%1) rescue -2)",
+    "Integer(%1.to_s, exception: false)", "%1.to_s.lines(chomp: true)"
   ].freeze
   BINARY = [
     "(%1 + %2)", "(%1 - %2)", "(%1 * %2)", "(%1 / %2)", "(%1 % %2)", "(%1 == %2)", "(%1 != %2)",
@@ -43,7 +47,8 @@ class RubyPrograms < Pbt::Arbitrary::Arbitrary
     "(%1 | %2)", "(%1 <=> %2)", "[%1, %2]", "[%1, %2].max", "{ k: %1, j: %2 }.fetch(:k)", "{ k: %1 }[:k]",
     "[%1, %2].map { |x| x.to_s }", "[%1, %2].select { |x| x }",
     "[%1, %2].first(1)", "[%1, %2].include?(1)", "%1.eql?(%2)", "[%1, %2].sum(0)", "[%1, %2][1]",
-    "%1.to_s.center(4, %2.to_s)", "([%1]...[%2]).to_s.size"
+    "%1.to_s.center(4, %2.to_s)", "([%1]...[%2]).to_s.size",
+    "(begin; Integer(%1); rescue TypeError; %2; rescue ArgumentError; -3; end)", "(begin; %1; ensure; @v = %2; end)"
   ].freeze
   TERNARY = [
     "(%1 ? %2 : %3)", "(if %1 then %2 else %3 end)", "(unless %1 then %2 else %3 end)",
@@ -51,7 +56,9 @@ class RubyPrograms < Pbt::Arbitrary::Arbitrary
   ].freeze
   # `x = %1 && %2 && %3` nests a connective with no parentheses of its own, so
   # swapping the inner one to || leaves a tree only grouping can write back.
-  STATEMENTS = ["%1", "a += %1", "return %1 if %2", "b = %1", "x = %1", "x = %1 && %2 && %3"].freeze
+  STATEMENTS = [
+    "%1", "a += %1", "return %1 if %2", "b = %1", "x = %1", "x = %1 && %2 && %3", "@v = %1", "return nil if %1", "nil"
+  ].freeze
   FORMS = [LEAVES, UNARY, BINARY, TERNARY].freeze
   HOLE = /%(\d)/
 

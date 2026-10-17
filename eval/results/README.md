@@ -78,3 +78,75 @@ large: treat single-run differences under about 25% as noise.
 Summed resident memory across the process tree rises (dry-inflector 577 MB to
 980 MB) because the sampler counts each short-lived child's copy-on-write
 pages again; the largest single process does not grow (243 MB and 216 MB).
+
+## New operators (O1)
+
+Nine operator families were added, each measured on three corpora before
+deciding whether it joins the default set: kimera's own `lib` (its
+`.kimera.yml`, `--jobs 4`), dry-inflector's `lib` at the S1 revision
+(`--jobs 4`), and the 22 holdout projects (`eval/holdout` p01-p12 and the
+second batch q01-q10, `--jobs 2`; q03 is left out, since its suite of
+refinements is red under kimera with any operator, on main too). Every
+run used only the new families. Verdicts were checked against an oracle that
+bakes each mutant into a copy and runs the plain suite: on dry-inflector all
+116 comparable mutants agree, and on the holdouts all 109 (after one fix,
+below).
+
+An independent reviewer, given only the mutated code, its surroundings and
+the names of the covering tests, judged a random sample of up to 20
+survivors per family (all of them where fewer survived) as useful (a test,
+or a change such as making a method private, a developer would make),
+equivalent, or noise (observable but not worth a test). "Noise" in the
+table is equivalent plus noise.
+
+| family | mutants (kimera / dry-inflector / holdouts) | survived | judged | noise | worker s per mutant (kimera) |
+| --- | --- | --- | --- | --- | --- |
+| `assignment_deletion` | 321 / 15 / 24 | 21 (5.8%) | 17 | 7 (41%) | 4.7 |
+| `keyword_drop` | 549 / 2 / 8 | 85 (15.8%) | 20 | 6 (30%) | 6.8 |
+| `visibility` | 447 / 24 / 45 | 58 (11.3%) | 20 | 6 to 12 (30 to 60%) | 3.0 |
+| `rescue_clause` | 73 / 0 / 0 | 12 (17.6%) | 12 | 6 (50%) | 4.9 |
+| `ensure_clause` | 24 / 0 / 2 | 5 (20.8%) | 5 | 2 (40%) | 26.1 |
+| `super_call` | 23 / 0 / 6 | 5 (17.2%) | 5 | 4 (80%) | 0.8 |
+| `regexp_anchor` | 3 / 58 / 9 | 47 (67.1%) | 20 | 6 (30%) | 2.2 (dry-inflector) |
+| `regexp_quantifier` | 13 / 18 / 12 | 25 (58.1%) | 20 | 15 (75%) | 2.3 (dry-inflector) |
+| `nil_literal` | 0 / 0 / 2 | 0 | 0 | n/a | n/a |
+
+- **Noise by family.** `assignment_deletion`'s equivalents are initial
+  values a later read can't tell apart (`@flag = false` read only for
+  truthiness); a sample of three more, `@x = nil` in `initialize`, is
+  excluded by the operator now (an unset ivar reads nil). `keyword_drop`'s
+  noise is all `encoding: Encoding::UTF_8`, which only a non-UTF-8 locale
+  can observe; its useful survivors include real holes in kimera's own
+  suite (a dropped `leaks:` loses reported leaks, a dropped `isolate_db:` is
+  silently ignored). `visibility`'s range is the reviewers' split on one
+  pattern: an operator's `variants`, the documented extension point, which
+  only `self` calls; 5 other survivors are helpers only their own class
+  calls. `super_call`'s equivalents are `super` in an `initialize` whose
+  parent has none. `regexp_quantifier`'s noise is `.*` => `.+` in inflection
+  rules, which only a bare suffix (`us`, `eau`) can tell apart. One
+  `super_call` pattern is excluded now too: `super` in
+  `respond_to_missing?` (Object's answers false; nil reads the same).
+- **Cost.** Worker seconds are summed judge time over the mutants of one
+  run, on a 4-vCPU VM that another agent's runs shared (load 8 to 12), so
+  read them relative to each other: kimera's default set costs about 1.6 s a
+  mutant there unloaded. `ensure_clause` is dear because its mutants sit in
+  the harness and run its slowest tests. On dry-inflector, the default set
+  takes 61.8 s (141 mutants); all nine new families together 67.8 s (117),
+  `regexp_anchor` alone 58.4 s (58), most of it survivors running every
+  covering test.
+- **Decision: all nine are opt-in families, none joins the default set.**
+  The closest, `assignment_deletion`, still had 7 of 17 judged survivors
+  equivalent or noise, and would add 321 mutants (8%) to kimera's own
+  gate; `keyword_drop` would add 549 (13%) at the highest cost per mutant.
+  `nil_literal` has too few mutants on these corpora to measure (2, both
+  killed).
+- **Fix found by the oracle.** The first holdout run had one false kill:
+  in p12 (alias chain), making `Order#total` private flipped the wrapper a
+  later file defines under that name, where a `private :total` after the
+  original's `def` reaches only the original and the alias taken of it. The
+  runtime flip now applies to the names that hold the original definition;
+  the 3 visibility mutants of p12 then agree with the oracle.
+- **Schemata.** `spec/kimera` and the schemata properties (which now
+  generate rescue, ensure, ivar, keyword and regexp forms) pass on unparser
+  0.8.1, 0.8.2 and 0.9.0, and every file of kimera's `lib` and
+  `examples` reduces to each of its mutants' bakes under all operators.

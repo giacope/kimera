@@ -29,7 +29,7 @@ and flips them at runtime, so your app boots once, not once per mutant.
   with Minitest and RSpec, in every mode.
 - **Built for CI.** `kimera changed` mutates only the lines a PR touched.
   `kimera ci` fails the build on any survivor or untested change.
-- **Low noise.** A small default operator set. 19 extended families are one
+- **Low noise.** A small default operator set. 28 extended families are one
   flag away, and you can write your own.
 - **Honest verdicts.** Your suite boots once, but every test and every
   mutant runs in a process forked from one no test has run in, so no cache,
@@ -639,6 +639,15 @@ The extended families are one flag away. Use `--operators all`, or pick from:
 | `symbol_literal` | `:total => :total__kimera__` |
 | `default_argument` | `def f(a = 1)` / `f(b: 1)` => the parameter becomes required |
 | `chain_link_deletion` | `a.where(x).recent.first => a.where(x).first`: drop one link, keep both ends |
+| `super_call` | `super` / `super(...)` => `nil`: the inherited behavior is skipped |
+| `rescue_clause` | drop one `rescue` clause (of a method body or a `begin`), or a `rescue` modifier |
+| `ensure_clause` | drop an `ensure` block |
+| `assignment_deletion` | `@total = sum(xs) => sum(xs)`; a local only where it rebinds a bound name (`name = name.strip => name.strip`) |
+| `nil_literal` | `return nil` (and `next`/`break nil`), a method's tail `nil` => `::Object.new` |
+| `regexp_anchor` | drop one of `\A`, `^`, `\z`, `\Z`, `$` |
+| `regexp_quantifier` | `+ <=> *`, drop `?`, `{n,m} => {n-1,m}` / `{n,m+1}`, `{n} => {n-1}` / `{n+1}` |
+| `keyword_drop` | `pay(amount, currency: "EUR") => pay(amount)`: drop one keyword argument at a call |
+| `visibility` | a public instance method => private |
 
 Turning them all on typically triples the mutant count. Adopt them through the
 baseline burn-down workflow, not by flipping them on in a mature gate.
@@ -650,6 +659,46 @@ exercises the case the affordance exists for. `index_fetch` and
 value already has the target shape. That is the normal case for an options hash
 built from a defaults literal. Scope them to data that crosses a boundary
 (params, parsed JSON, ENV); on internal bookkeeping they are noise.
+
+**`assignment_deletion`** keeps the assigned value: the right-hand side
+still runs and is still the statement's value, only the store is gone, so a
+survivor says exactly one thing: nothing reads what was stored. (Dropping the
+whole statement would also drop the value's side effects, which
+`statement_deletion` already covers, and mix two questions in one mutant.) A
+local is mutated only where an earlier binding keeps its name a local (a
+parameter, an earlier write, an outer local written from a block); dropping a
+name's first write would turn its later reads into method calls, a
+`NameError` any covering test trips. A memoizing store is never a target.
+
+**`visibility`** asks whether a public method is public for a reason. A
+survivor means no test calls it from outside its object: it is untested API,
+or it should be private. The schemata keeps the method public and registers
+it with `::Kimera::RUNTIME`; activating the mutant makes it private (every
+name holding that definition, so an alias another file took of it too, and
+not a later redefinition), and deactivating it makes it public again. So the
+mutant is a real private method: `respond_to?` says false, an outside call
+reaches `method_missing`, `public_send` raises, `send` still works (a method
+only ever called through `send` survives, as it should), and a Rails
+controller's cached action list is dropped with each flip, so a private
+action is not routable. A probe at the top of the method records which tests
+call it. Only `def`s in a class, module or `class << self` body that are
+public where they stand count; methods Ruby or a protocol calls by name
+(`initialize`, `to_s`, `==`, `each`, `call`, `method_missing`, ...) are left
+alone. A visibility mutant spans its whole method, so on an incremental run
+a change anywhere in a public method selects it.
+
+**`regexp_anchor` and `regexp_quantifier`** read the pattern's own syntax
+(character classes, escapes and group openers are skipped). They leave
+interpolated patterns and the `x` flag alone.
+
+The nine families from `super_call` down were measured before choosing
+where they go; each is opt-in because each leaves more equivalent or
+low-value survivors than the default set allows (from 30% of the survivors
+an independent reviewer judged, for `keyword_drop`, to 80% for
+`super_call`). `super_call` skips the `super` of `respond_to_missing?`, and
+`assignment_deletion` an `@x = nil` in `initialize`: both are equivalent by
+construction. The numbers, per family and corpus, are in
+[`eval/results`](eval/results/README.md#new-operators-o1).
 
 **`chain_link_deletion`** casts the widest net and matters most for Rails. Most
 Rails business rules live mid-chain: the scope, the filter, the decorator.

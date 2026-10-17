@@ -56,6 +56,45 @@
   gate on uncovered mutants but leave them out of the score. Off by default.
   `schema/report.schema.json` describes the JSON report, and its `run`
   section records the setting.
+- Nine new operator families, all opt-in (`--operators all`, or by name):
+  - `super_call`: `super` / `super(...)` => nil.
+  - `rescue_clause`: drop one `rescue` clause of a method body or a
+    `begin`, or a `rescue` modifier; `ensure_clause`: drop an `ensure`.
+    The guard for a method's own clause sits inside its body, so these are
+    judged warm like any other mutant.
+  - `assignment_deletion`: `@x = v => v`, and a local only where it rebinds
+    a name already bound (`name = name.strip => name.strip`). The value is
+    still computed and is still the statement's value; only the store goes,
+    so a survivor means nothing reads it. Memoizing stores and an
+    `@x = nil` in `initialize` are not targets.
+  - `nil_literal`: `return nil` (`next`, `break`) and a method's tail `nil`
+    => `::Object.new`.
+  - `regexp_anchor` (drop `\A`, `^`, `\z`, `\Z`, `$`) and `regexp_quantifier`
+    (`+ <=> *`, drop `?`, each `{n,m}` bound one step looser, `{n}` one
+    either way), on the pattern's own syntax.
+  - `keyword_drop`: drop one keyword argument at a call site.
+  - `visibility`: a public instance method => private. A survivor is
+    untested API or a method that should not be public. The schemata keeps
+    the method public and registers it with the runtime, which makes it
+    private when the mutant is activated (every name holding that
+    definition, so an alias another file took too, not a later
+    redefinition) and public again after; `respond_to?`, `method_missing`,
+    `public_send` and Rails' action list see a real private method, and
+    `send` still reaches it. A probe at the top of the method records its
+    covering tests. The isolated tier bakes `private(:name)` after the
+    `def`, and the warm verdicts match it.
+
+  Measured on kimera's own `lib`, dry-inflector and the 22 holdout
+  projects, with a reviewer judging a sample of each family's survivors
+  (`eval/results/README.md`, O1): survivors judged equivalent or noise ran
+  from 30% (`keyword_drop`, `regexp_anchor`) through 41%
+  (`assignment_deletion`) to 75 to 80% (`regexp_quantifier`, `super_call`),
+  so none joins the default set. Their verdicts agree with a fresh-process
+  oracle on all 116 comparable dry-inflector mutants and all 109 holdout
+  ones.
+- A memo guard written `return @x if defined?(@x)` is read like
+  `return @x if @x`: its store is not a target either.
+
 - Faster, with the same verdicts. A mutant's covering tests now run fastest
   first by their baseline time (after the worker's recent killers), so a
   mutant most tests kill dies on a cheap unit test instead of after hundreds

@@ -151,6 +151,9 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   (`flaky_tests` in the JSON report) and never kills, so a mutant only it
   covers reads `no_coverage`. Fix the flaky test; don't raise a timeout or
   pin a seed to hide it.
+- A `visibility` survivor (`public => private (name)`) says no test calls the
+  method from outside its object: make it private, or test it through its
+  public use. A method only ever called via `send` survives by design.
 - `isolated_only` marks mutants that only `--isolated` can judge: class-body
   DSL, and code in a method the suite only runs while it loads (a class macro
   or `included` hook another file's class body calls). Run it for their
