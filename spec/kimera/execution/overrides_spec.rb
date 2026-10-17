@@ -42,26 +42,24 @@ RSpec.describe(Kimera::Execution::Overrides) do
 
   it "puts back what a later file defined, and hands over the overlaid version", :aggregate_failures do
     boot
-    overrides = described_class.new(own, source)
-    overlay(overrides)
+    _, displaced = overlay(described_class.new(own, source))
     expect([OverridesOrder.new.total, OverridesOrder.make, OverridesOrder.build]).to(eq([2, :later, :later]))
-    expect(overrides.displaced.map { |held| [held.name, held.definition.source_location.first] })
+    expect(displaced.map { |held| [held.name, held.definition.source_location.first] })
       .to(contain_exactly([:total, own], [:make, own], [:build, own]))
   end
 
   it "hands over only what the overlay redefined" do
     boot
-    overrides = described_class.new(own, source)
-    overrides.keep { evaluate(OverridesOrder, "def total = 9", own) }
-    expect(overrides.displaced.map(&:name)).to(eq([:total]))
+    _, displaced = described_class.new(own, source).keep { evaluate(OverridesOrder, "def total = 9", own) }
+    expect(displaced.map(&:name)).to(eq([:total]))
   end
 
   it "keeps a later file's top-level method", :aggregate_failures do
     evaluate(Object, "def overrides_top = :own", own)
     evaluate(Object, "def overrides_top = :later", later)
     overrides = described_class.new(own, "def overrides_top = :own\n")
-    overrides.keep { evaluate(Object, "def overrides_top = :again", own) }
-    expect([overrides_top, overrides.displaced.map(&:name)]).to(eq([:later, [:overrides_top]]))
+    _, displaced = overrides.keep { evaluate(Object, "def overrides_top = :again", own) }
+    expect([overrides_top, displaced.map(&:name)]).to(eq([:later, [:overrides_top]]))
   ensure
     Object.__send__(:remove_method, :overrides_top)
   end
@@ -83,13 +81,11 @@ RSpec.describe(Kimera::Execution::Overrides) do
     code = "class OverridesMissing\n  def gone = 1\nend\n\ndef OverridesOrder.other = 1\n" \
       "[1].each { def inside = 1 }\n" \
       "class OverridesOrder\nend\nclass OverridesOrder\n  class << self\n  end\nend\n"
-    expect(described_class.new(own, code).keep { :done }).to(eq(:done))
+    expect(described_class.new(own, code).keep { :done }.first).to(eq(:done))
   end
 
   it "reads nothing from a source that does not parse" do
-    overrides = described_class.new(own, "class Broken\n  def oops(\nend\n")
-    overrides.keep { :done }
-    expect(overrides.displaced).to(be_empty)
+    expect(described_class.new(own, "class Broken\n  def oops(\nend\n").keep { :done }).to(eq([:done, []]))
   end
 
   describe Kimera::Execution::Redefinition do

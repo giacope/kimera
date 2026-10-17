@@ -21,9 +21,7 @@ class Kimera::Execution::Verdicts
     point(id).reloadable?
   end
 
-  def reclassify!(results)
-    results.each { |id, result| reclassify(results, id, result) }
-  end
+  def reclassified(results) = results.transform_values { |result| reclassify(result) }
 
   def parse(message)
     id = message["id"]
@@ -61,10 +59,7 @@ class Kimera::Execution::Verdicts
 
   private
 
-  def reclassify(results, id, result)
-    return unless suspect?(result)
-    results[id] = result.isolated(detail(result.status))
-  end
+  def reclassify(result) = suspect?(result) ? result.isolated(detail(result.status)) : result
 
   def suspect?(result)
     Kimera::Status::SELF_SUSPECT.include?(result.status) && harness?(result)

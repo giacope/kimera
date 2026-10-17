@@ -28,8 +28,7 @@ class Kimera::CLI::Doctor
   end
 
   def run(argv)
-    options = { check_baseline: false }
-    OPTIONS.parse(argv, options)
+    _, options = OPTIONS.parse(argv, { check_baseline: false })
     verdict(checks(Kimera::Config.root(root: @root).merge(options.slice(:jobs)), options))
   rescue Kimera::UsageError => error
     usage(error)

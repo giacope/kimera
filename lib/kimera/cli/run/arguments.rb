@@ -9,8 +9,8 @@ require_relative "targets"
 
 class Kimera::CLI::Run::Arguments
   def parse(argv)
-    options = defaults.merge(Kimera::Config.parse(argv))
-    finish(options, Kimera::CLI::RunOptions::OPTIONS.parse(argv, options))
+    rest, options = Kimera::CLI::RunOptions::OPTIONS.parse(argv, defaults.merge(Kimera::Config.parse(argv)))
+    finish(options, rest)
   end
 
   private

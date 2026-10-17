@@ -27,8 +27,7 @@ class Kimera::CLI::Init
   end
 
   def run(argv)
-    options = { force: false, dry_run: false }
-    OPTIONS.parse(argv, options)
+    _, options = OPTIONS.parse(argv, { force: false, dry_run: false })
     options[:dry_run] ? preview : write(options)
   rescue Kimera::UsageError => error
     usage(error)

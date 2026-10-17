@@ -51,17 +51,16 @@ class Kimera::Rewrite::Outcomes
   end
 
   def nodes
-    @_nodes ||= index(tree, {})
+    @_nodes ||= spans(tree).uniq(&:first).to_h
   rescue StandardError
-    @_nodes = {}
+    @_nodes ||= {}
   end
 
-  def index(node, found)
-    return found unless node.is_a?(Parser::AST::Node)
+  def spans(node)
+    return [] unless node.is_a?(Parser::AST::Node)
     expression = node.location&.expression
-    found[[offsets[expression.begin_pos], offsets[expression.end_pos]]] ||= node if expression
-    node.children.each { |child| index(child, found) }
-    found
+    (expression ? [[[offsets[expression.begin_pos], offsets[expression.end_pos]], node]] : []) +
+      node.children.flat_map { |child| spans(child) }
   end
 
   def offsets = @_offsets ||= @source.each_char.with_object([0]) { |char, table| table << (table.last + char.bytesize) }

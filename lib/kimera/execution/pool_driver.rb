@@ -34,16 +34,8 @@ class Kimera::Execution::Pool
 
   def coverage = @options[:coverage]
 
-  def coverage=(measured)
-    @options[:coverage] = measured
-  end
-
-  def budget=(budget)
-    @options[:budget] = budget
-  end
-
-  def timings=(timings)
-    @options[:timings] = timings
+  def arm(coverage:, budget:, timings:)
+    @options.update(coverage: coverage, budget: budget, timings: timings)
   end
 
   def drive(queue, spawner, listeners, jobs: @options.fetch(:jobs))

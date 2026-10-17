@@ -24,8 +24,9 @@ class Kimera::CLI::Baseline::Creation
   end
 
   def run(argv)
-    options = { reason: nil, output: ".kimera-baseline.yml", force: false }.merge(write: false)
-    report, = CREATE.parse(argv, options)
+    (report,), options = CREATE.parse(
+      argv, { reason: nil, output: ".kimera-baseline.yml", force: false }.merge(write: false)
+    )
     report ||= Kimera::CLI::ReportFile::DEFAULT
     check(report, options)
     write(report, options)

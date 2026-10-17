@@ -63,8 +63,9 @@ class Kimera::Execution::Schemata
   end
 
   def apply(result, file)
-    overrides = Kimera::Execution::Overrides.new(file, result.source)
-    silence { overrides.keep { result.install(file) } }.tap { aliases.witness(overrides.displaced) }
+    installed, displaced = silence { Kimera::Execution::Overrides.new(file, result.source).keep { result.install(file) } }
+    aliases.witness(displaced)
+    installed
   end
 
   def skip(path, reason)

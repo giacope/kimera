@@ -119,6 +119,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     errors = StringIO.new
     databases = Kimera::Execution::WorkerDatabases.new(adapter: Object.new, jobs: 2, errors: errors)
     allow(databases).to(receive(:require).with("active_record/test_databases").and_raise(LoadError, "missing helper"))
+    allow(databases).to(receive(:eligible?).and_return(true))
 
     databases.__send__(:register!)
 

@@ -28,20 +28,25 @@ class Kimera::CLI::Run
   end
 
   def run(argv)
-    options = parse(argv).tap { |parsed| detach if machine?(parsed) }
-    pid_file(options[:pidfile]) { cycle(options).call }
+    options = parse(argv)
+    (machine?(options) ? detached : self).perform(options)
   rescue Kimera::Error => error
     @errors.puts("kimera: #{error.message}")
     1
   end
 
+  protected
+
+  def perform(options) = pid_file(options[:pidfile]) { cycle(options).call }
+
   private
 
   def machine?(options) = options.fetch(:format, "text") != "text" && @io.equal?($stdout) && @io.is_a?(IO)
 
-  def detach
-    @io = @io.dup.tap { |report| report.sync = true }
+  def detached
+    report = @io.dup.tap { |copy| copy.sync = true }
     $stdout.reopen($stderr)
+    self.class.new(io: report, errors: @errors)
   end
 
   def pid_file(path, &)

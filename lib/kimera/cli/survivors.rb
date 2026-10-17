@@ -44,8 +44,8 @@ class Kimera::CLI::Survivors
   end
 
   def parse(argv)
-    options = { status: "survived", id: nil }
-    report, filter = positional(OPTIONS.parse(argv, options))
+    arguments, options = OPTIONS.parse(argv, { status: "survived", id: nil })
+    report, filter = positional(arguments)
     options.merge(report: report, filter: filter)
   end
 

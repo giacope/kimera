@@ -24,8 +24,7 @@ class Kimera::Execution::BaselinePass
   def check!(zygote = Kimera::Execution::Zygote.new)
     outcome = sequence(zygote)
     return if outcome["passed"]
-    @messages = outcome["failures"]
-    failure!(outcome["failed_ids"], 1)
+    failure!(outcome["failed_ids"], 1, messages: outcome["failures"])
   end
 
   def sequence(zygote = Kimera::Execution::Zygote.new) = zygote.call { whole }
@@ -127,10 +126,10 @@ class Kimera::Execution::BaselinePass
     $stderr = StringIO.new
   end
 
-  def failure!(failed, jobs, ordered = [])
+  def failure!(failed, jobs, ordered = [], messages: @messages)
     summary = Kimera::Execution::BaselineFailure::Summary
     command = @adapter.reproduce(failed.first(summary::MAX_DETAILS))
     context = summary::Context.new(workers: journal, stacks: losses.stacks, jobs: jobs, ordered: ordered)
-    raise(Kimera::Execution::BaselineFailure, summary.new(failed, @messages, command, context).to_s)
+    raise(Kimera::Execution::BaselineFailure, summary.new(failed, messages, command, context).to_s)
   end
 end

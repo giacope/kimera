@@ -49,10 +49,10 @@ class Kimera::CLI
   private
 
   def dispatch(argv)
-    command = argv.shift || "help"
-    handler = COMMANDS[command]
-    return unknown(command, argv) unless handler
-    __send__(handler, argv)
+    command, *rest = argv
+    handler = COMMANDS[command || "help"]
+    return unknown(command, rest) unless handler
+    __send__(handler, rest)
   end
 
   def unknown(command, _argv)
@@ -62,8 +62,8 @@ class Kimera::CLI
   end
 
   def registry(argv)
-    options = Kimera::Config.scope({ output: nil, operators: Kimera::Operators::DEFAULT_KEYS, quiet: false }, argv)
-    paths = REGISTRY_OPTIONS.parse(argv, options)
+    defaults = Kimera::Config.scope({ output: nil, operators: Kimera::Operators::DEFAULT_KEYS, quiet: false }, argv)
+    paths, options = REGISTRY_OPTIONS.parse(argv, defaults)
     files = Kimera::FileSet.scoped(paths, options)
     return missing(paths, options) if files.empty?
     build(files, options)

@@ -23,8 +23,7 @@ class Kimera::CLI::Mutant
   end
 
   def run(argv)
-    options = { report: Kimera::CLI::ReportFile::DEFAULT, rerun: false }
-    id, = OPTIONS.parse(argv, options)
+    (id,), options = OPTIONS.parse(argv, { report: Kimera::CLI::ReportFile::DEFAULT, rerun: false })
     show(identify(id), options)
   rescue Kimera::UsageError => error
     usage(error)

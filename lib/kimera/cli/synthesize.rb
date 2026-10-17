@@ -31,8 +31,8 @@ class Kimera::CLI::Synthesize
   end
 
   def run(argv)
-    options = Kimera::Config.scope({ out: nil, registry: nil, operators: Kimera::Operators::DEFAULT_KEYS }, argv)
-    paths = OPTIONS.parse(argv, options)
+    defaults = Kimera::Config.scope({ out: nil, registry: nil, operators: Kimera::Operators::DEFAULT_KEYS }, argv)
+    paths, options = OPTIONS.parse(argv, defaults)
     out = options[:out]
     out ? synthesize(paths, options, out) : missing
   end

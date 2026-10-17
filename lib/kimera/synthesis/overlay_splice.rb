@@ -20,18 +20,12 @@ module Kimera
     end
 
     def gather
-      edits = []
-      dropped = []
-      claimed = each { |definition, points| collect(definition, points, edits, dropped) }
-      [edits, dropped + (@safe - claimed)]
+      claims = claimed
+      rewritten = claims.map { |definition, mine| [rewrite(definition, mine), mine] }
+      [rewritten.filter_map(&:first), rewritten.reject(&:first).flat_map(&:last) + (@safe - claims.flat_map(&:last))]
     end
 
     def reopenings = Kimera::SpliceReopening.new(@map).edits
-
-    def collect(definition, points, edits, dropped)
-      rewritten = rewrite(definition, points)
-      rewritten ? edits << rewritten : dropped.concat(points)
-    end
 
     def report(edits, dropped, source)
       applied = edits.flat_map(&:last)
@@ -62,17 +56,11 @@ module Kimera
       false
     end
 
-    def each(&)
-      claimed = []
-      definitions(@map.ast).each { |definition| visit(definition, claimed, &) }
-      claimed
-    end
-
-    def visit(definition, claimed)
-      mine = points(definition, claimed)
-      return if mine.empty?
-      claimed.concat(mine)
-      yield(definition, mine)
+    def claimed
+      definitions(@map.ast).reduce([]) do |claims, definition|
+        mine = points(definition, claims.flat_map(&:last))
+        mine.empty? ? claims : [*claims, [definition, mine]]
+      end
     end
 
     def points(definition, claimed)

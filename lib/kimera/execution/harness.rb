@@ -135,9 +135,7 @@ class Kimera::Execution::Harness
   end
 
   def arm(timings)
-    driver.coverage = coverage
-    driver.budget = budget(timings)
-    driver.timings = timings
+    driver.arm(coverage: coverage, budget: budget(timings), timings: timings)
   end
 
   def parallel(pass)

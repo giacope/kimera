@@ -29,13 +29,13 @@ module Kimera
     end
 
     def merge(children)
-      children.each_with_object([]) { |child, items| append(items, child) }
+      children.reduce([]) { |items, child| append(items, child) }
     end
 
     def append(items, child)
       previous = items.last
-      return items << child unless string?(child) && string?(previous)
-      items[-1] = ast(:str, previous.children.first + child.children.first)
+      return items + [child] unless string?(child) && string?(previous)
+      items[0...-1] + [ast(:str, previous.children.first + child.children.first)]
     end
 
     def prune(node)

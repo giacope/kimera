@@ -36,7 +36,9 @@ class Kimera::RegistryScan::SourceFile
 
   def scan(parsed)
     return [[], [unparsed(parsed.errors.first&.message)]] if parsed.failure?
-    mined(parsed.value)
+    root = parsed.value
+    operators = @operators.map { |operator| operator.survey(root) }
+    self.class.new(@source, file: @file, operators: operators, numbering: @numbering).mined(root)
   end
 
   def unparsed(error)
@@ -47,13 +49,19 @@ class Kimera::RegistryScan::SourceFile
     Kimera::Unmutated.new(@file, *Kimera::Location.parse(block.location).range.minmax, Kimera::Unmutated::BLOCK)
   end
 
+  protected
+
   def mined(root)
-    @operators.each { |operator| operator.survey(root) }
     found = []
     held = {}.compare_by_identity
-    walk(root, origin) { |node, cursor| bank(found, node, cursor) || hold(held, node, cursor) }
+    walk(root, origin) do |node, cursor|
+      point = bank(node, cursor)
+      point ? found << point : held.update(hold(node, cursor))
+    end
     [found, held.values]
   end
+
+  private
 
   def origin
     Kimera::RegistryWalking::Cursor.new(
@@ -61,17 +69,17 @@ class Kimera::RegistryScan::SourceFile
     )
   end
 
-  def bank(found, node, cursor)
+  def bank(node, cursor)
     pairs = harvest(applicable(cursor), node, cursor.position).reject { |key, _| guarded?(node, key) }
     pairs = writable(node.location, pairs)
     return if pairs.empty?
-    found << classed(assemble(node, pairs, cursor.defname), cursor, pairs).taint!(tainted)
+    classed(assemble(node, pairs, cursor.defname), cursor, pairs).taint!(tainted)
   end
 
-  def hold(held, node, cursor)
+  def hold(node, cursor)
     block = cursor.block
-    return unless block && !cursor.inside_def && harvest(skipped, node, cursor.position).any?
-    held[block] = region(block)
+    return {} unless block && !cursor.inside_def && harvest(skipped, node, cursor.position).any?
+    { block => region(block) }
   end
 
   def skipped = @operators.reject(&:body?).reject(&:statement?)
