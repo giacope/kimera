@@ -29,9 +29,8 @@ class Kimera::Report::Text
   COVERAGE_SECTIONS = { hint: :hint, list: :missing }.freeze
 
   def report(report, scope: nil, coverage: :hint, path: nil)
-    @tests = Kimera::Report::TestList.new(report, path)
     header(report, scope)
-    survivors(report)
+    survivors(report, Kimera::Report::TestList.new(report, path))
     footer(report, coverage, path)
   end
 
@@ -52,9 +51,9 @@ class Kimera::Report::Text
     Kimera::Report::Actions.new(io: @io).show(report, path: path)
   end
 
-  def survivors(report)
-    section("Surviving mutants", report.survived) { |result| survivor(result) }
-    section("Reached only by other units' tests", report.unattributed) { |result| unowned(result) }
+  def survivors(report, tests)
+    section("Surviving mutants", report.survived) { |result| survivor(result, tests) }
+    section("Reached only by other units' tests", report.unattributed) { |result| unowned(result, tests) }
     unjudged(report)
     waivers(report)
     rejudged(report)
@@ -75,20 +74,20 @@ class Kimera::Report::Text
     listed
   end
 
-  def survivor(result)
-    resolved(result) { |id, mutant, point| display(id, mutant, point, result) }
+  def survivor(result, tests)
+    resolved(result) { |_id, mutant, point| display(mutant, point, result, tests.lines(result)) }
   end
 
-  def unowned(result)
-    survivor(result)
+  def unowned(result, tests)
+    survivor(result, tests)
     @io.puts("    #{result.detail}")
   end
 
-  def display(id, mutant, point, result)
+  def display(mutant, point, result, covering)
     @io.puts
-    spotted(result.status.to_s, id, mutant, point)
+    spotted(result.status.to_s, result.mutant_id, mutant, point)
     diff(point, mutant)
-    covering(result)
+    covering.each { |line| @io.puts("    #{line}") }
     annotate(result)
   end
 
@@ -100,7 +99,7 @@ class Kimera::Report::Text
 
   def diff(point, mutant)
     original = point.original_source
-    variant = Kimera::Rewrite::Directive.render(original, mutant.directive)
+    variant = Kimera::Rewrite::Directive.new(mutant.directive).render(original)
     source(red("-"), original)
     source(green("+"), variant) if variant
   end
@@ -110,6 +109,4 @@ class Kimera::Report::Text
     @io.puts("    #{sign} #{first}")
     rest.each { |line| @io.puts("      #{line}") }
   end
-
-  def covering(result) = @tests.lines(result).each { |line| @io.puts("    #{line}") }
 end

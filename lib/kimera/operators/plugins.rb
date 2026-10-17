@@ -4,24 +4,27 @@ require_relative "../error"
 require_relative "../operators"
 
 module Kimera
-  module Plugins
-    module_function
-
-    def load!(paths, root: ".")
-      Array(paths).each { |path| pull(path, root) }
-      Kimera::Operators.custom
+  class Plugins
+    def initialize(paths, root: ".")
+      @paths = paths
+      @root = root
     end
 
-    def pull(path, root)
-      require(resolve(path, root))
+    def load!
+      Array(@paths).each { |path| pull(path) }
+      Kimera::Operators::CATALOG.custom
+    end
+
+    private
+
+    def pull(path)
+      require(resolve(path))
     rescue Kimera::Error
       raise
     rescue ScriptError, StandardError => error
       raise(UsageError, "cannot load #{path}: #{error.class}: #{error.message}")
     end
 
-    def resolve(path, root)
-      File.expand_path(path, File.expand_path(root))
-    end
+    def resolve(path) = File.expand_path(path, File.expand_path(@root))
   end
 end

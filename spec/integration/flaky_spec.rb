@@ -10,7 +10,7 @@ require "tmpdir"
 RSpec.describe("kimera run --flaky-runs (end-to-end)", :aggregate_failures) do
   let(:shaky) { ["./spec/coin_spec.rb[1:1]", "./spec/coin_spec.rb[1:3]"] }
 
-  def heads?(seed, test) = Random.new(Kimera::Seed.derive(seed, test)).rand(2).zero?
+  def heads?(seed, test) = Random.new(Kimera::Seed.new("KIMERA_SEED" => seed.to_s).for(test)).rand(2).zero?
 
   def seed = (0..).find { |s| shaky.all? { |t| heads?(s, t) && !(heads?(s + 1, t) && heads?(s + 2, t)) } }
 

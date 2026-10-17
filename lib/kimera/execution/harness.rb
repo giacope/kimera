@@ -12,7 +12,6 @@ require_relative "baseline_pass"
 require_relative "baseline_stall"
 require_relative "boot"
 require_relative "child_process"
-require_relative "flake_hunt"
 require_relative "isolation"
 require_relative "load_trace"
 require_relative "order_trace"
@@ -71,6 +70,8 @@ class Kimera::Execution::Harness
 
   def timings = options.fetch(:timings, {})
 
+  def flakes = options[:flakes]
+
   def skipped = state.skipped
 
   private
@@ -93,7 +94,7 @@ class Kimera::Execution::Harness
 
   def jobs = @_jobs ||= [Integer(options.fetch(:jobs, 1)), 1].max
 
-  def progress = options.fetch(:progress, Kimera::Execution::NullProgress)
+  def progress = options.fetch(:progress, Kimera::Execution::NullProgress::NONE)
 
   def driver = rig.driver
 
@@ -133,13 +134,11 @@ class Kimera::Execution::Harness
   def sift!(scope)
     trace.quarantine!(coverage)
     Kimera::Execution::OrderTrace.new(registry).follow!(baseline, coverage, scope: scope, progress: progress)
-    Kimera::Execution::FlakeHunt.new(adapter, driver, progress).call(coverage, scope, options)
+    options[:flakes] = rig.hunt(coverage, scope, options)
   end
 
   def arm(timings)
-    driver.coverage = coverage
-    driver.budget = budget(timings)
-    driver.timings = timings
+    driver.arm(coverage: coverage, budget: budget(timings), timings: timings)
   end
 
   def parallel(pass)

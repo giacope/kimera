@@ -179,7 +179,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
   end
 
   describe "#verify!" do
-    def test_baseline(outcome, progress: Kimera::Execution::NullProgress, ids: nil, coverage: {})
+    def test_baseline(outcome, progress: Kimera::Execution::NullProgress::NONE, ids: nil, coverage: {})
       seen = []
       engine =
         Class.new(described_class) do
@@ -381,7 +381,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     def unannounced(root)
       File.write(File.join(root, "calc.rb"), "def a(x, y) = x > y\n")
-      test_canned_runner(root: root, jobs: 1, progress: Kimera::Execution::NullProgress)
+      test_canned_runner(root: root, jobs: 1, progress: Kimera::Execution::NullProgress::NONE)
     end
 
     it "prints nothing per verdict; progress alone reports the run" do
@@ -533,7 +533,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     # The mirror keeps its copy, and the mutant gets no :error, which counts as killed.
     it "reports :unmutatable, with the reason, for a mutant unparser can't bake", :aggregate_failures do
-      allow(Kimera::Unparse).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
+      allow(Unparser).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
       result, baked, restored = test_baking_evaluate(first)
       expect([result.status, result.file, result.covering_tests]).to(eq([:unmutatable, "calc.rb", ["t1"]]))
       expect(result.detail).to(eq("unmutatable: unparser could not write its bake (KeyError: key not found: :lvar)"))

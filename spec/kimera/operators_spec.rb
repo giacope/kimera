@@ -21,9 +21,9 @@ RSpec.describe(Kimera::Operators) do
     %w[comparison boolean_connective boolean_literal statement_deletion negation conditional]
   end
 
-  describe ".keys" do
+  describe "CATALOG#keys" do
     it "lists every operator's stable key" do
-      expect(described_class.keys).to(match_array(all_keys))
+      expect(described_class::CATALOG.keys).to(match_array(all_keys))
     end
   end
 
@@ -40,7 +40,7 @@ RSpec.describe(Kimera::Operators) do
 
     it "expands the single key 'all' to every family" do
       built = described_class.build(keys: ["all"])
-      expect(built.map(&:key)).to(match_array(described_class.keys))
+      expect(built.map(&:key)).to(match_array(described_class::CATALOG.keys))
     end
 
     it "selects only the requested keys (strings or symbols)" do

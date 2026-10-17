@@ -16,46 +16,50 @@ class Kimera::RunReport
   Notes = Data.define(:counted, :flaky, :suite)
   NOTES = Notes.new(counted: [], flaky: nil, suite: nil)
 
-  attr_reader :results, :leaks, :registry, :tests, :notes
+  attr_reader :results, :leaks, :registry
 
   CONDITIONAL = %i[uncovered_by_unit harness_error ignored isolated_only unmutatable leaks].freeze
   LABELS = { total: "mutants", harness_error: "unjudged" }.freeze
   SCHEMA_VERSION = 1
 
-  def initialize(results:, leaks: [], registry: nil, tests: {})
+  def initialize(results:, leaks: [], registry: nil, **context)
     @results = results
     @leaks = leaks
     @registry = registry
-    @tests = tests
-    @notes = NOTES
+    @context = context
   end
+
+  def tests = @context.fetch(:tests, {})
+
+  def notes = NOTES.with(**@context.except(:tests))
 
   def statuses(status)
     grouped.fetch(status, [])
   end
 
-  def merge(other) = rebuilt(results: @results + other.results, tests: @tests.merge(other.tests))
+  def merge(other) = rebuilt(results: @results + other.results, tests: tests.merge(other.tests))
 
   def revise(revised)
     fresh = revised.to_h { |judged| [judged.mutant_id, judged] }
     rebuilt(results: @results.map { |result| fresh.fetch(result.mutant_id, result) })
   end
 
-  def described(tests) = rebuilt(tests: @tests.merge(tests))
+  def described(named) = rebuilt(tests: tests.merge(named))
 
-  def annotate(**changes) = rebuilt.tap { |report| report.notes = @notes.with(**changes) }
+  def annotate(**changes) = rebuilt(**changes)
 
   def counting(statuses) = annotate(counted: statuses)
 
-  def counted = @notes.counted
+  def counted = notes.counted
 
   def test_ids
-    flaky = Array(@notes.flaky&.fetch("flaky")).map { |flake| flake.fetch("test") } + Array(@notes.suite)
+    found = notes
+    flaky = Array(found.flaky&.fetch("flaky")).map { |flake| flake.fetch("test") } + Array(found.suite)
     @results.flat_map { |result| [*result.covering_tests, *result.failing_tests, *result.killing_tests] }
       .concat(flaky).uniq
   end
 
-  def test(id) = @tests.fetch(id, {})
+  def test(id) = tests.fetch(id, {})
 
   def unmutated = @registry ? @registry.unmutated : []
 
@@ -80,7 +84,7 @@ class Kimera::RunReport
   end
 
   def covered
-    @results.select { |result| result.covered? || @notes.counted.include?(result.status) }
+    @results.select { |result| result.covered? || @context.fetch(:counted, []).include?(result.status) }
   end
 
   def score
@@ -118,14 +122,10 @@ class Kimera::RunReport
       .merge("unmutated" => unmutated.map(&:to_h)).merge(catalog).merge(flakes)
   end
 
-  protected
-
-  attr_writer :notes
-
   private
 
   def catalog
-    listed = @tests.slice(*test_ids)
+    listed = tests.slice(*test_ids)
     listed.empty? ? {} : { "tests" => listed }
   end
 
@@ -135,16 +135,15 @@ class Kimera::RunReport
     text = "score=#{percent}"
     count = uncovered.size
     return text unless count.positive?
-    "#{text} (#{count} uncovered #{@notes.counted.include?(:no_coverage) ? "scored as not killed" : "not scored"})"
+    return "#{text} (#{count} uncovered scored as not killed)" if @context.fetch(:counted, []).include?(:no_coverage)
+    "#{text} (#{count} uncovered not scored)"
   end
 
   def grouped
     @_grouped ||= @results.group_by(&:status)
   end
 
-  def rebuilt(results: @results, tests: @tests)
-    Kimera::RunReport.new(results: results, leaks: @leaks, registry: @registry, tests: tests).tap do |report|
-      report.notes = @notes
-    end
+  def rebuilt(results: @results, **changes)
+    Kimera::RunReport.new(results: results, leaks: @leaks, registry: @registry, **@context, **changes)
   end
 end

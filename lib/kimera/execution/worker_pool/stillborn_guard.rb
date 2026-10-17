@@ -5,18 +5,17 @@ require_relative "../../error"
 class Kimera::Execution::WorkerPool::StillbornGuard
   def initialize(jobs)
     @jobs = jobs
-    @stillborn = 0
-    @progressed = false
+    @seen = { stillborn: 0, progressed: false }
   end
 
   def progress!
-    @progressed = true
+    @seen[:progressed] = true
   end
 
   def track(status)
-    return if @progressed
-    @stillborn += 1
-    abort!(status) if @stillborn > @jobs
+    return if @seen[:progressed]
+    @seen[:stillborn] += 1
+    abort!(status) if @seen[:stillborn] > @jobs
   end
 
   private
@@ -26,7 +25,7 @@ class Kimera::Execution::WorkerPool::StillbornGuard
   end
 
   def message(status)
-    "#{@stillborn} warm workers died before reporting a result " \
+    "#{@seen[:stillborn]} warm workers died before reporting a result " \
       "(last exit: #{describe(status)}). The app raises during " \
       "fork or the suite aborts on load; re-run with --jobs 1 to see " \
       "the error."

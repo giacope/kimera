@@ -41,13 +41,14 @@ RSpec.describe(Kimera::SuperclassPin) do
     first = KimeraPinPath::Base
     Kimera::Overlay::Source.new(source).evaluate("path.rb")
     expect(KimeraPinPath::Leaf.superclass).to(equal(first))
-    expect(described_class.pin("class ::KimeraRooted < Base; end\n"))
-      .to(eq("class ::KimeraRooted < (::Kimera::SuperclassPin.existing(::Object, :KimeraRooted) || Base); end\n"))
+    pinned = "(::Kimera::SuperclassPin::Existing.new(::Object, :KimeraRooted).superclass || Base)"
+    source = "class ::KimeraRooted < Base; end\n"
+    expect(described_class.new(source).pinned).to(eq("class ::KimeraRooted < #{pinned}; end\n"))
   end
 
   it "leaves a class without a superclass alone" do
     source = "module KimeraBare\n  class Plain; end\nend\n"
-    expect(described_class.pin(source)).to(eq(source))
+    expect(described_class.new(source).pinned).to(eq(source))
   end
 
   it "looks the class up in its lexical scope, not in self" do
@@ -61,10 +62,10 @@ RSpec.describe(Kimera::SuperclassPin) do
 
   it "pins nothing for a constant that is not a class or is only inherited", :aggregate_failures do
     stub_const("KimeraPinModule", Module.new)
-    expect(described_class.existing(nil, :KimeraPinModule)).to(be_nil)
-    expect(described_class.existing(Module.new, :String)).to(be_nil)
-    expect(described_class.existing(nil, :KimeraPinMissing)).to(be_nil)
-    expect(described_class.existing(nil, :ArgumentError)).to(equal(StandardError))
+    expect(described_class::Existing.new(nil, :KimeraPinModule).superclass).to(be_nil)
+    expect(described_class::Existing.new(Module.new, :String).superclass).to(be_nil)
+    expect(described_class::Existing.new(nil, :KimeraPinMissing).superclass).to(be_nil)
+    expect(described_class::Existing.new(nil, :ArgumentError).superclass).to(equal(StandardError))
   end
 
   it "ignores a same-named constant outside the enclosing namespace" do

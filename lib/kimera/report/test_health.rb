@@ -39,7 +39,7 @@ module Kimera::Report::TestHealth
   def listed(report, title, tests)
     return if tests.empty?
     @io.puts("  #{title}:")
-    tests.first(SHOWN).each { |test| @io.puts("    #{Kimera::Readout.label(test, report.test(test))}") }
+    tests.first(SHOWN).each { |test| @io.puts("    #{Kimera::Readout::Label.new(test, report.test(test)).text}") }
     hidden = tests.size - SHOWN
     @io.puts("    (+#{hidden} more; the JSON report's test_quality lists them all)") if hidden.positive?
   end
@@ -51,8 +51,8 @@ module Kimera::Report::TestHealth
 
   def flake_line(report, flake)
     test = flake.fetch("test")
-    reason = Kimera::Readout.lines(flake.fetch("failure")).first || "no message"
-    "#{Kimera::Readout.label(test, report.test(test))}  failed #{flake.fetch("failed_runs")} " \
+    reason = Kimera::Readout.new(flake.fetch("failure")).lines.first || "no message"
+    "#{Kimera::Readout::Label.new(test, report.test(test)).text}  failed #{flake.fetch("failed_runs")} " \
       "(seed #{flake.fetch("seeds").join(", ")}): #{reason}"
   end
 end

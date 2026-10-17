@@ -58,7 +58,7 @@ class Kimera::Execution::IsolatedExecution
 
   private
 
-  def progress = @options.fetch(:progress, Kimera::Execution::NullProgress)
+  def progress = @options.fetch(:progress, Kimera::Execution::NullProgress::NONE)
 
   def limit = @options.fetch(:hard_timeout, DEFAULT_HARD_TIMEOUT)
 

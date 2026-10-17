@@ -9,20 +9,19 @@ class Kimera::Execution::WorkerDatabases
     @errors = errors
   end
 
-  def active?
-    return false unless eligible?
-    register!
-    ActiveSupport::Testing::Parallelization.after_fork_hooks.any?
-  end
+  def active? = eligible? && ActiveSupport::Testing::Parallelization.after_fork_hooks.any?
 
   def before_fork
+    register!
     return unless active?
     ActiveSupport::Testing::Parallelization.before_fork_hooks.each(&:call)
   end
 
   def after_fork(index)
     identify(index)
-    return unless index && active?
+    return unless index
+    register!
+    return unless active?
     ActiveSupport::Testing::Parallelization.after_fork_hooks.each { |hook| hook.call(index) }
     @adapter.start
   end
@@ -34,6 +33,7 @@ class Kimera::Execution::WorkerDatabases
   private
 
   def cleanup(index)
+    register!
     return unless active?
     attempt("could not empty the worker's test database") { scrub }
     ActiveSupport::Testing::Parallelization.run_cleanup_hooks.each { |hook| hook.call(index) }
@@ -79,7 +79,7 @@ class Kimera::Execution::WorkerDatabases
   end
 
   def register!
-    return unless defined?(ActiveRecord::Base)
+    return unless eligible? && defined?(ActiveRecord::Base)
     require("active_record/test_databases")
   rescue LoadError, StandardError => error
     errors.puts(notice(error))

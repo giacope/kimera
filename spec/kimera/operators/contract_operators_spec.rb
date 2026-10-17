@@ -113,7 +113,7 @@ RSpec.describe("contract operators") do
       RUBY
       catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["index_fetch"]))
         .source(code, file: "spellings.rb")
-      sources = catalog.each.map { |m, p| Kimera::Rewrite::Directive.render(p.original_source, m.directive) }
+      sources = catalog.each.map { |m, p| Kimera::Rewrite::Directive.new(m.directive).render(p.original_source) }
       expect(sources).to(contain_exactly("h.fetch(k)", "h&.fetch(k)"))
 
       result = Kimera::Overlay.new(catalog).synthesize("spellings.rb", code)
@@ -273,7 +273,7 @@ RSpec.describe("contract operators") do
 
     it "renders a report line for a parameter slice, which is not a parseable expression" do
       m = built("default_argument").each.first.first
-      expect(Kimera::Rewrite::Directive.render("name = \"world\"", m.directive)).to(eq("name (default removed)"))
+      expect(Kimera::Rewrite::Directive.new(m.directive).render("name = \"world\"")).to(eq("name (default removed)"))
     end
   end
 

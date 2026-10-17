@@ -23,12 +23,6 @@ class Kimera::Registry
     self
   end
 
-  def <<(point)
-    @points << point
-    @_groups = nil
-    self
-  end
-
   def size
     @points.size
   end

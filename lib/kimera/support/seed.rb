@@ -5,10 +5,15 @@ require "zlib"
 module Kimera
 end
 
-module Kimera::Seed
+class Kimera::Seed
   RANGE = 2**31
+  VARIABLE = "KIMERA_SEED"
 
-  module_function
+  def initialize(env = ENV)
+    @env = env
+  end
 
-  def derive(seed, test) = (seed ^ Zlib.crc32(test.to_s)) % RANGE
+  def value = @env[VARIABLE]&.then { |text| Integer(text, 10) }
+
+  def for(test) = (value ^ Zlib.crc32(test.to_s)) % RANGE
 end

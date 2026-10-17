@@ -376,15 +376,15 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
   describe "path scoping" do
     it "strips the root prefix when the path is under root" do
       root = "/project"
-      expect(Kimera::FileSet.relative("/project/app/x.rb", root)).to(eq("app/x.rb"))
+      expect(Kimera::FileSet::Root.new(root).relative("/project/app/x.rb")).to(eq("app/x.rb"))
     end
 
     it "returns the original path when it is not under root" do
-      expect(Kimera::FileSet.relative("elsewhere/x.rb", "/project")).to(eq("elsewhere/x.rb"))
+      expect(Kimera::FileSet::Root.new("/project").relative("elsewhere/x.rb")).to(eq("elsewhere/x.rb"))
     end
 
     it "does not treat a sibling sharing a string prefix as under root" do
-      expect(Kimera::FileSet.relative("/project-two/x.rb", "/project")).to(eq("/project-two/x.rb"))
+      expect(Kimera::FileSet::Root.new("/project").relative("/project-two/x.rb")).to(eq("/project-two/x.rb"))
     end
   end
 
@@ -449,7 +449,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
 
     def session(id)
-      Kimera::Incremental::Session.new.tap { |entry| entry.merge!(Kimera::RunReport.new(results: [killed(id)])) }
+      Kimera::Incremental::Session.new.merged(Kimera::RunReport.new(results: [killed(id)]))
     end
 
     it "combines evaluated session results with synthetic ignored results" do
@@ -476,7 +476,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
     def options(**over)
       {
-        paths: ["calc.rb"], exclude: [], operators: Kimera::Operators.keys,
+        paths: ["calc.rb"], exclude: [], operators: Kimera::Operators::CATALOG.keys,
         source_root: ".", registry: nil
       }.merge(over)
     end
@@ -599,13 +599,12 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
 
     def saved(registry, path, status: :killed)
-      session = Kimera::Incremental::Session.new.stamp!(stamp(registry))
       results =
         registry.each.map do |mutant, point|
           Kimera::MutantResult.new(mutant_id: mutant.id, status: status, file: point.file, duration: 0.0)
         end
-      session.merge!(Kimera::RunReport.new(results: results))
-      session.save(path, registry: registry)
+      Kimera::Incremental::Session.new.stamped(stamp(registry))
+        .merged(Kimera::RunReport.new(results: results)).save(path, registry: registry)
       results
     end
 
@@ -649,7 +648,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       journal = File.join(dir, "session.json")
       saved(registry, journal)
       out, status = capture(["calc.rb", "other.rb", "--since", "main", "--session", journal])
-      [out, status, Kimera::Incremental::Selection.select(registry, "calc.rb" => Set[2])]
+      [out, status, Kimera::Incremental::Selection.new("calc.rb" => Set[2]).ids(registry)]
     end
 
     def unmutated(*flags)
@@ -781,13 +780,13 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       adapter
     end
 
-    def pass(registry, options, todo, session)
+    def pass(registry, options, todo)
       adapter = Kimera::Frameworks::ADAPTERS.load(options[:framework])
-      Kimera::CLI::Run::Pass.new(registry, options, adapter).call(todo, session)
+      Kimera::CLI::Run::Pass.new(registry, options, adapter).call(todo)
     end
 
     def executor(**attributes)
-      harness = instance_double(Kimera::Execution::Harness, timings: {}, **attributes)
+      harness = instance_double(Kimera::Execution::Harness, timings: {}, flakes: nil, **attributes)
       allow(Kimera::Execution::Harness).to(receive(:build).and_return(harness))
       harness
     end
@@ -802,31 +801,28 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       report = Kimera::RunReport.new(results: [])
       harness = executor
       allow(harness).to(receive_messages(warm!: nil, run: report))
-      session = Kimera::Incremental::Session.new
-      allow(session).to(receive(:merge!))
-      [report, harness, session, framework(finish: nil)]
+      [report, harness, framework(finish: nil)]
     end
 
     # finish runs the suite's after(:suite) teardown for what warm! set up.
-    def verify(harness, session, report, adapter)
+    def verify(harness, adapter)
       expect(harness).to(have_received(:warm!).with(kind_of(Array), scope: [1, 2]))
       expect(harness).to(have_received(:run).with(ids: [1, 2], label: "mutants"))
-      expect(session).to(have_received(:merge!).with(having_attributes(results: report.results)))
       expect(adapter).to(have_received(:finish))
     end
 
-    it "builds an adapter and harness, warms up, runs, and merges into the session" do
-      report, harness, session, adapter = warmed
-      returned = pass(registry, settings, [1, 2], session)
+    it "builds an adapter and harness, warms up, and runs" do
+      report, harness, adapter = warmed
+      returned = pass(registry, settings, [1, 2])
       expect(returned.results).to(eq(report.results))
-      verify(harness, session, report, adapter)
+      verify(harness, adapter)
     end
 
     it "names the tests the verdicts cite, from the adapter" do
-      _harness, _runner, session = unjudged
+      unjudged
       named = { "t1" => { "name" => "M compares", "location" => "spec/m_spec.rb:3" } }
       allow(Kimera::Frameworks::ADAPTERS.load("rspec")).to(receive(:catalog).and_return(named))
-      report = pass(registry, settings, [1, 2], session)
+      report = pass(registry, settings, [1, 2])
       expect(report.tests).to(eq(named))
     end
 
@@ -838,7 +834,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         Kimera::Execution::IsolatedExecution, verify!: nil, run: Kimera::RunReport.new(results: [])
       )
       allow(Kimera::Execution::IsolatedExecution).to(receive(:new).and_return(runner))
-      [harness, runner, Kimera::Incremental::Session.new]
+      [harness, runner]
     end
 
     # Isolated mode forces coverage on to pick each mutant's covering tests.
@@ -848,70 +844,68 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
 
     it "hands the warm harness and the isolated tier one screen of the unit's own tests under --attribution unit" do
-      _report, _harness, session, adapter = warmed
+      _report, _harness, adapter = warmed
       files = ["./spec/x_spec.rb", File.expand_path("spec/x_spec.rb"), "spec/other_spec.rb"]
       allow(adapter).to(receive(:test_file).and_return(*files))
-      pass(registry, settings(attribution: "unit", unit_tests: { "x.rb" => ["t/{name}.rb"] }), [1, 2], session)
+      pass(registry, settings(attribution: "unit", unit_tests: { "x.rb" => ["t/{name}.rb"] }), [1, 2])
       expect(Kimera::Execution::Harness).to(have_received(:build)) do |options|
         filter = options.fetch(:filter)
         expect([filter.active?, filter.keep("x.rb", %w[own absolute other])]).to(eq([true, %w[own absolute]]))
       end
     end
 
-    it "seeds the adapter and hands the harness the seed and rerun count, when given" do
-      _report, _harness, session, adapter = warmed
-      allow(adapter).to(receive(:seed=))
-      pass(registry, settings(seed: 7, flaky_runs: 2), [1, 2], session)
-      expect(adapter).to(have_received(:seed=).with(7))
+    it "hands the harness the seed and rerun count, when given" do
+      warmed
+      pass(registry, settings(seed: 7, flaky_runs: 2), [1, 2])
       expect(Kimera::Execution::Harness).to(have_received(:build).with(hash_including(seed: 7, flaky_runs: 2)))
     end
 
     it "reports the flaky tests the warm pass found, naming them from the adapter" do
-      _report, harness, session, adapter = warmed
+      _report, harness, adapter = warmed
       record = Kimera::Execution::FlakeRecord.new(%w[t9], [3]).tap { |found| found.lose("t9", :timeout, 3) }
       allow(adapter).to(receive(:catalog).with(["t9"]).and_return("t9" => { "name" => "nine" }))
-      allow(Kimera::Execution::Harness).to(receive(:build)) { |options| options.fetch(:filter).flag!(record) && harness }
-      report = pass(registry, settings, [1, 2], session)
+      allow(harness).to(receive(:flakes).and_return(record))
+      report = pass(registry, settings, [1, 2])
       expect([report.notes.flaky, report.tests]).to(eq([record.to_h, { "t9" => { "name" => "nine" } }]))
     end
 
     it "hands the harness and the isolated tier test quality, and reports it over the whole suite" do
-      _report, _harness, session, adapter = warmed
+      _report, _harness, adapter = warmed
       allow(adapter).to(receive(:test_ids).and_return(%w[t1 t2]))
-      report = pass(registry, settings(test_quality: true), [1, 2], session)
+      report = pass(registry, settings(test_quality: true), [1, 2])
       expect(Kimera::Execution::Harness).to(have_received(:build).with(hash_including(test_quality: true)))
-      expect([report.notes.suite, pass(registry, settings, [1, 2], session).notes.suite]).to(eq([%w[t1 t2], nil]))
+      expect([report.notes.suite, pass(registry, settings, [1, 2]).notes.suite]).to(eq([%w[t1 t2], nil]))
     end
 
     it "reports no flaky tests section when none were looked for" do
-      _report, _harness, session, = warmed
-      expect(pass(registry, settings, [1, 2], session).notes.flaky).to(be_nil)
+      warmed
+      expect(pass(registry, settings, [1, 2]).notes.flaky).to(be_nil)
     end
 
     it "hands the harness an inactive screen by default" do
-      _report, _harness, session, = warmed
-      pass(registry, settings(unit_tests: { "x.rb" => ["t"] }), [1, 2], session)
+      warmed
+      pass(registry, settings(unit_tests: { "x.rb" => ["t"] }), [1, 2])
       inactive = hash_including(filter: having_attributes(active?: false))
       expect(Kimera::Execution::Harness).to(have_received(:build).with(inactive))
     end
 
     it "hands the relative timeout settings to the warm harness" do
-      _report, _harness, session, = warmed
-      pass(registry, settings(relative_timeout: false, timeout_factor: 4.0, timeout_slack: 0.5), [1, 2], session)
+      warmed
+      pass(registry, settings(relative_timeout: false, timeout_factor: 4.0, timeout_slack: 0.5), [1, 2])
       expect(Kimera::Execution::Harness).to(
         have_received(:build).with(hash_including(relative_timeout: false, timeout_factor: 4.0, timeout_slack: 0.5))
       )
     end
 
     it "hands --hard-timeout to the isolated runner" do
-      _harness, _runner, session = routing
-      pass(registry, settings(coverage: false, isolated: true, hard_timeout: 9.0), [1], session)
+      routing
+      pass(registry, settings(coverage: false, isolated: true, hard_timeout: 9.0), [1])
       expect(Kimera::Execution::IsolatedExecution).to(have_received(:new).with(hash_including(hard_timeout: 9.0)))
     end
 
     it "routes evaluation through the IsolatedExecution when --isolated" do
-      harness, runner, session = routing
-      pass(registry, settings(coverage: false, isolated: true), [1], session)
+      harness, runner = routing
+      pass(registry, settings(coverage: false, isolated: true), [1])
       expect(runner).to(have_received(:verify!).with([1]).ordered)
       expect(runner).to(have_received(:run).with(ids: [1], label: "mutants (isolated)").ordered)
       route(harness)
@@ -921,14 +915,12 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       framework(finish: nil)
       harness = executor
       allow(harness).to(receive_messages(without_coverage!: nil, run: Kimera::RunReport.new(results: [])))
-      session = Kimera::Incremental::Session.new
-      allow(session).to(receive(:merge!))
-      [harness, session]
+      harness
     end
 
     it "skips coverage measurement when --no-coverage is on and not isolated" do
-      harness, session = bypass
-      pass(registry, settings(coverage: false, isolated: false), [1], session)
+      harness = bypass
+      pass(registry, settings(coverage: false, isolated: false), [1])
       expect(harness).to(have_received(:without_coverage!).with(kind_of(Array)))
       expect(harness).to(have_received(:run).with(ids: [1], label: "mutants"))
     end
@@ -940,9 +932,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       allow(harness).to(receive_messages(warm!: nil, run: result(1, :killed)))
       runner = instance_double(Kimera::Execution::IsolatedExecution, verify!: nil, run: result(2, :survived))
       allow(Kimera::Execution::IsolatedExecution).to(receive(:new).and_return(runner))
-      session = Kimera::Incremental::Session.new
-      allow(session).to(receive(:merge!))
-      [harness, runner, session]
+      [harness, runner]
     end
 
     def distribute(harness, runner)
@@ -959,18 +949,17 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       allow(harness).to(receive_messages(warm!: nil, run: warm))
       runner = instance_double(Kimera::Execution::IsolatedExecution, rejudge: [verdict(1, :killed)])
       allow(Kimera::Execution::IsolatedExecution).to(receive(:new).and_return(runner))
-      [runner, warm.results.first, Kimera::Incremental::Session.new]
+      [runner, warm.results.first]
     end
 
     it "re-judges in the isolated tier what the warm pass could not judge" do
-      runner, warm, session = unjudged
-      report = pass(registry, settings(hard_timeout: 9.0, jobs: 3), [1, 2], session)
+      runner, warm = unjudged
+      report = pass(registry, settings(hard_timeout: 9.0, jobs: 3), [1, 2])
       expect(report.results.map { |r| [r.mutant_id, r.status] }).to(eq([[1, :killed], [2, :killed]]))
       expect(runner).to(have_received(:rejudge).with([warm], label: "mutants (re-judged)"))
       settings = hash_including(coverage: { 1 => ["t1"] }, hard_timeout: 9.0, jobs: 3, tests: ["t1"], filter: anything)
       expect(Kimera::Execution::IsolatedExecution).to(have_received(:new).with(settings))
-      allow(Kimera::Frameworks::ADAPTERS.load("rspec")).to(receive(:seed=))
-      pass(registry, settings(test_quality: true, seed: 3), [1, 2], session)
+      pass(registry, settings(test_quality: true, seed: 3), [1, 2])
       settings = hash_including(test_quality: true, seed: 3)
       expect(Kimera::Execution::IsolatedExecution).to(have_received(:new).with(settings))
     end
@@ -994,7 +983,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
       it "re-judges a warm survivor whose method also ran while the suite loaded", :aggregate_failures do
         runner, kept, booted = bootstrap
-        report = pass(registry, settings, [kept, booted], Kimera::Incremental::Session.new)
+        report = pass(registry, settings, [kept, booted])
         expect(report.results.map { |r| [r.mutant_id, r.status] }).to(eq([[kept, :survived], [booted, :killed]]))
         rejudged = have_attributes(mutant_id: booted, status: :survived, detail: Kimera::MutationPoint::BOOT_REASON)
         expect(runner).to(have_received(:rejudge).with([rejudged], label: "mutants (re-judged)"))
@@ -1014,7 +1003,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
       it "judges in the isolated tier a mutant only the suite run in order reaches", :aggregate_failures do
         runner, plain, reached = ordered
-        report = pass(registry, settings, [plain, reached], Kimera::Incremental::Session.new)
+        report = pass(registry, settings, [plain, reached])
         expect(report.results.map { |r| [r.mutant_id, r.status] }).to(eq([[plain, :no_coverage], [reached, :killed]]))
         rejudged = have_attributes(mutant_id: reached, detail: Kimera::MutationPoint::ORDER_REASON)
         expect(runner).to(have_received(:rejudge).with([rejudged], label: "mutants (re-judged)"))
@@ -1022,7 +1011,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
       it "says why such a mutant has no covering test under --no-rejudge", :aggregate_failures do
         runner, plain, reached = ordered
-        report = pass(registry, settings(rejudge: false), [plain, reached], Kimera::Incremental::Session.new)
+        report = pass(registry, settings(rejudge: false), [plain, reached])
         expect(report.results.map { |r| [r.mutant_id, r.status, r.detail] })
           .to(eq([[plain, :no_coverage, nil], [reached, :no_coverage, Kimera::MutationPoint::ORDER_REASON]]))
         expect(runner).not_to(have_received(:rejudge))
@@ -1030,16 +1019,16 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
 
     it "leaves the warm verdicts alone under --no-rejudge" do
-      runner, _warm, session = unjudged
-      report = pass(registry, settings(rejudge: false), [1, 2], session)
+      runner, = unjudged
+      report = pass(registry, settings(rejudge: false), [1, 2])
       expect(report.results.map(&:status)).to(eq(%i[harness_error killed]))
       expect(runner).not_to(have_received(:rejudge))
     end
 
     it "isolates only mutants covered by a pool-unsafe spec and merges the reports" do
-      harness, runner, session = partition
+      harness, runner = partition
       parsed = settings(isolate_when_covered_by: ["end_to_end_spec"])
-      report = pass(registry, parsed, [1, 2], session)
+      report = pass(registry, parsed, [1, 2])
       expect(report.results.map(&:mutant_id)).to(contain_exactly(1, 2))
       distribute(harness, runner)
     end

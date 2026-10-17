@@ -39,7 +39,7 @@ module Kimera::Report::Sections
   def unjudge(result)
     id = result.mutant_id
     @io.puts("  #{red("unjudged")} ##{id}  #{where(@registry.index[id], result)}")
-    Kimera::Readout.lines(result.detail).each { |line| @io.puts("    #{line}") }
+    Kimera::Readout.new(result.detail).lines.each { |line| @io.puts("    #{line}") }
     annotate(result)
   end
 

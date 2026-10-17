@@ -29,17 +29,17 @@ module Kimera
     end
 
     def merge(children)
-      children.each_with_object([]) { |child, items| append(items, child) }
+      children.reduce([]) { |items, child| append(items, child) }
     end
 
     def append(items, child)
       previous = items.last
-      return items << child unless string?(child) && string?(previous)
-      items[-1] = ast(:str, previous.children.first + child.children.first)
+      return items + [child] unless string?(child) && string?(previous)
+      items[0...-1] + [ast(:str, previous.children.first + child.children.first)]
     end
 
     def prune(node)
-      Kimera::Rewrite::AstWalk.rebuild(node) do |rebuilt, _original|
+      Kimera::Rewrite::AstWalk.new(node).rebuild do |rebuilt, _original|
         INTERPOLATING.include?(rebuilt.type) ? filter(rebuilt) : rebuilt
       end
     end

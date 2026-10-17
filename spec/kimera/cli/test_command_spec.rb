@@ -158,7 +158,7 @@ RSpec.describe(Kimera::CLI::TestCommand) do
 
   def parallel(framework, outputs)
     command = described_class.new(framework, ["t.rb"], root: "/app")
-    shards = outputs.each_index.map { |index| Kimera::CLI::TestShard.argv(framework, index, outputs.size) }
+    shards = outputs.each_index.map { |index| Kimera::CLI::TestShard.new(index, outputs.size).argv(framework) }
     allow(Open3).to(receive(:capture2e)) do |_env, *argv, **|
       output = outputs[shards.index { |shard| argv.each_cons(shard.size).include?(shard) }]
       [output, status(output.empty?)]
@@ -167,7 +167,7 @@ RSpec.describe(Kimera::CLI::TestCommand) do
   end
 
   def shard(framework, index, count)
-    [{ "KIMERA" => "1" }, "bundle", "exec", "ruby", *Kimera::CLI::TestShard.argv(framework, index, count), "t.rb"]
+    [{ "KIMERA" => "1" }, "bundle", "exec", "ruby", *Kimera::CLI::TestShard.new(index, count).argv(framework), "t.rb"]
   end
 
   it "runs one process per worker, each on its share of the tests", :aggregate_failures do

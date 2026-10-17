@@ -40,7 +40,7 @@ RSpec.describe(Kimera::Execution::IsolatedPlan::ChildCommand) do
     expect(failing(two, false)).to(eq([2, ["./a_spec.rb[1:1]", "./a_spec.rb[1:2]"]]))
   end
 
-  def drawn(test) = Random.new(Kimera::Seed.derive(31, test)).rand(1_000_000)
+  def drawn(test) = Random.new(Kimera::Seed.new("KIMERA_SEED" => "31").for(test)).rand(1_000_000)
 
   def seeded(child, file, source, request, seed: 31)
     Dir.mktmpdir do |dir|

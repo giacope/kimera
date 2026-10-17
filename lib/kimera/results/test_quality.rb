@@ -28,21 +28,16 @@ class Kimera::TestQuality
   private
 
   def rank
-    covers, kills, unique = counts
+    covers, kills, unique = tallies(@results.select { |result| result.covered? && result.status != :uncovered_by_unit })
     @suite.filter_map { |test| [test, Standing.new(covers[test], kills[test], unique[test])] if covers[test].positive? }
       .to_h
   end
 
-  def counts
-    tallies = Array.new(3) { Hash.new(0) }
-    @results.each { |result| count(result, *tallies) if result.covered? && result.status != :uncovered_by_unit }
-    tallies
+  def tallies(judged)
+    found = judged.map { |result| Array(result.killing_tests || result.failing_tests).uniq }
+    [judged.flat_map { |result| Array(result.covering_tests) }, found.flatten, found.select(&:one?).flatten]
+      .map { |tests| tally(tests) }
   end
 
-  def count(result, covers, kills, unique)
-    found = Array(result.killing_tests || result.failing_tests).uniq
-    Array(result.covering_tests).uniq.each { |test| covers[test] += 1 }
-    found.each { |test| kills[test] += 1 }
-    unique[found.first] += 1 if found.one?
-  end
+  def tally(tests) = Hash.new(0).merge(tests.tally)
 end

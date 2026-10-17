@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "flake_hunt"
 require_relative "worker_databases"
 require_relative "pool_driver"
 require_relative "schedule"
@@ -14,6 +15,11 @@ class Kimera::Execution::Rig
   def spawner = @_spawner ||= @options[:spawner] || driver.method(:worker)
 
   def schedule = @_schedule ||= plan
+
+  def hunt(coverage, scope, settings)
+    Kimera::Execution::FlakeHunt.new(@options.fetch(:adapter), driver, @options.fetch(:progress))
+      .call(coverage, scope, settings)
+  end
 
   private
 

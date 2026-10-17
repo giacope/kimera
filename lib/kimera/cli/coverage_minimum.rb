@@ -8,7 +8,7 @@ end
 class Kimera::CLI
 end
 
-module Kimera::CLI::CoverageMinimum
+class Kimera::CLI::CoverageMinimum
   CALLS = %i[minimum_coverage minimum_coverage_by_file].freeze
   EXITS = %i[exit exit! abort].freeze
   JUMPS = %i[return_node next_node break_node].freeze
@@ -16,13 +16,17 @@ module Kimera::CLI::CoverageMinimum
   CONDITIONALS = %i[if_node unless_node case_node case_match_node].freeze
   SHORTCUTS = %i[and_node or_node].freeze
 
-  module_function
+  def initialize(source)
+    @source = source
+  end
 
-  def ungated?(source)
-    return false unless source.include?("minimum_coverage") && !source.include?("KIMERA")
-    result = Prism.parse(source)
+  def ungated?
+    return false unless @source.include?("minimum_coverage") && !@source.include?("KIMERA")
+    result = Prism.parse(@source)
     result.failure? || floor?(result.value)
   end
+
+  private
 
   def floor?(node)
     return true if minimum?(node)

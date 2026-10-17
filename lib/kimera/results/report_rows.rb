@@ -5,12 +5,12 @@ require_relative "test_quality"
 
 module Kimera
   module ReportRows
-    def quality = @notes.suite && Kimera::TestQuality.new(@results, @notes.suite).to_h
+    def quality = notes.suite&.then { |suite| Kimera::TestQuality.new(@results, suite).to_h }
 
     private
 
     def flakes
-      { "test_quality" => quality, "flaky_tests" => @notes.flaky }.compact
+      { "test_quality" => quality, "flaky_tests" => notes.flaky }.compact
     end
 
     def detailed(result)
@@ -26,7 +26,7 @@ module Kimera
     end
 
     def rendered(original, mutant)
-      { "original" => original, "mutated" => Kimera::Rewrite::Directive.render(original, mutant.directive) }
+      { "original" => original, "mutated" => Kimera::Rewrite::Directive.new(mutant.directive).render(original) }
     end
 
     def place(point, mutant)

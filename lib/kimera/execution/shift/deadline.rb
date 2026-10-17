@@ -23,16 +23,14 @@ class Kimera::Execution::Shift::Deadline
 
   def guard(testid, &)
     @beat.call
-    @watch.lap { Timeout.timeout(@seconds, &) }.tap { check!(testid) }
+    @watch.lap { Timeout.timeout(@seconds, &) }.tap { |_value, elapsed| check!(testid, elapsed) }
   end
 
-  def elapsed = @watch.last
-
-  def overran?(testid) = @budget.exceeded?(testid, elapsed)
+  def overran?(testid, elapsed) = @budget.exceeded?(testid, elapsed)
 
   private
 
-  def check!(testid)
+  def check!(testid, elapsed)
     return unless @seconds && elapsed >= @seconds
     raise(Timeout::Error, "soft timeout (#{@seconds}s) expired while #{testid} ran")
   end

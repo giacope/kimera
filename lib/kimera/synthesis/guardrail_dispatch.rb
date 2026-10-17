@@ -52,7 +52,7 @@ module Kimera
     end
 
     def variant(bare, mutant)
-      Kimera::Rewrite::Directive.apply(bare, mutant.directive)
+      Kimera::Rewrite::Directive.new(mutant.directive).apply(bare)
     end
 
     def parameter(original, mutants)

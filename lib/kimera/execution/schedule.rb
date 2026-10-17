@@ -37,7 +37,7 @@ class Kimera::Execution::Schedule
 
   def screened(coverage)
     return [coverage, {}] unless filter&.active?
-    filter.screen(coverage).tap { |kept, _settled| @driver.coverage = kept }
+    filter.screen(coverage).tap { |kept, _settled| @driver.narrow(kept) }
   end
 
   def hard = @options[:hard]
@@ -60,9 +60,8 @@ class Kimera::Execution::Schedule
   end
 
   def finish(ledger)
-    results = ledger.results
-    verdicts.reclassify!(results)
-    Kimera::RunReport.new(results: results.values, leaks: ledger.leaks, registry: @registry)
+    results = verdicts.reclassified(ledger.results).values
+    Kimera::RunReport.new(results: results, leaks: ledger.leaks, registry: @registry)
   end
 
   def record(ledger, id, result)

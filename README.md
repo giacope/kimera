@@ -472,7 +472,8 @@ Minitest the suite's order is fixed at `--seed 1`.
   tier and in `--isolated` children alike, and gives Minitest `N` as its
   seed. A test then draws the same numbers in the baseline, in every mutant's
   run and in the next run with the same seed. `--seed random` draws `N`; the
-  report's `run` section records it, so `--seed N` repeats the run. Unset
+  report's `run` section records it, so `--seed N` repeats the run. Kimera
+  exports it to the suite as `KIMERA_SEED`. Unset
   (the default) keeps today's behavior. A `--session` resumes only under the
   same seed.
 - `flaky_runs: N` (`--flaky-runs N`, default 0) reruns the tests that cover

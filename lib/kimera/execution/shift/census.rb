@@ -12,7 +12,9 @@ class Kimera::Execution::Shift::Census
     @zygote = zygote
   end
 
-  def killers(id, tests, known) = tests.select { |test| known.include?(test) || detects?(id, test) }
+  def killers(id, tests, known)
+    tests & (known + (tests - known).select { |test| detects?(id, test) })
+  end
 
   private
 

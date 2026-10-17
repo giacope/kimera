@@ -3,17 +3,13 @@
 require_relative "runtime"
 
 module Kimera
-  module SelfProtection
-    module_function
-
+  class SelfProtection
     OUT_OF_PROCESS_ENTRYPOINTS = %w[
       execution/isolated_child.rb
       execution/isolated_child_minitest.rb
     ].map { |path| File.expand_path(path, __dir__) }.freeze
 
-    def paths
-      [Runtime::SOURCE_PATH, *OUT_OF_PROCESS_ENTRYPOINTS]
-    end
+    PATHS = [Runtime::SOURCE_PATH, *OUT_OF_PROCESS_ENTRYPOINTS].freeze
 
     HARNESS_CRITICAL_SUFFIXES = %w[
       kimera/frameworks/adapter.rb
@@ -50,15 +46,21 @@ module Kimera
       kimera/registry/builder.rb
     ].freeze
 
-    def critical?(path)
-      text = path.to_s
+    def initialize(path)
+      @path = path
+    end
+
+    def critical?
+      text = @path.to_s
       HARNESS_CRITICAL_SUFFIXES.any? { |suffix| text.end_with?(suffix) }
     end
 
-    def protected?(path)
-      target = canonical(path)
-      paths.any? { |own| canonical(own) == target }
+    def protected?
+      target = canonical(@path)
+      PATHS.any? { |own| canonical(own) == target }
     end
+
+    private
 
     def canonical(path)
       File.realpath(path)

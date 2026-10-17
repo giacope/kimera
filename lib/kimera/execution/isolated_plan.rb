@@ -60,7 +60,9 @@ class Kimera::Execution::IsolatedPlan
 
   private
 
-  def whole?(point) = Kimera::SelfProtection.protected?(File.join(root, point.file)) || !point.safe? || point.revisit
+  def whole?(point)
+    Kimera::SelfProtection.new(File.join(root, point.file)).protected? || !point.safe? || point.revisit
+  end
 
   def selection = @_selection ||= TestSelection.new(all_tests: @tests, coverage: @options.fetch(:coverage, {}))
 

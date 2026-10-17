@@ -45,7 +45,7 @@ class Kimera::CLI::Survivors::Panel
 
   def extra(row)
     seconds = row["duration"]
-    @io.puts("  duration: #{Kimera::Readout.brief(seconds)}") if seconds&.positive?
+    @io.puts("  duration: #{Kimera::Readout.new(seconds).brief}") if seconds&.positive?
     detail(row["detail"])
     field("note:     ", row["note"])
   end
@@ -55,7 +55,7 @@ class Kimera::CLI::Survivors::Panel
   end
 
   def detail(text)
-    first, *rest = Kimera::Readout.lines(text)
+    first, *rest = Kimera::Readout.new(text).lines
     field("detail:   ", first)
     rest.each { |line| @io.puts("            #{line}") }
   end
@@ -101,7 +101,7 @@ class Kimera::CLI::Survivors::Panel
     items = Array(items)
     return if items.empty?
     @io.puts("  #{title} (#{items.size}):")
-    items.each { |test| @io.puts("    #{Kimera::Readout.label(test, @tests.fetch(test, {}))}") }
+    items.each { |test| @io.puts("    #{Kimera::Readout::Label.new(test, @tests.fetch(test, {})).text}") }
   end
 
   def location(row)

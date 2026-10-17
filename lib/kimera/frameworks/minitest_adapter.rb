@@ -20,11 +20,6 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
     end
   end
 
-  def initialize
-    super
-    @methods = {}
-  end
-
   def disarmed
     Minitest.seed ||= 1
     disarm
@@ -32,29 +27,28 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
   end
 
   def source(files)
-    Minitest.seed = @seed if @seed
+    Kimera::Seed.new.value&.then { |seed| Minitest.seed = seed }
     paths(files)
     each_test_file(files) { |file| require(file) }
-    reindex
+    indexed
     self
   end
 
-  def test_ids = @methods.keys
-
-  def run(ids)
-    failed = []
-    failures = {}
-    ids.each { |id| record(id, failed, failures) }
-    Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed, failures: failures)
+  def test_ids
+    indexed.keys
   end
 
-  def locate(id) = { "location" => definition(*@methods.fetch(id)).join(":") }
+  def run(ids)
+    outcome(ids.filter_map { |id| record(id) })
+  end
 
-  def test_file(id) = @methods[id]&.then { |klass, name| declared(klass.name) || definition(klass, name).first }
+  def locate(id) = { "location" => definition(*indexed.fetch(id)).join(":") }
+
+  def test_file(id) = indexed[id]&.then { |klass, name| declared(klass.name) || definition(klass, name).first }
 
   def reproduce(ids)
     "bundle exec ruby -Itest -rminitest/autorun -e #{quote(loads(ids))} " \
-      "-- -n #{quote(filter(ids))} --seed #{Minitest.seed}"
+      "-- -n #{quote("/^(?:#{ids.map { |id| Regexp.escape(id) }.join("|")})$/")} --seed #{Minitest.seed}"
   end
 
   private
@@ -69,9 +63,7 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
     ids.filter_map { |id| origin(id) }.uniq.map { |file| "require File.expand_path(#{file.dump})" }.join("; ")
   end
 
-  def filter(ids) = "/^(?:#{ids.map { |id| Regexp.escape(id) }.join("|")})$/"
-
-  def origin(id) = @methods[id]&.then { |found| definition(*found).first }
+  def origin(id) = indexed[id]&.then { |found| definition(*found).first }
 
   def declared(named) = named&.match?(CONSTANT) && Object.const_source_location(named)&.first
 
@@ -82,18 +74,12 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
 
   def quote(text) = "'#{text.gsub("'") { "'\\''" }}'"
 
-  def record(id, failed, failures)
-    klass, name = @methods[id]
+  def record(id)
+    klass, name = indexed[id]
     return unless klass
     reseed(id)
     result = klass.new(name).extend(Kimera::TestExit::Test).run
-    return unless killing?(result)
-    failure(id, result, failed, failures)
-  end
-
-  def failure(id, result, failed, failures)
-    failed << id
-    failures[id] = message(result)
+    [id, message(result)] if killing?(result)
   end
 
   def paths(files)
@@ -110,13 +96,10 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
     $LOAD_PATH.unshift(dir) unless $LOAD_PATH.include?(dir)
   end
 
-  def reindex
-    @methods = {}
-    Minitest::Runnable.runnables.each { |runnable| index(runnable) }
-  end
-
-  def index(runnable)
-    runnable.runnable_methods.each { |name| @methods["#{runnable}##{name}"] = [runnable, name] }
+  def indexed
+    @_indexed ||= Minitest::Runnable.runnables.flat_map do |runnable|
+      runnable.runnable_methods.map { |name| ["#{runnable}##{name}", [runnable, name]] }
+    end.to_h
   end
 
   def killing?(result) = !result.passed? && !result.skipped?

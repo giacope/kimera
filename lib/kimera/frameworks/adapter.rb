@@ -23,10 +23,6 @@ module Kimera
 end
 
 class Kimera::Frameworks::Adapter
-  def initialize
-    @seed = nil
-  end
-
   def source(files)
     raise(NotImplementedError)
   end
@@ -51,8 +47,6 @@ class Kimera::Frameworks::Adapter
 
   def test_file(_id) = ""
 
-  attr_writer :seed
-
   def catalog(ids) = (ids & test_ids).to_h { |id| [id, { "name" => describe(id) }.merge(locate(id))] }
 
   def reproduce(ids)
@@ -65,7 +59,12 @@ class Kimera::Frameworks::Adapter
   private
 
   def reseed(test)
-    Kernel.srand(Kimera::Seed.derive(@seed, test)) if @seed
+    seed = Kimera::Seed.new
+    Kernel.srand(seed.for(test)) if seed.value
+  end
+
+  def outcome(failed)
+    Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed.map(&:first), failures: failed.to_h)
   end
 
   def frames(backtrace)

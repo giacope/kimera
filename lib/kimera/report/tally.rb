@@ -11,17 +11,10 @@ class Kimera::Report::Tally
   BAR_WIDTH = 24
   ALWAYS_SHOWN = %i[killed survived].freeze
 
-  def initialize
-    @total = 0
-    @counts = {}
-    @label = nil
-    @started = 0.0
-  end
-
-  def begin!(total, label, now)
+  def initialize(total, label, started)
     @total = total
     @label = label
-    @started = now
+    @started = started
     @counts = {}
   end
 

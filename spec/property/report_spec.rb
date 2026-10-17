@@ -92,8 +92,7 @@ RSpec.describe(Kimera::RunReport) do
   describe Kimera::Report::Tally do
     it "draws a bar of fixed width at every point of a run" do
       for_all(Pbt.integer(min: 1, max: 5000), Pbt.array(statuses, max: 60), runs: 300) do |total, ticks|
-        tally = described_class.new
-        tally.begin!(total, "mutants", 0.0)
+        tally = described_class.new(total, "mutants", 0.0)
         ticks.first(total).each_with_index do |status, i|
           tally.count!(status)
           expect(tally.line(i + 1.5)[/\[[^\]]*\]/].size).to(eq(described_class::BAR_WIDTH + 2))

@@ -13,7 +13,7 @@ module Kimera::RegistryWalking
     Data.define(:position, :inside_def, :in_pattern, :def_body, :defname, :embedded, :block) do
       def enter(node)
         return with(defname: node.name.to_s) if node.is_a?(Kimera::SyntaxTypes::DefNode)
-        name = Kimera::Deferral.name(node)
+        name = Kimera::Deferral.new(node).name
         return with(defname: name) if name
         holds?(node) ? with(block: node) : self
       end
@@ -69,5 +69,5 @@ module Kimera::RegistryWalking
     node.is_a?(Kimera::SyntaxTypes::DefNode) || node.is_a?(Kimera::SyntaxTypes::LambdaNode)
   end
 
-  def deferred(node) = Kimera::Deferral.block(node)
+  def deferred(node) = Kimera::Deferral.new(node).block
 end

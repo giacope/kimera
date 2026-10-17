@@ -11,26 +11,24 @@ class Kimera::Report::Log
 
   def initialize(io)
     @io = io
-    @last = NEVER
-    @drawn = false
+    @shown = { painted: NEVER, drawn: false, rows: 1 }
   end
 
   def cadence = HEARTBEAT_EVERY
 
-  def due?(now, cadence) = now - @last >= cadence
+  def due?(now, cadence) = now - @shown[:painted] >= cadence
 
   def note(text) = write("kimera: #{text}\n")
 
   def paint(text, now)
     write(frame(text))
-    @drawn = true
-    @last = now
+    @shown.update(drawn: true, painted: now)
   end
 
   def clear
-    return unless @drawn
+    return unless @shown[:drawn]
     wipe
-    @drawn = false
+    @shown[:drawn] = false
   end
 
   def commit = clear
