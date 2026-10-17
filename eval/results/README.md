@@ -42,6 +42,9 @@ kimera, its tests and this eval, and never used to tune kimera
 run at 7627b14 (`lib/` as on `main` at 97c8d90), Ruby 3.4.11, 4 vCPUs, with
 `--operators all --jobs 2`; two earlier runs gave the same counts, and so
 did a run at 396ed99, after #45 (faster mutation runs) merged into `main`.
+With #47's nine opt-in operator families on `main`, `--operators all` makes
+more mutants: a run at 0f06dd2 reported 1253, 1210 compared, 7 false
+survived, 3 false killed and q03 still unrunnable (99.2% agree).
 "Compared" leaves out `no_coverage` and the oracle's skips.
 
 | Project | mutants | compared / agree | false survived | false killed | no_coverage (false) | oracle skipped |
