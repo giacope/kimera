@@ -129,6 +129,9 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
 - Operators: the default is the conservative core. `--operators all` enables
   the extended families; `--operators rails` (or `comparison,rails`) the
   Rails-aware ones.
+- A `visibility` survivor (`public => private (name)`) says no test calls the
+  method from outside its object: make it private, or test it through its
+  public use. A method only ever called via `send` survives by design.
 - `isolated_only` marks mutants that only `--isolated` can judge: class-body
   DSL, and code in a method the suite only runs while it loads (a class macro
   or `included` hook another file's class body calls). Run it for their
