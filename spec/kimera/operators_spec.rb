@@ -14,7 +14,7 @@ RSpec.describe(Kimera::Operators) do
       index_fetch kernel_coercion respond_to_guard symbol_literal
       default_argument chain_link_deletion super_call rescue_clause
       ensure_clause assignment_deletion nil_literal regexp_anchor
-      regexp_quantifier keyword_drop
+      regexp_quantifier keyword_drop visibility
     ]
   end
   let(:default_keys) do
@@ -66,7 +66,7 @@ RSpec.describe(Kimera::Operators) do
     end
 
     it "is neither a statement nor a class-body operator unless a subclass says so" do
-      expect(described_class.new).to(have_attributes(statement?: false, body?: false))
+      expect(described_class.new).to(have_attributes(statement?: false, body?: false, toggles?: false))
     end
 
     it "is a statement operator when it deletes assignments" do

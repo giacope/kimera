@@ -41,6 +41,8 @@ Kata/GoodMethodName:
     - capture_exceptions
     # Ruby's fork hook, which Process.fork calls and the coverage runtime prepends to.
     - _fork
+    # Rails' controller action cache, which a visibility flip drops.
+    - clear_action_methods!
     # unparser's range emitter internals, overridden to write array endpoints.
     - visit_begin_node
     - visit_end_node

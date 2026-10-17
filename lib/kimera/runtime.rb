@@ -39,6 +39,24 @@ class Kimera::Runtime
       end
     end
 
+  Flip =
+    Struct.new(:owner, :definition, :names) do
+      def conceal
+        self.names = owner.public_instance_methods(false).select { |name| owner.instance_method(name) == definition }
+        expose(:private)
+      end
+
+      def reveal
+        expose(:public)
+        names.clear
+      end
+
+      def expose(visibility)
+        names.each { |name| owner.__send__(visibility, name) }
+        owner.clear_action_methods! if owner.respond_to?(:clear_action_methods!)
+      end
+    end
+
   module Forks
     def _fork
       leaks = Kimera::RUNTIME.leaks
@@ -54,7 +72,10 @@ class Kimera::Runtime
   end
 
   def active=(id)
+    flips = hidden
+    flips[@active]&.reveal
     @active = id && Integer(id)
+    flips[@active]&.conceal
   end
 
   def active?(id)
@@ -77,7 +98,12 @@ class Kimera::Runtime
   end
 
   def reset!
-    @active = nil
+    self.active = nil
+  end
+
+  def privatize(id, owner, name)
+    hidden[Integer(id)] = Flip.new(owner, owner.instance_method(name), [])
+    self
   end
 
   def leaks = @ledgers&.map(&:leak)
@@ -85,6 +111,10 @@ class Kimera::Runtime
   def forked!(paths)
     @ledgers = paths.map { Spill.new(it, {}) }
   end
+
+  private
+
+  def hidden = @_hidden ||= {}
 end
 
 Kimera::RUNTIME = Kimera::Runtime.new unless Kimera.const_defined?(:RUNTIME, false)

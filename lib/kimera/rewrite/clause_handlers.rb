@@ -11,6 +11,10 @@ module Kimera
 
           def ensured = rebody { |body| body.children[0] }
 
+          def privatize
+            ast(:begin, node, ast(:send, nil, :private, ast(:sym, node.children[0])))
+          end
+
           def value = node.children.last
 
           def object

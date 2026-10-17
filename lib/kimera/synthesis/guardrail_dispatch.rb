@@ -2,6 +2,7 @@
 
 module Kimera
   module GuardrailDispatch
+    PRIVATIZE = "privatize"
     DEFINITIONS = %i[def defs].freeze
     CLAUSED = %i[rescue ensure].freeze
 
@@ -24,15 +25,25 @@ module Kimera
     end
 
     def definition(rebuilt, bare, mutants)
+      hidden, reshaped = mutants.partition { |mutant| mutant.directive[Kimera::Rewrite::TYPE] == PRIVATIZE }
       children = rebuilt.children
-      rebuilt.updated(nil, [*children[...-1], reshape(children.last, bare, mutants)])
+      defined = rebuilt.updated(nil, [*children[...-1], probed(reshape(children.last, bare, reshaped), hidden)])
+      hidden.empty? ? defined : ast(:begin, defined, *registrations(children[-3], hidden))
     end
 
     def reshape(body, bare, mutants)
       guard(mutants, enclosed(body)) { |mutant| enclosed(variant(bare, mutant).children.last) }
     end
 
+    def probed(body, hidden) = hidden.empty? ? body : ast(:begin, probe(hidden), *[body].compact)
+
     def enclosed(body) = body && CLAUSED.include?(body.type) ? ast(:kwbegin, body) : body
+
+    def probe(mutants) = guard(mutants, ast(:nil)) { ast(:nil) }
+
+    def registrations(name, mutants)
+      mutants.map { |mutant| ast(:send, runtime, :privatize, ast(:int, mutant.id), ast(:self), ast(:sym, name)) }
+    end
 
     def branch(mutant, truthy, dispatch)
       id = mutant.id
@@ -59,8 +70,10 @@ module Kimera
     end
 
     def active(id)
-      ast(:send, ast(:const, ast(:const, ast(:cbase), :Kimera), :RUNTIME), :active?, ast(:int, id))
+      ast(:send, runtime, :active?, ast(:int, id))
     end
+
+    def runtime = ast(:const, ast(:const, ast(:cbase), :Kimera), :RUNTIME)
 
     def conditional(condition, truthy, fallback)
       ast(:if, condition, truthy, fallback)

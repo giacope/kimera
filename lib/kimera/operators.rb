@@ -39,6 +39,7 @@ require_relative "operators/statement_deletion"
 require_relative "operators/string_literal"
 require_relative "operators/super_call"
 require_relative "operators/symbol_literal"
+require_relative "operators/visibility"
 
 module Kimera
   module Operators
@@ -48,7 +49,7 @@ module Kimera
       SelectorSwap, RegexpLiteral, RailsPermit, RailsValidation, RailsCallback, RailsAssociation, ElementDrop,
       ArgumentDrop, OpAssign, IndexFetch, KernelCoercion, RespondToGuard, SymbolLiteral, DefaultArgument,
       ChainLinkDeletion, SuperCall, RescueClause, EnsureClause, AssignmentDeletion, NilLiteral, RegexpAnchor,
-      RegexpQuantifier, KeywordDrop
+      RegexpQuantifier, KeywordDrop, Visibility
     ].freeze
 
     DEFAULT_KEYS = [

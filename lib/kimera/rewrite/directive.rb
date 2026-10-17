@@ -66,7 +66,7 @@ module Kimera
       )
       HANDLERS = VALUE_HANDLERS.merge(STRUCTURAL_HANDLERS).freeze
       CLAUSE_HANDLERS = table(
-        "drop_rescue", :rescued, "drop_ensure", :ensured,
+        "drop_rescue", :rescued, "drop_ensure", :ensured, "privatize", :privatize,
         "assigned_value", :value, "nil_object", :object, "regexp_source", :pattern
       )
 
