@@ -6,8 +6,75 @@ require_relative "concern_overrides"
 
 module Kimera
   module Execution
+    CallbackChain =
+      Data.define(:chain) do
+        def fresh(type, filters)
+          running = chain.select { |callback| callback.kind == type }
+          filters.reject { |filter| duplicate?(running, filter) }
+        end
+        private
+        def duplicate?(callbacks, filter)
+          match = Kimera::Execution::Callback.new(filter)
+          callbacks.any? { |callback| match.duplicate?(callback.filter) }
+        end
+      end
+
+    AttributeType =
+      Data.define(:type) do
+        def serialized?(depth = 10)
+          return false unless depth.positive?
+          return true if leaf?
+          AttributeType.new(unwrapped).serialized?(depth - 1)
+        end
+        private
+        def leaf?
+          defined?(ActiveRecord::Type::Serialized) &&
+            type.is_a?(ActiveRecord::Type::Serialized)
+        end
+
+        def unwrapped
+          type.cast_type
+        rescue NoMethodError
+          subtype
+        end
+
+        def subtype
+          type.subtype
+        rescue NoMethodError
+          nil
+        end
+      end
+
+    ConcernHook =
+      Data.define(:concern, :stored) do
+        def replacing?(base)
+          Kimera::Execution::OverlayGuards.overlaying? && !base && concern.instance_variable_defined?(stored)
+        end
+
+        def chained(trimmed)
+          original = concern.instance_variable_get(stored)
+          proc do |*words|
+            class_exec(*words, &original)
+            class_exec(*words, &trimmed)
+          end
+        end
+
+        def reapply(block)
+          ObjectSpace.each_object(Class).each do |klass|
+            ConcernOverrides.new(klass, concern).reapply(block) if owner?(klass)
+          end
+        end
+        private
+        def owner?(klass)
+          return false if klass.singleton_class? || !mixes?(klass)
+          [klass.superclass].compact.none? { |parent| mixes?(parent) }
+        end
+
+        def mixes?(klass) = GuardModules::MIXES.bind_call(klass, concern)
+      end
+
     module GuardModules
-      module_function
+      MIXES = Module.instance_method(:include?)
 
       ENUMGUARD =
         Module.new do
@@ -23,30 +90,16 @@ module Kimera
           def set_callback(name, *arguments, &block)
             return super unless Kimera::Execution::OverlayGuards.overlaying?
             type, filters, options = normalize_callback_params(arguments.dup, block)
-            fresh = Kimera::Execution::GuardModules.fresh(__send__(:get_callbacks, name), type, filters)
+            fresh = Kimera::Execution::CallbackChain.new(__send__(:get_callbacks, name)).fresh(type, filters)
             return if fresh.empty?
             super(name, type, *fresh, options)
           end
         end
 
-      def enum = ENUMGUARD
-
-      def callback = CALLBACKGUARD
-
-      def fresh(chain, type, filters)
-        running = chain.select { |callback| callback.kind == type }
-        filters.reject { |filter| duplicate?(running, filter) }
-      end
-
-      def duplicate?(callbacks, filter)
-        match = Kimera::Execution::Callback.new(filter)
-        callbacks.any? { |callback| match.duplicate?(callback.filter) }
-      end
-
       SERIALIZEGUARD =
         Module.new do
           def serialize(attribute, *words, **options, &)
-            return if OverlayGuards.overlaying? && GuardModules.serialized?(type_for_attribute(attribute))
+            return if OverlayGuards.overlaying? && AttributeType.new(type_for_attribute(attribute)).serialized?
             super
           end
         end
@@ -56,67 +109,13 @@ module Kimera
           %i[included prepended].each do |hook|
             stored = :"@_#{hook}_block"
             define_method(hook) do |base = nil, &block|
-              next super(base, &block) unless block && GuardModules.replacing?(self, stored, base)
-              instance_variable_set(stored, GuardModules.chain(instance_variable_get(stored), block))
-              GuardModules.reapply(self, block)
+              concerned = Kimera::Execution::ConcernHook.new(self, stored)
+              next super(base, &block) unless block && concerned.replacing?(base)
+              instance_variable_set(stored, concerned.chained(block))
+              concerned.reapply(block)
             end
           end
         end
-
-      def serialization = SERIALIZEGUARD
-
-      def reflection = Reflections::GUARD
-
-      MIXES = Module.instance_method(:include?)
-
-      def concern = CONCERNGUARD
-
-      def reapply(concern, block)
-        ObjectSpace.each_object(Class).each do |klass|
-          ConcernOverrides.reapply(klass, concern, block) if owner?(klass, concern)
-        end
-      end
-
-      def owner?(klass, concern)
-        return false if klass.singleton_class? || !mixes?(klass, concern)
-        [klass.superclass].compact.none? { |parent| mixes?(parent, concern) }
-      end
-
-      def mixes?(klass, concern) = MIXES.bind_call(klass, concern)
-
-      def chain(original, trimmed)
-        proc do |*words|
-          class_exec(*words, &original)
-          class_exec(*words, &trimmed)
-        end
-      end
-
-      def replacing?(target, stored, base)
-        Kimera::Execution::OverlayGuards.overlaying? && !base && target.instance_variable_defined?(stored)
-      end
-
-      def serialized?(type, depth = 10)
-        return false unless depth.positive?
-        return true if leaf?(type)
-        serialized?(unwrap(type), depth - 1)
-      end
-
-      def leaf?(type)
-        defined?(ActiveRecord::Type::Serialized) &&
-          type.is_a?(ActiveRecord::Type::Serialized)
-      end
-
-      def unwrap(type)
-        type.cast_type
-      rescue NoMethodError
-        subtype(type)
-      end
-
-      def subtype(type)
-        type.subtype
-      rescue NoMethodError
-        nil
-      end
     end
   end
 end

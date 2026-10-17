@@ -31,5 +31,5 @@ class Kimera::CLI::CI
     pairs
   end
 
-  def defaulted(arguments, names, extra) = Kimera::CLI::Argv.any?(arguments, names) ? arguments : arguments + extra
+  def defaulted(arguments, names, extra) = Kimera::CLI::Argv.new(arguments).any?(names) ? arguments : arguments + extra
 end

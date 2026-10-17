@@ -3,10 +3,8 @@
 require "parser"
 
 module Kimera
-  module Unparse
-    module Grouping
-      module_function
-
+  class Unparse
+    class Grouping
       LOOSEST_FIRST = [
         %i[irange erange], %i[or], %i[and], %i[<=> == === != =~ !~], %i[> >= < <=], %i[| ^], %i[&], %i[<< >>],
         %i[+ -], %i[* / %], %i[-@], %i[**], %i[! ~ +@]
@@ -24,12 +22,19 @@ module Kimera
       CHAINS = %i[send csend index block numblock itblock].freeze
       SIGNS = %i[-@ +@].freeze
 
-      def call(node)
+      def initialize(node)
+        @node = node
+      end
+
+      def call
+        node = @node
         return node unless node.is_a?(Parser::AST::Node)
-        children = node.children.map { |child| call(child) }
+        children = node.children.map { |child| Grouping.new(child).call }
         floors(node).each { |index, floor| children[index] = wrap(children[index], floor) }
         node.updated(nil, separate(node, children))
       end
+
+      private
 
       def wrap(node, floor) = node && tightness(node) < floor ? enclose(node) : node
 

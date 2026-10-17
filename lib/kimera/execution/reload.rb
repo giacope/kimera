@@ -95,9 +95,9 @@ class Kimera::Execution::Reload
   end
 
   def overlay(file, path, id)
-    source = Kimera::BodyTrim.trim(path, File.read(path, encoding: Encoding::UTF_8), [verdicts.point(id).location])
+    source = Kimera::BodyTrim.new(File.read(path, encoding: Encoding::UTF_8), [verdicts.point(id).location]).trim(path)
     baked = Kimera::Overlay.new(@registry).bake(file, source, id)
-    aliases.again { Kimera::Execution::OverlayGuards.overlay { Kimera::Overlay::Source.new(baked).evaluate(path) } }
+    aliases.again { Kimera::Execution::OverlayGuards.new.overlay { Kimera::Overlay::Source.new(baked).evaluate(path) } }
   end
 
   def aliases = @workspace.aliases || Kimera::Execution::Aliases.new([])

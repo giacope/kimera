@@ -1,33 +1,36 @@
 # frozen_string_literal: true
 
-require_relative "ast_walk"
-
 module Kimera
   module Rewrite
-    module Conditions
+    class Conditions
       TESTS = %i[if while until while_post until_post].freeze
       NEGATION = [:!].freeze
       PASSAGES = %i[and or].freeze
       ENCLOSURES = %i[begin kwbegin].freeze
       READ_AS_CONDITIONS = %i[irange erange regexp].freeze
 
-      module_function
-
-      def places(root, tested: false)
-        found = {}.compare_by_identity.merge!(root => tested)
-        AstWalk.visit(root) { |node| mark(found, node) }
-        found
+      def initialize(root, tested: false)
+        @root = root
+        @tested = tested
       end
 
-      def misread?(tree, tested:) = places(tree, tested: tested).any? { |node, test| test && literal?(node) }
+      def places
+        marks(@root, @tested).each_with_object({}.compare_by_identity) { |(node, test), found| found[node] = test }
+      end
+
+      def misread? = places.any? { |node, test| test && literal?(node) }
+
+      private
 
       def literal?(node) = READ_AS_CONDITIONS.include?(node.type)
 
-      def mark(found, node)
-        children = node.children
-        found[children.first] = true if tests?(node)
-        children.each { found[it] = true } if found[node] && passes?(node)
+      def marks(node, tested)
+        return [] unless node.is_a?(Parser::AST::Node)
+        [[node, tested]] +
+          node.children.each_with_index.flat_map { |child, index| marks(child, carried(node, index, tested)) }
       end
+
+      def carried(node, index, tested) = (index.zero? && tests?(node)) || (tested && passes?(node))
 
       def tests?(node)
         type = node.type

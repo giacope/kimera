@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Kimera::CLI::TestShard
+class Kimera::CLI::TestShard
   RSPEC = <<~RUBY
     require "rspec/core"
     position = 0
@@ -35,9 +35,12 @@ module Kimera::CLI::TestShard
 
   ARGUMENTS = { "minitest" => ["-Itest", "-e", MINITEST] }.freeze
 
-  module_function
+  def initialize(index, count)
+    @index = index
+    @count = count
+  end
 
-  def argv(framework, index, count)
-    ARGUMENTS.fetch(framework.to_s, ["-e", RSPEC]).map { |argument| format(argument, count, index) }
+  def argv(framework)
+    ARGUMENTS.fetch(framework.to_s, ["-e", RSPEC]).map { |argument| format(argument, @count, @index) }
   end
 end

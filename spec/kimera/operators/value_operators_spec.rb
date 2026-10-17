@@ -79,7 +79,7 @@ RSpec.describe("value operators") do
       code = "def name=(value)\n  @name = value\nend\n"
       catalog = scan(code, "assignment_deletion")
       mutant, point = catalog.each.first
-      expect(Kimera::Rewrite::Directive.render(point.original_source, mutant.directive)).to(eq("value"))
+      expect(Kimera::Rewrite::Directive.new(mutant.directive).render(point.original_source)).to(eq("value"))
     end
 
     it "leaves a name's first write, a write inside an expression, and a memo store alone" do

@@ -7,10 +7,10 @@ require "tmpdir"
 
 RSpec.describe(Kimera::CLI::TestShard) do
   it "gives each process its index among the count, in the framework's script", :aggregate_failures do
-    rspec = described_class.argv("rspec", 1, 4)
+    rspec = described_class.new(1, 4).argv("rspec")
     expect(rspec.first).to(eq("-e"))
     expect(rspec.last).to(include("(position += 1) % 4 != 1", "RSpec::Core::Runner.run(ARGV)"))
-    minitest = described_class.argv(:minitest, 2, 3)
+    minitest = described_class.new(2, 3).argv(:minitest)
     expect(minitest.first(2)).to(eq(["-Itest", "-e"]))
     expect(minitest.last).to(include("(offset + position) % 3 == 2", "ARGV.clear"))
   end
@@ -19,7 +19,7 @@ RSpec.describe(Kimera::CLI::TestShard) do
     Dir.mktmpdir("kimera-shard") do |dir|
       File.write(File.join(dir, "shard_test.rb"), source)
       [0, 1].map do |index|
-        command = ["ruby", *described_class.argv(framework, index, 2), "shard_test.rb"]
+        command = ["ruby", *described_class.new(index, 2).argv(framework), "shard_test.rb"]
         output, status = Open3.capture2e(*command, chdir: dir)
         [output[/^(\d+) (?:examples|runs),/, 1].to_i, status.success?]
       end

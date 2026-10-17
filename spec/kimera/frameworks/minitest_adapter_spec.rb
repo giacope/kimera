@@ -61,6 +61,12 @@ RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
     expect(adapter.test_ids).to(include(*ids))
   end
 
+  it "indexes the tests its files defined when it sourced them, not a class defined later" do
+    sourced = adapter
+    later = Class.new(Minitest::Test) { define_method(:test_later) { pass } }
+    expect(sourced.test_ids).not_to(include("#{later}#test_later"))
+  end
+
   it "reports a passing run as passed with no failures", :aggregate_failures do
     outcome = adapter.run(["DemoKimeraTest#test_passes"])
     expect(outcome.passed?).to(be(true))

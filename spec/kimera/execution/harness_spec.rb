@@ -978,12 +978,15 @@ RSpec.describe(Kimera::Execution::Harness) do
       stub_const("ActiveRecord::Base", Class.new)
       db = database(jobs: 2)
       allow(db).to(receive(:require).with("active_record/test_databases"))
-      db.active?
+      yield(db)
       db
     end
 
-    it "loads Rails' own hook registration before deciding" do
-      expect(registration).to(have_received(:require).with("active_record/test_databases"))
+    it "loads Rails' own hook registration before deciding, on each side of the fork", :aggregate_failures do
+      loaded = have_received(:require).with("active_record/test_databases")
+      expect(registration(&:before_fork)).to(loaded)
+      expect(registration { |db| db.after_fork(0) }).to(loaded)
+      expect(registration { |db| db.before_exit(0) }).to(loaded)
     end
 
     def skip
@@ -1238,7 +1241,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   # On Kimera's own runner a warm error is a self-crash, and a warm survivor
   # is unfalsifiable: a mutant that disables the runner passes every test.
-  describe "Verdicts#reclassify!" do
+  describe "Verdicts#reclassified" do
     def result(id, status, file)
       Kimera::MutantResult.new(mutant_id: id, status: status, file: file, duration: 0.0)
     end
@@ -1254,28 +1257,28 @@ RSpec.describe(Kimera::Execution::Harness) do
       }
     end
 
-    before { Kimera::Execution::Verdicts.new(registry).reclassify!(results) }
+    let(:reclassified) { Kimera::Execution::Verdicts.new(registry).reclassified(results) }
 
     it "downgrades a runner error/timeout to isolated_only", :aggregate_failures do
-      expect(results[1].status).to(eq(:isolated_only))
-      expect(results[2].status).to(eq(:isolated_only))
+      expect(reclassified[1].status).to(eq(:isolated_only))
+      expect(reclassified[2].status).to(eq(:isolated_only))
     end
 
     it "leaves a genuine runner kill and ordinary-file verdicts alone", :aggregate_failures do
-      expect(results[3].status).to(eq(:killed))
-      expect(results[4].status).to(eq(:error))
-      expect(results[6].status).to(eq(:survived))
+      expect(reclassified[3].status).to(eq(:killed))
+      expect(reclassified[4].status).to(eq(:error))
+      expect(reclassified[6].status).to(eq(:survived))
     end
 
     it "downgrades an unfalsifiable warm survivor on the runner to isolated_only" do
-      expect(results[5].status).to(eq(:isolated_only))
+      expect(reclassified[5].status).to(eq(:isolated_only))
     end
 
     it "explains the downgrade: self-crash vs unfalsifiable survivor, with the original status", :aggregate_failures do
-      expect(results[1].detail).to(include("--isolated"))
-      expect(results[1].detail).to(include("self-crash"))
-      expect(results[1].detail).to(include("warm error"))
-      expect(results[5].detail).to(include("unfalsifiable"))
+      expect(reclassified[1].detail).to(include("--isolated"))
+      expect(reclassified[1].detail).to(include("self-crash"))
+      expect(reclassified[1].detail).to(include("warm error"))
+      expect(reclassified[5].detail).to(include("unfalsifiable"))
     end
   end
 
@@ -1719,7 +1722,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     # The reload child reports the reason; an :error would count as killed.
     it "reports a mutant unparser can't bake as unmutatable, with the reason", :aggregate_failures do
-      allow(Kimera::Unparse).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
+      allow(Unparser).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
       report, progress = cold
       result = report.results.first
       expect(result.status).to(eq(:unmutatable))
@@ -1750,7 +1753,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     it "classifies a bake unparser can't write as unmutatable, with the reason" do
-      allow(Kimera::Unparse).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
+      allow(Unparser).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
       expect(evaluation).to(
         eq([:unmutatable, [], "unmutatable: unparser could not write its bake (KeyError: key not found: :lvar)"])
       )

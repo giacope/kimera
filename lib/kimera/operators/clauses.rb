@@ -4,18 +4,20 @@ require_relative "vocabulary"
 
 module Kimera
   module Operators
-    module Clauses
+    class Clauses
       DEFINITION = /\Adef\b/
 
-      module_function
-
-      def begin(node)
-        return unless node.is_a?(SyntaxTypes::BeginNode)
-        node if node.begin_keyword_loc || node.location.slice.match?(DEFINITION)
+      def initialize(node)
+        @node = node
       end
 
-      def rescues(node)
-        clause = self.begin(node)&.rescue_clause
+      def begin
+        return unless @node.is_a?(SyntaxTypes::BeginNode)
+        @node if @node.begin_keyword_loc || @node.location.slice.match?(DEFINITION)
+      end
+
+      def rescues
+        clause = self.begin&.rescue_clause
         found = []
         while clause
           found << clause
@@ -23,6 +25,8 @@ module Kimera
         end
         found
       end
+
+      private
 
       def following(clause) = clause.respond_to?(:subsequent) ? clause.subsequent : clause.consequent
     end

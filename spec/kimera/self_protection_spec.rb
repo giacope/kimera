@@ -5,42 +5,47 @@ require "kimera/self_protection"
 require "tmpdir"
 
 RSpec.describe(Kimera::SelfProtection) do
-  describe ".protected?" do
+  def protected?(path) = described_class.new(path).protected?
+
+  def critical?(path) = described_class.new(path).critical?
+
+  describe "#protected?" do
     it "protects the runtime selector's own source file" do
-      expect(described_class.protected?(Kimera::Runtime::SOURCE_PATH)).to(be(true))
+      expect(protected?(Kimera::Runtime::SOURCE_PATH)).to(be(true))
     end
 
     it "protects child-process entrypoints that execute immediately when loaded" do
-      expect(described_class::OUT_OF_PROCESS_ENTRYPOINTS).to(all(satisfy { |path| described_class.protected?(path) }))
+      expect(described_class::OUT_OF_PROCESS_ENTRYPOINTS).to(all(satisfy { |path| protected?(path) }))
     end
 
     it "resolves relative paths before matching" do
       Dir.chdir(File.dirname(Kimera::Runtime::SOURCE_PATH)) do
-        expect(described_class.protected?("runtime.rb")).to(be(true))
+        expect(protected?("runtime.rb")).to(be(true))
       end
     end
 
     it "does not protect ordinary application files", :aggregate_failures do
-      expect(described_class.protected?("app/models/user.rb")).to(be(false))
-      expect(described_class.protected?(__FILE__)).to(be(false))
+      expect(protected?("app/models/user.rb")).to(be(false))
+      expect(protected?(__FILE__)).to(be(false))
     end
 
     it "protects the selector reached through a symlink" do
       Dir.mktmpdir do |dir|
         link = File.join(dir, "linked_runtime.rb")
         File.symlink(Kimera::Runtime::SOURCE_PATH, link)
-        expect(described_class.protected?(link)).to(be(true))
+        expect(protected?(link)).to(be(true))
       end
     end
   end
 
-  describe ".canonical" do
+  describe "#canonical" do
     it "falls back to expand_path when realpath cannot resolve the path" do
-      expect(described_class.canonical("no/such/dir/../file.rb")).to(eq(File.expand_path("no/such/file.rb")))
+      canonical = described_class.new(nil).__send__(:canonical, "no/such/dir/../file.rb")
+      expect(canonical).to(eq(File.expand_path("no/such/file.rb")))
     end
   end
 
-  describe ".critical?" do
+  describe "#critical?" do
     def fixtures
       %w[
         lib/kimera/frameworks/rspec_adapter.rb
@@ -60,13 +65,13 @@ RSpec.describe(Kimera::SelfProtection) do
     end
 
     it "flags Kimera's own in-process runner files" do
-      fixtures.each { |f| expect(described_class.critical?(f)).to(be(true)) }
+      fixtures.each { |f| expect(critical?(f)).to(be(true)) }
     end
 
     it "does not flag ordinary application files (even same-named ones)", :aggregate_failures do
-      expect(described_class.critical?("app/jobs/worker.rb")).to(be(false))
-      expect(described_class.critical?("lib/execution/harness.rb")).to(be(false))
-      expect(described_class.critical?(nil)).to(be(false))
+      expect(critical?("app/jobs/worker.rb")).to(be(false))
+      expect(critical?("lib/execution/harness.rb")).to(be(false))
+      expect(critical?(nil)).to(be(false))
     end
   end
 

@@ -41,7 +41,7 @@ class Kimera::CLI::Run::Narrowing
   end
 
   def files(globs)
-    Kimera::FileSet.expand(globs, exclude: @options[:exclude_tests]).map { |file| File.expand_path(file) }
+    Kimera::FileSet.new(globs, exclude: @options[:exclude_tests]).files.map { |file| File.expand_path(file) }
   end
 
   def count(number) = number.to_s.reverse.scan(/\d{1,3}/).join(",").reverse

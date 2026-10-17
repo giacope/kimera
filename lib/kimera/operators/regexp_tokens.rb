@@ -28,34 +28,34 @@ module Kimera
         found = []
         at = 0
         repeatable = false
-        at, repeatable = step(at, repeatable, found) while @source[at]
+        while @source[at]
+          at, repeatable, token = step(at, repeatable)
+          found << token if token
+        end
         found
       end
 
-      def step(at, repeatable, found)
+      def step(at, repeatable)
         char = @source[at]
-        return escape(at, found) if char == "\\"
+        return escape(at) if char == "\\"
         return [class_end(at + 1), true] if char == "["
         return [group(at), false] if char == "("
-        return anchor(at, char, found) if ANCHORS.key?(char)
-        return repeat(at, found) if repeatable && quantifier?(at)
+        return anchor(at, char) if ANCHORS.key?(char)
+        return repeat(at) if repeatable && quantifier?(at)
         [at + 1, true]
       end
 
-      def escape(at, found)
+      def escape(at)
         pair = @source[at, 2]
-        return anchor(at, pair, found) if ANCHORS.key?(pair)
+        return anchor(at, pair) if ANCHORS.key?(pair)
         named = @source.match(NAMED, at)
         return [@source.index(CLOSERS.fetch(named[0][-1]), named.end(0)).to_i + 1, true] if named
         [at + 2, true]
       end
 
-      def anchor(at, text, found) = take(found, Token.new(:anchor, at, text))
+      def anchor(at, text) = take(Token.new(:anchor, at, text))
 
-      def take(found, token)
-        found << token
-        [token.offset + token.text.length, false]
-      end
+      def take(token) = [token.offset + token.text.length, false, token]
 
       def quantifier?(at) = REPEATS.include?(@source[at]) || (@source.match?(BOUNDED, at) && bounded?(at))
 
@@ -64,8 +64,8 @@ module Kimera
         !(lower.empty? && upper.empty?)
       end
 
-      def repeat(at, found)
-        take(found, Token.new(:quantifier, at, (@source.match(BOUNDED, at) || @source.match(MODIFIED, at))[0]))
+      def repeat(at)
+        take(Token.new(:quantifier, at, (@source.match(BOUNDED, at) || @source.match(MODIFIED, at))[0]))
       end
 
       def group(at)

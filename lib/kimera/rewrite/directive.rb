@@ -14,15 +14,44 @@ module Kimera
     INDEX = OperatorProtocol::INDEX
     STATEMENT_DELETION = OperatorProtocol::STATEMENT_DELETION
 
-    module Directive
-      module_function
+    class Directive
+      TABLE = ->(*entries) { entries.each_slice(2).to_h.freeze }
 
-      def render(source, directive)
-        shortcut(directive) || forced(source, condition(directive)) || attempt(source, directive)
+      VALUE_HANDLERS = TABLE.call(
+        "comparison", :swap, "op_swap", :swap, "selector_swap", :select,
+        "op_asgn_swap", :assign, "csend_to_send", :send, "index_to_fetch", :fetch,
+        "boolean_literal", :literal, "integer_literal", :integer, "float_literal", :float,
+        "string_literal", :string, "symbol_literal", :symbol, "regexp_literal", :regexp,
+        "boolean_connective", :retype, "range_flip", :retype, "condition", :retest
+      )
+      STRUCTURAL_HANDLERS = TABLE.call(
+        STATEMENT_DELETION, :clear, "return_nil", :nothing, "empty_collection", :empty,
+        "unwrap_receiver", :receiver, "drop_receiver_link", :unlink, "drop_element", :remove,
+        "drop_argument", :drop, "unwrap_argument", :argument, "required_argument", :default,
+        "kwarg_element_drop", :keyword, "kwarg_pair_drop", :option
+      )
+      HANDLERS = VALUE_HANDLERS.merge(STRUCTURAL_HANDLERS).freeze
+      CLAUSE_HANDLERS = TABLE.call(
+        "drop_rescue", :rescued, "drop_ensure", :ensured, "privatize", :privatize,
+        "assigned_value", :value, "nil_object", :object, "regexp_source", :pattern
+      )
+
+      def initialize(directive)
+        @directive = directive
       end
 
-      def condition(directive)
-        directive["to"] if directive[TYPE] == "condition"
+      def render(source)
+        shortcut || forced(source, condition) || attempt(source)
+      end
+
+      def apply(node)
+        operation(node).public_send(handler)
+      end
+
+      private
+
+      def condition
+        @directive["to"] if @directive[TYPE] == "condition"
       end
 
       def forced(source, value)
@@ -36,53 +65,28 @@ module Kimera
         source.byteslice(0, span.start_offset) + text + source.byteslice(span.end_offset..)
       end
 
-      def shortcut(directive)
-        type = directive[TYPE]
+      def shortcut
+        type = @directive[TYPE]
         return "(statement deleted)" if type == STATEMENT_DELETION
-        return String(directive["value"]).inspect if type == "string_literal"
-        "#{directive["name"]} (default removed)" if type == "required_argument"
+        return String(@directive["value"]).inspect if type == "string_literal"
+        "#{@directive["name"]} (default removed)" if type == "required_argument"
       end
 
-      def attempt(source, directive)
-        Kimera::Unparse.unparse(apply(NumberedParams.normalize(Kimera::Unparse.parse(source)), directive))
+      def attempt(source)
+        Kimera::Unparse.new(apply(NumberedParams.new(Kimera::Unparse.parse(source)).normalize)).source
       rescue StandardError
         nil
       end
 
-      def table(*entries) = entries.each_slice(2).to_h.freeze
-
-      VALUE_HANDLERS = table(
-        "comparison", :swap, "op_swap", :swap, "selector_swap", :select,
-        "op_asgn_swap", :assign, "csend_to_send", :send, "index_to_fetch", :fetch,
-        "boolean_literal", :literal, "integer_literal", :integer, "float_literal", :float,
-        "string_literal", :string, "symbol_literal", :symbol, "regexp_literal", :regexp,
-        "boolean_connective", :retype, "range_flip", :retype, "condition", :retest
-      )
-      STRUCTURAL_HANDLERS = table(
-        STATEMENT_DELETION, :clear, "return_nil", :nothing, "empty_collection", :empty,
-        "unwrap_receiver", :receiver, "drop_receiver_link", :unlink, "drop_element", :remove,
-        "drop_argument", :drop, "unwrap_argument", :argument, "required_argument", :default,
-        "kwarg_element_drop", :keyword, "kwarg_pair_drop", :option
-      )
-      HANDLERS = VALUE_HANDLERS.merge(STRUCTURAL_HANDLERS).freeze
-      CLAUSE_HANDLERS = table(
-        "drop_rescue", :rescued, "drop_ensure", :ensured, "privatize", :privatize,
-        "assigned_value", :value, "nil_object", :object, "regexp_source", :pattern
-      )
-
-      def apply(node, directive)
-        operation(node, directive).public_send(handler(directive))
+      def operation(node)
+        (CLAUSE_HANDLERS.key?(@directive[TYPE]) ? ClauseHandlers : DirectiveHandlers)::Operation.new(node, @directive)
       end
 
-      def operation(node, directive)
-        (CLAUSE_HANDLERS.key?(directive[TYPE]) ? ClauseHandlers : DirectiveHandlers)::Operation.new(node, directive)
-      end
-
-      def handler(directive)
-        type = directive[TYPE]
+      def handler
+        type = @directive[TYPE]
         HANDLERS.fetch(type) do
           CLAUSE_HANDLERS.fetch(type) do
-            raise(ArgumentError, "unknown directive #{directive.inspect}")
+            raise(ArgumentError, "unknown directive #{@directive.inspect}")
           end
         end
       end
