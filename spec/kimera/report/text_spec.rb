@@ -98,6 +98,37 @@ RSpec.describe(Kimera::Report::Text) do
     expect(render(survivor)).not_to(include("Reached only"))
   end
 
+  def flaky(found)
+    io = StringIO.new
+    report = Kimera::RunReport.new(
+      results: [killed],
+      tests: { "t1" => { "name" => "one", "location" => "a_spec.rb:3" } }
+    )
+    described_class.new(registry, io: io, color: false).report(report.annotate(flaky: found))
+    io.string
+  end
+
+  it "names each flaky test, how often and under which seeds it failed, and why", :aggregate_failures do
+    flake = { "test" => "t1", "failed_runs" => 2, "seeds" => [8, 9], "failure" => "\nExpected 0\n  got 1" }
+    out = flaky("runs" => 2, "seeds" => [8, 9], "tests" => 3, "flaky" => [flake])
+    expect(out).to(
+      include(
+        "\n\nFlaky tests (1), in 2 rerun(s) of 3 covering test(s), seeds 8, 9:\n  " \
+          "a_spec.rb:3  one  failed 2 (seed 8, 9): Expected 0\n  " \
+          "Each passed the baseline but failed a rerun, so it kills no mutant.\n"
+      )
+    )
+    expect(flaky("runs" => 1, "seeds" => [8], "tests" => 1, "flaky" => [flake.merge("failure" => "")]))
+      .to(include("  a_spec.rb:3  one  failed 2 (seed 8, 9): no message\n"))
+  end
+
+  it "says when the reruns found no flaky test, and nothing when none ran", :aggregate_failures do
+    none = flaky("runs" => 1, "seeds" => [8], "tests" => 4, "flaky" => [])
+    expect(none).to(include("\n\nNo flaky tests in 1 rerun(s) of 4 covering test(s), seeds 8.\n"))
+    expect(none).not_to(include("Each passed"))
+    expect(render(killed)).not_to(include("flaky"))
+  end
+
   it "omits the survivors section when everything is killed", :aggregate_failures do
     output = render(killed)
     expect(output).to(include("killed=1"))

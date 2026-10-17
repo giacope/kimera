@@ -1,0 +1,97 @@
+# frozen_string_literal: true
+
+require "kimera/execution/flake_hunt"
+require "kimera/execution/null_progress"
+require "kimera/execution/test_filter"
+require "kimera/frameworks/adapter"
+require "kimera/registry/builder"
+
+# The driver stands in for the warm pool: it answers each test with the
+# result the adapter's seed at that moment calls for, as a forked worker would.
+RSpec.describe(Kimera::Execution::FlakeHunt, :aggregate_failures) do
+  let(:adapter) do
+    Class.new(Kimera::Frameworks::Adapter) do
+      attr_reader :seed
+
+      def test_ids = %w[t1 t2 t3 t4]
+    end.new
+  end
+  let(:registry) { Kimera::RegistryScan.new.source("def a(x)\n  x > 1\nend\n", file: "a.rb") }
+  let(:filter) { Kimera::Execution::TestFilter.new(registry: registry) }
+  let(:progress) { Kimera::Execution::NullProgress }
+  let(:failing) { { 12 => %w[t2], 13 => %w[t2 t1] } }
+
+  def driver(log)
+    seeds = failing
+    pool = adapter
+    Class.new do
+      define_method(:channel) { :channel }
+      define_method(:drive) do |tests, spawner, listeners|
+        log << [pool.seed, tests, spawner.call]
+        tests.each do |test|
+          listeners.resolve.call("id" => test, "passed" => !seeds.fetch(pool.seed, []).include?(test))
+        end
+        listeners.lost.call("t3", :timeout, nil) if pool.seed == 13
+      end
+    end.new
+  end
+
+  def hunt(log, **settings)
+    described_class.new(adapter, driver(log), progress).call(
+      { 1 => %w[t2 t1], 2 => %w[t3], 3 => %w[t4] }, [1, 2],
+      settings
+    )
+  end
+
+  it "reruns the tests that cover the mutants in scope, once per seed after the run's own, in suite order" do
+    log = []
+    adapter.seed = 11
+    hunt(log, seed: 11, flaky_runs: 2, filter: filter)
+    expect(log).to(eq([[12, %w[t1 t2 t3], :channel], [13, %w[t1 t2 t3], :channel]]))
+    expect(adapter.seed).to(eq(11))
+  end
+
+  it "flags each test a rerun failed or lost, so it kills nothing" do
+    hunt([], seed: 11, flaky_runs: 2, filter: filter)
+    expect(filter.flakes.flaky).to(eq(%w[t2 t1 t3]))
+    expect(filter.keep("a.rb", %w[t1 t2 t3])).to(eq([]))
+    expect(filter.flakes.to_h.values_at("runs", "seeds", "tests")).to(eq([2, [12, 13], 3]))
+  end
+
+  it "covers every mutant when no scope is given" do
+    log = []
+    described_class.new(adapter, driver(log), progress).call({ 3 => %w[t2] }, nil, seed: 1, flaky_runs: 1)
+    expect(log).to(eq([[2, %w[t2], :channel]]))
+  end
+
+  it "draws fresh seeds without a run seed, and restores the unseeded adapter" do
+    log = []
+    hunt(log, seed: nil, flaky_runs: 3, filter: filter)
+    expect(log.map(&:first)).to(all(be_between(0, (2**31) - 1)))
+    expect(log.map(&:first).uniq.size).to(eq(3))
+    expect(adapter.seed).to(be_nil)
+  end
+
+  it "does nothing without reruns" do
+    log = []
+    expect([hunt(log, seed: 11, flaky_runs: 0, filter: filter), hunt(log, filter: filter), log]).to(eq([nil, nil, []]))
+    expect(filter.flakes).to(be_nil)
+  end
+
+  it "wraps the seed past the top of the range" do
+    log = []
+    hunt(log, seed: (2**31) - 1, flaky_runs: 2, filter: filter)
+    expect(log.map(&:first)).to(eq([0, 1]))
+  end
+
+  it "labels each rerun's progress with its round and seed, and ticks each test, lost ones too" do
+    events = []
+    journal = Class.new do
+      define_method(:start) { |total, label| events << [:start, total, label] }
+      define_method(:tick) { |*| events << :tick }
+      define_method(:finish) { events << :finish }
+    end.new
+    described_class.new(adapter, driver([]), journal).call({ 1 => %w[t1] }, nil, seed: 12, flaky_runs: 1)
+    expect(events).to(eq([[:start, 1, "flaky check 1/1 (seed 13)"], :tick, :tick, :finish]))
+  end
+end

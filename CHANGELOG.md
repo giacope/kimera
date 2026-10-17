@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Seeds and flaky tests. `seed: N` (`--seed N`) seeds each test's random
+  numbers with N and the test's id before it runs, on every tier, and gives
+  Minitest N as its seed (it was always 1); `--seed random` draws N and the
+  report records it. Unset, nothing changes: Ruby reseeds each forked test,
+  as before. `flaky_runs: N` (`--flaky-runs N`) reruns the covering tests N
+  more times under other seeds after the baseline; a test whose result
+  changes is reported flaky (`flaky_tests` in the JSON report, "Flaky tests"
+  in the text report) and never kills a mutant, since its failure says
+  nothing about the mutant. A mutant only flaky tests cover reads
+  `no_coverage`. Off by default.
 - Strict attribution: `attribution: unit` (`--attribution unit`) lets only
   a unit's own tests kill its mutants, by the usual layouts
   (`spec/foo/bar_spec.rb` or `test/foo/bar_test.rb` for `lib/foo/bar.rb`,

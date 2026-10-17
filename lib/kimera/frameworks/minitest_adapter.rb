@@ -32,15 +32,14 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
   end
 
   def source(files)
+    Minitest.seed = @seed if @seed
     paths(files)
     each_test_file(files) { |file| require(file) }
     reindex
     self
   end
 
-  def test_ids
-    @methods.keys
-  end
+  def test_ids = @methods.keys
 
   def run(ids)
     failed = []
@@ -54,7 +53,8 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
   def test_file(id) = @methods[id]&.then { |klass, name| declared(klass.name) || definition(klass, name).first }
 
   def reproduce(ids)
-    "bundle exec ruby -Itest -rminitest/autorun -e #{quote(loads(ids))} -- -n #{quote(filter(ids))} --seed 1"
+    "bundle exec ruby -Itest -rminitest/autorun -e #{quote(loads(ids))} " \
+      "-- -n #{quote(filter(ids))} --seed #{Minitest.seed}"
   end
 
   private
@@ -85,6 +85,7 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
   def record(id, failed, failures)
     klass, name = @methods[id]
     return unless klass
+    reseed(id)
     result = klass.new(name).extend(Kimera::TestExit::Test).run
     return unless killing?(result)
     failure(id, result, failed, failures)
@@ -118,9 +119,7 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
     runnable.runnable_methods.each { |name| @methods["#{runnable}##{name}"] = [runnable, name] }
   end
 
-  def killing?(result)
-    !result.passed? && !result.skipped?
-  end
+  def killing?(result) = !result.passed? && !result.skipped?
 
   def message(result)
     assertion = result.failures.first

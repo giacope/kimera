@@ -79,6 +79,16 @@ module Kimera::CLI::RunFlags
       collect: true
     ),
     Kimera::Flag.build(
+      "--seed N|random", :seed,
+      "Seed each test's random numbers (and Minitest's order) with N, or a random N the report records"
+    ),
+    Kimera::Flag.build(
+      "--flaky-runs N", :flaky_runs,
+      "Rerun the covering tests N more times, each with another seed; a test whose result changes is " \
+        "flaky, reported, and never kills (default: 0)",
+      type: Integer
+    ),
+    Kimera::Flag.build(
       "--isolate-when-covered-by SUBSTR", :isolate_when_covered_by,
       "Isolate only mutants whose covering set includes a test id matching SUBSTR " \
         "(repeatable) — a fast, targeted alternative to --isolated for pool-unsafe specs",

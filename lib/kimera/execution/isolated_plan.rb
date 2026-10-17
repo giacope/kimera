@@ -64,7 +64,7 @@ class Kimera::Execution::IsolatedPlan
 
   def child
     @_child ||= ChildCommand.new(
-      framework: @options.fetch(:framework), test_files: @options.fetch(:test_files), root: root
+      framework: @options.fetch(:framework), test_files: @options.fetch(:test_files), root: root, seed: @options[:seed]
     )
   end
 end

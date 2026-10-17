@@ -60,6 +60,7 @@ class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
 
   def run(ids)
     selected = ids.filter_map { |id| @examples[id] }
+    reseed(ids.first)
     reset
     clear(selected)
     execute(selected)

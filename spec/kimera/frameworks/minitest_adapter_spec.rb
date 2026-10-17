@@ -84,6 +84,33 @@ RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
     Minitest::Runnable.runnables.delete(named)
   end
 
+  def drawn(seed)
+    adapter.seed = seed
+    [adapter.run(["DemoKimeraTest#test_passes"]), rand(1_000_000)].last
+  end
+
+  it "seeds each test's random numbers from the run's seed and its id, or leaves them alone", :aggregate_failures do
+    first = drawn(42)
+    expect(
+      [
+        drawn(42),
+        first
+      ]
+    ).to(eq([first, Random.new(Kimera::Seed.derive(42, "DemoKimeraTest#test_passes")).rand(1_000_000)]))
+    srand(5)
+    expect(drawn(nil)).to(eq(Random.new(5).rand(1_000_000)))
+  end
+
+  it "orders and reproduces the suite by the run's seed, once given one", :aggregate_failures do
+    saved = Minitest.seed
+    undefine
+    described_class.build.tap { |seeded| seeded.seed = 77 }.source([testfile])
+    expect(Minitest.seed).to(eq(77))
+    expect(adapter.reproduce(["DemoKimeraTest#test_passes"])).to(end_with("--seed 77"))
+  ensure
+    Minitest.seed = saved
+  end
+
   it "reports a passing run as passed with no failures", :aggregate_failures do
     outcome = adapter.run(["DemoKimeraTest#test_passes"])
     expect(outcome.passed?).to(be(true))

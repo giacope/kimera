@@ -13,8 +13,8 @@ end
 class Kimera::RunReport
   include Kimera::ReportRows
 
-  Notes = Data.define(:counted)
-  NOTES = Notes.new(counted: [])
+  Notes = Data.define(:counted, :flaky)
+  NOTES = Notes.new(counted: [], flaky: nil)
 
   attr_reader :results, :leaks, :registry, :tests, :notes
 
@@ -49,7 +49,10 @@ class Kimera::RunReport
 
   def counted = @notes.counted
 
-  def test_ids = @results.flat_map { |result| Array(result.covering_tests) + Array(result.failing_tests) }.uniq
+  def test_ids
+    flaky = Array(@notes.flaky&.fetch("flaky")).map { |flake| flake.fetch("test") }
+    (@results.flat_map { |result| Array(result.covering_tests) + Array(result.failing_tests) } + flaky).uniq
+  end
 
   def test(id) = @tests.fetch(id, {})
 
@@ -111,7 +114,7 @@ class Kimera::RunReport
   def to_h
     { "schema_version" => SCHEMA_VERSION, "counts" => counts, "mutation_score" => score }
       .merge("results" => @results.map { |result| detailed(result) }, "leaks" => @leaks.map(&:to_h))
-      .merge("unmutated" => unmutated.map(&:to_h)).merge(catalog)
+      .merge("unmutated" => unmutated.map(&:to_h)).merge(catalog).merge(flakes)
   end
 
   protected
@@ -119,6 +122,8 @@ class Kimera::RunReport
   attr_writer :notes
 
   private
+
+  def flakes = @notes.flaky ? { "flaky_tests" => @notes.flaky } : {}
 
   def catalog
     listed = @tests.slice(*test_ids)

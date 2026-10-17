@@ -90,6 +90,20 @@ RSpec.describe(Kimera::RunReport) do
       expect(report.summary).to(include("score=80.0% (1 uncovered not scored)"))
     end
 
+    describe "flaky tests" do
+      let(:found) do
+        { "runs" => 2, "seeds" => [3, 4], "tests" => 5, "flaky" => [{ "test" => "t7", "failed_runs" => 1 }] }
+      end
+      let(:flaky) { report.annotate(flaky: found) }
+
+      it "lists them in the document, and their ids for the catalog, only once looked for", :aggregate_failures do
+        expect(flaky.to_h.fetch("flaky_tests")).to(eq(found))
+        expect(flaky.test_ids).to(include("t7"))
+        expect(report.to_h).not_to(have_key("flaky_tests"))
+        expect(flaky.merge(described_class.new(results: [])).counting([:no_coverage]).notes.flaky).to(eq(found))
+      end
+    end
+
     describe "counting uncovered mutants (count_no_coverage)" do
       let(:counting) { report.counting([:no_coverage]) }
 

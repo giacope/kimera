@@ -94,4 +94,27 @@ module Kimera::Report::Sections
   end
 
   def leaks(leaks) = listing(yellow("State-leak warnings (#{leaks.size}):"), leaks)
+
+  def flaky(report)
+    found = report.notes.flaky
+    return unless found
+    flakes = found.fetch("flaky")
+    @io.puts
+    rerun = reruns(found)
+    @io.puts(flakes.empty? ? "No flaky tests in #{rerun}." : yellow("Flaky tests (#{flakes.size}), in #{rerun}:"))
+    flakes.each { |flake| @io.puts("  #{flake_line(report, flake)}") }
+    @io.puts("  Each passed the baseline but failed a rerun, so it kills no mutant.") if flakes.any?
+  end
+
+  def reruns(found)
+    "#{found.fetch("runs")} rerun(s) of #{found.fetch("tests")} covering test(s), " \
+      "seeds #{found.fetch("seeds").join(", ")}"
+  end
+
+  def flake_line(report, flake)
+    test = flake.fetch("test")
+    reason = Kimera::Readout.lines(flake.fetch("failure")).first || "no message"
+    "#{Kimera::Readout.label(test, report.test(test))}  failed #{flake.fetch("failed_runs")} " \
+      "(seed #{flake.fetch("seeds").join(", ")}): #{reason}"
+  end
 end

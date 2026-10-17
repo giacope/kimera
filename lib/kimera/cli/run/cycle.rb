@@ -12,7 +12,9 @@ require_relative "pass"
 require_relative "sources"
 
 class Kimera::CLI::Run::Cycle
-  SETTINGS = %i[framework source_root tests exclude_tests operators coverage isolated attribution unit_tests].freeze
+  SETTINGS = %i[
+    framework source_root tests exclude_tests operators coverage isolated attribution unit_tests seed flaky_runs
+  ].freeze
 
   def initialize(options, registry, changed, digest:)
     @options = options

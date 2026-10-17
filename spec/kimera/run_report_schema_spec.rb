@@ -16,7 +16,9 @@ RSpec.describe(Kimera::RunReport, :aggregate_failures) do
   let(:document) do
     rich = result(:ignored, verdict: :killed, failing_tests: ["t1"], covering_tests: ["t1"], detail: "d", note: "n")
     report = described_class.new(results: [rich], registry: registry, tests: { "t1" => { "name" => "one" } })
-    JSON.parse(JSON.generate(report.document("jobs" => 1)))
+    flake = { "test" => "t1", "failed_runs" => 1, "seeds" => [2], "failure" => "f" }
+    flaky = { "runs" => 1, "seeds" => [2], "tests" => 1, "flaky" => [flake] }
+    JSON.parse(JSON.generate(report.annotate(flaky: flaky).document("jobs" => 1)))
   end
 
   def result(status, **fields)
@@ -32,6 +34,13 @@ RSpec.describe(Kimera::RunReport, :aggregate_failures) do
     statuses = (Kimera::Status::REPORTED + [:killed]).map(&:to_s)
     expect(properties.dig("counts", "properties").keys).to(match_array(document.fetch("counts").keys))
     expect(properties.dig("results", "items", "properties", "status", "enum")).to(match_array(statuses))
+  end
+
+  it "names every field of the flaky tests section" do
+    section = properties.fetch("flaky_tests")
+    expect(section.fetch("properties").keys).to(match_array(document.fetch("flaky_tests").keys))
+    expect(section.dig("properties", "flaky", "items", "properties").keys)
+      .to(match_array(document.dig("flaky_tests", "flaky", 0).keys))
   end
 
   it "names every field of a fully enriched result" do

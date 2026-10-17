@@ -45,6 +45,7 @@ class Kimera::Report::Text
     __send__(COVERAGE_SECTIONS.fetch(coverage), report, path)
     regions(report.unmutated)
     leaks(report.leaks)
+    flaky(report)
     Kimera::Report::Actions.new(io: @io).show(report, path: path)
   end
 

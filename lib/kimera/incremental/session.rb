@@ -51,6 +51,7 @@ class Kimera::Incremental::Session
     results = evaluated.filter_map { |id| @results[id] }
     results += waived.map { |id| waiver(id, registry) }
     Kimera::RunReport.new(results: results, leaks: @leaks, registry: registry, tests: tests)
+      .annotate(flaky: @meta["flaky"])
   end
 
   def waiver(id, registry)
@@ -62,6 +63,8 @@ class Kimera::Incremental::Session
     @leaks.concat(report.leaks)
     named = report.tests
     @meta = @meta.merge("tests" => tests.merge(named)) unless named.empty?
+    flaky = report.notes.flaky
+    @meta = @meta.merge("flaky" => flaky) if flaky
     self
   end
 

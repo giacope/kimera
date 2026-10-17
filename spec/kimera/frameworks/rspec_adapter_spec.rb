@@ -98,6 +98,13 @@ RSpec.describe(Kimera::Frameworks::RSpecAdapter) do
     expect(adapter.test_file("unknown")).to(be_nil)
   end
 
+  it "seeds a run's random numbers from the run's seed and its first example's id", :aggregate_failures do
+    passing = ids.find { |id| adapter.describe(id) == "KimeraDemo passes" }
+    adapter.seed = 9
+    quietly { adapter.run([passing]) }
+    expect(rand(1_000_000)).to(eq(Random.new(Kimera::Seed.derive(9, passing)).rand(1_000_000)))
+  end
+
   it "describes an unknown id as itself" do
     expect(adapter.describe("no/such[1:1]")).to(eq("no/such[1:1]"))
   end

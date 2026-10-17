@@ -12,6 +12,7 @@ require_relative "baseline_pass"
 require_relative "baseline_stall"
 require_relative "boot"
 require_relative "child_process"
+require_relative "flake_hunt"
 require_relative "isolation"
 require_relative "load_trace"
 require_relative "order_trace"
@@ -102,8 +103,7 @@ class Kimera::Execution::Harness
 
   def rig
     @_rig ||= Kimera::Execution::Rig.new(
-      registry: registry, adapter: adapter, isolation: isolation, root: root,
-      soft: soft, hard: hard, jobs: jobs,
+      registry: registry, adapter: adapter, isolation: isolation, root: root, soft: soft, hard: hard, jobs: jobs,
       coverage: coverage, spawner: options[:spawner], progress: progress, aliases: state.aliases,
       filter: options[:filter]
     )
@@ -133,6 +133,7 @@ class Kimera::Execution::Harness
   def sift!(scope)
     trace.quarantine!(coverage)
     Kimera::Execution::OrderTrace.new(registry).follow!(baseline, coverage, scope: scope, progress: progress)
+    Kimera::Execution::FlakeHunt.new(adapter, driver, progress).call(coverage, scope, options)
   end
 
   def arm(timings)

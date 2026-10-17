@@ -18,7 +18,9 @@ class Kimera::CLI::Run::Pass
   end
 
   def call(remaining, session)
-    report = with_adapter { perform(remaining) }.then { |judged| judged.described(@adapter.catalog(judged.test_ids)) }
+    report =
+      with_adapter { perform(remaining).annotate(flaky: filter.flakes&.to_h) }
+        .then { |judged| judged.described(@adapter.catalog(judged.test_ids)) }
     session.merge!(report)
     report
   end
@@ -34,6 +36,7 @@ class Kimera::CLI::Run::Pass
   end
 
   def perform(remaining)
+    @options[:seed]&.then { |seed| @adapter.seed = seed }
     warm(remaining)
     run(remaining)
   end
@@ -65,7 +68,7 @@ class Kimera::CLI::Run::Pass
     { registry: @registry, adapter: @adapter, source_root: @options[:source_root] }
       .merge(soft_timeout: @options[:soft_timeout], jobs: @options[:jobs])
       .merge(isolate_db: @options[:isolate_db], progress: progress, filter: filter)
-      .merge(@options.slice(:relative_timeout, :timeout_factor, :timeout_slack))
+      .merge(@options.slice(:relative_timeout, :timeout_factor, :timeout_slack, :seed, :flaky_runs))
   end
 
   def warm(remaining)
@@ -114,7 +117,7 @@ class Kimera::CLI::Run::Pass
   def core
     { registry: @registry, root: @options[:source_root], tests: @adapter.test_ids }
       .merge(coverage: harness.coverage, timings: harness.timings, progress: progress, jobs: @options[:jobs])
-      .merge(framework: @options[:framework], test_files: files, filter: filter)
+      .merge(framework: @options[:framework], test_files: files, filter: filter, seed: @options[:seed])
   end
 
   def limits = { hard_timeout: @options[:hard_timeout] }.compact

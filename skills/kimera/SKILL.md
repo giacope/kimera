@@ -137,6 +137,14 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   (request, integration) reach the mutant: it gates like a survivor. Fix it
   with a unit test that exercises the code, never by adding a rule that maps
   an integration spec to the unit.
+- `--seed N` (`seed:`) makes each test draw the same random numbers in the
+  baseline and every mutant's run; `--seed random` draws one and records it
+  in the report's `run` section, so `--seed N` repeats a run.
+- `--flaky-runs N` (`flaky_runs:`, nightly) reruns the covering tests under
+  N other seeds. A test whose result changes is listed as flaky
+  (`flaky_tests` in the JSON report) and never kills, so a mutant only it
+  covers reads `no_coverage`. Fix the flaky test; don't raise a timeout or
+  pin a seed to hide it.
 - `isolated_only` marks mutants that only `--isolated` can judge: class-body
   DSL, and code in a method the suite only runs while it loads (a class macro
   or `included` hook another file's class body calls). Run it for their

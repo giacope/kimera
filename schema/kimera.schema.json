@@ -199,6 +199,24 @@
         ]
       }
     },
+    "seed": {
+      "description": "Seed each test's random numbers (Kernel.srand, from this seed and the test's id) and Minitest's order with this number, or with a random one the report's run section records (random), so a run can be repeated. Default: unset, as before (Minitest's seed 1, no reseeding).",
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        {
+          "const": "random"
+        }
+      ]
+    },
+    "flaky_runs": {
+      "description": "Rerun the tests that cover mutants in scope this many more times, each with another seed, before judging. A test whose result changes is flaky: reported, and never kills a mutant (default: 0).",
+      "type": "integer",
+      "minimum": 0
+    },
     "count_no_coverage": {
       "description": "Score a mutant with no covering test as not killed, and fail the gate on it, in every command (default: false: uncovered mutants are reported but not scored).",
       "type": "boolean"

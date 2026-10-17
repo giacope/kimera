@@ -63,7 +63,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         progress: nil, color: nil, quiet: false, verbose: false, log: nil,
         pidfile: nil, summary: nil,
         isolate_when_covered_by: [], methods: [], lines: {},
-        paths: ["app/**/*.rb", "lib/**/*.rb"], attribution: "any", unit_tests: {}
+        paths: ["app/**/*.rb", "lib/**/*.rb"], attribution: "any", unit_tests: {}, seed: nil, flaky_runs: 0
       }
     end
 
@@ -77,6 +77,38 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       )
       expect(flagged.values_at(:attribution, :unit_tests)).to(eq(["any", { "app/*.rb" => ["u/{name}.rb"] }]))
       expect(flagged).not_to(have_key(:cli_unit_tests))
+    end
+
+    it "reads --seed as a number, or draws one for random", :aggregate_failures do
+      expect(cli.__send__(:parse, %w[--seed 0])[:seed]).to(eq(0))
+      expect(cli.__send__(:parse, %w[--seed 2147483647])[:seed]).to(eq(2_147_483_647))
+      drawn = Array.new(3) { cli.__send__(:parse, %w[--seed random])[:seed] }
+      expect(drawn).to(all(be_between(0, 2_147_483_647)))
+      expect(drawn.uniq.size).to(be > 1)
+      File.write("custom.yml", "seed: 12\nflaky_runs: 3\n")
+      expect(cli.__send__(:parse, ["--config", "custom.yml"]).values_at(:seed, :flaky_runs)).to(eq([12, 3]))
+    end
+
+    it "rejects a seed that is no whole number in range" do
+      %w[-1 2147483648 1.5 x].each do |bad|
+        expect { cli.__send__(:parse, ["--seed", bad]) }.to(
+          raise_error(
+            Kimera::UsageError,
+            "--seed takes a whole number from 0 to 2147483647, or random; got #{bad.inspect}"
+          )
+        )
+      end
+    end
+
+    it "reads --flaky-runs, rejecting a negative count and reruns without the coverage baseline", :aggregate_failures do
+      expect(cli.__send__(:parse, %w[--flaky-runs 2])[:flaky_runs]).to(eq(2))
+      File.write("custom.yml", "flaky_runs: many\n")
+      expect { cli.__send__(:parse, %w[--config custom.yml]) }
+        .to(raise_error(Kimera::UsageError, '--flaky-runs takes a whole number of reruns, got "many"'))
+      expect { cli.__send__(:parse, %w[--flaky-runs -1]) }.to(raise_error(Kimera::UsageError, /--flaky-runs takes/))
+      expect { cli.__send__(:parse, %w[--flaky-runs 1 --no-coverage]) }
+        .to(raise_error(Kimera::UsageError, "--flaky-runs needs the coverage baseline; drop --no-coverage"))
+      expect(cli.__send__(:parse, %w[--flaky-runs 0 --no-coverage])[:flaky_runs]).to(eq(0))
     end
 
     it "rejects strict attribution without the coverage baseline, and an unknown mode", :aggregate_failures do
@@ -135,7 +167,8 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       %w[
         framework tests source-root registry operators soft-timeout
         hard-timeout relative-timeout timeout-factor timeout-slack coverage since session max-survivors
-        max-ignored fail-on-no-coverage count-no-coverage attribution unit-tests jobs progress isolate-db isolated
+        max-ignored fail-on-no-coverage count-no-coverage attribution unit-tests seed flaky-runs jobs progress
+        isolate-db isolated
         isolate-when-covered-by rejudge exclude config pidfile evaluate-ignored no-baseline
       ]
     end
@@ -823,9 +856,31 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       end
     end
 
+    it "seeds the adapter and hands the harness the seed and rerun count, when given" do
+      _report, _harness, session, adapter = warmed
+      allow(adapter).to(receive(:seed=))
+      pass(registry, settings(seed: 7, flaky_runs: 2), [1, 2], session)
+      expect(adapter).to(have_received(:seed=).with(7))
+      expect(Kimera::Execution::Harness).to(have_received(:build).with(hash_including(seed: 7, flaky_runs: 2)))
+    end
+
+    it "reports the flaky tests the warm pass found, naming them from the adapter" do
+      _report, harness, session, adapter = warmed
+      record = Kimera::Execution::FlakeRecord.new(%w[t9], [3]).tap { |found| found.lose("t9", :timeout, 3) }
+      allow(adapter).to(receive(:catalog).with(["t9"]).and_return("t9" => { "name" => "nine" }))
+      allow(Kimera::Execution::Harness).to(receive(:build)) { |options| options.fetch(:filter).flag!(record) && harness }
+      report = pass(registry, settings, [1, 2], session)
+      expect([report.notes.flaky, report.tests]).to(eq([record.to_h, { "t9" => { "name" => "nine" } }]))
+    end
+
+    it "reports no flaky tests section when none were looked for" do
+      _report, _harness, session, = warmed
+      expect(pass(registry, settings, [1, 2], session).notes.flaky).to(be_nil)
+    end
+
     it "hands the harness an inactive screen by default" do
       _report, _harness, session, = warmed
-      pass(registry, settings, [1, 2], session)
+      pass(registry, settings(unit_tests: { "x.rb" => ["t"] }), [1, 2], session)
       inactive = hash_including(filter: having_attributes(active?: false))
       expect(Kimera::Execution::Harness).to(have_received(:build).with(inactive))
     end

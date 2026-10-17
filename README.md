@@ -427,6 +427,37 @@ killed and counts toward `max_survivors` like a survivor, and `kimera
 baseline create` accepts it like one. A mutant no test reaches stays
 `no_coverage`. It needs the coverage baseline, so not with `--no-coverage`.
 
+### Seeds and flaky tests
+
+Every test runs in a process forked from the booted suite, and Ruby reseeds
+its random numbers in each fork, so a test that draws `rand` (or a factory
+that does) draws differently in the baseline and in each mutant's run. On
+Minitest the suite's order is fixed at `--seed 1`.
+
+- `seed: N` (`--seed N`) seeds each test's random numbers with `N` and the
+  test's id (`Kernel.srand`) before it runs, on the warm path, the reload
+  tier and in `--isolated` children alike, and gives Minitest `N` as its
+  seed. A test then draws the same numbers in the baseline, in every mutant's
+  run and in the next run with the same seed. `--seed random` draws `N`; the
+  report's `run` section records it, so `--seed N` repeats the run. Unset
+  (the default) keeps today's behavior. A `--session` resumes only under the
+  same seed.
+- `flaky_runs: N` (`--flaky-runs N`, default 0) reruns the tests that cover
+  a mutant in scope `N` more times after the baseline, each in a fresh fork
+  under another seed (the run's seed plus 1, 2, ..., or drawn ones). A test
+  that passed the baseline and fails, times out or crashes in a rerun is
+  **flaky**: the report lists it under "Flaky tests", with the seeds it
+  failed under and why (`flaky_tests` in the JSON report), and it never kills
+  a mutant. A mutant only flaky tests cover is `no_coverage`, its detail
+  naming them. Each rerun costs about one baseline of the covering tests.
+
+Why a flaky test kills nothing: Kimera takes a covering test's failure, in a
+fresh process with the mutant on, as the kill. A flaky test fails without
+the mutant too, so its failure says nothing about the mutant, and counting
+it would score a hole in the suite as caught. Leaving it out errs the other
+way, toward a survivor or an uncovered mutant, which the gate shows and a
+person triages: fix the test, and its kills count again.
+
 ### Progress output
 
 During a run, progress for each phase goes to stderr, never stdout, so

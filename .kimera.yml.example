@@ -54,6 +54,14 @@ count_no_coverage: false
 # unit_tests:
 #   "app/services/**/*.rb": "spec/services/{path}_spec.rb"
 
+# Seed each test's random numbers (and Minitest's order) with this number, or
+# with a drawn one the report records (random). Unset: as before.
+# seed: 1234
+
+# Rerun the covering tests this many more times under other seeds; a test
+# whose result changes is reported flaky and never kills a mutant.
+# flaky_runs: 3
+
 # Per-test soft timeout / per-mutant hard watchdog timeout, in seconds
 soft_timeout: 5.0
 # hard_timeout: 16.0

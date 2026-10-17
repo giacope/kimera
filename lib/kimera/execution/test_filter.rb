@@ -23,6 +23,14 @@ class Kimera::Execution::TestFilter
     @flaky = flaky.to_set
     @locate = locate
     @files = {}
+    @flakes = nil
+  end
+
+  attr_reader :flakes
+
+  def flag!(record)
+    @flakes = record
+    @flaky.merge(record.flaky)
   end
 
   def active? = !@attribution.nil? || @flaky.any?

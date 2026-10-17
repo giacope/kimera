@@ -2,6 +2,7 @@
 
 require "json"
 require "minitest"
+require "zlib"
 require_relative "../support/test_exit"
 
 Minitest.seed ||= 1
@@ -13,6 +14,8 @@ end
 
 ledger, request, pulse = ARGV
 request = JSON.parse(File.read(request, encoding: Encoding::UTF_8))
+seed = request["seed"]
+Minitest.seed = seed if seed
 files = request.fetch("files")
 ids = request.fetch("tests")
 ARGV.clear
@@ -36,6 +39,7 @@ killer =
     klass, name = methods[id]
     next false unless klass
     File.write(pulse, ".", mode: "a") if pulse
+    Kernel.srand((seed ^ Zlib.crc32(id)) % (2**31)) if seed
     result = klass.new(name).extend(Kimera::TestExit::Test).run
     !result.passed? && !result.skipped?
   end

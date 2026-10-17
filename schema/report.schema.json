@@ -310,6 +310,69 @@
         }
       }
     },
+    "flaky_tests": {
+      "description": "Present when flaky_runs is over 0: the reruns of the covering tests with other seeds, and each test whose result changed. Such a test never kills a mutant.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runs",
+        "seeds",
+        "tests",
+        "flaky"
+      ],
+      "properties": {
+        "runs": {
+          "description": "Reruns made.",
+          "type": "integer"
+        },
+        "seeds": {
+          "description": "The seed of each rerun.",
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "tests": {
+          "description": "How many tests each rerun ran: those covering a mutant in scope.",
+          "type": "integer"
+        },
+        "flaky": {
+          "description": "Tests that passed the baseline and failed, timed out or crashed in a rerun.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "test",
+              "failed_runs",
+              "seeds",
+              "failure"
+            ],
+            "properties": {
+              "test": {
+                "description": "The test's id; the tests section names it.",
+                "type": "string"
+              },
+              "failed_runs": {
+                "description": "Reruns it did not pass.",
+                "type": "integer"
+              },
+              "seeds": {
+                "description": "The seed of each rerun it did not pass.",
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              "failure": {
+                "description": "Why it failed the first time.",
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
     "run": {
       "description": "The settings the run was made with.",
       "type": "object",
@@ -373,6 +436,17 @@
               "type": "string"
             }
           }
+        },
+        "seed": {
+          "description": "The seed each test's random numbers came from (a drawn number under seed: random), or null when unset.",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "flaky_runs": {
+          "description": "How many times the covering tests were rerun with other seeds.",
+          "type": "integer"
         },
         "narrowed": {
           "description": "Whether --tests narrowed the configured tests.",
