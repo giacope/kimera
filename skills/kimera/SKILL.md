@@ -131,6 +131,12 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
 - Operators: the default is the conservative core. `--operators all` enables
   the extended families; `--operators rails` (or `comparison,rails`) the
   Rails-aware ones.
+- `attribution: unit` (`--attribution unit`) lets only a unit's own tests
+  (`spec/models/order_spec.rb` for `app/models/order.rb`, plus `unit_tests:`
+  rules) kill its mutants. `uncovered_by_unit` means only other units' tests
+  (request, integration) reach the mutant: it gates like a survivor. Fix it
+  with a unit test that exercises the code, never by adding a rule that maps
+  an integration spec to the unit.
 - `isolated_only` marks mutants that only `--isolated` can judge: class-body
   DSL, and code in a method the suite only runs while it loads (a class macro
   or `included` hook another file's class body calls). Run it for their

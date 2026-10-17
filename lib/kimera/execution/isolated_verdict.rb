@@ -33,6 +33,8 @@ module Kimera
 
       def bake(trial, point)
         trial.file = point.file
+        settled = plan.settled(trial.id, point)
+        return settled if settled
         tests = plan.tests(trial.id, point)
         return result(trial, status: :no_coverage) unless tests
         outcome, duration = measure(trial, tests)

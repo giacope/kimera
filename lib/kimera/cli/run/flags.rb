@@ -69,6 +69,16 @@ module Kimera::CLI::RunFlags
       "Judge again, each in a fresh isolated mirror, the mutants the warm pass could not judge (default: on)"
     ),
     Kimera::Flag.build(
+      "--attribution MODE", :attribution,
+      "Which covering tests may kill a mutant: any (default) or unit (only its own file's tests)"
+    ),
+    Kimera::Flag.build(
+      "--unit-tests GLOB=PATTERN", :cli_unit_tests,
+      "Strict attribution: tests matching PATTERN ({path}, {name}) are the own tests of sources " \
+        "matching GLOB, beside the usual layouts (repeatable; replaces config unit_tests:)",
+      collect: true
+    ),
+    Kimera::Flag.build(
       "--isolate-when-covered-by SUBSTR", :isolate_when_covered_by,
       "Isolate only mutants whose covering set includes a test id matching SUBSTR " \
         "(repeatable) — a fast, targeted alternative to --isolated for pool-unsafe specs",

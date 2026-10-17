@@ -2,6 +2,7 @@
 
 require "json"
 require "kimera/execution/isolated"
+require "kimera/execution/test_filter"
 require "kimera/registry/builder"
 require "timeout"
 
@@ -439,6 +440,21 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
           end
         expect([given, result.covering_tests]).to(eq([%w[fast slow], %w[slow fast]]))
       end
+    end
+
+    it "settles a mutant whose tests the screen drops, without staging or running it", :aggregate_failures do
+      given = []
+      registry.index.fetch(first).revisit!(Kimera::MutationPoint::BOOT_REASON)
+      filter = Kimera::Execution::TestFilter.new(registry: registry, flaky: %w[t1])
+      r = test_paced(given).new(registry: registry, root: ".", tests: %w[t1], filter: filter)
+      trial = Kimera::Execution::Trial.new(first, "/nonexistent", Kimera::Overlay.new(registry))
+      result = test_invoke_private(r, :evaluate, trial)
+      expect(
+        [
+          result.status, result.detail,
+          given
+        ]
+      ).to(eq([:no_coverage, "covered only by flaky test(s), which never kill: t1", []]))
     end
 
     def test_baking_evaluate(id, pause: nil)

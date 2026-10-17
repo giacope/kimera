@@ -11,6 +11,7 @@ end
 class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
   TESTROOTS = %w[test spec].freeze
   INSTALLED = true
+  CONSTANT = /\A[A-Z]\w*(?:::[A-Z]\w*)*\z/
 
   class << self
     def build
@@ -50,6 +51,8 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
 
   def locate(id) = { "location" => definition(*@methods.fetch(id)).join(":") }
 
+  def test_file(id) = @methods[id]&.then { |klass, name| declared(klass.name) || definition(klass, name).first }
+
   def reproduce(ids)
     "bundle exec ruby -Itest -rminitest/autorun -e #{quote(loads(ids))} -- -n #{quote(filter(ids))} --seed 1"
   end
@@ -69,6 +72,8 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
   def filter(ids) = "/^(?:#{ids.map { |id| Regexp.escape(id) }.join("|")})$/"
 
   def origin(id) = @methods[id]&.then { |found| definition(*found).first }
+
+  def declared(named) = named&.match?(CONSTANT) && Object.const_source_location(named)&.first
 
   def definition(klass, name)
     path, line = klass.instance_method(name).source_location

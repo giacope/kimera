@@ -6,8 +6,9 @@ module Kimera
 
     UNJUDGED = %i[no_coverage ignored isolated_only unmutatable harness_error].freeze
 
-    REPORTED =
-      ([:survived] + (KILLING - [:killed]) + %i[no_coverage harness_error ignored isolated_only unmutatable]).freeze
+    REPORTED = %i[
+      survived timeout error no_coverage uncovered_by_unit harness_error ignored isolated_only unmutatable
+    ].freeze
 
     SELF_SUSPECT = ((KILLING - [:killed]) + [:survived]).freeze
   end

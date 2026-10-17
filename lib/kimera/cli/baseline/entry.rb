@@ -6,6 +6,7 @@ class Kimera::CLI::Baseline::Entry
   include Kimera::IgnoreList::Drift
 
   KILLING = %w[killed timeout error].freeze
+  SURVIVING = %w[survived uncovered_by_unit].freeze
   PRUNABLE = %i[killed stale].freeze
 
   attr_reader :fields
@@ -37,7 +38,7 @@ class Kimera::CLI::Baseline::Entry
   private
 
   def verdict
-    return :surviving if statuses.include?("survived")
+    return :surviving if statuses.intersect?(SURVIVING)
     (statuses - KILLING).empty? ? :killed : :unjudged
   end
 

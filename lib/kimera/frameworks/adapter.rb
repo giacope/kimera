@@ -44,6 +44,8 @@ class Kimera::Frameworks::Adapter
 
   def locate(_id) = {}
 
+  def test_file(_id) = ""
+
   def catalog(ids) = (ids & test_ids).to_h { |id| [id, { "name" => describe(id) }.merge(locate(id))] }
 
   def reproduce(ids)

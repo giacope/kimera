@@ -61,6 +61,29 @@ RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
     expect(adapter.test_ids).to(include(*ids))
   end
 
+  # Strict attribution maps each test to the file that declares its class.
+  it "names the file that declares a test's class", :aggregate_failures do
+    expect(adapter.test_file("DemoKimeraTest#test_passes")).to(eq(File.join(dir, "demo_test.rb")))
+    expect(adapter.test_file("NoSuchTest#test_x")).to(be_nil)
+  end
+
+  it "falls back to the test method's file for a class with no constant name" do
+    anonymous = Class.new(Minitest::Test) { define_method(:test_it) { true } }
+    adapter.instance_variable_get(:@methods)["anon#test_it"] = [anonymous, :test_it]
+    expect(adapter.test_file("anon#test_it")).to(eq(__FILE__.delete_prefix("#{Dir.pwd}/")))
+  ensure
+    Minitest::Runnable.runnables.delete(anonymous)
+  end
+
+  it "falls back to the test method's file when the class name is no constant" do
+    named = Class.new(Minitest::Test) { define_method(:test_it) { true } }
+    named.define_singleton_method(:name) { "a described thing" }
+    adapter.instance_variable_get(:@methods)["named#test_it"] = [named, :test_it]
+    expect(adapter.test_file("named#test_it")).to(eq(__FILE__.delete_prefix("#{Dir.pwd}/")))
+  ensure
+    Minitest::Runnable.runnables.delete(named)
+  end
+
   it "reports a passing run as passed with no failures", :aggregate_failures do
     outcome = adapter.run(["DemoKimeraTest#test_passes"])
     expect(outcome.passed?).to(be(true))

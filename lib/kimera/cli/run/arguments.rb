@@ -17,10 +17,23 @@ class Kimera::CLI::Run::Arguments
 
   def finish(options, rest)
     validate(options)
-    options.except(:cli_tests, :baseline_ignore).merge(scoped(options, rest))
+    options.except(:cli_tests, :cli_unit_tests, :baseline_ignore)
+      .merge(scoped(options, rest)).merge(attributed(options))
   end
 
   def validate(options) = Kimera::Report::Formats.new.normalize(options[:format])
+
+  def attributed(options)
+    mode = Kimera::Config.attribution(options[:attribution])
+    measured(options, "--attribution unit") if mode == "unit"
+    cli = Array(options[:cli_unit_tests])
+    { attribution: mode, unit_tests: Kimera::Config.unit_tests(cli.empty? ? options[:unit_tests] : cli) }
+  end
+
+  def measured(options, setting)
+    return unless options[:coverage] == false
+    raise(Kimera::UsageError, "#{setting} needs the coverage baseline; drop --no-coverage")
+  end
 
   def scoped(options, rest)
     targets = Kimera::CLI::Run::Targets.new(rest)
@@ -62,6 +75,6 @@ class Kimera::CLI::Run::Arguments
       .merge(progress: nil, color: nil, quiet: false, verbose: false, log: nil)
       .merge(pidfile: nil, summary: nil)
       .merge(isolate_when_covered_by: [], methods: [])
-      .merge(cli_tests: [])
+      .merge(cli_tests: [], attribution: "any", unit_tests: {}, cli_unit_tests: [])
   end
 end

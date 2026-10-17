@@ -46,6 +46,14 @@ fail_on_no_coverage: false
 # (kimera run too). Off by default: they are reported but not scored.
 count_no_coverage: false
 
+# Which covering tests may kill a mutant: any (default), or unit: only the
+# tests of its own file (spec/models/order_spec.rb for app/models/order.rb),
+# so request and integration specs kill nothing. A mutant only other tests
+# reach is uncovered_by_unit, gated like a survivor. unit_tests: adds rules.
+# attribution: unit
+# unit_tests:
+#   "app/services/**/*.rb": "spec/services/{path}_spec.rb"
+
 # Per-test soft timeout / per-mutant hard watchdog timeout, in seconds
 soft_timeout: 5.0
 # hard_timeout: 16.0

@@ -2,9 +2,11 @@
 
 require_relative "../../execution/harness"
 require_relative "../../execution/isolated"
+require_relative "../../execution/test_filter"
 require_relative "../../frameworks/adapter"
 require_relative "../../report/progress"
 require_relative "../../results/run_report"
+require_relative "../../scope/file_set"
 require_relative "../../self_protection"
 require_relative "sources"
 
@@ -36,6 +38,17 @@ class Kimera::CLI::Run::Pass
     run(remaining)
   end
 
+  def filter
+    @_filter ||= Kimera::Execution::TestFilter.build(
+      registry: @registry, rules: @options[:attribution] == "unit" ? @options[:unit_tests] : nil,
+      locate: method(:test_file)
+    )
+  end
+
+  def test_file(test) = Kimera::FileSet.relative(@adapter.test_file(test).to_s.delete_prefix("./"), root)
+
+  def root = @_root ||= File.expand_path(@options[:source_root])
+
   def harness = @_harness ||= Kimera::Execution::Harness.build(**settings)
 
   def files
@@ -51,7 +64,7 @@ class Kimera::CLI::Run::Pass
   def base
     { registry: @registry, adapter: @adapter, source_root: @options[:source_root] }
       .merge(soft_timeout: @options[:soft_timeout], jobs: @options[:jobs])
-      .merge(isolate_db: @options[:isolate_db], progress: progress)
+      .merge(isolate_db: @options[:isolate_db], progress: progress, filter: filter)
       .merge(@options.slice(:relative_timeout, :timeout_factor, :timeout_slack))
   end
 
@@ -101,7 +114,7 @@ class Kimera::CLI::Run::Pass
   def core
     { registry: @registry, root: @options[:source_root], tests: @adapter.test_ids }
       .merge(coverage: harness.coverage, timings: harness.timings, progress: progress, jobs: @options[:jobs])
-      .merge(framework: @options[:framework], test_files: files)
+      .merge(framework: @options[:framework], test_files: files, filter: filter)
   end
 
   def limits = { hard_timeout: @options[:hard_timeout] }.compact

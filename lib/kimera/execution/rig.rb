@@ -36,7 +36,7 @@ class Kimera::Execution::Rig
       registry: @options.fetch(:registry), driver: driver, spawner: spawner,
       adapter: @options.fetch(:adapter), isolation: @options.fetch(:isolation),
       root: @options.fetch(:root), progress: @options.fetch(:progress), hard: @options.fetch(:hard),
-      aliases: @options[:aliases]
+      aliases: @options[:aliases], filter: @options[:filter]
     )
   end
 end

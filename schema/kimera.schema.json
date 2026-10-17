@@ -175,6 +175,30 @@
       "description": "Gate: also fail when a mutant in scope has no covering test (default: false; kimera ci turns it on).",
       "type": "boolean"
     },
+    "attribution": {
+      "description": "Which covering tests may kill a mutant: any (default), or unit: only its own source file's tests (spec/foo/bar_spec.rb or test/foo/bar_test.rb for lib/foo/bar.rb, spec/models/order_spec.rb for app/models/order.rb, and unit_tests rules). A mutant only other tests reach is uncovered_by_unit, scored as not killed and gated as a survivor.",
+      "enum": [
+        "any",
+        "unit"
+      ]
+    },
+    "unit_tests": {
+      "description": "Strict attribution: own tests beside the usual layouts, as source glob => test pattern(s). A pattern may name {path}, the source's path under the glob's literal prefix, and {name}, both without .rb.",
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "count_no_coverage": {
       "description": "Score a mutant with no covering test as not killed, and fail the gate on it, in every command (default: false: uncovered mutants are reported but not scored).",
       "type": "boolean"

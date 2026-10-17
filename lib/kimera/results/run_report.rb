@@ -18,7 +18,7 @@ class Kimera::RunReport
 
   attr_reader :results, :leaks, :registry, :tests, :notes
 
-  CONDITIONAL = %i[harness_error ignored isolated_only unmutatable leaks].freeze
+  CONDITIONAL = %i[uncovered_by_unit harness_error ignored isolated_only unmutatable leaks].freeze
   LABELS = { total: "mutants", harness_error: "unjudged" }.freeze
   SCHEMA_VERSION = 1
 
@@ -68,6 +68,8 @@ class Kimera::RunReport
   def uncovered
     statuses(:no_coverage)
   end
+
+  def unattributed = statuses(:uncovered_by_unit)
 
   def errors
     statuses(:harness_error)

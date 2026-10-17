@@ -10,10 +10,11 @@ module Kimera
     SCALAR_KEYS = %w[framework source_root soft_timeout hard_timeout
       jobs max_survivors max_ignored max_errors coverage isolate_db
       fail_on_no_coverage count_no_coverage progress color quiet verbose log format report baseline rejudge
-      relative_timeout timeout_factor timeout_slack].freeze
+      relative_timeout timeout_factor timeout_slack attribution unit_tests].freeze
     LIST_KEYS = %w[paths tests operators exclude exclude_tests isolate_when_covered_by require].freeze
 
     SCOPE_KEYS = %i[paths operators exclude].freeze
+    ATTRIBUTIONS = %w[any unit].freeze
 
     module_function
 
@@ -91,6 +92,26 @@ module Kimera
 
     def reasonless?(rule)
       rule[:reason].to_s.strip.empty?
+    end
+
+    def attribution(value)
+      mode = String(value || "any")
+      return mode if ATTRIBUTIONS.include?(mode)
+      raise(UsageError, "unknown attribution #{mode.inspect} (choose: #{ATTRIBUTIONS.join(", ")})")
+    end
+
+    def unit_tests(value)
+      case value
+      when nil then {}
+      when Hash then value.to_h { |source, patterns| [String(source), Array(patterns).map { |each| String(each) }] }
+      else Array(value).to_h { |text| unit_test(text) }
+      end
+    end
+
+    def unit_test(text)
+      source, pattern = String(text).split("=", 2)
+      return [source, [pattern]] if pattern && !source.empty? && !pattern.empty?
+      raise(UsageError, "--unit-tests takes SOURCE_GLOB=TEST_PATTERN, got #{text.inspect}")
     end
   end
 end

@@ -30,6 +30,7 @@
         "timeout",
         "error",
         "no_coverage",
+        "uncovered_by_unit",
         "harness_error",
         "ignored",
         "isolated_only",
@@ -70,6 +71,11 @@
           "type": "integer",
           "minimum": 0,
           "description": "Mutants whose status is no_coverage."
+        },
+        "uncovered_by_unit": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Mutants whose status is uncovered_by_unit."
         },
         "harness_error": {
           "type": "integer",
@@ -131,6 +137,7 @@
               "timeout",
               "error",
               "no_coverage",
+              "uncovered_by_unit",
               "harness_error",
               "ignored",
               "isolated_only",
@@ -145,6 +152,7 @@
               "timeout",
               "error",
               "no_coverage",
+              "uncovered_by_unit",
               "harness_error",
               "ignored",
               "isolated_only",
@@ -183,7 +191,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Ids of the tests the mutant was judged against (its covering tests)."
+            "description": "Ids of the tests the mutant was judged against (its covering tests). For uncovered_by_unit, the other units' tests that reach it, which were not run."
           },
           "detail": {
             "description": "The killing failure, the reason it was not judged, or other context.",
@@ -348,6 +356,23 @@
         "count_no_coverage": {
           "description": "Whether no_coverage mutants were scored as not killed.",
           "type": "boolean"
+        },
+        "attribution": {
+          "description": "Which covering tests could kill a mutant: any, or only its unit's own (unit).",
+          "enum": [
+            "any",
+            "unit"
+          ]
+        },
+        "unit_tests": {
+          "description": "The unit_tests rules strict attribution used, source glob => test patterns.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         },
         "narrowed": {
           "description": "Whether --tests narrowed the configured tests.",

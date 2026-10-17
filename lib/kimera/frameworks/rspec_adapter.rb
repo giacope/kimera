@@ -44,6 +44,8 @@ class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
 
   def locate(id) = { "location" => @examples.fetch(id).location.delete_prefix("./") }
 
+  def test_file(id) = @examples[id]&.metadata&.fetch(:rerun_file_path, nil) || id[/\A(.+?)\[/, 1]
+
   def start
     pid = Process.pid
     return if @suite == pid

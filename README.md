@@ -297,8 +297,8 @@ drop. After an incremental `--since` run it never prunes an entry as stale.
 Exit codes:
 
 - **`0`**: pass.
-- **`2`**: the gate failed. Survivors exceed the threshold (default: any
-  survivor), or a mutant in scope has no covering test under
+- **`2`**: the gate failed. Survivors (with `uncovered_by_unit` mutants)
+  exceed the threshold (default: any survivor), or a mutant in scope has no covering test under
   `--fail-on-no-coverage` or `--count-no-coverage`, ignored mutants exceed `max_ignored`, or more
   mutants than `--max-errors` (default 0) could not be judged.
 - **`1`**: the baseline is not green, the pool cannot keep a worker alive, or
@@ -394,6 +394,38 @@ it was set.
 - The isolated and reload tiers keep only their absolute limits. They bake the
   mutant into a fresh process, so there is no run without it to compare with,
   and a fresh process's first tests run slower than the warm baseline.
+
+### Strict attribution
+
+By default any covering test may kill a mutant, so a request spec that runs
+a whole controller stack kills mutants in every model it touches, and those
+models look tested when no test of theirs would notice. `attribution: unit`
+(`--attribution unit`) lets only a unit's own tests kill its mutants:
+
+- `lib/foo/bar.rb` is tested by `spec/foo/bar_spec.rb`,
+  `spec/lib/foo/bar_spec.rb`, `test/foo/bar_test.rb` or `test/foo/test_bar.rb`;
+- `app/models/order.rb` by `spec/models/order_spec.rb`,
+  `test/models/order_test.rb` or `spec/order_spec.rb`, so `spec/requests/`
+  and `test/integration/` count for no unit;
+- `unit_tests:` adds rules, source glob => test pattern(s). A pattern may name
+  `{path}`, the source's path under the glob's literal prefix, and `{name}`,
+  both without `.rb`; it matches as a glob. `--unit-tests GLOB=PATTERN`
+  (repeatable) replaces the config's rules.
+
+```yaml
+attribution: unit
+unit_tests:
+  "app/services/**/*.rb": "spec/services/{path}_spec.rb"
+  "lib/**/*.rb": ["test/**/{name}_test.rb"]
+```
+
+A test belongs to the file that declares it (an RSpec example to its spec
+file, a Minitest test to its class's file). A mutant only other units' tests
+reach is `uncovered_by_unit`, not killed: its row lists those tests (they are
+not run) and names the test files that would count. It is scored as not
+killed and counts toward `max_survivors` like a survivor, and `kimera
+baseline create` accepts it like one. A mutant no test reaches stays
+`no_coverage`. It needs the coverage baseline, so not with `--no-coverage`.
 
 ### Progress output
 
@@ -823,6 +855,8 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   - Killed includes timeouts and errors (observable misbehaviour).
   - Evaluable excludes `no_coverage`, `ignored`, `isolated_only`,
     `unmutatable`, and `harness_error` mutants. Each is reported separately.
+    `uncovered_by_unit` (under `attribution: unit`) is evaluable and not
+    killed.
   - An `unmutatable` mutant is one Kimera could not instrument for the warm
     run (its file or method failed to re-emit or load); the detail says why.
     It never gates, and it is not `no_coverage`: a test may well run it.

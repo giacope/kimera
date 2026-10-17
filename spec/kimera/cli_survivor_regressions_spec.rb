@@ -523,6 +523,16 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       )
     end
 
+    it "points at the mutants only other units' tests reach, saved or not", :aggregate_failures do
+      io = StringIO.new
+      Kimera::Report::Actions.new(io: io).show(report(result(4, :uncovered_by_unit)), path: "out.json")
+      hint = "1 mutant(s) only other units' tests reach: kimera report out.json --status uncovered_by_unit"
+      expect(io.string).to(eq("\nNext actions:\n  #{hint}\n"))
+      io = StringIO.new
+      Kimera::Report::Actions.new(io: io).show(report(result(4, :uncovered_by_unit)))
+      expect(io.string).to(include("1 mutant(s) only other units' tests reach: write a unit test that runs each"))
+    end
+
     it "does not invent actions for absent uncovered or unjudged results" do
       io = StringIO.new
       Kimera::Report::Actions.new(io: io).show(report(result(1, :survived)))

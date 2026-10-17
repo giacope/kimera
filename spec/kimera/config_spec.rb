@@ -175,4 +175,35 @@ RSpec.describe(Kimera::Config) do
       expect { described_class.prefer([], [], default) << "x" }.not_to(raise_error)
     end
   end
+
+  describe ".attribution" do
+    it "takes any or unit, defaulting to any" do
+      modes = [nil, "unit", :any].map { |mode| described_class.attribution(mode) }
+      expect(modes).to(eq(%w[any unit any]))
+    end
+
+    it "rejects any other mode, naming the choices" do
+      expect { described_class.attribution("strict") }
+        .to(raise_error(Kimera::UsageError, 'unknown attribution "strict" (choose: any, unit)'))
+    end
+  end
+
+  describe ".unit_tests" do
+    it "reads a config mapping, wrapping a lone pattern in a list", :aggregate_failures do
+      expect(described_class.unit_tests(nil)).to(eq({}))
+      expect(described_class.unit_tests({ "lib/**/*.rb" => "t/{name}.rb", a: %w[b c] }))
+        .to(eq("lib/**/*.rb" => ["t/{name}.rb"], "a" => %w[b c]))
+    end
+
+    it "reads --unit-tests GLOB=PATTERN pairs, splitting at the first =" do
+      expect(described_class.unit_tests(["lib/**/*.rb=t/{name}=x.rb"])).to(eq("lib/**/*.rb" => ["t/{name}=x.rb"]))
+    end
+
+    it "rejects a pair without both halves" do
+      %w[lib/**/*.rb =t.rb lib=].each do |bad|
+        expect { described_class.unit_tests([bad]) }
+          .to(raise_error(Kimera::UsageError, "--unit-tests takes SOURCE_GLOB=TEST_PATTERN, got #{bad.inspect}"))
+      end
+    end
+  end
 end

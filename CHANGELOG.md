@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Strict attribution: `attribution: unit` (`--attribution unit`) lets only
+  a unit's own tests kill its mutants, by the usual layouts
+  (`spec/foo/bar_spec.rb` or `test/foo/bar_test.rb` for `lib/foo/bar.rb`,
+  `spec/models/order_spec.rb` for `app/models/order.rb`) and `unit_tests:`
+  rules (`--unit-tests GLOB=PATTERN`). A mutant only other units' tests reach
+  (a request spec, say) is `uncovered_by_unit`: scored as not killed, gated
+  as a survivor, and accepted by `baseline create` like one. Default `any`,
+  as before. On `examples/rails_app`, 19 of the RSpec suite's 56 mutants
+  become `uncovered_by_unit` (the controllers' and the checkout service's,
+  which only its request spec reaches, and one of `Order`'s), and 5 of the
+  Minitest suite's (`ApplicationController`, which has no test of its own).
 - `count_no_coverage: true` (`--count-no-coverage`) scores each mutant with
   no covering test as not killed, and fails the gate on it, in every command:
   `kimera run` too, not only `kimera ci` or `--fail-on-no-coverage`, which

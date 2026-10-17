@@ -65,7 +65,7 @@ RSpec.describe(Kimera::RunReport) do
     def counts
       {
         total: 7, killed: 4, survived: 1, timeout: 1, error: 1,
-        no_coverage: 1, harness_error: 0, ignored: 1, isolated_only: 0, unmutatable: 0, leaks: 1
+        no_coverage: 1, uncovered_by_unit: 0, harness_error: 0, ignored: 1, isolated_only: 0, unmutatable: 0, leaks: 1
       }
     end
 

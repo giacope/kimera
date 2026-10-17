@@ -84,6 +84,20 @@ RSpec.describe(Kimera::Report::Text) do
     expect(output).to(include("covered by 1 test(s):\n      ./spec/calc_spec.rb[1:1]\n"))
   end
 
+  it "lists the mutants only other units' tests reach, with those tests and why", :aggregate_failures do
+    unowned = survivor.dup.tap { |result| result.status = :uncovered_by_unit }.tap { |result| result.detail = "why" }
+    out = render(unowned)
+    expect(out).to(
+      include(
+        "Reached only by other units' tests (1):\n\n  " \
+          "uncovered_by_unit ##{mutant.id}  calc.rb:3:5  in a  [<= => <]\n    " \
+          "- x <= y\n    + x < y\n    covered by 1 test(s):\n      ./spec/calc_spec.rb[1:1]\n    why\n"
+      )
+    )
+    expect(out).not_to(include("Surviving mutants"))
+    expect(render(survivor)).not_to(include("Reached only"))
+  end
+
   it "omits the survivors section when everything is killed", :aggregate_failures do
     output = render(killed)
     expect(output).to(include("killed=1"))

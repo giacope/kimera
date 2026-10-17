@@ -18,9 +18,10 @@ class Kimera::CLI::Run::Gate
 
   def survivors
     max = @options[:max_survivors]
-    count = @report.survived.size
+    unowned = @report.unattributed.size
+    count = @report.survived.size + unowned
     return unless max ? count > max : count.positive?
-    "survivors=#{count} > max_survivors=#{max || 0}"
+    "survivors=#{count}#{" (#{unowned} uncovered_by_unit)" if unowned.positive?} > max_survivors=#{max || 0}"
   end
 
   def coverage

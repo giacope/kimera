@@ -50,6 +50,7 @@ class Kimera::Report::Text
 
   def survivors(report)
     section("Surviving mutants", report.survived) { |result| survivor(result) }
+    section("Reached only by other units' tests", report.unattributed) { |result| unowned(result) }
     unjudged(report)
     waivers(report)
     rejudged(report)
@@ -74,9 +75,14 @@ class Kimera::Report::Text
     resolved(result) { |id, mutant, point| display(id, mutant, point, result) }
   end
 
+  def unowned(result)
+    survivor(result)
+    @io.puts("    #{result.detail}")
+  end
+
   def display(id, mutant, point, result)
     @io.puts
-    spotted("survived", id, mutant, point)
+    spotted(result.status.to_s, id, mutant, point)
     diff(point, mutant)
     covering(result)
     annotate(result)

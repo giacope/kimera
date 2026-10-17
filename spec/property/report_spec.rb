@@ -53,6 +53,7 @@ RSpec.describe(Kimera::RunReport) do
     # The gate's documented rules (README, `kimera help run`), restated.
     def failing?(outcomes, options)
       survived, uncovered, ignored, unjudged = %i[survived no_coverage ignored harness_error].map { outcomes.count(it) }
+      survived += outcomes.count(:uncovered_by_unit)
       cap = options[:max_survivors]
       [
         cap ? survived > cap : survived.positive?,
