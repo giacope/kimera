@@ -109,7 +109,7 @@ class Kimera::Execution::Schedule
   end
 
   def parse(message, ledger)
-    result = verdicts.parse(message)
+    result = verdicts.parse(message).tap { |parsed| parsed.killing_tests = message["kills"] }
     record(ledger, result.mutant_id, result)
   end
 

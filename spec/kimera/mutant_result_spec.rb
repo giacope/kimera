@@ -71,6 +71,22 @@ RSpec.describe(Kimera::MutantResult) do
     end
   end
 
+  describe "#killing_tests" do
+    it "is written and sent only when recorded", :aggregate_failures do
+      expect([result(:killed).to_h, result(:killed).message]).to(
+        all(
+          satisfy do |row|
+            !row.key?("killing_tests") && !row.key?(:kills)
+          end
+        )
+      )
+      counted = result(:killed).tap { |killed| killed.killing_tests = %w[t1 t2] }
+      expect(counted.to_h).to(include("killing_tests" => %w[t1 t2]))
+      expect(counted.message).to(include(kills: %w[t1 t2]))
+      expect(counted.waive.killing_tests).to(eq(%w[t1 t2]))
+    end
+  end
+
   describe "#unjudged" do
     it "keeps only the identity, with the reason as detail" do
       judged = result(:killed).tap { |killed| killed.failing_tests = ["t1"] }.unjudged("its tests fail")

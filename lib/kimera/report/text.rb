@@ -4,6 +4,7 @@ require_relative "../rewrite/directive"
 require_relative "coloring"
 require_relative "screen"
 require_relative "sections"
+require_relative "test_health"
 require_relative "actions"
 require_relative "file_table"
 require_relative "../support/readout"
@@ -17,6 +18,7 @@ end
 class Kimera::Report::Text
   include Kimera::Report::Coloring
   include Kimera::Report::Sections
+  include Kimera::Report::TestHealth
 
   def initialize(registry, io: $stdout, color: nil)
     @registry = registry
@@ -46,6 +48,7 @@ class Kimera::Report::Text
     regions(report.unmutated)
     leaks(report.leaks)
     flaky(report)
+    quality(report)
     Kimera::Report::Actions.new(io: @io).show(report, path: path)
   end
 

@@ -34,8 +34,8 @@ Minitest::Runnable.runnables.each do |runnable|
   runnable.runnable_methods.each { |name| methods["#{runnable}##{name}"] = [runnable, name] }
 end
 
-killer =
-  ids.find do |id|
+failed =
+  lambda do |id|
     klass, name = methods[id]
     next false unless klass
     File.write(pulse, ".", mode: "a") if pulse
@@ -43,7 +43,8 @@ killer =
     result = klass.new(name).extend(Kimera::TestExit::Test).run
     !result.passed? && !result.skipped?
   end
+killers = request["first_failure"] == false ? ids.select(&failed) : [ids.find(&failed)].compact
 
-File.write(ledger, JSON.generate(failures: killer ? 1 : 0, failing: [killer].compact))
+File.write(ledger, JSON.generate(failures: killers.size, failing: killers))
 
-exit(killer ? 1 : 0)
+exit(killers.empty? ? 0 : 1)

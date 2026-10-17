@@ -16,7 +16,7 @@ module Kimera
   MutantResult =
     Struct.new(
       :mutant_id, :status, :file, :duration, :failing_tests, :covering_tests,
-      :detail, :verdict, :note,
+      :detail, :verdict, :note, :killing_tests,
       keyword_init: true
     ) do
       def duration
@@ -42,7 +42,7 @@ module Kimera
       def waive
         self.class.new(
           mutant_id: mutant_id, file: file, duration: duration, failing_tests: failing_tests,
-          covering_tests: covering_tests, note: note, **waiver
+          covering_tests: covering_tests, note: note, killing_tests: killing_tests, **waiver
         )
       end
 
@@ -57,6 +57,7 @@ module Kimera
       def message
         { t: "result", id: mutant_id, status: status.to_s }
           .merge(ms: duration, fails: failing_tests, cover: covering_tests, detail: detail)
+          .merge(killing_tests ? { kills: killing_tests } : {})
       end
 
       def to_h
@@ -74,7 +75,7 @@ module Kimera
           .merge("covering_tests" => covering_tests, "detail" => detail).merge(noted)
       end
 
-      def noted = note ? { "note" => note } : {}
+      def noted = { "note" => note, "killing_tests" => killing_tests }.compact
       class << self
         def from_waiver(id, file)
           new(mutant_id: id, status: :ignored, file: file, detail: "marked equivalent (ignored)")

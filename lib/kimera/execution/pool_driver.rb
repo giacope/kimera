@@ -108,7 +108,7 @@ class Kimera::Execution::Pool
     Kimera::Execution::Shift.new(
       adapter: @adapter, registry: @registry, coverage: coverage, isolation: @isolation,
       soft_timeout: @options.fetch(:soft), pulse: pulse(duty),
-      **@options.slice(:budget, :timings)
+      **@options.slice(:budget, :timings, :quality)
     )
   end
 

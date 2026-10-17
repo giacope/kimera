@@ -30,7 +30,6 @@
         "timeout",
         "error",
         "no_coverage",
-        "uncovered_by_unit",
         "harness_error",
         "ignored",
         "isolated_only",
@@ -75,7 +74,7 @@
         "uncovered_by_unit": {
           "type": "integer",
           "minimum": 0,
-          "description": "Mutants whose status is uncovered_by_unit."
+          "description": "Mutants whose status is uncovered_by_unit. Reports older than strict attribution lack it."
         },
         "harness_error": {
           "type": "integer",
@@ -193,6 +192,13 @@
             },
             "description": "Ids of the tests the mutant was judged against (its covering tests). For uncovered_by_unit, the other units' tests that reach it, which were not run."
           },
+          "killing_tests": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Under test_quality, every covering test that detects the mutant: on the warm path each run alone in a fresh fork with the mutant on; in the isolated tier, the tests that failed in one run of them all."
+          },
           "detail": {
             "description": "The killing failure, the reason it was not judged, or other context.",
             "type": [
@@ -306,6 +312,69 @@
           },
           "location": {
             "type": "string"
+          }
+        }
+      }
+    },
+    "test_quality": {
+      "description": "Present under test_quality: how the suite's tests fare against the mutants in scope. A test counts toward the judged mutants (killed, survived, timeout, error) whose covering tests include it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "kills_nothing",
+        "redundant",
+        "covers_nothing",
+        "standings"
+      ],
+      "properties": {
+        "tests": {
+          "description": "Tests in the suite.",
+          "type": "integer"
+        },
+        "kills_nothing": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tests that cover a judged mutant and kill none."
+        },
+        "redundant": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tests that kill mutants, each of which another test kills too. Each is redundant alone: dropping two may lose a kill."
+        },
+        "covers_nothing": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tests that cover no judged mutant in scope."
+        },
+        "standings": {
+          "description": "For each test that covers a judged mutant: how many it covers, kills, and alone kills.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "covers",
+              "kills",
+              "unique"
+            ],
+            "properties": {
+              "covers": {
+                "type": "integer"
+              },
+              "kills": {
+                "type": "integer"
+              },
+              "unique": {
+                "type": "integer"
+              }
+            }
           }
         }
       }
@@ -443,6 +512,10 @@
             "integer",
             "null"
           ]
+        },
+        "test_quality": {
+          "description": "Whether every killing test was recorded.",
+          "type": "boolean"
         },
         "flaky_runs": {
           "description": "How many times the covering tests were rerun with other seeds.",

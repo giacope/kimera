@@ -43,6 +43,8 @@ class Kimera::Execution::IsolatedPlan
 
   def suite = selection.all
 
+  def quality? = @options[:quality] == true
+
   def fastest(tests) = Kimera::Execution::Pace.new(@options.fetch(:timings, {})).fastest(tests)
 
   def mutables

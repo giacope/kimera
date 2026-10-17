@@ -23,6 +23,13 @@ RSpec.describe(Kimera::Incremental::Session) do
     path
   end
 
+  it "keeps each mutant's killing tests and the suite a test-quality run saw across a save", :aggregate_failures do
+    counted = result(1, :killed).tap { |killed| killed.killing_tests = %w[t1 t2] }
+    path = seed(dir, report([counted]).annotate(suite: %w[t1 t2 t3]))
+    resumed = described_class.from(path).report([1], [], nil)
+    expect([resumed.results.first.killing_tests, resumed.notes.suite]).to(eq([%w[t1 t2], %w[t1 t2 t3]]))
+  end
+
   it "keeps the flaky tests a run found across a save and a resume", :aggregate_failures do
     found = { "runs" => 1, "seeds" => [2], "tests" => 1, "flaky" => [] }
     path = seed(dir, report([result(1, :killed)]).annotate(flaky: found))

@@ -1504,6 +1504,20 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(events.count { |event| event == %i[tick no_coverage] }).to(eq(ids.size))
     end
 
+    it "records every killing test of a warm mutant under test quality, and the same verdicts", :aggregate_failures do
+      stub_const("WarmCensus", Class.new)
+      registry = fixture("WarmCensus")
+      ids = registry.each.map { |m, _p| m.id }
+      h = described_class.build(
+        registry: registry, adapter: racing(ids), source_root: dir, soft_timeout: nil,
+        test_quality: true
+      )
+      h.warm!(%w[t1], scope: ids)
+      results = h.run(ids: ids).results
+      expect(results.map { |result| [result.status, result.failing_tests, result.killing_tests] }.uniq)
+        .to(eq([[:killed, ["fast"], %w[slow fast]]]))
+    end
+
     it "kills each mutant with the covering test the baseline timed fastest", :aggregate_failures do
       stub_const("WarmRacing", Class.new)
       registry = fixture("WarmRacing")

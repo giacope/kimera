@@ -90,4 +90,10 @@ RSpec.describe(Kimera::Execution::IsolatedOutcome) do
   it "treats a missing failing list on a kill as no named tests" do
     expect(test_judge(failed, { failures: 2 }.to_json).failing).to(eq([]))
   end
+
+  it "names its failing tests as killers only when asked and only for a kill", :aggregate_failures do
+    expect(described_class.new(:killed, ["t1"]).killers(true)).to(eq(["t1"]))
+    expect(described_class.new(:killed, ["t1"]).killers(false)).to(be_nil)
+    expect(described_class.new(:harness_error, ["t1"]).killers(true)).to(be_nil)
+  end
 end

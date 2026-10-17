@@ -217,6 +217,10 @@
       "type": "integer",
       "minimum": 0
     },
+    "test_quality": {
+      "description": "Record every covering test that kills each mutant, each run alone in a fresh fork, not just the first, and report tests that kill nothing and tests whose every kill another test also makes (redundant). Meant for nightly runs; verdicts don't change (default: false).",
+      "type": "boolean"
+    },
     "count_no_coverage": {
       "description": "Score a mutant with no covering test as not killed, and fail the gate on it, in every command (default: false: uncovered mutants are reported but not scored).",
       "type": "boolean"

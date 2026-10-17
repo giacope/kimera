@@ -427,6 +427,34 @@ killed and counts toward `max_survivors` like a survivor, and `kimera
 baseline create` accepts it like one. A mutant no test reaches stays
 `no_coverage`. It needs the coverage baseline, so not with `--no-coverage`.
 
+### Test quality
+
+A run stops judging a mutant at its first failing test, so it says which
+mutants survive, not which tests earn their keep. `test_quality: true`
+(`--test-quality`), meant for a nightly full run, records every covering
+test that kills each killed mutant: after the usual verdict, each other
+covering test runs alone in a fresh fork with the mutant on, and fails,
+times out or crashes to count. The verdicts and the score don't change.
+
+Each killed result gains `killing_tests`, and the report a `test_quality`
+section:
+
+- `kills_nothing`: tests that cover a judged mutant and kill none of them;
+- `redundant`: tests that kill mutants, each of which another test kills
+  too. Each is redundant alone: dropping two of them may lose a kill;
+- `covers_nothing`: tests that run no mutant in scope (a run over part of
+  the code lists most of the suite here);
+- `standings`: for each test that covers a mutant, how many it covers, how
+  many it kills, and how many only it kills.
+
+The text report sums these up and names the first few of each. It costs one
+fork per covering test of each killed mutant, after the first: on a suite
+whose mutants many tests cover, several times a plain run. In the isolated
+tier a mutant's killers are the tests that fail in one run of all its
+covering tests; the reload tier (memoized code) records its first killer
+only. Under `attribution: unit`, a test counts only toward its own unit's
+mutants.
+
 ### Seeds and flaky tests
 
 Every test runs in a process forked from the booted suite, and Ruby reseeds

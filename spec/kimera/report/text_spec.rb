@@ -122,6 +122,46 @@ RSpec.describe(Kimera::Report::Text) do
       .to(include("  a_spec.rb:3  one  failed 2 (seed 8, 9): no message\n"))
   end
 
+  def judged(suite)
+    io = StringIO.new
+    counted =
+      killed.tap do |result|
+        result.covering_tests = %w[t1 t2]
+      end.tap { |result| result.killing_tests = %w[t1 t2] }
+    report = Kimera::RunReport.new(
+      results: [counted],
+      tests: { "t1" => { "name" => "one", "location" => "a_spec.rb:3" } }
+    )
+    described_class.new(registry, io: io, color: false).report(report.annotate(suite: suite))
+    io.string
+  end
+
+  it "sums up test quality and names the tests that kill nothing or only what others kill", :aggregate_failures do
+    out = judged(%w[t1 t2 t3])
+    expect(out).to(
+      include(
+        "\nTest quality (3 tests):\n  0 kill none of the mutants they cover; 2 are redundant " \
+          "(another test kills each mutant they kill); 1 cover no mutant in scope.\n  " \
+          "Redundant:\n    a_spec.rb:3  one\n    t2\n"
+      )
+    )
+    expect(out).not_to(include("Kill nothing", "more;"))
+    expect(render(killed)).not_to(include("Test quality"))
+  end
+
+  it "names at most ten tests of each kind, pointing at the JSON report for the rest", :aggregate_failures do
+    idle = Array.new(12) { |index| "idle#{index}" }
+    many = killed.tap { |result| result.covering_tests = idle }.tap { |result| result.killing_tests = [] }
+    io = StringIO.new
+    described_class.new(
+      registry, io: io,
+      color: false
+    ).report(Kimera::RunReport.new(results: [many]).annotate(suite: idle))
+    expect(io.string).to(include("  Kill nothing:\n    idle0\n"))
+    expect(io.string).to(include("    idle9\n    (+2 more; the JSON report's test_quality lists them all)\n"))
+    expect(io.string).not_to(include("idle10"))
+  end
+
   it "says when the reruns found no flaky test, and nothing when none ran", :aggregate_failures do
     none = flaky("runs" => 1, "seeds" => [8], "tests" => 4, "flaky" => [])
     expect(none).to(include("\n\nNo flaky tests in 1 rerun(s) of 4 covering test(s), seeds 8.\n"))

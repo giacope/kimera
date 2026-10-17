@@ -63,7 +63,8 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         progress: nil, color: nil, quiet: false, verbose: false, log: nil,
         pidfile: nil, summary: nil,
         isolate_when_covered_by: [], methods: [], lines: {},
-        paths: ["app/**/*.rb", "lib/**/*.rb"], attribution: "any", unit_tests: {}, seed: nil, flaky_runs: 0
+        paths: ["app/**/*.rb", "lib/**/*.rb"], attribution: "any", unit_tests: {}, seed: nil, flaky_runs: 0,
+        test_quality: false
       }
     end
 
@@ -167,7 +168,8 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       %w[
         framework tests source-root registry operators soft-timeout
         hard-timeout relative-timeout timeout-factor timeout-slack coverage since session max-survivors
-        max-ignored fail-on-no-coverage count-no-coverage attribution unit-tests seed flaky-runs jobs progress
+        max-ignored fail-on-no-coverage count-no-coverage attribution unit-tests seed flaky-runs test-quality
+        jobs progress
         isolate-db isolated
         isolate-when-covered-by rejudge exclude config pidfile evaluate-ignored no-baseline
       ]
@@ -873,6 +875,14 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect([report.notes.flaky, report.tests]).to(eq([record.to_h, { "t9" => { "name" => "nine" } }]))
     end
 
+    it "hands the harness and the isolated tier test quality, and reports it over the whole suite" do
+      _report, _harness, session, adapter = warmed
+      allow(adapter).to(receive(:test_ids).and_return(%w[t1 t2]))
+      report = pass(registry, settings(test_quality: true), [1, 2], session)
+      expect(Kimera::Execution::Harness).to(have_received(:build).with(hash_including(test_quality: true)))
+      expect([report.notes.suite, pass(registry, settings, [1, 2], session).notes.suite]).to(eq([%w[t1 t2], nil]))
+    end
+
     it "reports no flaky tests section when none were looked for" do
       _report, _harness, session, = warmed
       expect(pass(registry, settings, [1, 2], session).notes.flaky).to(be_nil)
@@ -958,6 +968,10 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(report.results.map { |r| [r.mutant_id, r.status] }).to(eq([[1, :killed], [2, :killed]]))
       expect(runner).to(have_received(:rejudge).with([warm], label: "mutants (re-judged)"))
       settings = hash_including(coverage: { 1 => ["t1"] }, hard_timeout: 9.0, jobs: 3, tests: ["t1"], filter: anything)
+      expect(Kimera::Execution::IsolatedExecution).to(have_received(:new).with(settings))
+      allow(Kimera::Frameworks::ADAPTERS.load("rspec")).to(receive(:seed=))
+      pass(registry, settings(test_quality: true, seed: 3), [1, 2], session)
+      settings = hash_including(test_quality: true, seed: 3)
       expect(Kimera::Execution::IsolatedExecution).to(have_received(:new).with(settings))
     end
 

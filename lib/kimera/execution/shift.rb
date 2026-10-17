@@ -41,7 +41,7 @@ class Kimera::Execution::Shift
   end
 
   def evaluate(id)
-    safely(Subject.new(id, @registry.index[id]&.file))
+    tally(safely(Subject.new(id, @registry.index[id]&.file)))
   ensure
     Kimera::RUNTIME.active = nil
     isolation.reset!
@@ -61,6 +61,16 @@ class Kimera::Execution::Shift
     @_attempt ||= kind::Attempt.new(
       probe: probe, isolation: isolation, killers: kind::KillerMemory.new(pace), zygote: zygote
     )
+  end
+
+  def tally(result)
+    return result unless @options[:quality] && result.killed?
+    killers = census.killers(result.mutant_id, available(result.mutant_id), Array(result.failing_tests))
+    result.tap { |found| found.killing_tests = killers }
+  end
+
+  def census
+    @_census ||= self.class::Census.new(probe: probe, isolation: isolation, zygote: zygote)
   end
 
   def probe
@@ -111,6 +121,7 @@ class Kimera::Execution::Shift
 end
 
 require_relative "shift/attempt"
+require_relative "shift/census"
 require_relative "shift/coverage_channel"
 require_relative "shift/killer_memory"
 require_relative "shift/subject"

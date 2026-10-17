@@ -98,5 +98,6 @@ class Kimera::CLI::Run::Arguments
       .merge(pidfile: nil, summary: nil)
       .merge(isolate_when_covered_by: [], methods: [])
       .merge(cli_tests: [], attribution: "any", unit_tests: {}, cli_unit_tests: [], seed: nil, flaky_runs: 0)
+      .merge(test_quality: false)
   end
 end

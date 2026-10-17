@@ -11,7 +11,10 @@ class Kimera::Incremental::Session::Payload
 
   def attributes
     fields = { leaks: leaks, meta: @data["meta"] || {} }
-    fields[:results] = keys(@data["results"]) { |hash| Kimera::MutantResult.from_h(hash) }
+    fields[:results] =
+      keys(@data["results"]) do |hash|
+        Kimera::MutantResult.from_h(hash).tap { |result| result.killing_tests = hash["killing_tests"] }
+      end
     fields[:fingerprints] = keys(@data["fingerprints"]) { |fingerprint| fingerprint }
     fields
   end

@@ -1,10 +1,17 @@
 # frozen_string_literal: true
 
 require_relative "../rewrite/directive"
+require_relative "test_quality"
 
 module Kimera
   module ReportRows
+    def quality = @notes.suite && Kimera::TestQuality.new(@results, @notes.suite).to_h
+
     private
+
+    def flakes
+      { "test_quality" => quality, "flaky_tests" => @notes.flaky }.compact
+    end
 
     def detailed(result)
       base = result.to_h

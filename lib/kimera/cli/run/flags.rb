@@ -89,6 +89,11 @@ module Kimera::CLI::RunFlags
       type: Integer
     ),
     Kimera::Flag.build(
+      "--[no-]test-quality", :test_quality,
+      "Record every test that kills each mutant, and report tests that kill nothing or only what " \
+        "others kill (nightly; default: off)"
+    ),
+    Kimera::Flag.build(
       "--isolate-when-covered-by SUBSTR", :isolate_when_covered_by,
       "Isolate only mutants whose covering set includes a test id matching SUBSTR " \
         "(repeatable) — a fast, targeted alternative to --isolated for pool-unsafe specs",

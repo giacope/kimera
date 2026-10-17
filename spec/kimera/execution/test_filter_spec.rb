@@ -16,6 +16,12 @@ RSpec.describe(Kimera::Execution::TestFilter, :aggregate_failures) do
     }
   end
   let(:locate) { ->(test) { files[test] } }
+  # The adapter names each test's file as the framework does: relative with ./, or absolute.
+  let(:adapter) do
+    named = { "own" => "./spec/models/order_spec.rb", "request" => "spec/requests/orders_spec.rb" }
+      .merge("abs" => File.expand_path("spec/models/order_spec.rb"), "else" => "/elsewhere/spec/models/order_spec.rb")
+    Struct.new(:named) { def test_file(test) = named.fetch(test, "") }.new(named)
+  end
 
   def filter(attribution: Kimera::Execution::Attribution.new, flaky: [])
     described_class.new(registry: registry, attribution: attribution, flaky: flaky, locate: locate)
@@ -34,14 +40,20 @@ RSpec.describe(Kimera::Execution::TestFilter, :aggregate_failures) do
     expect(filter.keep("app/models/order.rb", %w[own request also])).to(eq(%w[own also]))
   end
 
-  it "builds strict attribution from unit_tests rules, and none without them" do
+  it "builds strict attribution from unit_tests rules, locating each test under the root" do
     ruled = described_class.build(
-      registry: registry, rules: { "app/**/*.rb" => ["spec/requests/{name}s_spec.rb"] },
-      locate: locate
+      registry: registry, adapter: adapter,
+      rules: { "app/**/*.rb" => ["spec/requests/{name}s_spec.rb"] }
     )
-    expect([ruled.active?, ruled.keep("app/models/order.rb", %w[own request])]).to(eq([true, %w[own request]]))
-    expect(described_class.build(registry: registry, locate: locate).active?).to(be(false))
-    expect(described_class.build(registry: registry).keep("app/models/order.rb", %w[own])).to(eq(%w[own]))
+    expect(ruled.active?).to(be(true))
+    expect(ruled.keep("app/models/order.rb", %w[own request abs else ghost])).to(eq(%w[own request abs]))
+  end
+
+  it "builds no attribution without rules" do
+    plain = described_class.build(registry: registry, adapter: adapter, root: "/elsewhere")
+    expect([plain.active?, plain.keep("app/models/order.rb", %w[own else])]).to(eq([false, %w[own else]]))
+    rooted = described_class.build(registry: registry, adapter: adapter, root: "/elsewhere", rules: {})
+    expect(rooted.keep("app/models/order.rb", %w[own else])).to(eq(%w[else]))
   end
 
   it "never keeps a flaky test, with or without attribution" do

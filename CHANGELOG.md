@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Test quality: `test_quality: true` (`--test-quality`), meant for nightly
+  runs, records every covering test that kills each mutant
+  (`killing_tests`), each run alone in a fresh fork with the mutant on, not
+  only the first, and reports tests that kill none of the mutants they cover,
+  redundant tests (every mutant they kill, another test kills too) and tests
+  that cover no mutant in scope (`test_quality` in the JSON report, a summary
+  in the text report). Verdicts don't change. Off by default. The Minitest
+  isolated child now runs every test when not asked to stop at the first
+  failure, as the RSpec one does, so an unmutated mirror that fails names
+  every failing test.
 - Seeds and flaky tests. `seed: N` (`--seed N`) seeds each test's random
   numbers with N and the test's id before it runs, on every tier, and gives
   Minitest N as its seed (it was always 1); `--seed random` draws N and the

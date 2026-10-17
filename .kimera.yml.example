@@ -54,6 +54,10 @@ count_no_coverage: false
 # unit_tests:
 #   "app/services/**/*.rb": "spec/services/{path}_spec.rb"
 
+# Nightly: record every test that kills each mutant, and report tests that
+# kill nothing and tests whose every kill another test also makes.
+# test_quality: true
+
 # Seed each test's random numbers (and Minitest's order) with this number, or
 # with a drawn one the report records (random). Unset: as before.
 # seed: 1234

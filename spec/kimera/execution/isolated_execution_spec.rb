@@ -457,7 +457,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       ).to(eq([:no_coverage, "covered only by flaky test(s), which never kill: t1", []]))
     end
 
-    def test_baking_evaluate(id, pause: nil)
+    def test_baking_evaluate(id, pause: nil, quality: {})
       baked = nil
       Dir.mktmpdir do |root|
         File.write(File.join(root, "calc.rb"), test_source_fixture)
@@ -468,7 +468,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
               sleep(pause) if pause
               Kimera::Execution::IsolatedOutcome.new(:killed, ["t1[1:1]"])
             end
-          end.new(registry: registry, root: root, tests: ["t1"], coverage: { id => ["t1"] })
+          end.new(registry: registry, root: root, tests: ["t1"], coverage: { id => ["t1"] }, **quality)
         allow(r).to(receive(:now).and_return(10.0, 12.5)) unless pause
         Dir.mktmpdir do |mirror|
           FileUtils.cp_r(File.join(root, "calc.rb"), File.join(mirror, "calc.rb"))
@@ -495,6 +495,13 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     it "asks the mutant's test child to stop at the first failure" do
       _result, (_source, first_failure), = test_baking_evaluate(first)
       expect(first_failure).to(be(true))
+    end
+
+    it "has the child run every covering test and records the failing ones as killers under test quality",
+      :aggregate_failures do
+      result, (_source, first_failure), = test_baking_evaluate(first, quality: { test_quality: true })
+      expect([first_failure, result.killing_tests]).to(eq([false, ["t1[1:1]"]]))
+      expect(test_baking_evaluate(first).first.killing_tests).to(be_nil)
     end
 
     it "times the verdict on the monotonic clock", :aggregate_failures do

@@ -137,6 +137,12 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   (request, integration) reach the mutant: it gates like a survivor. Fix it
   with a unit test that exercises the code, never by adding a rule that maps
   an integration spec to the unit.
+- `--test-quality` (`test_quality:`, nightly) records every test that kills
+  each mutant (`killing_tests`) and reports, under `test_quality` in the JSON
+  report, tests that kill nothing they cover and redundant tests (every kill
+  also another test's). A redundant test may still pin behavior a mutant
+  can't reach; read it before deleting it, and never delete two at once on
+  this evidence alone.
 - `--seed N` (`seed:`) makes each test draw the same random numbers in the
   baseline and every mutant's run; `--seed random` draws one and records it
   in the report's `run` section, so `--seed N` repeats a run.

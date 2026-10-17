@@ -73,6 +73,29 @@ RSpec.describe(Kimera::Execution::IsolatedPlan::ChildCommand) do
     expect(seeded(described_class::MINITEST_CHILD, "draw_test.rb", source, request, seed: 32)).to(eq(1))
   end
 
+  it "has the Minitest child run every test and name each failure unless asked to stop at the first",
+    :aggregate_failures do
+    source = "require 'minitest'\nclass TwoTest < Minitest::Test\n  def test_a = flunk\n  def test_b = flunk\nend\n"
+    request = { "tests" => %w[TwoTest#test_a TwoTest#test_b], "files" => ["two_test.rb"] }
+    ran = ->(first) { minitest_ledger(source, request.merge("first_failure" => first)) }
+    expect(ran.call(false)).to(eq([2, %w[TwoTest#test_a TwoTest#test_b]]))
+    expect([ran.call(true), ran.call(nil)]).to(eq([[1, ["TwoTest#test_a"]]] * 2))
+  end
+
+  def minitest_ledger(source, request)
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, "two_test.rb"), source)
+      ledger = File.join(dir, "ledger.json")
+      File.write("#{ledger}.request", JSON.generate(request))
+      env = { "BUNDLE_GEMFILE" => File.expand_path("../../../../Gemfile", __dir__) }
+      Open3.capture2e(
+        env, RbConfig.ruby, "-rbundler/setup", described_class::MINITEST_CHILD, ledger,
+        "#{ledger}.request", chdir: dir
+      )
+      JSON.parse(File.read(ledger)).values_at("failures", "failing")
+    end
+  end
+
   it "asks the child for the run's seed only when there is one", :aggregate_failures do
     expect(described_class.new(framework: "rspec", test_files: [], seed: 4).request(["t"])).to(include("seed" => 4))
     expect(described_class.new(framework: "rspec", test_files: []).request(["t"])).not_to(have_key("seed"))

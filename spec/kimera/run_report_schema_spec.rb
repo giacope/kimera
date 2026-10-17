@@ -14,11 +14,13 @@ RSpec.describe(Kimera::RunReport, :aggregate_failures) do
   let(:registry) { Kimera::RegistryScan.new.source("def gt(a, b)\n  a > b\nend\n", file: "cmp.rb") }
   let(:id) { registry.each.first.first.id }
   let(:document) do
-    rich = result(:ignored, verdict: :killed, failing_tests: ["t1"], covering_tests: ["t1"], detail: "d", note: "n")
+    rich =
+      result(:ignored, verdict: :killed, failing_tests: ["t1"], covering_tests: ["t1"], detail: "d", note: "n")
+        .tap { |row| row.killing_tests = ["t1"] }
     report = described_class.new(results: [rich], registry: registry, tests: { "t1" => { "name" => "one" } })
     flake = { "test" => "t1", "failed_runs" => 1, "seeds" => [2], "failure" => "f" }
     flaky = { "runs" => 1, "seeds" => [2], "tests" => 1, "flaky" => [flake] }
-    JSON.parse(JSON.generate(report.annotate(flaky: flaky).document("jobs" => 1)))
+    JSON.parse(JSON.generate(report.annotate(flaky: flaky, suite: ["t1"]).document("jobs" => 1)))
   end
 
   def result(status, **fields)
@@ -41,6 +43,14 @@ RSpec.describe(Kimera::RunReport, :aggregate_failures) do
     expect(section.fetch("properties").keys).to(match_array(document.fetch("flaky_tests").keys))
     expect(section.dig("properties", "flaky", "items", "properties").keys)
       .to(match_array(document.dig("flaky_tests", "flaky", 0).keys))
+  end
+
+  it "names every field of the test quality section" do
+    section = properties.fetch("test_quality").fetch("properties")
+    expect(section.keys).to(match_array(document.fetch("test_quality").keys))
+    killed = described_class.new(results: [result(:killed, covering_tests: ["t1"])]).annotate(suite: ["t1"])
+    standing = JSON.parse(JSON.generate(killed.to_h)).dig("test_quality", "standings", "t1")
+    expect(section.dig("standings", "additionalProperties", "properties").keys).to(match_array(standing.keys))
   end
 
   it "names every field of a fully enriched result" do

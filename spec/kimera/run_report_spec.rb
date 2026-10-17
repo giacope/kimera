@@ -90,6 +90,17 @@ RSpec.describe(Kimera::RunReport) do
       expect(report.summary).to(include("score=80.0% (1 uncovered not scored)"))
     end
 
+    describe "test quality" do
+      it "reports it, naming the suite and each killing test, only once a run looked", :aggregate_failures do
+        counted = results.first.tap { |killed| killed.killing_tests = ["k1"] }
+        quality = described_class.new(results: [counted]).annotate(suite: %w[k1 s2])
+        expect(quality.to_h.fetch("test_quality")).to(include("tests" => 2, "covers_nothing" => %w[k1 s2]))
+        expect(quality.quality).to(eq(quality.to_h.fetch("test_quality")))
+        expect(quality.test_ids).to(eq(%w[k1 s2]))
+        expect([report.to_h.key?("test_quality"), report.quality]).to(eq([false, nil]))
+      end
+    end
+
     describe "flaky tests" do
       let(:found) do
         { "runs" => 2, "seeds" => [3, 4], "tests" => 5, "flaky" => [{ "test" => "t7", "failed_runs" => 1 }] }
