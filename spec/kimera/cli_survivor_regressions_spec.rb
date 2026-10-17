@@ -329,7 +329,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       seen = nil
       allow(Kimera::Frameworks::ADAPTERS).to(receive(:load) { seen = env["KIMERA"] })
       allow(Kimera::CLI::Run::Pass).to(receive(:new).and_return(instance_double(Kimera::CLI::Run::Pass, call: nil)))
-      cycle.__send__(:harness, [1], nil, env: env)
+      cycle.__send__(:harness, [1], env: env)
       expect(seen).to(eq("1"))
     end
   end
@@ -586,8 +586,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     it "reports zero-time and positive-time rates and ETAs" do
-      tally = Kimera::Report::Tally.new
-      tally.begin!(4, "mutants", 10.0)
+      tally = Kimera::Report::Tally.new(4, "mutants", 10.0)
       tally.count!(:killed)
       at_start = tally.line(10.0)
       later = tally.line(12.0)
@@ -596,8 +595,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     it "does not show a rate before any work has completed" do
-      tally = Kimera::Report::Tally.new
-      tally.begin!(2, "mutants", 1.0)
+      tally = Kimera::Report::Tally.new(2, "mutants", 1.0)
       expect(tally.line(2.0)).not_to(include("/s"))
     end
 
@@ -727,9 +725,9 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       explicit.run(["--since=HEAD", "app"])
       expect(explicit).not_to(have_received(:reference))
       expect(runner).to(have_received(:run).with(["--since=HEAD", "app"]))
-      expect(Kimera::CLI::Argv.option?(["--since", "main"], "--since")).to(be(true))
-      expect(Kimera::CLI::Argv.option?(["--since=main"], "--since")).to(be(true))
-      expect(Kimera::CLI::Argv.option?(["app"], "--since")).to(be(false))
+      expect(Kimera::CLI::Argv.new(["--since", "main"]).option?("--since")).to(be(true))
+      expect(Kimera::CLI::Argv.new(["--since=main"]).option?("--since")).to(be(true))
+      expect(Kimera::CLI::Argv.new(["app"]).option?("--since")).to(be(false))
     end
 
     it "prefers origin/main, then main, and otherwise explains the missing reference" do
@@ -757,7 +755,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     Dir.mktmpdir do |dir|
       path = File.join(dir, ".kimera.yml")
       File.write(path, "baseline: missing.yml\n")
-      expect { Kimera::Config.load(path) }.to(raise_error(Kimera::UsageError, /no such baseline file/))
+      expect { Kimera::Config.new(path).options }.to(raise_error(Kimera::UsageError, /no such baseline file/))
     end
   end
 end

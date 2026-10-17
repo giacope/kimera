@@ -5,9 +5,7 @@ require_relative "../support/syntax"
 require_relative "guardrail_factories"
 
 module Kimera
-  module BodyTrim
-    module_function
-
+  class BodyTrim
     VISIBILITY = %i[private protected public module_function private_class_method public_class_method].freeze
     RERUN = %i[require require_relative ruby2_keywords].freeze
     CONDITIONS = [Prism::IfNode, Prism::UnlessNode].freeze
@@ -19,7 +17,19 @@ module Kimera
     ].freeze
     STRINGS = [Prism::StringNode, Prism::InterpolatedStringNode, Prism::XStringNode, Prism::InterpolatedXStringNode].freeze
 
-    def trim(path, source, locations) = loaded?(path) ? trimmed(source, locations) : source
+    def initialize(source, locations)
+      @source = source
+      @locations = locations
+    end
+
+    def trim(path) = loaded?(path) ? trimmed : @source
+
+    def trimmed
+      text = blank(dead(Kimera::Syntax.parse(@source).value.statements))
+      Kimera::Syntax.parse(text).success? ? text : @source
+    end
+
+    private
 
     def loaded?(path)
       features = $LOADED_FEATURES
@@ -28,29 +38,21 @@ module Kimera
       false
     end
 
-    def trimmed(source, locations)
-      text = blank(source, dead(Kimera::Syntax.parse(source).value.statements, locations))
-      Kimera::Syntax.parse(text).success? ? text : source
-    end
-
-    def dead(statements, locations, found = [])
+    def dead(statements)
       defined = []
-      statements.body.each { |node| sort(node, locations, found, defined) }
-      found
+      statements.body.flat_map do |node|
+        next [node] unless live?(node) || kept?(unguarded(node), defined)
+        defined << node.name if node.is_a?(Prism::DefNode)
+        body = inner(node)
+        body.is_a?(Prism::StatementsNode) ? dead(body) : []
+      end
     end
 
-    def sort(node, locations, found, defined)
-      return found << node unless live?(node, locations) || kept?(unguarded(node), defined)
-      defined << node.name if node.is_a?(Prism::DefNode)
-      body = inner(node)
-      dead(body, locations, found) if body.is_a?(Prism::StatementsNode)
-    end
-
-    def live?(node, locations)
+    def live?(node)
       location = node.location
       from = location.start_offset
       to = location.end_offset
-      locations.any? { |live| live.inside?(from, to) }
+      @locations.any? { |live| live.inside?(from, to) }
     end
 
     def kept?(node, defined)
@@ -103,27 +105,26 @@ module Kimera
 
     def factory?(receiver, name) = receiver.is_a?(Prism::ConstantReadNode) && FACTORIES.include?([receiver.name, name])
 
-    def blank(source, nodes)
-      text = source.b
-      nodes.flat_map { |node| extents(source, node) }.each do |from, to|
+    def blank(nodes)
+      text = @source.b
+      nodes.flat_map { |node| extents(node) }.each do |from, to|
         text[from...to] = text[from...to].tr("^\n", " ")
       end
-      text.force_encoding(source.encoding)
+      text.force_encoding(@source.encoding)
     end
 
-    def extents(source, node)
+    def extents(node)
       location = node.location
-      [[location.start_offset, location.end_offset], *heredocs(node).map { |doc| body(source, doc) }]
+      [[location.start_offset, location.end_offset], *heredocs(node).map { |doc| body(doc) }]
     end
 
-    def body(source, heredoc)
-      [source.byteindex("\n", heredoc.opening_loc.end_offset) + 1, heredoc.closing_loc.end_offset]
+    def body(heredoc)
+      [@source.byteindex("\n", heredoc.opening_loc.end_offset) + 1, heredoc.closing_loc.end_offset]
     end
 
-    def heredocs(node, found = [])
-      found << node if STRINGS.include?(node.class) && node.heredoc?
-      node.compact_child_nodes.each { |child| heredocs(child, found) }
-      found
+    def heredocs(node)
+      (STRINGS.include?(node.class) && node.heredoc? ? [node] : []) +
+        node.compact_child_nodes.flat_map { |child| heredocs(child) }
     end
   end
 end

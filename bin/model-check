@@ -50,8 +50,8 @@ class Kimera::ModelCheck
   def checks(argv)
     return CI_CHECKS if argv.empty?
     return DEEP_CHECKS if argv == ["--deep"]
-    scope = argv.delete("--safety") ? :safety : :all
-    [[*argv.map { |argument| Integer(argument) }, scope]]
+    scope = argv.include?("--safety") ? :safety : :all
+    [[*(argv - ["--safety"]).map { |argument| Integer(argument) }, scope]]
   end
 
   def fetch

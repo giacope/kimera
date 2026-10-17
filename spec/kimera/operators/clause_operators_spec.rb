@@ -16,7 +16,7 @@ RSpec.describe("clause operators") do
   def labels(code, *keys) = scan(code, *keys).each.map { |m, _p| m.label }
 
   def rendered(code, *keys)
-    scan(code, *keys).each.map { |m, p| Kimera::Rewrite::Directive.render(p.original_source, m.directive) }
+    scan(code, *keys).each.map { |m, p| Kimera::Rewrite::Directive.new(m.directive).render(p.original_source) }
   end
 
   def live(code, *keys)
@@ -147,7 +147,7 @@ RSpec.describe("clause operators") do
       guarded = /^  def m\(v\)\n\s+if ::Kimera::RUNTIME\.active\?\(\d+\)\n\s+Integer\(v\)\n\s+else\n\s+begin\n/
       expect(source).to(match(guarded))
       location = scan(code, "rescue_clause").each.first.last.location
-      expect(Kimera::BodyTrim.trimmed(code, [location])).to(include("def m(v)"))
+      expect(Kimera::BodyTrim.new(code, [location]).trimmed).to(include("def m(v)"))
     end
 
     it "drops the ensure of a method with no body of its own", :aggregate_failures do
@@ -173,8 +173,9 @@ RSpec.describe("clause operators") do
     end
 
     it "follows a rescue clause to the next under either of Prism's names", :aggregate_failures do
-      expect(Kimera::Operators::Clauses.following(Struct.new(:subsequent).new(:next))).to(eq(:next))
-      expect(Kimera::Operators::Clauses.following(Struct.new(:consequent).new(:next))).to(eq(:next))
+      clauses = Kimera::Operators::Clauses.new(nil)
+      expect(clauses.__send__(:following, Struct.new(:subsequent).new(:next))).to(eq(:next))
+      expect(clauses.__send__(:following, Struct.new(:consequent).new(:next))).to(eq(:next))
     end
 
     it "leaves a block's own rescue alone: it has no node to guard" do

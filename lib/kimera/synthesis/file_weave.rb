@@ -32,7 +32,7 @@ class Kimera::Overlay::FileWeave
 
   def render(weaver)
     Kimera::Overlay::Result.new(
-      file: @file, source: @map.restore(Kimera::Unparse.unparse(weaver.tree)), mutant_ids: weaver.applied,
+      file: @file, source: @map.restore(Kimera::Unparse.new(weaver.tree).source), mutant_ids: weaver.applied,
       skipped_unsafe: @unsafe.flat_map(&:ids)
     )
   end
@@ -61,7 +61,7 @@ class Kimera::Overlay::FileWeave
   def recover
     spliced = splice
     return spliced if spliced
-    @map.restore(Kimera::Unparse.unparse(Kimera::Guardrail.new(@map, @safe).tree))
+    @map.restore(Kimera::Unparse.new(Kimera::Guardrail.new(@map, @safe).tree).source)
   end
 
   def bisect(points)

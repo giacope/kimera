@@ -8,18 +8,16 @@ class Kimera::Operators::SuperCall < Kimera::Operators::Base
   CALL = ->(node) { CALLS.any? { |kind| node.is_a?(kind) } }
   COERCED = %i[respond_to_missing?].freeze
 
+  def initialize(coerced = Kimera::Operators::Survey::NONE)
+    super()
+    @coerced = coerced
+  end
+
   def key = "super_call"
 
-  def survey(root)
-    @_coerced = Kimera::Operators::Enclosed.new(root, COERCED, &CALL)
-    self
-  end
+  def survey(root) = self.class.new(Kimera::Operators::Enclosed.new(root, COERCED, &CALL))
 
   def variants(node, **)
-    deletion(node) if CALL.call(node) && !coerced.include?(node)
+    deletion(node) if CALL.call(node) && !@coerced.include?(node)
   end
-
-  private
-
-  def coerced = @_coerced || Kimera::Operators::Survey::NONE
 end

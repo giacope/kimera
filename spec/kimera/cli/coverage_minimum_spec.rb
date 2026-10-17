@@ -3,7 +3,7 @@
 require "kimera/cli/coverage_minimum"
 
 RSpec.describe(Kimera::CLI::CoverageMinimum) do
-  def ungated?(source) = described_class.ungated?(source)
+  def ungated?(source) = described_class.new(source).ungated?
 
   it "flags a floor in any receiver form", :aggregate_failures do
     expect(ungated?("SimpleCov.minimum_coverage 90\n")).to(be(true))

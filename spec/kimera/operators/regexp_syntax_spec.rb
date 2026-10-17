@@ -11,7 +11,7 @@ RSpec.describe("regexp anchor and quantifier operators") do
   end
 
   def patterns(code, *keys)
-    scan(code, *keys).each.map { |m, p| Kimera::Rewrite::Directive.render(p.original_source, m.directive) }
+    scan(code, *keys).each.map { |m, p| Kimera::Rewrite::Directive.new(m.directive).render(p.original_source) }
   end
 
   def tokens(source) = Kimera::Operators::RegexpTokens.new(source).tokens.map { [it.kind, it.text] }

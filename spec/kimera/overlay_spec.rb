@@ -845,9 +845,9 @@ RSpec.describe(Kimera::Overlay) do
         registry, source = reopened
         stub_const("Spliced", Module.new)
         stub_const("SplicedTop", nil)
-        Kimera::Warnings.silence { TOPLEVEL_BINDING.eval(value_source) }
+        Kimera::Warnings::SILENCED.during { TOPLEVEL_BINDING.eval(value_source) }
         before = [Spliced::Point.new(x: 11), SplicedTop.new(20), Spliced::Nested.new(x: 10)]
-        Kimera::Warnings.silence { TOPLEVEL_BINDING.eval(source) }
+        Kimera::Warnings::SILENCED.during { TOPLEVEL_BINDING.eval(source) }
         expect([Spliced::Point, SplicedTop, Spliced::Nested]).to(eq(before.map(&:class)))
         flip = ->(label, line) { registry.each.find { |m, p| m.label == label && p.location.start_line == line }.first }
         Kimera::RUNTIME.active = flip.call("> => <", 3).id

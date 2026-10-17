@@ -26,7 +26,7 @@ module Kimera
       end
 
     module Vocabulary
-      module_function
+      private
 
       def directive(type, **fields)
         { TYPE => type }.merge(fields.transform_keys(&:to_s))

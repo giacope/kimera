@@ -51,9 +51,8 @@ class Kimera::Execution::Schedule
   end
 
   def finish(ledger)
-    results = ledger.results
-    verdicts.reclassify!(results)
-    Kimera::RunReport.new(results: results.values, leaks: ledger.leaks, registry: @registry)
+    results = verdicts.reclassified(ledger.results).values
+    Kimera::RunReport.new(results: results, leaks: ledger.leaks, registry: @registry)
   end
 
   def record(ledger, id, result)

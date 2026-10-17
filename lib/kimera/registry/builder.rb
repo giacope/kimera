@@ -13,13 +13,16 @@ class Kimera::RegistryScan
   end
 
   def build(paths)
-    fresh.tap do |registry|
-      paths.sort.each { |path| ingest(registry, path) }
-    end
+    scans = paths.sort.filter_map { |path| ingest(path) }
+    Kimera::Registry.new(
+      operators: operators.map(&:key), root: relative(root),
+      points: scans.flat_map(&:first), unmutated: scans.flat_map(&:last)
+    )
   end
 
   def source(source, file:)
-    fresh.tap { |registry| collect(registry, source, file) }
+    points, regions = scan(source, file)
+    Kimera::Registry.new(operators: operators.map(&:key), root: relative(root), points: points, unmutated: regions)
   end
 
   private
@@ -28,22 +31,16 @@ class Kimera::RegistryScan
   def root = @_root ||= File.expand_path(@base || Dir.pwd)
   def numbering = @_numbering ||= Kimera::RegistryScan::Numbering.new
 
-  def fresh
-    Kimera::Registry.new(operators: operators.map(&:key), root: relative(root))
-  end
-
-  def ingest(registry, path)
-    return if @shielded && Kimera::SelfProtection.protected?(path)
-    collect(registry, File.read(path, encoding: Encoding::UTF_8), relative(path))
+  def ingest(path)
+    return if @shielded && Kimera::SelfProtection.new(path).protected?
+    scan(File.read(path, encoding: Encoding::UTF_8), relative(path))
   rescue Errno::ENOENT
     nil
   end
 
-  def collect(registry, source, file)
+  def scan(source, file)
     scanned = Kimera::RegistryScan::SourceFile.new(source, file: file, operators: operators, numbering: numbering)
-    scanned.points.each { |point| registry << point }
-    registry.unmutated.concat(scanned.regions)
-    registry
+    [scanned.points, scanned.regions]
   end
 
   def relative(path)
@@ -56,4 +53,3 @@ end
 
 require_relative "numbering"
 require_relative "source_file"
-require_relative "tally"

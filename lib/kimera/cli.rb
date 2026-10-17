@@ -49,10 +49,10 @@ class Kimera::CLI
   private
 
   def dispatch(argv)
-    command = argv.shift || "help"
-    handler = COMMANDS[command]
-    return unknown(command, argv) unless handler
-    __send__(handler, argv)
+    command, *rest = argv
+    handler = COMMANDS[command || "help"]
+    return unknown(command, rest) unless handler
+    __send__(handler, rest)
   end
 
   def unknown(command, _argv)
@@ -62,15 +62,17 @@ class Kimera::CLI
   end
 
   def registry(argv)
-    options = Kimera::Config.scope({ output: nil, operators: Kimera::Operators::DEFAULT_KEYS, quiet: false }, argv)
-    paths = REGISTRY_OPTIONS.parse(argv, options)
-    files = Kimera::FileSet.scoped(paths, options)
-    return missing(paths, options) if files.empty?
+    paths, options = REGISTRY_OPTIONS.parse(
+      argv, Kimera::Config.parse(argv).scope({ output: nil, operators: Kimera::Operators::DEFAULT_KEYS, quiet: false })
+    )
+    set = Kimera::FileSet.from_options(paths, options)
+    files = set.files
+    return missing(set) if files.empty?
     build(files, options)
   end
 
-  def missing(paths, options)
-    @errors.puts("kimera: no Ruby files matched #{Kimera::FileSet.globs(paths, options).join(", ")}")
+  def missing(set)
+    @errors.puts("kimera: no Ruby files matched #{set.patterns.join(", ")}")
     1
   end
 

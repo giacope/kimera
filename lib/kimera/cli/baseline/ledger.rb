@@ -28,5 +28,5 @@ class Kimera::CLI::Baseline::Ledger
 
   def missing = parsed.dig("run", "since") ? :out_of_scope : :stale
 
-  def parsed = @_parsed ||= Kimera::CLI::ReportFile.parse(@report)
+  def parsed = @_parsed ||= Kimera::CLI::ReportFile.new(@report).document
 end

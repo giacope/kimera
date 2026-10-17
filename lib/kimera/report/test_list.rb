@@ -25,7 +25,7 @@ class Kimera::Report::TestList
 
   private
 
-  def named(test) = Kimera::Readout.label(test, @report.test(test))
+  def named(test) = Kimera::Readout::Label.new(test, @report.test(test)).text
 
   def more(result, hidden)
     return [] unless hidden.positive?

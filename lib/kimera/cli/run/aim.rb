@@ -20,7 +20,9 @@ class Kimera::CLI::Run::Aim
 
   def hit?(point) = line?(point) && method?(point)
 
-  def lines = @_lines ||= Hash(@options[:lines]).transform_keys { |path| Kimera::FileSet.relative(path, root) }
+  def lines
+    @_lines ||= Hash(@options[:lines]).transform_keys { |path| Kimera::FileSet::Root.new(root).relative(path) }
+  end
 
   def root = File.expand_path(@options.fetch(:source_root))
 

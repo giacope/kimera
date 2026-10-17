@@ -15,9 +15,9 @@ module Kimera
 
       private
 
-      def found = @_found ||= collect(Set.new.compare_by_identity)
+      def found = @_found ||= Set.new.compare_by_identity.merge(nodes)
 
-      def collect(table) = table
+      def nodes = []
     end
   end
 end

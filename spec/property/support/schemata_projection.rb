@@ -68,7 +68,7 @@ module SchemataProjection
 
       def original
         map = Kimera::SourceMap.new(source)
-        SchemataProjection.canon(Kimera::Unparse.unparse(Kimera::Guardrail.new(map, []).tree))
+        SchemataProjection.canon(Kimera::Unparse.new(Kimera::Guardrail.new(map, []).tree).source)
       end
 
       def baked(id) = SchemataProjection.canon(overlay.bake("x.rb", source, id))

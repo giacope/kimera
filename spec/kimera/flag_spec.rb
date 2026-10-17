@@ -4,11 +4,9 @@ require "kimera/cli/run"
 require "kimera/cli/synthesize"
 
 RSpec.describe(Kimera::Flag) do
-  describe "#define" do
+  describe "#stored" do
     def parse(flag, argv)
-      options = { value: nil, list: [] }
-      OptionParser.new { |o| flag.define(o, options) }.parse(argv)
-      options
+      Kimera::FlagTable.new(banner: "Usage: kimera x", flags: [flag]).parse(argv, { value: nil, list: [] }).last
     end
 
     it "assigns the parsed value to its key" do

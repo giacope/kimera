@@ -22,7 +22,7 @@ RSpec.describe(Kimera::TestExit) do
     let(:frames) { ["#{Dir.pwd}/app/task.rb:3:in 'Kernel#exit'", "#{Dir.pwd}/app/task.rb:3:in 'Task#run'"] }
 
     it "keeps the status and the frames, and names where exit was called", :aggregate_failures do
-      failure = described_class.failure(raised(3, "exit", frames))
+      failure = described_class.new(raised(3, "exit", frames)).failure
       expect(failure).to(be_a(SystemExit))
       expect(failure.status).to(eq(3))
       expect(failure.message).to(eq("exit(3) called from app/task.rb:3:in 'Kernel#exit'"))
@@ -30,7 +30,7 @@ RSpec.describe(Kimera::TestExit) do
     end
 
     it "keeps abort's message" do
-      failure = described_class.failure(raised(1, "no such task", ["/elsewhere/task.rb:9:in 'Kernel#abort'"]))
+      failure = described_class.new(raised(1, "no such task", ["/elsewhere/task.rb:9:in 'Kernel#abort'"])).failure
       expect(failure.message).to(eq("exit(1) called from /elsewhere/task.rb:9:in 'Kernel#abort': no such task"))
     end
   end

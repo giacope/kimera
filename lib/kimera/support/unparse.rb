@@ -3,16 +3,18 @@
 require_relative "warnings"
 require_relative "unparse_grouping"
 
-Kimera::Warnings.silence { require "unparser" }
+Kimera::Warnings::SILENCED.during { require "unparser" }
 
 module Kimera
-  module Unparse
-    module_function
+  class Unparse
+    def self.parse(source) = Kimera::Warnings::SILENCED.during { Unparser.parse(source) }
 
-    def parse(source) = Kimera::Warnings.silence { Unparser.parse(source) }
+    def initialize(node)
+      @node = node
+    end
 
-    def unparse(node)
-      text = Kimera::Warnings.silence { Unparser.unparse(Grouping.call(node)) }
+    def source
+      text = Kimera::Warnings::SILENCED.during { Unparser.unparse(Grouping.new(@node).call) }
       text.valid_encoding? ? text : raise(EncodingError, "unparser wrote a literal's raw bytes, invalid in UTF-8")
     end
 

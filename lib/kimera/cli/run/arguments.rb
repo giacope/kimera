@@ -9,8 +9,8 @@ require_relative "targets"
 
 class Kimera::CLI::Run::Arguments
   def parse(argv)
-    options = defaults.merge(Kimera::Config.parse(argv))
-    finish(options, Kimera::CLI::RunOptions::OPTIONS.parse(argv, options))
+    rest, options = Kimera::CLI::RunOptions::OPTIONS.parse(argv, defaults.merge(Kimera::Config.parse(argv).options))
+    finish(options, rest)
   end
 
   private
@@ -25,14 +25,16 @@ class Kimera::CLI::Run::Arguments
   def scoped(options, rest)
     targets = Kimera::CLI::Run::Targets.new(rest)
     { tests: tests(options[:cli_tests], options), configured_tests: tests([], options) }
-      .merge(paths: Kimera::Config.prefer(targets.paths, options[:paths], Kimera::FileSet::DEFAULT_GLOBS))
+      .merge(paths: Kimera::Config::Precedence.new(targets.paths, options[:paths]).chosen(Kimera::FileSet::DEFAULT_GLOBS))
       .merge(lines: targets.lines).merge(arrays(options))
   end
 
-  def tests(cli, options) = Kimera::Config.prefer(cli, options[:tests], Kimera::CLI::RunOptions::DEFAULT_TESTS)
+  def tests(cli, options)
+    Kimera::Config::Precedence.new(cli, options[:tests]).chosen(Kimera::CLI::RunOptions::DEFAULT_TESTS)
+  end
 
   def arrays(options)
-    { exclude: Array(options[:exclude]), ignore: Kimera::Config.ignores(options) }
+    { exclude: Array(options[:exclude]), ignore: Kimera::Config::Ignores.new(options).rules }
       .merge(isolate_when_covered_by: Array(options[:isolate_when_covered_by]), focus: Array(options[:focus]))
       .merge(methods: Array(options[:methods]))
   end

@@ -11,7 +11,7 @@ class Kimera::SourceMap
   end
 
   def ast
-    @_ast ||= Kimera::Rewrite::NumberedParams.normalize(Kimera::Unparse.parse(@source))
+    @_ast ||= Kimera::Rewrite::NumberedParams.new(Kimera::Unparse.parse(@source)).normalize
   end
 
   def span(expression)

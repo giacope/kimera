@@ -291,7 +291,7 @@ RSpec.describe("extended operators") do
 
     def rendered(catalog)
       catalog.each.map do |m, p|
-        Kimera::Rewrite::Directive.render(p.original_source, m.directive)
+        Kimera::Rewrite::Directive.new(m.directive).render(p.original_source)
       end
     end
 

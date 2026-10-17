@@ -10,24 +10,22 @@ class Kimera::Execution::IsolatedPulse
   Mark = Data.define(:beats, :deadline)
   UNSEEN = Mark.new(beats: -1, deadline: 0.0)
 
-  def initialize(path, limit, clock: CLOCK)
+  def initialize(path, limit, clock: CLOCK, mark: UNSEEN)
     @path = path
     @limit = limit
     @clock = clock
-    @mark = UNSEEN
+    @mark = mark
   end
 
-  def expired?
-    @mark = observed(@mark)
-    @clock.call >= @mark.deadline
+  def observed
+    beats = size
+    return self unless beats > @mark.beats
+    self.class.new(@path, @limit, clock: @clock, mark: Mark.new(beats: beats, deadline: @clock.call + @limit))
   end
+
+  def expired? = @clock.call >= @mark.deadline
 
   private
-
-  def observed(mark)
-    beats = size
-    beats > mark.beats ? Mark.new(beats: beats, deadline: @clock.call + @limit) : mark
-  end
 
   def size
     File.size(@path)
