@@ -44,6 +44,16 @@ RSpec.describe(Kimera::Rewrite::Directive) do
       expect(forced.call("if a\n  b\nend", "false")).to(eq("if false\n  b\nend"))
     end
 
+    # once-campfire's `tag.div(..., &)` forwards its method's anonymous block:
+    # cut out of the method, the snippet did not parse and rendered as nil.
+    it "writes a forced condition into a snippet that forwards anonymous arguments", :aggregate_failures do
+      forced = ->(source, to) { described_class.new({ "type" => "condition", "to" => to }).render(source) }
+      expect(forced.call("if w && h\n  tag.div(class: \"a\", &)\nelse\n  tag.div(&)\nend", "true"))
+        .to(eq("if true\n  tag.div(class: \"a\", &)\nelse\n  tag.div(&)\nend"))
+      expect(forced.call("call(*, **) if ready?", "false")).to(eq("call(*, **) if false"))
+      expect(forced.call("call(...) unless done?", "true")).to(eq("call(...) unless true"))
+    end
+
     it "forces only a condition directive, never another one that names a target" do
       expect(described_class.new({ "type" => "boolean_literal", "to" => "false" }).render("x if y")).to(eq("false"))
     end
