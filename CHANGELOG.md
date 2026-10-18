@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- A lambda handed to a class-body macro that no test reached warm reports
+  `isolated_only`, not `no_coverage`, and `--isolated` judges it against the
+  whole suite. The warm overlay re-declares the class body, and a macro that
+  registers its lambda instead of redefining a method (`belongs_to :creator,
+  default: -> { Current.user }`, `after_create_commit -> { ... }`) keeps the
+  original in front, so the mutated lambda never ran and read as untested,
+  even under `--isolated`, which picked its tests from that coverage. On
+  once-campfire 8 such mutants (models, controllers' `rate_limit` and
+  `allow_browser` lambdas) were `no_coverage` though tests kill each one, and
+  `kimera ci` would have failed a pull request on them that no test could fix.
+  `scope` lambdas, which redefine a method, stay judged warm.
 - A forced condition whose predicate assigns renders as the mutant that runs:
   `if (room = find(id); true)`, not `if true`. The mutant has kept the
   assignment since the predicate pin learned to, but the report still showed

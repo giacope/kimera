@@ -155,8 +155,11 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   method from outside its object: make it private, or test it through its
   public use. A method only ever called via `send` survives by design.
 - `isolated_only` marks mutants that only `--isolated` can judge: class-body
-  DSL, and code in a method the suite only runs while it loads (a class macro
-  or `included` hook another file's class body calls). Run it for their
+  DSL, code in a method the suite only runs while it loads (a class macro
+  or `included` hook another file's class body calls), and a lambda handed to
+  a class-body macro (a `belongs_to` default, an `after_create_commit` lambda)
+  that no test reached warm, because re-declaring the macro can leave the
+  original lambda registered in front of the mutated one. Run it for their
   verdicts; they never gate or count in the score. A method reached through an
   `alias` or `alias_method` declared in another file is judged warm like any
   other.

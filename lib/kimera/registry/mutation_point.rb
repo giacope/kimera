@@ -82,6 +82,10 @@ class Kimera::MutationPoint
   LOAD_REASON =
     "runs only while the suite loads (a macro or hook called from a class body), " \
       "so warm coverage cannot see it; evaluate with --isolated"
+  MACRO_REASON =
+    "a lambda handed to a class-body macro (a callback, a default:) that no test reached warm: the warm " \
+      "overlay re-declares the macro, which can leave the original lambda registered in front of the " \
+      "mutated one, so warm coverage cannot see it; evaluate with --isolated"
   UNMUTATABLE = "unmutatable: "
   SAFE = true
 
@@ -109,7 +113,7 @@ class Kimera::MutationPoint
   end
 
   def reloadable?
-    !body? && unsafe_reason != LOAD_REASON && !unmutatable?
+    !body? && ![LOAD_REASON, MACRO_REASON].include?(unsafe_reason) && !unmutatable?
   end
 
   def unmutatable?
@@ -131,6 +135,10 @@ class Kimera::MutationPoint
   end
 
   def revisit!(reason) = @attributes.store(:revisit, reason)
+
+  def uncovered?(coverage) = ids.all? { |id| coverage.fetch(id) { coverage.fetch(id.to_s, []) }.empty? }
+
+  def inside?(ranges) = ranges.any? { |range| location.within?(range.start_offset, range.end_offset) }
 
   def revisit = @attributes[:revisit]
 

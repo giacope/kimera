@@ -100,4 +100,10 @@ RSpec.describe(Kimera::Execution::LoadTrace) do
     sourced = Kimera::RegistryScan.new.source(source, file: "absent.rb")
     expect(described_class.new(sourced, dir).record { :loaded }).to(eq(:loaded))
   end
+
+  it "also quarantines the uncovered lambdas a class-body macro is handed" do
+    File.write(file, "class LoadTraceBoost\n  belongs_to :booster, default: -> { Current.user }\nend\n")
+    described_class.new(registry, dir).quarantine!({})
+    expect(point("Current.user").unsafe_reason).to(eq(Kimera::MutationPoint::MACRO_REASON))
+  end
 end
