@@ -20,13 +20,6 @@ RSpec.describe(Kimera::Registry) do
       expect(described_class.new).to(have_attributes(size: 0, count: 0, files: [], root: ".", operators: []))
     end
 
-    it "appends points via << and returns self", :aggregate_failures do
-      registry = described_class.new
-      point = registry.points.first
-      expect(registry << point).to(be(registry))
-      expect(registry.size).to(eq(1))
-    end
-
     it "lists unique files and points at a file", :aggregate_failures do
       expect(registry.files).to(eq(["calc.rb"]))
       expect(registry.at("calc.rb")).to(eq(registry.points))

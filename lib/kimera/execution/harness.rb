@@ -92,7 +92,7 @@ class Kimera::Execution::Harness
 
   def jobs = @_jobs ||= [Integer(options.fetch(:jobs, 1)), 1].max
 
-  def progress = options.fetch(:progress, Kimera::Execution::NullProgress)
+  def progress = options.fetch(:progress, Kimera::Execution::NullProgress::NONE)
 
   def driver = rig.driver
 
@@ -135,9 +135,7 @@ class Kimera::Execution::Harness
   end
 
   def arm(timings)
-    driver.coverage = coverage
-    driver.budget = budget(timings)
-    driver.timings = timings
+    driver.arm(coverage: coverage, budget: budget(timings), timings: timings)
   end
 
   def parallel(pass)

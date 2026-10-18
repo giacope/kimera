@@ -5,12 +5,12 @@ require "kimera/synthesis/overlay"
 
 RSpec.describe(Kimera::Rewrite::NumberedParams) do
   it "renames only lvar references, never a literal :_1 symbol" do
-    node = described_class.normalize(Unparser.parse("x { [:_1, _1] }"))
+    node = described_class.new(Unparser.parse("x { [:_1, _1] }")).normalize
     expect(Unparser.unparse(node)).to(include("[:_1, __kimera_1]"))
   end
 
   def normalize(source)
-    Unparser.unparse(described_class.normalize(Unparser.parse(source)))
+    Unparser.unparse(described_class.new(Unparser.parse(source)).normalize)
   end
 
   it "renames numbered params so interpolation survives unparsing", :aggregate_failures do

@@ -26,5 +26,5 @@ class Kimera::IgnoreList::Placement
 
   def anchors = @rule
 
-  def matching(rule) = @pairs.select { |mutant, point| Kimera::IgnoreList.match?(rule, point, mutant) }
+  def matching(rule) = @pairs.select { |mutant, point| Kimera::IgnoreList::Match.new(point, mutant).rule?(rule) }
 end

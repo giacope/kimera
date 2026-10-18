@@ -3,45 +3,51 @@
 require_relative "config"
 
 module Kimera
-  module FileSet
+  class FileSet
     DEFAULT_GLOBS = ["app/**/*.rb", "lib/**/*.rb"].freeze
 
-    module_function
+    Root =
+      Data.define(:path) do
+        def relative(file)
+          absolute = File.expand_path(file)
+          inside = absolute.delete_prefix("#{path}/")
+          inside == absolute ? file : inside
+        end
+      end
 
-    def globs(from_cli, options)
-      Config.prefer(from_cli, options[:paths], DEFAULT_GLOBS)
+    attr_reader :patterns
+
+    def self.from_options(from_cli, options)
+      new(Config::Precedence.new(from_cli, options[:paths]).chosen(DEFAULT_GLOBS), exclude: options[:exclude])
     end
 
-    def scoped(from_cli, options)
-      expand(globs(from_cli, options), exclude: options[:exclude])
+    def initialize(patterns, include: [], exclude: [])
+      @patterns = patterns
+      @include = include
+      @exclude = exclude
     end
 
-    def expand(patterns, include: [], exclude: [])
-      exclude((Array(patterns) + Array(include)).flat_map { |pattern| resolve(pattern) }.uniq, exclude).sort
-    end
+    def files = without((Array(@patterns) + Array(@include)).flat_map { |pattern| resolve(pattern) }.uniq).sort
 
-    def relative(path, root)
-      absolute = File.expand_path(path)
-      absolute.start_with?("#{root}/") ? absolute[(root.length + 1)..] : path
-    end
-
-    def resolve(pattern)
-      return Dir.glob(File.join(pattern, "**", "*.rb")) if File.directory?(pattern)
-      Dir.glob(pattern).select { |f| File.file?(f) && f.end_with?(".rb") }
-    end
-
-    def unused(patterns, exclude)
-      files = expand(patterns)
-      Array(exclude).reject do |pattern|
+    def unused
+      files = FileSet.new(@patterns).files
+      Array(@exclude).reject do |pattern|
         resolved = resolve(pattern).to_set
         files.any? { |file| resolved.include?(file) || matches?(file, [pattern]) }
       end
     end
 
-    def exclude(files, exclude)
-      patterns = Array(exclude)
+    def without(files)
+      patterns = Array(@exclude)
       excluded = patterns.flat_map { |p| resolve(p) }.to_set
       files.reject { |file| excluded.include?(file) || matches?(file, patterns) }
+    end
+
+    private
+
+    def resolve(pattern)
+      return Dir.glob(File.join(pattern, "**", "*.rb")) if File.directory?(pattern)
+      Dir.glob(pattern).select { |f| File.file?(f) && f.end_with?(".rb") }
     end
 
     def matches?(file, patterns)

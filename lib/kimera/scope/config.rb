@@ -4,7 +4,7 @@ require "yaml"
 require_relative "../error"
 
 module Kimera
-  module Config
+  class Config
     DEFAULT_PATH = ".kimera.yml"
 
     SCALAR_KEYS = %w[framework source_root soft_timeout hard_timeout
@@ -15,43 +15,45 @@ module Kimera
 
     SCOPE_KEYS = %i[paths operators exclude].freeze
 
-    module_function
+    Precedence =
+      Data.define(:cli, :configured) do
+        def chosen(default)
+          given = Array(cli)
+          picked = given.empty? ? Array(configured) : given
+          picked.empty? ? default.dup : picked
+        end
+      end
 
-    def parse(argv)
+    Ignores =
+      Data.define(:options) do
+        def rules
+          local = Array(options[:ignore])
+          options[:baseline] ? local + Array(options[:baseline_ignore]) : local
+        end
+      end
+
+    def self.parse(argv)
       index = argv.index("--config")
-      return root unless index
+      return new(File.join(".", DEFAULT_PATH)) unless index
       file = argv[index + 1]
       raise(UsageError, "no such config file: #{file}") unless file && File.exist?(file)
-      load(file)
+      new(file)
     end
 
-    def prefer(from_cli, from_config, default)
-      cli = Array(from_cli)
-      chosen = cli.empty? ? Array(from_config) : cli
-      chosen.empty? ? default.dup : chosen
+    def initialize(file)
+      @file = file
     end
 
-    def document(**options) = options.transform_keys(&:to_s)
-
-    def scope(defaults, argv)
-      defaults.merge(parse(argv).slice(*SCOPE_KEYS))
-    end
-
-    def load(file)
-      return {} unless File.exist?(file)
-      options = normalize(YAML.safe_load_file(file) || {})
+    def options
+      return {} unless File.exist?(@file)
+      options = normalize(YAML.safe_load_file(@file) || {})
       baseline = options[:baseline]
-      baseline ? options.merge(baseline_ignore: ignores_from(baseline, file)) : options
+      baseline ? options.merge(baseline_ignore: ignores_from(baseline)) : options
     end
 
-    def ignores(options)
-      local = Array(options[:ignore])
-      options[:baseline] ? local + Array(options[:baseline_ignore]) : local
-    end
+    def scope(defaults) = defaults.merge(options.slice(*SCOPE_KEYS))
 
-    def root(root: ".")
-      load(File.join(root, DEFAULT_PATH))
-    end
+    private
 
     def normalize(data)
       options = scalars(data)
@@ -59,8 +61,8 @@ module Kimera
       options
     end
 
-    def ignores_from(baseline, file)
-      anchored = File.expand_path(baseline, File.dirname(file))
+    def ignores_from(baseline)
+      anchored = File.expand_path(baseline, File.dirname(@file))
       raise(UsageError, "no such baseline file: #{anchored}") unless File.file?(anchored)
       Array((YAML.safe_load_file(anchored) || {})["ignore"]).map { |rule| validate(symbolize(rule)) }
     end

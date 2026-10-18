@@ -4,58 +4,37 @@ require_relative "guard_modules"
 
 module Kimera
   module Execution
-    module OverlayGuards
+    class OverlayGuards
+      HOOKS = [
+        ["ActiveRecord::Base", :singleton_class, GuardModules::ENUMGUARD],
+        ["ActiveSupport::Callbacks::ClassMethods", :itself, GuardModules::CALLBACKGUARD],
+        ["ActiveSupport::Concern", :itself, GuardModules::CONCERNGUARD],
+        ["ActiveRecord::Base", :singleton_class, GuardModules::SERIALIZEGUARD],
+        ["ActiveRecord::Reflection", :singleton_class, Reflections::GUARD]
+      ].freeze
+
       class << self
         attr_accessor :overlaying
 
         alias overlaying? overlaying
       end
 
-      module_function
+      def initialize(hooks = HOOKS)
+        @hooks = hooks
+      end
 
       def overlay
         install!
-        self.overlaying = true
+        self.class.overlaying = true
         yield
       ensure
-        self.overlaying = false
+        self.class.overlaying = false
       end
 
       def install!
-        enum!
-        callbacks!
-        concern!
-        serialize!
-        reflections!
-      end
-
-      def enum!
-        return unless defined?(ActiveRecord::Base)
-        ActiveRecord::Base.singleton_class.prepend(GuardModules.enum)
-      end
-
-      def callbacks!
-        return unless defined?(ActiveSupport::Callbacks::ClassMethods)
-        ActiveSupport::Callbacks::ClassMethods.prepend(GuardModules.callback)
-      end
-
-      def serialize!
-        return unless defined?(ActiveRecord::Base)
-        ActiveRecord::Base.singleton_class.prepend(GuardModules.serialization)
-      end
-
-      def reflections!
-        return unless defined?(ActiveRecord::Reflection)
-        ActiveRecord::Reflection.singleton_class.prepend(GuardModules.reflection)
-      end
-
-      def concern!
-        return unless defined?(ActiveSupport::Concern)
-        ActiveSupport::Concern.prepend(GuardModules.concern)
-      end
-
-      def serialized?(type)
-        GuardModules.serialized?(type)
+        @hooks.each do |path, side, guard|
+          Object.const_get(path).public_send(side).prepend(guard) if Object.const_defined?(path)
+        end
       end
     end
   end

@@ -22,18 +22,18 @@ class Kimera::CLI::Run::Sources
     found = expand(options[:paths], options[:exclude], "source", "check paths and --exclude")
     return found unless changed
     root = File.expand_path(options[:source_root])
-    found.select { |file| changed.key?(Kimera::FileSet.relative(file, root)) }
+    found.select { |file| changed.key?(Kimera::FileSet::Root.new(root).relative(file)) }
   end
 
   def expand(patterns, exclude, kind, hint)
     notice(patterns, exclude, kind)
-    found = Kimera::FileSet.expand(patterns, exclude: exclude)
+    found = Kimera::FileSet.new(patterns, exclude: exclude).files
     raise(Kimera::UsageError, "no #{kind} files matched: #{Array(patterns).join(", ")} (#{hint})") if found.empty?
     found
   end
 
   def notice(patterns, exclude, kind)
-    Kimera::FileSet.unused(patterns, exclude).each do |pattern|
+    Kimera::FileSet.new(patterns, exclude: exclude).unused.each do |pattern|
       @errors.puts("kimera: warning: exclude pattern matched no #{kind} files: #{pattern}")
     end
   end

@@ -3,16 +3,22 @@
 require "optparse"
 
 module KimeraEval
-  Settings = Struct.new(:kimera, :out, :only, :quick, :keep, keyword_init: true)
+  Settings = Struct.new(:kimera, :out, :only, :quick, :keep, :baseline, keyword_init: true)
 
   # eval/run --kimera PATH [--only K1,K4] [--out FILE] [--quick] [--keep]
+  #   [--baseline FILE]
+  # With --baseline, exits 1 if a case fails that FILE does not record as
+  # failing: a regression from the recorded scoreboard, or a new case that
+  # does not pass. FILE is read before --out is written, so both can name
+  # the same file.
   class Command
     FLAGS = [
       ["--kimera PATH", "kimera checkout to evaluate", ->(settings, path) { settings.kimera = path }],
       ["--only IDS", "comma-separated gap ids", ->(settings, ids) { settings.only = ids.split(",") }],
       ["--out FILE", "where to write the JSON scoreboard", ->(settings, file) { settings.out = file }],
       ["--quick", "skip the slow corpora and the deep checks", ->(settings, on) { settings.quick = on }],
-      ["--keep", "keep the sandbox for inspection", ->(settings, on) { settings.keep = on }]
+      ["--keep", "keep the sandbox for inspection", ->(settings, on) { settings.keep = on }],
+      ["--baseline FILE", "exit 1 on a failure FILE does not record", ->(settings, file) { settings.baseline = file }]
     ].freeze
 
     def run(argv)
@@ -66,9 +72,19 @@ module KimeraEval
     end
 
     def finish(board, settings)
+      baseline = settings.baseline
+      worse = baseline ? board.failing - recorded(board, baseline) : []
       board.write(settings.out)
       puts(board.markdown)
-      0
+      verdict(worse, baseline)
+    end
+
+    def recorded(board, path) = board.failing(JSON.parse(File.read(path, encoding: Encoding::UTF_8)).fetch("cases"))
+
+    def verdict(worse, baseline)
+      return 0 if worse.empty?
+      warn("eval: worse than #{baseline}: #{worse.join(" ")}")
+      1
     end
   end
 end

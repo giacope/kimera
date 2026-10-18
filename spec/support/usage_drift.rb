@@ -88,7 +88,7 @@ class UsageDrift
 
   def operators
     named = @text.scan(/--operators[ =]([a-z_,]+)/).flatten.flat_map { |list| list.split(",") }.uniq
-    named.reject { |key| (Kimera::Operators.expand([key]) - Kimera::Operators.keys).empty? }
+    named.reject { |key| (Kimera::Operators::CATALOG.expand([key]) - Kimera::Operators::CATALOG.keys).empty? }
       .map { |key| "unknown operator: #{key}" }
   end
 

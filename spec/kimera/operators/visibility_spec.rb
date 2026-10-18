@@ -68,7 +68,7 @@ RSpec.describe(Kimera::Operators::Visibility) do
 
   it "renders the method followed by its private call" do
     mutant, point = scan("class A\n  def shown\n    1\n  end\nend\n").each.first
-    expect(Kimera::Rewrite::Directive.render(point.original_source, mutant.directive))
+    expect(Kimera::Rewrite::Directive.new(mutant.directive).render(point.original_source))
       .to(eq("def shown\n  1\nend\nprivate(:shown)\n"))
   end
 
@@ -133,7 +133,7 @@ RSpec.describe(Kimera::Operators::Visibility) do
   it "keeps a mutated method when the class body is trimmed for a second load" do
     code = "class A\n  def shown = 1\n  def other = 2\nend\n"
     location = scan(code).each.first.last.location
-    trimmed = Kimera::BodyTrim.trimmed(code, [location])
+    trimmed = Kimera::BodyTrim.new(code, [location]).trimmed
     expect(trimmed).to(include("def shown = 1"))
   end
 end

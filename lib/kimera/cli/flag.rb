@@ -10,21 +10,18 @@ module Kimera
         new(switch: switch, key: key, help: help, type: nil, collect: false, **settings)
       end
 
-      def define(parser, options)
-        parser.on(*signature) { |value| store(options, value) }
-      end
+      def define(parser, &) = parser.on(*signature, &)
+
+      def stored(options, value) = options.merge(key => collect ? options[key] + [value] : value)
       private
       def signature = [*switch, type, help].compact
-
-      def store(options, value)
-        collect ? options[key] << value : options[key] = value
-      end
     end
 
   FlagTable =
     Data.define(:banner, :flags) do
-      def parse(argv, options)
-        build(options).parse(argv)
+      def parse(argv, defaults)
+        options = defaults
+        [build { |flag, value| options = flag.stored(options, value) }.parse(argv), options]
       rescue OptionParser::ParseError => error
         raise(UsageError, "#{suggested(error.message)}\nTry: #{command} --help")
       end
@@ -35,10 +32,10 @@ module Kimera
 
       def command = banner[/\AUsage: (kimera(?: [a-z]+)*)/, 1]
 
-      def build(options)
+      def build
         OptionParser.new do |parser|
           parser.banner = banner
-          flags.each { |flag| flag.define(parser, options) }
+          flags.each { |flag| flag.define(parser) { |value| yield(flag, value) } }
         end
       end
 

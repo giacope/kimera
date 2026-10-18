@@ -11,31 +11,31 @@ module Kimera
 
       private
 
-      def collect(table) = table.tap { visit(@root, table) }
+      def nodes = visit(@root)
 
-      def visit(node, table)
+      def visit(node)
         body = node.body if BODIES.any? { |kind| node.is_a?(kind) }
-        read(body.body, table) if body.is_a?(SyntaxTypes::StatementsNode)
-        node.compact_child_nodes.each { |child| visit(child, table) }
+        (body.is_a?(SyntaxTypes::StatementsNode) ? read(body.body) : []) +
+          node.compact_child_nodes.flat_map { |child| visit(child) }
       end
 
-      def read(statements, table)
-        hidden = Set.new
+      def read(statements)
         public = true
-        candidates = []
-        statements.each do |statement|
-          call = visibility(statement)
-          next public = toggled(call, public, hidden) if call
-          candidates << statement if public && method?(statement)
-        end
-        candidates.each { |definition| table << definition unless hidden.include?(definition.name) }
+        candidates =
+          statements.select do |statement|
+            call = visibility(statement)
+            public = toggled(call, public) if call
+            public && method?(statement)
+          end
+        hidden = hidden(statements)
+        candidates.reject { |definition| hidden.include?(definition.name) }
       end
 
-      def toggled(call, public, hidden)
-        named = call.arguments&.arguments
-        return !HIDING.include?(call.name) unless named
-        named.each { |argument| hidden << named(argument) } if HIDING.include?(call.name)
-        public
+      def toggled(call, public) = call.arguments ? public : !HIDING.include?(call.name)
+
+      def hidden(statements)
+        calls = statements.filter_map { |statement| visibility(statement) }.select { HIDING.include?(it.name) }
+        calls.flat_map { |call| Array(call.arguments&.arguments).map { |argument| named(argument) } }
       end
 
       def visibility(statement)

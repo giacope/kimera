@@ -69,7 +69,7 @@ module KimeraEval
     end
 
     def headline(total)
-      agreement = Scoring.agreement(total.slice(*Differential::VERDICTS))
+      agreement = Agreement.new(total.slice(*Differential::VERDICTS)).percent
       total.slice("mutants", "false_survived", "false_killed", "abstained").merge("agreement_pct" => agreement)
     end
 
@@ -80,5 +80,6 @@ end
 Dir[File.join(__dir__, "cases", "*.rb")].each { |file| require file }
 
 module KimeraEval
-  CASES = Case.subclasses.sort_by { |kind| [kind::ID[0], Integer(kind::ID[1..])] }.freeze
+  CASES = Case.subclasses.flat_map { |kind| [kind, *kind.subclasses] }
+    .sort_by { |kind| [kind::ID[0], Integer(kind::ID[1..])] }.freeze
 end

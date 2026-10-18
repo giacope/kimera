@@ -12,12 +12,13 @@ module KimeraEval
     ID = "H1"
     TITLE = "External holdout: 12 state-leak projects and an oracle written blind to kimera"
     HOLDOUT = File.join(ROOT, "eval", "holdout")
+    ORACLE = File.join(HOLDOUT, "oracle.rb")
     ARGS = %w[run --operators all --jobs 2 --no-progress].freeze
     WRONG = %w[false_survived false_killed false_no_coverage errors].freeze
     COUNTED = %w[mutants compared agree skipped false_survived false_killed no_coverage false_no_coverage].freeze
 
     def call
-      runs = Dir[File.join(HOLDOUT, "p*")].to_h { |dir| [File.basename(dir), judged(dir)] }
+      runs = Dir[File.join(self.class::HOLDOUT, "*/")].to_h { |dir| [File.basename(dir), judged(dir)] }
       total = sum(runs.values)
       { "pass" => total.values_at(*WRONG).sum.zero?, "summary" => summary(total) }
         .merge("totals" => total).merge("projects" => runs)
@@ -34,7 +35,7 @@ module KimeraEval
 
     def scored(copy, report)
       out = "#{report}.oracle.json"
-      Shell.new(chdir: HOLDOUT, timeout: 1800).run("ruby", "oracle.rb", copy, report, "--json", out, "--jobs", "4")
+      Shell.new(chdir: sandbox.root, timeout: 1800).run("ruby", ORACLE, copy, report, "--json", out, "--jobs", "4")
       File.exist?(out) ? counts(JSON.parse(File.read(out))) : { "error" => "the holdout oracle found the suite red" }
     end
 

@@ -24,8 +24,9 @@ class Kimera::CLI::Baseline::Creation
   end
 
   def run(argv)
-    options = { reason: nil, output: ".kimera-baseline.yml", force: false }.merge(write: false)
-    report, = CREATE.parse(argv, options)
+    (report,), options = CREATE.parse(
+      argv, { reason: nil, output: ".kimera-baseline.yml", force: false }.merge(write: false)
+    )
     report ||= Kimera::CLI::ReportFile::DEFAULT
     check(report, options)
     write(report, options)
@@ -60,7 +61,7 @@ class Kimera::CLI::Baseline::Creation
   end
 
   def survivors(path)
-    Kimera::CLI::ReportFile.parse(path).fetch("results", []).select { |row| row["status"] == "survived" }
+    Kimera::CLI::ReportFile.new(path).results.select { |row| row["status"] == "survived" }
   end
 
   def entry(row, reason)

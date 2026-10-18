@@ -8,15 +8,13 @@ end
 class Kimera::Execution::Stopwatch
   CLOCK = ->(reading = Process.clock_gettime(Process::CLOCK_MONOTONIC)) { reading }
 
-  attr_reader :last
-
   def initialize(clock = CLOCK)
     @clock = clock
   end
 
   def lap
     started = @clock.call
-    yield.tap { @last = since(started) }
+    [yield, since(started)]
   end
 
   private

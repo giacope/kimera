@@ -7,6 +7,7 @@ require_relative "operators/assignment_deletion"
 require_relative "operators/base"
 require_relative "operators/boolean_connective"
 require_relative "operators/boolean_literal"
+require_relative "operators/catalog"
 require_relative "operators/chain_link_deletion"
 require_relative "operators/collection_literal"
 require_relative "operators/comparison"
@@ -59,78 +60,13 @@ module Kimera
 
     RAILS_KEYS = [RailsPermit, RailsValidation, RailsCallback, RailsAssociation].map { it.new.key }.freeze
 
-    @registered = ALL.dup
+    CATALOG = Catalog.new(ALL, RAILS_KEYS)
 
-    module_function
+    def self.build(keys: DEFAULT_KEYS) = CATALOG.build(keys: keys)
 
-    def build(keys: DEFAULT_KEYS)
-      requested = expand(keys)
-      validate!(requested)
-      registered.map(&:new).select { |operator| requested.include?(operator.key) }
-    end
-
-    def keys
-      registered.map { |klass| key_of(klass) }
-    end
-
-    def registered
-      @registered
-    end
-
-    def register(*klasses)
-      klasses.flatten.each { |klass| admit(klass) }
+    def self.register(*klasses)
+      CATALOG.register(*klasses)
       self
-    end
-
-    def reset!
-      @registered = ALL.dup
-      self
-    end
-
-    def admit(klass)
-      raise(UsageError, "not an operator class: #{klass.inspect}") unless operator?(klass)
-      key = key_of(klass)
-      taken = registered.find { |operator| key_of(operator) == key }
-      raise(UsageError, "operator key already registered: #{key} (#{taken})") if taken
-      registered << klass
-    end
-
-    def key_of(klass) = klass.new.key
-
-    def operator?(klass)
-      klass.is_a?(Class) && klass < Base
-    end
-
-    def custom
-      registered - ALL
-    end
-
-    def expand(keys)
-      Array(keys).map(&:to_s).flat_map { |key| expansion(key) }.uniq
-    end
-
-    def groups
-      { "all" => keys, "rails" => RAILS_KEYS, "custom" => custom.map { |klass| key_of(klass) } }
-    end
-
-    def expansion(key)
-      groups.fetch(key) { [key] }
-    end
-
-    def vocabulary
-      ["all", "rails", "custom", *keys].join(", ")
-    end
-
-    def validate!(requested)
-      unknown = requested - keys
-      return if unknown.empty?
-      raise(UsageError, "unknown operator(s): #{unknown.join(", ")}#{nearest(unknown)} (valid: #{vocabulary})")
-    end
-
-    def nearest(unknown)
-      checker = DidYouMean::SpellChecker.new(dictionary: [*groups.keys, *keys])
-      guesses = unknown.filter_map { |key| checker.correct(key).first }
-      "; did you mean #{guesses.join(", ")}?" unless guesses.empty?
     end
   end
 end

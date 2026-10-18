@@ -4,14 +4,18 @@ require_relative "ast_walk"
 
 module Kimera
   module Rewrite
-    module NumberedParams
-      module_function
-
+    class NumberedParams
       PREFIX = "__kimera_"
 
-      def normalize(node)
-        AstWalk.rebuild(node) { |rebuilt, _original| dispatch(rebuilt) }
+      def initialize(tree)
+        @tree = tree
       end
+
+      def normalize
+        AstWalk.new(@tree).rebuild { |rebuilt, _original| dispatch(rebuilt) }
+      end
+
+      private
 
       def dispatch(node)
         case node.type
@@ -40,7 +44,7 @@ module Kimera
       end
 
       def rename(node, renames)
-        AstWalk.rebuild(node) do |rebuilt, _original|
+        AstWalk.new(node).rebuild do |rebuilt, _original|
           name = rebuilt.type == :lvar ? rebuilt.children.first : nil
           renames.key?(name) ? rebuilt.updated(nil, [renames.fetch(name)]) : rebuilt
         end

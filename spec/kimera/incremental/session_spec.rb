@@ -19,7 +19,7 @@ RSpec.describe(Kimera::Incremental::Session) do
 
   def seed(dir, report, registry: nil, meta: {})
     path = File.join(dir, "session.json")
-    described_class.new.tap { |s| s.merge!(report) }.save(path, registry: registry, meta: meta)
+    described_class.new.merged(report).save(path, registry: registry, meta: meta)
     path
   end
 
@@ -34,9 +34,17 @@ RSpec.describe(Kimera::Incremental::Session) do
     registry = Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n", file: "x.rb")
     id = registry.each.first.first.id
     path = File.join(dir, "session.json")
-    described_class.new.stamp!("one").merge!(report([result(id, :killed)])).save(path, registry: registry)
+    described_class.new.stamped("one").merged(report([result(id, :killed)])).save(path, registry: registry)
     expect(described_class.from(path, registry: registry, stamp: "two").done?(id)).to(be(false))
     expect(described_class.from(path, registry: registry, stamp: "one").done?(id)).to(be(true))
+  end
+
+  it "drops leaks saved under another stamp with the verdicts they explain", :aggregate_failures do
+    path = File.join(dir, "session.json")
+    leak = Kimera::LeakReport.new(mutant_id: 1, detail: "leaked")
+    described_class.new.stamped("one").merged(report([result(1, :killed)], [leak])).save(path)
+    expect(described_class.from(path, stamp: "two").leaks).to(eq([]))
+    expect(described_class.from(path, stamp: "one").leaks.map(&:mutant_id)).to(eq([1]))
   end
 
   it "records, persists, and resumes results" do
@@ -60,8 +68,7 @@ RSpec.describe(Kimera::Incremental::Session) do
 
   it "merges new results into resumed ones" do
     path = seed(dir, report([result(1, :killed)]))
-    resumed = described_class.from(path)
-    resumed.merge!(report([result(2, :killed)]))
+    resumed = described_class.from(path).merged(report([result(2, :killed)]))
     actual = [resumed.results.keys.sort, resumed.results.values.count(&:killed?)]
     expect(actual).to(eq([[1, 2], 2]))
   end

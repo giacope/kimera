@@ -90,9 +90,9 @@ class Kimera::Execution::Aliases
     nil
   end
 
-  def source(method) = Kimera::Execution::Redefinition.source(method)
+  def source(method) = method.source_location&.first
 
-  def alike?(one, other) = [one, other].map { |path| Kimera::Execution::Redefinition.canonical(path) }.uniq.one?
+  def alike?(one, other) = [one, other].map { |path| Kimera::Execution::Origin.new(path).canonical }.uniq.one?
 
   def renamed?(method) = method.original_name != method.name
 
@@ -104,7 +104,7 @@ class Kimera::Execution::Aliases
   def repoint(entry)
     fresh = entry.current
     return entry unless fresh && stale?(entry, fresh)
-    Kimera::Execution::Redefinition.redefine(entry.holder, entry.name, fresh)
+    Kimera::Execution::Redefinition.new(entry.holder, entry.name).redefine(fresh)
     entry.with(body: compiled(fresh))
   end
 

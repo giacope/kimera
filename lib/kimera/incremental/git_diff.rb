@@ -22,41 +22,38 @@ class Kimera::Incremental::GitDiff
   class Changes
     def initialize
       @files = {}
-      @file = nil
-      @pending = 0
     end
 
     def feed(text)
-      text.each_line { |line| advance(line) }
+      text.each_line.reduce([nil, 0]) { |(file, pending), line| advance(line, file, pending) }
       @files
     end
 
     private
 
-    def advance(line)
-      return @pending -= 1 if content?(line)
+    def advance(line, file, pending)
+      return [file, pending - 1] if pending.positive? && line.start_with?("+")
       header = line.match(FILE_HEADER)
-      return @file = named(header) if header
+      return [named(header), pending] if header
       hunk = line.match(HUNK_HEADER)
-      collect(hunk) if hunk
+      hunk ? collect(hunk, file) : [file, pending]
     end
-
-    def content?(line) = @pending.positive? && line.start_with?("+")
 
     def named(header)
       path = header[1]
       path unless path == File::NULL
     end
 
-    def collect(match)
+    def collect(match, file)
       span = match[2]
-      @pending = span ? Integer(span, 10) : 1
-      range(Integer(match[1], 10)) if @file && @pending.positive?
+      pending = span ? Integer(span, 10) : 1
+      range(file, Integer(match[1], 10), pending) if file && pending.positive?
+      [file, pending]
     end
 
-    def range(start)
-      set = (@files[@file] ||= Set.new)
-      (start...(start + @pending)).each { |line| set << line }
+    def range(file, start, pending)
+      set = (@files[file] ||= Set.new)
+      (start...(start + pending)).each { |line| set << line }
     end
   end
 

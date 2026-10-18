@@ -17,7 +17,7 @@ RSpec.describe(Kimera::MutantKeys, :aggregate_failures) do
   end
 
   def key(changed = point, label: "> => >=")
-    described_class::Fingerprint.new(changed, Kimera::Mutant.new(label: label)).key(Hash.new(0))
+    described_class::Fingerprint.new(changed, Kimera::Mutant.new(label: label)).key(1)
   end
 
   it "names a mutant the same whether its file was scanned alone or with others" do

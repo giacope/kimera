@@ -1,0 +1,128 @@
+{
+  "kimera": "/home/user/kimera",
+  "revision": "7627b14",
+  "ruby": "3.4.11",
+  "at": "2026-10-14T15:16:07Z",
+  "cases": {
+    "H2": {
+      "title": "External holdout, batch 2: 10 projects and H1's oracle, written blind to kimera",
+      "wall_s": 117.6,
+      "pass": false,
+      "summary": {
+        "mutants": 1159,
+        "compared": 1116,
+        "false_survived": 6,
+        "false_killed": 3,
+        "false_no_coverage": 0,
+        "errors": 1,
+        "agreement_pct": 99.2
+      },
+      "totals": {
+        "mutants": 1159,
+        "compared": 1116,
+        "agree": 1107,
+        "skipped": 11,
+        "false_survived": 6,
+        "false_killed": 3,
+        "no_coverage": 32,
+        "false_no_coverage": 0,
+        "errors": 1
+      },
+      "projects": {
+        "q01_prepend_guard": {
+          "compared": 104,
+          "agree": 103,
+          "mutants": 116,
+          "skipped": 0,
+          "false_survived": 1,
+          "false_killed": 0,
+          "no_coverage": 12,
+          "false_no_coverage": 0
+        },
+        "q02_ghost_methods": {
+          "compared": 138,
+          "agree": 135,
+          "mutants": 141,
+          "skipped": 1,
+          "false_survived": 0,
+          "false_killed": 3,
+          "no_coverage": 2,
+          "false_no_coverage": 0
+        },
+        "q03_refinements": {
+          "error": "no report (exit 1)"
+        },
+        "q04_thread_local_rates": {
+          "compared": 87,
+          "agree": 87,
+          "mutants": 88,
+          "skipped": 1,
+          "false_survived": 0,
+          "false_killed": 0,
+          "no_coverage": 0,
+          "false_no_coverage": 0
+        },
+        "q05_sorted_versions": {
+          "compared": 196,
+          "agree": 191,
+          "mutants": 206,
+          "skipped": 1,
+          "false_survived": 5,
+          "false_killed": 0,
+          "no_coverage": 9,
+          "false_no_coverage": 0
+        },
+        "q06_unit_classes": {
+          "compared": 137,
+          "agree": 137,
+          "mutants": 141,
+          "skipped": 0,
+          "false_survived": 0,
+          "false_killed": 0,
+          "no_coverage": 4,
+          "false_no_coverage": 0
+        },
+        "q07_autoload_tariffs": {
+          "compared": 64,
+          "agree": 64,
+          "mutants": 65,
+          "skipped": 1,
+          "false_survived": 0,
+          "false_killed": 0,
+          "no_coverage": 0,
+          "false_no_coverage": 0
+        },
+        "q08_dynamic_dispatch": {
+          "compared": 115,
+          "agree": 115,
+          "mutants": 118,
+          "skipped": 3,
+          "false_survived": 0,
+          "false_killed": 0,
+          "no_coverage": 0,
+          "false_no_coverage": 0
+        },
+        "q09_before_all_catalog": {
+          "compared": 173,
+          "agree": 173,
+          "mutants": 178,
+          "skipped": 0,
+          "false_survived": 0,
+          "false_killed": 0,
+          "no_coverage": 5,
+          "false_no_coverage": 0
+        },
+        "q10_catch_throw_outline": {
+          "compared": 102,
+          "agree": 102,
+          "mutants": 106,
+          "skipped": 4,
+          "false_survived": 0,
+          "false_killed": 0,
+          "no_coverage": 0,
+          "false_no_coverage": 0
+        }
+      }
+    }
+  }
+}

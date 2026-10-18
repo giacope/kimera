@@ -19,7 +19,7 @@ class Kimera::Overlay::MethodBake
   private
 
   def written(node)
-    Kimera::Unparse.unparse(node)
+    Kimera::Unparse.new(node).source
   rescue StandardError
     nil
   end

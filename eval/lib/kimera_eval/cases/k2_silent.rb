@@ -73,10 +73,9 @@ module KimeraEval
         { "candidate_lines" => found.size, "silent_lines" => silent.size, "silent" => silent.map { it.join(":") } }
       end
 
-      def candidates(node, inside: false, found: [])
-        found << node.location.start_line if inside && candidate?(node)
-        node.compact_child_nodes.each { |child| candidates(child, inside: inside || body?(node, child), found: found) }
-        found
+      def candidates(node, inside: false)
+        (inside && candidate?(node) ? [node.location.start_line] : []) +
+          node.compact_child_nodes.flat_map { |child| candidates(child, inside: inside || body?(node, child)) }
       end
 
       def body?(node, child) = BODIES.any? { |kind| node.is_a?(kind) } && child.equal?(node.body)

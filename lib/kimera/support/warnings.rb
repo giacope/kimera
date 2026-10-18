@@ -1,15 +1,19 @@
 # frozen_string_literal: true
 
 module Kimera
-  module Warnings
-    module_function
+  class Warnings
+    def initialize(level)
+      @level = level
+    end
 
-    def silence
+    def during
       previous = $VERBOSE
-      $VERBOSE = nil
+      $VERBOSE = @level
       yield
     ensure
       $VERBOSE = previous
     end
+
+    SILENCED = new(nil)
   end
 end
