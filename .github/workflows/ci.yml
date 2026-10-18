@@ -71,6 +71,30 @@ jobs:
           working-directory: examples/rails_app
       - run: bin/e2e
 
+  # The eval cases that need no network, Java or Rails app and whose result
+  # does not ride on machine speed (eval/results/README.md). Fails when a case
+  # fails that eval/results/after.json records passing; a new holdout case
+  # goes in CASES. K12 is out until main stops adding top-level constants
+  # (eval/results/README.md).
+  eval:
+    runs-on: ubuntu-latest
+    env:
+      CASES: H1,K1,K2,K4,K5,K6,K7,K11,X1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+      # The holdout oracle runs plain `rspec`, outside any bundle.
+      - run: gem install rspec -v "~> 3.13" --no-document
+      - run: ruby eval/run --kimera . --only "$CASES" --baseline eval/results/after.json --out tmp/eval.json
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: eval-scoreboard
+          path: tmp/eval.json
+
   # Exhaustive check of the worker-pool protocol model (formal/README.md).
   model-check:
     runs-on: ubuntu-latest
