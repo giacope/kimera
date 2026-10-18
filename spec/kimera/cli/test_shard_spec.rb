@@ -9,10 +9,10 @@ RSpec.describe(Kimera::CLI::TestShard) do
   it "gives each process its index among the count, in the framework's script", :aggregate_failures do
     rspec = described_class.new(1, 4).argv("rspec")
     expect(rspec.first).to(eq("-e"))
-    expect(rspec.last).to(include("(position += 1) % 4 != 1", "RSpec::Core::Runner.run(ARGV)"))
+    expect(rspec.last).to(include("count, index = 4, 1", "% count != index", "RSpec::Core::Runner.run(ARGV)"))
     minitest = described_class.new(2, 3).argv(:minitest)
     expect(minitest.first(2)).to(eq(["-Itest", "-e"]))
-    expect(minitest.last).to(include("(offset + position) % 3 == 2", "ARGV.clear"))
+    expect(minitest.last).to(include("count, index = 3, 2", "% count == index", "ARGV.clear"))
   end
 
   def test_shards(framework, source)
@@ -48,5 +48,43 @@ RSpec.describe(Kimera::CLI::TestShard) do
       end
     RUBY
     expect(test_shards("minitest", source)).to(eq([[2, true], [2, true]]))
+  end
+
+  # Run at once, two shards of a Rails suite each forked Rails' own workers,
+  # and those shared test.sqlite3_0 and the rest: "database is locked".
+  it "gives each shard of a Rails suite its own test database, and runs it in one process", :aggregate_failures do
+    source = <<~RUBY
+      require "minitest/autorun"
+      module ActiveSupport
+        singleton_class.attr_accessor(:parallelize_test_databases)
+        self.parallelize_test_databases = true
+        module Testing
+          module Parallelization
+            def self.before_fork_hooks = []
+            def self.after_fork_hooks = [->(index) { File.write("database_\#{index}", ENV.fetch("PARALLEL_WORKERS")) }]
+          end
+        end
+        class TestCase < Minitest::Test
+          singleton_class.attr_accessor(:parallel_worker_id)
+        end
+      end
+      module ActiveRecord
+        class Base; end
+      end
+      $LOADED_FEATURES << "active_record/test_databases.rb"
+      class ShardTest < ActiveSupport::TestCase
+        def test_worker = assert_equal("1", File.read("database_\#{ActiveSupport::TestCase.parallel_worker_id}"))
+      end
+    RUBY
+    Dir.mktmpdir("kimera-shard") do |dir|
+      File.write(File.join(dir, "shard_test.rb"), source)
+      statuses =
+        [0, 1].map do |index|
+          Open3.capture2e("ruby", *described_class.new(index, 2).argv(:minitest), "shard_test.rb", chdir: dir).last
+        end
+      expect(statuses).to(all(be_success))
+      expect(Dir.children(dir).grep(/^database_/).sort).to(eq(%w[database_0 database_1]))
+      expect(File.read(File.join(dir, "database_1"))).to(eq("1"))
+    end
   end
 end

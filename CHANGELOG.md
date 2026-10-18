@@ -9,6 +9,13 @@
   once-campfire that hid two points (`Messages::ByBotsController`,
   `Webhook#extract_attachment_from`). A predicate that binds nothing is still
   not evaluated.
+- `doctor --check-baseline` no longer calls a Rails suite that parallelizes
+  red split across processes. Each of its shards ran the suite's own
+  `parallelize`, so the shards' forked workers shared `test.sqlite3_0` and
+  the rest ("database is locked"): on once-campfire 236 of 601 tests failed,
+  where `kimera run`, which gives each worker its own database, was green.
+  Each shard now runs in one process on a test database of its own, through
+  the same Rails parallel-testing hooks a worker calls.
 - What each new setting costs, on dry-inflector's `lib` (`--operators all`,
   738 mutants, `--jobs 4`, one run each on a shared 4-vCPU VM): default 67s
   (main 72s, same verdicts); `--seed 1` 70s; `--count-no-coverage` 63s (the
