@@ -38,9 +38,12 @@ module Kimera
     def resolve(registry)
       candidates = Hash.new { |cache, glob| cache[glob] = pairs(registry, glob) }
       placements = Array(@rules).map { |rule| Placement.new(rule, candidates[rule[:file]]) }
+      claimed = placements.flat_map(&:ids).tally.select { |_id, count| count > 1 }.keys
+      kept = placements.reject { |placement| placement.contested?(claimed) }
       Resolution.new(
-        ids: placements.flat_map(&:ids).uniq.sort,
-        stale: placements.select(&:stale?).map(&:rule), moved: placements.filter_map(&:moved)
+        ids: kept.flat_map(&:ids).uniq.sort,
+        stale: placements.select { |placement| placement.stale? || !kept.include?(placement) }.map(&:rule),
+        moved: kept.filter_map(&:moved)
       )
     end
 

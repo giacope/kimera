@@ -121,8 +121,14 @@ RSpec.describe(Kimera::IgnoreList) do
     end
 
     it "does not flag a rule for a file outside this run's scope" do
-      ignored = { file: "other/thing.rb", line: 3 }
+      ignored = { file: "lib/kimera.rb", line: 3 }
       expect(described_class.new([ignored]).stale(registry)).to(be_empty)
+    end
+
+    it "flags a rule whose file no longer exists, which no scope can hold", :aggregate_failures do
+      gone = { file: "lib/kimera/gone.rb", line: 3, label: "> => <" }
+      expect(described_class.new([gone]).stale(registry)).to(eq([gone]))
+      expect(described_class.new([{ file: "lib/**/gone_*.rb", line: 3 }]).stale(registry)).to(be_empty)
     end
 
     it "ignores rules without a file field" do
@@ -184,6 +190,14 @@ RSpec.describe(Kimera::IgnoreList) do
       rule = { file: "lone.rb", line: 9 }
       expect(lone.count).to(eq(1))
       expect(described_class.new([rule]).resolve(lone).then { |found| [found.ids, found.stale] }).to(eq([[], [rule]]))
+    end
+
+    it "leaves stale, rather than re-anchored, rules that drift onto a mutant another rule claims", :aggregate_failures do
+      twins = [{ file: "calc.rb", line: 2, label: "> => <" }, { file: "calc.rb", line: 4, label: "> => <" }]
+      expect(resolve(*twins).then { [it.ids, it.moved, it.stale] }).to(eq([[], [], twins]))
+      exact = { file: "calc.rb", line: 3, label: "> => <" }
+      resolution = resolve(twins.first, exact)
+      expect([resolution.ids, resolution.stale]).to(eq([[labeled("> => <", 3)], [twins.first]]))
     end
 
     it "reports no move for a rule that still matches at its line" do
