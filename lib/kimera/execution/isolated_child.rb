@@ -3,6 +3,7 @@
 require "json"
 require "rspec/core"
 require "stringio"
+require "zlib"
 require_relative "../support/test_exit"
 
 begin
@@ -22,6 +23,9 @@ end
 ledger, request, pulse = ARGV
 RSpec.configuration.prepend_before(:example) { File.write(pulse, ".", mode: "a") } if pulse
 request = JSON.parse(File.read(request, encoding: Encoding::UTF_8))
+if (seed = request["seed"])
+  RSpec.configuration.prepend_before(:example) { |example| Kernel.srand((seed ^ Zlib.crc32(example.id)) % (2**31)) }
+end
 if request["first_failure"]
   RSpec.configuration.before(:suite) do
     requested = RSpec.world.all_examples

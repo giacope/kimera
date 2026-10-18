@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "flake_hunt"
 require_relative "worker_databases"
 require_relative "pool_driver"
 require_relative "schedule"
@@ -15,6 +16,11 @@ class Kimera::Execution::Rig
 
   def schedule = @_schedule ||= plan
 
+  def hunt(coverage, scope, settings)
+    Kimera::Execution::FlakeHunt.new(@options.fetch(:adapter), driver, @options.fetch(:progress))
+      .call(coverage, scope, settings)
+  end
+
   private
 
   def parallel
@@ -27,7 +33,7 @@ class Kimera::Execution::Rig
     Kimera::Execution::Pool.new(
       adapter: @options.fetch(:adapter), registry: @options.fetch(:registry),
       isolation: @options.fetch(:isolation), jobs: @options.fetch(:jobs), hard: @options.fetch(:hard),
-      soft: @options.fetch(:soft), paralleldb: parallel, coverage: @options[:coverage]
+      soft: @options.fetch(:soft), paralleldb: parallel, coverage: @options[:coverage], quality: @options[:test_quality]
     )
   end
 
@@ -36,7 +42,7 @@ class Kimera::Execution::Rig
       registry: @options.fetch(:registry), driver: driver, spawner: spawner,
       adapter: @options.fetch(:adapter), isolation: @options.fetch(:isolation),
       root: @options.fetch(:root), progress: @options.fetch(:progress), hard: @options.fetch(:hard),
-      aliases: @options[:aliases]
+      aliases: @options[:aliases], filter: @options[:filter]
     )
   end
 end

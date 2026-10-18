@@ -76,6 +76,16 @@ RSpec.describe(Kimera::Report::Formats, :aggregate_failures) do
       expect(lines.last).to(start_with("::warning file=app/calc.rb,line=6,col=3,title=Kimera%3A 1 uncovered mutant(s)"))
     end
 
+    it "annotates a mutant only other units' tests reach as an error, like a survivor", :aggregate_failures do
+      results = report.results.map { |result| result.dup.tap { |copy| copy.status = :uncovered_by_unit } }
+      io = StringIO.new
+      described_class.new(io: io).emit("github", Kimera::RunReport.new(registry: registry, results: results))
+      lines = io.string.lines
+      title = "title=Kimera%3A 2 unit-uncovered mutant(s)"
+      expect(lines.first).to(start_with("::error file=app/calc.rb,line=2,col=3,#{title}"))
+      expect(lines.last).to(start_with("::error file=app/calc.rb,line=6,col=3,#{title.sub("2", "1")}"))
+    end
+
     it "lists uncovered mutants in the Markdown summary, escaping pipes" do
       expect(output("markdown")).to(include("| Uncovered | `app/calc.rb:6` in `n` | `a \\|\\| b` → `a && b` |"))
     end

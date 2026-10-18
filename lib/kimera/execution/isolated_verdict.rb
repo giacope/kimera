@@ -33,19 +33,24 @@ module Kimera
 
       def bake(trial, point)
         trial.file = point.file
+        settled = plan.settled(trial.id, point)
+        return settled if settled
         tests = plan.tests(trial.id, point)
         return result(trial, status: :no_coverage) unless tests
-        outcome, duration = measure(trial, tests)
+        judged(trial, tests, *measure(trial, tests))
+      end
+
+      def judged(trial, tests, outcome, duration)
         result(
           trial,
           status: outcome.status, duration: duration, covering_tests: tests, failing_tests: outcome.failing,
-          detail: outcome.detail
+          detail: outcome.detail, killing_tests: outcome.killers(plan.quality?)
         )
       end
 
       def measure(trial, tests)
         started = now
-        [with_mutant(trial) { verdict(trial.mirror, plan.fastest(tests), first: true) }, now - started]
+        [with_mutant(trial) { verdict(trial.mirror, plan.fastest(tests), first: !plan.quality?) }, now - started]
       rescue Kimera::Overlay::Unbakeable => error
         [IsolatedOutcome.new(:unmutatable, nil, "#{Kimera::MutationPoint::UNMUTATABLE}#{error.message}"), nil]
       end

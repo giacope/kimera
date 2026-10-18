@@ -53,6 +53,7 @@ class Kimera::Incremental::Session
     results = evaluated.filter_map { |id| @results[id] }
     results += waived.map { |id| waiver(id, registry) }
     Kimera::RunReport.new(results: results, leaks: @leaks, registry: registry, tests: tests)
+      .annotate(flaky: @meta["flaky"], suite: @meta["suite"])
   end
 
   def waiver(id, registry)
@@ -61,10 +62,10 @@ class Kimera::Incremental::Session
 
   def merged(report)
     named = report.tests
+    meta = named.empty? ? @meta : @meta.merge("tests" => tests.merge(named))
     self.class.new(
       results: @results.merge(report.results.to_h { |result| [result.mutant_id, result] }),
-      leaks: @leaks + report.leaks,
-      meta: named.empty? ? @meta : @meta.merge("tests" => tests.merge(named)), fingerprints: @fingerprints
+      leaks: @leaks + report.leaks, meta: meta.merge(noted(report.notes)), fingerprints: @fingerprints
     )
   end
 
@@ -76,6 +77,8 @@ class Kimera::Incremental::Session
   end
 
   private
+
+  def noted(notes) = { "flaky" => notes.flaky, "suite" => notes.suite }.compact
 
   def tests = @meta.fetch("tests", {})
 

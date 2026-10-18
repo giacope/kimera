@@ -27,7 +27,9 @@ bundle exec kimera doctor --check-baseline  # discovery, git, and a green suite
   and sets `baseline:` in .kimera.yml, so the gate blocks only new holes. Burn
   the baseline down; never grow it to pass a gate.
 - Fix line coverage first. `no_coverage` mutants are plain coverage gaps, and
-  mutation results only mean something for code the tests execute.
+  mutation results only mean something for code the tests execute. They are
+  not scored by default; `count_no_coverage: true` scores each as not killed
+  and fails the gate on them in every command, `kimera run` included.
 - CI shape: **PR gate is incremental** (`kimera ci --session tmp/kimera.json`;
   `ci` defaults to `--max-survivors 0 --fail-on-no-coverage`, and on a GitHub
   pull request to `--since origin/$GITHUB_BASE_REF` and `--summary
@@ -129,6 +131,26 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
 - Operators: the default is the conservative core. `--operators all` enables
   the extended families; `--operators rails` (or `comparison,rails`) the
   Rails-aware ones.
+- `attribution: unit` (`--attribution unit`) lets only a unit's own tests
+  (`spec/models/order_spec.rb` for `app/models/order.rb`, plus `unit_tests:`
+  rules) kill its mutants. `uncovered_by_unit` means only other units' tests
+  (request, integration) reach the mutant: it gates like a survivor. Fix it
+  with a unit test that exercises the code, never by adding a rule that maps
+  an integration spec to the unit.
+- `--test-quality` (`test_quality:`, nightly) records every test that kills
+  each mutant (`killing_tests`) and reports, under `test_quality` in the JSON
+  report, tests that kill nothing they cover and redundant tests (every kill
+  also another test's). A redundant test may still pin behavior a mutant
+  can't reach; read it before deleting it, and never delete two at once on
+  this evidence alone.
+- `--seed N` (`seed:`) makes each test draw the same random numbers in the
+  baseline and every mutant's run; `--seed random` draws one and records it
+  in the report's `run` section, so `--seed N` repeats a run.
+- `--flaky-runs N` (`flaky_runs:`, nightly) reruns the covering tests under
+  N other seeds. A test whose result changes is listed as flaky
+  (`flaky_tests` in the JSON report) and never kills, so a mutant only it
+  covers reads `no_coverage`. Fix the flaky test; don't raise a timeout or
+  pin a seed to hide it.
 - A `visibility` survivor (`public => private (name)`) says no test calls the
   method from outside its object: make it private, or test it through its
   public use. A method only ever called via `send` survives by design.

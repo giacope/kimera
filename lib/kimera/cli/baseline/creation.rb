@@ -8,6 +8,7 @@ require_relative "../report_file"
 
 class Kimera::CLI::Baseline::Creation
   ENTRY_KEYS = %w[file line label].freeze
+  SURVIVING = %w[survived uncovered_by_unit].freeze
 
   CREATE = Kimera::FlagTable.new(
     banner: "Usage: kimera baseline create [REPORT.json] --reason TEXT [--output FILE] [--write]",
@@ -61,7 +62,7 @@ class Kimera::CLI::Baseline::Creation
   end
 
   def survivors(path)
-    Kimera::CLI::ReportFile.new(path).results.select { |row| row["status"] == "survived" }
+    Kimera::CLI::ReportFile.new(path).results.select { |row| SURVIVING.include?(row["status"]) }
   end
 
   def entry(row, reason)

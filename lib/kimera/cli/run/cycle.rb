@@ -12,7 +12,10 @@ require_relative "pass"
 require_relative "sources"
 
 class Kimera::CLI::Run::Cycle
-  SETTINGS = %i[framework source_root tests exclude_tests operators coverage isolated].freeze
+  SETTINGS = %i[
+    framework source_root tests exclude_tests operators coverage isolated attribution unit_tests seed flaky_runs
+    test_quality
+  ].freeze
 
   def initialize(options, registry, changed, digest:)
     @options = options
@@ -57,7 +60,7 @@ class Kimera::CLI::Run::Cycle
   end
 
   def conclude(todo, ignored, loaded)
-    report = loaded.report(todo, ignored, @registry)
+    report = loaded.report(todo, ignored, @registry).counting(counted)
     @digest.emit(report, @registry, **emission)
     @options[:gate] == false ? 0 : @digest.gate(report, @options)
   end
@@ -77,7 +80,9 @@ class Kimera::CLI::Run::Cycle
 
   def narrowing = @_narrowing ||= Kimera::CLI::Run::Narrowing.new(@options)
 
-  def coverage = @options[:fail_on_no_coverage] ? :list : :hint
+  def coverage = @options[:fail_on_no_coverage] || @options[:count_no_coverage] ? :list : :hint
+
+  def counted = @options[:count_no_coverage] ? [:no_coverage] : []
 
   def focus(eligible)
     ids = Array(@options[:focus]).map { |token| @registry.keys.id(token) }
@@ -87,11 +92,13 @@ class Kimera::CLI::Run::Cycle
   end
 
   def provenance
-    @options.slice(*SETTINGS, :jobs, :since).transform_keys(&:to_s).merge(narrowing.provenance)
+    @options.slice(*SETTINGS, :jobs, :since, :count_no_coverage).transform_keys(&:to_s).merge(narrowing.provenance)
   end
 
   def harness(remaining, env: ENV)
     env.update(Kimera::Execution::SUITE_ENV)
+    seed = @options[:seed]
+    seed ? env.store(Kimera::Execution::SEED_ENV, seed.to_s) : env.delete(Kimera::Execution::SEED_ENV)
     adapter = Kimera::Frameworks::ADAPTERS.load(@options[:framework])
     Kimera::CLI::Run::Pass.new(@registry, @options, adapter).call(remaining)
   end

@@ -65,7 +65,7 @@ RSpec.describe(Kimera::RunReport) do
     def counts
       {
         total: 7, killed: 4, survived: 1, timeout: 1, error: 1,
-        no_coverage: 1, harness_error: 0, ignored: 1, isolated_only: 0, unmutatable: 0, leaks: 1
+        no_coverage: 1, uncovered_by_unit: 0, harness_error: 0, ignored: 1, isolated_only: 0, unmutatable: 0, leaks: 1
       }
     end
 
@@ -88,6 +88,59 @@ RSpec.describe(Kimera::RunReport) do
     # Otherwise a run that killed nothing could read 100%.
     it "annotates the score with the uncovered count" do
       expect(report.summary).to(include("score=80.0% (1 uncovered not scored)"))
+    end
+
+    describe "test quality" do
+      it "reports it, naming the suite and each killing test, only once a run looked", :aggregate_failures do
+        counted = results.first.tap { |killed| killed.killing_tests = ["k1"] }
+        quality = described_class.new(results: [counted]).annotate(suite: %w[k1 s2])
+        expect(quality.to_h.fetch("test_quality")).to(include("tests" => 2, "covers_nothing" => %w[k1 s2]))
+        expect(quality.quality).to(eq(quality.to_h.fetch("test_quality")))
+        expect(quality.test_ids).to(eq(%w[k1 s2]))
+        expect([report.to_h.key?("test_quality"), report.quality]).to(eq([false, nil]))
+      end
+    end
+
+    describe "flaky tests" do
+      let(:found) do
+        { "runs" => 2, "seeds" => [3, 4], "tests" => 5, "flaky" => [{ "test" => "t7", "failed_runs" => 1 }] }
+      end
+      let(:flaky) { report.annotate(flaky: found) }
+
+      it "lists them in the document, and their ids for the catalog, only once looked for", :aggregate_failures do
+        expect(flaky.to_h.fetch("flaky_tests")).to(eq(found))
+        expect(flaky.test_ids).to(include("t7"))
+        expect(report.to_h).not_to(have_key("flaky_tests"))
+        expect(flaky.merge(described_class.new(results: [])).counting([:no_coverage]).notes.flaky).to(eq(found))
+      end
+    end
+
+    describe "counting uncovered mutants (count_no_coverage)" do
+      let(:counting) { report.counting([:no_coverage]) }
+
+      it "scores them as not killed", :aggregate_failures do
+        expect(counting.score).to(be_within(1e-9).of(4.0 / 6))
+        expect(counting.covered.map(&:mutant_id)).to(contain_exactly(1, 2, 3, 4, 5, 6))
+        expect(counting.summary).to(include("score=66.7% (1 uncovered scored as not killed)"))
+        expect(counting.to_h["mutation_score"]).to(be_within(1e-9).of(4.0 / 6))
+      end
+
+      it "keeps counting them in each file's report and after a merge", :aggregate_failures do
+        expect(counting.by_file.fetch("x.rb").score).to(be_within(1e-9).of(4.0 / 6))
+        merged = counting.merge(described_class.new(results: [result(8, :no_coverage)]))
+        expect(merged.score).to(be_within(1e-9).of(4.0 / 7))
+        expect(counting.counted).to(eq([:no_coverage]))
+      end
+
+      it "still keeps ignored mutants out of the score" do
+        expect(counting.covered.map(&:mutant_id)).not_to(include(7))
+      end
+
+      it "scores a run whose only mutants are uncovered at 0%, not n/a", :aggregate_failures do
+        only = described_class.new(results: [result(1, :no_coverage)]).counting([:no_coverage])
+        expect(only.score).to(eq(0.0))
+        expect(only.percent).to(eq("0.0%"))
+      end
     end
 
     it "leaves the score unannotated when every mutant was covered", :aggregate_failures do

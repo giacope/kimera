@@ -13,7 +13,8 @@ class Kimera::Report::Actions
   def show(report, path: nil)
     hints = path ? SavedHints.new(path) : UnsavedHints.new
     lines = [
-      advice(report.survived, hints, :survivors), advice(report.uncovered, hints, :uncovered),
+      advice(report.survived, hints, :survivors), advice(report.unattributed, hints, :unattributed),
+      advice(report.uncovered, hints, :uncovered),
       advice(report.errors, hints, :unjudged), advice(report.statuses(:ignored).select(&:lapsed?), hints, :lapsed)
     ].compact
     @io.puts("", "Next actions:", *lines) unless lines.empty?
@@ -35,6 +36,8 @@ class Kimera::Report::Actions
 
     def uncovered(_id) = "uncovered mutant(s): kimera report #{@path} --status no_coverage"
 
+    def unattributed(_id) = "mutant(s) only other units' tests reach: kimera report #{@path} --status uncovered_by_unit"
+
     def unjudged(id) = "unjudged mutant(s): see why with `#{mutant(id)}`"
 
     def lapsed(_id) = "ignored mutant(s) now killed: `kimera baseline prune BASELINE.yml --report #{@path}`"
@@ -48,6 +51,8 @@ class Kimera::Report::Actions
     def survivors(id) = "surviving mutant(s): run without --no-report to save one, then `kimera mutant #{id}`"
 
     def uncovered(_id) = "uncovered mutant(s): run without --no-report, then `kimera report --status no_coverage`"
+
+    def unattributed(_id) = "mutant(s) only other units' tests reach: write a unit test that runs each"
 
     def unjudged(_id) = "unjudged mutant(s): retry with `kimera run --isolated`"
 

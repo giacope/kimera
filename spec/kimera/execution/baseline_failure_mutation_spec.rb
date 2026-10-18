@@ -187,7 +187,8 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     expect(pass.__send__(:core)).to(
       eq(
         registry: registry, root: "/root", tests: %w[t1 t2], coverage: { 1 => ["t1"] }, timings: { "t1" => 0.5 },
-        progress: pass.__send__(:progress), jobs: 3, framework: "rspec", test_files: ["a_spec.rb"]
+        progress: pass.__send__(:progress), jobs: 3, framework: "rspec", test_files: ["a_spec.rb"],
+        filter: pass.__send__(:filter)
       )
     )
   end

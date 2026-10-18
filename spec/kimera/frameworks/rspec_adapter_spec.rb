@@ -98,6 +98,20 @@ RSpec.describe(Kimera::Frameworks::RSpecAdapter) do
     expect(catalog.fetch(passing)["location"]).not_to(start_with("./"))
   end
 
+  # Strict attribution maps each test to the spec file that declares it.
+  it "names the spec file each example runs from, and parses an unknown id's", :aggregate_failures do
+    passing = ids.find { |id| adapter.describe(id) == "KimeraDemo passes" }
+    expect(adapter.test_file(passing)).to(end_with("demo_spec.rb"))
+    expect(adapter.test_file("./spec/models/order_spec.rb[1:2]")).to(eq("./spec/models/order_spec.rb"))
+    expect(adapter.test_file("unknown")).to(be_nil)
+  end
+
+  it "seeds a run's random numbers from the run's seed and its first example's id", :aggregate_failures do
+    passing = ids.find { |id| adapter.describe(id) == "KimeraDemo passes" }
+    seeded(9) { quietly { adapter.run([passing]) } }
+    expect(rand(1_000_000)).to(eq(Random.new(Kimera::Seed.new("KIMERA_SEED" => "9").for(passing)).rand(1_000_000)))
+  end
+
   it "describes an unknown id as itself" do
     expect(adapter.describe("no/such[1:1]")).to(eq("no/such[1:1]"))
   end

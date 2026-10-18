@@ -42,6 +42,30 @@ max_ignored: 1
 # runs (--since), where "no coverage" means the diff adds untested logic.
 fail_on_no_coverage: false
 
+# Score uncovered mutants as not killed and fail on them, in every command
+# (kimera run too). Off by default: they are reported but not scored.
+count_no_coverage: false
+
+# Which covering tests may kill a mutant: any (default), or unit: only the
+# tests of its own file (spec/models/order_spec.rb for app/models/order.rb),
+# so request and integration specs kill nothing. A mutant only other tests
+# reach is uncovered_by_unit, gated like a survivor. unit_tests: adds rules.
+# attribution: unit
+# unit_tests:
+#   "app/services/**/*.rb": "spec/services/{path}_spec.rb"
+
+# Nightly: record every test that kills each mutant, and report tests that
+# kill nothing and tests whose every kill another test also makes.
+# test_quality: true
+
+# Seed each test's random numbers (and Minitest's order) with this number, or
+# with a drawn one the report records (random). Unset: as before.
+# seed: 1234
+
+# Rerun the covering tests this many more times under other seeds; a test
+# whose result changes is reported flaky and never kills a mutant.
+# flaky_runs: 3
+
 # Per-test soft timeout / per-mutant hard watchdog timeout, in seconds
 soft_timeout: 5.0
 # hard_timeout: 16.0

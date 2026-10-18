@@ -175,6 +175,56 @@
       "description": "Gate: also fail when a mutant in scope has no covering test (default: false; kimera ci turns it on).",
       "type": "boolean"
     },
+    "attribution": {
+      "description": "Which covering tests may kill a mutant: any (default), or unit: only its own source file's tests (spec/foo/bar_spec.rb or test/foo/bar_test.rb for lib/foo/bar.rb, spec/models/order_spec.rb for app/models/order.rb, and unit_tests rules). A mutant only other tests reach is uncovered_by_unit, scored as not killed and gated as a survivor.",
+      "enum": [
+        "any",
+        "unit"
+      ]
+    },
+    "unit_tests": {
+      "description": "Strict attribution: own tests beside the usual layouts, as source glob => test pattern(s). A pattern may name {path}, the source's path under the glob's literal prefix, and {name}, both without .rb.",
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "seed": {
+      "description": "Seed each test's random numbers (Kernel.srand, from this seed and the test's id) and Minitest's order with this number, or with a random one the report's run section records (random), so a run can be repeated. Default: unset, as before (Minitest's seed 1, no reseeding).",
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        {
+          "const": "random"
+        }
+      ]
+    },
+    "flaky_runs": {
+      "description": "Rerun the tests that cover mutants in scope this many more times, each with another seed, before judging. A test whose result changes is flaky: reported, and never kills a mutant (default: 0).",
+      "type": "integer",
+      "minimum": 0
+    },
+    "test_quality": {
+      "description": "Record every covering test that kills each mutant, each run alone in a fresh fork, not just the first, and report tests that kill nothing and tests whose every kill another test also makes (redundant). Meant for nightly runs; verdicts don't change (default: false).",
+      "type": "boolean"
+    },
+    "count_no_coverage": {
+      "description": "Score a mutant with no covering test as not killed, and fail the gate on it, in every command (default: false: uncovered mutants are reported but not scored).",
+      "type": "boolean"
+    },
     "baseline": {
       "description": "YAML file of survivors accepted when adopting Kimera, from kimera baseline create.",
       "type": "string"

@@ -233,6 +233,26 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect(digest).to(have_received(:emit).with(anything, registry, **emission(:list)))
     end
 
+    it "lists, scores and records uncovered mutants under count_no_coverage", :aggregate_failures do
+      registry = Kimera::RegistryScan.new.source("def x; 1; end\n", file: "x.rb")
+      loaded = instance_double(Kimera::Incremental::Session, report: report)
+      digest = instance_double(Kimera::CLI::Run::Digest, emit: nil, gate: 0)
+      options = {
+        report: nil, format: "text", fail_on_no_coverage: false, count_no_coverage: true, log: nil,
+        framework: "rspec", source_root: ".", tests: [], exclude_tests: [], operators: [], jobs: 1
+      }
+      Kimera::CLI::Run::Cycle.new(options, registry, nil, digest: digest).__send__(:conclude, [], [], loaded)
+      expect(digest).to(have_received(:emit).with(anything, registry, **emission(:list))) do |emitted, *|
+        expect(emitted.counted).to(eq([:no_coverage]))
+      end
+      recorded = hash_including(metadata: hash_including("count_no_coverage" => true))
+      expect(digest).to(have_received(:emit).with(anything, anything, recorded))
+      plain = Kimera::CLI::Run::Cycle.new(options.merge(count_no_coverage: false), registry, nil, digest: digest)
+      plain.__send__(:conclude, [], [], loaded)
+      uncounted = satisfy { |emitted| emitted.counted.empty? }
+      expect(digest).to(have_received(:emit).with(uncounted, registry, **emission(:hint)))
+    end
+
     def emission(coverage)
       { coverage: coverage, path: nil, format: "text", metadata: anything, log: nil, scope: nil, summary: nil }
     end
@@ -331,6 +351,22 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       allow(Kimera::CLI::Run::Pass).to(receive(:new).and_return(instance_double(Kimera::CLI::Run::Pass, call: nil)))
       cycle.__send__(:harness, [1], env: env)
       expect(seen).to(eq("1"))
+    end
+
+    # Workers forked later, and the adapter as it loads the suite, read the run's seed from there.
+    it "exports the run's seed to the environment before loading the adapter, and clears a stale one",
+      :aggregate_failures do
+      registry = Kimera::RegistryScan.new.source("def x; 1; end\n", file: "x.rb")
+      seen = []
+      env = { "KIMERA_SEED" => "3" }
+      allow(Kimera::Frameworks::ADAPTERS).to(receive(:load) { seen << env["KIMERA_SEED"] })
+      allow(Kimera::CLI::Run::Pass).to(receive(:new).and_return(instance_double(Kimera::CLI::Run::Pass, call: nil)))
+      Kimera::CLI::Run::Cycle.new({ framework: "rspec", seed: 42 }, registry, nil, digest: nil).__send__(
+        :harness, [1],
+        env: env
+      )
+      Kimera::CLI::Run::Cycle.new({ framework: "rspec" }, registry, nil, digest: nil).__send__(:harness, [1], env: env)
+      expect([seen, env.key?("KIMERA_SEED")]).to(eq([["42", nil], false]))
     end
   end
 
@@ -501,6 +537,16 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
           "1 unjudged mutant(s): see why with `kimera mutant 9 --report out.json`"
         )
       )
+    end
+
+    it "points at the mutants only other units' tests reach, saved or not", :aggregate_failures do
+      io = StringIO.new
+      Kimera::Report::Actions.new(io: io).show(report(result(4, :uncovered_by_unit)), path: "out.json")
+      hint = "1 mutant(s) only other units' tests reach: kimera report out.json --status uncovered_by_unit"
+      expect(io.string).to(eq("\nNext actions:\n  #{hint}\n"))
+      io = StringIO.new
+      Kimera::Report::Actions.new(io: io).show(report(result(4, :uncovered_by_unit)))
+      expect(io.string).to(include("1 mutant(s) only other units' tests reach: write a unit test that runs each"))
     end
 
     it "does not invent actions for absent uncovered or unjudged results" do

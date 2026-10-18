@@ -11,6 +11,7 @@ end
 class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
   TESTROOTS = %w[test spec].freeze
   INSTALLED = true
+  CONSTANT = /\A[A-Z]\w*(?:::[A-Z]\w*)*\z/
 
   class << self
     def build
@@ -26,6 +27,7 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
   end
 
   def source(files)
+    Kimera::Seed.new.value&.then { |seed| Minitest.seed = seed }
     paths(files)
     each_test_file(files) { |file| require(file) }
     indexed
@@ -42,9 +44,11 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
 
   def locate(id) = { "location" => definition(*indexed.fetch(id)).join(":") }
 
+  def test_file(id) = indexed[id]&.then { |klass, name| declared(klass.name) || definition(klass, name).first }
+
   def reproduce(ids)
     "bundle exec ruby -Itest -rminitest/autorun -e #{quote(loads(ids))} " \
-      "-- -n #{quote("/^(?:#{ids.map { |id| Regexp.escape(id) }.join("|")})$/")} --seed 1"
+      "-- -n #{quote("/^(?:#{ids.map { |id| Regexp.escape(id) }.join("|")})$/")} --seed #{Minitest.seed}"
   end
 
   private
@@ -61,6 +65,8 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
 
   def origin(id) = indexed[id]&.then { |found| definition(*found).first }
 
+  def declared(named) = named&.match?(CONSTANT) && Object.const_source_location(named)&.first
+
   def definition(klass, name)
     path, line = klass.instance_method(name).source_location
     [path.delete_prefix("#{Dir.pwd}#{File::SEPARATOR}"), line]
@@ -71,6 +77,7 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
   def record(id)
     klass, name = indexed[id]
     return unless klass
+    reseed(id)
     result = klass.new(name).extend(Kimera::TestExit::Test).run
     [id, message(result)] if killing?(result)
   end
@@ -95,9 +102,7 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
     end.to_h
   end
 
-  def killing?(result)
-    !result.passed? && !result.skipped?
-  end
+  def killing?(result) = !result.passed? && !result.skipped?
 
   def message(result)
     assertion = result.failures.first

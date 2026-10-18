@@ -44,7 +44,7 @@ RSpec.describe(Kimera::RunReport) do
     let(:options) do
       Pbt.fixed_hash(
         max_survivors: Pbt.one_of(nil, 0, 1, 3), max_ignored: Pbt.one_of(nil, 0, 2),
-        max_errors: Pbt.one_of(nil, 0, 2), fail_on_no_coverage: Pbt.boolean
+        max_errors: Pbt.one_of(nil, 0, 2), fail_on_no_coverage: Pbt.boolean, count_no_coverage: Pbt.boolean
       )
     end
 
@@ -53,10 +53,11 @@ RSpec.describe(Kimera::RunReport) do
     # The gate's documented rules (README, `kimera help run`), restated.
     def failing?(outcomes, options)
       survived, uncovered, ignored, unjudged = %i[survived no_coverage ignored harness_error].map { outcomes.count(it) }
+      survived += outcomes.count(:uncovered_by_unit)
       cap = options[:max_survivors]
       [
         cap ? survived > cap : survived.positive?,
-        options[:fail_on_no_coverage] && uncovered.positive?,
+        (options[:fail_on_no_coverage] || options[:count_no_coverage]) && uncovered.positive?,
         options[:max_ignored] && ignored > options[:max_ignored],
         unjudged > (options[:max_errors] || 0)
       ].any?
@@ -84,6 +85,7 @@ RSpec.describe(Kimera::RunReport) do
       expect([status([:ignored] * 9, {}), status([:harness_error], {})]).to(eq([0, 2]))
       expect([status([:harness_error], max_errors: 1), status([:harness_error] * 2, max_errors: 1)]).to(eq([0, 2]))
       expect([status([:no_coverage], {}), status([:no_coverage], fail_on_no_coverage: true)]).to(eq([0, 2]))
+      expect(status([:no_coverage], count_no_coverage: true)).to(eq(2))
     end
   end
 

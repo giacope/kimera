@@ -32,6 +32,10 @@ module Kimera::CLI::RunOptions
     Kimera::Flag.build(
       "--[no-]fail-on-no-coverage", :fail_on_no_coverage,
       "Gate: also fail when any mutant in scope has no covering test"
+    ),
+    Kimera::Flag.build(
+      "--[no-]count-no-coverage", :count_no_coverage,
+      "Score mutants with no covering test as not killed, and fail the gate on them (default: off)"
     )
   ].freeze
 

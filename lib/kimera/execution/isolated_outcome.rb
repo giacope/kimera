@@ -14,6 +14,8 @@ class Kimera::Execution::IsolatedOutcome
     @detail = detail
   end
 
+  def killers(wanted) = wanted && status == :killed ? failing : nil
+
   def explain(limit)
     return "timed out after #{limit}s" if status == :timeout
     named = Array(failing)

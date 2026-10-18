@@ -15,10 +15,11 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
   MINITEST_CHILD = File.expand_path("isolated_child_minitest.rb", __dir__)
   PULSE = ".pulse"
 
-  def initialize(framework:, test_files:, root: nil)
+  def initialize(framework:, test_files:, root: nil, seed: nil)
     @framework = framework
     @test_files = test_files
     @root = root
+    @seed = seed
   end
 
   def command(mirror, request, ledger:, paths:)
@@ -32,7 +33,7 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
   end
 
   def request(locations, first: false)
-    { "tests" => locations, "files" => @test_files, "first_failure" => first }
+    { "tests" => locations, "files" => @test_files, "first_failure" => first }.merge(@seed ? { "seed" => @seed } : {})
   end
 
   def helpers

@@ -15,7 +15,7 @@ class Kimera::CLI::Survivors
       Kimera::Flag.build("--id ID|KEY", :id, "Show one mutant, by ID or key, in full detail"),
       Kimera::Flag.build(
         "--status NAME", :status,
-        "List a different status (survived, no_coverage, " \
+        "List a different status (survived, uncovered_by_unit, no_coverage, " \
           "timeout, error, killed, isolated_only, unmutatable)"
       )
     ]

@@ -2,6 +2,60 @@
 
 ## Unreleased
 
+- What each new setting costs, on dry-inflector's `lib` (`--operators all`,
+  738 mutants, `--jobs 4`, one run each on a shared 4-vCPU VM): default 67s
+  (main 72s, same verdicts); `--seed 1` 70s; `--count-no-coverage` 63s (the
+  report only); `--flaky-runs 3` 92s (three more runs of the covering
+  tests); `--attribution unit` 41s (the 535 `uncovered_by_unit` mutants run
+  no tests). `--test-quality` reruns every other covering test of each
+  killed mutant alone: two files whose 15 mutants about 620 specs each cover
+  took 89s against 14s, and the whole `lib`, about 820 covering specs a
+  mutant, ran past 20 minutes. On `examples/rails_app` every new setting
+  keeps the expected verdicts with Minitest and RSpec at `--jobs 1` and 4
+  (strict attribution turns the request-spec-only ones `uncovered_by_unit`).
+- Test quality: `test_quality: true` (`--test-quality`), meant for nightly
+  runs, records every covering test that kills each mutant
+  (`killing_tests`), each run alone in a fresh fork with the mutant on, not
+  only the first, and reports tests that kill none of the mutants they cover,
+  redundant tests (every mutant they kill, another test kills too) and tests
+  that cover no mutant in scope (`test_quality` in the JSON report, a summary
+  in the text report). Verdicts don't change. Off by default. The Minitest
+  isolated child now runs every test when not asked to stop at the first
+  failure, as the RSpec one does, so an unmutated mirror that fails names
+  every failing test.
+- Seeds and flaky tests. `seed: N` (`--seed N`) seeds each test's random
+  numbers with N and the test's id before it runs, on every tier, and gives
+  Minitest N as its seed (it was always 1); `--seed random` draws N and the
+  report records it. Unset, nothing changes: Ruby reseeds each forked test,
+  as before. `flaky_runs: N` (`--flaky-runs N`) reruns the covering tests N
+  more times under other seeds after the baseline; a test whose result
+  changes is reported flaky (`flaky_tests` in the JSON report, "Flaky tests"
+  in the text report) and never kills a mutant, since its failure says
+  nothing about the mutant. A mutant only flaky tests cover reads
+  `no_coverage`. Off by default.
+- Strict attribution: `attribution: unit` (`--attribution unit`) lets only
+  a unit's own tests kill its mutants, by the usual layouts
+  (`spec/foo/bar_spec.rb` or `test/foo/bar_test.rb` for `lib/foo/bar.rb`,
+  `spec/models/order_spec.rb` for `app/models/order.rb`) and `unit_tests:`
+  rules (`--unit-tests GLOB=PATTERN`); `spec/unit/` and `test/unit/` count
+  too, as does a directory of specs named after the file
+  (`spec/unit/dry/inflector/underscore_spec.rb` for `lib/dry/inflector.rb`).
+  A mutant only other units' tests reach
+  (a request spec, say) is `uncovered_by_unit`: scored as not killed, gated
+  as a survivor, and accepted by `baseline create` like one. Default `any`,
+  as before. On `examples/rails_app`, 19 of the RSpec suite's 56 mutants
+  become `uncovered_by_unit` (the controllers' and the checkout service's,
+  which only its request spec reaches, and one of `Order`'s), and 5 of the
+  Minitest suite's (`ApplicationController`, which has no test of its own).
+  On dry-inflector (`--operators all`, 738 mutants), 535 are
+  `uncovered_by_unit`: the inflection tables, acronyms and rules files have
+  no specs of their own and are tested only through `Dry::Inflector`'s.
+- `count_no_coverage: true` (`--count-no-coverage`) scores each mutant with
+  no covering test as not killed, and fails the gate on it, in every command:
+  `kimera run` too, not only `kimera ci` or `--fail-on-no-coverage`, which
+  gate on uncovered mutants but leave them out of the score. Off by default.
+  `schema/report.schema.json` describes the JSON report, and its `run`
+  section records the setting.
 - Nine new operator families, all opt-in (`--operators all`, or by name):
   - `super_call`: `super` / `super(...)` => nil.
   - `rescue_clause`: drop one `rescue` clause of a method body or a

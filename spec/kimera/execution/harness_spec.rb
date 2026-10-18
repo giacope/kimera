@@ -3,6 +3,7 @@
 require "fileutils"
 require "json"
 require "kimera/execution/harness"
+require "kimera/execution/test_filter"
 require "kimera/frameworks/adapter"
 require "kimera/registry/builder"
 require "tmpdir"
@@ -1451,6 +1452,75 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     # The isolated tier orders its tests by the same timings.
+    def screening(name, flaky)
+      stub_const(name, Class.new)
+      registry = fixture(name)
+      ids = registry.each.map { |m, _p| m.id }
+      filter = Kimera::Execution::TestFilter.new(registry: registry, flaky: flaky)
+      progress = journal
+      settings = { source_root: dir, soft_timeout: nil, filter: filter, progress: progress }
+      h = described_class.build(registry: registry, adapter: racing(ids), **settings)
+      h.warm!(%w[t1], scope: ids)
+      [h.run(ids: ids).results, ids, progress.events]
+    end
+
+    # Both tests kill every mutant, but "shaky" also fails, alone, under seed 6.
+    def shaking(mids)
+      Class.new(Kimera::Frameworks::Adapter) do
+        define_method(:initialize) do |m|
+          super()
+          @mids = m
+        end
+        def source(_files) = self
+        def test_ids = %w[steady shaky]
+        define_method(:run) do |ids|
+          hit = @mids.map { |m| Kimera::RUNTIME.active?(m) }.any? || (ids == ["shaky"] && ENV["KIMERA_SEED"] == "6")
+          Kimera::Frameworks::RunOutcome.new(passed: !hit, failed_ids: hit ? ids : [])
+        end
+      end.new(mids)
+    end
+
+    it "reruns the covering tests under other seeds, and lets no test that changed its result kill",
+      :aggregate_failures do
+      stub_const("WarmShaky", Class.new)
+      registry = fixture("WarmShaky")
+      ids = registry.each.map { |m, _p| m.id }
+      filter = Kimera::Execution::TestFilter.new(registry: registry)
+      settings = { source_root: dir, soft_timeout: nil, filter: filter, flaky_runs: 1, seed: 5 }
+      h = described_class.build(registry: registry, adapter: shaking(ids), **settings)
+      h.warm!(%w[t1], scope: ids)
+      expect([h.flakes.flaky, h.flakes.to_h["seeds"]]).to(eq([["shaky"], [6]]))
+      expect(h.run(ids: ids).results.map(&:failing_tests).uniq).to(eq([["steady"]]))
+    end
+
+    it "lets only the tests a screen keeps kill a warm mutant", :aggregate_failures do
+      results, ids, = screening("WarmScreened", ["fast"])
+      expect(results.map(&:failing_tests).uniq).to(eq([["slow"]]))
+      expect(results.map(&:mutant_id)).to(match_array(ids))
+    end
+
+    it "settles, counted in the progress, each warm mutant the screen leaves no test", :aggregate_failures do
+      results, ids, events = screening("WarmSettled", %w[fast slow])
+      expect(results.map(&:status).uniq).to(eq([:no_coverage]))
+      expect(results.map(&:detail).uniq).to(eq(["covered only by flaky test(s), which never kill: slow, fast"]))
+      expect(events).to(include([:start, ids.size, "mutants"]))
+      expect(events.count { |event| event == %i[tick no_coverage] }).to(eq(ids.size))
+    end
+
+    it "records every killing test of a warm mutant under test quality, and the same verdicts", :aggregate_failures do
+      stub_const("WarmCensus", Class.new)
+      registry = fixture("WarmCensus")
+      ids = registry.each.map { |m, _p| m.id }
+      h = described_class.build(
+        registry: registry, adapter: racing(ids), source_root: dir, soft_timeout: nil,
+        test_quality: true
+      )
+      h.warm!(%w[t1], scope: ids)
+      results = h.run(ids: ids).results
+      expect(results.map { |result| [result.status, result.failing_tests, result.killing_tests] }.uniq)
+        .to(eq([[:killed, ["fast"], %w[slow fast]]]))
+    end
+
     it "kills each mutant with the covering test the baseline timed fastest", :aggregate_failures do
       stub_const("WarmRacing", Class.new)
       registry = fixture("WarmRacing")
@@ -1712,6 +1782,27 @@ RSpec.describe(Kimera::Execution::Harness) do
         ).run(ids: [unsafe]),
         progress
       ]
+    end
+
+    def screened(name, flaky)
+      registry, unsafe = reload(name)
+      filter = Kimera::Execution::TestFilter.new(registry: registry, flaky: flaky)
+      settings = { source_root: dir, soft_timeout: nil, coverage: {}, filter: filter }
+      described_class.build(registry: registry, adapter: counting(%w[t1 t2], ["t1"], []), **settings)
+        .run(ids: [unsafe]).results.first
+    end
+
+    it "runs a reloaded mutant against the tests the screen keeps, or settles it when it keeps none",
+      :aggregate_failures do
+      expect(screened("HarnessReloadUnscreened", []).status).to(eq(:killed))
+      expect(screened("HarnessReloadScreened", ["t1"]).status).to(eq(:survived))
+      settled = screened("HarnessReloadSettled", %w[t1 t2])
+      expect(
+        [
+          settled.status,
+          settled.detail
+        ]
+      ).to(eq([:no_coverage, "covered only by flaky test(s), which never kill: t1, t2"]))
     end
 
     it "runs the reload path end-to-end without a prior warm-up", :aggregate_failures do

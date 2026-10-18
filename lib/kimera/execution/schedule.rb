@@ -19,7 +19,10 @@ class Kimera::Execution::Schedule
   end
 
   def run(ids, coverage:, label: "mutants")
-    batch = plan(ids, coverage, label)
+    kept, settled = screened(coverage)
+    progress.start(ids.size, label)
+    batch = plan(ids - settled.keys, kept)
+    settled.slice(*ids).each { |id, result| record(batch.ledger, id, result) }
     process(batch)
     finish(batch.ledger)
   ensure
@@ -30,14 +33,20 @@ class Kimera::Execution::Schedule
 
   def progress = @options.fetch(:progress)
 
+  def filter = @options[:filter]
+
+  def screened(coverage)
+    return [coverage, {}] unless filter&.active?
+    filter.screen(coverage).tap { |kept, _settled| @driver.narrow(kept) }
+  end
+
   def hard = @options[:hard]
 
   def verdicts = @_verdicts ||= Kimera::Execution::Verdicts.new(@registry)
 
-  def plan(ids, coverage, label)
+  def plan(ids, coverage)
     safe, unsafe = ids.partition { |id| verdicts.safe?(id) }
     reloadable, deferred = unsafe.partition { |id| verdicts.reloadable?(id) }
-    progress.start(safe.size + unsafe.size, label)
     Batch.new(prioritized(safe, coverage), reloadable, deferred, Ledger.new({}, []), coverage)
   end
 
@@ -66,7 +75,9 @@ class Kimera::Execution::Schedule
   end
 
   def rerun(id, kinship)
-    reloader.run(id, deadline: hard, tests: kinship.order(id, @options.fetch(:adapter).test_ids))
+    tests = kinship.order(id, @options.fetch(:adapter).test_ids)
+    return reloader.run(id, deadline: hard, tests: tests) unless filter
+    filter.settle(id, tests) || reloader.run(id, deadline: hard, tests: filter.keep(verdicts.path(id), tests))
   end
 
   def defer(ids, ledger)
@@ -97,7 +108,7 @@ class Kimera::Execution::Schedule
   end
 
   def parse(message, ledger)
-    result = verdicts.parse(message)
+    result = verdicts.parse(message).tap { |parsed| parsed.killing_tests = message["kills"] }
     record(ledger, result.mutant_id, result)
   end
 

@@ -2,6 +2,7 @@
 
 require_relative "../../execution/harness"
 require_relative "../../execution/isolated"
+require_relative "../../execution/test_filter"
 require_relative "../../frameworks/adapter"
 require_relative "../../report/progress"
 require_relative "../../results/run_report"
@@ -16,7 +17,8 @@ class Kimera::CLI::Run::Pass
   end
 
   def call(remaining)
-    with_adapter { perform(remaining) }.then { |judged| judged.described(@adapter.catalog(judged.test_ids)) }
+    with_adapter { perform(remaining).then { |judged| judged.annotate(flaky: harness.flakes&.to_h, suite: suite) } }
+      .then { |judged| judged.described(@adapter.catalog(judged.test_ids)) }
   end
 
   private
@@ -34,6 +36,15 @@ class Kimera::CLI::Run::Pass
     run(remaining)
   end
 
+  def suite = @options[:test_quality] ? @adapter.test_ids : nil
+
+  def filter
+    @_filter ||= Kimera::Execution::TestFilter.build(
+      registry: @registry, rules: @options[:attribution] == "unit" ? @options[:unit_tests] : nil,
+      adapter: @adapter, root: @options[:source_root]
+    )
+  end
+
   def harness = @_harness ||= Kimera::Execution::Harness.build(**settings)
 
   def files
@@ -49,8 +60,8 @@ class Kimera::CLI::Run::Pass
   def base
     { registry: @registry, adapter: @adapter, source_root: @options[:source_root] }
       .merge(soft_timeout: @options[:soft_timeout], jobs: @options[:jobs])
-      .merge(isolate_db: @options[:isolate_db], progress: progress)
-      .merge(@options.slice(:relative_timeout, :timeout_factor, :timeout_slack))
+      .merge(isolate_db: @options[:isolate_db], progress: progress, filter: filter)
+      .merge(@options.slice(:relative_timeout, :timeout_factor, :timeout_slack, :seed, :flaky_runs, :test_quality))
   end
 
   def warm(remaining)
@@ -99,10 +110,10 @@ class Kimera::CLI::Run::Pass
   def core
     { registry: @registry, root: @options[:source_root], tests: @adapter.test_ids }
       .merge(coverage: harness.coverage, timings: harness.timings, progress: progress, jobs: @options[:jobs])
-      .merge(framework: @options[:framework], test_files: files)
+      .merge(framework: @options[:framework], test_files: files, filter: filter)
   end
 
-  def limits = { hard_timeout: @options[:hard_timeout] }.compact
+  def limits = @options.slice(:seed, :test_quality).merge({ hard_timeout: @options[:hard_timeout] }.compact)
 
   def split(ids)
     patterns = Array(@options[:isolate_when_covered_by])

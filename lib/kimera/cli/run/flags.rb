@@ -69,6 +69,31 @@ module Kimera::CLI::RunFlags
       "Judge again, each in a fresh isolated mirror, the mutants the warm pass could not judge (default: on)"
     ),
     Kimera::Flag.build(
+      "--attribution MODE", :attribution,
+      "Which covering tests may kill a mutant: any (default) or unit (only its own file's tests)"
+    ),
+    Kimera::Flag.build(
+      "--unit-tests GLOB=PATTERN", :cli_unit_tests,
+      "Strict attribution: tests matching PATTERN ({path}, {name}) are the own tests of sources " \
+        "matching GLOB, beside the usual layouts (repeatable; replaces config unit_tests:)",
+      collect: true
+    ),
+    Kimera::Flag.build(
+      "--seed N|random", :seed,
+      "Seed each test's random numbers (and Minitest's order) with N, or a random N the report records"
+    ),
+    Kimera::Flag.build(
+      "--flaky-runs N", :flaky_runs,
+      "Rerun the covering tests N more times, each with another seed; a test whose result changes is " \
+        "flaky, reported, and never kills (default: 0)",
+      type: Integer
+    ),
+    Kimera::Flag.build(
+      "--[no-]test-quality", :test_quality,
+      "Record every test that kills each mutant, and report tests that kill nothing or only what " \
+        "others kill (nightly; default: off)"
+    ),
+    Kimera::Flag.build(
       "--isolate-when-covered-by SUBSTR", :isolate_when_covered_by,
       "Isolate only mutants whose covering set includes a test id matching SUBSTR " \
         "(repeatable) — a fast, targeted alternative to --isolated for pool-unsafe specs",

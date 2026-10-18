@@ -170,6 +170,15 @@ RSpec.describe(Kimera::CLI::Baseline, :aggregate_failures) do
     expect(kept["ignore"].first.keys).to(eq(%w[file line label original reason]))
   end
 
+  it "accepts mutants only other units' tests reach as survivors, in a new baseline and in a review" do
+    File.write("r.json", JSON.generate("results" => [row(30, "> => <", "uncovered_by_unit")]))
+    cli.run(%w[create r.json --reason debt --output base.yml])
+    expect(kept["ignore"]).to(eq([entry("app/a.rb", 30, "> => <", "original" => "x")]))
+    File.write("r.json", JSON.generate("results" => [row(30, "> => <", "ignored", "uncovered_by_unit")]))
+    cli.run(%w[review base.yml --report r.json])
+    expect(out.string).to(include("Still surviving (1)"))
+  end
+
   it "matches on the anchors a report row carries, skipping the rest" do
     seed(ignore: [entry("app/a.rb", 3, "> => >=", "method" => "m", "column" => 4)])
     cli.run(%w[review base.yml --report r.json])

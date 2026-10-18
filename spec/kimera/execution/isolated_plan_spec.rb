@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "kimera/execution/isolated_plan"
+require "kimera/execution/test_filter"
 require "kimera/registry/builder"
 require "kimera/runtime"
 require "json"
@@ -36,6 +37,29 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     it "runs the whole suite for a point whose method also ran while the suite loaded" do
       point.revisit!(Kimera::MutationPoint::BOOT_REASON)
       expect(plan(coverage: { mutant_id => ["spec/a_spec.rb[1:1]"] }).tests(mutant_id, point)).to(eq(%w[t1 t2 t3]))
+    end
+
+    it "runs only the tests a screen keeps of the whole suite, and settles a point it leaves none",
+      :aggregate_failures do
+      point.revisit!(Kimera::MutationPoint::BOOT_REASON)
+      keeps = plan(filter: Kimera::Execution::TestFilter.new(registry: registry, flaky: %w[t2]))
+      expect([keeps.tests(mutant_id, point), keeps.settled(mutant_id, point)]).to(eq([%w[t1 t3], nil]))
+      none = plan(filter: Kimera::Execution::TestFilter.new(registry: registry, flaky: %w[t1 t2 t3]))
+      expect([none.tests(mutant_id, point), none.settled(mutant_id, point).status]).to(eq([[], :no_coverage]))
+    end
+
+    it "screens the measured covering set too, and leaves an uncovered point to no_coverage", :aggregate_failures do
+      filter = Kimera::Execution::TestFilter.new(registry: registry, flaky: %w[t2])
+      screened = plan(coverage: { mutant_id => %w[t1 t2] }, filter: filter)
+      expect([screened.tests(mutant_id, point), screened.settled(mutant_id, point)]).to(eq([["t1"], nil]))
+      flaky = plan(coverage: { mutant_id => ["t2"] }, filter: filter)
+      expect([flaky.tests(mutant_id, point), flaky.settled(mutant_id, point).status]).to(eq([[], :no_coverage]))
+      expect(
+        [
+          plan(filter: filter).tests(mutant_id, point),
+          plan(filter: filter).settled(mutant_id, point)
+        ]
+      ).to(eq([nil, nil]))
     end
 
     it "returns the measured covering set (integer-keyed) when present" do
