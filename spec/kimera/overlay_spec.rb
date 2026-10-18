@@ -617,27 +617,33 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   describe "unparser round-trip fallback" do
-    # From campfire: unparser can't round-trip the guarded inline-assignment
-    # condition. Only that point should drop, not the whole file.
+    # A named capture binds its local only when the regexp is a literal, so a
+    # regexp guarded in place leaves the body's read of it unbound: unparser
+    # can't round-trip that point. Only that point should drop, not the file.
     let(:source) do
       <<~'RUBY'
-        class DstrRepro
-          def extract(response)
-            if response.content_type && mime_type = Mime::Type.lookup(response.content_type)
-              create! \
-                io: StringIO.new(response.body), filename: "attachment.#{mime_type.symbol}", content_type: mime_type.to_s
+        class MatchRepro
+          def extract(text, limit)
+            if /(?<count>\d+)/ =~ text
+              "#{count}" if count.to_i > limit
             end
           end
         end
       RUBY
     end
+    let(:unguardable) { /match_repro\.rb: 1 mutation point\(s\) at line 3 are unguardable \(unparser round-trip\)/ }
+
+    def scan
+      Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: %w[regexp comparison]))
+        .source(source, file: "match_repro.rb")
+    end
 
     # Count, line and reason are all triage signal, so pin the exact message.
     def fallback
-      registry = Kimera::RegistryScan.new.source(source, file: "dstr_repro.rb")
+      registry = scan
       result = nil
-      expect { result = described_class.new(registry).synthesize("dstr_repro.rb", source) }
-        .to(output(/dstr_repro\.rb: 1 mutation point\(s\) at line 3 are unguardable \(unparser round-trip\)/).to_stderr)
+      expect { result = described_class.new(registry).synthesize("match_repro.rb", source) }
+        .to(output(unguardable).to_stderr)
       [registry, result]
     end
 
@@ -653,10 +659,9 @@ RSpec.describe(Kimera::Overlay) do
     end
 
     it "re-raises the original error when no point is guardable" do
-      registry = Kimera::RegistryScan.new.source(source, file: "dstr_repro.rb")
-      synth = described_class.new(registry)
+      synth = described_class.new(scan)
       allow_any_instance_of(Kimera::Overlay::FileWeave).to(receive(:attempt).and_return(nil))
-      expect { synth.synthesize("dstr_repro.rb", source) }
+      expect { synth.synthesize("match_repro.rb", source) }
         .to(raise_error(StandardError, /Unparser cannot round trip|unparse/i))
     end
 

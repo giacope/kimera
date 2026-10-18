@@ -2,6 +2,7 @@
 
 require_relative "extra_handlers"
 require_relative "invocation"
+require_relative "pinned_predicate"
 
 module Kimera
   module Rewrite
@@ -41,7 +42,8 @@ module Kimera
           end
 
           def retest
-            node.updated(nil, [ast(target), *node.children[1..]])
+            predicate, *rest = node.children
+            node.updated(nil, [PinnedPredicate.new(predicate).to(ast(target)), *rest])
           end
 
           def integer

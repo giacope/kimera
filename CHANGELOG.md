@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `condition => true` and `condition => false` keep an assignment the
+  predicate makes: `if page = next_page` pins to `if (page = next_page;
+  true)`. The bare literal dropped the binding, so unparser could not write
+  the body's read of `page`, and the point was dropped as unguardable. On
+  once-campfire that hid two points (`Messages::ByBotsController`,
+  `Webhook#extract_attachment_from`). A predicate that binds nothing is still
+  not evaluated.
 - `doctor --check-baseline` no longer calls a Rails suite that parallelizes
   red split across processes. Each of its shards ran the suite's own
   `parallelize`, so the shards' forked workers shared `test.sqlite3_0` and
