@@ -3,6 +3,7 @@
 require "prism"
 require_relative "../registry/mutation_point"
 require_relative "../support/syntax"
+require_relative "macro_lambdas"
 
 module Kimera
   module Execution
@@ -25,8 +26,9 @@ class Kimera::Execution::LoadTrace
 
   def quarantine!(coverage)
     calls.each do |file, lines|
-      loaded(file, lines).each { |point| uncovered?(point, coverage) ? point.unsafe!(LOADED) : point.revisit!(BOOTED) }
+      loaded(file, lines).each { |point| point.uncovered?(coverage) ? point.unsafe!(LOADED) : point.revisit!(BOOTED) }
     end
+    Kimera::Execution::MacroLambdas.new(@registry, root).quarantine!(coverage)
   end
 
   private
@@ -48,12 +50,8 @@ class Kimera::Execution::LoadTrace
 
   def loaded(file, lines)
     ranges = defs(Kimera::Syntax.parse(File.read(File.join(root, file), encoding: Encoding::UTF_8)).value, lines)
-    @registry.at(file).select { |point| point.safe? && inside?(point, ranges) }
+    @registry.at(file).select { |point| point.safe? && point.inside?(ranges) }
   end
-
-  def uncovered?(point, coverage) = point.ids.all? { |id| coverage.fetch(id) { coverage.fetch(id.to_s, []) }.empty? }
-
-  def inside?(point, ranges) = ranges.any? { |range| point.location.within?(range.start_offset, range.end_offset) }
 
   def defs(node, lines)
     location = node.location

@@ -722,7 +722,12 @@ comparison,rails` composes, and `all` includes them.
 - **Scope lambdas** are mutated on the *warm* path. A `-> { ... }` body at class
   level re-executes per call, so ordinary operators mutate it safely
   (`scope :active, -> { where(active: true) }`). Run-once `do ... end` DSL
-  blocks (`included do`, `class_eval`) stay excluded.
+  blocks (`included do`, `class_eval`) stay excluded. A macro that registers
+  its lambda rather than redefining a method (`belongs_to :creator, default:
+  -> { Current.user }`, `after_create_commit -> { ... }`) keeps the original
+  lambda in front when the warm overlay re-declares it, so the mutated one
+  never runs: such a lambda that no test reached warm reports `isolated_only`,
+  not `no_coverage`, and `--isolated` judges it against the whole suite.
 - **`rails_permit`** runs on the normal warm path.
 - **Validations and callbacks** are class-body DSL. They execute once at load,
   so no in-process scheme can judge them. The warm run reports them as
