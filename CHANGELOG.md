@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- An ignore entry whose file no longer exists is reported as stale. An entry
+  that matched no mutant counted as stale only while its file still had
+  mutants in the run; a deleted file has none, so the entry read as "outside
+  this run's scope" and stayed silent. Globs and files that are only out of
+  scope still say nothing. On once-campfire, 13 entries for files a refactor
+  had removed sat unnoticed.
+- A drifted ignore entry no longer re-anchors onto a mutant another entry
+  also claims; both stay stale until someone looks. Re-anchoring matches by
+  label anywhere in the file, so on once-campfire two entries written for
+  different lines claimed one mutant, and a third landed 21 lines away on an
+  unrelated guard, which could hide a real survivor there.
 - A lambda handed to a class-body macro that no test reached warm reports
   `isolated_only`, not `no_coverage`, and `--isolated` judges it against the
   whole suite. The warm overlay re-declares the class body, and a macro that

@@ -36,13 +36,10 @@ module Kimera
     end
 
     def resolve(registry)
-      candidates = Hash.new { |cache, glob| cache[glob] = pairs(registry, glob) }
-      placements = Array(@rules).map { |rule| Placement.new(rule, candidates[rule[:file]]) }
-      claimed = placements.flat_map(&:ids).tally.select { |_id, count| count > 1 }.keys
-      kept = placements.reject { |placement| placement.contested?(claimed) }
+      placements = placed(registry)
+      kept = uncontested(placements)
       Resolution.new(
-        ids: kept.flat_map(&:ids).uniq.sort,
-        stale: placements.select { |placement| placement.stale? || !kept.include?(placement) }.map(&:rule),
+        ids: kept.flat_map(&:ids).uniq.sort, stale: lapsed(placements, kept),
         moved: kept.filter_map(&:moved)
       )
     end
@@ -52,6 +49,20 @@ module Kimera
     def stale(registry) = resolve(registry).stale
 
     private
+
+    def placed(registry)
+      candidates = Hash.new { |cache, glob| cache[glob] = pairs(registry, glob) }
+      Array(@rules).map { |rule| Placement.new(rule, candidates[rule[:file]]) }
+    end
+
+    def uncontested(placements)
+      claimed = placements.flat_map(&:ids).tally.select { |_id, count| count > 1 }.keys
+      placements.reject { |placement| placement.contested?(claimed) }
+    end
+
+    def lapsed(placements, kept)
+      placements.select { |placement| placement.stale? || !kept.include?(placement) }.map(&:rule)
+    end
 
     def pairs(registry, glob)
       files = glob ? registry.files.select { |file| File.fnmatch?(glob, file, File::FNM_PATHNAME) } : []

@@ -192,7 +192,7 @@ RSpec.describe(Kimera::IgnoreList) do
       expect(described_class.new([rule]).resolve(lone).then { |found| [found.ids, found.stale] }).to(eq([[], [rule]]))
     end
 
-    it "leaves stale, rather than re-anchored, rules that drift onto a mutant another rule claims", :aggregate_failures do
+    it "leaves stale, rather than re-anchors, rules drifting onto a mutant another rule claims", :aggregate_failures do
       twins = [{ file: "calc.rb", line: 2, label: "> => <" }, { file: "calc.rb", line: 4, label: "> => <" }]
       expect(resolve(*twins).then { [it.ids, it.moved, it.stale] }).to(eq([[], [], twins]))
       exact = { file: "calc.rb", line: 3, label: "> => <" }
