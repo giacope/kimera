@@ -54,6 +54,16 @@ RSpec.describe(Kimera::Rewrite::Directive) do
       expect(forced.call("call(...) unless done?", "true")).to(eq("call(...) unless true"))
     end
 
+    # The mutant keeps an assignment the predicate makes (PinnedPredicate), so
+    # its rendering does too: a bare `if true` reads as a NameError in the body.
+    it "writes a forced condition that keeps the assignment its predicate makes", :aggregate_failures do
+      forced = ->(source, to) { described_class.new({ "type" => "condition", "to" => to }).render(source) }
+      expect(forced.call("if ok && room = find(id)\n  room.id\nend", "true"))
+        .to(eq("if (ok && room = find(id); true)\n  room.id\nend"))
+      expect(forced.call("x if /(?<n>\\d)/ =~ s", "false")).to(eq("x if (/(?<n>\\d)/ =~ s; false)"))
+      expect(forced.call("x if ready?", "false")).to(eq("x if false"))
+    end
+
     it "forces only a condition directive, never another one that names a target" do
       expect(described_class.new({ "type" => "boolean_literal", "to" => "false" }).render("x if y")).to(eq("false"))
     end

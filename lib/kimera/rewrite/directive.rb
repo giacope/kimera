@@ -32,6 +32,7 @@ module Kimera
       )
       HANDLERS = VALUE_HANDLERS.merge(STRUCTURAL_HANDLERS).freeze
       FORWARDING = %i[* ** & ...].freeze
+      BINDINGS = [Prism::LocalVariableWriteNode, Prism::MatchWriteNode].freeze
       CLAUSE_HANDLERS = TABLE.call(
         "drop_rescue", :rescued, "drop_ensure", :ensured, "privatize", :privatize,
         "assigned_value", :value, "nil_object", :object, "regexp_source", :pattern
@@ -57,9 +58,17 @@ module Kimera
 
       def forced(source, value)
         tree = Prism.parse(source, scopes: [Prism.scope(forwarding: FORWARDING)])
-        splice(source, tree.value.statements.body.first.predicate.location, value) if value && tree.success?
+        pinned(source, tree.value.statements.body.first.predicate, value) if value && tree.success?
       rescue NoMethodError
         nil
+      end
+
+      def pinned(source, predicate, value)
+        splice(source, predicate.location, binds?(predicate) ? "(#{predicate.slice}; #{value})" : value)
+      end
+
+      def binds?(node)
+        BINDINGS.any? { |type| node.is_a?(type) } || node.compact_child_nodes.any? { |child| binds?(child) }
       end
 
       def splice(source, span, text)
