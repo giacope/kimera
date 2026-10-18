@@ -4,7 +4,7 @@ class Kimera::CLI::TestShard
   OWN_DATABASE = <<~RUBY
     if defined?(ActiveRecord::Base) && defined?(ActiveSupport::Testing::Parallelization) &&
         ActiveSupport.respond_to?(:parallelize_test_databases) && ActiveSupport.parallelize_test_databases
-      require "active_record/test_databases"
+      require("active_record/test_databases")
       ActiveSupport::Testing::Parallelization.before_fork_hooks.each(&:call)
       ActiveSupport::TestCase.parallel_worker_id = index if ActiveSupport::TestCase.respond_to?(:parallel_worker_id=)
       ActiveSupport::Testing::Parallelization.after_fork_hooks.each { |hook| hook.call(index) }
