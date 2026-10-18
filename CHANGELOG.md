@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- A forced condition whose predicate assigns renders as the mutant that runs:
+  `if (room = find(id); true)`, not `if true`. The mutant has kept the
+  assignment since the predicate pin learned to, but the report still showed
+  the bare literal, which reads as a NameError in the body; on once-campfire a
+  `RoomMessagesChannel` survivor looked impossible until applied by hand.
 - A forced condition renders in the report when its code forwards the
   method's anonymous arguments (`tag.div(class: "a", &)`, `call(*, **)`,
   `call(...)`). Cut out of its method the snippet did not parse, so the
