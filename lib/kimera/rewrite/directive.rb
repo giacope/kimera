@@ -31,6 +31,7 @@ module Kimera
         "kwarg_element_drop", :keyword, "kwarg_pair_drop", :option
       )
       HANDLERS = VALUE_HANDLERS.merge(STRUCTURAL_HANDLERS).freeze
+      FORWARDING = %i[* ** & ...].freeze
       CLAUSE_HANDLERS = TABLE.call(
         "drop_rescue", :rescued, "drop_ensure", :ensured, "privatize", :privatize,
         "assigned_value", :value, "nil_object", :object, "regexp_source", :pattern
@@ -55,7 +56,7 @@ module Kimera
       end
 
       def forced(source, value)
-        tree = Prism.parse(source)
+        tree = Prism.parse(source, scopes: [Prism.scope(forwarding: FORWARDING)])
         splice(source, tree.value.statements.body.first.predicate.location, value) if value && tree.success?
       rescue NoMethodError
         nil

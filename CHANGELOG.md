@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- A forced condition renders in the report when its code forwards the
+  method's anonymous arguments (`tag.div(class: "a", &)`, `call(*, **)`,
+  `call(...)`). Cut out of its method the snippet did not parse, so the
+  report's `mutated` was `null` and `kimera mutant` showed no `+` line; on
+  once-campfire, both mutants of an `if`/`else` in
+  `Messages::AttachmentPresentation`. The snippet is now parsed as if inside a
+  method that takes them.
 - `condition => true` and `condition => false` keep an assignment the
   predicate makes: `if page = next_page` pins to `if (page = next_page;
   true)`. The bare literal dropped the binding, so unparser could not write
