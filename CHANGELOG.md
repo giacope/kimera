@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `condition => true` and `condition => false` keep an assignment the
+  predicate makes: `if page = next_page` pins to `if (page = next_page;
+  true)`. The bare literal dropped the binding, so unparser could not write
+  the body's read of `page`, and the point was dropped as unguardable. On
+  once-campfire that hid two points (`Messages::ByBotsController`,
+  `Webhook#extract_attachment_from`). A predicate that binds nothing is still
+  not evaluated.
 - What each new setting costs, on dry-inflector's `lib` (`--operators all`,
   738 mutants, `--jobs 4`, one run each on a shared 4-vCPU VM): default 67s
   (main 72s, same verdicts); `--seed 1` 70s; `--count-no-coverage` 63s (the

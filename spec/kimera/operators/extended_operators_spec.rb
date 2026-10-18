@@ -134,6 +134,40 @@ RSpec.describe("extended operators") do
     end
   end
 
+  # `if page = next_page` binds page for the body: pinning the predicate to
+  # a bare literal dropped the binding, and with it the whole point, since
+  # unparser cannot write the body's read of a local no longer assigned.
+  # A predicate that binds nothing is still not evaluated.
+  it "conditional keeps an assignment the predicate makes, then pins it", :aggregate_failures do
+    source = <<~RUBY
+      class Linker
+        def link(pages)
+          if pages.any? && (page = pages.shift)
+            "<\#{page}>"
+          end
+        end
+
+        def skip(pages)
+          :next if pages.shift
+        end
+      end
+    RUBY
+    catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["conditional"]))
+      .source(source, file: "linker.rb")
+    result = Kimera::Overlay.new(catalog).synthesize("linker.rb", source)
+    expect(result.skipped_unsafe).to(be_empty)
+    TOPLEVEL_BINDING.eval(result.source, "linker.rb")
+    ids = catalog.each.to_h { |m, p| [[p.method_name, m.label], m.id] }
+    active(ids.fetch(["link", "condition => true"])) { expect(Linker.new.link([])).to(eq("<>")) }
+    pages = [1, 2]
+    active(ids.fetch(["link", "condition => false"])) { expect(Linker.new.link(pages)).to(be_nil) }
+    active(ids.fetch(["skip", "condition => true"])) { expect(Linker.new.skip(pages)).to(eq(:next)) }
+    expect(pages).to(eq([2]))
+  ensure
+    Kimera::RUNTIME.reset!
+    Object.__send__(:remove_const, :Linker) if defined?(Linker)
+  end
+
   it "skips elsif arms (not a wrappable expression)" do
     code = <<~RUBY
       def route(x)
