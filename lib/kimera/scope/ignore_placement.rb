@@ -14,7 +14,9 @@ class Kimera::IgnoreList::Placement
 
   def ids = hits.map { |mutant, _point| mutant.id }
 
-  def stale? = hits.empty? && !@pairs.empty?
+  def stale? = hits.empty? && (!@pairs.empty? || gone?)
+
+  def contested?(claimed) = exact.empty? && !hits.empty? && (ids - claimed).empty?
 
   def moved
     return unless exact.empty?
@@ -25,6 +27,11 @@ class Kimera::IgnoreList::Placement
   private
 
   def anchors = @rule
+
+  def gone?
+    file = @rule[:file].to_s
+    !file.empty? && !file.match?(/[*?\[{]/) && !File.exist?(file)
+  end
 
   def matching(rule) = @pairs.select { |mutant, point| Kimera::IgnoreList::Match.new(point, mutant).rule?(rule) }
 end
