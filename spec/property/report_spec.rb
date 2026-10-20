@@ -64,10 +64,9 @@ RSpec.describe(Kimera::RunReport) do
       ].any?
     end
 
-    # Nothing evaluated while mutants only the isolated tier can judge wait.
+    # Nothing killed while mutants only the isolated tier can judge wait.
     def untested?(outcomes)
-      outcomes.intersect?(%i[isolated_only unmutatable]) &&
-        outcomes.all? { |status| Kimera::Status::UNJUDGED.include?(status) }
+      outcomes.intersect?(%i[isolated_only unmutatable]) && !outcomes.intersect?(Kimera::Status::KILLING)
     end
 
     it "exits 2 exactly when a documented threshold is crossed, and 0 otherwise" do
@@ -96,6 +95,7 @@ RSpec.describe(Kimera::RunReport) do
       expect([status([:no_coverage], {}), status([:no_coverage], fail_on_no_coverage: true)]).to(eq([0, 2]))
       expect(status([:no_coverage], count_no_coverage: true)).to(eq(2))
       expect([status([:isolated_only], {}), status(%i[isolated_only killed], {})]).to(eq([2, 0]))
+      expect(status(%i[isolated_only survived], max_survivors: 1)).to(eq(2))
     end
   end
 

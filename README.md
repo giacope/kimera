@@ -1017,8 +1017,8 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     (`--no-count-no-coverage`) reports them without scoring them;
     `--fail-on-no-coverage` still fails the gate on them. The report's `run`
     section records the setting.
-  - A gate that evaluated nothing while `isolated_only` or `unmutatable`
-    mutants were in scope fails ("0 of N mutants evaluated"), naming
+  - A gate that killed nothing while `isolated_only` or `unmutatable`
+    mutants were in scope fails ("0 of N mutants killed"), naming
     `--isolated`.
 - **No constant outside `Kimera`.** Every synthesized guard dispatches through
   `::Kimera::RUNTIME`, the process's one `Kimera::Runtime`, bound once: a

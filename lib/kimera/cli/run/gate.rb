@@ -45,7 +45,7 @@ class Kimera::CLI::Run::Gate
 
   def untested
     pending = @report.statuses(:isolated_only).size + @report.statuses(:unmutatable).size
-    return unless pending.positive? && @report.covered.empty?
-    "0 of #{@report.results.size} mutants evaluated: #{pending} only the isolated tier can judge (run with --isolated)"
+    return unless pending.positive? && @report.killed.empty?
+    "0 of #{@report.results.size} mutants killed: #{pending} only the isolated tier can judge (run with --isolated)"
   end
 end

@@ -19,9 +19,10 @@ defects it found at the seams, and the defaults it moved toward the
   `kimera ci` and `kimera changed`, off for full runs. On Feedbin the
   isolated tier judged 15 such mutants in 68s and found 8 holes. `kimera init`
   on a Rails app writes the `rails` operators into `.kimera.yml`.
-- A gate that evaluated nothing while `isolated_only` or `unmutatable`
-  mutants were in scope fails, naming `--isolated`, instead of passing on "0
-  of N mutants evaluated"; next actions point at `--isolated` for them.
+- A gate that killed nothing while `isolated_only` or `unmutatable` mutants
+  were in scope fails ("0 of N mutants killed"), naming `--isolated`, instead
+  of passing on "0 of N mutants evaluated" or on a tolerated survivor; next
+  actions point at `--isolated` for them.
 - Minitest suites that use minitest-hooks (Sequel's) run: each test runs
   inside its class's `with_info_handler`, as a plain run does, so
   `before(:all)`/`around(:all)` work and a failing class hook fails the test.

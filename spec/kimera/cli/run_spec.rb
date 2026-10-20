@@ -362,18 +362,22 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(digest.gate(report(0), options)).to(eq(0))
     end
 
-    # A scope whose every mutant only the isolated tier can judge has judged
-    # nothing: passing would score untested code as tested.
-    it "fails a gate that evaluated nothing while isolated-only mutants were in scope", :aggregate_failures do
+    # A scope that killed nothing while mutants only the isolated tier can
+    # judge wait has shown nothing: passing would score untested code as
+    # tested. Kills, not evaluations, so a tolerated survivor never turns the
+    # gate green.
+    it "fails a gate that killed nothing while isolated-only mutants were in scope", :aggregate_failures do
       pending = [Kimera::MutantResult.new(mutant_id: 1, status: :isolated_only, file: "x.rb")]
       unmutatable = [Kimera::MutantResult.new(mutant_id: 2, status: :unmutatable, file: "x.rb")]
-      message = /gate failed: 0 of 2 mutants evaluated: 2 only the isolated tier can judge \(run with --isolated\)/
+      message = /gate failed: 0 of 2 mutants killed: 2 only the isolated tier can judge \(run with --isolated\)/
       expect { expect(digest.gate(Kimera::RunReport.new(results: pending + unmutatable), {})).to(eq(2)) }
         .to(output(message).to_stderr)
       judged = Kimera::RunReport.new(results: pending + report(0, no_coverage: 0).results + [verdict_killed])
       expect(digest.gate(judged, {})).to(eq(0))
       ignored = Kimera::RunReport.new(results: report(0, ignored: 1).results)
       expect(digest.gate(ignored, {})).to(eq(0))
+      tolerated = Kimera::RunReport.new(results: pending + report(1, no_coverage: 0).results)
+      expect(digest.gate(tolerated, { max_survivors: 1 })).to(eq(2))
     end
 
     def verdict_killed = Kimera::MutantResult.new(mutant_id: 9, status: :killed, file: "x.rb")
