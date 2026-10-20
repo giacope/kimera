@@ -3,7 +3,8 @@
 class Kimera::Execution::BaselineFailure::Summary
   MAX_DETAILS = 3
   MAX_MESSAGE = 300
-  SHARED = "if these pass with --jobs 1, the suite shares state between workers (a directory, file or port); " \
+  SHARED = "if the reproduce command above fails too, the tests are red on their own; if it passes and " \
+    "--jobs 1 is green, the suite shares state between workers (a directory, file or port): " \
     "use jobs: 1 until each test has its own"
 
   ORDERED = "the suite is order-dependent: these pass when the whole suite runs in order, but fail alone in a " \
