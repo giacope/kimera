@@ -17,6 +17,41 @@ RSpec.describe(Kimera::Frameworks) do
     end
   end
 
+  # The suite loads in a process that already holds kimera's dependencies,
+  # so a project constant one of them defines at top level cannot load.
+  describe "a test file that clashes with a dependency's constant" do
+    def loaded(error)
+      Kimera::Frameworks::Adapter.new.__send__(:load_test_file, "test/x_test.rb") { raise(error) }
+    rescue Kimera::Error => error
+      error.message
+    end
+
+    before { require "parser" }
+
+    it "names the constant and the gem that defines it", :aggregate_failures do
+      message = loaded(TypeError.new("Parser is not a class"))
+      hint = "Parser is a top-level constant that parser, a gem kimera runs on, defines in the process that " \
+        "loads your suite, so the project's own Parser cannot load beside it: put the project's Parser in a namespace"
+      expect(message).to(start_with("cannot load test file test/x_test.rb (TypeError: Parser is not a class)\n"))
+      expect(message).to(end_with(hint))
+    end
+
+    it "adds nothing for a clash with a constant of the project's own", :aggregate_failures do
+      stub_const("KimeraOwnWidget", Module.new)
+      expect(loaded(TypeError.new("KimeraOwnWidget is not a class"))).not_to(include("\n"))
+      expect(loaded(TypeError.new("String is not a module"))).not_to(include("\n"))
+    end
+
+    it "adds nothing for any other error" do
+      plain = "cannot load test file test/x_test.rb (NameError: Parser is not a class)"
+      expect(loaded(NameError.new("Parser is not a class"))).to(eq(plain))
+    end
+
+    it "adds nothing for a constant no one defines" do
+      expect(loaded(TypeError.new("KimeraNowhere is not a class"))).not_to(include("\n"))
+    end
+  end
+
   describe Kimera::Frameworks::Adapter do
     it "raises NotImplementedError for the abstract methods", :aggregate_failures do
       adapter = described_class.new
