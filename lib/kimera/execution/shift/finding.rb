@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "overrun"
+require_relative "expiry"
 require_relative "suspect"
 
 Kimera::Execution::Shift::Finding =
@@ -18,6 +19,8 @@ Kimera::Execution::Shift::Finding =
     def onward = Kimera::Execution::Shift::Lineup.new(id, tests.drop(index + 1))
 
     def overran? = found.fetch("kind") == "overran"
+
+    def expired? = found.fetch("kind") == "expired"
 
     def solo = Kimera::Execution::Shift::Lineup.new(id, [test])
 
@@ -40,7 +43,21 @@ Kimera::Execution::Shift::Finding =
       Kimera::Execution::Shift::Overrun.new(test, [found.fetch("elapsed"), again["elapsed"]], calm["elapsed"], budget)
     end
 
+    def stall(calm) = Kimera::Execution::Shift::Stall.new(test, expiry, calm.fetch("elapsed"))
+
+    def crawl(calm)
+      Kimera::Execution::Shift::Crawl.new(mutant_id: id, test: test, failure: lag(calm), contradicted: !calm["passed"])
+    end
+
     def through = tests.first(index + 1)
+
+    def expiry = found.fetch("failures")[test]
+
+    def lag(calm)
+      return "ran past the soft timeout with the mutant on and with it off" if calm["expired"]
+      return "ran past the soft timeout with the mutant on, and failed with it off" unless calm["passed"]
+      "ran past the soft timeout with the mutant on, and took #{calm.fetch("elapsed").round(2)}s with it off"
+    end
 
     def suspect(failure, contradicted:)
       Kimera::Execution::Shift::Suspect.new(mutant_id: id, test: test, failure: failure, contradicted: contradicted)

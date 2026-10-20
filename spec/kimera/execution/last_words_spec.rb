@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "kimera/execution/last_words"
+require "kimera/execution/zygote"
 
 # What a warm worker says on its way out when an exception ends it, so a
 # crash verdict names the cause instead of just "crashed".
@@ -22,6 +23,11 @@ RSpec.describe(Kimera::Execution::LastWords) do
         app/models/crasher.rb:15:in 'Crasher#notify'
         test/crasher_test.rb:10:in 'test_notify'
     TEXT
+  end
+
+  it "names an error a child process raised by the child's class, not the relay's" do
+    error = raised(Kimera::Execution::Zygote::Raised.new("FrozenError", "frozen"), ["lib/hooks.rb:81"])
+    expect(described_class.new(error).to_s).to(eq("FrozenError: frozen\n  lib/hooks.rb:81"))
   end
 
   it "shows kimera's own frames, capped, when the exception came from kimera" do

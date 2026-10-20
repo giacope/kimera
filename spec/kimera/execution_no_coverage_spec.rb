@@ -73,8 +73,8 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
   end
 
   it "matches string-keyed coverage entries" do
-    pass = Kimera::CLI::Run::Pass.allocate
-    expect(pass.__send__(:matches?, { "7" => ["spec/critical_spec.rb"] }, 7, "critical")).to(be(true))
+    route = Kimera::CLI::Run::Route.new(nil, {})
+    expect(route.__send__(:matches?, { "7" => ["spec/critical_spec.rb"] }, 7, "critical")).to(be(true))
   end
 
   it "redirects both child streams before rebinding Ruby globals" do

@@ -3,6 +3,7 @@
 require "json"
 require "minitest"
 require "zlib"
+require_relative "../frameworks/class_hooks"
 require_relative "../support/test_exit"
 
 Minitest.seed ||= 1
@@ -40,8 +41,8 @@ failed =
     next false unless klass
     File.write(pulse, ".", mode: "a") if pulse
     Kernel.srand((seed ^ Zlib.crc32(id)) % (2**31)) if seed
-    result = klass.new(name).extend(Kimera::TestExit::Test).run
-    !result.passed? && !result.skipped?
+    result = Kimera::Frameworks::ClassHooks.new(klass).test(name)
+    result && !result.passed? && !result.skipped?
   end
 killers = request["first_failure"] == false ? ids.select(&failed) : [ids.find(&failed)].compact
 

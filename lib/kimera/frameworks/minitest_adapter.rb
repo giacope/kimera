@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require_relative "adapter"
+require_relative "load_path"
+require_relative "class_hooks"
 require_relative "../support/test_exit"
 
 module Kimera
@@ -9,9 +11,9 @@ module Kimera
 end
 
 class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
-  TESTROOTS = %w[test spec].freeze
   INSTALLED = true
   CONSTANT = /\A[A-Z]\w*(?:::[A-Z]\w*)*\z/
+  PLAIN = %r{\A[\w./@:+-]+\z}
 
   class << self
     def build
@@ -47,7 +49,7 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
   def test_file(id) = indexed[id]&.then { |klass, name| declared(klass.name) || definition(klass, name).first }
 
   def reproduce(ids)
-    "bundle exec ruby -Itest -rminitest/autorun -e #{quote(loads(ids))} " \
+    "bundle exec ruby #{includes(ids)} -rminitest/autorun -e #{quote(loads(ids))} " \
       "-- -n #{quote("/^(?:#{ids.map { |id| Regexp.escape(id) }.join("|")})$/")} --seed #{Minitest.seed}"
   end
 
@@ -58,6 +60,13 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
   rescue NameError, ArgumentError
     Minitest.define_singleton_method(:run) { |*| true }
   end
+
+  def includes(ids)
+    flags = Kimera::Frameworks::LoadPath.new(ids.filter_map { |id| origin(id) }).flags
+    flags.each_slice(2).map { |flag, dir| "#{flag}#{shell(dir)}" }.join(" ")
+  end
+
+  def shell(word) = word.match?(PLAIN) ? word : quote(word)
 
   def loads(ids)
     ids.filter_map { |id| origin(id) }.uniq.map { |file| "require File.expand_path(#{file.dump})" }.join("; ")
@@ -78,23 +87,11 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
     klass, name = indexed[id]
     return unless klass
     reseed(id)
-    result = klass.new(name).extend(Kimera::TestExit::Test).run
-    [id, message(result)] if killing?(result)
+    result = Kimera::Frameworks::ClassHooks.new(klass).test(name)
+    [id, message(result)] if result && killing?(result)
   end
 
-  def paths(files)
-    Array(files).each do |file|
-      parts = File.expand_path(file).split(File::SEPARATOR)
-      TESTROOTS.each { |root| prepend(parts, root) }
-    end
-  end
-
-  def prepend(parts, root)
-    index = parts.rindex(root)
-    return unless index
-    dir = parts[0..index].join(File::SEPARATOR)
-    $LOAD_PATH.unshift(dir) unless $LOAD_PATH.include?(dir)
-  end
+  def paths(files) = Kimera::Frameworks::LoadPath.new(files).install
 
   def indexed
     @_indexed ||= Minitest::Runnable.runnables.flat_map do |runnable|

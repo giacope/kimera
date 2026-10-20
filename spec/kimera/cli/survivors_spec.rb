@@ -282,6 +282,14 @@ RSpec.describe("kimera survivors", :aggregate_failures) do
     expect(out).not_to(include("#7"))
   end
 
+  # `kimera mutant ID --report FILE` names its report with a flag; so may this.
+  it "reads the report named by --report, taking a positional argument as the file filter", :aggregate_failures do
+    out, status = run("--report", report_path, "book")
+    expect(status).to(eq(0))
+    expect(out).to(include("#9"))
+    expect(out).not_to(include("#7"))
+  end
+
   it "fails cleanly for a missing report path" do
     expect do
       _, status = run("nope.json")

@@ -54,8 +54,9 @@ BUNDLE_GEMFILE=<kimera repo>/Gemfile bundle exec kimera run app --tests '...'
 
 ## Gotchas
 
-- Survivors gate via `--max-survivors`. `no_coverage` mutants do NOT gate and
-  do not lower the score (0 covered mutants → "score=100.0%", exit 0).
+- Survivors gate via `--max-survivors`. `no_coverage` mutants also gate and
+  score as not killed by default (`count_no_coverage: true`); pass
+  `--no-count-no-coverage` to report them without scoring them.
 - `--since REF` silently selects 0 mutants when the project root is a
   subdirectory of the git repo (git emits repo-root-relative paths; the
   registry uses project-relative ones). Test `--since` only in a repo whose

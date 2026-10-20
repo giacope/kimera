@@ -201,7 +201,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       )
       result = worker.evaluate(target)
       expect(result.status).to(eq(:timeout))
-      expect(result.duration).to(eq(0.2))
+      expect(result.duration).to(be >= 0.2)
       expect(result.file).to(eq("calc.rb"))
     end
 

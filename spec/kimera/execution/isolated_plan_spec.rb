@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "fileutils"
 require "kimera/execution/isolated_plan"
 require "kimera/execution/test_filter"
 require "kimera/registry/builder"
@@ -156,9 +157,14 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       expect(child.request(["a"], first: true)).to(include("first_failure" => true))
     end
 
-    it "is spec for rspec and test for minitest", :aggregate_failures do
-      expect(child.helpers).to(eq("spec"))
-      expect(child(framework: "minitest").helpers).to(eq("test"))
+    # The same load path the warm run and doctor use, read in the mirror.
+    it "puts the test files' folders and the mirror's test and spec on the load path", :aggregate_failures do
+      Dir.mktmpdir do |mirror|
+        FileUtils.mkdir_p(File.join(mirror, "test"))
+        nested = child(framework: "minitest", test_files: %w[lib/x/test/a_test.rb])
+        expect(nested.helpers(mirror)).to(eq(["-I", "lib/x/test", "-I", "test"]))
+        expect(child.helpers(mirror)).to(eq(["-I", "test"]))
+      end
     end
   end
 
@@ -167,6 +173,7 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
 
     def bare(locations, registry: nil)
       Dir.mktmpdir do |mirror|
+        FileUtils.mkdir_p(File.join(mirror, "spec"))
         return plan(registry: registry || self.registry).command(mirror, locations, File.join(mirror, "l.json"))
       end
     end
@@ -175,6 +182,7 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       Dir.mktmpdir do |mirror|
         gemfile = File.join(mirror, "Gemfile")
         File.write(gemfile, "source 'https://rubygems.org'\n")
+        FileUtils.mkdir_p(File.join(mirror, "spec"))
         return [gemfile, *plan(root: root).command(mirror, locations, File.join(mirror, "l.json"))]
       end
     end

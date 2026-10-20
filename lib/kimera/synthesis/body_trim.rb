@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "prism"
+require_relative "../support/branches"
 require_relative "../support/syntax"
 require_relative "guardrail_factories"
 
@@ -43,8 +44,7 @@ module Kimera
       statements.body.flat_map do |node|
         next [node] unless live?(node) || kept?(unguarded(node), defined)
         defined << node.name if node.is_a?(Prism::DefNode)
-        body = inner(node)
-        body.is_a?(Prism::StatementsNode) ? dead(body) : []
+        Array(inner(node)).grep(Prism::StatementsNode).flat_map { |body| dead(body) }
       end
     end
 
@@ -90,6 +90,7 @@ module Kimera
       when Prism::ClassNode, Prism::ModuleNode, Prism::SingletonClassNode then node.body
       when Prism::CallNode then declared(node)
       when Prism::ConstantWriteNode, Prism::ConstantPathWriteNode then declared(node.value)
+      when *CONDITIONS then Kimera::Branches.new(node).bodies
       end
     end
 

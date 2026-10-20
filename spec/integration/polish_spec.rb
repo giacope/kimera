@@ -35,7 +35,7 @@ RSpec.describe("kimera run polish features") do
 
       test_run(
         cwd: test_sample,
-        arguments: ["--config", config, "--max-survivors", "4"]
+        arguments: ["--config", config, "--max-survivors", "4", "--no-count-no-coverage"]
       ) do |output, report, status|
         counts = report["counts"]
         expect(counts["ignored"]).to(eq(1))

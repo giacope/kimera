@@ -18,6 +18,8 @@ module Kimera
         def verdict
           passed? ? [:survived, []] : [:killed, failed_ids]
         end
+
+        def expired? = false
       end
   end
 end
@@ -55,6 +57,8 @@ class Kimera::Frameworks::Adapter
 
   HARNESS = File.expand_path("..", __dir__)
   FRAMES = 5
+  DEPENDENCIES = %w[ast diff-lcs parser prism racc unparser].freeze
+  KIND_CLASH = /\A(\w+) is not a (?:class|module)\b/
 
   private
 
@@ -79,7 +83,20 @@ class Kimera::Frameworks::Adapter
   def load_test_file(file)
     yield(File.expand_path(file))
   rescue StandardError, ScriptError => error
-    raise(Kimera::Error, "cannot load test file #{file} (#{error.class}: #{error.message})")
+    raise(Kimera::Error, "cannot load test file #{file} (#{error.class}: #{error.message})#{clash(error)}")
+  end
+
+  def clash(error)
+    name = error.message[KIND_CLASH, 1] if error.is_a?(TypeError)
+    gem = name && owner(name)
+    return "" unless gem
+    "\n  #{name} is a top-level constant that #{gem}, a gem kimera runs on, defines in the process that loads " \
+      "your suite, so the project's own #{name} cannot load beside it: put the project's #{name} in a namespace"
+  end
+
+  def owner(name)
+    path = Object.const_source_location(name)&.first.to_s
+    DEPENDENCIES.find { |gem| Gem.loaded_specs[gem]&.full_gem_path&.then { |root| path.start_with?("#{root}/") } }
   end
 end
 

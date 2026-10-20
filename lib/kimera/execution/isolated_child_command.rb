@@ -2,6 +2,7 @@
 
 require "json"
 require_relative "suite_env"
+require_relative "../frameworks/load_path"
 
 module Kimera
   module Execution
@@ -25,7 +26,7 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
   def command(mirror, request, ledger:, paths:)
     File.write(request_path(ledger), JSON.generate(request))
     includes = paths.flat_map { |path| ["-I", path] }
-    bundled(mirror, Kimera::Execution::SUITE_ENV.dup, ["ruby", *includes, "-I", helpers, *argv(ledger)])
+    bundled(mirror, Kimera::Execution::SUITE_ENV.dup, ["ruby", *includes, *helpers(mirror), *argv(ledger)])
   end
 
   def argv(ledger)
@@ -36,9 +37,7 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
     { "tests" => locations, "files" => @test_files, "first_failure" => first }.merge(@seed ? { "seed" => @seed } : {})
   end
 
-  def helpers
-    minitest? ? "test" : "spec"
-  end
+  def helpers(mirror) = Kimera::Frameworks::LoadPath.new(@test_files, root: mirror).flags
 
   def request_path(ledger) = "#{ledger}.request"
 

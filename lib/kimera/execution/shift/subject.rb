@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require_relative "../../results/result"
+require_relative "expiry"
+require_relative "overrun"
 
 Kimera::Execution::Shift::Subject =
   Data.define(:id, :file) do
@@ -11,8 +13,12 @@ Kimera::Execution::Shift::Subject =
     def judged(outcome, tests, duration)
       fields = { duration: duration, covering_tests: tests }
       return verdict(:survived, **fields) unless outcome
-      return verdict(:timeout, detail: outcome.detail, **fields) if outcome.is_a?(Kimera::Execution::Shift::Overrun)
+      return verdict(:timeout, detail: outcome.detail, **fields) if timed?(outcome)
       killed(outcome, **fields)
+    end
+
+    def timed?(outcome)
+      [Kimera::Execution::Shift::Overrun, Kimera::Execution::Shift::Stall].any? { outcome.is_a?(it) }
     end
 
     def crashed(error, limit)

@@ -139,8 +139,9 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
   # A suite that shares a directory, file or port between tests is red on
   # several workers and green on one: the error says what to try.
   it "names --jobs 1 as the check when a baseline on several workers is red", :aggregate_failures do
-    hint = "\n  ran on 3 workers: if these pass with --jobs 1, the suite shares state between workers " \
-      "(a directory, file or port); use jobs: 1 until each test has its own"
+    hint = "\n  ran on 3 workers: if the reproduce command above fails too, the tests are red on their own; if it " \
+      "passes and --jobs 1 is green, the suite shares state between workers (a directory, file or port): use jobs: 1 " \
+      "until each test has its own"
     expect { measure({ "t1" => :fail, "t2" => :fail }, jobs: 3) }.to(
       raise_error(Kimera::Execution::BaselineFailure) { |error| expect(error.message).to(end_with(hint)) }
     )

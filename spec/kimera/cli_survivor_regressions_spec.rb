@@ -370,6 +370,19 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
   end
 
+  # The adapter, doctor and isolated children read load_path: from there.
+  it "exports the configured load path to the environment before loading the adapter", :aggregate_failures do
+    registry = Kimera::RegistryScan.new.source("def x; 1; end\n", file: "x.rb")
+    seen = []
+    env = {}
+    allow(Kimera::Frameworks::ADAPTERS).to(receive(:load) { seen << env["KIMERA_LOAD_PATH"] })
+    allow(Kimera::CLI::Run::Pass).to(receive(:new).and_return(instance_double(Kimera::CLI::Run::Pass, call: nil)))
+    configured = { framework: "rspec", load_path: %w[support test/helpers] }
+    Kimera::CLI::Run::Cycle.new(configured, registry, nil, digest: nil).__send__(:harness, [1], env: env)
+    Kimera::CLI::Run::Cycle.new({ framework: "rspec" }, registry, nil, digest: nil).__send__(:harness, [1], env: env)
+    expect(seen).to(eq(["support#{File::PATH_SEPARATOR}test/helpers", ""]))
+  end
+
   describe "workflow branches" do
     it "initializes minitest projects, supports dry-run, and rejects unknown options" do
       Dir.mktmpdir do |dir|
@@ -442,7 +455,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         File.write(File.join(dir, "spec", "x_spec.rb"), "# spec\n")
         File.write(File.join(dir, ".git"), "gitdir: /elsewhere\n")
         failure = instance_double(Process::Status, success?: false)
-        allow(Open3).to(receive(:capture2e).and_return(["x_spec.rb:1: boom (RuntimeError)\n", failure]))
+        allow(Kimera::Execution::SUITE).to(receive(:call).and_return(["x_spec.rb:1: boom (RuntimeError)\n", failure]))
         out, errors = streams
         expect(Kimera::CLI::Doctor.new(io: out, errors: errors, root: dir).run([])).to(eq(1))
         expect(out.string).to(include("✗ Test loading: x_spec.rb:1: boom (RuntimeError)", "✓ Git: incremental"))
@@ -453,7 +466,14 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       Dir.mktmpdir do |dir|
         FileUtils.mkdir_p(File.join(dir, "spec"))
         File.write(File.join(dir, "spec", "x_spec.rb"), "# spec\n")
-        allow(Open3).to(receive(:capture2e).and_return(["", instance_double(Process::Status, success?: true)]))
+        allow(Kimera::Execution::SUITE).to(
+          receive(:call).and_return(
+            [
+              "",
+              instance_double(Process::Status, success?: true)
+            ]
+          )
+        )
         out, errors = streams
         doctor = Kimera::CLI::Doctor.new(io: out, errors: errors, root: dir)
         allow(doctor).to(receive(:baselines).and_return([["✓", "Baseline: configured test suite is green"]]))
@@ -537,6 +557,16 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
           "1 unjudged mutant(s): see why with `kimera mutant 9 --report out.json`"
         )
       )
+    end
+
+    it "points at the mutants only a fresh process can judge, saved or not", :aggregate_failures do
+      hint = "1 mutant(s) only a fresh process can judge (validations, callbacks, load-time code): " \
+        "judge them with `kimera run --isolated`, or --judge-isolated-only"
+      [{ path: "out.json" }, {}].each do |where|
+        io = StringIO.new
+        Kimera::Report::Actions.new(io: io).show(report(result(4, :isolated_only)), **where)
+        expect(io.string).to(eq("\nNext actions:\n  #{hint}\n"))
+      end
     end
 
     it "points at the mutants only other units' tests reach, saved or not", :aggregate_failures do
@@ -726,13 +756,14 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         success = instance_double(Process::Status, success?: true)
         test = File.join(dir, "test", "x_test.rb")
         loader = Kimera::CLI::TestCommand::LOADER
-        command = [Kimera::Execution::SUITE_ENV, "bundle", "exec", "ruby", "-Itest", "-e", loader, test]
-        allow(Open3).to(receive(:capture2e).with(*command, chdir: dir).and_return(["", success]))
+        includes = ["-I", "test", "-I", "spec"]
+        command = [Kimera::Execution::SUITE_ENV, "bundle", "exec", "ruby", *includes, "-e", loader, test]
+        allow(Kimera::Execution::SUITE).to(receive(:call).with(*command, chdir: dir).and_return(["", success]))
 
         result = instance.__send__(:baselines, { framework: "minitest", tests: ["test/**/*_test.rb"] })
 
         expect(result).to(eq([["✓", "Baseline: configured test suite is green"]]))
-        expect(Open3).to(have_received(:capture2e).with(*command, chdir: dir))
+        expect(Kimera::Execution::SUITE).to(have_received(:call).with(*command, chdir: dir))
       end
     end
 
@@ -742,8 +773,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         failure = instance_double(Process::Status, success?: false)
         spec = File.join(dir, "spec", "x_spec.rb")
         command = ["bundle", "exec", "rspec", spec]
-        allow(Open3).to(
-          receive(:capture2e).with(
+        allow(Kimera::Execution::SUITE).to(
+          receive(:call).with(
             Kimera::Execution::SUITE_ENV, *command,
             chdir: dir
           ).and_return(["noise\n3 examples, 1 failure\n", failure])
@@ -753,7 +784,12 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
         message = "Baseline: 3 examples, 1 failure (fix it, then rerun `kimera doctor --check-baseline`)"
         expect(result).to(eq([["✗", message]]))
-        expect(Open3).to(have_received(:capture2e).with(Kimera::Execution::SUITE_ENV, *command, chdir: dir))
+        expect(Kimera::Execution::SUITE).to(
+          have_received(:call).with(
+            Kimera::Execution::SUITE_ENV, *command,
+            chdir: dir
+          )
+        )
       end
     end
 

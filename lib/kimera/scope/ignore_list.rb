@@ -14,7 +14,7 @@ module Kimera
         def line?(value) = point.location.range.include?(Integer(value))
         def starts?(value) = point.location.start_line == Integer(value)
         def operator?(value) = Array(value).map(&:to_s).include?(point.operator)
-        def column?(value) = point.location.start_column == Integer(value)
+        def column?(value) = point.location.start_column + 1 == Integer(value)
         def label?(value) = value == mutant.label
         def method?(value) = value.to_s == point.method_name
         def original?(value) = squeeze(value) == squeeze(point.original_source)

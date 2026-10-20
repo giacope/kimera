@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../../execution/suite_env"
+require_relative "../../frameworks/load_path"
 require_relative "../../incremental/selection"
 require_relative "../../incremental/session"
 require_relative "../../incremental/stamp"
@@ -14,7 +15,7 @@ require_relative "sources"
 class Kimera::CLI::Run::Cycle
   SETTINGS = %i[
     framework source_root tests exclude_tests operators coverage isolated attribution unit_tests seed flaky_runs
-    test_quality
+    test_quality judge_isolated_only
   ].freeze
 
   def initialize(options, registry, changed, digest:)
@@ -99,6 +100,7 @@ class Kimera::CLI::Run::Cycle
     env.update(Kimera::Execution::SUITE_ENV)
     seed = @options[:seed]
     seed ? env.store(Kimera::Execution::SEED_ENV, seed.to_s) : env.delete(Kimera::Execution::SEED_ENV)
+    env.store(Kimera::Frameworks::LoadPath::VARIABLE, Array(@options[:load_path]).join(File::PATH_SEPARATOR))
     adapter = Kimera::Frameworks::ADAPTERS.load(@options[:framework])
     Kimera::CLI::Run::Pass.new(@registry, @options, adapter).call(remaining)
   end

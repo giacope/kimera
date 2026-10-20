@@ -28,6 +28,26 @@ RSpec.describe(Kimera::Execution::Zygote) do
       .to(raise_error(described_class::Raised, "bad") { |error| expect(error.kind).to(eq("ArgumentError")) })
   end
 
+  it "brings back the child's frames and headline with a raised error", :aggregate_failures do
+    zygote.call { raise(ArgumentError, "bad") }
+  rescue described_class::Raised => error
+    expect(error.headline).to(eq("ArgumentError: bad"))
+    expect(error.backtrace.first).to(include("zygote_spec.rb"))
+  end
+
+  it "keeps a soft timeout's frames too" do
+    zygote.call { raise(Timeout::Error, "late") }
+  rescue Timeout::Error => error
+    expect(error.backtrace.first).to(include("zygote_spec.rb"))
+  end
+
+  it "brings back at most a screenful of frames" do
+    deep = ->(n) { n.zero? ? raise(ArgumentError, "deep") : deep.call(n - 1) }
+    zygote.call { deep.call(100) }
+  rescue described_class::Raised => error
+    expect(error.backtrace.size).to(eq(described_class::FRAMES))
+  end
+
   it "reports a child that exits without replying, with its status", :aggregate_failures do
     expect { zygote.call { exit!(3) } }
       .to(raise_error(described_class::Died, "") { |died| expect([died.code, died.signal]).to(eq([3, nil])) })

@@ -217,6 +217,38 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     expect(test_initialized(rspec)).not_to(have_key("exclude_tests"))
   end
 
+  # Sequel and graphql-ruby keep Minitest specs under spec/ with no helper
+  # that names a framework; the lockfile says which one is installed.
+  it "picks the framework the lockfile installs when the layout would guess", :aggregate_failures do
+    spec = { "spec/core/a_spec.rb" => "describe('x') { }\n" }
+    minitest = spec.merge("Gemfile.lock" => "GEM\n  specs:\n    minitest (5.25.1)\n")
+    expect(test_initialized(minitest)).to(include("framework" => "minitest", "tests" => ["spec/**/*_spec.rb"]))
+    locked = spec.merge("gems.locked" => "GEM\n  specs:\n    minitest (5.25.1)\n")
+    expect(test_initialized(locked)).to(include("framework" => "minitest"))
+    rspec = { "test/a_test.rb" => "", "Gemfile.lock" => "GEM\n  specs:\n    rspec-core (3.13.2)\n" }
+    expect(test_initialized(rspec)).to(include("framework" => "rspec"))
+    both = "    minitest (5.25.1)\n    rspec-core (3.13.2)\n"
+    expect(test_initialized(minitest.merge("Gemfile.lock" => both))).to(include("framework" => "rspec"))
+    expect(test_initialized("test/a_test.rb" => "", "Gemfile.lock" => both)).to(include("framework" => "minitest"))
+    named = spec.merge("Gemfile.lock" => "    minitest-hooks (1.5.2)\n    rspec-core-ext (1.0)\n")
+    expect(test_initialized(named)).to(include("framework" => "rspec"))
+  end
+
+  it "lets a .rspec file or a helper that names a framework win over the lockfile", :aggregate_failures do
+    minitest = { "Gemfile.lock" => "    minitest (5.25.1)\n", "spec/a_spec.rb" => "" }
+    expect(test_initialized(minitest.merge(".rspec" => ""))).to(include("framework" => "rspec"))
+    helper = { "test/test_helper.rb" => "require 'rspec'\n", "Gemfile.lock" => "    minitest (5.25.1)\n" }
+    expect(test_initialized(helper)).to(include("framework" => "rspec"))
+  end
+
+  # Validations, callbacks and dependent: options are a Rails app's riskiest
+  # declarations; the rails operators mutate them.
+  it "turns on the rails operators in a Rails app, and only there", :aggregate_failures do
+    rails = test_initialized("config/application.rb" => "", "spec/a_spec.rb" => "")
+    expect(rails["operators"]).to(eq([*Kimera::Operators::DEFAULT_KEYS, "rails"]))
+    expect(test_initialized("spec/a_spec.rb" => "")).not_to(have_key("operators"))
+  end
+
   # rack names its tests test/spec_*.rb; rake-style gems use test/test_*.rb.
   it "finds minitest files named test_*.rb or spec_*.rb", :aggregate_failures do
     helper = { "test/helper.rb" => "require 'minitest/autorun'\n" }
@@ -232,12 +264,12 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
   it "skips loading and the baseline when no test file matches", :aggregate_failures do
     Dir.mktmpdir do |dir|
       File.write(File.join(dir, ".kimera.yml"), "tests: [test/**/*_test.rb]\n")
-      allow(Open3).to(receive(:capture2e))
+      allow(Kimera::Execution::SUITE).to(receive(:call))
       status, output = test_doctor_in(dir, "--check-baseline")
       expect(status).to(eq(1))
       expect(output).to(include("✗ Test discovery", "! Test loading: no test files to load"))
       expect(output).not_to(include("Baseline"))
-      expect(Open3).not_to(have_received(:capture2e))
+      expect(Kimera::Execution::SUITE).not_to(have_received(:call))
     end
   end
 
@@ -248,10 +280,56 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
       File.write(File.join(dir, "test", "system", "b_test.rb"), "")
       config = "tests: [test/**/*_test.rb]\nexclude_tests: [test/system/**/*_test.rb]\n"
       File.write(File.join(dir, ".kimera.yml"), config)
-      allow(Open3).to(receive(:capture2e).and_return(["", instance_double(Process::Status, success?: true)]))
+      allow(Kimera::Execution::SUITE).to(
+        receive(:call).and_return(
+          [
+            "",
+            instance_double(Process::Status, success?: true)
+          ]
+        )
+      )
       expect(test_doctor_in(dir).last).to(include("✓ Test discovery: 1 files"))
       green = "✓ Baseline: configured test suite is green\n"
       expect(test_doctor_in(dir, "--check-baseline").last.lines.last).to(eq(green))
+    end
+  end
+
+  # Output piped to a file or CI log must show doctor working before the
+  # suite run, which can take minutes.
+  it "prints each check, flushed, before the suite runs", :aggregate_failures do
+    Dir.mktmpdir do |dir|
+      FileUtils.mkdir_p(File.join(dir, "spec"))
+      File.write(File.join(dir, "spec", "a_spec.rb"), "")
+      out = Class.new(StringIO) { define_method(:flushed) { @_flushed ||= [] } }.new
+      allow(out).to(receive(:flush)) { out.flushed << out.string.lines.size }
+      seen = []
+      allow(Kimera::Execution::SUITE).to(receive(:call)) do
+        seen << out.string
+        ["", instance_double(Process::Status, success?: true)]
+      end
+      Kimera::CLI::Doctor.new(io: out, errors: StringIO.new, root: dir).run(["--check-baseline"])
+      expect(seen.first).to(include("✓ Test discovery: 1 files", "Git:"))
+      expect(seen.last).to(include("✓ Test loading"))
+      expect(out.flushed).to(eq((1..out.string.lines.size).to_a))
+    end
+  end
+
+  it "runs the suite with the configured load path, as kimera run does" do
+    Dir.mktmpdir do |dir|
+      FileUtils.mkdir_p(File.join(dir, "spec"))
+      File.write(File.join(dir, "spec", "a_spec.rb"), "")
+      config = "framework: minitest\ntests: [spec/**/*_spec.rb]\nload_path: [support, spec/helpers]\n"
+      File.write(File.join(dir, ".kimera.yml"), config)
+      seen = []
+      allow(Kimera::Execution::SUITE).to(receive(:call)) do |_env, *command, **|
+        seen << command
+        ["", instance_double(Process::Status, success?: true)]
+      end
+      test_doctor_in(dir)
+      expect(ENV.fetch("KIMERA_LOAD_PATH")).to(eq("support#{File::PATH_SEPARATOR}spec/helpers"))
+      expect(seen.first).to(start_with("bundle", "exec", "ruby", "-I", "support", "-I", "spec/helpers", "-I", "spec"))
+    ensure
+      ENV.delete("KIMERA_LOAD_PATH")
     end
   end
 
@@ -259,7 +337,7 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     FileUtils.mkdir_p(File.join(dir, "spec"))
     File.write(File.join(dir, "spec", "a_spec.rb"), "")
     File.write(File.join(dir, ".kimera.yml"), config)
-    allow(Open3).to(receive(:capture2e)) do |_env, *command, **|
+    allow(Kimera::Execution::SUITE).to(receive(:call)) do |_env, *command, **|
       ["", instance_double(Process::Status, success?: serial || command.include?("--dry-run"))]
     end
     test_doctor_in(dir, "--check-baseline", *argv).last
@@ -271,7 +349,7 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     parallel = "✓ Parallel baseline: green split across 3 processes too (jobs: 3)\n"
     Dir.mktmpdir do |dir|
       expect(test_doctor_jobs(dir, "jobs: 3\n").lines.last).to(eq(parallel))
-      expect(Open3).to(have_received(:capture2e).exactly(5).times)
+      expect(Kimera::Execution::SUITE).to(have_received(:call).exactly(5).times)
       expect(test_doctor_jobs(dir, "jobs: 3\n", "--jobs", "1")).not_to(include("Parallel"))
       expect(test_doctor_jobs(dir, "{}\n", "--jobs", "3").lines.last).to(eq(parallel))
       expect(test_doctor_jobs(dir, "jobs: 1\n")).not_to(include("Parallel"))

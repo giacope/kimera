@@ -191,12 +191,14 @@ RSpec.describe(Kimera::Execution::Shift) do
 
   describe "the soft timeout" do
     # Frameworks rescue Timeout's interrupt as a test error; pretend one did.
+    # With the mutant off the tests pass at once.
     def swallowing(delay)
       Class.new do
         define_method(:test_ids) { %w[t1 t2] }
         define_method(:run) do |ids|
-          sleep(delay) if ids == ["t1"] && Kimera::RUNTIME.active
-          Kimera::Frameworks::RunOutcome.new(passed: false, failed_ids: ids, failures: { ids.first => "interrupted" })
+          on = Kimera::RUNTIME.active
+          sleep(delay) if ids == ["t1"] && on
+          Kimera::Frameworks::RunOutcome.new(passed: !on, failed_ids: ids, failures: { ids.first => "interrupted" })
         rescue Timeout::ExitException
           Kimera::Frameworks::RunOutcome.new(passed: false, failed_ids: ids, failures: { ids.first => "interrupted" })
         end
@@ -209,7 +211,7 @@ RSpec.describe(Kimera::Execution::Shift) do
 
       expect(result.status).to(eq(:timeout))
       expect(result.failing_tests).to(be_nil)
-      expect(result.detail).to(eq("soft timeout (0.1s) expired while t1 ran"))
+      expect(result.detail).to(start_with("soft timeout (0.1s) expired while t1 ran with the mutant on; alone with"))
     end
 
     # The interrupted test's threads die with its process, so the worker
@@ -231,8 +233,9 @@ RSpec.describe(Kimera::Execution::Shift) do
       expect(worker(adapter, { target => ["t1"] }, soft: 5.0).evaluate(target).status).to(eq(:killed))
     end
 
-    # The control run swallows the interrupt and passes; the rerun then fails.
-    it "catches a deadline that passes during the confirmation runs" do
+    # The control run, mutant off, is the one that runs past the deadline: the
+    # test is slow on its own, so its timeout says nothing about the mutant.
+    it "lays no timeout on the mutant when the deadline passes during a run with it off", :aggregate_failures do
       target = ids.first
       adapter = scripted({ "t0" => [], "t1" => [] })
       runs = Hash.new(0)
@@ -247,8 +250,9 @@ RSpec.describe(Kimera::Execution::Shift) do
         passed = !on || ids == ["t0"] || runs[[ids, on]] > 1
         Kimera::Frameworks::RunOutcome.new(passed: passed, failed_ids: passed ? [] : ids)
       end
-      worker = worker(adapter, { target => %w[t0 t1] }, soft: 0.1)
-      expect(worker.evaluate(target).status).to(eq(:timeout))
+      result = worker(adapter, { target => %w[t0 t1] }, soft: 0.1).evaluate(target)
+      expect(result.status).to(eq(:harness_error))
+      expect(result.detail).to(include("also failed with the mutant switched off (soft timeout (0.1s) expired"))
     end
   end
 end

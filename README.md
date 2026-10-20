@@ -80,8 +80,10 @@ gem "kimera", group: :test
 bundle install
 ```
 
-**2. Generate a config.** `init` detects RSpec or Minitest, your source roots
-(`app/`, `lib/`), and your test glob. It writes a commented `.kimera.yml`
+**2. Generate a config.** `init` detects RSpec or Minitest (from `.rspec`, a
+test helper, or which one `Gemfile.lock` installs), your source roots
+(`app/`, `lib/`), and your test glob; on a Rails app it adds the `rails`
+operators. It writes a commented `.kimera.yml`
 whose first line names its [JSON schema](schema/kimera.schema.json), so
 editors with a YAML language server complete and check the keys.
 
@@ -554,9 +556,18 @@ max_survivors: 0
 # Fail when any mutant in scope lacks a covering test. Best on incremental
 # runs, where "no coverage" means the PR adds logic no test executes.
 fail_on_no_coverage: false
-# Score uncovered mutants as not killed too, and fail on them, in every
-# command (kimera run included). Off: they are reported but not scored.
-count_no_coverage: false
+# Score uncovered mutants as not killed, and fail on them, in every command
+# (default: true; untested code is not passing code). false reports them
+# without scoring them.
+count_no_coverage: true
+# Judge in fresh isolated mirrors what the warm run cannot (validations,
+# callbacks, dependent:, lambdas a macro registers). Unset: on for --since,
+# ci and changed; off for full runs.
+# judge_isolated_only: true
+# Extra folders for the load path, beside each test file's nearest test/ or
+# spec/ and the project's own test/ and spec/. doctor and the printed
+# reproduce commands use the same load path.
+# load_path: [test/support]
 
 # The gate fails when more than this many mutants are ignore-listed. Marking
 # one more mutant equivalent means raising this number in the same diff, so
@@ -571,7 +582,7 @@ max_ignored: 1
 # Known-equivalent mutants. Equivalence is undecidable, so Kimera doesn't
 # guess: you mark a mutant and it stops being a survivor. An entry without
 # a reason: is rejected at startup. Anchors: file (a glob, required), line
-# (spanned), starts (the line the mutated code starts on), column (0-based),
+# (spanned), starts (the line the mutated code starts on), column (1-based, as the report prints it),
 # label, method, original, operator. If a line anchor drifts (a line was added
 # above), the entry still applies when its label (plus original/method, if
 # given) singles out one mutant in the file; Kimera warns so you can update it.
@@ -614,7 +625,9 @@ Memoization is not a mutation target. Dropping a memo only recomputes an equal
 value, so that mutant would always survive. `@x ||= …` has no such mutant, and
 neither does a guard that opens a method: `return @x if defined?(@x)`,
 `return @x if @x` (with `@x` assigned later in the method), or `return if @x`
-followed by `@x = true`. Everything the method computes is still mutated. A
+followed by `@x = true`, nor a guarded fill that ends on the ivar:
+`unless @x; ...; @x = value; end; @x` (also `@x = value unless @x`,
+`if @x.nil?`, `if !@x`). Everything the method computes is still mutated. A
 re-entrancy guard with the run-once shape is skipped too.
 
 The extended families are one flag away. Use `--operators all`, or pick from:
@@ -628,7 +641,7 @@ The extended families are one flag away. Use `--operators all`, or pick from:
 | `collection_literal` | `[a, b] => []`, `{k: v} => {}` |
 | `range` | `a..b <=> a...b` |
 | `method_unwrap` | `x.strip => x` (curated argless transformations) |
-| `return_value` | `return x => return nil`; def-body tail `=> nil` |
+| `return_value` | `return x => return nil`; def-body tail `=> nil` (not for a `nil` or `false` tail: a truthiness test can't tell them apart) |
 | `selector_swap` | `select <=> reject`, `all? <=> any?`, `min <=> max`, `first <=> last`, `detect => first` |
 | `regexp` | `/pat/ => //` (match all) and `=> /(?!)/` (match none) |
 | `element_drop` | `[a, b, c]` / `{k: v, ...}` => drop one element/pair |
@@ -730,9 +743,15 @@ comparison,rails` composes, and `all` includes them.
   not `no_coverage`, and `--isolated` judges it against the whole suite.
 - **`rails_permit`** runs on the normal warm path.
 - **Validations and callbacks** are class-body DSL. They execute once at load,
-  so no in-process scheme can judge them. The warm run reports them as
-  `isolated_only` (excluded from the score, never gating). `--isolated` gives
-  the verdict by baking each deletion into a fresh tree.
+  so no in-process scheme can judge them. The warm run marks them
+  `isolated_only`, and the isolated tier judges them by baking each deletion
+  into a fresh tree: on incremental runs (`--since`, `kimera ci`, `kimera
+  changed`) by default, where the scope keeps the cost small; on a full run
+  with `--judge-isolated-only` (`judge_isolated_only: true`) or `--isolated`.
+  Left unjudged, they are excluded from the score, and a scope where nothing
+  else could be evaluated fails the gate instead of passing on nothing.
+- **Out of the box.** `kimera init` on a Rails app (one with
+  `config/application.rb`) writes the `rails` group into `operators:`.
 - **Zeitwerk.** Kimera calls `Rails.application.eager_load!` before overlaying,
   so lazily autoloaded constants can't escape mutation.
 
@@ -928,7 +947,13 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     [relative time budget](#relative-time-budget)).
     Before the kill it asks the worker for every thread's backtrace (SIGQUIT)
     and puts them in the verdict's `detail`, or in the baseline error. A test
-    interrupted by the soft timeout is a `timeout`, not the mutant's killer.
+    that runs past the soft timeout with the mutant on is then run alone with
+    the mutant off: the mutant is a `timeout` (detected) only when that run
+    passes in under half the soft timeout. A test that is slow on its own (or
+    fails on its own) kills nothing; the other covering tests are tried, and
+    if none kills the mutant it is unjudged, its detail saying to raise
+    `--soft-timeout`. So a test whose own time sits near the limit cannot turn
+    slow-but-passing runs into kills, whatever the machine's load.
     The interrupt reaches only the test's own thread, so threads it started
     may still hold connections and locks; they end with the mutant's process.
   - Code under test that calls `exit` or `abort` (a rake task, a CLI entry
@@ -985,15 +1010,32 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     (default 0). A pool that never produces a result aborts the run. When a
     worker died, the `detail` says how (`died on signal 15 (SIGTERM)`,
     `exited 1`) and, if Ruby raised something, the exception and its frames.
-  - Uncovered mutants don't lower the score by default, unlike some tools.
-    `--fail-on-no-coverage` fails the gate on them; `count_no_coverage: true`
-    (`--count-no-coverage`) also scores each as not killed, so the score is
-    killed over every mutant a test could have killed, run or not, and the
-    gate fails on them in every command, `kimera run` included. The report's
-    `run` section records the setting.
+  - Uncovered mutants count: by default (`count_no_coverage: true`) each
+    scores as not killed, so the score is killed over every mutant a test
+    could have killed, run or not, and the gate fails on them in every
+    command, `kimera run` included. `count_no_coverage: false`
+    (`--no-count-no-coverage`) reports them without scoring them;
+    `--fail-on-no-coverage` still fails the gate on them. The report's `run`
+    section records the setting.
+  - A gate that killed nothing while `isolated_only` or `unmutatable`
+    mutants were in scope fails ("0 of N mutants killed"), naming
+    `--isolated`.
 - **No constant outside `Kimera`.** Every synthesized guard dispatches through
   `::Kimera::RUNTIME`, the process's one `Kimera::Runtime`, bound once: a
-  second copy of `kimera/runtime.rb` keeps the runtime it finds.
+  second copy of `kimera/runtime.rb` keeps the runtime it finds. Kimera's
+  dependencies do define top-level constants in the process that loads your
+  suite (`Parser`, `AST`, `Unparser`, `Racc`, `Diff`, `Prism`), so a project
+  with its own top-level class of one of those names cannot load beside them;
+  the load error names the constant and the gem, and the fix is a namespace.
+- **One load path.** Each test file's nearest `test/` or `spec/` folder, the
+  project's own `test/` and `spec/`, and the folders `load_path:` names go on
+  the load path when the suite loads, and the same `-I` flags go into
+  `kimera doctor`'s commands, the isolated tier's children and every printed
+  "reproduce without kimera" command.
+- **Minitest class hooks.** Each test runs inside its class's
+  `with_info_handler`, as a plain run does, so minitest-hooks'
+  `before(:all)`/`around(:all)` run around it, and a failing class hook
+  fails the test.
 - **Locale.** Kimera reads its files, reports and pipes as UTF-8 whatever
   `LANG` says, so it runs with `LANG` unset or `LANG=C`.
 

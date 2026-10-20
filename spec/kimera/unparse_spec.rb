@@ -115,6 +115,27 @@ RSpec.describe(Kimera::Unparse) do
     end
   end
 
+  # The parser reads `|(name)|` and `|name|` as the same procarg0 node, told
+  # apart only by the location of the parentheses. Written without them, a
+  # block handed ["a"] binds the whole array instead of "a": hashira's
+  # `text.scan(RE) { |(name)| ... }` went red under kimera, unmutated.
+  describe(Kimera::Unparse::Destructuring) do
+    def reemit(source) = Kimera::Unparse.new(Kimera::Unparse.parse(source)).source
+
+    def node(type, *children) = Parser::AST::Node.new(type, children)
+
+    it "keeps the parentheses of a one-name destructuring block parameter", :aggregate_failures do
+      expect(reemit("x.each { |(a)| a }")).to(eq("x.each { |(a)|\n  a\n}"))
+      expect(reemit("x.each { |(a), b| a }")).to(eq("x.each { |(a), b|\n  a\n}"))
+    end
+
+    it "writes a plain block parameter, and one built with no source, as unparser does", :aggregate_failures do
+      expect(reemit("x.each { |a| a }")).to(eq("x.each { |a|\n  a\n}"))
+      built = node(:block, node(:send, nil, :x), node(:args, node(:procarg0, node(:arg, :a))), node(:lvar, :a))
+      expect(Kimera::Unparse.new(built).source).to(eq("x { |a|\n  a\n}"))
+    end
+  end
+
   # A mutated tree lacks the parentheses its new operator needs: with the inner
   # && of `x = a && b && c` swapped to ||, unparser wrote `x = a || b && c`.
   describe(Kimera::Unparse::Grouping) do

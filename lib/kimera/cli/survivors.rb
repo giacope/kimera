@@ -13,6 +13,7 @@ class Kimera::CLI::Survivors
       "REPORT.json defaults to #{Kimera::CLI::ReportFile::DEFAULT}.",
     flags: [
       Kimera::Flag.build("--id ID|KEY", :id, "Show one mutant, by ID or key, in full detail"),
+      Kimera::Flag.build("--report FILE", :report, "Read this report (the same as naming it first)"),
       Kimera::Flag.build(
         "--status NAME", :status,
         "List a different status (survived, uncovered_by_unit, no_coverage, " \
@@ -43,13 +44,14 @@ class Kimera::CLI::Survivors
   end
 
   def parse(argv)
-    arguments, options = OPTIONS.parse(argv, { status: "survived", id: nil })
-    report, filter = positional(arguments)
+    arguments, options = OPTIONS.parse(argv, { status: "survived", id: nil, report: nil })
+    report, filter = positional(arguments, options[:report])
     options.merge(report: report, filter: filter)
   end
 
-  def positional(arguments)
+  def positional(arguments, named)
     first, second = arguments
+    return [named, first] if named
     report?(first) ? [first, second] : [Kimera::CLI::ReportFile::DEFAULT, first]
   end
 

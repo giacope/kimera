@@ -13,7 +13,8 @@ RSpec.describe(Kimera::Unparse) do
   {
     [Unparser::Emitter::Range, :visit_begin_node] => Kimera::Unparse::RangeEndpoints,
     [Unparser::Emitter::Range, :visit_end_node] => Kimera::Unparse::RangeEndpoints,
-    [Unparser::AST::LocalVariableScopeEnumerator, :enter] => Kimera::Unparse::Binders
+    [Unparser::AST::LocalVariableScopeEnumerator, :enter] => Kimera::Unparse::Binders,
+    [Unparser::Emitter::Procarg, :dispatch] => Kimera::Unparse::Destructuring
   }.each do |(target, name), patch|
     it "#{target}##{name} is still defined by the gem, under #{patch}", :aggregate_failures do
       method = target.instance_method(name)
@@ -37,5 +38,7 @@ RSpec.describe(Kimera::Unparse) do
     expect(Unparser::Emitter::Range.private_method_defined?(:n_array?)).to(be(true))
     expect(Unparser::Emitter::Range.private_method_defined?(:visit)).to(be(true))
     expect(Unparser::AST::LocalVariableScopeEnumerator.private_method_defined?(:define)).to(be(true))
+    helpers = %i[parentheses delimited].map { Unparser::Emitter::Procarg.private_method_defined?(it) }
+    expect(helpers).to(eq([true, true]))
   end
 end

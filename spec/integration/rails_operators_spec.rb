@@ -28,6 +28,8 @@ RSpec.describe("rails class-body operators (end-to-end)") do
     RUBY
   end
 
+  # The warm run alone evaluates nothing here, so its gate fails and names
+  # --isolated rather than passing on 0 of 1.
   it "defers class-body mutants on the warm path and kills them isolated", :aggregate_failures do
     Dir.mktmpdir("kimera-rails-ops") do |fixture|
       write(fixture)
@@ -37,14 +39,16 @@ RSpec.describe("rails class-body operators (end-to-end)") do
         expect(report).not_to(be_nil, "no report; output:\n#{output}")
         expect(report["counts"]["isolated_only"]).to(eq(1))
         expect(report["counts"]["survived"]).to(eq(0))
-        expect(status).to(eq(0))
+        hint = "only the isolated tier can judge (run with --isolated)"
+        expect([status, output]).to(match([2, a_string_including(hint)]))
       end
 
-      test_run(cwd: fixture, arguments: [*ops, "--isolated"]) do |output, report, _status|
+      test_run(cwd: fixture, arguments: [*ops, "--isolated"]) do |output, report, status|
         expect(report).not_to(be_nil, "no report; output:\n#{output}")
         expect(report["counts"]["killed"]).to(eq(1))
         expect(report["counts"]["isolated_only"]).to(eq(0))
         expect(report["counts"]["error"]).to(eq(0))
+        expect(status).to(eq(0))
       end
     end
   end

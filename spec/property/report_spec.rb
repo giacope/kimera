@@ -59,8 +59,14 @@ RSpec.describe(Kimera::RunReport) do
         cap ? survived > cap : survived.positive?,
         (options[:fail_on_no_coverage] || options[:count_no_coverage]) && uncovered.positive?,
         options[:max_ignored] && ignored > options[:max_ignored],
-        unjudged > (options[:max_errors] || 0)
+        unjudged > (options[:max_errors] || 0),
+        untested?(outcomes)
       ].any?
+    end
+
+    # Nothing killed while mutants only the isolated tier can judge wait.
+    def untested?(outcomes)
+      outcomes.intersect?(%i[isolated_only unmutatable]) && !outcomes.intersect?(Kimera::Status::KILLING)
     end
 
     it "exits 2 exactly when a documented threshold is crossed, and 0 otherwise" do
@@ -69,9 +75,11 @@ RSpec.describe(Kimera::RunReport) do
       end
     end
 
-    # More bad news never makes a failing gate pass.
+    # More bad news never makes a failing gate pass. A kill is good news: it
+    # is the evaluation an all-isolated_only run was missing.
     it "never passes once another result lands on a failing gate" do
-      for_all(results, options, statuses, runs: 300) do |outcomes, options, extra|
+      bad = Pbt.one_of(*(Kimera::Status::REPORTED - Kimera::Status::KILLING))
+      for_all(results, options, bad, runs: 300) do |outcomes, options, extra|
         next unless status(outcomes, options) == 2
         expect(status(outcomes + [extra], options)).to(eq(2), "#{extra} turned the gate green")
       end
@@ -86,6 +94,8 @@ RSpec.describe(Kimera::RunReport) do
       expect([status([:harness_error], max_errors: 1), status([:harness_error] * 2, max_errors: 1)]).to(eq([0, 2]))
       expect([status([:no_coverage], {}), status([:no_coverage], fail_on_no_coverage: true)]).to(eq([0, 2]))
       expect(status([:no_coverage], count_no_coverage: true)).to(eq(2))
+      expect([status([:isolated_only], {}), status(%i[isolated_only killed], {})]).to(eq([2, 0]))
+      expect(status(%i[isolated_only survived], max_survivors: 1)).to(eq(2))
     end
   end
 

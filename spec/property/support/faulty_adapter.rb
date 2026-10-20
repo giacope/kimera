@@ -15,6 +15,8 @@ class OfferTap
 
   def recheck? = @offer.fetch("recheck", false)
 
+  def id = @offer.fetch("id")
+
   def gets
     @io.gets.tap { |line| note(JSON.parse(line)) if line }
   end
@@ -40,8 +42,9 @@ end
 # - hang: the process sleeps through the soft timeout, until the parent's
 #   watchdog kills it.
 # Kimera::RUNTIME.active names the mutant on each run, and is nil on a
-# control run, which belongs to the mutant run before it. Shift runs each
-# mutant in a child of its own, so a run counter starts over in each.
+# control run, which belongs to the mutant the offer brought. Shift runs
+# each mutant, and each control run, in a child of its own, so a run
+# counter starts over in each.
 class FaultyAdapter
   FAILING = %i[killed requeue].freeze
 
@@ -56,8 +59,7 @@ class FaultyAdapter
 
   def run(ids)
     active = Kimera::RUNTIME.active
-    @current = active if active
-    failed = active ? on(active) : behavior(@current) == :requeue
+    failed = active ? on(active) : behavior(@offers.id) == :requeue
     Kimera::Frameworks::RunOutcome.new(passed: !failed, failed_ids: failed ? ids : [])
   end
 

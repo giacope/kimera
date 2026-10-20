@@ -73,6 +73,20 @@
         }
       ]
     },
+    "load_path": {
+      "description": "Folders to put on the load path when the suite loads, beside each test file's nearest test/ or spec/ folder and the project's own test/ and spec/; doctor and the printed reproduce commands use the same load path.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
     "operators": {
       "description": "Operator keys, or the groups all, rails and custom (default: the conservative core).",
       "oneOf": [
@@ -156,6 +170,10 @@
       "description": "Judge again in a fresh process what the warm pass could not (default: true).",
       "type": "boolean"
     },
+    "judge_isolated_only": {
+      "description": "Judge in fresh isolated mirrors the mutants the warm run cannot: class-body DSL such as validations and callbacks, and lambdas a macro registers. Unset, it is on for incremental runs (--since, kimera ci, kimera changed) and off for full runs.",
+      "type": "boolean"
+    },
     "max_survivors": {
       "description": "Gate: fail when more mutants than this survive (default: 0).",
       "type": "integer",
@@ -222,7 +240,7 @@
       "type": "boolean"
     },
     "count_no_coverage": {
-      "description": "Score a mutant with no covering test as not killed, and fail the gate on it, in every command (default: false: uncovered mutants are reported but not scored).",
+      "description": "Score a mutant with no covering test as not killed, and fail the gate on it, in every command (default: true: untested code is not passing code; set false to report uncovered mutants without scoring them).",
       "type": "boolean"
     },
     "baseline": {
@@ -302,7 +320,7 @@
             "minimum": 1
           },
           "column": {
-            "description": "The 0-based column the mutated code starts at.",
+            "description": "The 1-based column the mutated code starts at, as the report and the text report print it.",
             "type": "integer",
             "minimum": 0
           },

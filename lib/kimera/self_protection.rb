@@ -19,10 +19,12 @@ module Kimera
       kimera/frameworks/group_tree.rb
       kimera/frameworks/minitest_adapter.rb
       kimera/support/test_exit.rb
+      kimera/frameworks/class_hooks.rb
       kimera/execution/shift.rb
       kimera/execution/shift/attempt.rb
       kimera/execution/shift/deadline.rb
       kimera/execution/shift/overrun.rb
+      kimera/execution/shift/expiry.rb
       kimera/execution/shift/subject.rb
       kimera/execution/shift/suspect.rb
       kimera/execution/shift/probe.rb

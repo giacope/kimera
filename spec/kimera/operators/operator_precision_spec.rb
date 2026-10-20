@@ -363,6 +363,16 @@ RSpec.describe("operator precision") do
       expect(mutants("def m\n  nil\nend\n", "return_value")).to(be_empty)
     end
 
+    # A caller that only tests truthiness cannot tell nil from false.
+    it "return_value does not propose nil for a false tail or `return false`", :aggregate_failures do
+      expect(mutants("def m?\n  false\nend\n", "return_value")).to(be_empty)
+      expect(mutants("def m?(x)\n  return false if x\n  x\nend\n", "return_value").map(&:label)).to(eq(["tail => nil"]))
+    end
+
+    it "return_value still nils a true tail" do
+      expect(mutants("def m?\n  true\nend\n", "return_value").map(&:label)).to(eq(["tail => nil"]))
+    end
+
     it "selector_swap requires an explicit receiver" do
       expect(mutants("def m\n  first\nend\n", "selector_swap")).to(be_empty)
     end

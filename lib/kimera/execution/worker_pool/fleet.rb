@@ -108,7 +108,7 @@ class Kimera::Execution::WorkerPool::Fleet
   end
 
   def crashed(worker, status)
-    guard.track(status)
+    guard.track(status, worker.last_words)
     worker.obituary(status)
   end
 

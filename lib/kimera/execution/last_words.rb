@@ -16,7 +16,7 @@ class Kimera::Execution::LastWords
 
   private
 
-  def headline = "#{@error.class}: #{@error.message}"
+  def headline = @error.respond_to?(:headline) ? @error.headline : "#{@error.class}: #{@error.message}"
 
   def frames
     trace = Array(@error.backtrace)

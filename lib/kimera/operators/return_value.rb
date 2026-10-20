@@ -5,7 +5,7 @@ require_relative "base"
 class Kimera::Operators::ReturnValue < Kimera::Operators::Base
   def key = "return_value"
 
-  SKIPPED = [NilNode, ParenthesesNode].freeze
+  SKIPPED = [NilNode, FalseNode, ParenthesesNode].freeze
   POSITIONS = Hash.new(->(_operator, _node) {}).merge(tail: ->(operator, node) { operator.tail(node) }).freeze
 
   def variants(node, position:)
@@ -28,7 +28,7 @@ class Kimera::Operators::ReturnValue < Kimera::Operators::Base
 
   def returned(node)
     words = arguments(node)
-    return if words.empty? || (words in [NilNode])
+    return if words.empty? || (words in [NilNode | FalseNode])
     solo("return => return nil", "return_nil")
   end
 end

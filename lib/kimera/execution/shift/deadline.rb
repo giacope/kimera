@@ -8,7 +8,7 @@ class Kimera::Execution::Shift::Deadline
   CLOCK = Kimera::Execution::Stopwatch::CLOCK
   SILENT = -> {}
 
-  attr_reader :budget
+  attr_reader :budget, :seconds
 
   class << self
     def build(seconds, clock: CLOCK, **) = new(seconds, watch: Kimera::Execution::Stopwatch.new(clock), **)
