@@ -455,7 +455,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         File.write(File.join(dir, "spec", "x_spec.rb"), "# spec\n")
         File.write(File.join(dir, ".git"), "gitdir: /elsewhere\n")
         failure = instance_double(Process::Status, success?: false)
-        allow(Kimera::CLI::SUITE).to(receive(:call).and_return(["x_spec.rb:1: boom (RuntimeError)\n", failure]))
+        allow(Kimera::Execution::SUITE).to(receive(:call).and_return(["x_spec.rb:1: boom (RuntimeError)\n", failure]))
         out, errors = streams
         expect(Kimera::CLI::Doctor.new(io: out, errors: errors, root: dir).run([])).to(eq(1))
         expect(out.string).to(include("✗ Test loading: x_spec.rb:1: boom (RuntimeError)", "✓ Git: incremental"))
@@ -466,7 +466,14 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       Dir.mktmpdir do |dir|
         FileUtils.mkdir_p(File.join(dir, "spec"))
         File.write(File.join(dir, "spec", "x_spec.rb"), "# spec\n")
-        allow(Kimera::CLI::SUITE).to(receive(:call).and_return(["", instance_double(Process::Status, success?: true)]))
+        allow(Kimera::Execution::SUITE).to(
+          receive(:call).and_return(
+            [
+              "",
+              instance_double(Process::Status, success?: true)
+            ]
+          )
+        )
         out, errors = streams
         doctor = Kimera::CLI::Doctor.new(io: out, errors: errors, root: dir)
         allow(doctor).to(receive(:baselines).and_return([["✓", "Baseline: configured test suite is green"]]))
@@ -751,12 +758,12 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         loader = Kimera::CLI::TestCommand::LOADER
         includes = ["-I", "test", "-I", "spec"]
         command = [Kimera::Execution::SUITE_ENV, "bundle", "exec", "ruby", *includes, "-e", loader, test]
-        allow(Kimera::CLI::SUITE).to(receive(:call).with(*command, chdir: dir).and_return(["", success]))
+        allow(Kimera::Execution::SUITE).to(receive(:call).with(*command, chdir: dir).and_return(["", success]))
 
         result = instance.__send__(:baselines, { framework: "minitest", tests: ["test/**/*_test.rb"] })
 
         expect(result).to(eq([["✓", "Baseline: configured test suite is green"]]))
-        expect(Kimera::CLI::SUITE).to(have_received(:call).with(*command, chdir: dir))
+        expect(Kimera::Execution::SUITE).to(have_received(:call).with(*command, chdir: dir))
       end
     end
 
@@ -766,7 +773,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         failure = instance_double(Process::Status, success?: false)
         spec = File.join(dir, "spec", "x_spec.rb")
         command = ["bundle", "exec", "rspec", spec]
-        allow(Kimera::CLI::SUITE).to(
+        allow(Kimera::Execution::SUITE).to(
           receive(:call).with(
             Kimera::Execution::SUITE_ENV, *command,
             chdir: dir
@@ -777,7 +784,12 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
         message = "Baseline: 3 examples, 1 failure (fix it, then rerun `kimera doctor --check-baseline`)"
         expect(result).to(eq([["✗", message]]))
-        expect(Kimera::CLI::SUITE).to(have_received(:call).with(Kimera::Execution::SUITE_ENV, *command, chdir: dir))
+        expect(Kimera::Execution::SUITE).to(
+          have_received(:call).with(
+            Kimera::Execution::SUITE_ENV, *command,
+            chdir: dir
+          )
+        )
       end
     end
 

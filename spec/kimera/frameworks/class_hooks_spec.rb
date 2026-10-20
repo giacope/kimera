@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-require "kimera/support/class_hooks"
+require "kimera/frameworks/class_hooks"
 require "minitest"
 
-RSpec.describe(Kimera::ClassHooks) do
+RSpec.describe(Kimera::Frameworks::ClassHooks) do
   def result(passed:, skipped: false)
     instance_double(Minitest::Result, passed?: passed, skipped?: skipped)
   end
@@ -49,6 +49,16 @@ RSpec.describe(Kimera::ClassHooks) do
     own = result(passed: true)
     expect(described_class.new(hooked(after: result(passed: true))).run { own }).to(be(own))
     expect(described_class.new(hooked(after: result(passed: false, skipped: true))).run { own }).to(be(own))
+  end
+
+  it "runs one test by name inside the handler, as kimera's test runner extends it" do
+    klass =
+      Class.new do
+        define_singleton_method(:with_info_handler) { |_, &block| block.call }
+        define_method(:initialize) { |name| @name = name }
+        define_method(:run) { [@name, singleton_class.include?(Kimera::TestExit::Test)] }
+      end
+    expect(described_class.new(klass).test("test_it")).to(eq(["test_it", true]))
   end
 
   it "answers nil when the handler never ran the test and nothing failed" do

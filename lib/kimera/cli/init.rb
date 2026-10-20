@@ -84,7 +84,7 @@ class Kimera::CLI::Init
 
   def declared
     return "rspec" if File.file?(File.join(@root, ".rspec"))
-    helper = HELPERS.map { |path| File.join(@root, path) }.find { |path| File.file?(path) }
+    helper = present(HELPERS)
     helper && framework_named_in(File.read(helper, encoding: Encoding::UTF_8).scrub)
   end
 
@@ -94,12 +94,14 @@ class Kimera::CLI::Init
   end
 
   def bundled
-    lock = LOCKS.map { |name| File.join(@root, name) }.find { |path| File.file?(path) }
+    lock = present(LOCKS)
     return unless lock
     text = File.read(lock, encoding: Encoding::UTF_8).scrub
     found = LOCKED.select { |_name, line| text.match?(line) }.keys
     found.first if found.one?
   end
+
+  def present(names) = names.map { |name| File.join(@root, name) }.find { |path| File.file?(path) }
 
   def layout
     File.directory?(File.join(@root, "test")) && !File.directory?(File.join(@root, "spec")) ? "minitest" : "rspec"

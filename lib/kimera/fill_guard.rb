@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "memo_guard"
+require_relative "support/branches"
 
 class Kimera::FillGuard
   READ = Kimera::SyntaxTypes::InstanceVariableReadNode
@@ -28,11 +29,9 @@ class Kimera::FillGuard
   def name
     case guard
     when Kimera::SyntaxTypes::UnlessNode then read(guard.predicate) unless guard.else_clause
-    when Kimera::SyntaxTypes::IfNode then negated(guard.predicate) unless following
+    when Kimera::SyntaxTypes::IfNode then negated(guard.predicate) unless Kimera::Branches.new(guard).following
     end
   end
-
-  def following = guard.respond_to?(:subsequent) ? guard.subsequent : guard.consequent
 
   def read(node) = node.is_a?(READ) ? node.name : nil
 

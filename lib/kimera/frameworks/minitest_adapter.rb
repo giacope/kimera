@@ -2,7 +2,7 @@
 
 require_relative "adapter"
 require_relative "load_path"
-require_relative "../support/class_hooks"
+require_relative "class_hooks"
 require_relative "../support/test_exit"
 
 module Kimera
@@ -87,7 +87,7 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
     klass, name = indexed[id]
     return unless klass
     reseed(id)
-    result = Kimera::ClassHooks.new(klass).run { klass.new(name).extend(Kimera::TestExit::Test).run }
+    result = Kimera::Frameworks::ClassHooks.new(klass).test(name)
     [id, message(result)] if result && killing?(result)
   end
 

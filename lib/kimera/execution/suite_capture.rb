@@ -1,8 +1,11 @@
 # frozen_string_literal: true
 
 require "tempfile"
+require_relative "child_process"
 
-class Kimera::CLI::SuiteCapture
+class Kimera::Execution::SuiteCapture
+  include Kimera::Execution::ChildProcess
+
   def call(env, *command, chdir:)
     Tempfile.create("kimera-suite") do |log|
       status = finished(Process.spawn(env, *command, chdir: chdir, in: File::NULL, out: log, err: log, pgroup: true))
@@ -12,13 +15,7 @@ class Kimera::CLI::SuiteCapture
 
   private
 
-  def finished(pid) = Process.wait2(pid).last.tap { sweep(pid) }
-
-  def sweep(group)
-    Process.kill("KILL", -group)
-  rescue Errno::ESRCH, Errno::EPERM
-    nil
-  end
+  def finished(pid) = Process.wait2(pid).last.tap { signal(-pid) }
 end
 
-Kimera::CLI::SUITE = Kimera::CLI::SuiteCapture.new
+Kimera::Execution::SUITE = Kimera::Execution::SuiteCapture.new

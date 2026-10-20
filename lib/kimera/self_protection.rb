@@ -19,7 +19,7 @@ module Kimera
       kimera/frameworks/group_tree.rb
       kimera/frameworks/minitest_adapter.rb
       kimera/support/test_exit.rb
-      kimera/support/class_hooks.rb
+      kimera/frameworks/class_hooks.rb
       kimera/execution/shift.rb
       kimera/execution/shift/attempt.rb
       kimera/execution/shift/deadline.rb

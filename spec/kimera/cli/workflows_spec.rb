@@ -263,12 +263,12 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
   it "skips loading and the baseline when no test file matches", :aggregate_failures do
     Dir.mktmpdir do |dir|
       File.write(File.join(dir, ".kimera.yml"), "tests: [test/**/*_test.rb]\n")
-      allow(Kimera::CLI::SUITE).to(receive(:call))
+      allow(Kimera::Execution::SUITE).to(receive(:call))
       status, output = test_doctor_in(dir, "--check-baseline")
       expect(status).to(eq(1))
       expect(output).to(include("✗ Test discovery", "! Test loading: no test files to load"))
       expect(output).not_to(include("Baseline"))
-      expect(Kimera::CLI::SUITE).not_to(have_received(:call))
+      expect(Kimera::Execution::SUITE).not_to(have_received(:call))
     end
   end
 
@@ -279,7 +279,14 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
       File.write(File.join(dir, "test", "system", "b_test.rb"), "")
       config = "tests: [test/**/*_test.rb]\nexclude_tests: [test/system/**/*_test.rb]\n"
       File.write(File.join(dir, ".kimera.yml"), config)
-      allow(Kimera::CLI::SUITE).to(receive(:call).and_return(["", instance_double(Process::Status, success?: true)]))
+      allow(Kimera::Execution::SUITE).to(
+        receive(:call).and_return(
+          [
+            "",
+            instance_double(Process::Status, success?: true)
+          ]
+        )
+      )
       expect(test_doctor_in(dir).last).to(include("✓ Test discovery: 1 files"))
       green = "✓ Baseline: configured test suite is green\n"
       expect(test_doctor_in(dir, "--check-baseline").last.lines.last).to(eq(green))
@@ -295,7 +302,7 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
       out = Class.new(StringIO) { define_method(:flushed) { @_flushed ||= [] } }.new
       allow(out).to(receive(:flush)) { out.flushed << out.string.lines.size }
       seen = []
-      allow(Kimera::CLI::SUITE).to(receive(:call)) do
+      allow(Kimera::Execution::SUITE).to(receive(:call)) do
         seen << out.string
         ["", instance_double(Process::Status, success?: true)]
       end
@@ -313,7 +320,7 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
       config = "framework: minitest\ntests: [spec/**/*_spec.rb]\nload_path: [support, spec/helpers]\n"
       File.write(File.join(dir, ".kimera.yml"), config)
       seen = []
-      allow(Kimera::CLI::SUITE).to(receive(:call)) do |_env, *command, **|
+      allow(Kimera::Execution::SUITE).to(receive(:call)) do |_env, *command, **|
         seen << command
         ["", instance_double(Process::Status, success?: true)]
       end
@@ -329,7 +336,7 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     FileUtils.mkdir_p(File.join(dir, "spec"))
     File.write(File.join(dir, "spec", "a_spec.rb"), "")
     File.write(File.join(dir, ".kimera.yml"), config)
-    allow(Kimera::CLI::SUITE).to(receive(:call)) do |_env, *command, **|
+    allow(Kimera::Execution::SUITE).to(receive(:call)) do |_env, *command, **|
       ["", instance_double(Process::Status, success?: serial || command.include?("--dry-run"))]
     end
     test_doctor_in(dir, "--check-baseline", *argv).last
@@ -341,7 +348,7 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     parallel = "✓ Parallel baseline: green split across 3 processes too (jobs: 3)\n"
     Dir.mktmpdir do |dir|
       expect(test_doctor_jobs(dir, "jobs: 3\n").lines.last).to(eq(parallel))
-      expect(Kimera::CLI::SUITE).to(have_received(:call).exactly(5).times)
+      expect(Kimera::Execution::SUITE).to(have_received(:call).exactly(5).times)
       expect(test_doctor_jobs(dir, "jobs: 3\n", "--jobs", "1")).not_to(include("Parallel"))
       expect(test_doctor_jobs(dir, "{}\n", "--jobs", "3").lines.last).to(eq(parallel))
       expect(test_doctor_jobs(dir, "jobs: 1\n")).not_to(include("Parallel"))

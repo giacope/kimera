@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "prism"
+require_relative "../support/branches"
 require_relative "../support/syntax"
 require_relative "guardrail_factories"
 
@@ -89,23 +90,8 @@ module Kimera
       when Prism::ClassNode, Prism::ModuleNode, Prism::SingletonClassNode then node.body
       when Prism::CallNode then declared(node)
       when Prism::ConstantWriteNode, Prism::ConstantPathWriteNode then declared(node.value)
-      when *CONDITIONS then branches(node)
+      when *CONDITIONS then Kimera::Branches.new(node).bodies
       end
-    end
-
-    def branches(node) = [node.statements, *otherwise(following(node))]
-
-    def otherwise(tail)
-      case tail
-      when Prism::IfNode then branches(tail)
-      when Prism::ElseNode then [tail.statements]
-      else []
-      end
-    end
-
-    def following(node)
-      return node.else_clause if node.is_a?(Prism::UnlessNode)
-      node.respond_to?(:subsequent) ? node.subsequent : node.consequent
     end
 
     def declared(node)

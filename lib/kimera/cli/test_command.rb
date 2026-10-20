@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "suite_capture"
+require_relative "../execution/suite_capture"
 require_relative "../execution/suite_env"
 require_relative "../listing"
 require_relative "../frameworks/load_path"
@@ -68,7 +68,7 @@ class Kimera::CLI::TestCommand
   end
 
   def capture(command)
-    output, status = Kimera::CLI::SUITE.call(Kimera::Execution::SUITE_ENV, *command, chdir: @root)
+    output, status = Kimera::Execution::SUITE.call(Kimera::Execution::SUITE_ENV, *command, chdir: @root)
     [output.dup.force_encoding(Encoding::UTF_8).scrub, status]
   end
 

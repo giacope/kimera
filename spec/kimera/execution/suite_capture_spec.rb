@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
 require "kimera/cli"
-require "kimera/cli/suite_capture"
+require "kimera/execution/suite_capture"
 require "tmpdir"
 
 # doctor runs the suite as a plain command. A suite that leaves a process
 # running (a test helper's redis-server) must not keep doctor waiting on it.
-RSpec.describe(Kimera::CLI::SuiteCapture) do
+RSpec.describe(Kimera::Execution::SuiteCapture) do
   subject(:capture) { described_class.new }
 
   def ruby(script) = [Gem.ruby, "-e", script]
@@ -19,6 +19,12 @@ RSpec.describe(Kimera::CLI::SuiteCapture) do
     !File.exist?(stat) || File.read(stat).split(") ").last.split.first != "Z"
   rescue Errno::ESRCH, Errno::ENOENT
     false
+  end
+
+  # A signal arrives asynchronously; give the killed process a moment.
+  def gone?(pid, deadline: Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2)
+    sleep(0.02) while alive?(pid) && Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
+    !alive?(pid)
   end
 
   it "returns the command's output, both streams, and its status", :aggregate_failures do
@@ -39,7 +45,7 @@ RSpec.describe(Kimera::CLI::SuiteCapture) do
     output, status = capture.call({}, *ruby("puts spawn('sleep', '30'); $stdout.flush"), chdir: Dir.pwd)
     expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to(be < 10)
     expect(status).to(be_success)
-    expect(alive?(Integer(output))).to(be(false))
+    expect(gone?(Integer(output))).to(be(true))
   end
 
   it "reads the output as UTF-8 and scrubs bytes that are not" do
