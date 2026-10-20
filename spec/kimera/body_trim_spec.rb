@@ -148,6 +148,58 @@ RSpec.describe(Kimera::BodyTrim) do
     end
   end
 
+  # A version or feature guard around alias-and-redefine (`if TRUE_FREEZE;
+  # alias _clone clone; def clone ...`) must not run its alias again: by then
+  # the target is the project's own method, and the alias would re-point.
+  describe "conditions" do
+    let(:source) do
+      <<~RUBY
+        class Thing
+          if RUBY_VERSION >= "3"
+            alias _object_inspect inspect
+            register :inspect
+            def inspect = size > 1
+          elsif ENV["LEGACY"]
+            alias _legacy inspect
+            def legacy(n) = n > 2
+          else
+            include Plain
+            def plain(n) = n < 3
+          end
+          unless frozen?
+            alias _clone clone
+            def clone(n) = n > 4
+          else
+            extend Frozen
+            def melt(n) = n == 5
+          end
+          def raw = _object_inspect
+        end
+      RUBY
+    end
+
+    it "descends into every branch of a class-body if or unless that carries live code" do
+      live = ["size > 1", "n > 2", "n < 3", "n > 4", "n == 5"]
+      dropped = [
+        "alias _object_inspect inspect", "register :inspect", "alias _legacy inspect", "include Plain",
+        "alias _clone clone", "extend Frozen", "def raw = _object_inspect"
+      ]
+      expect(kept(source, *live)).to(eq(lines(source) - dropped))
+    end
+
+    it "keeps a branch that carries no live code whole, under a condition that does" do
+      expect(kept(source, "size > 1")).to(eq(lines(<<~RUBY)))
+        class Thing
+        if RUBY_VERSION >= "3"
+        def inspect = size > 1
+        elsif ENV["LEGACY"]
+        else
+        end
+        end
+      RUBY
+    end
+  end
+
   describe "blocks" do
     let(:source) do
       <<~RUBY

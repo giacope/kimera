@@ -43,8 +43,7 @@ module Kimera
       statements.body.flat_map do |node|
         next [node] unless live?(node) || kept?(unguarded(node), defined)
         defined << node.name if node.is_a?(Prism::DefNode)
-        body = inner(node)
-        body.is_a?(Prism::StatementsNode) ? dead(body) : []
+        Array(inner(node)).grep(Prism::StatementsNode).flat_map { |body| dead(body) }
       end
     end
 
@@ -90,7 +89,23 @@ module Kimera
       when Prism::ClassNode, Prism::ModuleNode, Prism::SingletonClassNode then node.body
       when Prism::CallNode then declared(node)
       when Prism::ConstantWriteNode, Prism::ConstantPathWriteNode then declared(node.value)
+      when *CONDITIONS then branches(node)
       end
+    end
+
+    def branches(node) = [node.statements, *otherwise(following(node))]
+
+    def otherwise(tail)
+      case tail
+      when Prism::IfNode then branches(tail)
+      when Prism::ElseNode then [tail.statements]
+      else []
+      end
+    end
+
+    def following(node)
+      return node.else_clause if node.is_a?(Prism::UnlessNode)
+      node.respond_to?(:subsequent) ? node.subsequent : node.consequent
     end
 
     def declared(node)
