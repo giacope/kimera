@@ -22,19 +22,18 @@ class Kimera::CLI::Doctor
   HELPERS = %w[.simplecov {spec,test}/**/*helper*.rb].freeze
   UNCHECKED = [["!", "Test loading: no test files to load"]].freeze
 
-  def initialize(io: $stdout, errors: $stderr, root: ".")
+  def initialize(io: $stdout, errors: $stderr, root: ".", env: ENV)
     @io = io
     @errors = errors
     @root = root
+    @env = env
   end
 
   def run(argv)
     _, options = OPTIONS.parse(argv, { check_baseline: false })
-    list.verdict(
-      checks(
-        Kimera::Config.new(File.join(@root, Kimera::Config::DEFAULT_PATH)).options.merge(options.slice(:jobs)), options
-      )
-    )
+    config = Kimera::Config.new(File.join(@root, Kimera::Config::DEFAULT_PATH)).options.merge(options.slice(:jobs))
+    @env.store(Kimera::Frameworks::LoadPath::VARIABLE, Array(config[:load_path]).join(File::PATH_SEPARATOR))
+    list.verdict(checks(config, options))
   rescue Kimera::UsageError => error
     usage(error)
   end

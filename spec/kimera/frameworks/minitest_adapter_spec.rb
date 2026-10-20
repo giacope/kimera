@@ -169,12 +169,27 @@ RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
   end
 
   it "reproduces failing ids with a plain Minitest command, not rspec" do
-    expect(adapter.reproduce(["DemoKimeraTest#test_passes", "Nope#test_x"])).to(
+    FileUtils.mkdir_p(File.join(dir, "test"))
+    command = Dir.chdir(dir) { adapter.reproduce(["DemoKimeraTest#test_passes", "Nope#test_x"]) }
+    expect(command).to(
       eq(
-        "bundle exec ruby -Itest -rminitest/autorun -e 'require File.expand_path(#{testfile.dump})' " \
+        "bundle exec ruby -Itest -rminitest/autorun -e 'require File.expand_path(\"demo_test.rb\")' " \
           "-- -n '/^(?:DemoKimeraTest\\#test_passes|Nope\\#test_x)$/' --seed 1"
       )
     )
+  end
+
+  # The command must load what kimera loaded: a nested test folder and the
+  # project's root test/ both, quoted where the shell needs it.
+  it "puts every folder kimera loaded tests from on the reproduce command's load path" do
+    nested = File.join(dir, "lib", "my tool", "test")
+    FileUtils.mkdir_p([nested, File.join(dir, "test")])
+    file = File.join(nested, "nested_test.rb")
+    File.write(file, "require 'minitest'\nclass NestedKimeraTest < Minitest::Test\n  def test_it = assert(true)\nend\n")
+    command = Dir.chdir(dir) { described_class.build.source([file]).reproduce(["NestedKimeraTest#test_it"]) }
+    expect(command).to(start_with("bundle exec ruby -I'lib/my tool/test' -Itest -rminitest/autorun -e "))
+  ensure
+    Object.__send__(:remove_const, :NestedKimeraTest) if defined?(NestedKimeraTest)
   end
 
   it "shell-quotes single quotes and names files relative to the working directory", :aggregate_failures do

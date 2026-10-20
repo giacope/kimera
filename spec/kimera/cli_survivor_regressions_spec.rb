@@ -370,6 +370,19 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
   end
 
+  # The adapter, doctor and isolated children read load_path: from there.
+  it "exports the configured load path to the environment before loading the adapter", :aggregate_failures do
+    registry = Kimera::RegistryScan.new.source("def x; 1; end\n", file: "x.rb")
+    seen = []
+    env = {}
+    allow(Kimera::Frameworks::ADAPTERS).to(receive(:load) { seen << env["KIMERA_LOAD_PATH"] })
+    allow(Kimera::CLI::Run::Pass).to(receive(:new).and_return(instance_double(Kimera::CLI::Run::Pass, call: nil)))
+    configured = { framework: "rspec", load_path: %w[support test/helpers] }
+    Kimera::CLI::Run::Cycle.new(configured, registry, nil, digest: nil).__send__(:harness, [1], env: env)
+    Kimera::CLI::Run::Cycle.new({ framework: "rspec" }, registry, nil, digest: nil).__send__(:harness, [1], env: env)
+    expect(seen).to(eq(["support#{File::PATH_SEPARATOR}test/helpers", ""]))
+  end
+
   describe "workflow branches" do
     it "initializes minitest projects, supports dry-run, and rejects unknown options" do
       Dir.mktmpdir do |dir|
@@ -726,7 +739,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         success = instance_double(Process::Status, success?: true)
         test = File.join(dir, "test", "x_test.rb")
         loader = Kimera::CLI::TestCommand::LOADER
-        command = [Kimera::Execution::SUITE_ENV, "bundle", "exec", "ruby", "-Itest", "-e", loader, test]
+        includes = ["-I", "test", "-I", "spec"]
+        command = [Kimera::Execution::SUITE_ENV, "bundle", "exec", "ruby", *includes, "-e", loader, test]
         allow(Kimera::CLI::SUITE).to(receive(:call).with(*command, chdir: dir).and_return(["", success]))
 
         result = instance.__send__(:baselines, { framework: "minitest", tests: ["test/**/*_test.rb"] })

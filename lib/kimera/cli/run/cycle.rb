@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../../execution/suite_env"
+require_relative "../../frameworks/load_path"
 require_relative "../../incremental/selection"
 require_relative "../../incremental/session"
 require_relative "../../incremental/stamp"
@@ -99,6 +100,7 @@ class Kimera::CLI::Run::Cycle
     env.update(Kimera::Execution::SUITE_ENV)
     seed = @options[:seed]
     seed ? env.store(Kimera::Execution::SEED_ENV, seed.to_s) : env.delete(Kimera::Execution::SEED_ENV)
+    env.store(Kimera::Frameworks::LoadPath::VARIABLE, Array(@options[:load_path]).join(File::PATH_SEPARATOR))
     adapter = Kimera::Frameworks::ADAPTERS.load(@options[:framework])
     Kimera::CLI::Run::Pass.new(@registry, @options, adapter).call(remaining)
   end

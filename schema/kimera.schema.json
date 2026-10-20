@@ -73,6 +73,20 @@
         }
       ]
     },
+    "load_path": {
+      "description": "Folders to put on the load path when the suite loads, beside each test file's nearest test/ or spec/ folder and the project's own test/ and spec/; doctor and the printed reproduce commands use the same load path.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
     "operators": {
       "description": "Operator keys, or the groups all, rails and custom (default: the conservative core).",
       "oneOf": [

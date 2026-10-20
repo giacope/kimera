@@ -11,7 +11,7 @@ module Kimera
       jobs max_survivors max_ignored max_errors coverage isolate_db
       fail_on_no_coverage count_no_coverage progress color quiet verbose log format report baseline rejudge
       relative_timeout timeout_factor timeout_slack attribution unit_tests seed flaky_runs test_quality].freeze
-    LIST_KEYS = %w[paths tests operators exclude exclude_tests isolate_when_covered_by require].freeze
+    LIST_KEYS = %w[paths tests operators exclude exclude_tests isolate_when_covered_by require load_path].freeze
 
     SCOPE_KEYS = %i[paths operators exclude].freeze
     ATTRIBUTIONS = %w[any unit].freeze

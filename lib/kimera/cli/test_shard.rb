@@ -50,14 +50,13 @@ class Kimera::CLI::TestShard
     #{OWN_DATABASE}
   RUBY
 
-  ARGUMENTS = { "minitest" => ["-Itest", "-e", MINITEST] }.freeze
-
   def initialize(index, count)
     @index = index
     @count = count
   end
 
-  def argv(framework)
-    ARGUMENTS.fetch(framework.to_s, ["-e", RSPEC]).map { |argument| format(argument, @count, @index) }
+  def argv(framework, includes = [])
+    return ["-e", format(RSPEC, @count, @index)] unless framework.to_s == "minitest"
+    [*includes, "-e", format(MINITEST, @count, @index)]
   end
 end

@@ -10,8 +10,10 @@ RSpec.describe(Kimera::CLI::TestShard) do
     rspec = described_class.new(1, 4).argv("rspec")
     expect(rspec.first).to(eq("-e"))
     expect(rspec.last).to(include("count, index = 4, 1", "% count != index", "RSpec::Core::Runner.run(ARGV)"))
-    minitest = described_class.new(2, 3).argv(:minitest)
-    expect(minitest.first(2)).to(eq(["-Itest", "-e"]))
+    minitest = described_class.new(2, 3).argv(:minitest, ["-I", "test"])
+    expect(minitest.first(3)).to(eq(["-I", "test", "-e"]))
+    expect(described_class.new(2, 3).argv(:minitest).first).to(eq("-e"))
+    expect(described_class.new(1, 4).argv("rspec", ["-I", "test"]).first).to(eq("-e"))
     expect(minitest.last).to(include("count, index = 3, 2", "% count == index", "ARGV.clear"))
   end
 

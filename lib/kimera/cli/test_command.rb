@@ -3,6 +3,7 @@
 require_relative "suite_capture"
 require_relative "../execution/suite_env"
 require_relative "../listing"
+require_relative "../frameworks/load_path"
 require_relative "test_shard"
 
 class Kimera::CLI::TestCommand
@@ -74,7 +75,7 @@ class Kimera::CLI::TestCommand
   def shards(jobs) = Array.new(jobs) { |index| Thread.new { capture(shard(index, jobs)) } }.map(&:value)
 
   def shard(index, count)
-    ["bundle", "exec", "ruby", *Kimera::CLI::TestShard.new(index, count).argv(@framework), *@files]
+    ["bundle", "exec", "ruby", *Kimera::CLI::TestShard.new(index, count).argv(@framework, includes), *@files]
   end
 
   def run = minitest? ? ruby(LOADER) : rspec
@@ -103,7 +104,9 @@ class Kimera::CLI::TestCommand
     cause ? " (#{cause.captures.join(": ")})" : ""
   end
 
-  def ruby(script) = ["bundle", "exec", "ruby", "-Itest", "-e", script, *@files]
+  def ruby(script) = ["bundle", "exec", "ruby", *includes, "-e", script, *@files]
+
+  def includes = Kimera::Frameworks::LoadPath.new(@files, root: @root).flags
 
   def rspec(*flags) = ["bundle", "exec", "rspec", *flags, *@files]
 

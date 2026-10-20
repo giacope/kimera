@@ -2,6 +2,7 @@
 
 require "etc"
 require_relative "../error"
+require_relative "../operators"
 require_relative "../scope/config"
 require_relative "../scope/file_set"
 require_relative "config_template"
@@ -19,6 +20,8 @@ class Kimera::CLI::Init
   HELPERS = %w[spec/spec_helper.rb spec/rails_helper.rb spec/helper.rb test/test_helper.rb test/helper.rb].freeze
   MINITEST_GLOBS = %w[test/**/*_test.rb test/**/test_*.rb test/**/spec_*.rb spec/**/*_spec.rb].freeze
   SYSTEM_TESTS = "test/system/**/*_test.rb"
+  LOCKS = %w[Gemfile.lock gems.locked].freeze
+  LOCKED = { "rspec" => /^    rspec-core \(/, "minitest" => /^    minitest \(/ }.freeze
   DOCUMENT = ->(**fields) { fields.transform_keys(&:to_s) }
 
   def initialize(io: $stdout, errors: $stderr, root: ".")
@@ -64,16 +67,20 @@ class Kimera::CLI::Init
 
   def detected
     DOCUMENT.call(
-      framework: framework, paths: sources, tests: tests, **browserless,
+      framework: framework, paths: sources, tests: tests, **browserless, **rails_operators,
       jobs: [Etc.nprocessors, 8].min, max_survivors: 0, max_errors: 0, fail_on_no_coverage: false
     )
   end
 
   def browserless = rails? && Dir.glob(File.join(@root, SYSTEM_TESTS)).any? ? { exclude_tests: [SYSTEM_TESTS] } : {}
 
-  def rails? = framework == "minitest" && File.file?(File.join(@root, "config", "application.rb"))
+  def rails? = framework == "minitest" && application?
 
-  def framework = @_framework ||= declared || layout
+  def application? = File.file?(File.join(@root, "config", "application.rb"))
+
+  def rails_operators = application? ? { operators: [*Kimera::Operators::DEFAULT_KEYS, "rails"] } : {}
+
+  def framework = @_framework ||= declared || bundled || layout
 
   def declared
     return "rspec" if File.file?(File.join(@root, ".rspec"))
@@ -84,6 +91,14 @@ class Kimera::CLI::Init
   def framework_named_in(text)
     return "rspec" if text.match?(/\bRSpec\b|require\s*\(?\s*["']rspec/)
     "minitest" if text.match?(/minitest/i)
+  end
+
+  def bundled
+    lock = LOCKS.map { |name| File.join(@root, name) }.find { |path| File.file?(path) }
+    return unless lock
+    text = File.read(lock, encoding: Encoding::UTF_8).scrub
+    found = LOCKED.select { |_name, line| text.match?(line) }.keys
+    found.first if found.one?
   end
 
   def layout
