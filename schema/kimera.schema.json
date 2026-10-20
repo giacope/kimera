@@ -316,7 +316,7 @@
             "minimum": 1
           },
           "column": {
-            "description": "The 0-based column the mutated code starts at.",
+            "description": "The 1-based column the mutated code starts at, as the report and the text report print it.",
             "type": "integer",
             "minimum": 0
           },

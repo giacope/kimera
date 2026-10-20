@@ -571,7 +571,7 @@ max_ignored: 1
 # Known-equivalent mutants. Equivalence is undecidable, so Kimera doesn't
 # guess: you mark a mutant and it stops being a survivor. An entry without
 # a reason: is rejected at startup. Anchors: file (a glob, required), line
-# (spanned), starts (the line the mutated code starts on), column (0-based),
+# (spanned), starts (the line the mutated code starts on), column (1-based, as the report prints it),
 # label, method, original, operator. If a line anchor drifts (a line was added
 # above), the entry still applies when its label (plus original/method, if
 # given) singles out one mutant in the file; Kimera warns so you can update it.

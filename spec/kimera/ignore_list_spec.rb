@@ -100,9 +100,15 @@ RSpec.describe(Kimera::IgnoreList) do
   end
 
   it "pins a single point by column when a line has several matches", :aggregate_failures do
-    pinned = ids(file: "calc.rb", line: 3, column: first_column)
+    pinned = ids(file: "calc.rb", line: 3, column: first_column + 1)
     expect(pinned).not_to(be_empty)
     expect(pinned.map { |id| registry.index[id].location.start_column }.uniq).to(eq([first_column]))
+  end
+
+  # The report and the text report print 1-based columns; an entry copied
+  # from either must match.
+  it "reads the column 1-based, as the report prints it, not 0-based" do
+    expect(ids(file: "calc.rb", line: 3, column: first_column)).to(be_empty)
   end
 
   it "matches nothing when the column does not match any point on the line" do
