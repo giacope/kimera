@@ -202,6 +202,62 @@ RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
     expect(Minitest.run).to(be(true))
   end
 
+  # minitest-hooks builds each test from an instance its with_info_handler
+  # makes, so a test run outside that handler cannot even be constructed.
+  describe "class-level hooks" do
+    def hooked(before_all: "true")
+      path = File.join(dir, "hooked_test.rb")
+      File.write(path, <<~RUBY)
+        require "minitest"
+        class HookedKimeraTest < Minitest::Test
+          def self.with_info_handler(reporter, &block)
+            @instance = :ready
+            if #{before_all}
+              super
+            else
+              failed = new("test_ok")
+              failed.failures << Minitest::Assertion.new("before_all failed")
+              reporter.record(failed)
+            end
+          ensure
+            @instance = nil
+          end
+          def self.new(name)
+            raise(FrozenError, "can't modify frozen NilClass") unless @instance
+            super
+          end
+          def test_ok = assert(true)
+          def test_bad = assert(false)
+        end
+      RUBY
+      described_class.build.source([path])
+    end
+
+    after { Object.__send__(:remove_const, :HookedKimeraTest) if defined?(HookedKimeraTest) }
+
+    it "runs each test inside its class's info handler", :aggregate_failures do
+      outcome = hooked.run(["HookedKimeraTest#test_ok", "HookedKimeraTest#test_bad"])
+      expect(outcome.failures.keys).to(eq(["HookedKimeraTest#test_bad"]))
+    end
+
+    it "fails a test whose class hook failed before it ran" do
+      outcome = hooked(before_all: "false").run(["HookedKimeraTest#test_ok"])
+      expect(outcome.failures["HookedKimeraTest#test_ok"]).to(include("before_all failed"))
+    end
+  end
+
+  it "passes a test whose class's info handler never ran it" do
+    silent =
+      Class.new(Minitest::Test) do
+        define_singleton_method(:with_info_handler) { |*| :skipped }
+        define_method(:test_it) { flunk }
+      end
+    adapter.instance_variable_get(:@_indexed)["silent#test_it"] = [silent, :test_it]
+    expect(adapter.run(["silent#test_it"]).passed?).to(be(true))
+  ensure
+    Minitest::Runnable.runnables.delete(silent)
+  end
+
   # `rails test` puts test/ on $LOAD_PATH for `require "test_helper"`; kimera loads files directly.
   describe "test/ on $LOAD_PATH" do
     around do |example|

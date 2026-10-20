@@ -161,9 +161,27 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   end
 
   it "aborts once more workers than the pool is wide die without reporting" do
-    # The exit description is the operator's only clue before retrying with --jobs 1.
+    # The exit description is the operator's only clue when the worker said nothing.
     expect { pool(queue: (1..6).to_a, spawner: ->(_slot) { crashed }, jobs: 2) }
       .to(raise_error(Kimera::Error, /3 warm workers died before reporting.*last exit: status 1/m))
+  end
+
+  def confessed
+    forked do |_request, response|
+      response.puts(JSON.generate(t: "crash", detail: "FrozenError: can't modify frozen NilClass\n  hooks.rb:81"))
+      response.flush
+      exit!(1)
+    end
+  end
+
+  it "shows what the last stillborn worker died of, so no rerun is needed" do
+    words = /on load\. The last one died of:\nFrozenError: can't modify frozen \w+\n  hooks\.rb:81\z/
+    expect { pool(queue: (1..6).to_a, spawner: ->(_slot) { confessed }, jobs: 2) }.to(raise_error(Kimera::Error, words))
+  end
+
+  it "points a silent stillborn pool at doctor, which loads the suite outside it" do
+    expect { pool(queue: (1..6).to_a, spawner: ->(_slot) { crashed }, jobs: 2) }
+      .to(raise_error(Kimera::Error, /on load; it said nothing before it died\. `kimera doctor --check-baseline`/))
   end
 
   it "describes a signal death distinctly in the abort message" do

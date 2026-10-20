@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "adapter"
+require_relative "../support/class_hooks"
 require_relative "../support/test_exit"
 
 module Kimera
@@ -78,8 +79,8 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
     klass, name = indexed[id]
     return unless klass
     reseed(id)
-    result = klass.new(name).extend(Kimera::TestExit::Test).run
-    [id, message(result)] if killing?(result)
+    result = Kimera::ClassHooks.new(klass).run { klass.new(name).extend(Kimera::TestExit::Test).run }
+    [id, message(result)] if result && killing?(result)
   end
 
   def paths(files)

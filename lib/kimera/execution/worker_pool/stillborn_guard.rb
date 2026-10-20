@@ -3,6 +3,9 @@
 require_relative "../../error"
 
 class Kimera::Execution::WorkerPool::StillbornGuard
+  SILENT = "; it said nothing before it died. `kimera doctor --check-baseline` loads the suite " \
+    "outside the pool and prints the error."
+
   def initialize(jobs)
     @jobs = jobs
     @seen = { stillborn: 0, progressed: false }
@@ -12,23 +15,22 @@ class Kimera::Execution::WorkerPool::StillbornGuard
     @seen[:progressed] = true
   end
 
-  def track(status)
+  def track(status, words = nil)
     return if @seen[:progressed]
     @seen[:stillborn] += 1
-    abort!(status) if @seen[:stillborn] > @jobs
+    abort!(status, words) if @seen[:stillborn] > @jobs
   end
 
   private
 
-  def abort!(status)
-    raise(Kimera::Error, message(status))
+  def abort!(status, words)
+    raise(Kimera::Error, message(status) + (words ? ". The last one died of:\n#{words}" : SILENT))
   end
 
   def message(status)
     "#{@seen[:stillborn]} warm workers died before reporting a result " \
       "(last exit: #{describe(status)}). The app raises during " \
-      "fork or the suite aborts on load; re-run with --jobs 1 to see " \
-      "the error."
+      "fork or the suite aborts on load"
   end
 
   def describe(status)

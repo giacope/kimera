@@ -14,6 +14,7 @@ class Kimera::Execution::Zygote
   include Kimera::Execution::ChildProcess
 
   SIGNAL = "QUIT"
+  FRAMES = 40
 
   class Died < StandardError
     attr_reader :signal, :code
@@ -32,6 +33,8 @@ class Kimera::Execution::Zygote
       super(message)
       @kind = kind
     end
+
+    def headline = "#{kind}: #{message}"
   end
 
   Pipe =
@@ -73,7 +76,7 @@ class Kimera::Execution::Zygote
   def outcome
     { "value" => yield }
   rescue Timeout::Error, StandardError, ScriptError => error
-    { "raised" => error.class.name, "message" => error.message }
+    { "raised" => error.class.name, "message" => error.message, "frames" => Array(error.backtrace).first(FRAMES) }
   rescue SignalException => error
     last(error)
   end
@@ -93,6 +96,7 @@ class Kimera::Execution::Zygote
   def rebuilt(payload)
     kind = payload["raised"]
     message = payload["message"]
-    kind == Timeout::Error.name ? Timeout::Error.new(message) : Raised.new(kind, message)
+    error = kind == Timeout::Error.name ? Timeout::Error.new(message) : Raised.new(kind, message)
+    error.tap { |rebuilt| rebuilt.set_backtrace(payload["frames"]) if payload["frames"] }
   end
 end
