@@ -3,6 +3,7 @@
 require_relative "../error"
 require_relative "../scope/config"
 require_relative "../scope/file_set"
+require_relative "checklist"
 require_relative "coverage_minimum"
 require_relative "flag"
 require_relative "test_command"
@@ -29,7 +30,7 @@ class Kimera::CLI::Doctor
 
   def run(argv)
     _, options = OPTIONS.parse(argv, { check_baseline: false })
-    verdict(
+    list.verdict(
       checks(
         Kimera::Config.new(File.join(@root, Kimera::Config::DEFAULT_PATH)).options.merge(options.slice(:jobs)), options
       )
@@ -47,21 +48,18 @@ class Kimera::CLI::Doctor
 
   def checks(config, options)
     [configuration(config), framework(config), sources(config), tests(config), git, rails]
-      .concat(floor, suite(config, options))
+      .concat(floor).each { |check| shown(check) } + suite(config, options)
   end
 
   def suite(config, options)
-    return UNCHECKED if test_files(config).empty?
-    options[:check_baseline] ? [loading(config), *baselines(config)] : [loading(config)]
+    return UNCHECKED.each { |check| shown(check) } if test_files(config).empty?
+    loaded = shown(loading(config))
+    options[:check_baseline] ? [loaded, *baselines(config).each { |check| shown(check) }] : [loaded]
   end
 
-  def verdict(checks)
-    checks.each { |status, text| @io.puts("#{status} #{text}") }
-    failed = checks.count { |status,| status == "✗" }
-    return 0 if failed.zero?
-    @errors.puts("kimera: doctor found #{failed} blocking issue(s)")
-    1
-  end
+  def list = @_list ||= Kimera::CLI::Checklist.new(@io, @errors)
+
+  def shown(check) = list.shown(check)
 
   def configuration(config)
     path = File.join(@root, Kimera::Config::DEFAULT_PATH)

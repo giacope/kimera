@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "open3"
+require_relative "suite_capture"
 require_relative "../execution/suite_env"
 require_relative "../listing"
 require_relative "test_shard"
@@ -67,7 +67,7 @@ class Kimera::CLI::TestCommand
   end
 
   def capture(command)
-    output, status = Open3.capture2e(Kimera::Execution::SUITE_ENV, *command, chdir: @root)
+    output, status = Kimera::CLI::SUITE.call(Kimera::Execution::SUITE_ENV, *command, chdir: @root)
     [output.dup.force_encoding(Encoding::UTF_8).scrub, status]
   end
 

@@ -10,20 +10,20 @@ RSpec.describe(Kimera::CLI::TestCommand) do
 
   def loading(framework, output: "", success: true)
     command = described_class.new(framework, ["t.rb"], root: "/app")
-    allow(Open3).to(receive(:capture2e).and_return([output, status(success)]))
+    allow(Kimera::CLI::SUITE).to(receive(:call).and_return([output, status(success)]))
     command.loading
   end
 
   it "loads minitest files without running them" do
     loading("minitest")
     command = ["bundle", "exec", "ruby", "-Itest", "-e", described_class::DRY_RUN, "t.rb"]
-    expect(Open3).to(have_received(:capture2e).with({ "KIMERA" => "1" }, *command, chdir: "/app"))
+    expect(Kimera::CLI::SUITE).to(have_received(:call).with({ "KIMERA" => "1" }, *command, chdir: "/app"))
   end
 
   it "loads rspec files with --dry-run" do
     loading("rspec")
-    expect(Open3).to(
-      have_received(:capture2e).with({ "KIMERA" => "1" }, "bundle", "exec", "rspec", "--dry-run", "t.rb", chdir: "/app")
+    expect(Kimera::CLI::SUITE).to(
+      have_received(:call).with({ "KIMERA" => "1" }, "bundle", "exec", "rspec", "--dry-run", "t.rb", chdir: "/app")
     )
   end
 
@@ -31,10 +31,10 @@ RSpec.describe(Kimera::CLI::TestCommand) do
   # which executes no code at all.
   it "runs the full baseline with KIMERA set too" do
     command = described_class.new("rspec", ["t.rb"], root: "/app")
-    allow(Open3).to(receive(:capture2e).and_return(["", status(true)]))
+    allow(Kimera::CLI::SUITE).to(receive(:call).and_return(["", status(true)]))
     command.baseline
-    expect(Open3).to(
-      have_received(:capture2e).with(
+    expect(Kimera::CLI::SUITE).to(
+      have_received(:call).with(
         { "KIMERA" => "1" }, "bundle", "exec", "rspec", "t.rb",
         chdir: "/app"
       )
@@ -52,13 +52,13 @@ RSpec.describe(Kimera::CLI::TestCommand) do
 
   it "warns without failing when Bundler is missing" do
     command = described_class.new("rspec", [], root: "/app")
-    allow(Open3).to(receive(:capture2e).and_raise(Errno::ENOENT))
+    allow(Kimera::CLI::SUITE).to(receive(:call).and_raise(Errno::ENOENT))
     expect(command.loading).to(eq(["!", "Test loading: Bundler is unavailable; not checked"]))
   end
 
   def baseline(framework, output)
     command = described_class.new(framework, ["t.rb"], root: "/app")
-    allow(Open3).to(receive(:capture2e).and_return([output, status(false)]))
+    allow(Kimera::CLI::SUITE).to(receive(:call).and_return([output, status(false)]))
     command.baseline.last
   end
 
@@ -152,14 +152,14 @@ RSpec.describe(Kimera::CLI::TestCommand) do
 
   it "fails the baseline when Bundler is missing" do
     command = described_class.new("rspec", [], root: "/app")
-    allow(Open3).to(receive(:capture2e).and_raise(Errno::ENOENT))
+    allow(Kimera::CLI::SUITE).to(receive(:call).and_raise(Errno::ENOENT))
     expect(command.baseline).to(eq(["✗", "Baseline: Bundler is unavailable; run your test suite, then retry"]))
   end
 
   def parallel(framework, outputs)
     command = described_class.new(framework, ["t.rb"], root: "/app")
     shards = outputs.each_index.map { |index| Kimera::CLI::TestShard.new(index, outputs.size).argv(framework) }
-    allow(Open3).to(receive(:capture2e)) do |_env, *argv, **|
+    allow(Kimera::CLI::SUITE).to(receive(:call)) do |_env, *argv, **|
       output = outputs[shards.index { |shard| argv.each_cons(shard.size).include?(shard) }]
       [output, status(output.empty?)]
     end
@@ -172,9 +172,9 @@ RSpec.describe(Kimera::CLI::TestCommand) do
 
   it "runs one process per worker, each on its share of the tests", :aggregate_failures do
     expect(parallel("rspec", ["", ""])).to(eq(["✓", "Parallel baseline: green split across 2 processes too (jobs: 2)"]))
-    [0, 1].each { |index| expect(Open3).to(have_received(:capture2e).with(*shard("rspec", index, 2), chdir: "/app")) }
+    [0, 1].each { |index| expect(Kimera::CLI::SUITE).to(have_received(:call).with(*shard("rspec", index, 2), chdir: "/app")) }
     parallel("minitest", ["", "", ""])
-    expect(Open3).to(have_received(:capture2e).with(*shard("minitest", 2, 3), chdir: "/app"))
+    expect(Kimera::CLI::SUITE).to(have_received(:call).with(*shard("minitest", 2, 3), chdir: "/app"))
   end
 
   def baselines(serial, **jobs)
