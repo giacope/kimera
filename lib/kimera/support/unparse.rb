@@ -37,6 +37,15 @@ module Kimera
       end
     end
 
+    module Destructuring
+      private
+
+      def dispatch
+        return super unless node.location.respond_to?(:begin) && node.location.begin
+        parentheses { delimited(children) }
+      end
+    end
+
     module RangeEndpoints
       private
 
@@ -74,3 +83,4 @@ end
 Unparser.singleton_class.prepend(Kimera::Unparse::Parsing)
 Unparser::AST::LocalVariableScopeEnumerator.prepend(Kimera::Unparse::Binders)
 Unparser::Emitter::Range.prepend(Kimera::Unparse::RangeEndpoints)
+Unparser::Emitter::Procarg.prepend(Kimera::Unparse::Destructuring)

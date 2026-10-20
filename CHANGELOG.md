@@ -30,6 +30,10 @@ defects it found at the seams, and the defaults it moved toward the
 - A stillborn worker pool prints what the last worker died of (the error's
   real class and its frames); the old hint to re-run with `--jobs 1` showed
   nothing there either.
+- A block parameter that destructures one name (`{ |(name)| ... }`) keeps
+  its parentheses when kimera re-emits the method. The parser reads it as the
+  same node as `{ |name| ... }`, so the instrumented method handed the whole
+  array to the block and an unmutated suite went red (found gating hashira).
 - A class-body `if`/`unless` holding a mutated method is trimmed like a class
   body on the warm re-evaluation, so an `alias` inside it is not re-bound to
   the redefined method. Sequel's `dataset/query.rb` (`if TRUE_FREEZE; alias
