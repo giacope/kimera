@@ -36,6 +36,6 @@ Kimera::Execution::Shift::Lag =
   Class.new(Kimera::Execution::Shift::Doubt) do
     def unjudged
       "#{test} #{failure}, so the timeout can't be laid on the mutant, and no other covering test killed it: " \
-        "raise --soft-timeout well above the test's own time, or fix the test"
+        "#{contradicted ? "fix the test, or raise" : "raise"} --soft-timeout well above the test's own time"
     end
   end

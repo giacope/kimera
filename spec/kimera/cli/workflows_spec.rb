@@ -227,8 +227,9 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     expect(test_initialized(locked)).to(include("framework" => "minitest"))
     rspec = { "test/a_test.rb" => "", "Gemfile.lock" => "GEM\n  specs:\n    rspec-core (3.13.2)\n" }
     expect(test_initialized(rspec)).to(include("framework" => "rspec"))
-    both = minitest.merge("Gemfile.lock" => "    minitest (5.25.1)\n    rspec-core (3.13.2)\n")
-    expect(test_initialized(both)).to(include("framework" => "rspec"))
+    both = "    minitest (5.25.1)\n    rspec-core (3.13.2)\n"
+    expect(test_initialized(minitest.merge("Gemfile.lock" => both))).to(include("framework" => "rspec"))
+    expect(test_initialized("test/a_test.rb" => "", "Gemfile.lock" => both)).to(include("framework" => "minitest"))
     named = spec.merge("Gemfile.lock" => "    minitest-hooks (1.5.2)\n    rspec-core-ext (1.0)\n")
     expect(test_initialized(named)).to(include("framework" => "rspec"))
   end

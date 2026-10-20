@@ -68,7 +68,7 @@ RSpec.describe(Kimera::Execution::Shift) do
     result = worker(adapter, %w[t1 t2]).evaluate(target)
     expect(result.status).to(eq(:harness_error))
     expect(result.detail).to(start_with("t1 ran past the soft timeout with the mutant on, and took 2.5s with it off"))
-    expect(result.detail).to(include("raise --soft-timeout"))
+    expect(result.detail).to(end_with("killed it: raise --soft-timeout well above the test's own time"))
     expect(adapter.log).to(eq([["t1", target], ["t1", nil], ["t2", target]]))
   end
 
@@ -86,8 +86,9 @@ RSpec.describe(Kimera::Execution::Shift) do
     expect(result.detail).to(start_with("t1 ran past the soft timeout with the mutant on and with it off, so"))
   end
 
-  it "takes no kill when the test fails with the mutant off" do
+  it "takes no kill when the test fails with the mutant off", :aggregate_failures do
     result = worker(timed({ "t1" => [hung, [0.1, false]] }), %w[t1]).evaluate(target)
     expect(result.detail).to(start_with("t1 ran past the soft timeout with the mutant on, and failed with it off, so"))
+    expect(result.detail).to(end_with(": fix the test, or raise --soft-timeout well above the test's own time"))
   end
 end

@@ -97,6 +97,6 @@ class Kimera::Execution::Zygote
     kind = payload["raised"]
     message = payload["message"]
     error = kind == Timeout::Error.name ? Timeout::Error.new(message) : Raised.new(kind, message)
-    error.tap { |rebuilt| rebuilt.set_backtrace(payload["frames"]) if payload["frames"] }
+    error.tap { |rebuilt| rebuilt.set_backtrace(payload["frames"]) }
   end
 end

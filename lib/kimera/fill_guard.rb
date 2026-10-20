@@ -7,13 +7,14 @@ class Kimera::FillGuard
   READ = Kimera::SyntaxTypes::InstanceVariableReadNode
   WRITE = Kimera::SyntaxTypes::InstanceVariableWriteNode
   NEGATIONS = %i[nil? !].freeze
+  CONDITIONALS = [Kimera::SyntaxTypes::IfNode, Kimera::SyntaxTypes::UnlessNode].freeze
 
   def initialize(statements)
     @statements = statements
   end
 
   def exemptions
-    return [] unless @statements.size > 1 && name && fills? && tail?
+    return [] unless name && fills? && tail?
     [
       Kimera::MemoGuard::Exemption.new(guard.location, Kimera::MemoGuard::CONDITIONAL),
       Kimera::MemoGuard::Exemption.new(store.location, Kimera::MemoGuard::ASSIGNMENT_DELETION)
@@ -27,10 +28,8 @@ class Kimera::FillGuard
   def tail = @statements.last
 
   def name
-    case guard
-    when Kimera::SyntaxTypes::UnlessNode then read(guard.predicate) unless guard.else_clause
-    when Kimera::SyntaxTypes::IfNode then negated(guard.predicate) unless Kimera::Branches.new(guard).following
-    end
+    return unless CONDITIONALS.include?(guard.class) && !Kimera::Branches.new(guard).following
+    guard.is_a?(Kimera::SyntaxTypes::UnlessNode) ? read(guard.predicate) : negated(guard.predicate)
   end
 
   def read(node) = node.is_a?(READ) ? node.name : nil

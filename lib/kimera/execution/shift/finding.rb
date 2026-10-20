@@ -46,7 +46,7 @@ Kimera::Execution::Shift::Finding =
     def stall(calm) = Kimera::Execution::Shift::Stall.new(test, expiry, calm.fetch("elapsed"))
 
     def crawl(calm)
-      Kimera::Execution::Shift::Crawl.new(mutant_id: id, test: test, failure: lag(calm), contradicted: true)
+      Kimera::Execution::Shift::Crawl.new(mutant_id: id, test: test, failure: lag(calm), contradicted: !calm["passed"])
     end
 
     def through = tests.first(index + 1)
