@@ -183,7 +183,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       seen = []
       engine =
         Class.new(described_class) do
-          define_method(:verdict) do |mirror, tests|
+          define_method(:verdict) do |mirror, tests, **|
             seen << [File.file?(File.join(mirror, "calc.rb")), tests]
             outcome
           end
@@ -463,7 +463,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
         File.write(File.join(root, "calc.rb"), test_source_fixture)
         r =
           Class.new(described_class) do
-            define_method(:verdict) do |mirror, _locations, first: false|
+            define_method(:verdict) do |mirror, _locations, first: false, **|
               baked = [File.read(File.join(mirror, "calc.rb")), first]
               sleep(pause) if pause
               Kimera::Execution::IsolatedOutcome.new(:killed, ["t1[1:1]"])
@@ -567,7 +567,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     # callable cmd receives the ledger path, as the real children do in argv.
     def command(invocation, asked: [], **)
       plan = Object.new
-      plan.define_singleton_method(:command) do |_mirror, _locations, ledger, first:|
+      plan.define_singleton_method(:command) do |_mirror, _locations, ledger, first:, **|
         asked << first
         [{}, invocation.respond_to?(:call) ? invocation.call(ledger) : invocation]
       end

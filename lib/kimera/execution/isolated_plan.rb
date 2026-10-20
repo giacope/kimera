@@ -11,12 +11,14 @@ module Kimera
 end
 
 class Kimera::Execution::IsolatedPlan
-  MIRROR_SKIP = %w[.git coverage].freeze
+  MIRROR_SKIP = %w[coverage].freeze
   MIRROR_EMPTY = %w[tmp log].freeze
   MIRROR_LINK = %w[vendor node_modules .bundle].freeze
+  MIRROR_GIT = ".git"
   MIRROR_HINT =
     "  the mirror copies the project except #{MIRROR_SKIP.join(", ")} " \
-      "(#{MIRROR_EMPTY.join(", ")} start empty; #{MIRROR_LINK.join(", ")} are symlinked)".freeze
+      "(#{MIRROR_EMPTY.join(", ")} start empty; #{MIRROR_LINK.join(", ")} are symlinked; " \
+      ".git is a private snapshot of the index and refs that reads the project's objects)".freeze
 
   attr_reader :registry
 
@@ -37,8 +39,8 @@ class Kimera::Execution::IsolatedPlan
 
   def settled(id, point) = @options[:filter]&.settle(id, whole?(point) ? selection.all : Array(selection.recorded(id)))
 
-  def command(mirror, locations, ledger, first: false)
-    child.command(mirror, child.request(locations, first: first), ledger: ledger, paths: mutables)
+  def command(mirror, locations, ledger, **)
+    child.command(mirror, child.request(locations, **), ledger: ledger, paths: mutables)
   end
 
   def suite = selection.all
@@ -53,6 +55,7 @@ class Kimera::Execution::IsolatedPlan
 
   def placement(entry)
     return :copy if mutables.include?(entry)
+    return :git if entry == MIRROR_GIT
     return :skip if MIRROR_SKIP.include?(entry)
     return :empty if MIRROR_EMPTY.include?(entry)
     MIRROR_LINK.include?(entry) ? :link : :copy

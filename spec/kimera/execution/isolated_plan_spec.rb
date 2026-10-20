@@ -276,11 +276,11 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
 
     # A boot that needs node_modules/ or a vendored bundle must load in the
     # mirror, or every mutant it covers scores as a false kill.
-    it "copies sources, links dependencies, empties scratch dirs and skips history", :aggregate_failures do
+    it "copies sources, links dependencies, empties scratch dirs and snapshots history", :aggregate_failures do
       expect(placements(%w[lib app spec Gemfile])).to(all(satisfy { |_e, how| how == :copy }))
       expect(placements(%w[vendor node_modules .bundle]).values).to(eq(%i[link link link]))
       expect(placements(%w[tmp log]).values).to(eq(%i[empty empty]))
-      expect(placements(%w[.git coverage]).values).to(eq(%i[skip skip]))
+      expect(placements(%w[.git coverage]).values).to(eq(%i[git skip]))
     end
 
     it "copies a would-be link that holds a mutated file, so no mutant writes through it" do

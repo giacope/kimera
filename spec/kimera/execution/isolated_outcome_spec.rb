@@ -72,16 +72,33 @@ RSpec.describe(Kimera::Execution::IsolatedOutcome) do
     expect(outcome.detail).to(start_with("suite died on signal 9 with 0 failures"))
   end
 
-  it "keeps a load error the child recorded as the kill's detail", :aggregate_failures do
+  # An error no test owns (a load error, a before(:suite) hook) may be the
+  # environment's, so it is ruled apart: the caller runs the mutant again.
+  it "rules an error outside every test apart from a kill, keeping it as the detail", :aggregate_failures do
     outcome = test_judge(failed, { failures: 1, failing: [], load_error: "ArgumentError: boom" }.to_json)
-    expect(outcome.status).to(eq(:killed))
-    expect(outcome.detail).to(eq("ArgumentError: boom"))
+    expect([outcome.status, outcome.failing]).to(eq([:outside, []]))
+    expect(outcome.detail).to(eq("an error outside every test: ArgumentError: boom"))
+    expect(test_judge(failed, { failures: 1, failing: [] }.to_json).detail)
+      .to(eq("an error outside every test: no test named"))
+  end
+
+  it "keeps the first failure's message as a kill's detail" do
+    ledger = { failures: 1, failing: ["t1"], message: "RuntimeError: nope" }.to_json
+    expect(test_judge(failed, ledger).detail).to(eq("RuntimeError: nope"))
+  end
+
+  it "turns an outside error that recurred into a kill that says so", :aggregate_failures do
+    recurred = described_class.new(:outside, [], "an error outside every test: x").recurred
+    expect([recurred.status, recurred.failing]).to(eq([:killed, []]))
+    expect(recurred.detail).to(eq("an error outside every test: x (it recurred in a second run with the mutant on)"))
+    expect([recurred.outside?, described_class.new(:outside).outside?]).to(eq([false, true]))
   end
 
   describe "#explain" do
     it "says why a red isolated baseline is red", :aggregate_failures do
       expect(described_class.new(:timeout).explain(30)).to(eq("timed out after 30s"))
-      expect(described_class.new(:killed, %w[a b], "ignored").explain(1)).to(eq("failing: a, b"))
+      expect(described_class.new(:killed, %w[a b], "Error: why").explain(1)).to(eq("failing: a, b (Error: why)"))
+      expect(described_class.new(:killed, %w[a b]).explain(1)).to(eq("failing: a, b"))
       expect(described_class.new(:killed, [], "LoadError: x").explain(1)).to(eq("LoadError: x"))
       expect(described_class.new(:harness_error).explain(1)).to(eq("the test child failed without naming a test"))
     end

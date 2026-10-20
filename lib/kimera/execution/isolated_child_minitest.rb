@@ -5,6 +5,7 @@ require "minitest"
 require "zlib"
 require_relative "../frameworks/class_hooks"
 require_relative "../support/test_exit"
+require_relative "mirror_database"
 
 Minitest.seed ||= 1
 begin
@@ -29,12 +30,15 @@ rescue StandardError, ScriptError => error
   exit(1)
 end
 
+Kimera::Execution::MirrorDatabase.new(request["slot"]).adopt
+
 methods = {}
 Minitest::Runnable.runnables.each do |runnable|
   next unless runnable.respond_to?(:runnable_methods)
   runnable.runnable_methods.each { |name| methods["#{runnable}##{name}"] = [runnable, name] }
 end
 
+messages = {}
 failed =
   lambda do |id|
     klass, name = methods[id]
@@ -42,10 +46,14 @@ failed =
     File.write(pulse, ".", mode: "a") if pulse
     Kernel.srand((seed ^ Zlib.crc32(id)) % (2**31)) if seed
     result = Kimera::Frameworks::ClassHooks.new(klass).test(name)
-    result && !result.passed? && !result.skipped?
+    next false unless result && !result.passed? && !result.skipped?
+    messages[id] = result.failures.first&.message.to_s[0, 2000]
+    true
   end
 killers = request["first_failure"] == false ? ids.select(&failed) : [ids.find(&failed)].compact
 
-File.write(ledger, JSON.generate(failures: killers.size, failing: killers))
+report = { failures: killers.size, failing: killers }
+report[:message] = messages[killers.first] if killers.any?
+File.write(ledger, JSON.generate(report))
 
 exit(killers.empty? ? 0 : 1)

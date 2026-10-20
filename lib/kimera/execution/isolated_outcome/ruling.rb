@@ -43,10 +43,13 @@ class Kimera::Execution::IsolatedOutcome::Ruling
 
   def tally(ledger)
     failing = Array(ledger["failing"])
-    return OUTCOME.new(:killed, failing, ledger["load_error"]) if ledger["failures"].positive?
+    return OUTCOME.new(:outside, [], outside(ledger)) if ledger["failures"].positive? && failing.empty?
+    return OUTCOME.new(:killed, failing, ledger["load_error"] || ledger["message"]) if ledger["failures"].positive?
     return OUTCOME.new(:survived) if @exit.success?
     OUTCOME.new(:harness_error, nil, unexplained)
   end
+
+  def outside(ledger) = "an error outside every test: #{ledger["load_error"] || "no test named"}"
 
   def unexplained
     "suite #{status} with 0 failures " \

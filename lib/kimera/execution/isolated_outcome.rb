@@ -16,10 +16,14 @@ class Kimera::Execution::IsolatedOutcome
 
   def killers(wanted) = wanted && status == :killed ? failing : nil
 
+  def outside? = status == :outside
+
+  def recurred = self.class.new(:killed, [], "#{detail} (it recurred in a second run with the mutant on)")
+
   def explain(limit)
     return "timed out after #{limit}s" if status == :timeout
     named = Array(failing)
-    return "failing: #{named.join(", ")}" if named.any?
+    return "failing: #{named.join(", ")}#{" (#{detail})" if detail}" if named.any?
     detail || "the test child failed without naming a test"
   end
 end

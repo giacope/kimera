@@ -45,7 +45,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
           mutant_id: trial.id, status: status, file: "calc.rb", covering_tests: ["t#{trial.id}"], detail: detail
         )
       end
-      define_method(:verdict) do |mirror, tests|
+      define_method(:verdict) do |mirror, tests, **|
         log << [:control, tests, mirror]
         control
       end

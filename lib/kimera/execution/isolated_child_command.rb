@@ -33,8 +33,9 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
     [minitest? ? MINITEST_CHILD : CHILD, ledger, request_path(ledger), "#{ledger}#{PULSE}"]
   end
 
-  def request(locations, first: false)
-    { "tests" => locations, "files" => @test_files, "first_failure" => first }.merge(@seed ? { "seed" => @seed } : {})
+  def request(locations, first: false, slot: nil)
+    { "tests" => locations, "files" => @test_files, "first_failure" => first }
+      .merge(@seed ? { "seed" => @seed } : {}, slot ? { "slot" => slot } : {})
   end
 
   def helpers(mirror) = Kimera::Frameworks::LoadPath.new(@test_files, root: mirror).flags
