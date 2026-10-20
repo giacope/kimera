@@ -27,9 +27,11 @@ bundle exec kimera doctor --check-baseline  # discovery, git, and a green suite
   and sets `baseline:` in .kimera.yml, so the gate blocks only new holes. Burn
   the baseline down; never grow it to pass a gate.
 - Fix line coverage first. `no_coverage` mutants are plain coverage gaps, and
-  mutation results only mean something for code the tests execute. They are
-  not scored by default; `count_no_coverage: true` scores each as not killed
-  and fails the gate on them in every command, `kimera run` included.
+  mutation results only mean something for code the tests execute. By default
+  (`count_no_coverage: true`) each scores as not killed and fails the gate in
+  every command, `kimera run` included; untested code is not passing code.
+  Write the test that runs the code; don't set `count_no_coverage: false` to
+  pass a gate.
 - CI shape: **PR gate is incremental** (`kimera ci --session tmp/kimera.json`;
   `ci` defaults to `--max-survivors 0 --fail-on-no-coverage`, and on a GitHub
   pull request to `--since origin/$GITHUB_BASE_REF` and `--summary
@@ -76,8 +78,11 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   The ID numbers every mutant in that run, so it changes with the set of
   files scanned; the key doesn't. `kimera mutant` and `--focus` take either,
   and a key still resolves after unrelated edits move its line.
-- Minitest/Rails: kimera puts `test/` (or `spec/`) on `$LOAD_PATH`, so test
-  files can `require "test_helper"` without `RUBYOPT="-Itest"`.
+- Minitest/Rails: kimera puts each test file's nearest `test/` or `spec/`,
+  the project's own `test/` and `spec/`, and any `load_path:` folders on
+  `$LOAD_PATH`, so test files can `require "test_helper"` without
+  `RUBYOPT="-Itest"`. `kimera doctor` and every printed "reproduce without
+  kimera" command use the same `-I` flags.
 - `--tests` on the CLI *replaces* the config `tests:` glob (it does not
   append). A narrowed run's verdicts hold only for the narrowed set: a
   survivor may be killed by a test left out, so confirm it with the full glob
@@ -102,6 +107,11 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   raise `--hard-timeout`. If it waits on something the workers share (a Redis
   db, a lock, a port), give each worker its own through a
   `parallelize_setup`/`after_fork_hook`.
+- A test that runs past `--soft-timeout` with the mutant on is a `timeout`
+  only when, alone with the mutant off, it passes in under half the soft
+  timeout. A mutant left unjudged with a detail saying the test "ran past the
+  soft timeout ... with it off" means the test is too slow (or broken) on its
+  own: raise `--soft-timeout` well above its time, or fix the test.
 - Code under test that calls `exit` or `abort` fails that test (`detail`:
   `SystemExit: exit(1) called from FILE:LINE`), so a mutant that makes a test
   abort is `killed`, not `harness_error`.
@@ -159,8 +169,11 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   or `included` hook another file's class body calls), and a lambda handed to
   a class-body macro (a `belongs_to` default, an `after_create_commit` lambda)
   that no test reached warm, because re-declaring the macro can leave the
-  original lambda registered in front of the mutated one. Run it for their
-  verdicts; they never gate or count in the score. A method reached through an
+  original lambda registered in front of the mutated one. Incremental runs
+  (`--since`, `ci`, `changed`) judge them in the isolated tier by default
+  (`judge_isolated_only`); on a full run use `--judge-isolated-only` or
+  `--isolated`. Left unjudged they don't count in the score, and a scope
+  where nothing else could be evaluated fails the gate. A method reached through an
   `alias` or `alias_method` declared in another file is judged warm like any
   other.
 - Rails `enum` models overlay warm (the re-declaration is idempotent), so

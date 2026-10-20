@@ -2,6 +2,72 @@
 
 ## Unreleased
 
+Field test on ten MIT Ruby and Rails codebases (Sequel, YARD, graphql-ruby,
+ruby-lsp, Feedbin, Human Essentials, Chatwoot among them): 217 of 217 sampled
+survived and killed verdicts matched the plain test command; these are the
+defects it found at the seams, and the defaults it moved toward the
+"untested is not passing" stance.
+
+- **Breaking: uncovered mutants count by default.** `count_no_coverage`
+  defaults to true: a mutant no test reaches scores as not killed and fails
+  the gate in every command. `count_no_coverage: false`
+  (`--no-count-no-coverage`) restores reporting without scoring.
+- **Rails DSL is judged on incremental runs.** A new `judge_isolated_only`
+  setting (`--[no-]judge-isolated-only`) judges the mutants the warm run
+  leaves `isolated_only` (validations, callbacks, `dependent:`, lambdas a
+  macro registers) in fresh isolated mirrors. Unset, it is on for `--since`,
+  `kimera ci` and `kimera changed`, off for full runs. On Feedbin the
+  isolated tier judged 15 such mutants in 68s and found 8 holes. `kimera init`
+  on a Rails app writes the `rails` operators into `.kimera.yml`.
+- A gate that evaluated nothing while `isolated_only` or `unmutatable`
+  mutants were in scope fails, naming `--isolated`, instead of passing on "0
+  of N mutants evaluated"; next actions point at `--isolated` for them.
+- Minitest suites that use minitest-hooks (Sequel's) run: each test runs
+  inside its class's `with_info_handler`, as a plain run does, so
+  `before(:all)`/`around(:all)` work and a failing class hook fails the test.
+  Every warm worker used to die with FrozenError.
+- A stillborn worker pool prints what the last worker died of (the error's
+  real class and its frames); the old hint to re-run with `--jobs 1` showed
+  nothing there either.
+- A class-body `if`/`unless` holding a mutated method is trimmed like a class
+  body on the warm re-evaluation, so an `alias` inside it is not re-bound to
+  the redefined method. Sequel's `dataset/query.rb` (`if TRUE_FREEZE; alias
+  _clone clone; def clone ...`) read as a red baseline and could not be
+  mutated.
+- A soft-timeout expiry is a `timeout` only when the test, run alone with the
+  mutant off, passes in under half the soft timeout. A test slow (or red) on
+  its own kills nothing, and if no other test kills the mutant it is
+  unjudged with a hint to raise `--soft-timeout`. On ruby-lsp 3 of 6 timeout
+  "kills" passed plainly, and the count moved with machine load.
+- `kimera doctor` runs the suite into a file in its own process group, so a
+  process the suite leaves running (Feedbin's test helper leaks a
+  `redis-server`) no longer keeps it waiting forever; it also prints each
+  check as it finishes.
+- One load path everywhere: each test file's nearest `test/` and `spec/`, the
+  project's own `test/` and `spec/`, and a new `load_path:` setting, used by
+  the warm run, `kimera doctor`, the isolated children and every printed
+  "reproduce without kimera" command (which hard-coded `-Itest`). `doctor`
+  called a Minitest suite under `spec/` broken, and narrowing `--tests` to a
+  nested test folder lost the root `test/`.
+- `kimera init` reads `Gemfile.lock` (or `gems.locked`) when no `.rspec` or
+  helper names the framework, so a Minitest suite under `spec/` is no longer
+  set up as RSpec.
+- Memoization written as a guarded fill that ends on the ivar (`unless @x;
+  ...; @x = value; end; @x`, `@x = value unless @x`, `if @x.nil?`, `if !@x`)
+  gets no guard mutant, like `@x ||=`; its `unless false` mutant could never
+  be killed.
+- `return_value` leaves a `false` tail and `return false` alone, as it already
+  did `nil`: no truthiness caller can tell them apart.
+- **Breaking: an ignore entry's `column:` is 1-based**, as report.json and the
+  text report print it. Copying the column from the report used to un-ignore
+  the mutant.
+- A test file that defines a top-level constant one of kimera's dependencies
+  defines (`class Parser`) fails to load with a message naming the constant
+  and the gem.
+- `kimera report --report FILE` works like `kimera mutant ID --report FILE`.
+- The red-baseline hint for a multi-worker run starts from the printed
+  reproduce command: red there means the tests are red on their own.
+
 - An ignore entry whose file no longer exists is reported as stale. An entry
   that matched no mutant counted as stale only while its file still had
   mutants in the run; a deleted file has none, so the entry read as "outside
