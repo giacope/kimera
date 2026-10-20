@@ -26,6 +26,41 @@ RSpec.describe(Kimera::MemoGuard) do
     expect(exemptions(source).map(&:last)).to(eq(%w[conditional assignment_deletion]))
   end
 
+  # A memo can also fill its ivar in a guarded block and end on the ivar.
+  describe "a fill guard" do
+    it "exempts an unless block that fills the ivar the method then returns" do
+      source = "def m\n  unless @x\n    rows = load\n    @x = rows.to_a\n  end\n  @x\nend\n"
+      guard = "unless @x\n    rows = load\n    @x = rows.to_a\n  end"
+      expect(exemptions(source)).to(eq([[guard, "conditional"], ["@x = rows.to_a", "assignment_deletion"]]))
+    end
+
+    it "reads the modifier form, a nil? test and a negation the same way", :aggregate_failures do
+      expect(exemptions("def m\n  @x = load unless @x\n  @x\nend\n").map(&:last))
+        .to(eq(%w[conditional assignment_deletion]))
+      expect(exemptions("def m\n  if @x.nil?\n    @x = load\n  end\n  @x\nend\n").map(&:last))
+        .to(eq(%w[conditional assignment_deletion]))
+      expect(exemptions("def m\n  @x = load if !@x\n  @x\nend\n").map(&:last))
+        .to(eq(%w[conditional assignment_deletion]))
+    end
+
+    it "exempts no fill that isn't a memo", :aggregate_failures do
+      {
+        "an unless with an else" => "def m\n  unless @x\n    @x = load\n  else\n    warn\n  end\n  @x\nend\n",
+        "an if with an else" => "def m\n  if @x.nil?\n    @x = load\n  else\n    warn\n  end\n  @x\nend\n",
+        "a block that fills another ivar" => "def m\n  unless @x\n    @y = load\n  end\n  @x\nend\n",
+        "a block that fills, then does more" => "def m\n  unless @x\n    @x = load\n    log\n  end\n  @x\nend\n",
+        "a method that returns another ivar" => "def m\n  unless @x\n    @x = load\n  end\n  @y\nend\n",
+        "a method that returns something else" => "def m\n  unless @x\n    @x = load\n  end\n  @x.size\nend\n",
+        "a lone guard" => "def m\n  @x = load unless @x\nend\n",
+        "an empty unless" => "def m\n  unless @x\n  end\n  @x\nend\n",
+        "a positive test" => "def m\n  @x = load if @x\n  @x\nend\n",
+        "a nil? test with an argument" => "def m\n  @x = load if @x.nil?(1)\n  @x\nend\n",
+        "another predicate" => "def m\n  @x = load if @x.empty?\n  @x\nend\n",
+        "a test of a local" => "def m(x)\n  @x = load unless x\n  @x\nend\n"
+      }.each { |shape, source| expect(exemptions(source)).to(eq([]), shape) }
+    end
+  end
+
   it "exempts nothing that isn't a memo", :aggregate_failures do
     {
       "a value guard the method never assigns" => "def m\n  return @x if @x\nend\n",

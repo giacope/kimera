@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "fill_guard"
+
 class Kimera::MemoGuard::Source
   def initialize(text)
     @text = text
@@ -8,10 +10,12 @@ class Kimera::MemoGuard::Source
   def exemptions
     result = Kimera::Syntax.parse(@text)
     return [] if result.failure?
-    defs(result.value).flat_map { Kimera::MemoGuard.new(statements(it.body)).exemptions }
+    defs(result.value).flat_map { guarded(statements(it.body)) }
   end
 
   private
+
+  def guarded(body) = Kimera::MemoGuard.new(body).exemptions + Kimera::FillGuard.new(body).exemptions
 
   def statements(body) = body.is_a?(Kimera::SyntaxTypes::StatementsNode) ? body.body : []
 
