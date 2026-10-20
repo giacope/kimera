@@ -80,9 +80,9 @@ RSpec.describe("a suite that shares a path between tests (end-to-end)") do
       test_run(cwd: root, arguments: ["--jobs", "2", "--no-progress"]) do |output, _report, status|
         expect(status).to(eq(1))
         expect(output).to(match(%r{not green: \d+ tests failed:\n    \./spec/[ab]_spec\.rb\[1:\d\]\n}))
-        expect(output).to(
-          include("\n  ran on 2 workers: if these pass with --jobs 1, the suite shares state between workers")
-        )
+        hint = "\n  ran on 2 workers: if the reproduce command above fails too, the tests are red on their own; " \
+          "if it passes and --jobs 1 is green, the suite shares state between workers"
+        expect(output).to(include(hint))
       end
       test_run(cwd: root, arguments: ["--jobs", "1", "--no-progress"]) do |output, report, _status|
         expect(output).not_to(include("not green"))
@@ -95,7 +95,8 @@ RSpec.describe("a suite that shares a path between tests (end-to-end)") do
     Dir.mktmpdir("kimera-shared") do |root|
       test_shared(root)
       test_run(cwd: root, arguments: ["--isolated", "--jobs", "2", "--no-progress"]) do |output, _report, status|
-        expect([status, output]).to(match([1, a_string_including("ran on 2 workers: if these pass with --jobs 1")]))
+        hint = "ran on 2 workers: if the reproduce command above fails too"
+        expect([status, output]).to(match([1, a_string_including(hint)]))
       end
     end
   end
