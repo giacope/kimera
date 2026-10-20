@@ -1,11 +1,14 @@
 # frozen_string_literal: true
 
 require_relative "deadline"
+require_relative "expiry"
 require_relative "finding"
 require_relative "probe"
 require_relative "suspect"
 
 class Kimera::Execution::Shift::Attempt
+  CLEAR = 0.5
+
   def initialize(probe:, isolation:, killers:, zygote:)
     @probe = probe
     @isolation = isolation
@@ -29,7 +32,17 @@ class Kimera::Execution::Shift::Attempt
     hunt(finding.onward, doubts + [verdict].compact)
   end
 
-  def judge(finding) = finding.overran? ? lagged(finding) : failed(finding)
+  def judge(finding)
+    return expired(finding) if finding.expired?
+    finding.overran? ? lagged(finding) : failed(finding)
+  end
+
+  def expired(finding)
+    calm = replay(finding.calm)
+    clear?(calm) ? finding.stall(calm) : finding.crawl(calm)
+  end
+
+  def clear?(calm) = calm["passed"] && calm.fetch("elapsed") < @probe.deadline.seconds * CLEAR
 
   def failed(finding)
     return finding.kill(finding.found, @killers) if finding.first?

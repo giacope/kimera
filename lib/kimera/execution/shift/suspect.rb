@@ -16,6 +16,11 @@ Kimera::Execution::Shift::Suspect =
     end
   end
 
+Kimera::Execution::Shift::Crawl =
+  Class.new(Kimera::Execution::Shift::Suspect) do
+    def final = Kimera::Execution::Shift::Lag.new(**to_h)
+  end
+
 Kimera::Execution::Shift::Doubt =
   Class.new(Kimera::Execution::Shift::Suspect) do
     def ruling(subject) = subject.verdict(:harness_error, detail: unjudged)
@@ -24,5 +29,13 @@ Kimera::Execution::Shift::Doubt =
       "#{test} #{evidence}, each run in a fresh process after the covering tests before it, and no other " \
         "covering test killed the mutant, so it can't be judged warm: fix the state that test depends on, " \
         "or judge the mutant with --isolated"
+    end
+  end
+
+Kimera::Execution::Shift::Lag =
+  Class.new(Kimera::Execution::Shift::Doubt) do
+    def unjudged
+      "#{test} #{failure}, so the timeout can't be laid on the mutant, and no other covering test killed it: " \
+        "raise --soft-timeout well above the test's own time, or fix the test"
     end
   end

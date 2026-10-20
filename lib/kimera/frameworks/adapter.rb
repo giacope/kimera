@@ -18,6 +18,8 @@ module Kimera
         def verdict
           passed? ? [:survived, []] : [:killed, failed_ids]
         end
+
+        def expired? = false
       end
   end
 end
