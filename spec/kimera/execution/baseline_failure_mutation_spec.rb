@@ -198,10 +198,9 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
       "def call\n  true\nend\n", file: "lib/kimera/execution/harness.rb"
     )
     id = registry.each.first.first.id
-    pass = Kimera::CLI::Run::Pass.new(registry, { isolate_when_covered_by: [] }, Object.new)
-    pass.instance_variable_set(:@_harness, instance_double(Kimera::Execution::Harness, coverage: {}))
+    route = Kimera::CLI::Run::Route.new(registry, { isolate_when_covered_by: [] })
 
-    expect(pass.__send__(:split, [id])).to(eq([[id], []]))
+    expect(route.split([id]) { {} }).to(eq([[id], []]))
   end
 
   it "routes boot failures to the injected error stream" do

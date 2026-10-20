@@ -14,7 +14,7 @@ class Kimera::CLI::Run::Gate
 
   private
 
-  def reasons = @_reasons ||= [survivors, coverage, ignored, unjudged].compact
+  def reasons = @_reasons ||= [survivors, coverage, ignored, unjudged, untested].compact
 
   def survivors
     max = @options[:max_survivors]
@@ -41,5 +41,11 @@ class Kimera::CLI::Run::Gate
     count = @report.errors.size
     cap = Integer(@options[:max_errors] || 0)
     "unjudged=#{count} > max_errors=#{cap}" if count > cap
+  end
+
+  def untested
+    pending = @report.statuses(:isolated_only).size + @report.statuses(:unmutatable).size
+    return unless pending.positive? && @report.covered.empty?
+    "0 of #{@report.results.size} mutants evaluated: #{pending} only the isolated tier can judge (run with --isolated)"
   end
 end

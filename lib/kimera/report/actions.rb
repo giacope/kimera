@@ -6,21 +6,25 @@ module Kimera
 end
 
 class Kimera::Report::Actions
+  ISOLATED = "mutant(s) only a fresh process can judge (validations, callbacks, load-time code): " \
+    "judge them with `kimera run --isolated`, or --judge-isolated-only"
   def initialize(io: $stdout)
     @io = io
   end
 
   def show(report, path: nil)
     hints = path ? SavedHints.new(path) : UnsavedHints.new
-    lines = [
-      advice(report.survived, hints, :survivors), advice(report.unattributed, hints, :unattributed),
-      advice(report.uncovered, hints, :uncovered),
-      advice(report.errors, hints, :unjudged), advice(report.statuses(:ignored).select(&:lapsed?), hints, :lapsed)
-    ].compact
+    lines = groups(report).filter_map { |kind, found| advice(found, hints, kind) }
     @io.puts("", "Next actions:", *lines) unless lines.empty?
   end
 
   private
+
+  def groups(report)
+    { survivors: report.survived, unattributed: report.unattributed, uncovered: report.uncovered }
+      .merge(unjudged: report.errors, isolated: report.statuses(:isolated_only))
+      .merge(lapsed: report.statuses(:ignored).select(&:lapsed?))
+  end
 
   def advice(found, hints, kind)
     first = found.min_by(&:mutant_id)
@@ -40,6 +44,8 @@ class Kimera::Report::Actions
 
     def unjudged(id) = "unjudged mutant(s): see why with `#{mutant(id)}`"
 
+    def isolated(_id) = ISOLATED
+
     def lapsed(_id) = "ignored mutant(s) now killed: `kimera baseline prune BASELINE.yml --report #{@path}`"
 
     private
@@ -55,6 +61,8 @@ class Kimera::Report::Actions
     def unattributed(_id) = "mutant(s) only other units' tests reach: write a unit test that runs each"
 
     def unjudged(_id) = "unjudged mutant(s): retry with `kimera run --isolated`"
+
+    def isolated(_id) = ISOLATED
 
     def lapsed(_id) = "ignored mutant(s) now killed: run without --no-report, then `kimera baseline prune`"
   end

@@ -6,7 +6,7 @@ require_relative "../../execution/test_filter"
 require_relative "../../frameworks/adapter"
 require_relative "../../report/progress"
 require_relative "../../results/run_report"
-require_relative "../../self_protection"
+require_relative "route"
 require_relative "sources"
 
 class Kimera::CLI::Run::Pass
@@ -79,10 +79,18 @@ class Kimera::CLI::Run::Pass
   end
 
   def pooled(remaining, isolated)
-    apart, together = split(remaining)
-    return rejudged(harness.run(ids: together, label: "mutants")) if apart.empty?
-    rejudged(harness.run(ids: together, label: "mutants (warm)")).merge(isolated.call(apart))
+    apart, together = route.split(remaining) { harness.coverage }
+    return deferred(rejudged(harness.run(ids: together, label: "mutants"))) if apart.empty?
+    deferred(rejudged(harness.run(ids: together, label: "mutants (warm)"))).merge(isolated.call(apart))
   end
+
+  def deferred(report)
+    pending = report.statuses(:isolated_only).map(&:mutant_id)
+    return report if pending.empty? || !route.judging?
+    report.revise(judge(pending).results)
+  end
+
+  def route = @_route ||= Kimera::CLI::Run::Route.new(@registry, @options)
 
   def rejudged(report)
     unjudged = report.errors + revisited(report)
@@ -114,18 +122,4 @@ class Kimera::CLI::Run::Pass
   end
 
   def limits = @options.slice(:seed, :test_quality).merge({ hard_timeout: @options[:hard_timeout] }.compact)
-
-  def split(ids)
-    patterns = Array(@options[:isolate_when_covered_by])
-    ids.partition do |id|
-      critical?(id) || patterns.any? { |pattern| matches?(harness.coverage, id, pattern) }
-    end
-  end
-
-  def critical?(id) = Kimera::SelfProtection.new(@registry.index.fetch(id).file).critical?
-
-  def matches?(coverage, id, pattern)
-    tests = coverage.fetch(id) { coverage.fetch(id.to_s, []) }
-    tests.any? { |test| test.include?(pattern) }
-  end
 end

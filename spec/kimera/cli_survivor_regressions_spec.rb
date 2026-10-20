@@ -552,6 +552,16 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       )
     end
 
+    it "points at the mutants only a fresh process can judge, saved or not", :aggregate_failures do
+      hint = "1 mutant(s) only a fresh process can judge (validations, callbacks, load-time code): " \
+        "judge them with `kimera run --isolated`, or --judge-isolated-only"
+      [{ path: "out.json" }, {}].each do |where|
+        io = StringIO.new
+        Kimera::Report::Actions.new(io: io).show(report(result(4, :isolated_only)), **where)
+        expect(io.string).to(eq("\nNext actions:\n  #{hint}\n"))
+      end
+    end
+
     it "points at the mutants only other units' tests reach, saved or not", :aggregate_failures do
       io = StringIO.new
       Kimera::Report::Actions.new(io: io).show(report(result(4, :uncovered_by_unit)), path: "out.json")

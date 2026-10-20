@@ -35,7 +35,12 @@ module Kimera::CLI::RunOptions
     ),
     Kimera::Flag.build(
       "--[no-]count-no-coverage", :count_no_coverage,
-      "Score mutants with no covering test as not killed, and fail the gate on them (default: off)"
+      "Score mutants with no covering test as not killed, and fail the gate on them (default: on)"
+    ),
+    Kimera::Flag.build(
+      "--[no-]judge-isolated-only", :judge_isolated_only,
+      "Judge in fresh isolated mirrors the mutants the warm run cannot (class-body DSL such as validations " \
+        "and callbacks, registering lambdas) (default: on for --since, ci and changed)"
     )
   ].freeze
 

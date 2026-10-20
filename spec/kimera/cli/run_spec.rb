@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "kimera/cli/run"
+require "kimera/frameworks/rspec_adapter"
 require "kimera/registry/builder"
 require "stringio"
 require "tmpdir"
@@ -59,7 +60,8 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         max_errors: 0, evaluate_ignored: false, baseline: nil,
         jobs: 1, exclude: [], exclude_tests: [], config: nil, ignore: [],
         isolate_db: false,
-        isolated: false, rejudge: true, fail_on_no_coverage: false, count_no_coverage: false,
+        isolated: false, rejudge: true, fail_on_no_coverage: false, count_no_coverage: true,
+        judge_isolated_only: nil,
         progress: nil, color: nil, quiet: false, verbose: false, log: nil,
         pidfile: nil, summary: nil,
         isolate_when_covered_by: [], methods: [], lines: {},
@@ -359,6 +361,22 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         .to(output(/gate failed: 2 mutant\(s\) with no covering test \(count_no_coverage\)/).to_stderr)
       expect(digest.gate(report(0), options)).to(eq(0))
     end
+
+    # A scope whose every mutant only the isolated tier can judge has judged
+    # nothing: passing would score untested code as tested.
+    it "fails a gate that evaluated nothing while isolated-only mutants were in scope", :aggregate_failures do
+      pending = [Kimera::MutantResult.new(mutant_id: 1, status: :isolated_only, file: "x.rb")]
+      unmutatable = [Kimera::MutantResult.new(mutant_id: 2, status: :unmutatable, file: "x.rb")]
+      message = /gate failed: 0 of 2 mutants evaluated: 2 only the isolated tier can judge \(run with --isolated\)/
+      expect { expect(digest.gate(Kimera::RunReport.new(results: pending + unmutatable), {})).to(eq(2)) }
+        .to(output(message).to_stderr)
+      judged = Kimera::RunReport.new(results: pending + report(0, no_coverage: 0).results + [verdict_killed])
+      expect(digest.gate(judged, {})).to(eq(0))
+      ignored = Kimera::RunReport.new(results: report(0, ignored: 1).results)
+      expect(digest.gate(ignored, {})).to(eq(0))
+    end
+
+    def verdict_killed = Kimera::MutantResult.new(mutant_id: 9, status: :killed, file: "x.rb")
 
     it "passes with fail_on_no_coverage when everything is covered" do
       expect(digest.gate(report(0), { max_survivors: nil, fail_on_no_coverage: true })).to(eq(0))
@@ -1023,6 +1041,39 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       report = pass(registry, settings(rejudge: false), [1, 2])
       expect(report.results.map(&:status)).to(eq(%i[harness_error killed]))
       expect(runner).not_to(have_received(:rejudge))
+    end
+
+    # Validations and callbacks run once at load: only a fresh process can
+    # judge them. An incremental run judges them by default.
+    def deferred
+      framework(test_ids: ["t1"], finish: nil)
+      harness = executor(coverage: { 1 => ["t1"] })
+      warm = Kimera::RunReport.new(results: [verdict(1, :isolated_only), verdict(2, :killed)])
+      allow(harness).to(receive_messages(warm!: nil, run: warm))
+      runner = instance_double(Kimera::Execution::IsolatedExecution, verify!: nil, run: result(1, :survived))
+      allow(Kimera::Execution::IsolatedExecution).to(receive(:new).and_return(runner))
+      runner
+    end
+
+    it "judges isolated-only mutants in the isolated tier on an incremental run", :aggregate_failures do
+      runner = deferred
+      report = pass(registry, settings(since: "origin/main"), [1, 2])
+      expect(report.results.map { |r| [r.mutant_id, r.status] }).to(eq([[1, :survived], [2, :killed]]))
+      expect(runner).to(have_received(:run).with(ids: [1], label: "mutants (isolated)"))
+    end
+
+    it "leaves isolated-only mutants reported on a full run, or when told not to judge them", :aggregate_failures do
+      runner = deferred
+      expect(pass(registry, settings, [1, 2]).results.map(&:status)).to(eq(%i[isolated_only killed]))
+      off = settings(since: "origin/main", judge_isolated_only: false)
+      expect(pass(registry, off, [1, 2]).results.map(&:status)).to(eq(%i[isolated_only killed]))
+      expect(runner).not_to(have_received(:run))
+    end
+
+    it "judges isolated-only mutants on a full run when told to" do
+      deferred
+      statuses = pass(registry, settings(judge_isolated_only: true), [1, 2]).results.map(&:status)
+      expect(statuses).to(eq(%i[survived killed]))
     end
 
     it "isolates only mutants covered by a pool-unsafe spec and merges the reports" do
