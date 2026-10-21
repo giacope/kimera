@@ -3,6 +3,7 @@
 require "fileutils"
 require "kimera/cli"
 require "kimera/cli/doctor"
+require "kimera/cli/prism_check"
 require "stringio"
 require "tmpdir"
 
@@ -11,22 +12,12 @@ RSpec.describe(Kimera::CLI::Doctor, :aggregate_failures) do
 
   # R3K1: an old prism crashed every command on Ruby 4.0 with a NameError.
   it "warns of a prism older than Ruby 4.0 needs" do
-    expect(
-      doctor.__send__(
-        :prism, "1.6.0",
-        "4.0.7"
-      )
-    ).to(
-      eq(
-        [
-          "!", "Prism: 1.6.0 is older than Ruby 4.0.7 needs (1.9); " \
-            "run `bundle update --conservative prism`"
-        ]
-      )
-    )
-    expect(doctor.__send__(:prism, "1.9.0", "4.0.7")).to(eq(["✓", "Prism: 1.9.0"]))
-    expect(doctor.__send__(:prism, "1.6.0", "3.4.8")).to(eq(["✓", "Prism: 1.6.0"]))
-    expect(doctor.__send__(:prism, "1.8.1", "4.0").first).to(eq("!"))
+    old = "Prism: 1.6.0 is older than Ruby 4.0.7 needs (1.9); run `bundle update --conservative prism`"
+    expect(Kimera::CLI::PrismCheck.new(version: "1.6.0", ruby: "4.0.7").check).to(eq(["!", old]))
+    expect(Kimera::CLI::PrismCheck.new(version: "1.9.0", ruby: "4.0.7").check).to(eq(["✓", "Prism: 1.9.0"]))
+    expect(Kimera::CLI::PrismCheck.new(version: "1.6.0", ruby: "3.4.8").check).to(eq(["✓", "Prism: 1.6.0"]))
+    expect(Kimera::CLI::PrismCheck.new(version: "1.8.1", ruby: "4.0").check.first).to(eq("!"))
+    expect(Kimera::CLI::PrismCheck.new.check).to(eq(["✓", "Prism: #{Prism::VERSION}"]))
   end
 
   # K3-1: on an engine doctor said no Rails-specific parallel setup was needed.

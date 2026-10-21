@@ -38,9 +38,9 @@ class Kimera::Guardrail
 
   def activated(node)
     return [] unless node.is_a?(Parser::AST::Node)
-    receiver, name, *arguments = node.children
-    own = node.type == :send && name == :active? && receiver == runtime ? [arguments.first.children.first] : []
-    own + node.children.flat_map { |child| activated(child) }
+    children = node.children
+    own = children.first(2) == [runtime, :active?] ? [children[2].children.first] : []
+    own + children.flat_map { |child| activated(child) }
   end
 
   def transform(node) = weave(node).first

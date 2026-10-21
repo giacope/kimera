@@ -1,17 +1,16 @@
 # frozen_string_literal: true
 
-require "prism"
 require_relative "../error"
 require_relative "../scope/config"
 require_relative "../scope/file_set"
 require_relative "checklist"
 require_relative "coverage_minimum"
 require_relative "flag"
+require_relative "prism_check"
 require_relative "rails_layout"
 require_relative "test_command"
 
 class Kimera::CLI::Doctor
-  LOAD_PATH = Kimera::Frameworks::LoadPath::VARIABLE
   OPTIONS = Kimera::FlagTable.new(
     banner: "Usage: kimera doctor [--check-baseline [--jobs N]]",
     flags: [
@@ -43,7 +42,9 @@ class Kimera::CLI::Doctor
 
   private
 
-  def expose(config, env = @env) = env.store(LOAD_PATH, Array(config[:load_path]).join(File::PATH_SEPARATOR))
+  def expose(config, env = @env)
+    env.store(Kimera::Frameworks::LoadPath::VARIABLE, Array(config[:load_path]).join(File::PATH_SEPARATOR))
+  end
 
   def usage(error)
     @errors.puts("kimera: #{error.message}")
@@ -51,7 +52,7 @@ class Kimera::CLI::Doctor
   end
 
   def checks(config, options)
-    [configuration(config), framework(config), sources(config), tests(config), git, rails, prism]
+    [configuration(config), framework(config), sources(config), tests(config), git, rails, Kimera::CLI::PrismCheck.new.check]
       .concat(floor).each { |check| shown(check) } + suite(config, options)
   end
 
@@ -101,12 +102,6 @@ class Kimera::CLI::Doctor
   end
 
   def rails? = Kimera::CLI::RailsLayout.new(@root).rails?
-
-  def prism(version = Prism::VERSION, ruby = RUBY_VERSION)
-    old = Gem::Version.new(ruby) >= Gem::Version.new("4.0") && Gem::Version.new(version) < Gem::Version.new("1.9")
-    return ["✓", "Prism: #{version}"] unless old
-    ["!", "Prism: #{version} is older than Ruby #{ruby} needs (1.9); run `bundle update --conservative prism`"]
-  end
 
   def floor
     helper = glob(HELPERS).find { |path| floor?(path) }

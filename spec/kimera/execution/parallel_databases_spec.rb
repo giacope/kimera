@@ -139,6 +139,15 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       end
     end
 
+    it "reads the suite's own Active Record by default" do
+      Dir.mktmpdir do |dir|
+        stub_const("ActiveRecord::Base", double(configurations: double(configs_for: [:primary])))
+        stub_const("ActiveRecord::ConnectionHandling::DEFAULT_ENV", -> { "test" })
+        stub_const("ActiveRecord::Tasks::DatabaseTasks", double(schema_dump_path: File.join(dir, "missing.rb")))
+        expect(described_class.new.loadable?).to(be(false))
+      end
+    end
+
     it "is there only when every test database has its schema dump" do
       expect(configured(true)).to(be(true))
       expect(configured(false)).to(be(false))
