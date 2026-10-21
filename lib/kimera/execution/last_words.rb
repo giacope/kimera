@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
+require_relative "fault"
 require_relative "stack_dump"
+
+using Kimera::Execution::Fault
 
 class Kimera::Execution::LastWords
   HARNESS = Kimera::Execution::StackDump::HARNESS
@@ -12,12 +15,9 @@ class Kimera::Execution::LastWords
     @error = error
   end
 
-  def to_s = [headline, *advice, *frames].join("\n")
+  def to_s = [@error.headline, *advice, *frames].join("\n")
 
   private
-
-  # rubocop:disable-next Kata/NoTypeCheck -- any exception can end a test process; a child's relayed error names the child's class
-  def headline = @error.respond_to?(:headline) ? @error.headline : "#{@error.class}: #{@error.message}"
 
   def frames
     trace = Array(@error.backtrace)

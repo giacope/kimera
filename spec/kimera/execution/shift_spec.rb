@@ -177,6 +177,11 @@ RSpec.describe(Kimera::Execution::Shift) do
       expect(subject.crashed(ArgumentError.new("bad"), 1.0).detail).to(eq("ArgumentError: bad"))
     end
 
+    it "rules a Timeout::Error a timeout that took the limit", :aggregate_failures do
+      result = Kimera::Execution::Shift::Subject.new(ids.first, "calc.rb").crashed(Timeout::Error.new("slow"), 2.0)
+      expect([result.status, result.duration, result.detail]).to(eq([:timeout, 2.0, "slow"]))
+    end
+
     # The pool's worker dies the same way, so the parent sees the death.
     it "lets the death of the test process through, unjudged" do
       dead = Class.new { def call = raise(Kimera::Execution::Zygote::Died.new("gone", code: 3)) }.new

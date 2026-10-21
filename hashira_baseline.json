@@ -108,11 +108,10 @@
     "low_cohesion:Kimera::CLI::Baseline": null,
     "low_cohesion:Kimera::CLI::Baseline::Entry": null,
     "low_cohesion:Kimera::CLI::Run::Digest": null,
-    "manual_dispatch:Kimera::Execution::LastWords#headline": null,
     "nil_check:Kimera::CLI::Run::Arguments#seed": null,
     "nil_check:Kimera::Execution::TestFilter@attribution": null,
     "nil_check:Kimera::Runtime@ledgers": null,
-    "repeated_call:Kimera::Execution::IsolatedVerdict#settle": null,
+    "repeated_call:Kimera::Execution::IsolatedVerdict": null,
     "wide_edge:synthesis -> support": null
   },
   "traces": {
@@ -140,11 +139,10 @@
     "low_cohesion:Kimera::CLI::Baseline": "low_cohesion|cli/baseline.rb|help, create, review, prune, baseline, existing, ledger, list, line (@io);run, command (@errors)",
     "low_cohesion:Kimera::CLI::Baseline::Entry": "low_cohesion|cli/baseline/entry.rb|moved, kept, place, anchors (@fields);kind, prunable?, statuses, verdict, matching, fits?, squeeze (@missing, @rows)",
     "low_cohesion:Kimera::CLI::Run::Digest": "low_cohesion|cli/run/digest.rb|announce, evaluating, verbose, incremental (@io);gate, anchors, anchor, kind, moved, spot (@errors)",
-    "manual_dispatch:Kimera::Execution::LastWords#headline": "manual_dispatch|execution/last_words.rb|@error.respond_to?(:headline)",
     "nil_check:Kimera::CLI::Run::Arguments#seed": "nil_check|cli/run/arguments.rb|value",
     "nil_check:Kimera::Execution::TestFilter@attribution": "nil_check|execution/test_filter.rb|Kimera::Execution::TestFilter#eligible? (execution/test_filter.rb:54)",
     "nil_check:Kimera::Runtime@ledgers": "nil_check|runtime.rb|Kimera::Runtime#active? (runtime.rb:82);Kimera::Runtime#leaks (runtime.rb:109)",
-    "repeated_call:Kimera::Execution::IsolatedVerdict#settle": "repeated_call|execution/isolated_verdict.rb|verdict(trial.mirror, tests, first: !plan.quality?, slot: trial.slot) × 2"
+    "repeated_call:Kimera::Execution::IsolatedVerdict": "repeated_call|execution/isolated_verdict.rb|Kimera::Execution::IsolatedVerdict#settle: verdict(trial.mirror, tests, first: !plan.quality?, slot: trial.slot) × 2"
   },
   "accepted": [
     {

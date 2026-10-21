@@ -1,8 +1,11 @@
 # frozen_string_literal: true
 
 require_relative "../../results/result"
+require_relative "../fault"
 require_relative "expiry"
 require_relative "overrun"
+
+using Kimera::Execution::Fault
 
 Kimera::Execution::Shift::Subject =
   Data.define(:id, :file) do
@@ -15,9 +18,8 @@ Kimera::Execution::Shift::Subject =
       outcome ? outcome.ruling(self, fields) : verdict(:survived, **fields)
     end
 
-    def crashed(error, limit, kind = error.class)
-      message = error.message
-      return verdict(:timeout, duration: limit, detail: message) if error.is_a?(Timeout::Error)
-      verdict(:error, detail: "#{kind}: #{message}")
+    def crashed(error, limit)
+      return verdict(:timeout, duration: limit, detail: error.message) if error.is_a?(Timeout::Error)
+      verdict(:error, detail: error.headline)
     end
   end
