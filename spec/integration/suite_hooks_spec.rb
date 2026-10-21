@@ -6,7 +6,7 @@ require "tmpdir"
 # K3-3: warm workers re-ran the before(:suite) hooks the parent had run; a
 # hook that is not idempotent then broke every test, and kimera dropped them
 # as "failing tests that cover no in-scope mutant", leaving false survivors.
-RSpec.describe("kimera run on a suite whose hooks and tests misbehave under kimera (end-to-end)", :aggregate_failures) do
+RSpec.describe("kimera run on a suite whose hooks misbehave under kimera (end-to-end)", :aggregate_failures) do
   def project(root, files)
     {
       "app/calc.rb" => "class Calc\n  def positive?(n) = n > 0\nend\n",
@@ -33,7 +33,7 @@ RSpec.describe("kimera run on a suite whose hooks and tests misbehave under kime
     end
   end
 
-  CALC = <<~RUBY
+  def calculator = <<~RUBY
     require_relative "spec_helper"
     RSpec.describe(Calc) do
       it("is positive above zero") { expect(build.positive?(1)).to be(true) }
@@ -43,7 +43,7 @@ RSpec.describe("kimera run on a suite whose hooks and tests misbehave under kime
 
   it "runs the suite's hooks once, so two workers kill what one does" do
     Dir.mktmpdir("kimera-hooks") do |root|
-      project(root, "spec/calc_spec.rb" => CALC)
+      project(root, "spec/calc_spec.rb" => calculator)
       test_run(cwd: root, arguments: ["--jobs", "2"]) do |output, report, status|
         expect(report).not_to(be_nil, "no JSON report; output:\n#{output}")
         expect(report["results"].map { |r| r["status"] }.uniq).to(eq(["killed"]))
@@ -56,8 +56,9 @@ RSpec.describe("kimera run on a suite whose hooks and tests misbehave under kime
   it "stops with a harness error when a test fails only under kimera" do
     Dir.mktmpdir("kimera-hooks") do |root|
       only = "require_relative \"spec_helper\"\n" \
-        "RSpec.describe(\"plain\") { it(\"runs outside kimera\") { expect($PROGRAM_NAME).not_to end_with(\"kimera\") } }\n"
-      project(root, "spec/calc_spec.rb" => CALC, "spec/plain_spec.rb" => only)
+        "RSpec.describe(\"plain\") { it(\"runs outside kimera\") " \
+        "{ expect($PROGRAM_NAME).not_to end_with(\"kimera\") } }\n"
+      project(root, "spec/calc_spec.rb" => calculator, "spec/plain_spec.rb" => only)
       test_run(cwd: root) do |output, _report, status|
         expect(output).to(include("harness error: 1 test(s) fail under kimera but pass in a plain run"))
         expect(output).to(include("./spec/plain_spec.rb[1:1]"))
@@ -68,8 +69,9 @@ RSpec.describe("kimera run on a suite whose hooks and tests misbehave under kime
 
   it "excludes a test that fails plainly too, saying its coverage is unknown" do
     Dir.mktmpdir("kimera-hooks") do |root|
-      red = "require_relative \"spec_helper\"\nRSpec.describe(\"red\") { it(\"fails anywhere\") { expect(1).to eq(2) } }\n"
-      project(root, "spec/calc_spec.rb" => CALC, "spec/red_spec.rb" => red)
+      red = "require_relative \"spec_helper\"\n" \
+        "RSpec.describe(\"red\") { it(\"fails anywhere\") { expect(1).to eq(2) } }\n"
+      project(root, "spec/calc_spec.rb" => calculator, "spec/red_spec.rb" => red)
       test_run(cwd: root) do |output, report, status|
         expect(output).to(include("1 test(s) fail in the baseline, in a plain run too"))
         expect(output).to(include("their coverage is unknown"))
