@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "kimera/default_removal"
+require "kimera/registry/default_removal"
 require "kimera/registry/builder"
 
 # Which `default => required` mutants a warm guard can stand in for. The guard

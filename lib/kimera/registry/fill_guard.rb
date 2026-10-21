@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "memo_guard"
-require_relative "support/branches"
+require_relative "../support/branches"
 
 class Kimera::FillGuard
   READ = Kimera::SyntaxTypes::InstanceVariableReadNode

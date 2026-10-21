@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "kimera/memoization"
+require "kimera/registry/memoization"
 
 RSpec.describe(Kimera::Memoization) do
   def reasons(source)

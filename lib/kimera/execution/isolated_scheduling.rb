@@ -39,9 +39,7 @@ module Kimera
       end
 
       def drain(sweep, mirror, synth, slot)
-        while (id = sweep.pop)
-          charge(sweep, evaluate(Kimera::Execution::Trial.new(id, mirror, synth, nil, slot)))
-        end
+        sweep.drain { |id| charge(sweep, evaluate(Kimera::Execution::Trial.new(id, mirror, synth, nil, slot))) }
       end
 
       def alone(ids)
@@ -51,9 +49,7 @@ module Kimera
       end
 
       def solo(sweep, slot)
-        while (id = sweep.pop)
-          charge(sweep, single(id, slot))
-        end
+        sweep.drain { |id| charge(sweep, single(id, slot)) }
       end
 
       def charge(sweep, result)

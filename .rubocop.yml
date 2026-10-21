@@ -77,31 +77,6 @@ Elegant/NoRedundantVariable:
   Enabled: false
 
 # --------------------------------------------------------------------------
-# eval/: the measurement harness, run by hand, not shipped. Each case's
-# comment is the definition of what it measures; the harness is one
-# namespace; the oracle judges mutants on threads; the command prints.
-# --------------------------------------------------------------------------
-
-Kata/NoComments:
-  inherit_mode:
-    merge:
-      - Exclude
-  Exclude:
-    - eval/**/*
-Elegant/NoClassInModule:
-  inherit_mode:
-    merge:
-      - Exclude
-  Exclude:
-    - eval/**/*
-Kata/IoDiscipline:
-  inherit_mode:
-    merge:
-      - Exclude
-  Exclude:
-    - eval/**/*
-
-# --------------------------------------------------------------------------
 # Object discipline: state a contract outside kimera's objects dictates.
 # --------------------------------------------------------------------------
 
@@ -110,9 +85,8 @@ Kata/NoOutputArgument:
     merge:
       - AllowedNames
   AllowedNames:
-    # Shared work queues worker threads drain; pop is the queue's own thread-safe API.
+    # eval/'s oracle: worker threads drain a shared work queue; pop is its thread-safe API.
     - queue
-    - sweep
 Kata/NoSetter:
   inherit_mode:
     merge:

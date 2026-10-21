@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 require "prism"
-require_relative "../default_removal"
-require_relative "../memo_guard"
-require_relative "../memoization"
+require_relative "default_removal"
+require_relative "memo_guard"
+require_relative "memoization"
 require_relative "../rewrite/outcomes"
 require_relative "mutation_point"
 require_relative "walking"

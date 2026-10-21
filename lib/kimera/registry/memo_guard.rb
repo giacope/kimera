@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require_relative "support/syntax"
-require_relative "support/syntax_types"
+require_relative "../support/syntax"
+require_relative "../support/syntax_types"
 
 class Kimera::MemoGuard
   CONDITIONAL = "conditional"

@@ -2,8 +2,8 @@
 
 require_relative "memo_guard"
 require_relative "memoization"
-require_relative "support/syntax"
-require_relative "support/syntax_types"
+require_relative "../support/syntax"
+require_relative "../support/syntax_types"
 
 class Kimera::DefaultRemoval
   include Kimera::SyntaxTypes
