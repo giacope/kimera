@@ -99,7 +99,7 @@ class Kimera::Execution::Shift
 
   def covered(subject)
     tests = available(subject.id)
-    return subject.verdict(:no_coverage) if tests.empty?
+    return subject.verdict(:no_coverage, detail: Kimera::MutationPoint::UNEXECUTED) if tests.empty?
     outcome(subject, tests)
   end
 

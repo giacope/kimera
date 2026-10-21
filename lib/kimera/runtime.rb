@@ -5,7 +5,11 @@ require "tmpdir"
 module Kimera
 end
 
-class Kimera::Runtime
+# A Module, so the runtime is Ractor-shareable: mutated code that runs in a
+# non-main Ractor reads the active mutant (an Integer or nil) like any other
+# code, and records what it reaches in the open ledgers' spill files, whose
+# paths it can read.
+class Kimera::Runtime < Module
   SOURCE_PATH = File.expand_path(__FILE__)
 
   Ledger =
@@ -67,6 +71,7 @@ class Kimera::Runtime
   attr_reader :active
 
   def initialize
+    super
     @active = nil
     @ledgers = nil
   end
@@ -79,13 +84,14 @@ class Kimera::Runtime
   end
 
   def active?(id)
-    @ledgers&.each { |ledger| ledger.push(id) }
+    record(id)
     @active == id
   end
 
   def start!
     ledger = Ledger.new({})
     (@ledgers ||= []).push(ledger)
+    publish
     ledger
   end
 
@@ -94,6 +100,7 @@ class Kimera::Runtime
     return unless open
     open.delete_if { |l| l.equal?(ledger) }
     @ledgers = nil if open.empty?
+    publish
     ledger.drain!
   end
 
@@ -110,9 +117,25 @@ class Kimera::Runtime
 
   def forked!(paths)
     @ledgers = paths.map { Spill.new(it, {}) }
+    publish
   end
 
   private
+
+  def record(id)
+    @ledgers&.each { |ledger| ledger.push(id) }
+  rescue Ractor::IsolationError
+    remote(id)
+  end
+
+  def remote(id)
+    seen = Ractor.current[:kimera_reached] ||= {}
+    return if seen.key?(id)
+    seen[id] = true
+    @spills&.each { |path| File.write(path, "#{id}\n", mode: "a") }
+  end
+
+  def publish = @spills = Ractor.make_shareable(@ledgers&.map(&:leak))
 
   def hidden = @_hidden ||= {}
 end

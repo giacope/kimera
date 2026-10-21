@@ -46,8 +46,9 @@ class Kimera::Execution::Boot
   end
 
   def keep!
-    return unless defined?(ActiveRecord::ConnectionAdapters::PoolConfig)
-    ActiveRecord::ConnectionAdapters::PoolConfig.prepend(Kimera::Execution::MemoryDatabases::INHERITED)
+    memory = Kimera::Execution::MemoryDatabases
+    ActiveRecord::ConnectionAdapters::PoolConfig.prepend(memory::INHERITED) if defined?(ActiveRecord::ConnectionAdapters::PoolConfig)
+    SQLite3::ForkSafety.singleton_class.prepend(memory::SPARED) if defined?(SQLite3::ForkSafety)
   end
 
   def application

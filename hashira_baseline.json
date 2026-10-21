@@ -99,7 +99,6 @@
     "fragmentation:Kimera::CLI::Run::Digest#anchors": 4,
     "fragmentation:Kimera::CLI::Survivors::Context#lines": 5,
     "fragmentation:Kimera::Execution::Aliases#follow": 7,
-    "fragmentation:Kimera::Execution::BaselineExclusions#to_s": 4,
     "fragmentation:Kimera::Execution::BaselinePass#parallel!": 7,
     "fragmentation:Kimera::Frameworks::LoadPath#dirs": 4,
     "fragmentation:Kimera::Guardrail#transform": 4,
@@ -115,8 +114,8 @@
     "wide_edge:synthesis -> support": null
   },
   "traces": {
-    "concrete_inheritance:Kimera::Execution::CompositeIsolation": "concrete_inheritance|execution/composite_isolation.rb|Kimera::Execution::Isolation.new (execution/harness.rb:89);Kimera::Execution::Isolation.new (execution/shift.rb:53)",
-    "concrete_inheritance:Kimera::Execution::TransactionIsolation": "concrete_inheritance|execution/transaction_isolation.rb|Kimera::Execution::Isolation.new (execution/harness.rb:89);Kimera::Execution::Isolation.new (execution/shift.rb:53)",
+    "concrete_inheritance:Kimera::Execution::CompositeIsolation": "concrete_inheritance|execution/composite_isolation.rb|Kimera::Execution::Isolation.new (execution/harness.rb:90);Kimera::Execution::Isolation.new (execution/shift.rb:53)",
+    "concrete_inheritance:Kimera::Execution::TransactionIsolation": "concrete_inheritance|execution/transaction_isolation.rb|Kimera::Execution::Isolation.new (execution/harness.rb:90);Kimera::Execution::Isolation.new (execution/shift.rb:53)",
     "concrete_inheritance:Kimera::Operators::Enclosed": "concrete_inheritance|operators/enclosed.rb|Kimera::Operators::Survey.new (operators/survey.rb:14)",
     "concrete_inheritance:Kimera::Operators::PublicMethods": "concrete_inheritance|operators/public_methods.rb|Kimera::Operators::Survey.new (operators/survey.rb:14)",
     "concrete_inheritance:Kimera::Operators::Reassignments": "concrete_inheritance|operators/reassignments.rb|Kimera::Operators::Survey.new (operators/survey.rb:14)",
@@ -130,7 +129,6 @@
     "fragmentation:Kimera::CLI::Run::Digest#anchors": "fragmentation|cli/run/digest.rb|anchor;kind;spot;moved",
     "fragmentation:Kimera::CLI::Survivors::Context#lines": "fragmentation|cli/survivors/context.rb|text;current? (predicate, not counted);window;numbered;marker;width",
     "fragmentation:Kimera::Execution::Aliases#follow": "fragmentation|execution/aliases.rb|capture;scan;track;renamed? (predicate, not counted);watched;real;enter;resolves? (predicate, not counted);wrapped? (predicate, not counted);orphan",
-    "fragmentation:Kimera::Execution::BaselineExclusions#to_s": "fragmentation|execution/baseline_exclusions.rb|headline;listed;reason;overflow",
     "fragmentation:Kimera::Execution::BaselinePass#parallel!": "fragmentation|execution/baseline_pass.rb|settle;report;excluded;dispatch;lost;tracer;rerun",
     "fragmentation:Kimera::Frameworks::LoadPath#dirs": "fragmentation|frameworks/load_path.rb|extra;nearest;ancestors;top",
     "fragmentation:Kimera::Guardrail#transform": "fragmentation|synthesis/guard_weaver.rb|weave;settle;points;ranges",
@@ -141,7 +139,7 @@
     "low_cohesion:Kimera::CLI::Run::Digest": "low_cohesion|cli/run/digest.rb|announce, evaluating, verbose, incremental (@io);gate, anchors, anchor, kind, moved, spot (@errors)",
     "nil_check:Kimera::CLI::Run::Arguments#seed": "nil_check|cli/run/arguments.rb|value",
     "nil_check:Kimera::Execution::TestFilter@attribution": "nil_check|execution/test_filter.rb|Kimera::Execution::TestFilter#eligible? (execution/test_filter.rb:54)",
-    "nil_check:Kimera::Runtime@ledgers": "nil_check|runtime.rb|Kimera::Runtime#active? (runtime.rb:82);Kimera::Runtime#leaks (runtime.rb:109)",
+    "nil_check:Kimera::Runtime@ledgers": "nil_check|runtime.rb|Kimera::Runtime#leaks (runtime.rb:116);Kimera::Runtime#record (runtime.rb:126);Kimera::Runtime#publish (runtime.rb:138)",
     "repeated_call:Kimera::Execution::IsolatedVerdict": "repeated_call|execution/isolated_verdict.rb|Kimera::Execution::IsolatedVerdict#settle: verdict(trial.mirror, tests, first: !plan.quality?, slot: trial.slot) × 2"
   },
   "accepted": [

@@ -6,6 +6,8 @@ require_relative "../scope/file_set"
 require_relative "checklist"
 require_relative "coverage_minimum"
 require_relative "flag"
+require_relative "prism_check"
+require_relative "rails_layout"
 require_relative "test_command"
 
 class Kimera::CLI::Doctor
@@ -32,7 +34,7 @@ class Kimera::CLI::Doctor
   def run(argv)
     _, options = OPTIONS.parse(argv, { check_baseline: false })
     config = Kimera::Config.new(File.join(@root, Kimera::Config::DEFAULT_PATH)).options.merge(options.slice(:jobs))
-    @env.store(Kimera::Frameworks::LoadPath::VARIABLE, Array(config[:load_path]).join(File::PATH_SEPARATOR))
+    expose(config)
     list.verdict(checks(config, options))
   rescue Kimera::UsageError => error
     usage(error)
@@ -40,13 +42,17 @@ class Kimera::CLI::Doctor
 
   private
 
+  def expose(config, env = @env)
+    env.store(Kimera::Frameworks::LoadPath::VARIABLE, Array(config[:load_path]).join(File::PATH_SEPARATOR))
+  end
+
   def usage(error)
     @errors.puts("kimera: #{error.message}")
     1
   end
 
   def checks(config, options)
-    [configuration(config), framework(config), sources(config), tests(config), git, rails]
+    [configuration(config), framework(config), sources(config), tests(config), git, rails, Kimera::CLI::PrismCheck.new.check]
       .concat(floor).each { |check| shown(check) } + suite(config, options)
   end
 
@@ -95,7 +101,7 @@ class Kimera::CLI::Doctor
     ["✓", "Runtime: no Rails-specific parallel setup required"]
   end
 
-  def rails? = File.file?(File.join(@root, "config", "application.rb"))
+  def rails? = Kimera::CLI::RailsLayout.new(@root).rails?
 
   def floor
     helper = glob(HELPERS).find { |path| floor?(path) }

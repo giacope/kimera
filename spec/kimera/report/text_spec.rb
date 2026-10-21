@@ -182,6 +182,17 @@ RSpec.describe(Kimera::Report::Text) do
     expect(shown).to(include("no coverage ##{mutant.id}", "calc.rb:3", "[<= => <]"))
   end
 
+  it "heads a narrowed run's uncovered mutants as not covered by the narrowed tests", :aggregate_failures do
+    note = "narrowed run: --tests matched 1 of 2 test files"
+    expect(
+      render(
+        uncovered, coverage: :list,
+        scope: note
+      )
+    ).to(match(/\n\nMutants not covered by the narrowed tests \(1\):/))
+    expect(render(uncovered, scope: note)).to(include("1 mutant(s) not covered by the narrowed tests; run without"))
+  end
+
   it "gives the reason under an uncovered mutant that has one", :aggregate_failures do
     reached = uncovered.tap { |result| result.detail = Kimera::MutationPoint::ORDER_REASON }
     expect(render(reached, coverage: :list)).to(include("]\n    #{Kimera::MutationPoint::ORDER_REASON}\n"))

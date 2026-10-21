@@ -7,7 +7,7 @@ require_relative "../results/result"
 require_relative "../results/run_report"
 require_relative "../runtime"
 require_relative "../self_protection"
-require_relative "baseline_exclusions"
+require_relative "baseline_screen"
 require_relative "baseline_pass"
 require_relative "baseline_stall"
 require_relative "boot"
@@ -45,8 +45,9 @@ class Kimera::Execution::Harness
   def warm!(test_files, scope: nil)
     overlay!(test_files).tap do
       measure!
+      excluded = screen
       sift!(scope)
-      notice
+      notice(excluded)
     end
   end
 
@@ -54,7 +55,7 @@ class Kimera::Execution::Harness
 
   def overlay!(test_files)
     trace.record { boot.suite(test_files) }
-    loader = Kimera::Execution::Schemata.new(registry, root: root, errors: errors)
+    loader = Kimera::Execution::Schemata.new(registry, root: root, errors: errors, loaded: trace.method(:loaded?))
     loader.overlay!.tap { complete(loader) }
   end
 
@@ -161,10 +162,11 @@ class Kimera::Execution::Harness
 
   def baseline = Kimera::Execution::BaselinePass.new(adapter: adapter, registry: registry, progress: progress)
 
-  def notice
+  def screen = Kimera::Execution::BaselineScreen.new(adapter: adapter, root: root, jobs: jobs).call(state.irrelevant)
+
+  def notice(excluded)
     stall = Kimera::Execution::BaselineStall.new(state.recovered, hard: hard, jobs: jobs).to_s
     errors.puts(stall) if stall
-    excluded = Kimera::Execution::BaselineExclusions.new(state.irrelevant).to_s
     errors.puts(excluded) if excluded
   end
 end

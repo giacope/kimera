@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+Field test round 3, on MIT libraries and Rails apps (casa, thredded, devise,
+rack, grape, jekyll among them): the verdicts that disagreed with the plain
+test command, and the setups that kept kimera from running, are fixed here.
+
+- **A test that fails only under kimera stops the run.** A baseline failure
+  is rerun plainly; one that passes there is a harness error naming the
+  tests and the likely cause (exit 1), and only tests red plainly too are
+  excluded, "coverage unknown" (casa's 939 dropped tests became false
+  survivors).
+- **Suite hooks run once.** Warm workers no longer re-run the `before(:suite)`
+  hooks the parent ran; they run Rails' parallel after-fork hooks only.
+- **A database per worker on every Rails.** Rails before 8.1 counts as
+  parallelized; workers and mirrors get `TEST_ENV_NUMBER`, and numbered
+  databases are created and loaded; the parent disconnects before forking
+  and before spawning mirrors (`PG::ObjectInUse` is named when it still
+  happens); in-memory SQLite is never renamed and survives the fork (devise).
+- **Load-time code is judged, not called uncovered.** `.rspec`'s requires load
+  inside the load trace, which now follows blocks and lambdas too; every
+  `no_coverage` row says why. A file the suite never loads is never
+  evaluated; generator templates, vendored and generated files are out of a
+  glob's default scope.
+- **The work tree is guarded.** A run that changed tracked files fails, naming
+  them (a jekyll mutant made its cleaner delete the project's files).
+- **Mutated code runs inside Ractors**, and records its coverage there.
+- **`kimera ci` finds the base on GitLab, Buildkite or `KIMERA_BASE`**, says when
+  it found none and what a full run leaves ungated, and has its own `--help`.
+  The report's run section records the effective `judge_isolated_only` and
+  `confirm_survivors`.
+- Setup: `init` prefers Minitest when the helper runs it, leaves RSpec Rails
+  apps' `spec/system` and `spec/features` out, writes `jobs: min(4, cores)`,
+  and knows an engine declared in any lib file; `doctor` treats engines as
+  Rails, has a watchdog, and checks prism; an old prism on Ruby 4.0 is a
+  one-line error.
+
+Round 2:
+
 Field test round 2, on twenty more MIT codebases (Rails apps and engines,
 rouge, steep, solargraph, asciidoctor among them): 141 of 143 sampled
 verdicts matched the plain test command. The two that did not, and the

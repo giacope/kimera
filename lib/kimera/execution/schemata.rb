@@ -5,36 +5,53 @@ require_relative "../self_protection"
 require_relative "../synthesis/body_trim"
 require_relative "../synthesis/overlay"
 require_relative "aliases"
+require_relative "definitions"
 require_relative "overrides"
 require_relative "overlay_guards"
 
 class Kimera::Execution::Schemata
-  attr_reader :skipped
+  Woven = Struct.new(:skipped)
 
-  def initialize(registry, root: ".", errors: nil)
+  def initialize(registry, root: ".", errors: nil, loaded: proc { true })
     @registry = registry
     @root = root
     @errors = errors
-    @skipped = {}
+    @loaded = loaded
   end
+
+  def skipped = woven.skipped
 
   def overlay!
     Kimera::Execution::OverlayGuards.new.install!
-    aliases.follow { weave(@registry.files) + weave(unresolved) }.tap { announce }
+    aliases.follow { weave(reachable) + weave(unresolved) }.tap { announce }
   end
 
   def aliases = @_aliases ||= Kimera::Execution::Aliases.new(@registry.files.map { |path| File.join(root, path) })
 
   private
 
+  def woven = @_woven ||= Woven.new({})
+
+  def reachable
+    shut, open = @registry.files.partition { |path| shut?(path) }
+    shut.each { |path| @registry.at(path).select(&:safe?).each(&:unloaded!) }
+    open
+  end
+
+  def shut?(path)
+    return false if @loaded.call(path)
+    file = File.join(root, path)
+    File.file?(file) && !Kimera::Execution::Definitions.new(File.read(file, encoding: Encoding::UTF_8)).only?
+  end
+
   def weave(paths) = paths.flat_map { |path| load(path) }
 
   def unresolved
-    @skipped.keys.select { |path| @skipped[path].start_with?("NameError:") }.each { |path| @skipped.delete(path) }
+    skipped.keys.select { |path| skipped[path].start_with?("NameError:") }.each { |path| skipped.delete(path) }
   end
 
   def announce
-    @skipped.each do |path, reason|
+    skipped.each do |path, reason|
       notice(path, reason)
       @registry.at(path).select(&:safe?).each { |point| point.unmutatable!("schemata setup failed (#{reason})") }
     end
@@ -69,7 +86,7 @@ class Kimera::Execution::Schemata
   end
 
   def skip(path, reason)
-    @skipped[path] = reason
+    skipped[path] = reason
     []
   end
 

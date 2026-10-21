@@ -41,7 +41,7 @@ module KimeraEval
     def suite(app, arguments, command)
       env = environment(app)
       @truth ||= {}
-      truth = @truth[command] = oracle(app, Oracle::Runner.new(command, env))
+      truth = @truth[command] ||= oracle(app, Oracle::Runner.new(command, env))
       differential(target(app, arguments: arguments, env: env.merge("BUNDLE_GEMFILE" => "Gemfile")), MODES, truth)
     end
 

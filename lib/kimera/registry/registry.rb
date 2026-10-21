@@ -18,9 +18,9 @@ class Kimera::Registry
     @unmutated = unmutated
   end
 
-  def narrow!(changed)
-    @unmutated.select! { |region| region.touches?(Array(changed[region.file])) }
-    self
+  def narrowed(changed)
+    kept = @unmutated.select { |region| region.touches?(Array(changed[region.file])) }
+    self.class.new(points: @points, operators: @operators, root: @root, unmutated: kept)
   end
 
   def size

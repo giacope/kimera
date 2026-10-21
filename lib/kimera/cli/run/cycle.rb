@@ -10,11 +10,14 @@ require_relative "inline_ignores"
 require_relative "digest"
 require_relative "narrowing"
 require_relative "pass"
+require_relative "route"
+require_relative "../../frameworks/name_exclusion"
 require_relative "sources"
 
 class Kimera::CLI::Run::Cycle
   SETTINGS = %i[
-    framework source_root tests exclude_tests operators coverage isolated attribution unit_tests seed flaky_runs
+    framework source_root tests exclude_tests exclude_test_names operators coverage isolated attribution unit_tests
+    seed flaky_runs
     test_quality judge_isolated_only confirm_survivors
   ].freeze
 
@@ -29,7 +32,6 @@ class Kimera::CLI::Run::Cycle
 
   def call
     @digest.verbose(@options) if @options[:verbose]
-    @registry.narrow!(@changed) if @changed
     scope(@changed && Kimera::Incremental::Selection.new(@changed).ids(@registry))
   end
 
@@ -70,7 +72,11 @@ class Kimera::CLI::Run::Cycle
 
   def narrowed(report)
     return report unless narrowing.narrowed?
-    report.revise(report.uncovered.map { |result| result.dup.tap { |copy| copy.detail ||= NARROWED } })
+    report.revise(report.uncovered.map { |result| result.dup.tap { |copy| copy.detail = narrow(copy.detail) } })
+  end
+
+  def narrow(detail)
+    detail.nil? || detail == Kimera::MutationPoint::UNEXECUTED ? NARROWED : detail
   end
 
   def emission
@@ -100,7 +106,9 @@ class Kimera::CLI::Run::Cycle
   end
 
   def provenance
+    route = Kimera::CLI::Run::Route.new(@registry, @options)
     @options.slice(*SETTINGS, :jobs, :since, :count_no_coverage).transform_keys(&:to_s).merge(narrowing.provenance)
+      .merge("judge_isolated_only" => route.judging?, "confirm_survivors" => route.confirming?)
   end
 
   def harness(remaining, env: ENV)
@@ -108,7 +116,12 @@ class Kimera::CLI::Run::Cycle
     seed = @options[:seed]
     seed ? env.store(Kimera::Execution::SEED_ENV, seed.to_s) : env.delete(Kimera::Execution::SEED_ENV)
     env.store(Kimera::Frameworks::LoadPath::VARIABLE, Array(@options[:load_path]).join(File::PATH_SEPARATOR))
-    adapter = Kimera::Frameworks::ADAPTERS.load(@options[:framework])
     Kimera::CLI::Run::Pass.new(@registry, @options, adapter).call(remaining)
+  end
+
+  def adapter
+    loaded = Kimera::Frameworks::ADAPTERS.load(@options[:framework])
+    names = Array(@options[:exclude_test_names])
+    names.empty? ? loaded : Kimera::Frameworks::NameExclusion.new(loaded, names)
   end
 end

@@ -214,7 +214,60 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     plain = test_initialized("test/test_helper.rb" => "require 'minitest'\n", "test/system/x_test.rb" => "")
     expect(plain).not_to(have_key("exclude_tests"))
     rspec = rails.merge("spec/system/x_spec.rb" => "", ".rspec" => "")
-    expect(test_initialized(rspec)).not_to(have_key("exclude_tests"))
+    expect(test_initialized(rspec)).to(include("exclude_tests" => ["spec/system/**/*_spec.rb"]))
+  end
+
+  # K3-1: RSpec Rails apps keep their browser specs in spec/system and spec/features.
+  it "leaves an RSpec Rails app's system and feature specs out", :aggregate_failures do
+    app = { "config/application.rb" => "", ".rspec" => "", "spec/models/a_spec.rb" => "" }
+    both = test_initialized(app.merge("spec/system/x_spec.rb" => "", "spec/features/y_spec.rb" => ""))
+    expect(both).to(include("exclude_tests" => %w[spec/system/**/*_spec.rb spec/features/**/*_spec.rb]))
+    features = test_initialized(app.merge("spec/features/y_spec.rb" => ""))
+    expect(features).to(include("exclude_tests" => ["spec/features/**/*_spec.rb"]))
+    expect(test_initialized(app)).not_to(have_key("exclude_tests"))
+  end
+
+  # F4: an engine is any lib file that subclasses Rails::Engine, not only engine.rb.
+  it "knows an engine declared outside engine.rb, with its dummy app" do
+    engine = {
+      "lib/blog/railtie_engine.rb" => "module Blog\n  class Core < ::Rails::Engine\n  end\nend\n",
+      "spec/dummy/config/application.rb" => "", ".rspec" => "", "spec/models/a_spec.rb" => ""
+    }
+    expect(test_initialized(engine)["operators"]).to(include("rails"))
+    expect(test_initialized(engine.except("spec/dummy/config/application.rb"))).not_to(have_key("operators"))
+  end
+
+  # R3K4: jekyll's helper requires minitest/autorun and rspec/mocks.
+  it "calls a suite whose helper runs Minitest minitest, whatever else it loads", :aggregate_failures do
+    helper = "require \"minitest/autorun\"\nrequire \"rspec/mocks\"\n"
+    expect(test_initialized("test/helper.rb" => helper, "test/test_calc.rb" => "")).to(
+      include("framework" => "minitest", "tests" => ["test/**/test_*.rb"])
+    )
+    tests = { "test/calc_test.rb" => "class CalcTest < Minitest::Test\nend\n", "spec_helper.rb" => "RSpec" }
+    expect(test_initialized(tests)["framework"]).to(eq("minitest"))
+    expect(test_initialized(tests.merge("spec/a_spec.rb" => ""))["framework"]).not_to(eq("minitest"))
+  end
+
+  it "reads Minitest tests under test/ before a helper that names RSpec", :aggregate_failures do
+    helper = { "test/helper.rb" => "require \"rspec/mocks\"\n" }
+    minitest = helper.merge("test/calc_test.rb" => "class CalcTest < Minitest::Test\nend\n")
+    expect(test_initialized(minitest)["framework"]).to(eq("minitest"))
+    expect(test_initialized(helper.merge("test/calc_test.rb" => "class CalcTest\nend\n"))["framework"]).to(eq("rspec"))
+  end
+
+  it "reads a spec helper that runs Minitest as Minitest, whatever else it loads" do
+    helper = {
+      "spec/spec_helper.rb" => "require \"minitest/autorun\"\nrequire \"rspec/mocks\"\n",
+      "spec/a_spec.rb" => ""
+    }
+    expect(test_initialized(helper)["framework"]).to(eq("minitest"))
+  end
+
+  it "writes at most four workers" do
+    allow(Etc).to(receive(:nprocessors).and_return(16))
+    expect(test_initialized("spec/a_spec.rb" => "")["jobs"]).to(eq(4))
+    allow(Etc).to(receive(:nprocessors).and_return(2))
+    expect(test_initialized("spec/a_spec.rb" => "")["jobs"]).to(eq(2))
   end
 
   # Sequel and graphql-ruby keep Minitest specs under spec/ with no helper
@@ -448,6 +501,51 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     ).run(["--format=sarif", "--max-survivors=2", "--report=out.json"])
     expect(runner).to(have_received(:run).with(include("--format=sarif", "--max-survivors=2", "--report=out.json")))
     expect(runner).not_to(have_received(:run).with(include("github")))
+  end
+
+  # K3-6: outside GitHub, ci silently ran a full run that judged no DSL.
+  def ci_given(env, argv = [])
+    out, error = captured
+    runner = instance_double(Kimera::CLI::Run, run: 0)
+    allow(Kimera::CLI::Run).to(receive(:new).and_return(runner))
+    Kimera::CLI::CI.new(io: out, errors: error, env: env).run(argv)
+    given = nil
+    expect(runner).to(have_received(:run) { |arguments| given = arguments })
+    [given, error.string]
+  end
+
+  it "takes a pull request's base from KIMERA_BASE, GitLab or Buildkite too", :aggregate_failures do
+    expect(ci_given("KIMERA_BASE" => "upstream/dev", "GITHUB_BASE_REF" => "main").first).to(include("upstream/dev"))
+    expect(ci_given("CI_MERGE_REQUEST_TARGET_BRANCH_NAME" => "trunk").first).to(include("--since", "origin/trunk"))
+    expect(ci_given("BUILDKITE_PULL_REQUEST_BASE_BRANCH" => "main").first).to(include("--since", "origin/main"))
+    expect(ci_given("BUILDKITE_PULL_REQUEST_BASE_BRANCH" => "false").first).not_to(include("--since"))
+  end
+
+  it "says when it found no base, what it looked for, and what a full run leaves ungated", :aggregate_failures do
+    arguments, said = ci_given({})
+    expect(arguments).not_to(include("--since"))
+    expect(said).to(start_with("kimera ci: no pull request base found (looked for --since, KIMERA_BASE, GITHUB_"))
+    expect(said).to(include("unjudged and ungated; pass --judge-isolated-only"))
+    expect(ci_given({}, ["--since", "HEAD~2"]).last).to(be_empty)
+  end
+
+  it "prints its own usage for --help" do
+    out, error = captured
+    expect(Kimera::CLI::CI.new(io: out, errors: error, env: {}).run(["--help"])).to(eq(0))
+    expect(out.string).to(start_with("Usage: kimera ci [paths...] [options]\nkimera run with gate defaults"))
+    expect(out.string).to(include("--judge-isolated-only"))
+  end
+
+  # The report's run section records what the run did, not the raw flag.
+  it "records the effective survivor confirmation and DSL judging", :aggregate_failures do
+    effective =
+      lambda do |options|
+        Kimera::CLI::Run::Cycle.new(options, nil, nil, digest: nil).__send__(:provenance)
+          .slice("judge_isolated_only", "confirm_survivors")
+      end
+    expect(effective.call(since: "HEAD~1")).to(eq("judge_isolated_only" => true, "confirm_survivors" => true))
+    expect(effective.call({})).to(eq("judge_isolated_only" => false, "confirm_survivors" => false))
+    expect(effective.call(since: "HEAD~1", confirm_survivors: false)).to(include("confirm_survivors" => false))
   end
 
   it "prints shell completion scripts and a command suggestion" do

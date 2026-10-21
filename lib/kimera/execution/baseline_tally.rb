@@ -6,7 +6,7 @@ module Kimera
 end
 
 Kimera::Execution::BaselineTally =
-  Struct.new(:coverage, :failures, :irrelevant, :timings) do
+  Struct.new(:coverage, :failures, :irrelevant, :timings, :messages) do
     measured = Struct.new(:coverage, :irrelevant, :recovered, :timings, keyword_init: true)
     def cover(test_id, touched, took)
       touched.each { |id| coverage[id] << test_id }

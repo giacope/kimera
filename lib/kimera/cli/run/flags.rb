@@ -32,6 +32,11 @@ module Kimera::CLI::RunFlags
     Kimera::Flag.build(
       "--exclude-test GLOB", :exclude_tests, "Exclude matching test files (repeatable)", collect: true
     ),
+    Kimera::Flag.build(
+      "--exclude-test-name REGEX", :exclude_test_names,
+      "Leave out the tests whose name or id matches REGEX, keeping the rest of their file (repeatable)",
+      collect: true
+    ),
     Kimera::CONFIG_FLAG
   ].freeze
 

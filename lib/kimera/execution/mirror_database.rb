@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require_relative "memory_databases"
+require_relative "parallel_databases"
+
 module Kimera
   module Execution
   end
@@ -22,8 +25,8 @@ class Kimera::Execution::MirrorDatabase
 
   def parallel?
     return false unless defined?(ActiveSupport::Testing::Parallelization) && defined?(ActiveRecord::Base)
-    ActiveSupport.parallelize_test_databases
-  rescue NoMethodError
-    false
+    return false if Kimera::Execution::MemoryDatabases.new.current?
+    parallel = Kimera::Execution::ParallelDatabases.new
+    parallel.enabled? && parallel.loadable?
   end
 end

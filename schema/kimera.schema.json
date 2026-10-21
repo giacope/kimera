@@ -73,6 +73,20 @@
         }
       ]
     },
+    "exclude_test_names": {
+      "description": "Tests to leave out by name or id (regular expressions), keeping the rest of their file.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
     "load_path": {
       "description": "Folders to put on the load path when the suite loads, beside each test file's nearest test/ or spec/ folder and the project's own test/ and spec/; doctor and the printed reproduce commands use the same load path.",
       "oneOf": [

@@ -8,6 +8,8 @@ module Kimera
 end
 
 module Kimera::Report::Sections
+  NARROWED = "not covered by the narrowed tests"
+
   private
 
   def regions(found) = listing(bold("Not mutated (#{found.size} region(s)):"), found)
@@ -69,11 +71,11 @@ module Kimera::Report::Sections
     "#{point.file}:#{location.start_line}:#{location.start_column + 1}#{"  in #{method}" if method}"
   end
 
-  def hint(report, path)
+  def hint(report, path, narrowed:)
     count = report.uncovered.size
     return if count.zero?
     @io.puts
-    @io.puts("#{count} mutant(s) have no covering test; #{command(path)}")
+    @io.puts("#{count} mutant(s) #{narrowed ? NARROWED : "have no covering test"}; #{command(path)}")
   end
 
   def command(path)
@@ -81,7 +83,10 @@ module Kimera::Report::Sections
     "run without --no-report, then `kimera report --status no_coverage` to list them"
   end
 
-  def missing(report, _path = nil) = section("Mutants with no covering test", report.uncovered) { |r| uncovered(r) }
+  def missing(report, _path, narrowed:)
+    title = narrowed ? "Mutants #{NARROWED}" : "Mutants with no covering test"
+    section(title, report.uncovered) { |result| uncovered(result) }
+  end
 
   def uncovered(result)
     resolved(result) { |id, mutant, point| spotted("no coverage", id, mutant, point) }

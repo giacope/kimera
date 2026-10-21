@@ -33,6 +33,7 @@ class Kimera::Execution::IsolatedPlan
   def root = @_root ||= File.expand_path(@given)
 
   def tests(id, point, screened: true)
+    return if point.unloaded?
     file = point.file
     found = whole?(point) ? kin.tests(file) : selection.recorded(id)
     found = selection.all if everything?(point)

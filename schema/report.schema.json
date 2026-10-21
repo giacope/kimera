@@ -464,6 +464,12 @@
             "type": "string"
           }
         },
+        "exclude_test_names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "operators": {
           "type": "array",
           "items": {

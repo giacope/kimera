@@ -103,6 +103,15 @@ RSpec.describe("kimera survivors", :aggregate_failures) do
     expect(out).to(include("#11"))
   end
 
+  # A narrowed run's uncovered mutants may be covered by a test it left out.
+  it "says a narrowed run's uncovered mutants are not covered by the narrowed tests", :aggregate_failures do
+    File.write(report_path, JSON.generate(report.merge("run" => { "narrowed" => true })))
+    out, = run(report_path, "--status", "no_coverage")
+    expect(out).to(include("1 no_coverage mutant(s), not covered by the narrowed tests:"))
+    survived, = run(report_path)
+    expect(survived).to(include("2 survived mutant(s):"))
+  end
+
   it "shows one mutant's header and body with --id" do
     out, status = run(report_path, "--id", "7")
     expect(status).to(eq(0))

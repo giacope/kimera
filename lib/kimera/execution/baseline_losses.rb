@@ -2,27 +2,20 @@
 
 require_relative "baseline_failure"
 
-class Kimera::Execution::BaselineLosses
-  LOSSES = { timeout: "its worker was killed at the hard timeout (--hard-timeout) before reporting a result" }.freeze
-  CRASH = "its worker died before reporting a result"
-  ALONE = ", and again when rerun alone"
+Kimera::Execution::BaselineLosses =
+  Struct.new(:stalled_stacks, :stacks) do
+    losses = { timeout: "its worker was killed at the hard timeout (--hard-timeout) before reporting a result" }.freeze
+    crash = "its worker died before reporting a result"
+    alone = ", and again when rerun alone"
+    def initialize(stalled_stacks = {}, stacks = {}) = super
 
-  def initialize
-    @stalled = {}
-    @stacks = {}
+    def stall(test_id, found) = stalled_stacks.store(test_id, found)
+
+    def stalled = stalled_stacks.keys
+    define_method(:charge) do |test_id, reason, found|
+      stacks[test_id] = found
+      lost = losses.fetch(reason, crash)
+      stalled_stacks.key?(test_id) ? lost + alone : lost
+    end
+    def recovered(failed) = stalled_stacks.reject { |test_id, _stacks| failed.key?(test_id) }
   end
-
-  attr_reader :stacks
-
-  def stall(test_id, stacks) = @stalled.store(test_id, stacks)
-
-  def stalled = @stalled.keys
-
-  def charge(test_id, reason, stacks)
-    @stacks[test_id] = stacks
-    lost = LOSSES.fetch(reason, CRASH)
-    @stalled.key?(test_id) ? lost + ALONE : lost
-  end
-
-  def recovered(failed) = @stalled.reject { |test_id, _stacks| failed.key?(test_id) }
-end

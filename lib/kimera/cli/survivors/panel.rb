@@ -11,7 +11,7 @@ class Kimera::CLI::Survivors::Panel
   end
 
   def announce(matching, options)
-    @io.puts("#{matching.size} #{options[:status]} mutant(s):")
+    @io.puts("#{matching.size} #{options[:status]} mutant(s)#{narrowed(options)}:")
     sorted(matching).each { |row| entry(row) }
     @io.puts
     @io.puts("detail: kimera mutant <ID|KEY> --report #{options[:report]}")
@@ -26,6 +26,10 @@ class Kimera::CLI::Survivors::Panel
   end
 
   private
+
+  def narrowed(options)
+    options[:narrowed] && options[:status] == "no_coverage" ? ", not covered by the narrowed tests" : ""
+  end
 
   def entry(row)
     @io.puts

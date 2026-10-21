@@ -86,10 +86,15 @@ class Kimera::MutationPoint
     "a lambda handed to a class-body macro (a callback, a default:) that no test reached warm: the warm " \
       "overlay re-declares the macro, which can leave the original lambda registered in front of the " \
       "mutated one, so warm coverage cannot see it; evaluate with --isolated"
+  NEVER_LOADED =
+    "never executed: the suite never loads this file, so no test can run it (kimera did not evaluate it, " \
+      "since loading it would run its top-level code inside the test process)"
+  UNEXECUTED = "no test executed this line; its file was loaded at boot"
   UNMUTATABLE = "unmutatable: "
   SAFE = true
 
-  FIELDS = %i[point_id file operator node_type location original_source method_name mutants unsafe_reason].freeze
+  FIELDS = %i[point_id file operator node_type location original_source method_name mutants].freeze
+  Marks = Struct.new(:safe, :reason, :revisit)
   FIELDS.each { |field| define_method(field) { @attributes[field] } }
 
   class << self
@@ -113,8 +118,12 @@ class Kimera::MutationPoint
   end
 
   def reloadable?
-    !body? && ![LOAD_REASON, MACRO_REASON].include?(unsafe_reason) && !unmutatable?
+    !body? && ![LOAD_REASON, MACRO_REASON, NEVER_LOADED].include?(unsafe_reason) && !unmutatable?
   end
+
+  def unloaded? = unsafe_reason == NEVER_LOADED
+
+  def unloaded! = unsafe!(NEVER_LOADED)
 
   def unmutatable?
     unsafe_reason.to_s.start_with?(UNMUTATABLE)
@@ -124,9 +133,9 @@ class Kimera::MutationPoint
     unsafe!("#{UNMUTATABLE}#{detail}")
   end
 
-  def safe
-    @attributes.fetch(:schema_safe, SAFE)
-  end
+  def safe = marks.safe
+
+  def unsafe_reason = marks.reason
 
   def orphan!(applied, detail)
     return [] unless safe? && !ids.intersect?(applied)
@@ -134,17 +143,17 @@ class Kimera::MutationPoint
     ids
   end
 
-  def revisit!(reason) = @attributes.store(:revisit, reason)
+  def revisit!(reason) = marks.revisit = reason
 
   def uncovered?(coverage) = ids.all? { |id| coverage.fetch(id) { coverage.fetch(id.to_s, []) }.empty? }
 
   def inside?(ranges) = ranges.any? { |range| location.within?(range.start_offset, range.end_offset) }
 
-  def revisit = @attributes[:revisit]
+  def revisit = marks.revisit
 
   def unsafe!(reason)
-    @attributes[:schema_safe] = false
-    @attributes[:unsafe_reason] = reason
+    marks.safe = false
+    marks.reason = reason
   end
 
   def taint!(ranges)
@@ -156,6 +165,10 @@ class Kimera::MutationPoint
 
   def ids
     mutants.map(&:id)
+  end
+
+  def marks
+    @_marks ||= Marks.new(@attributes.fetch(:schema_safe, SAFE), *@attributes.values_at(:unsafe_reason, :revisit))
   end
 
   def project(*fields)
@@ -182,5 +195,5 @@ class Kimera::MutationPoint
     { "method_name" => method_name, "schema_safe" => safe, "unsafe_reason" => unsafe_reason }
   end
 
-  NONE = new(mutants: []).freeze
+  NONE = new(mutants: []).tap(&:safe).freeze
 end

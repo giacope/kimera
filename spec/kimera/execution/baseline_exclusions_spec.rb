@@ -20,7 +20,17 @@ RSpec.describe(Kimera::Execution::BaselineExclusions) do
   end
 
   it "counts every excluded test in its headline" do
-    expect(notice(numbered(7))).to(start_with("kimera: 7 failing test(s) cover no in-scope mutant"))
+    expect(notice(numbered(7))).to(start_with("kimera: 7 test(s) fail in the baseline, in a plain run too"))
+  end
+
+  # A failing test's coverage is cut short where it failed (K3-3).
+  it "says their coverage is unknown, never that they cover nothing", :aggregate_failures do
+    expect(notice(numbered(1))).to(include("their coverage is unknown"))
+    expect(notice(numbered(1))).not_to(include("cover no in-scope mutant"))
+  end
+
+  it "ends with the plain command that failed them too" do
+    expect(described_class.new(numbered(1), "rspec t1").to_s.lines.last).to(eq("  plain run: rspec t1"))
   end
 
   it "lists every test up to the limit without an overflow line" do

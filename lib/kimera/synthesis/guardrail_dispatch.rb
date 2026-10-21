@@ -46,9 +46,7 @@ module Kimera
     end
 
     def branch(mutant, truthy, dispatch)
-      id = mutant.id
-      @applied << id
-      conditional(active(id), truthy, dispatch)
+      conditional(active(mutant.id), truthy, dispatch)
     end
 
     def variant(bare, mutant)

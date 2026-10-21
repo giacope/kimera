@@ -58,7 +58,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         require: [],
         since: nil, session: nil, max_survivors: nil, max_ignored: nil,
         max_errors: 0, evaluate_ignored: false, baseline: nil,
-        jobs: 1, exclude: [], exclude_tests: [], config: nil, ignore: [],
+        jobs: 1, exclude: [], exclude_tests: [], exclude_test_names: [], config: nil, ignore: [],
         isolate_db: false,
         isolated: false, rejudge: true, fail_on_no_coverage: false, count_no_coverage: true,
         judge_isolated_only: nil, confirm_survivors: nil,

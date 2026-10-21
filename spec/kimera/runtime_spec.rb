@@ -13,6 +13,34 @@ RSpec.describe(Kimera::Runtime) do
     expect(Kimera::RUNTIME).to(equal(bound))
   end
 
+  # R3K3: a mutated method called inside a Ractor raised Ractor::IsolationError.
+  describe "inside a non-main Ractor" do
+    def in_ractor(shared, id)
+      experimental = Warning[:experimental]
+      Warning[:experimental] = false
+      ractor = Ractor.new(shared, id) { |runtime, asked| runtime.active?(asked) }
+      ractor.respond_to?(:value) ? ractor.value : ractor.take
+    ensure
+      Warning[:experimental] = experimental
+    end
+
+    it "is shareable, and answers which mutant is active", :aggregate_failures do
+      runtime.active = 4
+      expect(Ractor.shareable?(runtime)).to(be(true))
+      expect(in_ractor(runtime, 4)).to(be(true))
+      expect(in_ractor(runtime, 5)).to(be(false))
+    end
+
+    it "records what it reaches in the main Ractor's open ledger, once per id", :aggregate_failures do
+      ledger = runtime.start!
+      runtime.active = 4
+      expect(in_ractor(runtime, 4)).to(be(true))
+      expect(in_ractor(runtime, 9)).to(be(false))
+      expect(runtime.stop!(ledger)).to(contain_exactly(4, 9))
+      expect(in_ractor(runtime, 4)).to(be(true))
+    end
+  end
+
   describe "#active / #active?" do
     it "selects the original when active is nil", :aggregate_failures do
       runtime.active = nil

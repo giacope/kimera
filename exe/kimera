@@ -10,13 +10,24 @@ begin
   require "kimera"
 rescue LoadError, StandardError => error
   raise unless error.is_a?(LoadError) || (defined?(Bundler::BundlerError) && error.is_a?(Bundler::BundlerError))
-  warn(
-    "kimera: could not load its dependencies (#{error.message.lines.first.strip})",
-    "Kimera runs inside your project's bundle: add `gem \"kimera\", group: :test` to the Gemfile, " \
-      "run `bundle install`, then `bundle exec kimera`."
-  )
+  advice =
+    if error.message.include?("bundle update")
+      []
+    else
+      [
+        "Kimera runs inside your project's bundle: add `gem \"kimera\", group: :test` to the Gemfile, " \
+          "run `bundle install`, then `bundle exec kimera`."
+      ]
+    end
+  warn("kimera: could not load its dependencies (#{error.message.lines.first.strip})", *advice)
   exit(1)
 end
 
-status = Kimera::CLI.new.run(ARGV)
+begin
+  status = Kimera::CLI.new.run(ARGV)
+rescue LoadError => error
+  raise unless error.message.include?("bundle update --conservative prism")
+  warn("kimera: #{error.message}")
+  exit(1)
+end
 exit(status.is_a?(Integer) ? status : 0)

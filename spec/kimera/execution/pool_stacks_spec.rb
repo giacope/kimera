@@ -14,7 +14,7 @@ RSpec.describe(Kimera::Execution::Pool) do
   end
 
   def driver(jobs: 2)
-    databases = Kimera::Execution::WorkerDatabases.new(adapter: nil, jobs: jobs)
+    databases = Kimera::Execution::WorkerDatabases.new(jobs: jobs)
     described_class.new(
       adapter: nil, registry: registry, isolation: Kimera::Execution::Isolation.new, jobs: jobs,
       hard: 5.0, soft: nil, leak: 0, paralleldb: databases
@@ -71,7 +71,7 @@ RSpec.describe(Kimera::Execution::Pool) do
   it "arms the stack dump inside the fork, before the worker boots", :aggregate_failures do
     pool = driver
     stacks = instance_spy(Kimera::Execution::StackDump)
-    pool.instance_variable_get(:@options)[:stacks] = stacks
+    pool.__send__(:armed).stacks = stacks
     allow(pool).to(receive(:fork).and_yield.and_return(7))
     allow(pool).to(receive(:lead))
     allow(pool).to(receive(:boot)) { expect(stacks).to(have_received(:arm!)) }

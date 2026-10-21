@@ -16,7 +16,6 @@ class Kimera::Execution::BaselinePass
     @adapter = adapter
     @registry = registry
     @progress = progress
-    @messages = {}
   end
 
   def parallel!(jobs, &) = settle(jobs) { dispatch(&) }
@@ -44,15 +43,15 @@ class Kimera::Execution::BaselinePass
     @progress.finish
   end
 
-  def tally = @_tally ||= Kimera::Execution::BaselineTally.new(Hash.new { |h, k| h[k] = [] }, [], [], {})
+  def tally = @_tally ||= Kimera::Execution::BaselineTally.new(Hash.new { |h, k| h[k] = [] }, [], [], {}, {})
 
   def report(jobs)
     failures = tally.failures
     failure!(failures, jobs, Kimera::Execution::BaselineOrder.new(self).of(failures)) unless failures.empty?
-    tally.measured(excluded, losses.recovered(@messages))
+    tally.measured(excluded, losses.recovered(tally.messages))
   end
 
-  def excluded = tally.irrelevant.to_h { |test_id| [test_id, @messages[test_id]] }
+  def excluded = tally.irrelevant.to_h { |test_id| [test_id, tally.messages[test_id]] }
 
   def whole
     Kimera::RUNTIME.active = nil
@@ -99,13 +98,13 @@ class Kimera::Execution::BaselinePass
   end
 
   def relapse(test_id, reason, stacks = nil)
-    @messages[test_id] = losses.charge(test_id, reason, stacks)
+    tally.messages[test_id] = losses.charge(test_id, reason, stacks)
     tally.failures << test_id
     @progress.tick
   end
 
   def bank(test_id, touched, message: nil)
-    @messages[test_id] = message
+    tally.messages[test_id] = message
     bucket(touched) << test_id
   end
 
@@ -126,7 +125,7 @@ class Kimera::Execution::BaselinePass
     $stderr = StringIO.new
   end
 
-  def failure!(failed, jobs, ordered = [], messages: @messages)
+  def failure!(failed, jobs, ordered = [], messages: tally.messages)
     summary = Kimera::Execution::BaselineFailure::Summary
     command = @adapter.reproduce(failed.first(summary::MAX_DETAILS))
     context = summary::Context.new(workers: journal, stacks: losses.stacks, jobs: jobs, ordered: ordered)

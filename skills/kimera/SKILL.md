@@ -33,16 +33,24 @@ bundle exec kimera doctor --check-baseline  # discovery, git, and a green suite
   Write the test that runs the code; don't set `count_no_coverage: false` to
   pass a gate.
 - CI shape: **PR gate is incremental** (`kimera ci --session tmp/kimera.json`;
-  `ci` defaults to `--max-survivors 0 --fail-on-no-coverage`, and on a GitHub
-  pull request to `--since origin/$GITHUB_BASE_REF` and `--summary
-  $GITHUB_STEP_SUMMARY`): no new surviving mutants on changed lines. **Full
-  run nightly**, not per-PR.
+  `ci` defaults to `--max-survivors 0 --fail-on-no-coverage`, and on a pull
+  request to `--since` its base (`KIMERA_BASE`, or GitHub's, GitLab's or
+  Buildkite's base-branch variable) and on GitHub to `--summary
+  $GITHUB_STEP_SUMMARY`): no new surviving mutants on changed lines. With no
+  base, ci says so and runs a full run, which leaves `isolated_only` DSL
+  unjudged and ungated. **Full run nightly**, not per-PR.
 - Exit codes: 0 pass; 1 invalid invocation or unmutated suite not green (fix
   the suite, not kimera); 2 gate failure (survivors, uncovered, ignore budget,
   or unjudged).
-- The green check covers only tests that *cover* an in-scope mutant. A red
-  test touching none of them is reported and excluded, so an unrelated flaky
+- The green check covers only tests that *cover* an in-scope mutant. A test
+  that fails in the baseline is rerun plainly: if it passes there, the run
+  stops with a harness error naming it (kimera, not the test, is at fault:
+  report it, or try `--jobs 1`); if it fails plainly too and touched no
+  in-scope mutant, it is excluded, its coverage unknown, so an unrelated red
   spec doesn't abort a per-module run.
+- A run that deletes or rewrites tracked files (a mutant pointing a cleaner
+  at the wrong directory) fails with exit 1, naming them: restore them, and
+  judge such code with `--isolated`, which works on a copy.
 - A red baseline that says `ran on N workers`: rerun with `--jobs 1`. Green
   there means the tests share a directory, file or port between workers, not
   that they are broken. Give each test its own (`Dir.mktmpdir`, a free port)
@@ -125,7 +133,8 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   (SIGTERM)`, `exited 1`) and the exception it died of, with frames. A test
   that signals its own process with nothing trapping the signal ends the
   worker, as it would end `rails test`: trap it in the test, or leave the test
-  out with `--exclude-test`.
+  out with `--exclude-test` (its file) or `--exclude-test-name REGEX` (that
+  test alone).
 - A kill's `detail` holds the killing test's failure message and first
   frames. Every baseline test and every mutant runs in a process forked from
   one no test has run in, so a cache or flag another test left can't decide

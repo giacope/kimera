@@ -221,7 +221,9 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "excludes a failing test that covers no in-scope mutant from the baseline", :aggregate_failures do
       h = harness(adapter(coverage: { "t1" => [ids.first], "t2" => [] }, failing: ["t2"]))
       expect { h.__send__(:measure!) }.not_to(raise_error)
-      expect { h.__send__(:notice) }.to(output(/1 failing test.*excluded from the baseline/).to_stderr)
+      expect do
+        h.__send__(:notice, h.__send__(:screen))
+      end.to(output(/1 test\(s\) fail in the baseline.*excluded/).to_stderr)
       expect(h.coverage[ids.first]).to(include("t1"))
     end
 
@@ -230,8 +232,11 @@ RSpec.describe(Kimera::Execution::Harness) do
       coverage = failing.to_h { |id| [id, []] }.merge("t1" => [ids.first])
       h = harness(adapter(coverage: coverage, failing: failing, message: "boom\nframe"))
       h.__send__(:measure!)
-      expect { h.__send__(:notice) }.to(output(/excluded from the baseline .*:\n  t2: boom\n/).to_stderr)
-      expect { h.__send__(:notice) }.to(output(/\n  t6: boom\n  … and 2 more\n\z/).to_stderr)
+      excluded = h.__send__(:screen)
+      expect { h.__send__(:notice, excluded) }.to(output(/coverage is unknown.*:\n  t2: boom\n/).to_stderr)
+      expect do
+        h.__send__(:notice, excluded)
+      end.to(output(/\n  t6: boom\n  … and 2 more\n  plain run: rspec t2 /).to_stderr)
     end
 
     it "closes its own ledger afterward" do
@@ -390,7 +395,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       lost.__send__(:lost, "t1", :timeout, nil)
       lost.__send__(:relapse, "t1", :timeout)
       lost.__send__(:lost, "t2", :crash, nil)
-      messages = lost.instance_variable_get(:@messages)
+      messages = lost.__send__(:tally).messages
       expect(messages["t1"]).to(
         eq(
           "its worker was killed at the hard timeout (--hard-timeout) before reporting a result, " \
@@ -763,7 +768,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "reports failing tests that gate nothing, after warm-up" do
       stub_const("Warmirr", Class.new)
       h = ungated("warmirr")
-      expect { h.warm!(%w[t1 t2]) }.to(output(/1 failing test\(s\) cover no in-scope mutant/).to_stderr)
+      expect { h.warm!(%w[t1 t2]) }.to(output(/1 test\(s\) fail in the baseline, in a plain run too/).to_stderr)
     end
 
     def quiet(name)
@@ -813,8 +818,8 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   # Each warm child needs its own database, or workers deadlock on a shared one.
   describe "per-worker database isolation" do
-    def database(jobs:, adapt: adapter)
-      Kimera::Execution::WorkerDatabases.new(adapter: adapt, jobs: jobs)
+    def database(jobs:)
+      Kimera::Execution::WorkerDatabases.new(jobs: jobs)
     end
 
     def stub(before: nil, after: nil, cleanup: nil)
@@ -860,6 +865,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       parallelization(true)
       stub(after: ->(_i) {}, cleanup: ->(i) { cleaned << i })
       db = database(jobs: 2)
+      allow(db).to(receive(:require).with("active_record/test_databases"))
       db.before_exit(0)
       db.before_exit(nil) # injected spawners have no slot
       cleaned
@@ -889,8 +895,9 @@ RSpec.describe(Kimera::Execution::Harness) do
       cleaned = []
       stub(cleanup: ->(index) { cleaned << index })
       errors = StringIO.new
-      db = Kimera::Execution::WorkerDatabases.new(adapter: adapter, jobs: 2, errors: errors)
+      db = Kimera::Execution::WorkerDatabases.new(jobs: 2, errors: errors)
       allow(db).to(receive(:active?).and_return(true))
+      allow(db).to(receive(:require).with("active_record/test_databases"))
       db.before_exit(0)
       [connection, errors.string, cleaned]
     end
@@ -941,7 +948,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       cleaned = []
       stub(after: ->(_i) {}, cleanup: ->(i) { cleaned << i })
       errors = StringIO.new
-      Kimera::Execution::WorkerDatabases.new(adapter: adapter, jobs: 2, errors: errors).before_exit(0)
+      Kimera::Execution::WorkerDatabases.new(jobs: 2, errors: errors).before_exit(0)
       [errors.string, cleaned]
     end
 
@@ -992,6 +999,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     def skip
       calls = []
+      parallelization(false)
       stub(after: ->(i) { calls << i })
       database(jobs: 2).after_fork(3)
       calls
@@ -1072,30 +1080,6 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "registers nothing, and warns nothing, when ActiveRecord is absent" do
       expect { database(jobs: 2).__send__(:register!) }.not_to(output.to_stderr)
-    end
-
-    def starting
-      Class.new(Kimera::Frameworks::Adapter) do
-        attr_reader :booted
-
-        def source(_files) = self
-        def start = @booted = true
-        def test_ids = []
-        def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
-      end.new
-    end
-
-    def replay
-      stub(after: ->(_i) {})
-      ad = starting
-      db = database(jobs: 2, adapt: ad)
-      allow(db).to(receive(:active?).and_return(true))
-      db.after_fork(1)
-      ad.booted
-    end
-
-    it "replays the adapter's suite-level setup in the freshly forked worker" do
-      expect(replay).to(be(true))
     end
 
     def cleanup

@@ -25,7 +25,7 @@ class Kimera::Frameworks::AdapterRegistry
   end
 
   def register(name, klass)
-    @adapters[name.to_s] = klass
+    @adapters[name.to_s] ||= klass
   end
 
   def fetch(name)

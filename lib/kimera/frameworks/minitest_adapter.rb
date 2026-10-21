@@ -14,6 +14,7 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
   INSTALLED = true
   CONSTANT = /\A[A-Z]\w*(?:::[A-Z]\w*)*\z/
   PLAIN = %r{\A[\w./@:+-]+\z}
+  FAILED = /^\s*(?:\d+\) )?(?:Failure|Error):\n(.+?)(?: \[[^\]]*\])?:$/
 
   class << self
     def build
@@ -47,6 +48,10 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
   def locate(id) = { "location" => definition(*indexed.fetch(id)).join(":") }
 
   def test_file(id) = indexed[id]&.then { |klass, name| declared(klass.name) || definition(klass, name).first }
+
+  def plain(ids, _out) = ["sh", "-c", reproduce(ids)]
+
+  def failed_plainly(output, _out) = output.scan(FAILED).flatten
 
   def reproduce(ids)
     "bundle exec ruby #{includes(ids)} -rminitest/autorun -e #{quote(loads(ids))} " \

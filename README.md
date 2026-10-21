@@ -149,7 +149,12 @@ line in the source (see [Configuration](#configuration)).
 mutant. It writes `tmp/kimera/report.json`, prints GitHub annotations beside
 the text report, and adds a Markdown summary to the job. On a pull request it
 mutates only the PR's lines (`--since origin/$GITHUB_BASE_REF`), which needs
-the base branch's history:
+the base branch's history. The base comes from `--since`, `KIMERA_BASE` (any
+ref), GitHub's `GITHUB_BASE_REF`, GitLab's `CI_MERGE_REQUEST_TARGET_BRANCH_NAME`
+or Buildkite's `BUILDKITE_PULL_REQUEST_BASE_BRANCH`; with none, `ci` says so
+and runs a full run, which leaves class-body DSL (validations, associations,
+callbacks) `isolated_only`: unjudged and ungated unless you pass
+`--judge-isolated-only` (hours on a whole Rails app):
 
 ```yaml
 # .github/workflows/mutation.yml
@@ -230,6 +235,10 @@ bundle exec kimera run app/models/order.rb --tests 'spec/models/order_spec.rb'
 # Drop spec files that can't run this way (order-dependent, need a browser)
 # without rewriting the whole --tests glob
 bundle exec kimera run app --exclude-test 'spec/system/**/*_spec.rb'
+
+# Leave out single tests by name or id (a regular expression; exclude_test_names
+# in .kimera.yml), keeping the rest of their file: a test that fails only as root
+bundle exec kimera run lib --exclude-test-name 'unreadable directories'
 
 # Judge every mutant in a fresh subprocess: bake it into a mirror of the tree
 # and run its covering tests under plain rspec. Slower, but trustworthy even
@@ -350,7 +359,9 @@ A mirror is as safe as a warm worker:
 - Past the first, each concurrent mirror takes a test database of its own
   through Rails' parallel-testing hooks (`<db>_1`, `<db>_2`, ...), as warm
   workers do, so a `before(:suite)` that truncates or seeds cannot race
-  another mirror.
+  another mirror. Each also gets `TEST_ENV_NUMBER` (parallel_tests'
+  convention), and kimera closes its own database connections before it
+  starts one, so a suite that drops and re-creates its database at load runs.
 - Its `.git` is a private snapshot (HEAD, index and refs) that reads the
   project's objects, so a suite's `git ls-files` works and nothing the suite
   does writes the project's `.git`.
@@ -1047,14 +1058,21 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     a solver.
 - **`.rspec` and suite hooks are honored.** The RSpec adapter applies the
   project's `.rspec` (`--require spec_helper`/`rails_helper`, the `spec` load
-  path) as the `rspec` executable does. It fires `config.before(:suite)` once
-  before the baseline and `after(:suite)` at the end. Libraries install global
+  path) as the `rspec` executable does; its `--require` files load with the
+  test files, so code they run while loading is traced. It fires
+  `config.before(:suite)` once, in the process that loads the suite, before the
+  baseline, and `after(:suite)` at the end; workers forked from it never run
+  them again. Libraries install global
   switches there: `webmock/rspec` calls `WebMock.enable!` only in that hook.
   Without it, every stubbed HTTP request would reach the real network.
 - **Parallel runs need parallel state.** With `--jobs N` on a Rails app, Kimera
-  runs Rails' parallel-testing fork hooks. Each worker gets its own database
-  (`app_test_0`, `app_test_1`, …), as with `rails test -j`, and the suite's
-  `before(:suite)` setup replays against it. Anything *else* your suite shares
+  runs Rails' parallel-testing fork hooks (on Rails before 8.1 too, which has
+  no `parallelize_test_databases` switch). Each worker gets its own database
+  (`app_test_0`, `app_test_1`, …), as with `rails test -j`, and
+  `TEST_ENV_NUMBER` (`""`, `"2"`, …): a `database.yml` that names the database
+  by it gets each worker's database created and loaded. An in-memory SQLite
+  database is never renamed; each fork keeps its own copy of the schema.
+  When workers would share one database, kimera says so. Anything *else* your suite shares
   (Redis, Elasticsearch, a temp directory) needs the same treatment. Register
   a hook and Kimera runs it:
   `ActiveSupport::Testing::Parallelization.after_fork_hook { |i| ... }`.

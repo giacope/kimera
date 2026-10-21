@@ -27,7 +27,7 @@ class Kimera::Incremental::Session
       return new.stamped(stamp) unless path && File.exist?(path)
       data = JSON.parse(File.read(path, encoding: Encoding::UTF_8))
       session = Kimera::Incremental::Session::Payload.new(data).session.stamped(stamp)
-      registry ? session.prune!(registry) : session
+      registry ? session.pruned(registry) : session
     end
   end
 
@@ -39,10 +39,11 @@ class Kimera::Incremental::Session
     )
   end
 
-  def prune!(registry)
-    @results.reject! { |id, _| stale?(id, registry) }
-    @leaks.select! { |leak| @results.key?(leak.mutant_id) }
-    self
+  def pruned(registry)
+    kept = @results.reject { |id, _| stale?(id, registry) }
+    self.class.new(
+      results: kept, leaks: @leaks.select { |leak| kept.key?(leak.mutant_id) }, meta: @meta, fingerprints: @fingerprints
+    )
   end
 
   def done?(id)
