@@ -74,7 +74,8 @@ RSpec.describe("kimera run on code only an earlier test's state reaches (end-to-
           it("finds the key the last test stored") { expect(Memo.fetch(:a) { 2 }).to eq(1) }
         end
       RUBY
-      test_run(cwd: root, arguments: ["--no-progress", "--jobs", "1"]) do |output, _report, status|
+      flags = ["--no-progress", "--jobs", "1", "--operators", "all"]
+      test_run(cwd: root, arguments: flags) do |output, _report, status|
         expect(status).to(eq(1))
         expect(output).to(include("baseline suite is order-dependent: ./spec/memo_spec.rb[1:2]"))
         expect(output).to(include("the suite is order-dependent: these pass when the whole suite runs in order"))

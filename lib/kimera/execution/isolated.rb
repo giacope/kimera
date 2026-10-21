@@ -75,7 +75,7 @@ class Kimera::Execution::IsolatedExecution
       coverage: @options.fetch(:coverage, {}), timings: @options.fetch(:timings, {}),
       framework: @options.fetch(:framework, "rspec"),
       test_files: @options.fetch(:test_files, []), filter: @options[:filter], seed: @options[:seed],
-      quality: @options[:test_quality]
+      quality: @options[:test_quality], test_paths: @options.fetch(:test_paths, {})
     )
   end
 

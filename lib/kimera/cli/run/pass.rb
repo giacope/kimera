@@ -117,8 +117,10 @@ class Kimera::CLI::Run::Pass
   def core
     { registry: @registry, root: @options[:source_root], tests: @adapter.test_ids }
       .merge(coverage: harness.coverage, timings: harness.timings, progress: progress, jobs: @options[:jobs])
-      .merge(framework: @options[:framework], test_files: files, filter: filter)
+      .merge(framework: @options[:framework], test_files: files, filter: filter, test_paths: paths)
   end
+
+  def paths = @adapter.test_ids.to_h { |id| [id, @adapter.test_file(id).to_s] }
 
   def limits = @options.slice(:seed, :test_quality).merge({ hard_timeout: @options[:hard_timeout] }.compact)
 end
