@@ -6,8 +6,9 @@ module Kimera
 end
 
 class Kimera::Report::Actions
-  ISOLATED = "mutant(s) only a fresh process can judge (validations, callbacks, load-time code): " \
-    "judge them with `kimera run --isolated`, or --judge-isolated-only"
+  ISOLATED = "mutant(s) only a fresh process can judge (validations, associations, callbacks, load-time code) " \
+    "stayed unjudged and do not gate: judge them with --judge-isolated-only or `kimera run --isolated` " \
+    "(on a whole Rails app that can take hours; --since judges a pull request's own)"
   def initialize(io: $stdout)
     @io = io
   end

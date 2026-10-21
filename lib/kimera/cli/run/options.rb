@@ -40,13 +40,14 @@ module Kimera::CLI::RunOptions
     Kimera::Flag.build(
       "--[no-]judge-isolated-only", :judge_isolated_only,
       "Judge in fresh isolated mirrors the mutants the warm run cannot (class-body DSL such as validations " \
-        "and callbacks, registering lambdas) (default: on for --since, ci and changed)"
+        "and callbacks, registering lambdas) (default: on for --since and changed, and for ci when it finds " \
+        "a pull request's base)"
     ),
     Kimera::Flag.build(
       "--[no-]confirm-survivors", :confirm_survivors,
       "Run each survivor's covering tests alone in a fresh process with the mutant on, fastest first " \
         "(up to 50), so an earlier test cannot mask a kill " \
-        "(default: on for --since, ci and changed)"
+        "(default: on for --since and changed, and for ci when it finds a pull request's base)"
     )
   ].freeze
 

@@ -10,6 +10,7 @@ require_relative "inline_ignores"
 require_relative "digest"
 require_relative "narrowing"
 require_relative "pass"
+require_relative "route"
 require_relative "sources"
 
 class Kimera::CLI::Run::Cycle
@@ -104,7 +105,9 @@ class Kimera::CLI::Run::Cycle
   end
 
   def provenance
+    route = Kimera::CLI::Run::Route.new(@registry, @options)
     @options.slice(*SETTINGS, :jobs, :since, :count_no_coverage).transform_keys(&:to_s).merge(narrowing.provenance)
+      .merge("judge_isolated_only" => route.judging?, "confirm_survivors" => route.confirming?)
   end
 
   def harness(remaining, env: ENV)

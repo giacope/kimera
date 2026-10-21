@@ -488,6 +488,51 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     expect(runner).not_to(have_received(:run).with(include("github")))
   end
 
+  # K3-6: outside GitHub, ci silently ran a full run that judged no DSL.
+  def ci_given(env, argv = [])
+    out, error = captured
+    runner = instance_double(Kimera::CLI::Run, run: 0)
+    allow(Kimera::CLI::Run).to(receive(:new).and_return(runner))
+    Kimera::CLI::CI.new(io: out, errors: error, env: env).run(argv)
+    given = nil
+    expect(runner).to(have_received(:run) { |arguments| given = arguments })
+    [given, error.string]
+  end
+
+  it "takes a pull request's base from KIMERA_BASE, GitLab or Buildkite too", :aggregate_failures do
+    expect(ci_given("KIMERA_BASE" => "upstream/dev", "GITHUB_BASE_REF" => "main").first).to(include("upstream/dev"))
+    expect(ci_given("CI_MERGE_REQUEST_TARGET_BRANCH_NAME" => "trunk").first).to(include("--since", "origin/trunk"))
+    expect(ci_given("BUILDKITE_PULL_REQUEST_BASE_BRANCH" => "main").first).to(include("--since", "origin/main"))
+    expect(ci_given("BUILDKITE_PULL_REQUEST_BASE_BRANCH" => "false").first).not_to(include("--since"))
+  end
+
+  it "says when it found no base, what it looked for, and what a full run leaves ungated", :aggregate_failures do
+    arguments, said = ci_given({})
+    expect(arguments).not_to(include("--since"))
+    expect(said).to(start_with("kimera ci: no pull request base found (looked for --since, KIMERA_BASE, GITHUB_"))
+    expect(said).to(include("unjudged and ungated; pass --judge-isolated-only"))
+    expect(ci_given({}, ["--since", "HEAD~2"]).last).to(be_empty)
+  end
+
+  it "prints its own usage for --help" do
+    out, error = captured
+    expect(Kimera::CLI::CI.new(io: out, errors: error, env: {}).run(["--help"])).to(eq(0))
+    expect(out.string).to(start_with("Usage: kimera ci [paths...] [options]\nkimera run with gate defaults"))
+    expect(out.string).to(include("--judge-isolated-only"))
+  end
+
+  # The report's run section records what the run did, not the raw flag.
+  it "records the effective survivor confirmation and DSL judging", :aggregate_failures do
+    effective =
+      lambda do |options|
+        Kimera::CLI::Run::Cycle.new(options, nil, nil, digest: nil).__send__(:provenance)
+          .slice("judge_isolated_only", "confirm_survivors")
+      end
+    expect(effective.call(since: "HEAD~1")).to(eq("judge_isolated_only" => true, "confirm_survivors" => true))
+    expect(effective.call({})).to(eq("judge_isolated_only" => false, "confirm_survivors" => false))
+    expect(effective.call(since: "HEAD~1", confirm_survivors: false)).to(include("confirm_survivors" => false))
+  end
+
   it "prints shell completion scripts and a command suggestion" do
     out, error = captured
     expect(Kimera::CLI::Completion.new(io: out, errors: error).run(["bash"])).to(eq(0))
