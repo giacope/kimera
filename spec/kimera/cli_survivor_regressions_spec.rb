@@ -245,8 +245,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         report: nil, format: "text", fail_on_no_coverage: false, count_no_coverage: true, log: nil,
         framework: "rspec", source_root: ".", tests: [], exclude_tests: [], operators: [], jobs: 1
       }
-      Kimera::CLI::Run::Cycle.new(options, registry, digest: digest, alerts: alerts)
-        .__send__(:conclude, [], [], loaded)
+      Kimera::CLI::Run::Cycle.new(options, registry, digest: digest, alerts: alerts).__send__(:conclude, [], [], loaded)
       expect(digest).to(have_received(:emit).with(anything, registry, **emission(:list))) do |emitted, *|
         expect(emitted.counted).to(eq([:no_coverage]))
       end
