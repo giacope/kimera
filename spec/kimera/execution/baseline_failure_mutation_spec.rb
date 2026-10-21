@@ -157,7 +157,8 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
   it "loads configured plugins before constructing the run cycle" do
     runner = Kimera::CLI::Run.new
     options = { require: ["plugin.rb"], source_root: "/project", since: "main" }
-    registry = Object.new
+    registry = instance_double(Kimera::Registry)
+    allow(registry).to(receive(:narrowed).with(["a.rb"]).and_return(registry))
     sources = instance_double(Kimera::CLI::Run::Sources, load: registry)
     allow(Kimera::CLI::Run::Sources).to(receive(:new).and_return(sources))
     diff = instance_double(Kimera::Incremental::GitDiff, lines: ["a.rb"])
@@ -249,9 +250,10 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     session = Kimera::Incremental::Session.new(results: { 1 => result.call(1), 2 => result.call(2) }, leaks: leaks)
     allow(session).to(receive(:stale?) { |id, _registry| id == 2 })
 
-    session.prune!(Object.new)
-    expect(session.results.keys).to(eq([1]))
-    expect(session.leaks.map(&:mutant_id)).to(eq([1]))
+    pruned = session.pruned(Object.new)
+    expect(pruned.results.keys).to(eq([1]))
+    expect(pruned.leaks.map(&:mutant_id)).to(eq([1]))
+    expect(session.results.keys).to(eq([1, 2]))
   end
 
   it "describes missing, signaled, and exited worker statuses" do

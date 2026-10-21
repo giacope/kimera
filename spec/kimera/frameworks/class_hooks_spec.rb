@@ -65,10 +65,22 @@ RSpec.describe(Kimera::Frameworks::ClassHooks) do
     expect(described_class.new(hooked(run: false)).run { :never }).to(be_nil)
   end
 
-  it "reports the reporter as passed until a hook fails", :aggregate_failures do
-    hooks = described_class.new(hooked)
-    expect(hooks.passed?).to(be(true))
-    hooks.record(result(passed: false))
-    expect(hooks.passed?).to(be(false))
+  # Minitest's info handler asks the reporter passed? when it prints results.
+  it "hands the handler a reporter that has passed until a hook fails", :aggregate_failures do
+    said = []
+    klass =
+      Class.new do
+        define_singleton_method(:with_info_handler) do |reporter, &block|
+          said << reporter.passed?
+          reporter.record(Struct.new(:passed?, :skipped?).new(true, false))
+          reporter.record(Struct.new(:passed?, :skipped?).new(false, true))
+          said << reporter.passed?
+          reporter.record(Struct.new(:passed?, :skipped?).new(false, false))
+          said << reporter.passed?
+          block.call
+        end
+      end
+    described_class.new(klass).run { :ran }
+    expect(said).to(eq([true, true, false]))
   end
 end

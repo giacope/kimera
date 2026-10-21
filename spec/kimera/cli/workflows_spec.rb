@@ -248,6 +248,21 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     expect(test_initialized(tests.merge("spec/a_spec.rb" => ""))["framework"]).not_to(eq("minitest"))
   end
 
+  it "reads Minitest tests under test/ before a helper that names RSpec", :aggregate_failures do
+    helper = { "test/helper.rb" => "require \"rspec/mocks\"\n" }
+    minitest = helper.merge("test/calc_test.rb" => "class CalcTest < Minitest::Test\nend\n")
+    expect(test_initialized(minitest)["framework"]).to(eq("minitest"))
+    expect(test_initialized(helper.merge("test/calc_test.rb" => "class CalcTest\nend\n"))["framework"]).to(eq("rspec"))
+  end
+
+  it "reads a spec helper that runs Minitest as Minitest, whatever else it loads" do
+    helper = {
+      "spec/spec_helper.rb" => "require \"minitest/autorun\"\nrequire \"rspec/mocks\"\n",
+      "spec/a_spec.rb" => ""
+    }
+    expect(test_initialized(helper)["framework"]).to(eq("minitest"))
+  end
+
   it "writes at most four workers" do
     allow(Etc).to(receive(:nprocessors).and_return(16))
     expect(test_initialized("spec/a_spec.rb" => "")["jobs"]).to(eq(4))

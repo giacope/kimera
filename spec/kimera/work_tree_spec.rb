@@ -73,4 +73,54 @@ RSpec.describe(Kimera::WorkTree, :aggregate_failures) do
       expect(warning.lines.last).to(eq("  … and 2 more"))
     end
   end
+
+  it "sees a tracked file of any kind under git, and only Ruby files without it", :aggregate_failures do
+    project(git: true) do |root|
+      File.write(File.join(root, "fixture.txt"), "x\n")
+      commit(root)
+      expect(changes(root) { File.delete(File.join(root, "fixture.txt")) }).to(eq(["fixture.txt"]))
+    end
+    project(git: false) do |root|
+      File.write(File.join(root, "fixture.txt"), "x\n")
+      expect(changes(root) { File.delete(File.join(root, "fixture.txt")) }).to(be_empty)
+    end
+  end
+
+  it "leaves what the run writes under tmp, and a directory that only looks like a Ruby file" do
+    project(git: false) do |root|
+      FileUtils.mkdir_p(File.join(root, "tmp", "cache"))
+      File.write(File.join(root, "tmp", "cache", "x.rb"), "1\n")
+      FileUtils.mkdir_p(File.join(root, "lib", "odd.rb"))
+      changed =
+        changes(root) do
+          File.write(File.join(root, "tmp", "cache", "x.rb"), "22\n")
+          File.write(File.join(root, "lib", "odd.rb", "inside"), "")
+        end
+      expect(changed).to(be_empty)
+    end
+  end
+
+  it "compares Ruby files by size and mtime when git is missing" do
+    project(git: true) do |root|
+      allow(Open3).to(receive(:capture2e).and_raise(Errno::ENOENT))
+      expect(changes(root) { File.write(File.join(root, "b.rb"), "22\n") }).to(eq(["b.rb"]))
+    end
+  end
+
+  it "leaves a tracked file kimera itself writes, such as its report" do
+    project(git: true) do |root|
+      report = File.join(root, "report.json")
+      File.write(report, "{}")
+      commit(root)
+      expect(changes(root, ignored: [report, nil]) { File.write(report, "{\"x\": 1}") }).to(be_empty)
+      expect(changes(root, ignored: [nil]) { File.write(report, "{\"x\": 2}") }).to(eq(["report.json"]))
+    end
+  end
+
+  it "lists one change without an overflow line" do
+    project(git: false) do |root|
+      _, warning = described_class.new(root).watch { File.write(File.join(root, "a.rb"), "changed\n") }
+      expect(warning.lines.map(&:chomp).last).to(eq("  a.rb"))
+    end
+  end
 end

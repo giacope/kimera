@@ -32,7 +32,6 @@ class Kimera::Execution::NumberedDatabases
   private
 
   def renamed(number)
-    return [] unless defined?(Rails) && defined?(ActiveRecord::Base)
     numbered(number) { configurations }.configs_for(env_name: environment).reject { |config| same?(config) }
   rescue StandardError
     []

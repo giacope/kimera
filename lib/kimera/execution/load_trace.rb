@@ -65,7 +65,7 @@ class Kimera::Execution::LoadTrace
     runs[file] << [event, trace.lineno] if RAN.key?(event)
   end
 
-  def required(files) = $LOADED_FEATURES.each { |feature| touched << files[feature] if files.key?(feature) }
+  def required(files) = touched.merge($LOADED_FEATURES.filter_map { |feature| files[feature] })
 
   def loaded(file, lines)
     spans = spans(Kimera::Syntax.parse(File.read(File.join(root, file), encoding: Encoding::UTF_8)).value, lines)

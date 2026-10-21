@@ -8,7 +8,6 @@ require_relative "memory_databases"
 # mirror whose suite drops and re-creates the test database at load.
 class Kimera::Execution::ParentConnections
   def release!
-    return unless defined?(ActiveRecord::Base)
     return if Kimera::Execution::MemoryDatabases.new.current?
     pools.each(&:disconnect!)
   rescue StandardError

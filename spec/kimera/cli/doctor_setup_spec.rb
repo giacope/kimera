@@ -26,6 +26,7 @@ RSpec.describe(Kimera::CLI::Doctor, :aggregate_failures) do
     )
     expect(doctor.__send__(:prism, "1.9.0", "4.0.7")).to(eq(["✓", "Prism: 1.9.0"]))
     expect(doctor.__send__(:prism, "1.6.0", "3.4.8")).to(eq(["✓", "Prism: 1.6.0"]))
+    expect(doctor.__send__(:prism, "1.8.1", "4.0").first).to(eq("!"))
   end
 
   # K3-1: on an engine doctor said no Rails-specific parallel setup was needed.

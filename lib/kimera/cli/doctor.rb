@@ -34,13 +34,17 @@ class Kimera::CLI::Doctor
   def run(argv)
     _, options = OPTIONS.parse(argv, { check_baseline: false })
     config = Kimera::Config.new(File.join(@root, Kimera::Config::DEFAULT_PATH)).options.merge(options.slice(:jobs))
-    @env.store(Kimera::Frameworks::LoadPath::VARIABLE, Array(config[:load_path]).join(File::PATH_SEPARATOR))
+    expose(config)
     list.verdict(checks(config, options))
   rescue Kimera::UsageError => error
     usage(error)
   end
 
   private
+
+  def expose(config, env = @env)
+    env.store(Kimera::Frameworks::LoadPath::VARIABLE, Array(config[:load_path]).join(File::PATH_SEPARATOR))
+  end
 
   def usage(error)
     @errors.puts("kimera: #{error.message}")

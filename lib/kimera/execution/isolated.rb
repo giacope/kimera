@@ -36,7 +36,6 @@ class Kimera::Execution::IsolatedExecution
   def verify!(ids = nil)
     tests = ids ? needed(ids) : plan.suite
     return if tests.empty?
-    ready!
     progress.note("isolated baseline (unmutated mirror)")
     outcome = with_mirror { |mirror| verdict(mirror, tests) }
     return if outcome.status == :survived
@@ -45,7 +44,6 @@ class Kimera::Execution::IsolatedExecution
   end
 
   def run(ids: self.ids, label: "mutants")
-    ready!
     progress.start(ids.size, label)
     report(ids)
   ensure
@@ -53,7 +51,6 @@ class Kimera::Execution::IsolatedExecution
   end
 
   def rejudge(warm, label:)
-    ready!
     announce(warm.size, label)
     verdicts = alone(warm.map(&:mutant_id))
     warm.map { |result| noted(verdicts.fetch(result.mutant_id), result) }
@@ -62,6 +59,11 @@ class Kimera::Execution::IsolatedExecution
   end
 
   private
+
+  def with_mirror(&)
+    ready!
+    super
+  end
 
   def ready!
     Kimera::Execution::ParentConnections.new.release!

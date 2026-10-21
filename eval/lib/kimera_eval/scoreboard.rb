@@ -15,7 +15,7 @@ module KimeraEval
     end
 
     def record(kind, result, wall)
-      @cases[kind::ID] = { "title" => kind::TITLE, "wall_s" => wall.round(1) }.merge(result)
+      @cases[kind::ID] ||= { "title" => kind::TITLE, "wall_s" => wall.round(1) }.merge(result)
     end
 
     def to_h

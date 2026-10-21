@@ -337,12 +337,25 @@ RSpec.describe(Kimera::Frameworks::RSpecAdapter) do
   # trace, not when the adapter is built.
   it "applies the working directory's .rspec, loading its requires with the test files", :aggregate_failures do
     configuration
+    File.write(File.join(dir, ".rspec"), "--require ./dotrspec_probe\n--default-path dotspec\n")
+    path = RSpec.configuration.default_path
     built = Dir.chdir(dir) { quietly { described_class.build } }
     expect($probe).to(be_nil)
+    expect(RSpec.configuration.default_path).to(eq("dotspec"))
     Dir.chdir(dir) { quietly { built.source([]) } }
     expect($probe).to(be(true))
   ensure
     $probe = nil
+    RSpec.configuration.default_path = path
+  end
+
+  # rspec puts lib and the spec folder on the load path whatever .rspec says.
+  it "puts the project's lib folder on the load path before loading test files" do
+    FileUtils.mkdir_p([File.join(dir, "lib"), File.join(dir, "spec")])
+    added = []
+    allow(RSpec::Core::RubyProject).to(receive(:add_to_load_path) { |*dirs| added.concat(dirs) })
+    Dir.chdir(dir) { quietly { described_class.build.source([]) } }
+    expect(added).to(include("lib"))
   end
 
   it "returns passed for an empty / unknown selection", :aggregate_failures do

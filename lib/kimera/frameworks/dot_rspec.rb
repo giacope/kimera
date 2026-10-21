@@ -19,7 +19,7 @@ class Kimera::Frameworks::DotRspec
   end
 
   def preload(config)
-    config.requires = requires unless requires.empty?
+    config.requires = requires
   rescue StandardError, ScriptError
     nil
   end

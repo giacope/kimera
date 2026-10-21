@@ -59,6 +59,30 @@ RSpec.describe(Kimera::Execution::LoadTrace, :aggregate_failures) do
     expect(point("val >= 0").revisit).to(eq(Kimera::MutationPoint::BOOT_REASON))
   end
 
+  it "ignores what runs outside the in-scope files while the suite loads" do
+    trace.record do
+      load(file)
+      [1].each { |n| n + 1 }
+    end
+    expect { trace.quarantine!({}) }.not_to(raise_error)
+    expect(point("val >= 0").unsafe_reason).to(eq(Kimera::MutationPoint::LOAD_REASON))
+  end
+
+  # A macro that defines a method with def at load: the method holds what
+  # the original macro defined, which the warm overlay cannot replace.
+  it "keeps a method a load-time macro defines inside the macro's span" do
+    nested =
+      File.join(dir, "nested.rb").tap do |path|
+        File.write(path, "class LoadBlocks\n  def self.make\n    def built(a) = a > 1\n  end\n  make\nend\n")
+      end
+    scan = Kimera::RegistryScan.new(root: dir).build([nested])
+    watched = described_class.new(scan, dir)
+    watched.record { load(nested) }
+    watched.quarantine!({})
+    built = scan.points.find { |found| found.original_source == "a > 1" }
+    expect(built.unsafe_reason).to(eq(Kimera::MutationPoint::LOAD_REASON))
+  end
+
   it "knows which in-scope files the suite loaded" do
     other = File.join(dir, "other.rb").tap { |path| File.write(path, "class LoadBlocksOther; end\n") }
     scan = Kimera::RegistryScan.new(root: dir).build([file, other])

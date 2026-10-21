@@ -187,6 +187,21 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       expect(shared(":memory:", adapter: "sqlite3")).to(be_empty)
     end
 
+    # K3-5: the parent's own connections block a fork's database.
+    it "closes the parent's connections before the workers fork" do
+      parent = instance_double(Kimera::Execution::ParentConnections, release!: nil)
+      allow(Kimera::Execution::ParentConnections).to(receive(:new).and_return(parent))
+      databases.before_fork
+      expect(parent).to(have_received(:release!))
+    end
+
+    it "says nothing of one worker, which has the database to itself" do
+      record("app_test", adapter: "postgresql")
+      allow(ActiveRecord::Base).to(receive(:connection_handler).and_return(double(connection_pool_list: [])))
+      described_class.new(jobs: 1, errors: errors).before_fork
+      expect(errors.string).to(be_empty)
+    end
+
     it "creates and loads each numbered database once, before the workers fork" do
       switch(false)
       record("app_test", adapter: "postgresql")
@@ -260,16 +275,19 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
 
     let(:errors) { StringIO.new }
 
-    def rails(names)
+    def rails(names, env = ENV)
       configurations =
         Class.new do
           define_method(:initialize) do |*|
             @named =
-              names.call(ENV.fetch("TEST_ENV_NUMBER", nil)).map do |db|
+              names.call(env.fetch("TEST_ENV_NUMBER", nil)).map do |db|
                 Struct.new(:name, :database).new("primary", db)
               end
           end
-          define_method(:configs_for) { |**options| options[:name] ? @named.first : @named }
+          define_method(:configs_for) do |env_name:, name: nil|
+            named = env_name == "test" ? @named : []
+            name ? named.first : named
+          end
         end
       stub_const("ActiveRecord::DatabaseConfigurations", configurations)
       stub_const("ActiveRecord::ConnectionHandling::DEFAULT_ENV", -> { "test" })
@@ -314,6 +332,21 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       expect(ActiveRecord::Base).to(have_received(:establish_connection))
       expect(ENV.key?("TEST_ENV_NUMBER")).to(be(false))
       expect(ActiveRecord::Base.configurations.configs_for(env_name: "test").map(&:database)).to(eq(["app_test2"]))
+    end
+
+    it "restores a TEST_ENV_NUMBER it found set, and reads the suite's own environment", :aggregate_failures do
+      env = { "TEST_ENV_NUMBER" => "7" }
+      rails(->(number) { ["app_test#{number}"] }, env)
+      described_class.new(errors: errors, env: env).adopt(1)
+      expect(env).to(eq("TEST_ENV_NUMBER" => "7"))
+      expect(ActiveRecord::Base).to(have_received(:establish_connection))
+      bare = {}
+      rails(->(number) { ["app_test#{number}"] }, bare)
+      described_class.new(errors: errors, env: bare).adopt(1)
+      expect(bare).to(eq({}))
+      expect(ActiveRecord::Base).to(have_received(:establish_connection))
+      stub_const("ActiveRecord::ConnectionHandling::DEFAULT_ENV", -> { "development" })
+      expect(described_class.new(errors: errors).numbered?).to(be(false))
     end
 
     it "stays on the parent's database when the name does not change" do

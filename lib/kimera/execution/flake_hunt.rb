@@ -24,19 +24,21 @@ class Kimera::Execution::FlakeHunt
 
   private
 
-  def hunt(tests, seeds)
-    saved = @env[Kimera::Execution::SEED_ENV]
+  def hunt(tests, seeds, env = @env)
+    saved = env[Kimera::Execution::SEED_ENV]
     Kimera::Execution::FlakeRecord.new(tests, seeds).tap do |record|
-      seeds.each.with_index(1) { |seed, round| sweep(tests, seed, record, "flaky check #{round}/#{seeds.size}") }
+      seeds.each.with_index(1) do |seed, round|
+        env[Kimera::Execution::SEED_ENV] = seed.to_s
+        sweep(tests, seed, record, "flaky check #{round}/#{seeds.size}")
+      end
     end
   ensure
-    saved ? @env.store(Kimera::Execution::SEED_ENV, saved) : @env.delete(Kimera::Execution::SEED_ENV)
+    saved ? env.store(Kimera::Execution::SEED_ENV, saved) : env.delete(Kimera::Execution::SEED_ENV)
   end
 
   def series(seed, runs) = Array.new(runs) { |index| seed ? (seed + index + 1) % RANGE : Random.new_seed % RANGE }
 
   def sweep(tests, seed, record, label)
-    @env[Kimera::Execution::SEED_ENV] = seed.to_s
     @progress.start(tests.size, "#{label} (seed #{seed})")
     listeners = Kimera::Execution::WorkerPool::Listeners.new(
       resolve: ->(message) { record.note(message, seed).then { @progress.tick } },

@@ -58,13 +58,13 @@ module Kimera
       out, = Open3.capture2("git", "-C", root, "status", "--porcelain", "--untracked-files=no", "-z")
       out.split("\0").each_with_object({}) do |entry, found|
         path = entry[3..]
-        found[path] = [entry[0, 2], *stat(path)] if path
+        found[path] = [entry[0, 2], *stat(path)]
       end
     end
 
     def walked
       Dir.glob("**/*.rb", base: root).lazy
-        .reject { |path| SKIPPED.include?(path.split("/").first) || File.directory?(File.join(root, path)) }
+        .select { |path| File.file?(File.join(root, path)) }
         .first(BOUND).to_h { |path| [path, stat(path)] }
     end
 
@@ -77,7 +77,7 @@ module Kimera
 
     def ignored?(path)
       full = File.expand_path(path, root)
-      @ignored.compact.any? { |kept| File.expand_path(kept, root) == full } || SKIPPED.include?(path.split("/").first)
+      SKIPPED.include?(path.split("/").first) || @ignored.compact.any? { |kept| File.expand_path(kept, root) == full }
     end
   end
 end

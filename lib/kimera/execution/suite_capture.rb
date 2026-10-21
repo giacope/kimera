@@ -7,7 +7,7 @@ class Kimera::Execution::SuiteCapture
   include Kimera::Execution::ChildProcess
 
   POLL = 0.2
-  TICK = 30
+  TICKS = 150
   OVERDUE = "the suite did not exit within %s s (a hook, or a parallel worker, that never returns?); " \
     "run it yourself to see where it stops"
 
@@ -29,13 +29,13 @@ class Kimera::Execution::SuiteCapture
 
   def waited(pid, limit, log)
     started = now
-    loop do
+    (1..).each do |poll|
       _, status = Process.wait2(pid, Process::WNOHANG)
       return status.tap { signal(-pid) } if status
       elapsed = now - started
       return overdue(pid, limit, log) if elapsed > limit
       sleep(POLL)
-      tick(elapsed) if elapsed >= TICK && (elapsed % TICK) < POLL
+      tick(elapsed) if (poll % TICKS).zero?
     end
   end
 
@@ -43,7 +43,6 @@ class Kimera::Execution::SuiteCapture
 
   def overdue(pid, limit, log)
     stop(-pid)
-    reap(pid)
     log.write("\n#{format(OVERDUE, limit)}\n")
     log.flush
     Overdue.new(limit)

@@ -30,8 +30,10 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
 
   def failures = { "t1" => "SystemStackError: stack level too deep\n  frame", "t2" => nil }
 
-  it "says nothing when no baseline test failed" do
-    expect(screen.call({})).to(be_nil)
+  it "says nothing, and reruns nothing, when no baseline test failed", :aggregate_failures do
+    ran = []
+    expect(screen(ran: ran).call({})).to(be_nil)
+    expect(ran).to(be_empty)
   end
 
   it "reruns the failing tests in the project root, outside kimera", :aggregate_failures do

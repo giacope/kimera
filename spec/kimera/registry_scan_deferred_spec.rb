@@ -61,7 +61,7 @@ RSpec.describe(Kimera::RegistryScan) do
 
   it "narrows its regions to the changed lines of the files that changed" do
     registry = scan("class W\n  X = [1].map { |n| n > 0 }\n  Y = [2].map { |n| n > 0 }\nend\n")
-    expect(registry.narrow!("widget.rb" => Set[3]).unmutated.map(&:start_line)).to(eq([3]))
+    expect(registry.narrowed("widget.rb" => Set[3]).unmutated.map(&:start_line)).to(eq([3]))
   end
 
   it "reports a block inside a class-level block as part of the outer one" do
