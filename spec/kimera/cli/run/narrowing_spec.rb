@@ -84,5 +84,53 @@ RSpec.describe(Kimera::CLI::Run::Narrowing) do
       expect(lines.first).to(start_with("mutants=0"))
       expect(provenance).to(include("narrowed" => false))
     end
+
+    def adapter_for(*argv)
+      built = []
+      allow(Kimera::Execution::Harness).to(receive(:build).and_wrap_original) do |original, **kwargs|
+        built << kwargs[:adapter]
+        original.call(**kwargs).tap do |harness|
+          allow(harness).to(receive(:warm!))
+          allow(harness).to(receive(:run).and_return(Kimera::RunReport.new(results: [])))
+        end
+      end
+      Kimera::CLI::Run.new(io: StringIO.new, errors: StringIO.new).run(["calc.rb", "--report", "report.json", *argv])
+      [built.first, JSON.parse(File.read("report.json"))["run"]]
+    end
+
+    # rack's one root-only test, without the other 26 in its file.
+    it "leaves out the tests --exclude-test-name names, and records the pattern", :aggregate_failures do
+      adapter, provenance = adapter_for("--exclude-test-name", "unreadable", "--exclude-test-name", "root only")
+      expect(adapter).to(be_a(Kimera::Frameworks::NameExclusion))
+      expect(adapter.instance_variable_get(:@patterns)).to(eq(["unreadable", "root only"]))
+      expect(provenance).to(include("exclude_test_names" => ["unreadable", "root only"]))
+      plain, = adapter_for
+      expect(plain).not_to(be_a(Kimera::Frameworks::NameExclusion))
+      expect(plain).to(be_a(Kimera::Frameworks::Adapter))
+    end
+
+    def uncovered(*argv)
+      mutant = Kimera::MutantResult.new(mutant_id: 1, status: :no_coverage, file: "calc.rb")
+      allow(Kimera::Execution::Harness).to(receive(:build).and_wrap_original) do |original, **kwargs|
+        original.call(**kwargs).tap do |harness|
+          allow(harness).to(receive(:warm!))
+          allow(harness).to(receive(:run).and_return(Kimera::RunReport.new(results: [mutant])))
+        end
+      end
+      out = StringIO.new
+      Kimera::CLI::Run.new(io: out, errors: StringIO.new).run(["calc.rb", "--report", "report.json", *argv])
+      out.string
+    end
+
+    it "heads a narrowed run's uncovered mutants as not covered by the narrowed tests", :aggregate_failures do
+      expect(uncovered("--tests", "spec/a_spec.rb", "--no-count-no-coverage")).to(
+        include("1 mutant(s) not covered by the narrowed tests; list them with")
+      )
+      expect(uncovered("--no-count-no-coverage")).to(include("1 mutant(s) have no covering test; list them with"))
+      expect(uncovered("--tests", "spec/a_spec.rb", "--fail-on-no-coverage")).to(
+        include("Mutants not covered by the narrowed tests (1):")
+      )
+      expect(uncovered("--fail-on-no-coverage")).to(include("Mutants with no covering test (1):"))
+    end
   end
 end
