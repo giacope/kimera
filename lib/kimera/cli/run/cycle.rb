@@ -74,7 +74,7 @@ class Kimera::CLI::Run::Cycle
   end
 
   def narrow(detail)
-    detail == Kimera::MutationPoint::NEVER_LOADED ? detail : NARROWED
+    detail.nil? || detail == Kimera::MutationPoint::UNEXECUTED ? NARROWED : detail
   end
 
   def emission

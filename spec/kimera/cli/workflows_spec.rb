@@ -214,7 +214,45 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     plain = test_initialized("test/test_helper.rb" => "require 'minitest'\n", "test/system/x_test.rb" => "")
     expect(plain).not_to(have_key("exclude_tests"))
     rspec = rails.merge("spec/system/x_spec.rb" => "", ".rspec" => "")
-    expect(test_initialized(rspec)).not_to(have_key("exclude_tests"))
+    expect(test_initialized(rspec)).to(include("exclude_tests" => ["spec/system/**/*_spec.rb"]))
+  end
+
+  # K3-1: RSpec Rails apps keep their browser specs in spec/system and spec/features.
+  it "leaves an RSpec Rails app's system and feature specs out", :aggregate_failures do
+    app = { "config/application.rb" => "", ".rspec" => "", "spec/models/a_spec.rb" => "" }
+    both = test_initialized(app.merge("spec/system/x_spec.rb" => "", "spec/features/y_spec.rb" => ""))
+    expect(both).to(include("exclude_tests" => %w[spec/system/**/*_spec.rb spec/features/**/*_spec.rb]))
+    features = test_initialized(app.merge("spec/features/y_spec.rb" => ""))
+    expect(features).to(include("exclude_tests" => ["spec/features/**/*_spec.rb"]))
+    expect(test_initialized(app)).not_to(have_key("exclude_tests"))
+  end
+
+  # F4: an engine is any lib file that subclasses Rails::Engine, not only engine.rb.
+  it "knows an engine declared outside engine.rb, with its dummy app" do
+    engine = {
+      "lib/blog/railtie_engine.rb" => "module Blog\n  class Core < ::Rails::Engine\n  end\nend\n",
+      "spec/dummy/config/application.rb" => "", ".rspec" => "", "spec/models/a_spec.rb" => ""
+    }
+    expect(test_initialized(engine)["operators"]).to(include("rails"))
+    expect(test_initialized(engine.except("spec/dummy/config/application.rb"))).not_to(have_key("operators"))
+  end
+
+  # R3K4: jekyll's helper requires minitest/autorun and rspec/mocks.
+  it "calls a suite whose helper runs Minitest minitest, whatever else it loads", :aggregate_failures do
+    helper = "require \"minitest/autorun\"\nrequire \"rspec/mocks\"\n"
+    expect(test_initialized("test/helper.rb" => helper, "test/test_calc.rb" => "")).to(
+      include("framework" => "minitest", "tests" => ["test/**/test_*.rb"])
+    )
+    tests = { "test/calc_test.rb" => "class CalcTest < Minitest::Test\nend\n", "spec_helper.rb" => "RSpec" }
+    expect(test_initialized(tests)["framework"]).to(eq("minitest"))
+    expect(test_initialized(tests.merge("spec/a_spec.rb" => ""))["framework"]).not_to(eq("minitest"))
+  end
+
+  it "writes at most four workers" do
+    allow(Etc).to(receive(:nprocessors).and_return(16))
+    expect(test_initialized("spec/a_spec.rb" => "")["jobs"]).to(eq(4))
+    allow(Etc).to(receive(:nprocessors).and_return(2))
+    expect(test_initialized("spec/a_spec.rb" => "")["jobs"]).to(eq(2))
   end
 
   # Sequel and graphql-ruby keep Minitest specs under spec/ with no helper

@@ -1,11 +1,13 @@
 # frozen_string_literal: true
 
+require "prism"
 require_relative "../error"
 require_relative "../scope/config"
 require_relative "../scope/file_set"
 require_relative "checklist"
 require_relative "coverage_minimum"
 require_relative "flag"
+require_relative "rails_layout"
 require_relative "test_command"
 
 class Kimera::CLI::Doctor
@@ -46,7 +48,7 @@ class Kimera::CLI::Doctor
   end
 
   def checks(config, options)
-    [configuration(config), framework(config), sources(config), tests(config), git, rails]
+    [configuration(config), framework(config), sources(config), tests(config), git, rails, prism]
       .concat(floor).each { |check| shown(check) } + suite(config, options)
   end
 
@@ -95,7 +97,13 @@ class Kimera::CLI::Doctor
     ["✓", "Runtime: no Rails-specific parallel setup required"]
   end
 
-  def rails? = File.file?(File.join(@root, "config", "application.rb"))
+  def rails? = Kimera::CLI::RailsLayout.new(@root).rails?
+
+  def prism(version = Prism::VERSION, ruby = RUBY_VERSION)
+    old = Gem::Version.new(ruby) >= Gem::Version.new("4.0") && Gem::Version.new(version) < Gem::Version.new("1.9")
+    return ["✓", "Prism: #{version}"] unless old
+    ["!", "Prism: #{version} is older than Ruby #{ruby} needs (1.9); run `bundle update --conservative prism`"]
+  end
 
   def floor
     helper = glob(HELPERS).find { |path| floor?(path) }

@@ -7,6 +7,7 @@ require_relative "../scope/config"
 require_relative "../scope/file_set"
 require_relative "config_template"
 require_relative "flag"
+require_relative "rails_layout"
 
 class Kimera::CLI::Init
   OPTIONS = Kimera::FlagTable.new(
@@ -19,12 +20,15 @@ class Kimera::CLI::Init
 
   HELPERS = %w[spec/spec_helper.rb spec/rails_helper.rb spec/helper.rb test/test_helper.rb test/helper.rb].freeze
   MINITEST_GLOBS = %w[test/**/*_test.rb test/**/test_*.rb test/**/spec_*.rb spec/**/*_spec.rb].freeze
-  SYSTEM_TESTS = "test/system/**/*_test.rb"
+  BROWSER_TESTS = {
+    "minitest" => %w[test/system/**/*_test.rb],
+    "rspec" => %w[spec/system/**/*_spec.rb spec/features/**/*_spec.rb]
+  }.freeze
+  JOBS = 4
+  MINITEST = %r{minitest/autorun|Minitest::Test|ActiveSupport::TestCase}
   LOCKS = %w[Gemfile.lock gems.locked].freeze
   LOCKED = { "rspec" => /^    rspec-core \(/, "minitest" => /^    minitest \(/ }.freeze
   DOCUMENT = ->(**fields) { fields.transform_keys(&:to_s) }
-  DUMMIES = %w[spec/dummy test/dummy].freeze
-  ENGINE = /<\s*(?:::)?Rails::Engine\b|^\s*isolate_namespace\b/
 
   def initialize(io: $stdout, errors: $stderr, root: ".")
     @io = io
@@ -70,23 +74,16 @@ class Kimera::CLI::Init
   def detected
     DOCUMENT.call(
       framework: framework, paths: sources, tests: tests, **browserless, **rails_operators,
-      jobs: [Etc.nprocessors, 8].min, max_survivors: 0, max_errors: 0, count_no_coverage: true
+      jobs: [Etc.nprocessors, JOBS].min, max_survivors: 0, max_errors: 0, count_no_coverage: true
     )
   end
 
-  def browserless = rails? && Dir.glob(File.join(@root, SYSTEM_TESTS)).any? ? { exclude_tests: [SYSTEM_TESTS] } : {}
+  def browserless
+    present = BROWSER_TESTS.fetch(framework, []).select { |glob| Dir.glob(File.join(@root, glob)).any? }
+    rails_app? && present.any? ? { exclude_tests: present } : {}
+  end
 
-  def rails? = framework == "minitest" && rails_app?
-
-  def rails_app? = application? || engine?
-
-  def application? = File.file?(File.join(@root, "config", "application.rb"))
-
-  def engine? = dummy? && Dir.glob(File.join(@root, "lib", "**", "engine.rb")).any? { engine_class?(it) }
-
-  def dummy? = DUMMIES.any? { File.file?(File.join(@root, it, "config", "application.rb")) }
-
-  def engine_class?(path) = File.read(path, encoding: Encoding::UTF_8).scrub.match?(ENGINE)
+  def rails_app? = Kimera::CLI::RailsLayout.new(@root).rails?
 
   def rails_operators = rails_app? ? { operators: [*Kimera::Operators::DEFAULT_KEYS, "rails"] } : {}
 
@@ -94,11 +91,20 @@ class Kimera::CLI::Init
 
   def declared
     return "rspec" if File.file?(File.join(@root, ".rspec"))
+    return "minitest" if minitest_only?
     helper = present(HELPERS)
     helper && framework_named_in(File.read(helper, encoding: Encoding::UTF_8).scrub)
   end
 
+  def minitest_only?
+    return false if File.directory?(File.join(@root, "spec"))
+    Dir.glob(File.join(@root, "test", "**", "*.rb")).first(200).any? { |path| text(path).match?(MINITEST) }
+  end
+
+  def text(path) = File.read(path, encoding: Encoding::UTF_8).scrub
+
   def framework_named_in(text)
+    return "minitest" if text.match?(MINITEST)
     return "rspec" if text.match?(/\bRSpec\b|require\s*\(?\s*["']rspec/)
     "minitest" if text.match?(/minitest/i)
   end

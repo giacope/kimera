@@ -9,7 +9,7 @@ require_relative "test_shard"
 class Kimera::CLI::TestCommand
   LOADER = "ARGV.map { |f| File.expand_path(f) }.tap { ARGV.clear }.each { |f| require(f) }"
   COUNT_LINE = /\d+ (?:failures?|examples?)\b/i
-  SUMMARIES = [COUNT_LINE, /failed|Error\b/i].freeze
+  SUMMARIES = [/did not exit within/, COUNT_LINE, /failed|Error\b/i].freeze
   RSPEC_RERUN = /^rspec (\S+) #/
   MINITEST_HEADER = /^\s*(?:\d+\) )?(?:Failure|Error):\n(.+?)(?: \[[^\]]*\])?:$/
   CULPRITS = [RSPEC_RERUN, MINITEST_HEADER].freeze
@@ -23,6 +23,9 @@ class Kimera::CLI::TestCommand
   SHARED = "red split across %d processes (jobs: %d), green in one: the suite shares state " \
     "between workers (a directory, file or port), which can turn `kimera run`'s baseline red; " \
     "use jobs: 1 until each test has its own"
+
+  ALLOWANCE = 120
+  PER_FILE = 5
 
   def initialize(framework, files, root:, jobs: 1)
     @framework = framework
@@ -69,7 +72,9 @@ class Kimera::CLI::TestCommand
   end
 
   def capture(command)
-    output, status = Kimera::Execution::SUITE.call(Kimera::Execution::SUITE_ENV, *command, chdir: @root)
+    output, status = Kimera::Execution::SUITE.call(
+      Kimera::Execution::SUITE_ENV, *command, chdir: @root, limit: ALLOWANCE + (PER_FILE * @files.size)
+    )
     [output.dup.force_encoding(Encoding::UTF_8).scrub, status]
   end
 

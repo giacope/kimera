@@ -3,7 +3,16 @@
 require_relative "warnings"
 require_relative "unparse_grouping"
 
-Kimera::Warnings::SILENCED.during { require "unparser" }
+begin
+  Kimera::Warnings::SILENCED.during { require "unparser" }
+rescue NameError => error
+  raise unless error.message.include?("Prism::Translation::Parser")
+  raise(
+    LoadError,
+    "prism #{Prism::VERSION} is too old for this unparser on Ruby #{RUBY_VERSION} (#{error.message}); " \
+      "run `bundle update --conservative prism` (Ruby 4.0 needs prism >= 1.9)"
+  )
+end
 
 module Kimera
   class Unparse
