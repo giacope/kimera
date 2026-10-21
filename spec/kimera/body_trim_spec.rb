@@ -90,6 +90,22 @@ RSpec.describe(Kimera::BodyTrim) do
     expect(kept(source, "args.size > 1")).to(eq(lines(source) - dropped))
   end
 
+  # A refinement is active only in the code compiled after `using` in the
+  # same file or class body. Blanked, the re-evaluated methods lose it and a
+  # refined call raises NoMethodError in the baseline.
+  it "keeps a using, at the top level and in a class body" do
+    source = <<~RUBY
+      require_relative "fault"
+      using Fault
+      class Words
+        using Loud
+        track :name
+        def to_s = @error.headline
+      end
+    RUBY
+    expect(kept(source, "@error.headline")).to(eq(lines(source) - ["track :name"]))
+  end
+
   describe "aliases" do
     let(:source) do
       <<~RUBY

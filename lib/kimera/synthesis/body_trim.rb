@@ -8,7 +8,7 @@ require_relative "guardrail_factories"
 module Kimera
   class BodyTrim
     VISIBILITY = %i[private protected public module_function private_class_method public_class_method].freeze
-    RERUN = %i[require require_relative ruby2_keywords].freeze
+    RERUN = %i[require require_relative ruby2_keywords using].freeze
     CONDITIONS = [Prism::IfNode, Prism::UnlessNode].freeze
     DECLARATIONS = %i[included prepended class_methods concerning class_eval module_eval class_exec module_exec].freeze
     FACTORIES = Kimera::GuardrailFactories::FACTORIES
