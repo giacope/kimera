@@ -61,8 +61,7 @@ class Kimera::Execution::LoadTrace
   def hit(file, trace)
     return unless file
     touched << file
-    event = trace.event
-    runs[file] << [event, trace.lineno] if RAN.key?(event)
+    runs[file] << [trace.event, trace.lineno]
   end
 
   def required(files) = touched.merge($LOADED_FEATURES.filter_map { |feature| files[feature] })

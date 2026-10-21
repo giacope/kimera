@@ -101,7 +101,7 @@ RSpec.describe(Kimera::WorkTree, :aggregate_failures) do
   end
 
   it "compares Ruby files by size and mtime when git is missing" do
-    project(git: true) do |root|
+    project(git: false) do |root|
       allow(Open3).to(receive(:capture2e).and_raise(Errno::ENOENT))
       expect(changes(root) { File.write(File.join(root, "b.rb"), "22\n") }).to(eq(["b.rb"]))
     end

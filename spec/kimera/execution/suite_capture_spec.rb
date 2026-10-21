@@ -40,6 +40,15 @@ RSpec.describe(Kimera::Execution::SuiteCapture, :aggregate_failures) do
     end
   end
 
+  it "kills a suite that outlives its limit" do
+    Dir.mktmpdir do |root|
+      script = "echo $$ > #{root}/pid; exec sleep 30"
+      described_class.new(said).call({}, "sh", "-c", script, chdir: root, limit: 0.5)
+      pid = Integer(File.read(File.join(root, "pid")))
+      expect(File.exist?("/proc/#{pid}")).to(be(false))
+    end
+  end
+
   it "leaves nothing of the suite's process group behind", :aggregate_failures do
     expect(orphan(nil)).to(eq(:gone))
     expect(orphan(10)).to(eq(:gone))
