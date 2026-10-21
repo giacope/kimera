@@ -9,6 +9,16 @@ RSpec.describe(Kimera::SelfProtection) do
 
   def critical?(path) = described_class.new(path).critical?
 
+  describe "#own?" do
+    it "knows kimera's own source, through a relative path, and nothing else", :aggregate_failures do
+      expect(described_class.new(Kimera::Runtime::SOURCE_PATH).own?).to(be(true))
+      Dir.chdir(File.dirname(Kimera::Runtime::SOURCE_PATH)) { expect(described_class.new("cli.rb").own?).to(be(true)) }
+      expect(described_class.new("app/models/user.rb").own?).to(be(false))
+      expect(described_class.new("#{File.dirname(Kimera::Runtime::SOURCE_PATH)}x/a.rb").own?).to(be(false))
+      expect(described_class.new(__FILE__).own?).to(be(false))
+    end
+  end
+
   describe "#protected?" do
     it "protects the runtime selector's own source file" do
       expect(protected?(Kimera::Runtime::SOURCE_PATH)).to(be(true))

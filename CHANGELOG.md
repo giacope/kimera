@@ -53,6 +53,11 @@ seams around them, are fixed here.
 - Code that relies on a refinement runs warm: the trimmed overlay keeps its
   `using` lines, so a refined call no longer raises NoMethodError in the
   baseline.
+- A run on kimera itself numbers its mutants from 1,000,001. Kimera's own
+  specs drive the runtime with mutant ids from 1 (a nested harness forks a
+  real worker that switches on mutant 1), and in a self-run those specs ran
+  under the run's switches: whichever of the run's mutants shared the id
+  flipped in the spec's worker. A project's mutants still count from 1.
 
 Field test on ten MIT Ruby and Rails codebases (Sequel, YARD, graphql-ruby,
 ruby-lsp, Feedbin, Human Essentials, Chatwoot among them): 217 of 217 sampled

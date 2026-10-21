@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "kimera/registry/builder"
+require "tmpdir"
 
 RSpec.describe(Kimera::RegistryScan) do
   subject(:registry) { described_class.new.source(source, file: "account.rb") }
@@ -174,6 +175,21 @@ RSpec.describe(Kimera::RegistryScan) do
       counter = numbering
       expect([counter.point, counter.point, counter.point]).to(eq([1, 2, 3]))
       expect([counter.mutant, counter.mutant]).to(eq([1, 2]))
+    end
+
+    # Kimera's own specs drive the runtime with ids from 1 (a nested harness
+    # forks real workers that switch on mutant 1). A run on kimera itself
+    # numbers its mutants far above them, so a spec never switches one on.
+    it "numbers kimera's own mutants from OWN_FIRST, and a project's from 1", :aggregate_failures do
+      Dir.mktmpdir do |dir|
+        project = File.join(dir, "calc.rb")
+        File.write(project, "def a(x, y) = x > y\n")
+        own = File.join(File.dirname(Kimera::Runtime::SOURCE_PATH), "registry", "numbering.rb")
+        first = ->(paths) { described_class.new(root: "/").build(paths).each.map { |m, _p| m.id }.min }
+        expect(first.call([project])).to(eq(1))
+        expect(first.call([project, own])).to(eq(described_class::OWN_FIRST))
+        expect([numbering.point, Kimera::RegistryScan::Numbering.new(7).mutant]).to(eq([1, 7]))
+      end
     end
 
     it "numbers every point in a scan uniquely" do
