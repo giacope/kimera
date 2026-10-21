@@ -6,6 +6,8 @@ Kimera::Execution::Shift::Suspect =
   Data.define(:mutant_id, :test, :failure, :contradicted) do
     def final = Kimera::Execution::Shift::Doubt.new(**to_h)
 
+    def conclude = yield(self)
+
     def evidence
       return "passed when rerun with the mutant still on" unless contradicted
       "also failed with the mutant switched off (#{reason})"
@@ -23,7 +25,7 @@ Kimera::Execution::Shift::Crawl =
 
 Kimera::Execution::Shift::Doubt =
   Class.new(Kimera::Execution::Shift::Suspect) do
-    def ruling(subject) = subject.verdict(:harness_error, detail: unjudged)
+    def ruling(subject, _fields) = subject.verdict(:harness_error, detail: unjudged)
 
     def unjudged
       "#{test} #{evidence}, each run in a fresh process after the covering tests before it, and no other " \

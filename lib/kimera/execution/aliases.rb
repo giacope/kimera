@@ -25,6 +25,7 @@ class Kimera::Execution::Aliases
   def initialize(files)
     @files = files
     @entries = []
+    @orphans = []
   end
 
   def follow(&)
@@ -33,11 +34,11 @@ class Kimera::Execution::Aliases
   end
 
   def again
-    yield.tap { @entries.map! { |entry| repoint(entry) } }
+    yield.tap { [@entries, @orphans].each { |held| held.map! { |entry| repoint(entry) } } }
   end
 
   def witness(displaced = [])
-    @entries.map! { |entry| entry.is_a?(Orphan) ? adopt(entry, displaced) : entry }
+    @orphans.map! { |orphan| adopt(orphan, displaced) }
   end
 
   private
@@ -63,7 +64,8 @@ class Kimera::Execution::Aliases
 
   def enter(entry, file)
     origin = entry.holder.ancestors.find { |mod| resolves?(mod, entry.target, entry.body) }
-    @entries << (origin ? entry.with(origin: origin) : orphan(entry, file)) if origin || wrapped?(entry, file)
+    return @entries << entry.with(origin: origin) if origin
+    @orphans << orphan(entry, file) if wrapped?(entry, file)
   end
 
   def orphan(entry, file) = Orphan.new(entry.holder, entry.name, file, entry.target, entry.body, nil)

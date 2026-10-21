@@ -12,22 +12,12 @@ Kimera::Execution::Shift::Subject =
 
     def judged(outcome, tests, duration)
       fields = { duration: duration, covering_tests: tests }
-      return verdict(:survived, **fields) unless outcome
-      return verdict(:timeout, detail: outcome.detail, **fields) if timed?(outcome)
-      killed(outcome, **fields)
-    end
-
-    def timed?(outcome)
-      [Kimera::Execution::Shift::Overrun, Kimera::Execution::Shift::Stall].any? { outcome.is_a?(it) }
+      outcome ? outcome.ruling(self, fields) : verdict(:survived, **fields)
     end
 
     def crashed(error, limit, kind = error.class)
       message = error.message
       return verdict(:timeout, duration: limit, detail: message) if error.is_a?(Timeout::Error)
       verdict(:error, detail: "#{kind}: #{message}")
-    end
-
-    def killed(outcome, **fields)
-      verdict(:killed, failing_tests: outcome.failed_ids, detail: outcome.failures.values.first, **fields)
     end
   end

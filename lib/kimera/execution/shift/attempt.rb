@@ -30,8 +30,8 @@ class Kimera::Execution::Shift::Attempt
   end
 
   def settle(finding, doubts, verdict)
-    return verdict if verdict && !verdict.is_a?(Kimera::Execution::Shift::Suspect)
-    hunt(finding.onward, doubts + [verdict].compact)
+    return hunt(finding.onward, doubts) unless verdict
+    verdict.conclude { |suspect| hunt(finding.onward, doubts + [suspect]) }
   end
 
   def judge(finding)

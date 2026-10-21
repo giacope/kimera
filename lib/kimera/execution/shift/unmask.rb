@@ -18,8 +18,7 @@ class Kimera::Execution::Shift::Unmask
   private
 
   def alone(id, test)
-    verdict = @attempt.run(id, [test])
-    return if verdict.nil? || verdict.is_a?(Kimera::Execution::Shift::Doubt) || !@attempt.calm?(test)
-    verdict.noted(NOTE)
+    found = @attempt.run(id, [test])&.conclude { |_doubt| false }
+    found.noted(NOTE) if found && @attempt.calm?(test)
   end
 end

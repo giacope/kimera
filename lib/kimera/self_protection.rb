@@ -25,6 +25,7 @@ module Kimera
       kimera/execution/shift/deadline.rb
       kimera/execution/shift/overrun.rb
       kimera/execution/shift/expiry.rb
+      kimera/execution/shift/lapse.rb
       kimera/execution/shift/subject.rb
       kimera/execution/shift/suspect.rb
       kimera/execution/shift/probe.rb

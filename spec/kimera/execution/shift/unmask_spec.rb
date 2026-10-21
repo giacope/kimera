@@ -101,5 +101,15 @@ RSpec.describe(Kimera::Execution::Shift::Unmask) do
       ).evaluate(target)
       expect(result.status).to(eq(:timeout))
     end
+
+    # Slow without the mutant too, the hang can't be laid on the mutant.
+    it "keeps the survivor when its test hangs alone and runs slow without the mutant too" do
+      adapter = timed({ "t2" => [[0.1, true], [6.0, true], [4.0, true]] })
+      result = Kimera::Execution::Shift.new(
+        adapter: adapter, registry: registry, coverage: { target => %w[t1 t2] }, soft_timeout: 5.0,
+        zygote: InlineZygote.new, confirm: true
+      ).evaluate(target)
+      expect(result.status).to(eq(:survived))
+    end
   end
 end

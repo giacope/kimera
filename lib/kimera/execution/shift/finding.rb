@@ -70,4 +70,10 @@ Kimera::Execution::Shift::Lineup = Data.define(:active, :tests)
 Kimera::Execution::Shift::Finding::Kill =
   Data.define(:failed_ids, :failures) do
     def noted(note) = with(failures: failures.transform_values { |message| "#{note}: #{message}" })
+
+    def conclude = self
+
+    def ruling(subject, fields)
+      subject.verdict(:killed, failing_tests: failed_ids, detail: failures.values.first, **fields)
+    end
   end
