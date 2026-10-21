@@ -5,7 +5,7 @@ require "kimera/registry/builder"
 require "kimera/runtime"
 require "kimera/synthesis/overlay"
 
-RSpec.describe("regexp anchor and quantifier operators") do
+RSpec.describe(Kimera::Operators) do
   def scan(code, *keys)
     Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(code, file: "r.rb")
   end
@@ -85,6 +85,7 @@ RSpec.describe("regexp anchor and quantifier operators") do
   end
 
   it "matches as the mutant does once flipped", :aggregate_failures do
+    stub_const("RegexpOps", Class.new)
     code = "class RegexpOps\n  def code?(s) = s.match?(/\\A[A-Z]{3}\\z/)\nend\n"
     catalog = scan(code, "regexp_anchor", "regexp_quantifier")
     Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("r.rb", code).source).evaluate("r.rb")
@@ -96,6 +97,5 @@ RSpec.describe("regexp anchor and quantifier operators") do
     expect(RegexpOps.new.code?("AB")).to(be(true))
   ensure
     Kimera::RUNTIME.reset!
-    Object.__send__(:remove_const, :RegexpOps) if defined?(RegexpOps)
   end
 end

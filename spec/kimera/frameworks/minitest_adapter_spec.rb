@@ -21,7 +21,7 @@ RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
           assert_equal 2, 1 + 1
         end
         def test_conditional
-          assert_equal true, $probe
+          assert_equal true, ENV.key?("KIMERA_PROBE")
         end
         def test_skipped
           skip "nope"
@@ -35,24 +35,12 @@ RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
     path
   end
 
-  # So the next example's source re-evaluates the class fresh.
-  def undefine
-    Object.__send__(:remove_const, :DemoKimeraTest) if defined?(DemoKimeraTest)
-  end
+  def state(value, &) = steer(value, &)
 
-  def flag(value)
-    $probe = value
-  end
-
-  def state(value)
-    flag(value)
-    yield
-  ensure
-    flag(nil)
-  end
+  # So each example's source evaluates the class fresh.
+  before { stub_const("DemoKimeraTest", Class.new(Minitest::Test)) }
 
   after do
-    undefine
     FileUtils.remove_entry(dir)
   end
 
@@ -61,10 +49,21 @@ RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
     expect(adapter.test_ids).to(include(*ids))
   end
 
+  def declared
+    File.join(dir, "declared_test.rb").tap do |path|
+      File.write(
+        path,
+        "require 'minitest'\nclass KimeraDeclared::FileTest < Minitest::Test\n  def test_it = pass\nend\n"
+      )
+    end
+  end
+
   # Strict attribution maps each test to the file that declares its class.
   it "names the file that declares a test's class", :aggregate_failures do
-    expect(adapter.test_file("DemoKimeraTest#test_passes")).to(eq(File.join(dir, "demo_test.rb")))
-    expect(adapter.test_file("NoSuchTest#test_x")).to(be_nil)
+    stub_const("KimeraDeclared", Module.new)
+    sourced = described_class.build.source([declared])
+    expect(sourced.test_file("KimeraDeclared::FileTest#test_it")).to(eq(File.join(dir, "declared_test.rb")))
+    expect(sourced.test_file("NoSuchTest#test_x")).to(be_nil)
   end
 
   it "falls back to the test method's file for a class with no constant name" do
@@ -96,7 +95,7 @@ RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
 
   it "orders and reproduces the suite by the run's seed, once given one", :aggregate_failures do
     saved = Minitest.seed
-    undefine
+    stub_const("DemoKimeraTest", Class.new(Minitest::Test))
     seeded(77) { described_class.build.source([testfile]) }
     expect(Minitest.seed).to(eq(77))
     expect(adapter.reproduce(["DemoKimeraTest#test_passes"])).to(end_with("--seed 77"))
@@ -182,14 +181,13 @@ RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
   # The command must load what kimera loaded: a nested test folder and the
   # project's root test/ both, quoted where the shell needs it.
   it "puts every folder kimera loaded tests from on the reproduce command's load path" do
+    stub_const("NestedKimeraTest", Class.new(Minitest::Test))
     nested = File.join(dir, "lib", "my tool", "test")
     FileUtils.mkdir_p([nested, File.join(dir, "test")])
     file = File.join(nested, "nested_test.rb")
     File.write(file, "require 'minitest'\nclass NestedKimeraTest < Minitest::Test\n  def test_it = assert(true)\nend\n")
     command = Dir.chdir(dir) { described_class.build.source([file]).reproduce(["NestedKimeraTest#test_it"]) }
     expect(command).to(start_with("bundle exec ruby -I'lib/my tool/test' -Itest -rminitest/autorun -e "))
-  ensure
-    Object.__send__(:remove_const, :NestedKimeraTest) if defined?(NestedKimeraTest)
   end
 
   it "shell-quotes single quotes and names files relative to the working directory", :aggregate_failures do
@@ -248,7 +246,7 @@ RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
       described_class.build.source([path])
     end
 
-    after { Object.__send__(:remove_const, :HookedKimeraTest) if defined?(HookedKimeraTest) }
+    before { stub_const("HookedKimeraTest", Class.new(Minitest::Test)) }
 
     it "runs each test inside its class's info handler", :aggregate_failures do
       outcome = hooked.run(["HookedKimeraTest#test_ok", "HookedKimeraTest#test_bad"])
@@ -317,16 +315,14 @@ RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
     end
 
     def helper
-      fixture("test_helper.rb", content: "$probe = true\n")
+      fixture("test_helper.rb", content: "PROBE << :helper\n")
       fixture("uses_helper_test.rb", content: %(require "test_helper"\n))
     end
 
     it "loads a test file that requires a helper resolved via the added path", :aggregate_failures do
       file = helper
       expect { described_class.build.source([file]) }.not_to(raise_error)
-      expect($probe).to(be(true))
-    ensure
-      $probe = nil
+      expect(probed).to(eq([:helper]))
     end
   end
 
@@ -336,18 +332,17 @@ RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
     end
 
     it "loads a test file once even when another test requires it", :aggregate_failures do
-      shared = write("shared_kimera_test.rb", "$probe = ($probe || 0) + 1\n")
+      shared = write("shared_kimera_test.rb", "PROBE << :loaded\n")
       other = write("other_kimera_test.rb", "require_relative 'shared_kimera_test'\n")
-      $probe = 0
       described_class.build.source([shared, other])
-      expect($probe).to(eq(1))
+      expect(probed).to(eq([:loaded]))
     end
 
     it "hides kimera's own ARGV from test files" do
-      probe = write("argv_kimera_test.rb", "$probe = ARGV.dup\n")
+      probe = write("argv_kimera_test.rb", "PROBE << ARGV.dup\n")
       ARGV.replace(%w[run --session x])
       described_class.build.source([probe])
-      expect($probe).to(eq([]))
+      expect(probed).to(eq([[]]))
     end
 
     it "names the test file that fails to load" do

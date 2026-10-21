@@ -7,7 +7,7 @@ require "kimera/synthesis/overlay"
 
 # assignment_deletion, nil_literal and keyword_drop: what each one targets,
 # what it leaves alone, and that the woven method behaves as the mutant.
-RSpec.describe("value operators") do
+RSpec.describe(Kimera::Operators) do
   def scan(code, *keys)
     Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(code, file: "v.rb")
   end
@@ -17,12 +17,12 @@ RSpec.describe("value operators") do
   def sources(code, *keys) = scan(code, *keys).each.map { |_m, p| p.original_source }
 
   def live(code, *keys)
+    stub_const("ValueOps", Class.new)
     catalog = scan(code, *keys)
     Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("v.rb", code).source).evaluate("v.rb")
     yield(catalog.each.to_h { |m, p| [p.original_source, m.id] })
   ensure
     Kimera::RUNTIME.reset!
-    Object.__send__(:remove_const, :ValueOps) if defined?(ValueOps)
   end
 
   def active(id)

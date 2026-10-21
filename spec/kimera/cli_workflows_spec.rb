@@ -10,7 +10,7 @@ require "kimera/cli/baseline"
 require "stringio"
 require "tmpdir"
 
-RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
+RSpec.describe(Kimera::CLI, :aggregate_failures) do
   def captured
     [StringIO.new, StringIO.new]
   end
@@ -71,8 +71,8 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
 
   it "prints the bundled agent skill and rejects arguments" do
     out, error = captured
-    expect(Kimera::CLI.new(io: out, errors: error).run(["skill"])).to(eq(0))
-    skill = File.read(File.expand_path("../../../skills/kimera/SKILL.md", __dir__), encoding: Encoding::UTF_8)
+    expect(described_class.new(io: out, errors: error).run(["skill"])).to(eq(0))
+    skill = File.read(File.expand_path("../../skills/kimera/SKILL.md", __dir__), encoding: Encoding::UTF_8)
     expect(out.string).to(eq(skill))
     expect(out.string).to(start_with("---\nname: kimera\n"))
     expect(Kimera::CLI::Skill.new(io: out, errors: error).run(["extra"])).to(eq(1))
@@ -553,7 +553,7 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     expect(Kimera::CLI::Completion.new(io: out, errors: error).run(["bash"])).to(eq(0))
     expect(out.string).to(include("complete -F _kimera kimera", "changed", " report "))
     expect(out.string).not_to(match(/\b(dump|survivors)\b/))
-    expect(Kimera::CLI.new(io: out, errors: error).run(["rn"])).to(eq(1))
+    expect(described_class.new(io: out, errors: error).run(["rn"])).to(eq(1))
     expect(error.string).to(include('did you mean "run"?', "Try: kimera help"))
   end
 
@@ -624,7 +624,7 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     Dir.mktmpdir do |dir|
       report = written(dir, "results" => [survivor])
       out, error = captured
-      cli = Kimera::CLI.new(io: out, errors: error)
+      cli = described_class.new(io: out, errors: error)
       expect(cli.run(["report", report])).to(eq(0))
       expect(cli.run(["mutant", "7", "--report", report])).to(eq(0))
       expect(out.string).to(include("1 survived mutant(s):", "#7  survived  app/a.rb:3\n"))
@@ -635,7 +635,7 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     Dir.mktmpdir do |dir|
       report = written(dir, "results" => [survivor.merge("key" => "app/a.rb:3:0123abcd")])
       out, error = captured
-      cli = Kimera::CLI.new(io: out, errors: error)
+      cli = described_class.new(io: out, errors: error)
       expect(cli.run(["mutant", "app/a.rb:3:0123abcd", "--report", report])).to(eq(0))
       expect(cli.run(["report", report])).to(eq(0))
       expect(out.string).to(include("#7  survived  app/a.rb:3:0123abcd\n", "  #7  app/a.rb:3:0123abcd  [> => >=]"))

@@ -9,7 +9,7 @@ require "kimera/synthesis/overlay"
 require "tmpdir"
 
 # Source must parse even when a C locale makes default_external US-ASCII.
-RSpec.describe("non-ASCII source handling") do
+RSpec.describe(Kimera::Overlay) do
   let(:dir) { Dir.mktmpdir }
 
   after { FileUtils.remove_entry(dir) }
@@ -76,10 +76,8 @@ RSpec.describe("non-ASCII source handling") do
   end
 
   it "overlays a UTF-8 file in-process without an EncodingError" do
+    stub_const("Widget", Class.new)
     expect { test_overlay("widget_overlay.rb") }.not_to(raise_error)
-  ensure
-    # The overlay defines Widget, so stub_const can't clean it up.
-    Object.__send__(:remove_const, :Widget) if defined?(Widget)
   end
 
   # A multibyte char makes whitequark's character offsets diverge from Prism's

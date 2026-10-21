@@ -93,7 +93,7 @@ RSpec.describe(Kimera::Frameworks) do
     end
 
     it "loads a built-in adapter in a fresh Ruby process", :aggregate_failures do
-      lib = File.expand_path("../../../lib", __dir__)
+      lib = File.expand_path("../../lib", __dir__)
       script = 'require "kimera/frameworks/adapter"; Kimera::Frameworks::ADAPTERS.load(:rspec)'
       expect(Kimera::Frameworks::ADAPTERS.load(:rspec)).to(be_a(Kimera::Frameworks::RSpecAdapter))
       expect(system("ruby", "-I#{lib}", "-e", script, out: File::NULL, err: File::NULL)).to(be(true))

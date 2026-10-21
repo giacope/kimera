@@ -52,7 +52,7 @@ jobs:
       - run: bundle config set --local path vendor/bundle && bundle install
         env:
           BUNDLE_GEMFILE: ${{ github.workspace }}/Gemfile
-      - run: bin/spec spec/kimera spec/property/schemata_spec.rb
+      - run: bin/spec spec/kimera spec/property/kimera/overlay_schemata_spec.rb
 
   # A real Rails app end to end (examples/rails_app): each mode's verdicts,
   # per-worker databases and --isolate-db included, against expected.json,

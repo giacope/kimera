@@ -7,7 +7,7 @@ require "kimera/cli/run"
 require "kimera/cli/run/gate"
 require "kimera/report/tally"
 require "kimera/results/run_report"
-require_relative "property_helper"
+require_relative "../property_helper"
 
 RSpec.describe(Kimera::RunReport) do
   let(:statuses) { Pbt.one_of(:killed, *Kimera::Status::REPORTED) }

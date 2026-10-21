@@ -7,7 +7,7 @@ require "kimera/synthesis/overlay"
 
 # Each family is checked in the registry, a live overlay, and baked source.
 # default_argument bakes and overlays by different mechanisms.
-RSpec.describe("contract operators") do
+RSpec.describe(Kimera::Operators) do
   let(:contract_src) { <<~RUBY }
     class Contracts
       def lookup(h, k)
@@ -45,13 +45,13 @@ RSpec.describe("contract operators") do
   end
 
   def with_overlay(key)
+    stub_const("Contracts", Class.new)
     catalog = built(key)
     Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("contracts.rb", contract_src).source)
       .evaluate(File.expand_path("contracts.rb"))
     yield(catalog.each.to_h { |m, _p| [m.label, m.id] }, catalog)
   ensure
     Kimera::RUNTIME.reset!
-    Object.__send__(:remove_const, :Contracts) if defined?(Contracts)
   end
 
   def active(id)
@@ -87,19 +87,20 @@ RSpec.describe("contract operators") do
           h[:k]
         end
       RUBY
-      catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["index_fetch"]))
+      catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["index_fetch"]))
         .source(code, file: "i.rb")
       expect(catalog.each.map { |_mutant, point| point.original_source }).to(eq(["h[:k]"]))
     end
 
     it "rejects a block form, which is not a plain read" do
-      blocked = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["index_fetch"]))
+      blocked = Kimera::RegistryScan.new(operators: described_class.build(keys: ["index_fetch"]))
         .source("def m(h, k)\n  h[k] { |x| x }\nend\n", file: "i.rb")
       expect(blocked.each.count).to(eq(0))
     end
 
     # Dropping `&.` too would mutate nil- and miss-tolerance at once, so a survivor is unattributable.
     it "rewrites the explicit and safe-navigated spellings, preserving &.", :aggregate_failures do
+      stub_const("Spellings", Class.new)
       code = <<~RUBY
         class Spellings
           def explicit(h, k)
@@ -111,7 +112,7 @@ RSpec.describe("contract operators") do
           end
         end
       RUBY
-      catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["index_fetch"]))
+      catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["index_fetch"]))
         .source(code, file: "spellings.rb")
       sources = catalog.each.map { |m, p| Kimera::Rewrite::Directive.new(m.directive).render(p.original_source) }
       expect(sources).to(contain_exactly("h.fetch(k)", "h&.fetch(k)"))
@@ -129,7 +130,6 @@ RSpec.describe("contract operators") do
       end
     ensure
       Kimera::RUNTIME.reset!
-      Object.__send__(:remove_const, :Spellings) if defined?(Spellings)
     end
   end
 
@@ -152,14 +152,14 @@ RSpec.describe("contract operators") do
           String(x)
         end
       RUBY
-      catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["kernel_coercion"]))
+      catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["kernel_coercion"]))
         .source(code, file: "k.rb")
       expect(catalog.each.map { |m, _p| m.label }).to(eq(["delete String()"]))
     end
 
     # `Array(*xs)` does not unwrap to a single value.
     it "rejects a splatted argument" do
-      catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["kernel_coercion"]))
+      catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["kernel_coercion"]))
         .source("def m(xs)\n  Array(*xs)\nend\n", file: "k.rb")
       expect(catalog.each.count).to(eq(0))
     end
@@ -183,7 +183,7 @@ RSpec.describe("contract operators") do
           x.respond_to?(name)
         end
       RUBY
-      catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["respond_to_guard"]))
+      catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["respond_to_guard"]))
         .source(code, file: "r.rb")
       expect(catalog.each.map { |_m, p| p.original_source }).to(eq(["x.respond_to?(:size, true)"]))
     end
@@ -195,7 +195,7 @@ RSpec.describe("contract operators") do
         "block form" => "def m(x)\n  x.respond_to?(:a) { |y| y }\nend\n",
         "over-arity" => "def m(x)\n  x.respond_to?(:a, true, 1)\nend\n"
       }.each do |name, code|
-        catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["respond_to_guard"]))
+        catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["respond_to_guard"]))
           .source(code, file: "r.rb")
         expect(catalog.each.count).to(eq(0), "#{name} should not match")
       end
@@ -221,7 +221,7 @@ RSpec.describe("contract operators") do
           o.send(:tin)
         end
       RUBY
-      catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["symbol_literal"]))
+      catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["symbol_literal"]))
         .source(code, file: "s.rb")
       expect(catalog.each.map { |_m, p| p.original_source }).to(contain_exactly(":silver", "copper", ":tin"))
 
@@ -233,7 +233,7 @@ RSpec.describe("contract operators") do
       m = built("symbol_literal").each.find { |mu, _p| mu.label.start_with?(":ok") }.first
       expect(m.directive).to(eq("type" => "symbol_literal", "value" => "ok__kimera__"))
 
-      catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["symbol_literal"]))
+      catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["symbol_literal"]))
         .source("def m\n  :\"\"\nend\n", file: "s.rb")
       expect(catalog.each.count).to(eq(0))
     end
@@ -285,7 +285,7 @@ RSpec.describe("contract operators") do
         active(ids.fetch("filter_map => map")) { expect(object.compact([1, nil, 2])).to(eq([1, nil, 2])) }
       end
 
-      catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["selector_swap"]))
+      catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["selector_swap"]))
         .source("def m(xs)\n  xs.map { |x| x }\nend\n", file: "m.rb")
       expect(catalog.each.count).to(eq(0))
     end
@@ -317,7 +317,7 @@ RSpec.describe("contract operators") do
         end
       end
     RUBY
-    catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(code, file: "awkward.rb")
+    catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: keys)).source(code, file: "awkward.rb")
     safe = catalog.points.select(&:safe?).flat_map(&:ids)
     expect(safe.size).to(be > 10)
 
@@ -328,7 +328,7 @@ RSpec.describe("contract operators") do
 
   it "bakes every contract mutant into source that still parses", :aggregate_failures do
     keys = %w[index_fetch kernel_coercion respond_to_guard symbol_literal default_argument]
-    catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys))
+    catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: keys))
       .source(contract_src, file: "contracts.rb")
     overlay = Kimera::Overlay.new(catalog)
     expect(catalog.each.count).to(be > 5)

@@ -4,7 +4,7 @@ require "json"
 require "tempfile"
 require "kimera/execution/shift"
 require "kimera/execution/worker_pool"
-require_relative "property_helper"
+require_relative "../../property_helper"
 
 # Fault injection for the real pool, with scripts drawn from the child
 # actions in formal/WorkerPool.tla. The real parent (WorkerPool, Fleet,

@@ -6,7 +6,7 @@ require "kimera/runtime"
 require "kimera/synthesis/overlay"
 
 # Class-body DSL runs once at load, so its points must go to the isolated oracle.
-RSpec.describe("rails operators") do
+RSpec.describe(Kimera::Operators) do
   def registry(code, keys)
     Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(code, file: "app.rb")
   end
@@ -32,6 +32,7 @@ RSpec.describe("rails operators") do
     end
 
     it "actually narrows the allowlist through a live overlay", :aggregate_failures do
+      stub_const("UsersController", Class.new)
       catalog = registry(permit_src, ["rails_permit"])
       result = Kimera::Overlay.new(catalog).synthesize("app.rb", permit_src)
       fake_params =
@@ -53,7 +54,6 @@ RSpec.describe("rails operators") do
       expect(controller.user_params).to(eq(%i[name]))
     ensure
       Kimera::RUNTIME.reset!
-      Object.__send__(:remove_const, :UsersController) if defined?(UsersController)
     end
   end
 
@@ -101,7 +101,7 @@ RSpec.describe("rails operators") do
     end
 
     it "expands the 'rails' group key" do
-      built = Kimera::Operators.build(keys: %w[comparison rails])
+      built = described_class.build(keys: %w[comparison rails])
       expect(built.map(&:key)).to(
         contain_exactly(
           "comparison", "rails_permit", "rails_validation", "rails_callback",
@@ -177,12 +177,13 @@ RSpec.describe("rails operators") do
 
   describe "class-body lambda bodies (scopes)" do
     it "treats lambda bodies as re-executing, schemata-safe code", :aggregate_failures do
+      stub_const("Pricing", Class.new)
       code = <<~RUBY
         class Pricing
           DISCOUNT = ->(total) { total > 100 ? 10 : 0 }
         end
       RUBY
-      catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["comparison"]))
+      catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["comparison"]))
         .source(code, file: "pricing.rb")
       expect(catalog.each.count).to(eq(2)) # > gets its boundary + swap
       catalog.points.each { |point| expect(point.safe?).to(be(true)) }
@@ -199,12 +200,11 @@ RSpec.describe("rails operators") do
       expect(Pricing::DISCOUNT.call(100)).to(eq(10))
     ensure
       Kimera::RUNTIME.reset!
-      Object.__send__(:remove_const, :Pricing) if defined?(Pricing)
     end
 
     it "still excludes plain do-blocks at class body (run-once DSL)" do
       code = "class M\n  configure do\n    limit > 5\n  end\nend\n"
-      catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["comparison"]))
+      catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["comparison"]))
         .source(code, file: "m.rb")
       expect(catalog.each.count).to(eq(0))
     end

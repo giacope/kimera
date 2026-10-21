@@ -8,7 +8,7 @@ require "kimera/synthesis/overlay"
 
 # super_call, rescue_clause and ensure_clause: what each one targets, what it
 # leaves alone, and that the woven method behaves as the mutant when flipped.
-RSpec.describe("clause operators") do
+RSpec.describe(Kimera::Operators) do
   def scan(code, *keys)
     Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(code, file: "c.rb")
   end
@@ -54,8 +54,9 @@ RSpec.describe("clause operators") do
       end
     RUBY
 
-    after do
-      %i[ClauseChild ClauseParent].each { |name| Object.__send__(:remove_const, name) if Object.const_defined?(name) }
+    before do
+      stub_const("ClauseParent", Class.new)
+      stub_const("ClauseChild", Class.new(ClauseParent))
     end
 
     it "deletes zsuper and super(...) alike, as a statement or a value", :aggregate_failures do
@@ -109,7 +110,7 @@ RSpec.describe("clause operators") do
       end
     RUBY
 
-    after { Object.__send__(:remove_const, :ClauseRisky) if defined?(ClauseRisky) }
+    before { stub_const("ClauseRisky", Class.new) }
 
     it "drops each rescue clause of a method body, an explicit begin, and a rescue modifier", :aggregate_failures do
       expect(labels(code, "rescue_clause"))
@@ -151,13 +152,12 @@ RSpec.describe("clause operators") do
     end
 
     it "drops the ensure of a method with no body of its own", :aggregate_failures do
+      stub_const("EmptyEnsure", Class.new)
       code = "class EmptyEnsure\n  attr_reader :done\n\n  def m\n  ensure\n    @done = true\n  end\nend\n"
       live(code, "ensure_clause") do |ids|
         active(ids.fetch("drop `ensure`")) { expect(EmptyEnsure.new.tap(&:m).done).to(be_nil) }
         expect(EmptyEnsure.new.tap(&:m).done).to(be(true))
       end
-    ensure
-      Object.__send__(:remove_const, :EmptyEnsure) if defined?(EmptyEnsure)
     end
 
     it "keeps the else value when the last clause goes" do

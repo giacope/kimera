@@ -87,13 +87,13 @@ RSpec.describe(Kimera::Operators::Visibility) do
     let!(:ledger) { Kimera::RUNTIME.start! }
 
     before do
+      stub_const("VisibilityOps", Class.new)
       Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("vis.rb", code).source).evaluate("vis.rb")
     end
 
     after do
       Kimera::RUNTIME.stop!(ledger)
       Kimera::RUNTIME.reset!
-      Object.__send__(:remove_const, :VisibilityOps) if defined?(VisibilityOps)
     end
 
     def active(name)

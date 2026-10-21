@@ -6,7 +6,7 @@ require "kimera/runtime"
 require "kimera/synthesis/overlay"
 
 # Each family also runs live, since one variant rendering bad source breaks the whole file's overlay.
-RSpec.describe("extended operators") do
+RSpec.describe(Kimera::Operators) do
   let(:ext_source) { <<~RUBY }
     class ExtOps
       def add(a, b)
@@ -78,6 +78,7 @@ RSpec.describe("extended operators") do
   end
 
   def with_overlay(key)
+    stub_const("ExtOps", Class.new)
     catalog = built(key)
     verbose = $VERBOSE
 
@@ -87,7 +88,6 @@ RSpec.describe("extended operators") do
     yield(catalog.each.to_h { |m, _p| [m.label, m.id] }, catalog)
   ensure
     Kimera::RUNTIME.reset!
-    Object.__send__(:remove_const, :ExtOps) if defined?(ExtOps)
   end
 
   def active(id)
@@ -139,6 +139,7 @@ RSpec.describe("extended operators") do
   # unparser cannot write the body's read of a local no longer assigned.
   # A predicate that binds nothing is still not evaluated.
   it "conditional keeps an assignment the predicate makes, then pins it", :aggregate_failures do
+    stub_const("Linker", Class.new)
     source = <<~RUBY
       class Linker
         def link(pages)
@@ -152,7 +153,7 @@ RSpec.describe("extended operators") do
         end
       end
     RUBY
-    catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["conditional"]))
+    catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["conditional"]))
       .source(source, file: "linker.rb")
     result = Kimera::Overlay.new(catalog).synthesize("linker.rb", source)
     expect(result.skipped_unsafe).to(be_empty)
@@ -165,7 +166,6 @@ RSpec.describe("extended operators") do
     expect(pages).to(eq([2]))
   ensure
     Kimera::RUNTIME.reset!
-    Object.__send__(:remove_const, :Linker) if defined?(Linker)
   end
 
   it "skips elsif arms (not a wrappable expression)" do
@@ -180,7 +180,7 @@ RSpec.describe("extended operators") do
         end
       end
     RUBY
-    catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["conditional"]))
+    catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["conditional"]))
       .source(code, file: "route.rb")
     # Only the outer if contributes; the elsif arm is skipped.
     expect(catalog.each.count).to(eq(2))
@@ -188,7 +188,7 @@ RSpec.describe("extended operators") do
 
   it "numeric_literal perturbs integers with the off-by-one pair and zero", :aggregate_failures do
     expect(labels("numeric_literal")).to(include("10 => 9", "10 => 11", "10 => 0"))
-    one = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["numeric_literal"]))
+    one = Kimera::RegistryScan.new(operators: described_class.build(keys: ["numeric_literal"]))
       .source("def m\n  1\nend\n", file: "one.rb")
     expect(one.each.map { |m, _p| m.label }).to(contain_exactly("1 => 0", "1 => 2"))
     with_overlay("numeric_literal") do |ids|
@@ -251,7 +251,7 @@ RSpec.describe("extended operators") do
         x.compute
       end
     RUBY
-    catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["return_value"]))
+    catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["return_value"]))
       .source(code, file: "r.rb")
     expect(catalog.each.count).to(eq(0))
   end
@@ -285,7 +285,7 @@ RSpec.describe("extended operators") do
 
   it "element_drop skips single-element and splatted literals" do
     code = "def m(rest)\n  a = [1]\n  b = [2, *rest]\n  [a, b]\nend\n"
-    catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["element_drop"]))
+    catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["element_drop"]))
       .source(code, file: "e.rb")
     expect(catalog.each.map { |m, _p| m.label }).to(contain_exactly("drop `a`", "drop `b`"))
   end
@@ -309,7 +309,7 @@ RSpec.describe("extended operators") do
   it "dedups identical directives across operators (permit vs argument_drop)" do
     code = "def user_params\n  params.permit(:name, :admin)\nend\n"
     catalog = Kimera::RegistryScan.new(
-      operators: Kimera::Operators.build(keys: %w[rails_permit argument_drop])
+      operators: described_class.build(keys: %w[rails_permit argument_drop])
     ).source(code, file: "p.rb")
     # The more specific rails label wins.
     expect(catalog.each.map { |m, _p| m.label }).to(contain_exactly("permit: drop :name", "permit: drop :admin"))
@@ -364,6 +364,7 @@ RSpec.describe("extended operators") do
     end
 
     it "rewrites a live chain when the mutant is selected", :aggregate_failures do
+      stub_const("ChainDemo", Class.new)
       code = <<~RUBY
         class ChainDemo
           def evens_then_first(xs)
@@ -386,7 +387,6 @@ RSpec.describe("extended operators") do
       end
     ensure
       Kimera::RUNTIME.reset!
-      Object.__send__(:remove_const, :ChainDemo) if defined?(ChainDemo)
     end
   end
 
@@ -398,7 +398,7 @@ RSpec.describe("extended operators") do
         xs.uniq
       end
     RUBY
-    catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["method_unwrap"]))
+    catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["method_unwrap"]))
       .source(code, file: "work.rb")
     expect(catalog.each.map { |m, _p| m.label }).to(eq(["delete .uniq"]))
   end

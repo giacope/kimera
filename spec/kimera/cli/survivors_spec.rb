@@ -8,7 +8,7 @@ require "kimera/cli"
 require "kimera/cli/survivors"
 require "tmpdir"
 
-RSpec.describe("kimera survivors", :aggregate_failures) do
+RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
   let(:dir) { Dir.mktmpdir }
   let(:report_path) { File.join(dir, "report.json") }
   let(:report) do

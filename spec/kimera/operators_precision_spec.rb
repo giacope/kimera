@@ -5,7 +5,7 @@ require "kimera/registry/builder"
 require "kimera/runtime"
 require "kimera/synthesis/overlay"
 
-RSpec.describe("operator precision") do
+RSpec.describe(Kimera::Operators) do
   def mutants(code, key, file: "p.rb")
     catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: [key])).source(code, file: file)
     catalog.each.map { |m, _p| m }
@@ -27,7 +27,7 @@ RSpec.describe("operator precision") do
     it "flips the float live through an overlay", :aggregate_failures do
       code = "def rate\n  2.5\nend\n"
       catalog = Kimera::RegistryScan.new(
-        operators: Kimera::Operators.build(keys: ["numeric_literal"])
+        operators: described_class.build(keys: ["numeric_literal"])
       ).source(code, file: "p.rb")
       result = Kimera::Overlay.new(catalog).synthesize("p.rb", code)
       mod = Module.new.tap { |m| m.module_eval(result.source) }
@@ -77,9 +77,7 @@ RSpec.describe("operator precision") do
 
     it "makes an exclusive range inclusive live through an overlay", :aggregate_failures do
       code = "def s\n  (2...5)\nend\n"
-      catalog = Kimera::RegistryScan.new(
-        operators: Kimera::Operators.build(keys: ["range"])
-      ).source(code, file: "p.rb")
+      catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["range"])).source(code, file: "p.rb")
       result = Kimera::Overlay.new(catalog).synthesize("p.rb", code)
       mod = Module.new.tap { |m| m.module_eval(result.source) }
       object = Object.new.extend(mod)
@@ -140,7 +138,7 @@ RSpec.describe("operator precision") do
     it "flips a regexp to match-none live through an overlay", :aggregate_failures do
       code = "def re(s)\n  s.match?(/ab+/)\nend\n"
       catalog = Kimera::RegistryScan.new(
-        operators: Kimera::Operators.build(keys: ["regexp"])
+        operators: described_class.build(keys: ["regexp"])
       ).source(code, file: "p.rb")
       result = Kimera::Overlay.new(catalog).synthesize("p.rb", code)
       mod = Module.new.tap { |m| m.module_eval(result.source) }

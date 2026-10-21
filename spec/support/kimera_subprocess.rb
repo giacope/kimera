@@ -49,8 +49,8 @@ module KimeraSubprocess
 end
 
 RSpec.configure do |config|
-  config.include(KimeraSubprocess, type: :integration)
-  config.define_derived_metadata(file_path: %r{/spec/integration/}) do |meta|
-    meta[:type] = :integration
+  config.include(KimeraSubprocess, type: :feature)
+  config.define_derived_metadata(file_path: %r{/spec/features/}) do |meta|
+    meta[:type] = :feature
   end
 end

@@ -2,7 +2,7 @@
 
 require "json"
 require "tmpdir"
-require_relative "property_helper"
+require_relative "../property_helper"
 
 RSpec.describe(Kimera::Registry) do
   let(:programs) { RubyPrograms.new(depth: 2) }

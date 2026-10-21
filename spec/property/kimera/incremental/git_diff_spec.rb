@@ -3,7 +3,7 @@
 require "open3"
 require "tmpdir"
 require "kimera/incremental/selection"
-require_relative "property_helper"
+require_relative "../../property_helper"
 
 # `kimera changed` and `--since` mutate only the lines a diff touched: a
 # changed line the parser misses is a mutant silently left out of the gate.

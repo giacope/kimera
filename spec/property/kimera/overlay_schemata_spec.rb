@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
-require_relative "property_helper"
+require_relative "../property_helper"
 
 # Kimera compiles every mutant of a file into one guarded program and flips
 # them at runtime. These properties pin that the flip is faithful: with
 # mutant k active the program *is* mutant k, and with none active it *is*
 # the original. See support/schemata_projection.rb for the reduction.
-RSpec.describe("Mutant schemata") do
+RSpec.describe(Kimera::Overlay) do
   let(:programs) { RubyPrograms.new(depth: 2) }
 
   def render(program) = RubyPrograms.render(program)
@@ -90,7 +90,7 @@ RSpec.describe("Mutant schemata") do
   # kimera's own sources (PBT_SCALE widens the sample; all of lib/ takes
   # about 5 minutes).
   it "reduces to each bake across real files" do
-    root = File.expand_path("../..", __dir__)
+    root = File.expand_path("../../..", __dir__)
     sample(Dir[File.join(root, "{lib,examples}/**/*.rb")], (6 * PropertyRuns::SCALE).ceil).each do |path|
       schemata = SchemataProjection.check(File.read(path, encoding: Encoding::UTF_8))
       mismatches = schemata.mismatches

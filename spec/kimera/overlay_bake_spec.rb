@@ -73,7 +73,7 @@ RSpec.describe(Kimera::Overlay) do
     it "prunes an emptied leading segment of an interpolated string", :aggregate_failures do
       baked = prune("def m(x)\n  \"prefix \#{x}\"\nend\n", %w[string_literal], "prefix ")
       expect { Unparser.parse(baked) }.not_to(raise_error)
-      expect(baked).to(include('"#{x}"'))
+      expect(baked).to(include("\"\#{x}\""))
       mod = Module.new.tap { |m| m.module_eval(baked) }
       expect(mod.instance_method(:m).bind_call(Object.new.extend(mod), "v")).to(eq("v"))
     end
@@ -81,12 +81,12 @@ RSpec.describe(Kimera::Overlay) do
     it "prunes an emptied trailing segment, keeping the interpolation", :aggregate_failures do
       baked = prune("def m(x)\n  \"\#{x} suffix\"\nend\n", %w[string_literal], " suffix")
       expect { Unparser.parse(baked) }.not_to(raise_error)
-      expect(baked).to(include('"#{x}"'))
+      expect(baked).to(include("\"\#{x}\""))
     end
 
     it "keeps non-empty segments when pruning an emptied one" do
       baked = prune("def m(x)\n  \"a \#{x} b\"\nend\n", %w[string_literal], "a ")
-      expect(baked).to(include('"#{x} b"'))
+      expect(baked).to(include("\"\#{x} b\""))
     end
 
     it "collapses a juxtaposed pair to the surviving plain string", :aggregate_failures do

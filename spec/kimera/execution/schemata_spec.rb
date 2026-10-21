@@ -21,6 +21,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
   end
 
   it "overlays schema-safe files and returns the live mutant ids", :aggregate_failures do
+    stub_const("SchemataTarget", Class.new)
     write("sl_target.rb", <<~RUBY)
       class SchemataTarget
         def gt(a, b)
@@ -40,13 +41,12 @@ RSpec.describe(Kimera::Execution::Schemata) do
     mutant = registry.each.find { |m, _p| m.label == "> => <" }.first
     Kimera::RUNTIME.active = mutant.id
     expect(object.gt(2, 1)).to(be(false))
-  ensure
-    Object.__send__(:remove_const, :SchemataTarget) if defined?(SchemataTarget)
   end
 
   # Re-running the class body would redeclare its DSL state (here, count the
   # load twice); only the mutated method has to run again.
   it "re-runs only the mutated code of a file that was already required", :aggregate_failures do
+    stub_const("SchemataRequired", Class.new)
     path = File.join(dir, write("sl_required.rb", <<~RUBY))
       class SchemataRequired
         @loads = (@loads || 0) + 1
@@ -62,14 +62,13 @@ RSpec.describe(Kimera::Execution::Schemata) do
     expect(SchemataRequired.loads).to(eq(1))
     Kimera::RUNTIME.active = registry.each.find { |m, _p| m.label == "> => <" }.first.id
     expect(SchemataRequired.new.gt(2, 1)).to(be(false))
-  ensure
-    Object.__send__(:remove_const, :SchemataRequired) if defined?(SchemataRequired)
   end
 
   # An alias declared in another file copies the body before the overlay runs;
   # left alone, it keeps calling the unguarded code and no test reaches the
   # mutants through it.
   it "re-points an alias declared in another file at the guarded method", :aggregate_failures do
+    stub_const("SchemataAliased", Module.new)
     path = File.join(dir, write("sl_aliased.rb", "module SchemataAliased\n  def gt(a, b)\n    a > b\n  end\nend\n"))
     require(path)
     holder = Class.new { include SchemataAliased }
@@ -78,8 +77,6 @@ RSpec.describe(Kimera::Execution::Schemata) do
     described_class.new(registry, root: dir).overlay!
     Kimera::RUNTIME.active = registry.each.find { |m, _p| m.label == "> => <" }.first.id
     expect(holder.new.above(2, 1)).to(be(false))
-  ensure
-    Object.__send__(:remove_const, :SchemataAliased) if defined?(SchemataAliased)
   end
 
   def lazily(root)
@@ -91,6 +88,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
   # dry-validation requires its extensions on demand. Unregistered, that require
   # loaded the original file over the guarded methods, which hid their mutants.
   it "keeps the guards of a file the suite requires only later, by either path", :aggregate_failures do
+    stub_const("SchemataLazy", Class.new)
     write("real/sl_lazy.rb", "class SchemataLazy\n  def gt(a, b)\n    a > b\n  end\nend\n")
     linked = File.join(dir, "linked")
     File.symlink(File.join(dir, "real"), linked)
@@ -99,7 +97,6 @@ RSpec.describe(Kimera::Execution::Schemata) do
     expect(paths.map { |path| require(path) }).to(eq([false, false]))
     expect(SchemataLazy.new.gt(2, 1)).to(be(false))
   ensure
-    Object.__send__(:remove_const, :SchemataLazy) if defined?(SchemataLazy)
     $LOADED_FEATURES.reject! { |feature| feature.end_with?("sl_lazy.rb") }
   end
 
@@ -117,8 +114,6 @@ RSpec.describe(Kimera::Execution::Schemata) do
     expect(live).to(eq([]))
     # Skipped before eval, so the file never runs.
     expect(defined?(SchemataMemo)).to(be_nil)
-  ensure
-    Object.__send__(:remove_const, :SchemataMemo) if defined?(SchemataMemo)
   end
 
   it "never overlays a self-protected file", :aggregate_failures do
@@ -139,11 +134,10 @@ RSpec.describe(Kimera::Execution::Schemata) do
     live = described_class.new(registry, root: dir).overlay!
     expect(live).to(eq([]))
     expect(defined?(SchemataProtected)).to(be_nil)
-  ensure
-    Object.__send__(:remove_const, :SchemataProtected) if defined?(SchemataProtected)
   end
 
   it "survives a top-level script that aborts when overlaid", :aggregate_failures do
+    stub_const("SchemataAfter", Class.new)
     # Scripts may abort at top level when re-run. SystemExit is not a
     # StandardError, so uncaught it would kill the harness.
     write("sl_script.rb", <<~RUBY)
@@ -172,11 +166,10 @@ RSpec.describe(Kimera::Execution::Schemata) do
     expect(live).to(include(*point.ids))
     # The reason lets callers tell unmutatable files from uncovered mutants.
     expect(loader.skipped).to(include("sl_script.rb" => "SystemExit: usage: nope"))
-  ensure
-    Object.__send__(:remove_const, :SchemataAfter) if defined?(SchemataAfter)
   end
 
   it "replays what a successful overlay wrote to stderr", :aggregate_failures do
+    stub_const("SchemataWarny", Class.new)
     # $stderr.puts because evaluate silences Kernel#warn via $VERBOSE=nil.
     write("sl_warny.rb", <<~RUBY)
       class SchemataWarny
@@ -192,11 +185,10 @@ RSpec.describe(Kimera::Execution::Schemata) do
     loader = described_class.new(registry, root: dir)
     expect { loader.overlay! }.to(output("sl_warny loading\n").to_stderr)
     expect(loader.skipped).to(be_empty)
-  ensure
-    Object.__send__(:remove_const, :SchemataWarny) if defined?(SchemataWarny)
   end
 
   it "skips a file whose synthesis raises and still overlays the rest", :aggregate_failures do
+    stub_const("SchemataSynthOk", Class.new)
     # Unparser can raise on nodes it can't emit, such as `defined?`.
     write("sl_synth_bad.rb", <<~RUBY)
       class SchemataSynthBad
@@ -232,8 +224,6 @@ RSpec.describe(Kimera::Execution::Schemata) do
     bad = registry.points.select { |p| p.file == "sl_synth_bad.rb" }
     expect(bad.map(&:unsafe_reason).uniq)
       .to(eq(["unmutatable: schemata setup failed (Unparser::UnknownNodeError: Unknown node type: :defined)"]))
-  ensure
-    Object.__send__(:remove_const, :SchemataSynthOk) if defined?(SchemataSynthOk)
   end
 
   it "ignores registry files that no longer exist on disk", :aggregate_failures do
@@ -704,12 +694,13 @@ RSpec.describe(Kimera::Execution::Schemata) do
     # Rails keeps a scope the class redeclares after `include`; re-running the
     # concern's block must not clobber that override.
     it "skips a scope or association the includer redeclares after the include", :aggregate_failures do
+      stub_const("SchemataSpace", Module.new)
       test_concern
       concern = Module.new.tap { |m| m.extend(ActiveSupport::Concern) }
       stub_const("SchemataExpiring", concern)
       concern.included { :original }
       path = write("schemata_invitation.rb", <<~RUBY)
-        class SchemataInvitation
+        class SchemataSpace::Invitation
           def self.defined = @defined ||= {}
           def self.scope(name, body) = defined[name] = body
           def self.has_many(name, *) = defined[name] = :has_many
@@ -723,7 +714,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
         end
       RUBY
       load(File.join(dir, path))
-      invitation = SchemataInvitation
+      invitation = SchemataSpace::Invitation
       Kimera::Execution::OverlayGuards.new.overlay do
         concern.included do
           scope :expired, :mutated
@@ -733,8 +724,6 @@ RSpec.describe(Kimera::Execution::Schemata) do
         end
       end
       expect(invitation.defined).to(eq(expired: :override, before: :mutated, notes: :has_many, fresh: :mutated))
-    ensure
-      Object.__send__(:remove_const, :SchemataInvitation) if defined?(SchemataInvitation)
     end
 
     it "installs the concern guard only once per process", :aggregate_failures do
@@ -746,17 +735,16 @@ RSpec.describe(Kimera::Execution::Schemata) do
   end
 
   it "retries a file whose constant another overlaid file defines later", :aggregate_failures do
-    write("sl_a_child.rb", "class SchemataChild < SchemataParent\n  def gt(a, b) = a > b\nend\n")
-    write("sl_b_parent.rb", "class SchemataParent\n  def lt(a, b) = a < b\nend\n")
+    stub_const("SchemataLater", Module.new)
+    write("sl_a_child.rb", "class SchemataLater::Child < SchemataLater::Parent\n  def gt(a, b) = a > b\nend\n")
+    write("sl_b_parent.rb", "class SchemataLater::Parent\n  def lt(a, b) = a < b\nend\n")
     files = %w[sl_a_child.rb sl_b_parent.rb].map { |name| File.join(dir, name) }
     registry = Kimera::RegistryScan.new(root: dir).build(files)
 
     loader = described_class.new(registry, root: dir)
     expect { loader.overlay! }.not_to(output.to_stderr)
     expect(loader.skipped).to(be_empty)
-    expect(SchemataChild.new.gt(2, 1)).to(be(true))
-  ensure
-    %i[SchemataChild SchemataParent].each { |name| Object.__send__(:remove_const, name) if Object.const_defined?(name) }
+    expect(SchemataLater::Child.new.gt(2, 1)).to(be(true))
   end
 
   it "reports a constant that stays missing once, after the retry", :aggregate_failures do
