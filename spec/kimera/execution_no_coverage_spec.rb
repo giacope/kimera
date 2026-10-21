@@ -103,13 +103,13 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
 
   it "reports teardown failures with the injected error stream" do
     errors = StringIO.new
-    databases = Kimera::Execution::WorkerDatabases.new(adapter: Object.new, jobs: 2, errors: errors)
+    databases = Kimera::Execution::WorkerDatabases.new(jobs: 2, errors: errors)
     allow(databases).to(receive(:cleanup).and_raise(RuntimeError, "teardown boom"))
 
     databases.before_exit(1)
 
     expect(errors.string).to(eq("kimera: parallelize_teardown failed (RuntimeError: teardown boom)\n"))
-    fallback = Kimera::Execution::WorkerDatabases.new(adapter: Object.new, jobs: 2)
+    fallback = Kimera::Execution::WorkerDatabases.new(jobs: 2)
     expect(fallback.__send__(:errors)).to(equal($stderr))
   end
 
@@ -117,7 +117,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     stub_const("ActiveRecord", Module.new)
     stub_const("ActiveRecord::Base", Class.new)
     errors = StringIO.new
-    databases = Kimera::Execution::WorkerDatabases.new(adapter: Object.new, jobs: 2, errors: errors)
+    databases = Kimera::Execution::WorkerDatabases.new(jobs: 2, errors: errors)
     allow(databases).to(receive(:require).with("active_record/test_databases").and_raise(LoadError, "missing helper"))
     allow(databases).to(receive(:eligible?).and_return(true))
 

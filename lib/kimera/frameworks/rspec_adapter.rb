@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "json"
 require "rspec/core"
 require_relative "adapter"
 require_relative "group_scope"
@@ -53,6 +54,18 @@ class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
   def finish
     return unless @suites.include?(Process.pid)
     hooks(:@after_suite_hooks)
+  end
+
+  def plain(ids, out)
+    bundle = defined?(Bundler) ? %w[bundle exec] : []
+    [*bundle, "rspec", "--format", "json", "--out", out, "--order", "defined", *(ids & test_ids)]
+  end
+
+  def failed_plainly(_output, out)
+    examples = JSON.parse(File.read(out, encoding: Encoding::UTF_8)).fetch("examples", [])
+    examples.filter_map { |example| example["id"] if example["status"] == "failed" }
+  rescue SystemCallError, JSON::ParserError
+    []
   end
 
   def run(ids)

@@ -14,7 +14,7 @@ RSpec.describe(Kimera::Execution::Pool) do
   end
 
   def driver(jobs: 2)
-    databases = Kimera::Execution::WorkerDatabases.new(adapter: nil, jobs: jobs)
+    databases = Kimera::Execution::WorkerDatabases.new(jobs: jobs)
     described_class.new(
       adapter: nil, registry: registry, isolation: Kimera::Execution::Isolation.new, jobs: jobs,
       hard: 5.0, soft: nil, leak: 0, paralleldb: databases

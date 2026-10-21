@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
+require_relative "parallel_databases"
 require_relative "suite_env"
 require_relative "../frameworks/load_path"
 
@@ -28,7 +29,7 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
   def command(mirror, request, ledger:, paths:)
     File.write(request_path(ledger), JSON.generate(request))
     includes = paths.flat_map { |path| ["-I", path] }
-    bundled(mirror, Kimera::Execution::SUITE_ENV.dup, ["ruby", *includes, *helpers(mirror), *argv(ledger)])
+    bundled(mirror, environment(request["slot"]), ["ruby", *includes, *helpers(mirror), *argv(ledger)])
   end
 
   def argv(ledger)
@@ -45,6 +46,11 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
   def request_path(ledger) = "#{ledger}.request"
 
   private
+
+  def environment(slot)
+    env = Kimera::Execution::SUITE_ENV.dup
+    slot ? env.update(Kimera::Execution::ParallelDatabases.new.numbered(slot)) : env
+  end
 
   def bundled(mirror, env, argv)
     return [env, argv] unless File.file?(File.join(mirror, "Gemfile"))

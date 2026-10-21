@@ -55,6 +55,10 @@ class Kimera::Frameworks::Adapter
     "rspec #{(ids & test_ids).join(" ")} --order defined"
   end
 
+  def plain(_ids, _out) = []
+
+  def failed_plainly(_output, _out) = []
+
   HARNESS = File.expand_path("..", __dir__)
   FRAMES = 5
   DEPENDENCIES = %w[ast diff-lcs parser prism racc unparser].freeze
