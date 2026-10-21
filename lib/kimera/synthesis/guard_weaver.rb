@@ -80,11 +80,7 @@ class Kimera::Guardrail
   def points(node)
     expression = node.location&.expression
     return [] unless expression
-    ranges.fetch(@map.span(expression), [])
-  end
-
-  def ranges
-    @_ranges ||= group(@points)
+    (@_ranges ||= group(@points)).fetch(@map.span(expression), [])
   end
 
   def ast(type, *children)

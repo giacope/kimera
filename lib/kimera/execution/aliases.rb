@@ -8,12 +8,44 @@ end
 require_relative "redefinition"
 
 class Kimera::Execution::Aliases
-  Entry =
-    Data.define(:holder, :name, :origin, :target, :body) do
-      def current = origin.instance_method(target)
+  module Repointing
+    def repointed
+      fresh = current
+      return self unless fresh && stale?(fresh)
+      Kimera::Execution::Redefinition.new(holder, name).redefine(fresh)
+      with(body: RubyVM::InstructionSequence.of(fresh))
     end
+
+    private
+
+    def stale?(fresh)
+      RubyVM::InstructionSequence.of(holder.instance_method(name)).equal?(body) &&
+        !RubyVM::InstructionSequence.of(fresh).equal?(body)
+    end
+  end
+
+  Entry = Data.define(:holder, :name, :origin, :target, :body)
+
+  class Entry
+    include Repointing
+
+    def current = origin.instance_method(target)
+
+    def orphaned(file) = Kimera::Execution::Aliases::Orphan.new(holder, name, file, target, body, nil)
+
+    def resolved = holder.ancestors.find { |mod| defines?(mod) }&.then { |found| with(origin: found) }
+
+    private
+
+    def defines?(mod)
+      (mod.method_defined?(target) || mod.private_method_defined?(target)) &&
+        RubyVM::InstructionSequence.of(mod.instance_method(target)).equal?(body)
+    end
+  end
+
   Orphan =
     Data.define(:holder, :name, :file, :target, :body, :fresh) do
+      include Repointing
       def current = fresh
     end
   OWN = Module.instance_method(:instance_methods)
@@ -34,7 +66,7 @@ class Kimera::Execution::Aliases
   end
 
   def again
-    yield.tap { tracked.each { |held| held.map! { |entry| repoint(entry) } } }
+    yield.tap { tracked.each { |held| held.map!(&:repointed) } }
   end
 
   def witness(displaced = [])
@@ -45,17 +77,17 @@ class Kimera::Execution::Aliases
 
   def tracked = @_tracked ||= Tracked.new([], [])
 
-  def watched = @_watched ||= @files.flat_map { |file| [file, *real(file)] }
-
-  def real(file) = File.exist?(file) ? [File.realpath(file)] : []
-
-  def capture
-    ObjectSpace.each_object(Module) { |mod| [mod, SINGLETON.bind_call(mod)].each { |holder| scan(holder) } }
+  def watched
+    @_watched ||= @files.flat_map { |file| [file, *(File.realpath(file) if File.exist?(file))] }
   end
 
-  def scan(holder)
-    names = OWN.bind_call(holder, INHERITED) + HIDDEN.bind_call(holder, INHERITED)
-    names.each { |name| track(holder, LOOKUP.bind_call(holder, name)) }
+  def capture
+    ObjectSpace.each_object(Module) do |mod|
+      [mod, SINGLETON.bind_call(mod)].each do |holder|
+        names = OWN.bind_call(holder, INHERITED) + HIDDEN.bind_call(holder, INHERITED)
+        names.each { |name| track(holder, LOOKUP.bind_call(holder, name)) }
+      end
+    end
   end
 
   def track(holder, method)
@@ -65,12 +97,10 @@ class Kimera::Execution::Aliases
   end
 
   def enter(entry, file)
-    origin = entry.holder.ancestors.find { |mod| resolves?(mod, entry.target, entry.body) }
-    return tracked.resolved << entry.with(origin: origin) if origin
-    tracked.orphans << orphan(entry, file) if wrapped?(entry, file)
+    resolved = entry.resolved
+    return tracked.resolved << resolved if resolved
+    tracked.orphans << entry.orphaned(file) if wrapped?(entry, file)
   end
-
-  def orphan(entry, file) = Orphan.new(entry.holder, entry.name, file, entry.target, entry.body, nil)
 
   def wrapped?(entry, file)
     found = lookup(entry.holder, entry.target)
@@ -99,23 +129,6 @@ class Kimera::Execution::Aliases
   def alike?(one, other) = [one, other].map { |path| Kimera::Execution::Origin.new(path).canonical }.uniq.one?
 
   def renamed?(method) = method.original_name != method.name
-
-  def resolves?(mod, target, body)
-    (mod.method_defined?(target) || mod.private_method_defined?(target)) &&
-      compiled(mod.instance_method(target)).equal?(body)
-  end
-
-  def repoint(entry)
-    fresh = entry.current
-    return entry unless fresh && stale?(entry, fresh)
-    Kimera::Execution::Redefinition.new(entry.holder, entry.name).redefine(fresh)
-    entry.with(body: compiled(fresh))
-  end
-
-  def stale?(entry, fresh)
-    entry => { holder:, name:, body: }
-    compiled(holder.instance_method(name)).equal?(body) && !compiled(fresh).equal?(body)
-  end
 
   def compiled(method) = RubyVM::InstructionSequence.of(method)
 end

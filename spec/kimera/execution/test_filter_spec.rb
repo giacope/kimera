@@ -58,7 +58,7 @@ RSpec.describe(Kimera::Execution::TestFilter, :aggregate_failures) do
 
   it "never keeps a flaky test, with or without attribution" do
     expect(filter(flaky: %w[own]).keep("app/models/order.rb", %w[own also])).to(eq(%w[also]))
-    unattributed = filter(attribution: nil, flaky: %w[request])
+    unattributed = filter(attribution: Kimera::Execution::Attribution::ANY, flaky: %w[request])
     expect(unattributed.active?).to(be(true))
     expect(unattributed.keep("app/models/order.rb", %w[own request])).to(eq(%w[own]))
   end

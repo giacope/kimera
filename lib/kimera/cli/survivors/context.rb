@@ -34,10 +34,7 @@ class Kimera::CLI::Survivors::Context
   def window(source) = ([first - AROUND, 1].max..[last + AROUND, source.size].min)
 
   def numbered(source, number)
-    "  #{marker(number)} #{number.to_s.rjust(width)} | #{source.fetch(number - 1)}".rstrip
+    marker = (first..last).cover?(number) ? ">" : " "
+    "  #{marker} #{number.to_s.rjust((last + AROUND).to_s.size)} | #{source.fetch(number - 1)}".rstrip
   end
-
-  def marker(number) = (first..last).cover?(number) ? ">" : " "
-
-  def width = (last + AROUND).to_s.size
 end

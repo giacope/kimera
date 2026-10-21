@@ -29,11 +29,11 @@ class Kimera::Frameworks::LoadPath
 
   def extra = @env.fetch(VARIABLE, "").split(File::PATH_SEPARATOR)
 
-  def nearest = @files.flat_map { |file| ancestors(File.expand_path(file, base)) }
-
-  def ancestors(path)
-    parts = path.split(File::SEPARATOR)
-    ROOTS.filter_map { |name| parts.rindex(name)&.then { |index| parts[0..index].join(File::SEPARATOR) } }
+  def nearest
+    @files.flat_map do |file|
+      parts = File.expand_path(file, base).split(File::SEPARATOR)
+      ROOTS.filter_map { |name| parts.rindex(name)&.then { |index| parts[0..index].join(File::SEPARATOR) } }
+    end
   end
 
   def top = ROOTS.map { |name| File.join(base, name) }.select { |dir| File.directory?(dir) }

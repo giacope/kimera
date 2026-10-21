@@ -12,7 +12,8 @@ Kimera::Execution::BaselineTally =
       touched.each { |id| coverage[id] << test_id }
       timings[test_id] = took
     end
-    define_method(:measured) do |excluded, recovered|
+    define_method(:measured) do |recovered|
+      excluded = irrelevant.to_h { |test_id| [test_id, messages[test_id]] }
       measured.new(coverage: coverage, irrelevant: excluded, recovered: recovered, timings: timings)
     end
   end

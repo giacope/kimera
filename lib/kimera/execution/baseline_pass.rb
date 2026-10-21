@@ -36,22 +36,15 @@ class Kimera::Execution::BaselinePass
   private
 
   def settle(jobs)
-    @progress.start(@adapter.test_ids.size, "baseline")
     yield
-    report(jobs)
+    failures = tally.failures
+    failure!(failures, jobs, Kimera::Execution::BaselineOrder.new(self).of(failures)) unless failures.empty?
+    tally.measured(losses.recovered(tally.messages))
   ensure
     @progress.finish
   end
 
   def tally = @_tally ||= Kimera::Execution::BaselineTally.new(Hash.new { |h, k| h[k] = [] }, [], [], {}, {})
-
-  def report(jobs)
-    failures = tally.failures
-    failure!(failures, jobs, Kimera::Execution::BaselineOrder.new(self).of(failures)) unless failures.empty?
-    tally.measured(excluded, losses.recovered(tally.messages))
-  end
-
-  def excluded = tally.irrelevant.to_h { |test_id| [test_id, tally.messages[test_id]] }
 
   def whole
     Kimera::RUNTIME.active = nil
@@ -65,13 +58,12 @@ class Kimera::Execution::BaselinePass
     { "passed" => outcome.passed?, "failed_ids" => outcome.failed_ids, "failures" => outcome.failures }
   end
 
-  def dispatch(&)
-    yield(@adapter.test_ids, nil, listeners(method(:lost), tracer))
-    rerun(losses.stalled, &)
-  end
-
-  def rerun(ids)
-    yield(ids, 1, listeners(method(:relapse), nil)) unless ids.empty?
+  def dispatch
+    tests = @adapter.test_ids
+    @progress.start(tests.size, "baseline")
+    yield(tests, nil, listeners(method(:lost), ->(slot, test_id) { journal[slot] << test_id }))
+    stalled = losses.stalled
+    yield(stalled, 1, listeners(method(:relapse), nil)) unless stalled.empty?
   end
 
   def listeners(lost, trace) = Kimera::Execution::WorkerPool::Listeners.new(resolve: resolve, lost: lost, trace: trace)
@@ -79,8 +71,6 @@ class Kimera::Execution::BaselinePass
   def losses = @_losses ||= Kimera::Execution::BaselineLosses.new
 
   def journal = @_journal ||= Hash.new { |workers, slot| workers[slot] = [] }
-
-  def tracer = ->(slot, test_id) { journal[slot] << test_id }
 
   def resolve = ->(message) { receive(message) }
 

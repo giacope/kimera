@@ -32,16 +32,13 @@ class Kimera::Execution::IsolatedPlan
 
   def root = @_root ||= File.expand_path(@given)
 
-  def tests(id, point, screened: true)
-    return if point.unloaded?
-    file = point.file
-    found = whole?(point) ? kin.tests(file) : selection.recorded(id)
-    found = selection.all if everything?(point)
-    screen = @options[:filter] if screened
-    found && screen ? screen.keep(file, found) : found
+  def tests(id, point)
+    found = candidates(id, point)
+    screen = @options[:filter]
+    found && screen ? screen.keep(point.file, found) : found
   end
 
-  def settled(id, point) = @options[:filter]&.settle(id, Array(tests(id, point, screened: false)))
+  def settled(id, point) = @options[:filter]&.settle(id, Array(candidates(id, point)))
 
   def command(mirror, locations, ledger, **)
     child.command(mirror, child.request(locations, **), ledger: ledger, paths: mutables)
@@ -68,6 +65,12 @@ class Kimera::Execution::IsolatedPlan
   end
 
   private
+
+  def candidates(id, point)
+    return if point.unloaded?
+    return selection.all if everything?(point)
+    whole?(point) ? kin.tests(point.file) : selection.recorded(id)
+  end
 
   def everything?(point)
     point.revisit == Kimera::MutationPoint::ORDER_REASON ||

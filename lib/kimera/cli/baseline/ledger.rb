@@ -19,10 +19,9 @@ class Kimera::CLI::Baseline::Ledger
   private
 
   def judged(fields)
-    Kimera::CLI::Baseline::Entry.new(fields, scoped(fields["file"].to_s), missing: missing)
+    scoped = rows.select { |row| File.fnmatch?(fields["file"].to_s, row["file"].to_s, File::FNM_PATHNAME) }
+    Kimera::CLI::Baseline::Entry.new(fields, scoped, missing: missing)
   end
-
-  def scoped(glob) = rows.select { |row| File.fnmatch?(glob, row["file"].to_s, File::FNM_PATHNAME) }
 
   def rows = @_rows ||= parsed.fetch("results", [])
 
