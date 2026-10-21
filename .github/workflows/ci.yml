@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, claude/self-hosting] # TEMP: drop the branch before review (dispatch is not available to this session)
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
