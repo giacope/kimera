@@ -135,14 +135,14 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
         record = double(configurations: double(configs_for: [:primary]))
         stub_const("ActiveRecord::ConnectionHandling::DEFAULT_ENV", -> { "test" })
         stub_const("ActiveRecord::Tasks::DatabaseTasks", double(schema_dump_path: schema))
-        return described_class.new.loadable?(record)
+        return described_class.new(record: record).loadable?
       end
     end
 
     it "is there only when every test database has its schema dump" do
       expect(configured(true)).to(be(true))
       expect(configured(false)).to(be(false))
-      expect(described_class.new.loadable?(nil)).to(be(true))
+      expect(described_class.new(record: nil).loadable?).to(be(true))
     end
   end
 

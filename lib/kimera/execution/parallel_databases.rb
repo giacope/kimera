@@ -13,9 +13,13 @@ end
 class Kimera::Execution::ParallelDatabases
   VARIABLE = "TEST_ENV_NUMBER"
 
-  def initialize(env: ENV, support: (ActiveSupport if defined?(ActiveSupport)))
+  def initialize(
+    env: ENV, support: (ActiveSupport if defined?(ActiveSupport)),
+    record: (ActiveRecord::Base if defined?(ActiveRecord::Base))
+  )
     @env = env
     @support = support
+    @record = record
   end
 
   def enabled?
@@ -23,8 +27,8 @@ class Kimera::Execution::ParallelDatabases
     @support.parallelize_test_databases
   end
 
-  def loadable?(record = (ActiveRecord::Base if defined?(ActiveRecord::Base)))
-    configs = record.configurations.configs_for(env_name: ActiveRecord::ConnectionHandling::DEFAULT_ENV.call)
+  def loadable?
+    configs = @record.configurations.configs_for(env_name: ActiveRecord::ConnectionHandling::DEFAULT_ENV.call)
     configs.all? { |config| File.exist?(ActiveRecord::Tasks::DatabaseTasks.schema_dump_path(config)) }
   rescue StandardError
     true
