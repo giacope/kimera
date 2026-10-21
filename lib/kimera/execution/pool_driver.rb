@@ -26,6 +26,8 @@ class Kimera::Execution::Pool
       end
     end
 
+  Armed = Struct.new(:coverage, :budget, :timings, :stacks)
+
   def initialize(adapter:, registry:, isolation:, **options)
     @adapter = adapter
     @registry = registry
@@ -33,18 +35,20 @@ class Kimera::Execution::Pool
     @options = options
   end
 
-  def coverage = @options[:coverage]
+  def coverage = armed.coverage
 
   def arm(coverage:, budget:, timings:)
-    @options.update(coverage: coverage, budget: budget, timings: timings)
+    armed.coverage = coverage
+    armed.budget = budget
+    armed.timings = timings
   end
 
-  def narrow(coverage) = @options.update(coverage: coverage)
+  def narrow(coverage) = armed.coverage = coverage
 
   def drive(queue, spawner, listeners, jobs: @options.fetch(:jobs))
     database.before_fork
     Dir.mktmpdir("kimera-stacks") do |dir|
-      @options[:stacks] = Kimera::Execution::StackDump.new(dir)
+      armed.stacks = Kimera::Execution::StackDump.new(dir)
       Kimera::Execution::WorkerPool.new(
         Kimera::Execution::WorkerPool::Context.new(
           queue, spawner, listeners, { jobs: jobs, hard_timeout: @options.fetch(:hard) }
@@ -65,7 +69,9 @@ class Kimera::Execution::Pool
 
   def database = @options.fetch(:paralleldb)
 
-  def stacks = @options[:stacks]
+  def stacks = armed.stacks
+
+  def armed = @_armed ||= Armed.new(*@options.values_at(:coverage, :budget, :timings))
 
   def launch(entry, index)
     duty = Duty.new(entry, index, channels)
@@ -103,7 +109,7 @@ class Kimera::Execution::Pool
     Kimera::Execution::Shift.new(
       adapter: @adapter, registry: @registry, coverage: coverage, isolation: @isolation,
       soft_timeout: @options.fetch(:soft), pulse: pulse(duty), ceiling: soft_ceiling,
-      **@options.slice(:budget, :timings, :quality, :confirm)
+      **@options.slice(:quality, :confirm), **{ budget: armed.budget, timings: armed.timings }.compact
     )
   end
 

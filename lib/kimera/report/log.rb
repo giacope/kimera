@@ -8,32 +8,35 @@ end
 class Kimera::Report::Log
   HEARTBEAT_EVERY = 30.0
   NEVER = -Float::INFINITY
+  Shown = Struct.new(:painted, :drawn, :rows, keyword_init: true)
 
   def initialize(io)
     @io = io
-    @shown = { painted: NEVER, drawn: false, rows: 1 }
   end
 
   def cadence = HEARTBEAT_EVERY
 
-  def due?(now, cadence) = now - @shown[:painted] >= cadence
+  def due?(now, cadence) = now - shown.painted >= cadence
 
   def note(text) = write("kimera: #{text}\n")
 
   def paint(text, now)
     write(frame(text))
-    @shown.update(drawn: true, painted: now)
+    shown.drawn = true
+    shown.painted = now
   end
 
   def clear
-    return unless @shown[:drawn]
+    return unless shown.drawn
     wipe
-    @shown[:drawn] = false
+    shown.drawn = false
   end
 
   def commit = clear
 
   private
+
+  def shown = @_shown ||= Shown.new(painted: NEVER, drawn: false, rows: 1)
 
   def frame(text) = "#{text}\n"
 

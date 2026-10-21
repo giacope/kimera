@@ -13,8 +13,6 @@ class Kimera::Guardrail
   include Kimera::GuardrailInterpolation
   include Kimera::GuardrailFactories
 
-  attr_reader :applied
-
   Patch =
     Data.define(:map, :span, :directive) do
       def apply(rebuilt, original)
@@ -27,15 +25,22 @@ class Kimera::Guardrail
   def initialize(map, points)
     @map = map
     @points = points
-    @applied = []
   end
 
-  def tree
-    transform(@map.ast)
-  end
+  def tree = @_tree ||= transform(@map.ast)
+
+  def applied = activated(tree)
 
   def rewrite(node)
-    [Kimera::Unparse.new(transform(node)).source, applied]
+    woven = transform(node)
+    [Kimera::Unparse.new(woven).source, activated(woven)]
+  end
+
+  def activated(node)
+    return [] unless node.is_a?(Parser::AST::Node)
+    receiver, name, *arguments = node.children
+    own = node.type == :send && name == :active? && receiver == runtime ? [arguments.first.children.first] : []
+    own + node.children.flat_map { |child| activated(child) }
   end
 
   def transform(node) = weave(node).first

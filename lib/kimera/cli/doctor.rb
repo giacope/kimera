@@ -11,6 +11,7 @@ require_relative "rails_layout"
 require_relative "test_command"
 
 class Kimera::CLI::Doctor
+  LOAD_PATH = Kimera::Frameworks::LoadPath::VARIABLE
   OPTIONS = Kimera::FlagTable.new(
     banner: "Usage: kimera doctor [--check-baseline [--jobs N]]",
     flags: [
@@ -42,9 +43,7 @@ class Kimera::CLI::Doctor
 
   private
 
-  def expose(config, env = @env)
-    env.store(Kimera::Frameworks::LoadPath::VARIABLE, Array(config[:load_path]).join(File::PATH_SEPARATOR))
-  end
+  def expose(config, env = @env) = env.store(LOAD_PATH, Array(config[:load_path]).join(File::PATH_SEPARATOR))
 
   def usage(error)
     @errors.puts("kimera: #{error.message}")

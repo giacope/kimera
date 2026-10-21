@@ -22,10 +22,10 @@ class Kimera::Execution::Aliases
   SINGLETON = Kernel.instance_method(:singleton_class)
   INHERITED = false
 
+  Tracked = Struct.new(:resolved, :orphans)
+
   def initialize(files)
     @files = files
-    @entries = []
-    @orphans = []
   end
 
   def follow(&)
@@ -34,14 +34,16 @@ class Kimera::Execution::Aliases
   end
 
   def again
-    yield.tap { [@entries, @orphans].each { |held| held.map! { |entry| repoint(entry) } } }
+    yield.tap { tracked.each { |held| held.map! { |entry| repoint(entry) } } }
   end
 
   def witness(displaced = [])
-    @orphans.map! { |orphan| adopt(orphan, displaced) }
+    tracked.orphans.map! { |orphan| adopt(orphan, displaced) }
   end
 
   private
+
+  def tracked = @_tracked ||= Tracked.new([], [])
 
   def watched = @_watched ||= @files.flat_map { |file| [file, *real(file)] }
 
@@ -64,8 +66,8 @@ class Kimera::Execution::Aliases
 
   def enter(entry, file)
     origin = entry.holder.ancestors.find { |mod| resolves?(mod, entry.target, entry.body) }
-    return @entries << entry.with(origin: origin) if origin
-    @orphans << orphan(entry, file) if wrapped?(entry, file)
+    return tracked.resolved << entry.with(origin: origin) if origin
+    tracked.orphans << orphan(entry, file) if wrapped?(entry, file)
   end
 
   def orphan(entry, file) = Orphan.new(entry.holder, entry.name, file, entry.target, entry.body, nil)

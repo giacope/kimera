@@ -71,7 +71,7 @@ RSpec.describe(Kimera::Execution::Pool) do
   it "arms the stack dump inside the fork, before the worker boots", :aggregate_failures do
     pool = driver
     stacks = instance_spy(Kimera::Execution::StackDump)
-    pool.instance_variable_get(:@options)[:stacks] = stacks
+    pool.__send__(:armed).stacks = stacks
     allow(pool).to(receive(:fork).and_yield.and_return(7))
     allow(pool).to(receive(:lead))
     allow(pool).to(receive(:boot)) { expect(stacks).to(have_received(:arm!)) }

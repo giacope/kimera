@@ -10,15 +10,16 @@ require_relative "overrides"
 require_relative "overlay_guards"
 
 class Kimera::Execution::Schemata
-  attr_reader :skipped
+  Woven = Struct.new(:skipped)
 
   def initialize(registry, root: ".", errors: nil, loaded: proc { true })
     @registry = registry
     @root = root
     @errors = errors
     @loaded = loaded
-    @skipped = {}
   end
+
+  def skipped = woven.skipped
 
   def overlay!
     Kimera::Execution::OverlayGuards.new.install!
@@ -28,6 +29,8 @@ class Kimera::Execution::Schemata
   def aliases = @_aliases ||= Kimera::Execution::Aliases.new(@registry.files.map { |path| File.join(root, path) })
 
   private
+
+  def woven = @_woven ||= Woven.new({})
 
   def reachable
     shut, open = @registry.files.partition { |path| shut?(path) }
@@ -44,11 +47,11 @@ class Kimera::Execution::Schemata
   def weave(paths) = paths.flat_map { |path| load(path) }
 
   def unresolved
-    @skipped.keys.select { |path| @skipped[path].start_with?("NameError:") }.each { |path| @skipped.delete(path) }
+    skipped.keys.select { |path| skipped[path].start_with?("NameError:") }.each { |path| skipped.delete(path) }
   end
 
   def announce
-    @skipped.each do |path, reason|
+    skipped.each do |path, reason|
       notice(path, reason)
       @registry.at(path).select(&:safe?).each { |point| point.unmutatable!("schemata setup failed (#{reason})") }
     end
@@ -83,7 +86,7 @@ class Kimera::Execution::Schemata
   end
 
   def skip(path, reason)
-    @skipped[path] = reason
+    skipped[path] = reason
     []
   end
 

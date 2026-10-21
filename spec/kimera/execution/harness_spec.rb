@@ -395,7 +395,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       lost.__send__(:lost, "t1", :timeout, nil)
       lost.__send__(:relapse, "t1", :timeout)
       lost.__send__(:lost, "t2", :crash, nil)
-      messages = lost.instance_variable_get(:@messages)
+      messages = lost.__send__(:tally).messages
       expect(messages["t1"]).to(
         eq(
           "its worker was killed at the hard timeout (--hard-timeout) before reporting a result, " \

@@ -133,7 +133,7 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
   it "counts a crash as the parallel loss it was, not a rerun one" do
     pass = described_class.new(adapter: adapter, registry: registry)
     pass.__send__(:lost, "t1", :crash)
-    expect(pass.instance_variable_get(:@messages)["t1"]).to(eq("its worker died before reporting a result"))
+    expect(pass.__send__(:tally).messages["t1"]).to(eq("its worker died before reporting a result"))
   end
 
   # A suite that shares a directory, file or port between tests is red on

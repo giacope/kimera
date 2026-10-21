@@ -16,23 +16,24 @@ class Kimera::Report::Live < Kimera::Report::Log
   def cadence = REDRAW_EVERY
 
   def commit
-    return unless @shown[:drawn]
+    return unless shown.drawn
     write("\n")
-    @shown.update(drawn: false, rows: 1)
+    shown.drawn = false
+    shown.rows = 1
   end
 
   private
 
   def frame(text)
     prefix = erasure
-    @shown[:rows] = rows_for(text)
+    shown.rows = rows_for(text)
     "#{prefix}#{text}"
   end
 
   def wipe = write(erasure)
 
   def erasure
-    ERASE + ((CURSOR_UP + ERASE) * (@shown[:rows] - 1))
+    ERASE + ((CURSOR_UP + ERASE) * (shown.rows - 1))
   end
 
   def rows_for(text)
