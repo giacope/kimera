@@ -93,8 +93,6 @@ class Kimera::Execution::Shift
     covered(subject)
   rescue Kimera::Execution::Zygote::Died
     raise
-  rescue Kimera::Execution::Zygote::Raised => error
-    subject.crashed(error, timeout, error.kind)
   rescue StandardError, ScriptError => error
     subject.crashed(error, timeout)
   end

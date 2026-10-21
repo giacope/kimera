@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
+require_relative "fault"
 require_relative "last_words"
 require_relative "zygote"
 
@@ -10,6 +11,8 @@ module Kimera
 end
 
 class Kimera::Execution::Pool; end
+
+using Kimera::Execution::Fault
 
 Kimera::Execution::Pool::Duty =
   Struct.new(:entry, :index, :pipes) do
@@ -38,18 +41,14 @@ Kimera::Execution::Pool::Duty =
       nil
     end
 
-    # rubocop:disable Kata/NoTypeCheck -- ensure hands over whatever ended the worker, which no rescue clause can sort
-    def echo(error)
-      return unless error.is_a?(Kimera::Execution::Zygote::Died)
-      signal = error.signal
-      return exit!(error.code || 1) unless signal
+    def echo(error) = error&.echo(self)
+
+    def die_of(signal)
       Signal.trap(signal, "SYSTEM_DEFAULT")
       Process.kill(signal, Process.pid)
     end
 
-    def words(error)
-      return "" unless error
-      error.is_a?(Kimera::Execution::Zygote::Died) ? error.message : Kimera::Execution::LastWords.new(error).to_s
-    end
-    # rubocop:enable Kata/NoTypeCheck
+    def exit_with(code) = exit!(code)
+
+    def words(error) = error ? error.last_words : ""
   end

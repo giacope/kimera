@@ -11,6 +11,8 @@ module Kimera
 
     PATHS = [Runtime::SOURCE_PATH, *OUT_OF_PROCESS_ENTRYPOINTS].freeze
 
+    HOME = File.dirname(Runtime::SOURCE_PATH)
+
     HARNESS_CRITICAL_SUFFIXES = %w[
       kimera/frameworks/adapter.rb
       kimera/frameworks/rspec_adapter.rb
@@ -64,6 +66,8 @@ module Kimera
       target = canonical(@path)
       PATHS.any? { |own| canonical(own) == target }
     end
+
+    def own? = canonical(@path).start_with?("#{canonical(HOME)}/")
 
     private
 

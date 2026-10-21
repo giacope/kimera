@@ -24,6 +24,10 @@ class Kimera::Execution::Zygote
       @signal = signal
       @code = code
     end
+
+    def last_words = message
+
+    def echo(duty) = signal ? duty.die_of(signal) : duty.exit_with(code || 1)
   end
 
   class Raised < StandardError
