@@ -104,7 +104,6 @@ class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
     found = world.example_groups.flat_map { |top| Kimera::Frameworks::GroupTree.new(top).examples }
     return found unless found.empty? && RSpec.configuration.run_all_when_everything_filtered?
     return found if world.inclusion_filter.empty?
-    world.filtered_examples.clear
     world.inclusion_filter.clear
     selected
   end

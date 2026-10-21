@@ -72,4 +72,34 @@ RSpec.describe(Kimera::Execution::Shift::Unmask) do
     expect(alone.size).to(eq(described_class::CAP))
     expect(alone.first).to(eq(["t9", target]))
   end
+
+  # A timeout found alone carries no failure messages to annotate.
+  describe "a test that hangs alone" do
+    let(:clock) { [0.0] }
+
+    before { stub_const("Kimera::Execution::Shift::Deadline::CLOCK", -> { clock.first }) }
+
+    # +script+ maps a test to its successive runs, as [seconds, passed?] pairs.
+    def timed(script)
+      now = clock
+      Class.new do
+        define_method(:initialize) { @script = script.transform_values(&:dup) }
+
+        define_method(:run) do |ids|
+          took, passed = @script.fetch(ids.first, []).shift || [0.0, true]
+          now[0] += took
+          Kimera::Frameworks::RunOutcome.new(passed: passed, failed_ids: passed ? [] : ids)
+        end
+      end.new
+    end
+
+    it "times out a survivor whose test hangs alone with the mutant on and passes quickly without it" do
+      adapter = timed({ "t2" => [[0.1, true], [6.0, true], [0.4, true], [0.4, true]] })
+      result = Kimera::Execution::Shift.new(
+        adapter: adapter, registry: registry, coverage: { target => %w[t1 t2] }, soft_timeout: 5.0,
+        zygote: InlineZygote.new, confirm: true
+      ).evaluate(target)
+      expect(result.status).to(eq(:timeout))
+    end
+  end
 end
