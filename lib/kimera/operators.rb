@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "forwardable"
 require_relative "error"
 require_relative "operators/argument_drop"
 require_relative "operators/arithmetic"
@@ -8,7 +9,7 @@ require_relative "operators/base"
 require_relative "operators/boolean_connective"
 require_relative "operators/boolean_literal"
 require_relative "operators/catalog"
-require_relative "operators/chain_link_deletion"
+require_relative "operators/link_deletion"
 require_relative "operators/collection_literal"
 require_relative "operators/comparison"
 require_relative "operators/conditional"
@@ -32,7 +33,7 @@ require_relative "operators/regexp_anchor"
 require_relative "operators/regexp_literal"
 require_relative "operators/regexp_quantifier"
 require_relative "operators/rescue_clause"
-require_relative "operators/respond_to_guard"
+require_relative "operators/probe_guard"
 require_relative "operators/return_value"
 require_relative "operators/safe_navigation"
 require_relative "operators/selector_swap"
@@ -48,8 +49,8 @@ module Kimera
       Comparison, BooleanConnective, BooleanLiteral, StatementDeletion, Arithmetic, Negation, SafeNavigation,
       Conditional, NumericLiteral, StringLiteral, CollectionLiteral, Range, MethodUnwrap, ReturnValue,
       SelectorSwap, RegexpLiteral, RailsPermit, RailsValidation, RailsCallback, RailsAssociation, ElementDrop,
-      ArgumentDrop, OpAssign, IndexFetch, KernelCoercion, RespondToGuard, SymbolLiteral, DefaultArgument,
-      ChainLinkDeletion, SuperCall, RescueClause, EnsureClause, AssignmentDeletion, NilLiteral, RegexpAnchor,
+      ArgumentDrop, OpAssign, IndexFetch, KernelCoercion, ProbeGuard, SymbolLiteral, DefaultArgument,
+      LinkDeletion, SuperCall, RescueClause, EnsureClause, AssignmentDeletion, NilLiteral, RegexpAnchor,
       RegexpQuantifier, KeywordDrop, Visibility
     ].freeze
 
@@ -64,9 +65,8 @@ module Kimera
 
     def self.build(keys: DEFAULT_KEYS) = CATALOG.build(keys: keys)
 
-    def self.register(*klasses)
-      CATALOG.register(*klasses)
-      self
-    end
+    extend SingleForwardable
+
+    def_delegator "Kimera::Operators::CATALOG", :register
   end
 end

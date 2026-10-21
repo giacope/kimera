@@ -12,23 +12,24 @@ class Kimera::Report::Screen
   MODES = [true, false].freeze
 
   class << self
-    def of(io, preference)
+    def of(io, preference, env: ENV)
       tty = io.tty?
-      new(io, enabled: MODES.include?(preference) ? preference : tty, interactive: tty)
+      new(io, enabled: MODES.include?(preference) ? preference : tty, interactive: tty, env: env)
     end
   end
 
-  def initialize(io, enabled:, interactive:)
+  def initialize(io, enabled:, interactive:, env:)
     @io = io
     @enabled = enabled
     @interactive = interactive
+    @env = env
   end
 
   def enabled? = @enabled
 
   def interactive? = @interactive
 
-  def colored? = @enabled && !ENV.key?("NO_COLOR")
+  def colored? = @enabled && !@env.key?("NO_COLOR")
 
   def surface
     @interactive ? Kimera::Report::Live.new(@io, columns: columns) : Kimera::Report::Log.new(@io)

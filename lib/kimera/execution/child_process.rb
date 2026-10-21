@@ -9,11 +9,11 @@ module Kimera
       private
 
       def silence!
-        STDOUT.reopen(File::NULL, "w")
-        STDERR.reopen(File::NULL, "w")
-        $stdout = STDOUT
-        $stderr = STDERR
+        $stdout = discard(1)
+        $stderr = discard(2)
       end
+
+      def discard(descriptor) = IO.for_fd(descriptor, autoclose: false).reopen(File::NULL, "w")
 
       def lead
         Process.setpgid(0, 0)

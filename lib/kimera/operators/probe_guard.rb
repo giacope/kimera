@@ -2,7 +2,7 @@
 
 require_relative "base"
 
-class Kimera::Operators::RespondToGuard < Kimera::Operators::Base
+class Kimera::Operators::ProbeGuard < Kimera::Operators::Base
   def key = "respond_to_guard"
 
   def variants(node, **)

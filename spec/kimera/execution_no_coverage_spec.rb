@@ -77,19 +77,22 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     expect(route.__send__(:matches?, { "7" => ["spec/critical_spec.rb"] }, 7, "critical")).to(be(true))
   end
 
-  it "redirects both child streams before rebinding Ruby globals" do
-    child = Class.new { include Kimera::Execution::ChildProcess }.new
-    out = Object.const_get(:STDOUT)
-    error = Object.const_get(:STDERR)
-    allow(out).to(receive(:reopen))
-    allow(error).to(receive(:reopen))
+  def silenced_output
+    IO.popen("-") do |pipe|
+      next pipe.read if pipe
+      IO.for_fd(2, autoclose: false).reopen(IO.for_fd(1, autoclose: false))
+      $stdout.print("before|")
+      $stdout.flush
+      Class.new { include Kimera::Execution::ChildProcess }.new.__send__(:silence!)
+      $stdout.print("ruby out")
+      $stderr.print("ruby err")
+      system("echo shell out; echo shell err >&2")
+      exit!(0)
+    end
+  end
 
-    child.__send__(:silence!)
-
-    expect(out).to(have_received(:reopen).with(File::NULL, "w"))
-    expect(error).to(have_received(:reopen).with(File::NULL, "w"))
-    expect($stdout).to(equal(out))
-    expect($stderr).to(equal(error))
+  it "points the child's descriptors 1 and 2, and Ruby's streams, at the null device" do
+    expect(silenced_output).to(eq("before|"))
   end
 
   it "exposes the harness skip map and delegates its spawner to the rig" do

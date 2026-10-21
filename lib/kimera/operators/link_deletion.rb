@@ -3,7 +3,7 @@
 require "prism"
 require_relative "base"
 
-class Kimera::Operators::ChainLinkDeletion < Kimera::Operators::Base
+class Kimera::Operators::LinkDeletion < Kimera::Operators::Base
   def key = "chain_link_deletion"
 
   def variants(node, **)

@@ -52,7 +52,7 @@ RSpec.describe(Kimera::Frameworks::RSpecAdapter) do
           expect(1 + 1).to eq(2)
         end
         it "is conditional" do
-          expect($probe).to be(true)
+          expect(ENV.key?("KIMERA_PROBE")).to be(true)
         end
         describe "nested" do
           it "also passes" do
@@ -68,13 +68,7 @@ RSpec.describe(Kimera::Frameworks::RSpecAdapter) do
     adapter.test_ids.select { |id| adapter.describe(id).start_with?("KimeraDemo") }
   end
 
-  def flag(value)
-    $probe = value
-
-    yield
-  ensure
-    $probe = nil
-  end
+  def flag(value, &) = steer(value, &)
 
   it "indexes loaded examples, including nested groups" do
     descriptions = ids.map { |id| adapter.describe(id) }
@@ -250,11 +244,11 @@ RSpec.describe(Kimera::Frameworks::RSpecAdapter) do
     path = File.join(dir, "counted_spec.rb")
     File.write(path, <<~RUBY)
       RSpec.describe "KimeraCounted" do
-        it("a") { $probe << :a }
-        it("b") { $probe << :b }
+        it("a") { PROBE << :a }
+        it("b") { PROBE << :b }
         describe "inner" do
-          it("c") { $probe << :c }
-          it("d") { $probe << :d }
+          it("c") { PROBE << :c }
+          it("d") { PROBE << :d }
         end
       end
     RUBY
@@ -266,12 +260,9 @@ RSpec.describe(Kimera::Frameworks::RSpecAdapter) do
   end
 
   def executions
-    $probe = []
-
+    PROBE.clear
     yield
-    $probe
-  ensure
-    $probe = nil
+    probed
   end
 
   # The filtered-examples override, set through the whole tree, is what keeps siblings from running.
@@ -286,11 +277,11 @@ RSpec.describe(Kimera::Frameworks::RSpecAdapter) do
     path = File.join(dir, "contextual_spec.rb")
     File.write(path, <<~RUBY)
       RSpec.describe "KimeraContextual" do
-        it("outside") { $probe << :outside }
+        it("outside") { PROBE << :outside }
         describe "hooked" do
-          before(:context) { $probe << :before_context }
-          after(:context) { $probe << :after_context }
-          it("inside") { $probe << :inside }
+          before(:context) { PROBE << :before_context }
+          after(:context) { PROBE << :after_context }
+          it("inside") { PROBE << :inside }
         end
       end
     RUBY
@@ -329,7 +320,7 @@ RSpec.describe(Kimera::Frameworks::RSpecAdapter) do
 
   def configuration
     File.write(File.join(dir, ".rspec"), "--require ./dotrspec_probe\n")
-    File.write(File.join(dir, "dotrspec_probe.rb"), "$probe = true\n")
+    File.write(File.join(dir, "dotrspec_probe.rb"), "PROBE << :required\n")
   end
 
   # In-process so mutation coverage sees it; the subprocess spec below covers end-to-end.
@@ -340,12 +331,11 @@ RSpec.describe(Kimera::Frameworks::RSpecAdapter) do
     File.write(File.join(dir, ".rspec"), "--require ./dotrspec_probe\n--default-path dotspec\n")
     path = RSpec.configuration.default_path
     built = Dir.chdir(dir) { quietly { described_class.build } }
-    expect($probe).to(be_nil)
+    expect(probed).to(be_empty)
     expect(RSpec.configuration.default_path).to(eq("dotspec"))
     Dir.chdir(dir) { quietly { built.source([]) } }
-    expect($probe).to(be(true))
+    expect(probed).to(eq([:required]))
   ensure
-    $probe = nil
     RSpec.configuration.default_path = path
   end
 
@@ -402,7 +392,8 @@ RSpec.describe(Kimera::Frameworks::RSpecAdapter) do
 
   describe "narrowing the filtered-example table" do
     def narrow(filtered, wanted, &)
-      Kimera::Frameworks::GroupScope.new(wanted).narrow(filtered, &)
+      world = instance_double(RSpec::Core::World, filtered_examples: filtered)
+      Kimera::Frameworks::GroupScope.new(wanted, world).narrow(&)
     end
 
     def top

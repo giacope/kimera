@@ -731,7 +731,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       allow(described_class).to(receive(:const_get).and_return(handler))
       allow(Kimera::CLI::Baseline).to(receive(:new).and_return(runner))
 
-      expect(cli.__send__(:init, [])).to(eq(0))
+      expect(cli.__send__(:configure, [])).to(eq(0))
       expect(cli.__send__(:doctor, [])).to(eq(0))
       expect(cli.__send__(:changed, [])).to(eq(0))
       expect(cli.__send__(:ci, [])).to(eq(0))
