@@ -97,9 +97,11 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     # The hard timeout bounds one test, as on the warm path. Bounding the whole
     # child timed out any suite longer than it, the unmutated baseline included.
+    # sh, not ruby: a ruby child can take longer than the hard timeout just to
+    # boot on a loaded machine, before its first beat.
     def beating(pulse, beats)
-      script = "#{beats}.times { File.write(ARGV[0], '.', mode: 'a'); sleep(0.15) }"
-      pid = Process.spawn(Gem.ruby, "-e", script, pulse, pgroup: true)
+      script = "for _ in $(seq #{beats}); do printf . >> \"$0\"; sleep 0.15; done"
+      pid = Process.spawn("sh", "-c", script, pulse, pgroup: true)
       test_invoke_private(runner(hard_timeout: 0.5, poll_interval: 0.01), :waitfor, pid, pulse)
     end
 
