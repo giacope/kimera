@@ -40,6 +40,18 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       expect(plan(coverage: { mutant_id => ["spec/a_spec.rb[1:1]"] }).tests(mutant_id, point)).to(eq(%w[t1 t2 t3]))
     end
 
+    # The tests near its file may leave out the earlier test whose state it
+    # needs, so an order-reached point keeps the whole suite.
+    it "runs the tests near the file for a load-time point, and the whole suite for an order-reached one",
+      :aggregate_failures do
+      suite = %w[./spec/a_spec.rb[1:1] ./spec/b_spec.rb[1:1]]
+      coverage = { mutant_id => ["./spec/a_spec.rb[1:1]"] }
+      point.revisit!(Kimera::MutationPoint::BOOT_REASON)
+      expect(plan(tests: suite, coverage: coverage).tests(mutant_id, point)).to(eq(["./spec/a_spec.rb[1:1]"]))
+      point.revisit!(Kimera::MutationPoint::ORDER_REASON)
+      expect(plan(tests: suite, coverage: coverage).tests(mutant_id, point)).to(eq(suite))
+    end
+
     it "runs only the tests a screen keeps of the whole suite, and settles a point it leaves none",
       :aggregate_failures do
       point.revisit!(Kimera::MutationPoint::BOOT_REASON)
@@ -205,6 +217,18 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
 
     # A Gemfile names gems by paths relative to it (a monorepo's engines); the
     # mirror sits elsewhere, so only the project's own Gemfile resolves them.
+    # A `gemspec` line read from the project's Gemfile puts the project's own
+    # lib on the load path beside the mirror's (asciidoctor's -w test then sees
+    # VERSION defined twice), so a Gemfile that names nothing by a relative
+    # path runs from the mirror.
+    it "pins BUNDLE_GEMFILE to the mirror's Gemfile when the project's names no gem by a relative path" do
+      Dir.mktmpdir do |root|
+        File.write(File.join(root, "Gemfile"), "gemspec\ngem 'kimera', path: '/opt/kimera'\n")
+        gemfile, env, = bundled(["spec/a_spec.rb[1:1]"], root: root)
+        expect(env.fetch("BUNDLE_GEMFILE")).to(eq(gemfile))
+      end
+    end
+
     it "pins BUNDLE_GEMFILE to the project's own Gemfile when it has one" do
       Dir.mktmpdir do |root|
         File.write(File.join(root, "Gemfile"), "gem 'engine', path: '../engine'\n")

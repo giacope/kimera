@@ -15,6 +15,7 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
   CHILD = File.expand_path("isolated_child.rb", __dir__)
   MINITEST_CHILD = File.expand_path("isolated_child_minitest.rb", __dir__)
   PULSE = ".pulse"
+  RELATIVE = %r{\bpath:?\s*\(?\s*["'](?!/|~)}
 
   def initialize(framework:, test_files:, root: nil, seed: nil)
     @framework = framework
@@ -52,8 +53,10 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
 
   def gemfile(mirror)
     own = File.join(@root || mirror, "Gemfile")
-    File.file?(own) ? own : File.join(mirror, "Gemfile")
+    relative?(own) ? own : File.join(mirror, "Gemfile")
   end
+
+  def relative?(gemfile) = File.file?(gemfile) && File.read(gemfile, encoding: Encoding::UTF_8).scrub.match?(RELATIVE)
 
   def minitest?
     @framework.to_s == "minitest"

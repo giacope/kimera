@@ -35,7 +35,7 @@ class Kimera::Execution::IsolatedPlan
   def tests(id, point, screened: true)
     file = point.file
     found = whole?(point) ? kin.tests(file) : selection.recorded(id)
-    found = selection.all if Kimera::SelfProtection.new(File.join(root, file)).protected?
+    found = selection.all if everything?(point)
     screen = @options[:filter] if screened
     found && screen ? screen.keep(file, found) : found
   end
@@ -67,6 +67,11 @@ class Kimera::Execution::IsolatedPlan
   end
 
   private
+
+  def everything?(point)
+    point.revisit == Kimera::MutationPoint::ORDER_REASON ||
+      Kimera::SelfProtection.new(File.join(root, point.file)).protected?
+  end
 
   def whole?(point)
     !point.safe? || point.revisit

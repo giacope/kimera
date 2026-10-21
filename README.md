@@ -799,7 +799,8 @@ comparison,rails` composes, and `all` includes them.
   -> { Current.user }`, `after_create_commit -> { ... }`) keeps the original
   lambda in front when the warm overlay re-declares it, so the mutated one
   never runs: such a lambda that no test reached warm reports `isolated_only`,
-  not `no_coverage`, and `--isolated` judges it against the whole suite.
+  not `no_coverage`, and `--isolated` judges it against the tests in the
+  files that cover its source file (the whole suite where coverage names none).
 - **`rails_permit`** runs on the normal warm path.
 - **Validations and callbacks** are class-body DSL. They execute once at load,
   so no in-process scheme can judge them. The warm run marks them
