@@ -46,7 +46,8 @@ module Kimera
       def numeral?(node) = NUMERALS.include?(node&.type)
 
       def negative?(node)
-        value = node.children.first if numeral?(node)
+        return false unless numeral?(node)
+        value = node.children.first
         (value.is_a?(Complex) ? value.imaginary : value).to_s.start_with?("-")
       end
     end

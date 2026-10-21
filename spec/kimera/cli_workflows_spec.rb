@@ -540,7 +540,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
   it "records the effective survivor confirmation and DSL judging", :aggregate_failures do
     effective =
       lambda do |options|
-        Kimera::CLI::Run::Cycle.new(options, nil, nil, digest: nil).__send__(:provenance)
+        Kimera::CLI::Run::Cycle.new(options, nil, digest: nil).__send__(:provenance)
           .slice("judge_isolated_only", "confirm_survivors")
       end
     expect(effective.call(since: "HEAD~1")).to(eq("judge_isolated_only" => true, "confirm_survivors" => true))

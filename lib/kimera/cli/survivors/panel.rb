@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../../support/readout"
+require_relative "../../support/snippet"
 require_relative "context"
 
 class Kimera::CLI::Survivors::Panel
@@ -95,11 +96,7 @@ class Kimera::CLI::Survivors::Panel
     source(mutated, "+", indent) if mutated
   end
 
-  def source(code, sign, indent)
-    first, *rest = code.to_s.split("\n")
-    @io.puts("#{indent}#{sign} #{first}")
-    rest.each { |line| @io.puts("#{indent}  #{line}") }
-  end
+  def source(code, sign, indent) = @io.puts(Kimera::Snippet.new(sign, code).lines(indent))
 
   def tests(title, items)
     items = Array(items)

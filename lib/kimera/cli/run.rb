@@ -38,7 +38,7 @@ class Kimera::CLI::Run
 
   protected
 
-  def perform(options) = pid_file(options[:pidfile]) { guarded(options) { cycle(options).call } }
+  def perform(options) = pid_file(options[:pidfile]) { guarded(options) { cycle(options) } }
 
   private
 
@@ -76,9 +76,12 @@ class Kimera::CLI::Run
     Kimera::Plugins.new(options[:require], root: options[:source_root]).load!
     changed = changes(options)
     registry = Kimera::CLI::Run::Sources.new(errors: @errors).load(options, changed)
+    built(options, changed ? registry.narrowed(changed) : registry).call(changed)
+  end
+
+  def built(options, registry)
     Kimera::CLI::Run::Cycle.new(
-      options, changed ? registry.narrowed(changed) : registry, changed,
-      digest: digest(options)
+      options, registry, digest: digest(options), alerts: Kimera::CLI::Run::Alerts.new(errors: @errors)
     )
   end
 
@@ -90,6 +93,6 @@ class Kimera::CLI::Run
   def digest(options = {})
     narration = options.fetch(:format, "text") == "text" ? @io : @errors
     emission = Kimera::CLI::Run::Emission.new(io: narration, output: @io, **options.slice(:color, :quiet))
-    Kimera::CLI::Run::Digest.new(io: narration, errors: @errors, emission: emission)
+    Kimera::CLI::Run::Digest.new(io: narration, emission: emission)
   end
 end

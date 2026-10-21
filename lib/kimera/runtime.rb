@@ -64,16 +64,19 @@ class Kimera::Runtime < Module
   module Forks
     def _fork
       leaks = Kimera::RUNTIME.leaks
-      super.tap { |pid| Kimera::RUNTIME.forked!(leaks) if pid.zero? && leaks }
+      super.tap { |pid| Kimera::RUNTIME.forked!(leaks) if pid.zero? && leaks.any? }
     end
   end
+
+  NONE = [].freeze
 
   attr_reader :active
 
   def initialize
     super
     @active = nil
-    @ledgers = nil
+    @ledgers = NONE
+    @spills = NONE
   end
 
   def active=(id)
@@ -90,16 +93,14 @@ class Kimera::Runtime < Module
 
   def start!
     ledger = Ledger.new({})
-    (@ledgers ||= []).push(ledger)
+    @ledgers = [*@ledgers, ledger].freeze
     publish
     ledger
   end
 
   def stop!(ledger)
-    open = @ledgers
-    return unless open
-    open.delete_if { |l| l.equal?(ledger) }
-    @ledgers = nil if open.empty?
+    return if @ledgers.empty?
+    @ledgers = @ledgers.reject { |open| open.equal?(ledger) }.freeze
     publish
     ledger.drain!
   end
@@ -113,7 +114,7 @@ class Kimera::Runtime < Module
     self
   end
 
-  def leaks = @ledgers&.map(&:leak)
+  def leaks = @ledgers.map(&:leak)
 
   def forked!(paths)
     @ledgers = paths.map { Spill.new(it, {}) }
@@ -123,7 +124,7 @@ class Kimera::Runtime < Module
   private
 
   def record(id)
-    @ledgers&.each { |ledger| ledger.push(id) }
+    @ledgers.each { |ledger| ledger.push(id) }
   rescue Ractor::IsolationError
     remote(id)
   end
@@ -132,10 +133,10 @@ class Kimera::Runtime < Module
     seen = Ractor.current[:kimera_reached] ||= {}
     return if seen.key?(id)
     seen[id] = true
-    @spills&.each { |path| File.write(path, "#{id}\n", mode: "a") }
+    @spills.each { |path| File.write(path, "#{id}\n", mode: "a") }
   end
 
-  def publish = @spills = Ractor.make_shareable(@ledgers&.map(&:leak))
+  def publish = @spills = Ractor.make_shareable(leaks)
 
   def hidden = @_hidden ||= {}
 end

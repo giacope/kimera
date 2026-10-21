@@ -32,7 +32,7 @@ RSpec.describe(Kimera::CLI::Mutant, :aggregate_failures) do
 
   def focused(options)
     registry = Kimera::CLI::Run::Sources.new.load(options)
-    Kimera::CLI::Run::Cycle.new(options, registry, nil, digest: nil).__send__(:focus, registry.index.keys) => [id]
+    Kimera::CLI::Run::Cycle.new(options, registry, digest: nil).__send__(:focus, registry.index.keys) => [id]
     [registry, *registry.point(id)]
   end
 

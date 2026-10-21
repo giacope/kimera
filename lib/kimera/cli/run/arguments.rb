@@ -26,20 +26,18 @@ class Kimera::CLI::Run::Arguments
   def validate(options) = Kimera::Report::Formats.new.normalize(options[:format])
 
   def attributed(options)
-    attribution = Kimera::Config::Attribution.new(options)
-    mode = attribution.mode
-    measured(options, "--attribution unit") if mode == "unit"
-    { attribution: mode, unit_tests: attribution.rules }
+    settings = Kimera::Config::Attribution.new(options).settings
+    measured(options, "--attribution unit") if settings[:attribution] == "unit"
+    settings
   end
 
   def seeded(options)
     runs = reruns(options[:flaky_runs])
     measured(options, "--flaky-runs") if runs.positive?
-    { seed: seed(options[:seed]), flaky_runs: runs }
+    { seed: options[:seed]&.then { |value| seed(value) }, flaky_runs: runs }
   end
 
   def seed(value)
-    return value if value.nil?
     return Random.new_seed % SEEDS if value.to_s == "random"
     Integer(value.to_s, 10).tap { |seed| raise(ArgumentError) unless seed.between?(0, SEEDS - 1) }
   rescue ArgumentError

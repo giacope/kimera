@@ -263,7 +263,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
   end
 
   describe "#gate" do
-    def digest = Kimera::CLI::Run::Digest.new(emission: nil)
+    def alerts = Kimera::CLI::Run::Alerts.new
 
     def report(survivors, no_coverage: 0, ignored: 0, unjudged: 0)
       results =
@@ -295,9 +295,9 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     # Otherwise a run where every worker died could gate at 100% and exit 0.
     it "fails on a mutant the harness could not judge, and honours --max-errors" do
       report = report(0, unjudged: 1)
-      expect(digest.gate(report, { max_survivors: nil, max_errors: 0 })).to(eq(2))
-      expect(digest.gate(report, { max_survivors: nil, max_errors: 1 })).to(eq(0))
-      expect(digest.gate(report(0, unjudged: 2), { max_survivors: nil, max_errors: 1 })).to(eq(2))
+      expect(alerts.gate(report, { max_survivors: nil, max_errors: 0 })).to(eq(2))
+      expect(alerts.gate(report, { max_survivors: nil, max_errors: 1 })).to(eq(0))
+      expect(alerts.gate(report(0, unjudged: 2), { max_survivors: nil, max_errors: 1 })).to(eq(2))
     end
 
     def pattern
@@ -312,54 +312,54 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     it "names each tripped gate on stderr" do
       report = report(1, ignored: 2, unjudged: 1)
       options = { max_survivors: nil, max_ignored: 1, max_errors: 0, fail_on_no_coverage: false }
-      expect { digest.gate(report, options) }.to(output(pattern).to_stderr)
+      expect { alerts.gate(report, options) }.to(output(pattern).to_stderr)
     end
 
     it "gates mutants only other units' tests reach as survivors, and says how many there are", :aggregate_failures do
       unowned = Kimera::MutantResult.new(mutant_id: 99, status: :uncovered_by_unit, file: "x.rb")
       both = Kimera::RunReport.new(results: report(1).results + [unowned])
-      expect { expect(digest.gate(both, { max_survivors: 1 })).to(eq(2)) }
+      expect { expect(alerts.gate(both, { max_survivors: 1 })).to(eq(2)) }
         .to(output("kimera: gate failed: survivors=2 (1 uncovered_by_unit) > max_survivors=1\n").to_stderr)
-      expect(digest.gate(both, { max_survivors: 2 })).to(eq(0))
-      expect(digest.gate(Kimera::RunReport.new(results: [unowned]), {})).to(eq(2))
+      expect(alerts.gate(both, { max_survivors: 2 })).to(eq(0))
+      expect(alerts.gate(Kimera::RunReport.new(results: [unowned]), {})).to(eq(2))
     end
 
     it "names the no-coverage gate when --fail-on-no-coverage trips it" do
       report = report(0, no_coverage: 3)
       options = { max_survivors: nil, fail_on_no_coverage: true }
-      expect { expect(digest.gate(report, options)).to(eq(2)) }
+      expect { expect(alerts.gate(report, options)).to(eq(2)) }
         .to(output(/gate failed: 3 mutant\(s\) with no covering test/).to_stderr)
     end
 
     it "returns 0 when there are no survivors and no threshold" do
-      expect(digest.gate(report(0), { max_survivors: nil })).to(eq(0))
+      expect(alerts.gate(report(0), { max_survivors: nil })).to(eq(0))
     end
 
     it "returns 2 when any survivor exists and there is no threshold" do
-      expect(digest.gate(report(1), { max_survivors: nil })).to(eq(2))
+      expect(alerts.gate(report(1), { max_survivors: nil })).to(eq(2))
     end
 
     it "passes within the threshold and fails above it" do
-      expect(digest.gate(report(2), { max_survivors: 2 })).to(eq(0))
-      expect(digest.gate(report(3), { max_survivors: 2 })).to(eq(2))
+      expect(alerts.gate(report(2), { max_survivors: 2 })).to(eq(0))
+      expect(alerts.gate(report(3), { max_survivors: 2 })).to(eq(2))
     end
 
     it "ignores uncovered mutants unless fail_on_no_coverage is set" do
       report = report(0, no_coverage: 1)
-      expect(digest.gate(report, { max_survivors: nil })).to(eq(0))
-      expect(digest.gate(report, { max_survivors: nil, fail_on_no_coverage: true })).to(eq(2))
+      expect(alerts.gate(report, { max_survivors: nil })).to(eq(0))
+      expect(alerts.gate(report, { max_survivors: nil, fail_on_no_coverage: true })).to(eq(2))
     end
 
     it "fails on uncovered mutants even when survivors are within threshold" do
       report = report(1, no_coverage: 1)
-      expect(digest.gate(report, { max_survivors: 1, fail_on_no_coverage: true })).to(eq(2))
+      expect(alerts.gate(report, { max_survivors: 1, fail_on_no_coverage: true })).to(eq(2))
     end
 
     it "fails on uncovered mutants under count_no_coverage, naming that setting", :aggregate_failures do
       options = { max_survivors: nil, count_no_coverage: true }
-      expect { expect(digest.gate(report(0, no_coverage: 2), options)).to(eq(2)) }
+      expect { expect(alerts.gate(report(0, no_coverage: 2), options)).to(eq(2)) }
         .to(output(/gate failed: 2 mutant\(s\) with no covering test \(count_no_coverage\)/).to_stderr)
-      expect(digest.gate(report(0), options)).to(eq(0))
+      expect(alerts.gate(report(0), options)).to(eq(0))
     end
 
     # A scope that killed nothing while mutants only the isolated tier can
@@ -370,28 +370,28 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       pending = [Kimera::MutantResult.new(mutant_id: 1, status: :isolated_only, file: "x.rb")]
       unmutatable = [Kimera::MutantResult.new(mutant_id: 2, status: :unmutatable, file: "x.rb")]
       message = /gate failed: 0 of 2 mutants killed: 2 only the isolated tier can judge \(run with --isolated\)/
-      expect { expect(digest.gate(Kimera::RunReport.new(results: pending + unmutatable), {})).to(eq(2)) }
+      expect { expect(alerts.gate(Kimera::RunReport.new(results: pending + unmutatable), {})).to(eq(2)) }
         .to(output(message).to_stderr)
       judged = Kimera::RunReport.new(results: pending + report(0, no_coverage: 0).results + [verdict_killed])
-      expect(digest.gate(judged, {})).to(eq(0))
+      expect(alerts.gate(judged, {})).to(eq(0))
       ignored = Kimera::RunReport.new(results: report(0, ignored: 1).results)
-      expect(digest.gate(ignored, {})).to(eq(0))
+      expect(alerts.gate(ignored, {})).to(eq(0))
       tolerated = Kimera::RunReport.new(results: pending + report(1, no_coverage: 0).results)
-      expect(digest.gate(tolerated, { max_survivors: 1 })).to(eq(2))
+      expect(alerts.gate(tolerated, { max_survivors: 1 })).to(eq(2))
     end
 
     def verdict_killed = Kimera::MutantResult.new(mutant_id: 9, status: :killed, file: "x.rb")
 
     it "passes with fail_on_no_coverage when everything is covered" do
-      expect(digest.gate(report(0), { max_survivors: nil, fail_on_no_coverage: true })).to(eq(0))
+      expect(alerts.gate(report(0), { max_survivors: nil, fail_on_no_coverage: true })).to(eq(0))
     end
 
     # Each new ignore entry must cost a visible budget raise.
     it "budgets the ignore list via max_ignored" do
       report = report(0, ignored: 3)
-      expect(digest.gate(report, { max_survivors: nil, max_ignored: 3 })).to(eq(0))
-      expect(digest.gate(report, { max_survivors: nil, max_ignored: 2 })).to(eq(2))
-      expect(digest.gate(report, { max_survivors: nil, max_ignored: nil })).to(eq(0))
+      expect(alerts.gate(report, { max_survivors: nil, max_ignored: 3 })).to(eq(0))
+      expect(alerts.gate(report, { max_survivors: nil, max_ignored: 2 })).to(eq(2))
+      expect(alerts.gate(report, { max_survivors: nil, max_ignored: nil })).to(eq(0))
     end
   end
 

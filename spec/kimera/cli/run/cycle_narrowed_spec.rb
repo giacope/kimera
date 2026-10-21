@@ -17,7 +17,7 @@ RSpec.describe(Kimera::CLI::Run::Cycle, "#narrowed") do
   end
 
   def details(narrowed)
-    cycle = described_class.new({}, nil, nil, digest: nil)
+    cycle = described_class.new({}, nil, digest: nil)
     allow(cycle).to(receive(:narrowing).and_return(instance_double(Kimera::CLI::Run::Narrowing, narrowed?: narrowed)))
     cycle.__send__(:narrowed, report).results.map(&:detail)
   end

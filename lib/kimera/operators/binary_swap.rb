@@ -18,6 +18,6 @@ class Kimera::Operators::BinarySwap < Kimera::Operators::Base
   end
 
   def swap(name, to)
-    Kimera::Operators::Variant.new(label: "#{name} => #{to}", directive: directive(self.class::DIRECTIVE, to: to.to_s))
+    mutation("#{name} => #{to}", self.class::DIRECTIVE, to: to.to_s)
   end
 end

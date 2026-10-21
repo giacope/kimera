@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "prism"
-require_relative "../support/branches"
 require_relative "../support/syntax"
 require_relative "guardrail_factories"
 
@@ -90,7 +89,7 @@ module Kimera
       when Prism::ClassNode, Prism::ModuleNode, Prism::SingletonClassNode then node.body
       when Prism::CallNode then declared(node)
       when Prism::ConstantWriteNode, Prism::ConstantPathWriteNode then declared(node.value)
-      when *CONDITIONS then Kimera::Branches.new(node).bodies
+      when *CONDITIONS then Kimera::Syntax::BRANCHES.call(node)
       end
     end
 

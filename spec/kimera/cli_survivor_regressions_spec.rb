@@ -218,17 +218,20 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect(cli.__send__(:digest, format: "json").instance_variable_get(:@io)).to(equal(errors))
       registry = Kimera::RegistryScan.new.source("def x; 1; end\n", file: "x.rb")
       loaded = instance_double(Kimera::Incremental::Session, report: report)
-      digest = instance_double(Kimera::CLI::Run::Digest, emit: nil, gate: 7)
+      digest = instance_double(Kimera::CLI::Run::Digest, emit: nil)
+      alerts = instance_double(Kimera::CLI::Run::Alerts, gate: 7)
       options = {
         report: nil, json: nil, format: "text", fail_on_no_coverage: false, quiet: false, log: nil,
         framework: "rspec", source_root: ".", tests: [], exclude_tests: [], operators: [],
         coverage: true, isolated: false, jobs: 1
       }
-      cycle = Kimera::CLI::Run::Cycle.new(options, registry, nil, digest: digest)
+      cycle = Kimera::CLI::Run::Cycle.new(options, registry, digest: digest, alerts: alerts)
       expect(cycle.__send__(:conclude, [], [], loaded)).to(eq(7))
-      expect(digest).to(have_received(:gate))
+      expect(alerts).to(have_received(:gate))
       expect(digest).to(have_received(:emit).with(anything, registry, **emission(:hint)))
-      strict = Kimera::CLI::Run::Cycle.new(options.merge(fail_on_no_coverage: true), registry, nil, digest: digest)
+      strict = Kimera::CLI::Run::Cycle.new(
+        options.merge(fail_on_no_coverage: true), registry, digest: digest, alerts: alerts
+      )
       strict.__send__(:conclude, [], [], loaded)
       expect(digest).to(have_received(:emit).with(anything, registry, **emission(:list)))
     end
@@ -236,18 +239,22 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     it "lists, scores and records uncovered mutants under count_no_coverage", :aggregate_failures do
       registry = Kimera::RegistryScan.new.source("def x; 1; end\n", file: "x.rb")
       loaded = instance_double(Kimera::Incremental::Session, report: report)
-      digest = instance_double(Kimera::CLI::Run::Digest, emit: nil, gate: 0)
+      digest = instance_double(Kimera::CLI::Run::Digest, emit: nil)
+      alerts = instance_double(Kimera::CLI::Run::Alerts, gate: 0)
       options = {
         report: nil, format: "text", fail_on_no_coverage: false, count_no_coverage: true, log: nil,
         framework: "rspec", source_root: ".", tests: [], exclude_tests: [], operators: [], jobs: 1
       }
-      Kimera::CLI::Run::Cycle.new(options, registry, nil, digest: digest).__send__(:conclude, [], [], loaded)
+      Kimera::CLI::Run::Cycle.new(options, registry, digest: digest, alerts: alerts)
+        .__send__(:conclude, [], [], loaded)
       expect(digest).to(have_received(:emit).with(anything, registry, **emission(:list))) do |emitted, *|
         expect(emitted.counted).to(eq([:no_coverage]))
       end
       recorded = hash_including(metadata: hash_including("count_no_coverage" => true))
       expect(digest).to(have_received(:emit).with(anything, anything, recorded))
-      plain = Kimera::CLI::Run::Cycle.new(options.merge(count_no_coverage: false), registry, nil, digest: digest)
+      plain = Kimera::CLI::Run::Cycle.new(
+        options.merge(count_no_coverage: false), registry, digest: digest, alerts: alerts
+      )
       plain.__send__(:conclude, [], [], loaded)
       uncounted = satisfy { |emitted| emitted.counted.empty? }
       expect(digest).to(have_received(:emit).with(uncounted, registry, **emission(:hint)))
@@ -288,16 +295,17 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     it "only calls the gate when enabled, and records complete provenance" do
       registry = Kimera::RegistryScan.new.source("def x; 1; end\n", file: "x.rb")
       loaded = instance_double(Kimera::Incremental::Session, report: report)
-      digest = instance_double(Kimera::CLI::Run::Digest, emit: nil, gate: 9)
+      digest = instance_double(Kimera::CLI::Run::Digest, emit: nil)
+      alerts = instance_double(Kimera::CLI::Run::Alerts, gate: 9)
       base = {
         report: nil, json: nil, format: "text", fail_on_no_coverage: false, quiet: false, log: nil,
         framework: "rspec", source_root: ".", tests: ["spec/**/*_spec.rb"], exclude_tests: [],
         operators: ["comparison"], coverage: true, isolated: false, jobs: 1
       }
-      disabled = Kimera::CLI::Run::Cycle.new(base.merge(gate: false), registry, nil, digest: digest)
+      disabled = Kimera::CLI::Run::Cycle.new(base.merge(gate: false), registry, digest: digest, alerts: alerts)
       expect(disabled.__send__(:conclude, [], [], loaded)).to(eq(0))
-      expect(digest).not_to(have_received(:gate))
-      enabled = Kimera::CLI::Run::Cycle.new(base.merge(gate: true), registry, nil, digest: digest)
+      expect(alerts).not_to(have_received(:gate))
+      enabled = Kimera::CLI::Run::Cycle.new(base.merge(gate: true), registry, digest: digest, alerts: alerts)
       expect(enabled.__send__(:conclude, [], [], loaded)).to(eq(9))
       expect(enabled.__send__(:provenance)).to(
         eq(
@@ -312,18 +320,18 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     it "runs verbose setup only when requested and validates focused IDs" do
       registry = Kimera::RegistryScan.new.source("def x; 1; end\n", file: "x.rb")
       digest = instance_double(Kimera::CLI::Run::Digest, verbose: nil)
-      quiet = Kimera::CLI::Run::Cycle.new({ verbose: false }, registry, nil, digest: digest)
+      quiet = Kimera::CLI::Run::Cycle.new({ verbose: false }, registry, digest: digest)
       allow(quiet).to(receive(:scope))
       quiet.call
       expect(digest).not_to(have_received(:verbose))
-      loud = Kimera::CLI::Run::Cycle.new({ verbose: true }, registry, nil, digest: digest)
+      loud = Kimera::CLI::Run::Cycle.new({ verbose: true }, registry, digest: digest)
       allow(loud).to(receive(:scope))
       loud.call
       expect(digest).to(have_received(:verbose).with(verbose: true))
       expect(loud.__send__(:focus, [1, 2])).to(eq([1, 2]))
-      focused = Kimera::CLI::Run::Cycle.new({ focus: [1] }, registry, nil, digest: digest)
+      focused = Kimera::CLI::Run::Cycle.new({ focus: [1] }, registry, digest: digest)
       expect(focused.__send__(:focus, [1, 2])).to(eq([1]))
-      expect { Kimera::CLI::Run::Cycle.new({ focus: [3] }, registry, nil, digest: digest).__send__(:focus, [1, 2]) }
+      expect { Kimera::CLI::Run::Cycle.new({ focus: [3] }, registry, digest: digest).__send__(:focus, [1, 2]) }
         .to(raise_error(Kimera::UsageError, /3/))
     end
 
@@ -332,7 +340,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       key = registry.keys[1]
       focus =
         lambda do |tokens|
-          Kimera::CLI::Run::Cycle.new({ focus: tokens }, registry, nil, digest: nil).__send__(:focus, [1, 2, 3])
+          Kimera::CLI::Run::Cycle.new({ focus: tokens }, registry, digest: nil).__send__(:focus, [1, 2, 3])
         end
       expect(key).to(start_with("x.rb:2:"))
       expect(focus.call([key, "2"])).to(eq([1, 2]))
@@ -345,7 +353,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     # built, so a coverage floor gated on KIMERA must see it before then.
     it "sets KIMERA before loading the framework adapter" do
       registry = Kimera::RegistryScan.new.source("def x; 1; end\n", file: "x.rb")
-      cycle = Kimera::CLI::Run::Cycle.new({ framework: "rspec" }, registry, nil, digest: nil)
+      cycle = Kimera::CLI::Run::Cycle.new({ framework: "rspec" }, registry, digest: nil)
       env = {}
       seen = nil
       allow(Kimera::Frameworks::ADAPTERS).to(receive(:load) { seen = env["KIMERA"] })
@@ -362,11 +370,11 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       env = { "KIMERA_SEED" => "3" }
       allow(Kimera::Frameworks::ADAPTERS).to(receive(:load) { seen << env["KIMERA_SEED"] })
       allow(Kimera::CLI::Run::Pass).to(receive(:new).and_return(instance_double(Kimera::CLI::Run::Pass, call: nil)))
-      Kimera::CLI::Run::Cycle.new({ framework: "rspec", seed: 42 }, registry, nil, digest: nil).__send__(
+      Kimera::CLI::Run::Cycle.new({ framework: "rspec", seed: 42 }, registry, digest: nil).__send__(
         :harness, [1],
         env: env
       )
-      Kimera::CLI::Run::Cycle.new({ framework: "rspec" }, registry, nil, digest: nil).__send__(:harness, [1], env: env)
+      Kimera::CLI::Run::Cycle.new({ framework: "rspec" }, registry, digest: nil).__send__(:harness, [1], env: env)
       expect([seen, env.key?("KIMERA_SEED")]).to(eq([["42", nil], false]))
     end
   end
@@ -379,8 +387,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     allow(Kimera::Frameworks::ADAPTERS).to(receive(:load) { seen << env["KIMERA_LOAD_PATH"] })
     allow(Kimera::CLI::Run::Pass).to(receive(:new).and_return(instance_double(Kimera::CLI::Run::Pass, call: nil)))
     configured = { framework: "rspec", load_path: %w[support test/helpers] }
-    Kimera::CLI::Run::Cycle.new(configured, registry, nil, digest: nil).__send__(:harness, [1], env: env)
-    Kimera::CLI::Run::Cycle.new({ framework: "rspec" }, registry, nil, digest: nil).__send__(:harness, [1], env: env)
+    Kimera::CLI::Run::Cycle.new(configured, registry, digest: nil).__send__(:harness, [1], env: env)
+    Kimera::CLI::Run::Cycle.new({ framework: "rspec" }, registry, digest: nil).__send__(:harness, [1], env: env)
     expect(seen).to(eq(["support#{File::PATH_SEPARATOR}test/helpers", ""]))
   end
 

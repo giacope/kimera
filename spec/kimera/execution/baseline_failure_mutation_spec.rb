@@ -164,10 +164,13 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     diff = instance_double(Kimera::Incremental::GitDiff, lines: ["a.rb"])
     allow(Kimera::Incremental::GitDiff).to(receive(:new).with(since: "main", root: "/project").and_return(diff))
     allow(Kimera::Plugins).to(receive(:new).and_return(instance_double(Kimera::Plugins, load!: [])))
+    cycle = instance_double(Kimera::CLI::Run::Cycle)
+    allow(cycle).to(receive(:call)) { |changed| changed }
+    allow(runner).to(receive(:built).with(options, registry).and_return(cycle))
+    allow(runner).to(receive(:built).with(options.merge(since: nil), registry).and_return(cycle))
 
-    cycle = runner.__send__(:cycle, options)
-    expect(cycle).to(be_a(Kimera::CLI::Run::Cycle))
-    expect(runner.__send__(:cycle, options.merge(since: nil))).to(be_a(Kimera::CLI::Run::Cycle))
+    expect(runner.__send__(:cycle, options)).to(eq(["a.rb"]))
+    expect(runner.__send__(:cycle, options.merge(since: nil))).to(be_nil)
     expect(runner.__send__(:digest)).to(be_a(Kimera::CLI::Run::Digest))
     expect(Kimera::Plugins).to(have_received(:new).with(["plugin.rb"], root: "/project").twice)
     expect(diff).to(have_received(:lines).once)

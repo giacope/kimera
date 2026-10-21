@@ -294,6 +294,7 @@ RSpec.describe(Kimera::Unparse) do
       expect(write(s(:send, s(:int, 2), :**, s(:int, -1)))).to(eq("2 ** -1"))
       expect(write(s(:send, s(:int, -1), :*, s(:int, 2)))).to(eq("-1 * 2"))
       expect(write(s(:send, s(:send, s(:int, -1), :abs), :**, s(:int, 2)))).to(eq("-1.abs ** 2"))
+      expect(write(s(:send, s(:str, "-a"), :**, s(:int, 2)))).to(eq("\"-a\" ** 2"))
       expect(reemit("10 ** 3")).to(eq("10 ** 3"))
     end
 

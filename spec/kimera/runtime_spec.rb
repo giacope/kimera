@@ -154,10 +154,10 @@ RSpec.describe(Kimera::Runtime) do
     end
 
     # Start from an empty table: an outer measurer or leaked ledgers would
-    # skip the nil-teardown path.
+    # skip the empty-table path.
     def preserve
       saved = runtime.instance_variable_get(:@ledgers)
-      runtime.instance_variable_set(:@ledgers, nil)
+      runtime.instance_variable_set(:@ledgers, Kimera::Runtime::NONE)
       yield
     ensure
       runtime.instance_variable_set(:@ledgers, saved)
@@ -171,12 +171,11 @@ RSpec.describe(Kimera::Runtime) do
       end
     end
 
-    # White-box: an empty array would stay on active?'s hot path forever.
-    it "frees the ledger table when the last ledger closes" do
+    it "leaves no ledger open once the last one closes" do
       preserve do
         ledger = runtime.start!
         runtime.stop!(ledger)
-        expect(runtime.instance_variable_get(:@ledgers)).to(be_nil)
+        expect(runtime.leaks).to(be_empty)
       end
     end
 
@@ -233,7 +232,7 @@ RSpec.describe(Kimera::Runtime) do
     end
 
     it "are not looked for while no ledger is open" do
-      expect(runtime.leaks).to(be_nil)
+      expect(runtime.leaks).to(be_empty)
     end
 
     it "write each mutant once" do
