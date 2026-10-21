@@ -12,10 +12,13 @@ require_relative "null_progress"
 require_relative "zygote"
 
 class Kimera::Execution::BaselinePass
-  def initialize(adapter:, registry:, progress: Kimera::Execution::NullProgress::NONE)
+  EVERY = :itself.to_proc
+
+  def initialize(adapter:, registry:, progress: Kimera::Execution::NullProgress::NONE, measured: EVERY)
     @adapter = adapter
     @registry = registry
     @progress = progress
+    @measured = measured
   end
 
   def parallel!(jobs, &) = settle(jobs) { dispatch(&) }
@@ -36,12 +39,14 @@ class Kimera::Execution::BaselinePass
   private
 
   def settle(jobs)
-    @progress.start(@adapter.test_ids.size, "baseline")
+    @progress.start(tests.size, "baseline")
     yield
     report(jobs)
   ensure
     @progress.finish
   end
+
+  def tests = @_tests ||= @measured.call(@adapter.test_ids)
 
   def tally = @_tally ||= Kimera::Execution::BaselineTally.new(Hash.new { |h, k| h[k] = [] }, [], [], {}, {})
 
@@ -66,7 +71,7 @@ class Kimera::Execution::BaselinePass
   end
 
   def dispatch(&)
-    yield(@adapter.test_ids, nil, listeners(method(:lost), tracer))
+    yield(tests, nil, listeners(method(:lost), tracer))
     rerun(losses.stalled, &)
   end
 

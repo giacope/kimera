@@ -192,6 +192,10 @@
       "description": "Run each warm survivor's covering tests alone in a fresh process with the mutant on, fastest first and at most 50, so state an earlier test left cannot mask a kill; a test that fails alone kills only if it passes alone with the mutant off. Unset, it is on for incremental runs (--since, kimera ci, kimera changed) and off for full runs.",
       "type": "boolean"
     },
+    "reuse_coverage": {
+      "description": "Keep the per-test coverage map a full run's baseline measured, in tmp/kimera/coverage.json, and reuse it on incremental runs (--since, kimera ci, kimera changed): when Ruby, the settings that pick the tests and sources, and the test, support and config files (.rspec, the lockfile, config/, db/schema.rb) still match the stored map, the baseline reruns only the tests that reached a source file changed since it was built or one in scope, and tests it does not know; otherwise it runs every test and says why (default: false).",
+      "type": "boolean"
+    },
     "max_survivors": {
       "description": "Gate: fail when more mutants than this survive (default: 0).",
       "type": "integer",

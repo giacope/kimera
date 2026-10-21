@@ -160,7 +160,7 @@ class Kimera::Execution::Harness
 
   def tuning = { factor: options[:timeout_factor], slack: options[:timeout_slack] }.compact
 
-  def baseline = Kimera::Execution::BaselinePass.new(adapter: adapter, registry: registry, progress: progress)
+  def baseline = Kimera::Execution::BaselinePass.new(adapter:, registry:, **options.slice(:progress, :measured))
 
   def screen = Kimera::Execution::BaselineScreen.new(adapter: adapter, root: root, jobs: jobs).call(state.irrelevant)
 

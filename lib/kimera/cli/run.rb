@@ -84,7 +84,7 @@ class Kimera::CLI::Run
 
   def changes(options)
     since = options[:since]
-    Kimera::Incremental::GitDiff.new(since: since, root: options[:source_root]).lines if since
+    Kimera::Incremental::Selection.from_diff(since: since, root: options[:source_root]).changes if since
   end
 
   def digest(options = {})

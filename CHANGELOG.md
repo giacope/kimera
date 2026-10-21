@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+Follow-ups to field test round 3:
+
+- **`--reuse-coverage` (`reuse_coverage`).** A full run keeps its baseline's
+  coverage map in `tmp/kimera/coverage.json`, with the commit, Ruby, the
+  settings and a digest of every source, test, support and config file it was
+  measured against. An incremental run (`--since`, `ci`, `changed`) with the
+  flag reruns only the tests that reached a source file changed since, or one
+  in scope, and tests the map does not know; when Ruby, the settings or a
+  test, support or config file changed, it measures every test and says why
+  in one line. Every test that can cover a changed line gets a fresh
+  baseline.
+
 Field test round 3, on MIT libraries and Rails apps (casa, thredded, devise,
 rack, grape, jekyll among them): the verdicts that disagreed with the plain
 test command, and the setups that kept kimera from running, are fixed here.
