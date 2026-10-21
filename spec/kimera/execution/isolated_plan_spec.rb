@@ -241,6 +241,27 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       end
     end
 
+    # The lockfile says where each path gem resolved, however the Gemfile
+    # spells it (`path: ENV.fetch("KIMERA_PATH", "../..")`): only a relative
+    # path out of the project needs the project's Gemfile; one inside it, or
+    # an absolute one, resolves from the mirror too.
+    def locked(remotes)
+      Dir.mktmpdir do |root|
+        File.write(File.join(root, "Gemfile"), "gem 'kimera', path: ENV.fetch('KIMERA_PATH', 'engines/kimera')\n")
+        lock = remotes.map { |remote| "PATH\n  remote: #{remote.sub("ROOT", File.basename(root))}\n  specs:\n" }.join
+        File.write(File.join(root, "Gemfile.lock"), lock)
+        gemfile, env, = bundled(["spec/a_spec.rb[1:1]"], root: root)
+        return env.fetch("BUNDLE_GEMFILE") == gemfile ? :mirror : :project
+      end
+    end
+
+    it "pins BUNDLE_GEMFILE by where the lockfile's path gems resolved", :aggregate_failures do
+      expect(locked(["../.."])).to(eq(:project))
+      expect(locked([".", "engines/kimera", "/opt/kimera", "../ROOTx"])).to(eq(:project))
+      expect(locked([".", "engines/kimera", "/opt/kimera", "engines/../lib"])).to(eq(:mirror))
+      expect(locked([])).to(eq(:mirror))
+    end
+
     def mixed
       code = "def a(x, y)\n  x > y\nend\n"
       Kimera::Registry.new(
