@@ -20,11 +20,6 @@ class Kimera::Execution::Shift::Unmask
   def alone(id, test)
     verdict = @attempt.run(id, [test])
     return if verdict.nil? || verdict.is_a?(Kimera::Execution::Shift::Doubt) || !@attempt.calm?(test)
-    noted(verdict)
-  end
-
-  def noted(verdict)
-    return verdict unless verdict.respond_to?(:failures)
-    verdict.with(failures: verdict.failures.transform_values { |message| "#{NOTE}: #{message}" })
+    verdict.noted(NOTE)
   end
 end

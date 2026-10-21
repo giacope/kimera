@@ -19,10 +19,7 @@ class Kimera::Execution::Reload
     Data.define(:exception) do
       def message = "#{exception.class}: #{exception.message}"
 
-      def verdict
-        return [:error, [], "#{LOADING}#{message}"] unless exception.is_a?(Kimera::Overlay::Unbakeable)
-        [:unmutatable, [], "#{Kimera::MutationPoint::UNMUTATABLE}#{exception.message}"]
-      end
+      def verdict = [:error, [], "#{LOADING}#{message}"]
     end
 
   Workspace = Data.define(:root, :aliases)
@@ -79,6 +76,8 @@ class Kimera::Execution::Reload
   def evaluate(errand)
     failed = mutate(errand)
     failed ? failed.verdict : [:survived, []]
+  rescue Kimera::Overlay::Unbakeable => error
+    [:unmutatable, [], "#{Kimera::MutationPoint::UNMUTATABLE}#{error.message}"]
   rescue StandardError, ScriptError => error
     Failure.new(error).verdict
   end

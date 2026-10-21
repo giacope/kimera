@@ -67,4 +67,7 @@ Kimera::Execution::Shift::Finding =
 
 Kimera::Execution::Shift::Lineup = Data.define(:active, :tests)
 
-Kimera::Execution::Shift::Finding::Kill = Data.define(:failed_ids, :failures)
+Kimera::Execution::Shift::Finding::Kill =
+  Data.define(:failed_ids, :failures) do
+    def noted(note) = with(failures: failures.transform_values { |message| "#{note}: #{message}" })
+  end

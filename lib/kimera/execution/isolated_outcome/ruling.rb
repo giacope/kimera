@@ -43,8 +43,9 @@ class Kimera::Execution::IsolatedOutcome::Ruling
 
   def tally(ledger)
     failing = Array(ledger["failing"])
-    return OUTCOME.new(:outside, [], outside(ledger)) if ledger["failures"].positive? && failing.empty?
-    return OUTCOME.new(:killed, failing, ledger["load_error"] || ledger["message"]) if ledger["failures"].positive?
+    failed = ledger["failures"].positive?
+    return OUTCOME.new(:outside, [], outside(ledger)) if failed && failing.empty?
+    return OUTCOME.new(:killed, failing, ledger["load_error"] || ledger["message"]) if failed
     return OUTCOME.new(:survived) if @exit.success?
     OUTCOME.new(:harness_error, nil, unexplained)
   end

@@ -9,10 +9,12 @@ class Kimera::Operators::NilLiteral < Kimera::Operators::Base
 
   def variants(node, position:)
     return solo("nil => Object.new", "nil_object") if node.is_a?(NilNode) && position == :tail
-    solo("#{node.keyword_loc.slice} nil => #{node.keyword_loc.slice} Object.new", "nil_object") if jump?(node)
+    jumped(node.keyword_loc.slice) if jump?(node)
   end
 
   private
+
+  def jumped(keyword) = solo("#{keyword} nil => #{keyword} Object.new", "nil_object")
 
   def jump?(node) = JUMPS.any? { |kind| node.is_a?(kind) } && (arguments(node) in [NilNode])
 end

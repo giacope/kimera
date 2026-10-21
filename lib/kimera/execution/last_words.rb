@@ -16,6 +16,7 @@ class Kimera::Execution::LastWords
 
   private
 
+  # rubocop:disable-next Kata/NoTypeCheck -- any exception can end a test process; a child's relayed error names the child's class
   def headline = @error.respond_to?(:headline) ? @error.headline : "#{@error.class}: #{@error.message}"
 
   def frames

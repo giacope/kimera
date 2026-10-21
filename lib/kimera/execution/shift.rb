@@ -91,8 +91,11 @@ class Kimera::Execution::Shift
 
   def safely(subject)
     covered(subject)
+  rescue Kimera::Execution::Zygote::Died
+    raise
+  rescue Kimera::Execution::Zygote::Raised => error
+    subject.crashed(error, timeout, error.kind)
   rescue StandardError, ScriptError => error
-    raise if error.is_a?(Kimera::Execution::Zygote::Died)
     subject.crashed(error, timeout)
   end
 
