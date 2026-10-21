@@ -61,6 +61,33 @@ RSpec.describe(Kimera::MemoGuard) do
     end
   end
 
+  # A keyed cache's early return and its store are one memo (D6): skipping the
+  # lookup recomputes the same value, and dropping the store recomputes it later.
+  describe "a keyed cache" do
+    it "exempts a lookup guard through a local and the store into the same cache", :aggregate_failures do
+      source = "def parse(key, partial: false)\n  unless partial\n    cached = @cache[key]\n    " \
+        "return cached unless cached.nil?\n  end\n  result = build(key)\n  " \
+        "@cache[key] = result unless partial\n  result\nend\n"
+      expect(exemptions(source))
+        .to(eq([["return cached unless cached.nil?", "conditional"], ["@cache[key] = result", "statement_deletion"]]))
+    end
+
+    it "reads a key? guard returning the lookup itself the same way" do
+      source = "def lookup(key)\n  return @@table[key] if @@table.key?(key)\n  @@table[key] = key * 2\nend\n"
+      expect(exemptions(source).map(&:last)).to(eq(%w[conditional statement_deletion]))
+    end
+
+    it "exempts nothing without a store into the same cache, or for a guard on something else", :aggregate_failures do
+      {
+        "a guard with no store" => "def m(k)\n  return @c[k] if @c.key?(k)\n  build(k)\nend\n",
+        "a store into another cache" => "def m(k)\n  return @c[k] if @c.key?(k)\n  @d[k] = build(k)\nend\n",
+        "a guard on an unrelated test" => "def m(k)\n  return @c[k] if ready?\n  @c[k] = build(k)\nend\n",
+        "a local hash" => "def m(k, c)\n  return c[k] if c.key?(k)\n  c[k] = build(k)\nend\n",
+        "a guard returning something else" => "def m(k)\n  return 1 if @c.key?(k)\n  @c[k] = build(k)\nend\n"
+      }.each { |shape, source| expect(exemptions(source)).to(eq([]), shape) }
+    end
+  end
+
   it "exempts nothing that isn't a memo", :aggregate_failures do
     {
       "a value guard the method never assigns" => "def m\n  return @x if @x\nend\n",

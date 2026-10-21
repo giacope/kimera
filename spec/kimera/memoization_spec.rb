@@ -83,6 +83,23 @@ RSpec.describe(Kimera::Memoization) do
       expect(reasons(code)).to(eq(["memoized via ||="]))
     end
 
+    # A keyed cache is memoization too (D6): each key's value is computed once.
+    it "taints a keyed cache's ||= on an instance, class or global variable, or a memoized hash", :aggregate_failures do
+      %w[@cache @@cache $cache (@cache||={})].each do |cache|
+        line = "#{cache}[key] ||= compute(a > b)"
+        code = "def m(key)\n  #{line}\nend\n"
+        expect(reasons(code)).to(include("memoized via `cache[key] ||=`"), line)
+        expect(covers?(code, "a > b")).to(be(true), line)
+      end
+    end
+
+    it "does not taint a keyed ||= on a local hash or a call" do
+      %w[cache[key] lookup[key]].each do |target|
+        code = "def m(key, cache)\n  #{target} ||= compute(a > b)\nend\n"
+        expect(reasons(code)).to(eq([]), target)
+      end
+    end
+
     it "does not taint a local-variable ||= (recomputed every call)", :aggregate_failures do
       code = "def m(a, b)\n  x ||= compute(a > b)\n  x\nend\n"
       expect(reasons(code)).to(eq([]))

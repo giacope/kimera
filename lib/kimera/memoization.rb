@@ -14,6 +14,13 @@ module Kimera
 
     CONST_WRITE_NODES = [SyntaxTypes::ConstantWriteNode, SyntaxTypes::ConstantPathWriteNode].freeze
 
+    CACHE_READS = [
+      SyntaxTypes::InstanceVariableReadNode,
+      SyntaxTypes::ClassVariableReadNode,
+      SyntaxTypes::GlobalVariableReadNode,
+      *OR_WRITE_NODES
+    ].freeze
+
     SELF_OR_WRITE = {
       SyntaxTypes::InstanceVariableWriteNode => SyntaxTypes::InstanceVariableReadNode,
       SyntaxTypes::ClassVariableWriteNode => SyntaxTypes::ClassVariableReadNode,
@@ -52,6 +59,7 @@ module Kimera
       case node
       when *OR_WRITE_NODES then value(node, "memoized via ||=")
       when *CONST_WRITE_NODES then value(node, "constant assignment (computed once)")
+      when SyntaxTypes::IndexOrWriteNode then keyed(node)
       else cached(node)
       end
     end
@@ -59,6 +67,15 @@ module Kimera
     def value(node, reason)
       expression = node.value
       range(expression, reason) if expression
+    end
+
+    def keyed(node)
+      value(node, "memoized via `cache[key] ||=`") if CACHE_READS.include?(bare(node.receiver).class)
+    end
+
+    def bare(node)
+      inner = node.body&.body if node.is_a?(SyntaxTypes::ParenthesesNode)
+      inner&.size == 1 ? inner.first : node
     end
 
     def cached(node)

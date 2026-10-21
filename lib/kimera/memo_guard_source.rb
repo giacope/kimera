@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "cache_guard"
 require_relative "fill_guard"
 
 class Kimera::MemoGuard::Source
@@ -10,7 +11,7 @@ class Kimera::MemoGuard::Source
   def exemptions
     result = Kimera::Syntax.parse(@text)
     return [] if result.failure?
-    defs(result.value).flat_map { guarded(statements(it.body)) }
+    defs(result.value).flat_map { guarded(statements(it.body)) + Kimera::CacheGuard.new(it).exemptions }
   end
 
   private
