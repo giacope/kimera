@@ -24,11 +24,14 @@ RSpec.describe(Kimera::Execution::IsolatedPlan::Kin) do
   end
 
   it "maps test ids to files through the adapter's paths" do
-    tests = %w[UserTest#test_a OrderTest#test_b]
-    paths = { "UserTest#test_a" => "/p/test/user_test.rb", "OrderTest#test_b" => "/p/test/order_test.rb" }
+    tests = %w[UserTest#test_a OrderTest#test_b ReportTest#test_c]
+    paths = {
+      "UserTest#test_a" => "/p/test/user_test.rb", "OrderTest#test_b" => "/p/test/order_test.rb",
+      "ReportTest#test_c" => "/p/test/report_test.rb"
+    }
     locate = paths.method(:fetch)
     narrowed = described_class.new(all: tests, coverage: { id => ["OrderTest#test_b"] }, registry: registry, locate:)
-    expect(narrowed.tests("app/models/user.rb")).to(eq(tests))
+    expect(narrowed.tests("app/models/user.rb")).to(eq(tests.first(2)))
   end
 
   it "runs the whole suite where coverage names no test of the file", :aggregate_failures do

@@ -18,7 +18,7 @@ class Kimera::Execution::MirrorGit
 
   def copy(target)
     own, shared = locations
-    return unless own && shared
+    return unless shared
     FileUtils.mkdir_p(File.join(target, "objects", "info"))
     OWN.each { |name| take(File.join(own, name), target) }
     SHARED.each { |name| take(File.join(shared, name), target) }
@@ -32,8 +32,7 @@ class Kimera::Execution::MirrorGit
   end
 
   def locations
-    out, status = Open3.capture2("git", "rev-parse", "--absolute-git-dir", "--git-common-dir", chdir: @root, err: File::NULL)
-    return [] unless status.success?
+    out, = Open3.capture2("git", "rev-parse", "--absolute-git-dir", "--git-common-dir", chdir: @root, err: File::NULL)
     own, shared = out.lines(chomp: true)
     [own, shared && File.expand_path(shared, @root)]
   rescue SystemCallError

@@ -23,8 +23,8 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#evaluate", :aggregate_fai
       File.write(File.join(root, "calc.rb"), "def a(x, y)\n  x > y\nend\n")
       runner =
         Class.new(described_class) do
-          define_method(:verdict) do |mirror, _tests, slot: nil, **|
-            seen << [slot, File.basename(mirror).start_with?("kimera-isolated")]
+          define_method(:verdict) do |mirror, _tests, slot: nil, first: false|
+            seen << [slot, File.basename(mirror).start_with?("kimera-isolated"), first]
             outcomes.shift
           end
         end.new(registry: registry, root: root, tests: ["t1"], coverage: { id => ["t1"] })
@@ -37,7 +37,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#evaluate", :aggregate_fai
 
   it "takes the second run's verdict when the first broke outside every test" do
     result, seen = test_settled(outside, Kimera::Execution::IsolatedOutcome.new(:survived))
-    expect([result.status, seen]).to(eq([:survived, [[3, false], [3, false]]]))
+    expect([result.status, seen]).to(eq([:survived, [[3, false, true], [3, false, true]]]))
     expect(test_settled(outside, Kimera::Execution::IsolatedOutcome.new(:killed, ["t1"])).first.failing_tests)
       .to(eq(["t1"]))
   end
@@ -45,7 +45,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#evaluate", :aggregate_fai
   # The mutant itself broke loading: a fresh mirror without it runs clean.
   it "kills the mutant when the error recurs and a fresh mirror without the mutant runs clean", :aggregate_failures do
     result, seen = test_settled(outside, outside, Kimera::Execution::IsolatedOutcome.new(:survived))
-    expect([result.status, seen]).to(eq([:killed, [[3, false], [3, false], [3, true]]]))
+    expect([result.status, seen]).to(eq([:killed, [[3, false, true], [3, false, true], [3, true, false]]]))
     expect(result.detail).to(
       eq("an error outside every test: boom (it recurred with the mutant on; a fresh mirror without it runs clean)")
     )
@@ -66,6 +66,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#evaluate", :aggregate_fai
 
   it "runs once when the first verdict is inside a test" do
     _result, seen = test_settled(Kimera::Execution::IsolatedOutcome.new(:killed, ["t1"]))
-    expect(seen).to(eq([[3, false]]))
+    expect(seen).to(eq([[3, false, true]]))
   end
 end

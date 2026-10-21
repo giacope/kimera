@@ -191,6 +191,8 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
         filter: pass.__send__(:filter), test_paths: an_instance_of(Proc)
       )
     )
+    allow(adapter).to(receive(:test_file).with("t1").and_return("spec/t1_spec.rb"))
+    expect(pass.__send__(:core).fetch(:test_paths).call("t1")).to(eq("spec/t1_spec.rb"))
   end
 
   it "routes harness-critical mutants to fresh-process evaluation" do

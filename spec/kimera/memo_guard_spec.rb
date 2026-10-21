@@ -83,7 +83,10 @@ RSpec.describe(Kimera::MemoGuard) do
         "a store into another cache" => "def m(k)\n  return @c[k] if @c.key?(k)\n  @d[k] = build(k)\nend\n",
         "a guard on an unrelated test" => "def m(k)\n  return @c[k] if ready?\n  @c[k] = build(k)\nend\n",
         "a local hash" => "def m(k, c)\n  return c[k] if c.key?(k)\n  c[k] = build(k)\nend\n",
-        "a guard returning something else" => "def m(k)\n  return 1 if @c.key?(k)\n  @c[k] = build(k)\nend\n"
+        "a guard returning something else" => "def m(k)\n  return 1 if @c.key?(k)\n  @c[k] = build(k)\nend\n",
+        "a guard returning two values" => "def m(k)\n  return @c[k], 1 if @c.key?(k)\n  @c[k] = build(k)\nend\n",
+        "a guard on a method named like the local" =>
+          "def m(k)\n  cached = @c[k]\n  return cached if valid.cached\n  @c[k] = build(k)\nend\n"
       }.each { |shape, source| expect(exemptions(source)).to(eq([]), shape) }
     end
   end

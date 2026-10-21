@@ -39,7 +39,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
   def test_engine(log, isolated:, control:)
     Class.new(described_class) do
       define_method(:evaluate) do |trial|
-        log << [:mutant, trial.id, trial.mirror]
+        log << [:mutant, trial.id, trial.mirror, trial.slot]
         status, detail = isolated.fetch(trial.id)
         Kimera::MutantResult.new(
           mutant_id: trial.id, status: status, file: "calc.rb", covering_tests: ["t#{trial.id}"], detail: detail
@@ -118,6 +118,16 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
     expected = [[:harness_error, "the isolated tier could not stage it: Errno::ENOSPC: full"]]
     expect(results.map { |r| [r.status, r.detail] }).to(eq(expected))
     expect(log.map(&:first)).to(eq([:mutant]))
+  end
+
+  # A slot names the test database a mirror takes; one mirror at a time keeps
+  # the project's own database.
+  it "gives each concurrent mirror a slot, and a lone mirror none", :aggregate_failures do
+    isolated = ids.to_h { |id| [id, [:survived, nil]] }
+    _results, alone = test_rejudge(isolated: isolated, jobs: 1, **test_quiet)
+    expect(alone.map(&:last).uniq).to(eq([nil]))
+    _results, together = test_rejudge(isolated: isolated, jobs: 2, **test_quiet)
+    expect(together.map(&:last)).to(all(be_between(0, 1)))
   end
 
   it "judges each mutant in a mirror of its own, across jobs, in the warm order" do

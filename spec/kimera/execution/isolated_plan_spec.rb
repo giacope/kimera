@@ -169,6 +169,10 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       expect(child.request(["a"], first: true)).to(include("first_failure" => true))
     end
 
+    it "names the mirror's database slot only when it has one" do
+      expect([child.request(["a"], slot: 2)["slot"], child.request(["a"]).key?("slot")]).to(eq([2, false]))
+    end
+
     # The same load path the warm run and doctor use, read in the mirror.
     it "puts the test files' folders and the mirror's test and spec on the load path", :aggregate_failures do
       Dir.mktmpdir do |mirror|
