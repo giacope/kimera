@@ -674,7 +674,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     def green(mods = nil)
       Class.new(Kimera::Frameworks::Adapter) do
         def source(_files) = self
-        def test_ids = []
+        def test_ids = ["t1"]
         def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
         class_exec(&mods) if mods
       end.new
@@ -1651,7 +1651,7 @@ RSpec.describe(Kimera::Execution::Harness) do
   describe "#evaluate_reload (reload fallback child logic, run in-process)" do
     # An in-process errand: the tests it names, and ticks that go nowhere.
     def errand(id, tests = ["t1"])
-      Kimera::Execution::Reload::Errand.new(id, tests, nil, nil).tap { |e| e.define_singleton_method(:tick) { true } }
+      Kimera::Execution::Reload::Errand.new(id, tests, nil, nil).tap { |e| e.define_singleton_method(:tick) { |test| ran << test } }
     end
 
     let(:dir) { Dir.mktmpdir }
@@ -1742,6 +1742,17 @@ RSpec.describe(Kimera::Execution::Harness) do
       runner = reloader(counting(%w[t1 t2 t3], ["t2"], calls), catalog: registry, root: dir, isolation: reselection)
       expect(runner.__send__(:evaluate, errand(unsafe, %w[t1 t2 t3]))).to(eq([:killed, ["t2"]]))
       expect(calls).to(eq([["t1"], ["t2"]]))
+    end
+
+    # A reload-tier row shows what judged it: the tests the child ran, up to
+    # the first that failed, and its time.
+    it "reports the tests it ran and how long it took", :aggregate_failures do
+      registry, unsafe = reload("HarnessReloadReport")
+      runner = reloader(counting(%w[t1 t2 t3], ["t2"], []), catalog: registry, root: dir, isolation: reselection)
+      report = JSON.parse(runner.__send__(:report, errand(unsafe, %w[t1 t2 t3])))
+      expect(report.slice("status", "fails", "cover"))
+        .to(eq("status" => "killed", "fails" => ["t2"], "cover" => %w[t1 t2]))
+      expect(report["ms"]).to(be_a(Float).and(be >= 0))
     end
 
     it "ticks the errand before every test it runs" do
@@ -1837,10 +1848,10 @@ RSpec.describe(Kimera::Execution::Harness) do
         .__send__(:evaluate, errand(registry.each.map { |m, _p| m.id }.find { |id| !registry.index[id].safe? }))
     end
 
-    it "captures an exception during reload as an :error result", :aggregate_failures do
-      status, detail = evaluation
-      expect(status).to(eq(:error))
-      expect(detail.first).to(include("RuntimeError: kaboom"))
+    it "captures an exception during reload as an :error result, saying where it happened", :aggregate_failures do
+      status, fails, detail = evaluation
+      expect([status, fails]).to(eq([:error, []]))
+      expect(detail).to(start_with("#{Kimera::Execution::Reload::LOADING}RuntimeError: kaboom"))
     end
 
     it "classifies a bake unparser can't write as unmutatable, with the reason" do

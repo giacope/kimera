@@ -13,12 +13,14 @@ require_relative "verdicts"
 class Kimera::Execution::Reload
   include Kimera::Execution::ChildProcess
 
+  LOADING = "the reload tier could not load the mutated source: "
+
   Failure =
     Data.define(:exception) do
       def message = "#{exception.class}: #{exception.message}"
 
       def verdict
-        return [:error, [message]] unless exception.is_a?(Kimera::Overlay::Unbakeable)
+        return [:error, [], "#{LOADING}#{message}"] unless exception.is_a?(Kimera::Overlay::Unbakeable)
         [:unmutatable, [], "#{Kimera::MutationPoint::UNMUTATABLE}#{exception.message}"]
       end
     end
@@ -52,11 +54,15 @@ class Kimera::Execution::Reload
   end
 
   def report(errand)
+    started = monotonic
     status, fails, detail = evaluate(errand)
     JSON.generate(
-      id: errand.id, status: status.to_s, fails: Array(fails).map { |fail| fail.to_s.scrub }, detail: detail
+      id: errand.id, status: status.to_s, fails: Array(fails).map { |fail| fail.to_s.scrub }, detail: detail,
+      ms: monotonic - started, cover: errand.ran
     )
   end
+
+  def monotonic(reading = Process.clock_gettime(Process::CLOCK_MONOTONIC)) = reading
 
   def collect(errand, pid, deadline)
     line = hear(errand, pid, deadline)
@@ -90,7 +96,7 @@ class Kimera::Execution::Reload
   end
 
   def trial(test, errand)
-    errand.tick
+    errand.tick(test)
     @adapter.run([test])
   end
 

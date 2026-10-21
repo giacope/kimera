@@ -212,7 +212,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     reader, writer = IO.pipe
     errand = Kimera::Execution::Reload::Errand.new(8, [], IO.pipe.first, writer)
     errand.child!
-    errand.tick
+    errand.tick("t1")
     expect(reader.read_nonblock(16)).to(eq("tick\n"))
   ensure
     [reader, writer].each { |io| io.close unless io.closed? }
