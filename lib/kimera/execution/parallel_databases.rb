@@ -23,6 +23,13 @@ class Kimera::Execution::ParallelDatabases
     @support.parallelize_test_databases
   end
 
+  def loadable?(record = (ActiveRecord::Base if defined?(ActiveRecord::Base)))
+    configs = record.configurations.configs_for(env_name: ActiveRecord::ConnectionHandling::DEFAULT_ENV.call)
+    configs.all? { |config| File.exist?(ActiveRecord::Tasks::DatabaseTasks.schema_dump_path(config)) }
+  rescue StandardError
+    true
+  end
+
   def numbered(index) = { VARIABLE => number(index) }
 
   def assign(index, env = @env) = env.update(numbered(index))

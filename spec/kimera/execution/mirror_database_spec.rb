@@ -23,6 +23,15 @@ RSpec.describe(Kimera::Execution::MirrorDatabase, :aggregate_failures) do
     [database.adopt, calls, database]
   end
 
+  it "leaves the database alone when there is no schema file to load the mirror's copy from" do
+    allow(Kimera::Execution::ParallelDatabases).to(
+      receive(:new).and_return(
+        instance_double(Kimera::Execution::ParallelDatabases, enabled?: true, loadable?: false)
+      )
+    )
+    expect(test_adopted(2)[1]).to(eq([]))
+  end
+
   it "loads Rails' test databases and runs its after-fork hooks with the mirror's slot" do
     _adopted, calls, database = test_adopted(2)
     expect(calls).to(eq([2]))

@@ -11,8 +11,9 @@ require_relative "parent_connections"
 class Kimera::Execution::WorkerDatabases
   LOCK_WAITS = { /postg/i => "SET lock_timeout = '5s'", /mysql|trilogy/i => "SET SESSION lock_wait_timeout = 5" }.freeze
   SHARED = "kimera: the %d workers share one test database (%s): Active Record is loaded, but neither Rails' " \
-    "parallel test databases nor a TEST_ENV_NUMBER in database.yml give each worker its own; tests that " \
-    "write the same rows can fail or pass by timing (use jobs: 1, or name the database per worker)"
+    "parallel test databases (which load each worker's copy from the schema file) nor a TEST_ENV_NUMBER in " \
+    "database.yml give each worker its own; tests that write the same rows can fail or pass by timing " \
+    "(use jobs: 1, or name the database per worker)"
 
   def initialize(jobs:, errors: nil, env: ENV)
     @jobs = jobs
@@ -20,7 +21,7 @@ class Kimera::Execution::WorkerDatabases
     @env = env
   end
 
-  def active? = eligible? && parallel.enabled? && hooks.any?
+  def active? = eligible? && parallel.enabled? && hooks.any? && parallel.loadable?
 
   def before_fork
     register!

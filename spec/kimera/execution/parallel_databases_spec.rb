@@ -125,6 +125,27 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
     end
   end
 
+  # thredded's dummy app migrates at load and has no schema file; Rails'
+  # after-fork hook aborted every worker trying to load one.
+  describe "a schema file to load each worker's database from" do
+    def configured(present)
+      Dir.mktmpdir do |dir|
+        schema = File.join(dir, "schema.rb")
+        File.write(schema, "") if present
+        record = double(configurations: double(configs_for: [:primary]))
+        stub_const("ActiveRecord::ConnectionHandling::DEFAULT_ENV", -> { "test" })
+        stub_const("ActiveRecord::Tasks::DatabaseTasks", double(schema_dump_path: schema))
+        return described_class.new.loadable?(record)
+      end
+    end
+
+    it "is there only when every test database has its schema dump" do
+      expect(configured(true)).to(be(true))
+      expect(configured(false)).to(be(false))
+      expect(described_class.new.loadable?(nil)).to(be(true))
+    end
+  end
+
   describe Kimera::Execution::WorkerDatabases do
     subject(:databases) { described_class.new(jobs: 2, errors: errors) }
 
@@ -143,6 +164,23 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       record("db/test.sqlite3")
       allow(ActiveRecord::Base).to(receive(:connection_handler).and_return(double(connection_pool_list: [])))
       expect { databases.before_fork }.not_to(raise_error)
+    end
+
+    it "stays off, and says the workers share one database, without a schema file to load from" do
+      parallelization(after: ->(_i) {})
+      record("app_test", adapter: "postgresql")
+      allow(ActiveRecord::Base).to(receive(:connection_handler).and_return(double(connection_pool_list: [])))
+      allow(Kimera::Execution::ParallelDatabases).to(
+        receive(:new).and_return(
+          instance_double(
+            Kimera::Execution::ParallelDatabases, enabled?: true, loadable?: false, assign: nil,
+            numbered: {}
+          )
+        )
+      )
+      expect(databases.active?).to(be(false))
+      databases.before_fork
+      expect(errors.string).to(include("share one test database (app_test)"))
     end
 
     it "turns on before Rails 8.1 once the hook is registered" do

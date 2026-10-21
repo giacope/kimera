@@ -26,6 +26,7 @@ class Kimera::Execution::MirrorDatabase
   def parallel?
     return false unless defined?(ActiveSupport::Testing::Parallelization) && defined?(ActiveRecord::Base)
     return false if Kimera::Execution::MemoryDatabases.new.current?
-    Kimera::Execution::ParallelDatabases.new.enabled?
+    parallel = Kimera::Execution::ParallelDatabases.new
+    parallel.enabled? && parallel.loadable?
   end
 end
