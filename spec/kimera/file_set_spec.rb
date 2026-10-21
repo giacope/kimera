@@ -20,6 +20,17 @@ RSpec.describe(Kimera::FileSet) do
     relative
   end
 
+  # A helper listed first in `tests:` loads first, as a runner's -r would.
+  describe "#listed" do
+    it "keeps the patterns' order, sorting within each and listing a file once", :aggregate_failures do
+      %w[test/helper.rb test/b_test.rb test/a_test.rb].each { |path| touch(path) }
+      listed = described_class.new(["test/helper.rb", "test/**/*.rb"]).listed
+      expect(listed).to(eq(%w[test/helper.rb test/a_test.rb test/b_test.rb]))
+      expect(described_class.new(["test/**/*.rb", "test/helper.rb"]).files)
+        .to(eq(%w[test/a_test.rb test/b_test.rb test/helper.rb]))
+    end
+  end
+
   describe "#unused" do
     it "returns only the exclude patterns that removed nothing" do
       touch("app/a.rb")

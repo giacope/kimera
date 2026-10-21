@@ -131,5 +131,5 @@ class Kimera::CLI::Doctor
 
   def tests_for(config) = minitest?(config) ? ["test/**/*_test.rb"] : ["spec/**/*_spec.rb"]
 
-  def glob(patterns) = Array(patterns).flat_map { |pattern| Dir.glob(File.join(@root, pattern)) }.uniq.sort
+  def glob(patterns) = Array(patterns).flat_map { |pattern| Dir.glob(File.join(@root, pattern)).sort }.uniq
 end

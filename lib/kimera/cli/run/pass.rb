@@ -48,9 +48,7 @@ class Kimera::CLI::Run::Pass
   def harness = @_harness ||= Kimera::Execution::Harness.build(**settings)
 
   def files
-    @_files ||= Kimera::CLI::Run::Sources.new.expand(
-      @options[:tests], @options[:exclude_tests], "test", "check --tests"
-    )
+    @_files ||= Kimera::CLI::Run::Sources.new.tests(@options[:tests], @options[:exclude_tests])
   end
 
   def settings
