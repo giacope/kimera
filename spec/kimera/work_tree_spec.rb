@@ -65,9 +65,9 @@ RSpec.describe(Kimera::WorkTree, :aggregate_failures) do
     project(git: false) do |root|
       tree = described_class.new(root)
       expect(tree.watch { :done }).to(eq([:done, nil]))
-      (1..12).each { |n| File.write(File.join(root, "f#{n}"), "") }
+      (1..12).each { |n| File.write(File.join(root, "f#{n}.rb"), "") }
       expect(tree.watch { File.write(File.join(root, "new.rb"), "") }.last).to(be_nil)
-      _, warning = tree.watch { (1..12).each { |n| File.write(File.join(root, "f#{n}"), "changed\n") } }
+      _, warning = tree.watch { (1..12).each { |n| File.write(File.join(root, "f#{n}.rb"), "changed\n") } }
       expect(warning).to(start_with("kimera: the run changed 12 tracked file(s) in the project"))
       expect(warning.lines.size).to(eq(12))
       expect(warning.lines.last).to(eq("  … and 2 more"))

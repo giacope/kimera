@@ -129,6 +129,16 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       ActiveSupport.define_singleton_method(:parallelize_test_databases) { flag }
     end
 
+    # Rails 8.0's Parallelization has after-fork hooks only.
+    it "forks on a Rails with no before-fork hooks" do
+      par = Module.new
+      par.define_singleton_method(:after_fork_hooks) { [->(_i) {}] }
+      stub_const("ActiveSupport::Testing::Parallelization", par)
+      record("db/test.sqlite3")
+      allow(ActiveRecord::Base).to(receive(:connection_handler).and_return(double(connection_pool_list: [])))
+      expect { databases.before_fork }.not_to(raise_error)
+    end
+
     it "turns on before Rails 8.1 once the hook is registered" do
       parallelization(after: ->(_i) {})
       expect(databases.active?).to(be(true))

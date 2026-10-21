@@ -6,7 +6,8 @@ module Kimera
   # The project's tracked files, before and after a run. Warm workers run
   # tests (and mutants) in the real tree; a mutant that points a cleaner at
   # the wrong directory can delete fixtures, and every verdict after it is
-  # suspect. Without git, files are compared by size and mtime.
+  # suspect. Without git, the Ruby files present before are compared by size
+  # and mtime (a test database or log the suite writes is no fixture).
   class WorkTree
     SKIPPED = %w[.git tmp log node_modules].freeze
     BOUND = 50_000
@@ -62,7 +63,7 @@ module Kimera
     end
 
     def walked
-      Dir.glob("**/*", File::FNM_DOTMATCH, base: root).lazy
+      Dir.glob("**/*.rb", base: root).lazy
         .reject { |path| SKIPPED.include?(path.split("/").first) || File.directory?(File.join(root, path)) }
         .first(BOUND).to_h { |path| [path, stat(path)] }
     end

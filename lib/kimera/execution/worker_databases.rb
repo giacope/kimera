@@ -25,7 +25,7 @@ class Kimera::Execution::WorkerDatabases
   def before_fork
     register!
     Kimera::Execution::ParentConnections.new.release!
-    return ActiveSupport::Testing::Parallelization.before_fork_hooks.each(&:call) if active?
+    return before_hooks.each(&:call) if active?
     prepare
   end
 
@@ -45,6 +45,12 @@ class Kimera::Execution::WorkerDatabases
   private
 
   def hooks = ActiveSupport::Testing::Parallelization.after_fork_hooks
+
+  def before_hooks
+    ActiveSupport::Testing::Parallelization.before_fork_hooks
+  rescue NoMethodError
+    []
+  end
 
   def cleanup(index)
     register!
