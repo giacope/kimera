@@ -3,6 +3,7 @@
 require "fileutils"
 require_relative "../error"
 require_relative "../plugins"
+require_relative "../work_tree"
 
 module Kimera
 end
@@ -37,7 +38,7 @@ class Kimera::CLI::Run
 
   protected
 
-  def perform(options) = pid_file(options[:pidfile]) { cycle(options).call }
+  def perform(options) = pid_file(options[:pidfile]) { guarded(options) { cycle(options).call } }
 
   private
 
@@ -59,6 +60,14 @@ class Kimera::CLI::Run
     yield
   ensure
     FileUtils.rm_f(path)
+  end
+
+  def guarded(options, &)
+    ignored = options.values_at(:report, :session, :pidfile, :log)
+    code, warning = Kimera::WorkTree.new(options[:source_root] || ".", ignored: ignored).watch(&)
+    return code unless warning
+    @errors.puts(warning)
+    1
   end
 
   def parse(argv) = Kimera::CLI::Run::Arguments.new.parse(argv)
