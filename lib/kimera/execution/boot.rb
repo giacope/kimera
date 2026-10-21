@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "baseline_failure"
 require_relative "isolation"
 require_relative "memory_databases"
 
@@ -12,6 +13,7 @@ class Kimera::Execution::Boot
 
   def suite(test_files)
     @adapter.source(test_files)
+    found!(test_files)
     @adapter.start
     load!
     keep!
@@ -32,6 +34,16 @@ class Kimera::Execution::Boot
   end
 
   private
+
+  def found!(test_files)
+    return if test_files.empty? || @adapter.test_ids.any?
+    raise(
+      Kimera::Execution::BaselineFailure,
+      "baseline has no tests to run: #{test_files.size} test file(s) loaded but none of their tests is selected " \
+        "(an inclusion filter such as RSpec's `filter_run_including focus: true` that matches nothing?); " \
+        "kimera would score every mutant as uncovered"
+    )
+  end
 
   def keep!
     return unless defined?(ActiveRecord::ConnectionAdapters::PoolConfig)

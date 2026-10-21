@@ -96,9 +96,17 @@ class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
   def load(file) = Kernel.load(File.expand_path(file))
 
   def examples
-    @_examples ||=
-      RSpec.world.example_groups.flat_map { |top| Kimera::Frameworks::GroupTree.new(top).examples }
-        .to_h { |example| [example.id, example.extend(Kimera::TestExit::Example)] }
+    @_examples ||= widened(collected).to_h { |example| [example.id, example.extend(Kimera::TestExit::Example)] }
+  end
+
+  def collected = RSpec.world.example_groups.flat_map { |top| Kimera::Frameworks::GroupTree.new(top).examples }
+
+  def widened(found)
+    world = RSpec.world
+    return found unless found.empty? && RSpec.configuration.run_all_when_everything_filtered?
+    world.filtered_examples.clear
+    world.inclusion_filter.clear
+    collected
   end
 
   def clear(examples)
