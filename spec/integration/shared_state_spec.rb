@@ -126,7 +126,7 @@ RSpec.describe("a suite that shares a path between tests (end-to-end)") do
       test_shared(root)
       File.write(File.join(root, "app", "store.rb"), test_store.sub("tmp/shared", "tmp/\#{Process.pid}"))
       output, _status = test_doctor(root)
-      expect(output).to(include("✓ Parallel baseline: green split across 2 processes too (jobs: 2)"))
+      expect(output).to(include("✓ Parallel baseline: green split across 2 processes too (jobs: 2; one sample"))
     end
   end
 end

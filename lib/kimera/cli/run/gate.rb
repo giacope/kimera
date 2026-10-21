@@ -42,7 +42,7 @@ class Kimera::CLI::Run::Gate
   def unjudged
     count = @report.errors.size
     cap = Integer(@options[:max_errors] || 0)
-    "unjudged=#{count} > max_errors=#{cap}" if count > cap
+    "unjudged=#{count} > max_errors=#{cap} (status harness_error in the JSON report)" if count > cap
   end
 
   def untested

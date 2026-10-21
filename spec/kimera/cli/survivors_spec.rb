@@ -37,7 +37,8 @@ RSpec.describe("kimera survivors", :aggregate_failures) do
         {
           "mutant_id" => 12, "status" => "timeout", "file" => "app/models/bare.rb",
           "original" => "z"
-        }
+        },
+        { "mutant_id" => 13, "status" => "harness_error", "file" => "app/models/odd.rb", "original" => "w" }
       ]
     }
   end
@@ -88,6 +89,12 @@ RSpec.describe("kimera survivors", :aggregate_failures) do
     out, = run(report_path, "book")
     expect(out).to(include("#9"))
     expect(out).not_to(include("#7"))
+  end
+
+  # The text report and the gate call harness_error rows unjudged.
+  it "lists the report's harness_error rows by their text name, unjudged" do
+    out, = run(report_path, "--status", "unjudged")
+    expect(out).to(include("#13"))
   end
 
   it "lists another status with --status" do

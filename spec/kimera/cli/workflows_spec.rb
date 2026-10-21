@@ -371,7 +371,8 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
   # A suite that is green in one process can still be red on the configured
   # workers; doctor runs it split across that many processes too.
   it "runs the baseline split across the configured jobs only when it is green serially", :aggregate_failures do
-    parallel = "✓ Parallel baseline: green split across 3 processes too (jobs: 3)\n"
+    parallel = "✓ Parallel baseline: green split across 3 processes too " \
+      "(jobs: 3; #{Kimera::CLI::TestCommand::SAMPLE})\n"
     Dir.mktmpdir do |dir|
       expect(test_doctor_jobs(dir, "jobs: 3\n").lines.last).to(eq(parallel))
       expect(Kimera::Execution::SUITE).to(have_received(:call).exactly(5).times)
