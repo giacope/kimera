@@ -184,10 +184,12 @@ jobs:
         env:
           PBT_SCALE: "10"
 
-  # Full self-host run (max_survivors: 0 via .kimera.yml); uploads the JSON
-  # report. Trigger manually from the Actions tab.
-  selfhost-report:
-    if: github.event_name == 'workflow_dispatch'
+  # Full self-host gate: every mutant in lib/ killed, covered and judged, with
+  # no ignore entry (.kimera.yml: max_survivors 0, max_ignored 0,
+  # fail_on_no_coverage). Runs on every push to main and from the Actions tab,
+  # and uploads the JSON report either way.
+  selfhost:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -195,9 +197,10 @@ jobs:
         with:
           ruby-version: "3.4"
           bundler-cache: true
-      - name: Full warm self-host
-        run: bundle exec kimera run --report tmp/selfhost.json
+      - name: Full self-host run
+        run: bundle exec kimera run --judge-isolated-only --report tmp/selfhost.json --summary "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: selfhost-report
           path: tmp/selfhost.json
