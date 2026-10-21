@@ -13,6 +13,15 @@ Follow-ups to field test round 3:
   test, support or config file changed, it measures every test and says why
   in one line. Every test that can cover a changed line gets a fresh
   baseline.
+- **A database per worker and mirror without a schema file.** A suite that
+  builds its database as it loads (thredded migrates it) gave Rails' hook no
+  schema to load, so workers shared one database and its baseline went red
+  under `--jobs 2`. Each worker and mirror past the first now gets a copy of
+  the database the parent prepared, made after the parent disconnects:
+  `CREATE DATABASE <name>_<n> TEMPLATE <name>` on PostgreSQL, a copy of the
+  file (and its write-ahead log) on SQLite, never an in-memory database. The
+  copies are dropped when the run ends; other adapters still say the workers
+  share one database.
 
 Field test round 3, on MIT libraries and Rails apps (casa, thredded, devise,
 rack, grape, jekyll among them): the verdicts that disagreed with the plain

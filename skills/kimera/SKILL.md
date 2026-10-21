@@ -162,7 +162,10 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   `define_method`/`lambda`/`proc`, or a file that does not parse. It is not a
   survivor; it's a place no verdict covers.
 - On a Rails app that uses `parallelize`, `--jobs > 1` gives each worker its
-  own database, so there's no shared-DB fixture/RLS deadlock.
+  own database, so there's no shared-DB fixture/RLS deadlock. With no schema
+  file to load (a suite that migrates as it loads), each worker and mirror
+  gets a copy of the parent's PostgreSQL or SQLite database; on another
+  adapter kimera says the workers share one.
 - Operators: the default is the conservative core. `--operators all` enables
   the extended families; `--operators rails` (or `comparison,rails`) the
   Rails-aware ones.

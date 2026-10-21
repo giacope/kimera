@@ -357,8 +357,9 @@ first and stops at the first that fails.
 A mirror is as safe as a warm worker:
 
 - Past the first, each concurrent mirror takes a test database of its own
-  through Rails' parallel-testing hooks (`<db>_1`, `<db>_2`, ...), as warm
-  workers do, so a `before(:suite)` that truncates or seeds cannot race
+  through Rails' parallel-testing hooks (`<db>_1`, `<db>_2`, ...), or a copy
+  of the parent's when there is no schema file to load, as warm workers do,
+  so a `before(:suite)` that truncates or seeds cannot race
   another mirror. Each also gets `TEST_ENV_NUMBER` (parallel_tests'
   convention), and kimera closes its own database connections before it
   starts one, so a suite that drops and re-creates its database at load runs.
@@ -1112,9 +1113,15 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   no `parallelize_test_databases` switch). Each worker gets its own database
   (`app_test_0`, `app_test_1`, …), as with `rails test -j`, and
   `TEST_ENV_NUMBER` (`""`, `"2"`, …): a `database.yml` that names the database
-  by it gets each worker's database created and loaded. An in-memory SQLite
+  by it gets each worker's database created and loaded. A suite that builds
+  its database as it loads (migrates it, as thredded's does) leaves no schema
+  file for Rails to load: kimera copies the database the parent prepared for
+  each worker and mirror past the first, after the parent disconnects
+  (`CREATE DATABASE app_test_1 TEMPLATE app_test` on PostgreSQL, a copy of the
+  file on SQLite), and drops the copies when the run ends. An in-memory SQLite
   database is never renamed; each fork keeps its own copy of the schema.
-  When workers would share one database, kimera says so. Anything *else* your suite shares
+  When workers would share one database (another adapter), kimera says so.
+  Anything *else* your suite shares
   (Redis, Elasticsearch, a temp directory) needs the same treatment. Register
   a hook and Kimera runs it:
   `ActiveSupport::Testing::Parallelization.after_fork_hook { |i| ... }`.

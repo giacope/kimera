@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "database_copies"
 require_relative "memory_databases"
 require_relative "numbered_databases"
 require_relative "parallel_databases"
@@ -35,8 +36,9 @@ class Kimera::Execution::WorkerDatabases
     return unless index && @jobs > 1
     parallel.assign(index)
     register!
-    return numbered.adopt(index) unless active?
-    hooks.each { |hook| hook.call(index) }
+    return hooks.each { |hook| hook.call(index) } if active?
+    numbered.adopt(index)
+    copies.adopt(index)
   end
 
   def before_exit(index)
@@ -77,8 +79,11 @@ class Kimera::Execution::WorkerDatabases
     return if @_prepared || !separate?
     @_prepared = true
     return (1...@jobs).each { |index| numbered.prepare(index) } if numbered.numbered?
+    return copies.prepare(1...@jobs) if copies.possible?
     shared
   end
+
+  def copies = @_copies ||= Kimera::Execution::DatabaseCopies.new(errors: errors)
 
   def separate? = @jobs > 1 && defined?(ActiveRecord::Base) && !memory?
 
