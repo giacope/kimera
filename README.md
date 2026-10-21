@@ -222,7 +222,9 @@ bundle exec kimera run app --jobs 8 --hard-timeout 60
 # Run only some test files, for speed. --tests replaces the configured tests:
 # glob, so verdicts hold only for those files: a survivor may be killed by a
 # test left out. The report says so ("narrowed run: --tests matched 1 of 1,120
-# test files ...", and "narrowed": true in the JSON report's run section)
+# test files ...", and "narrowed": true in the JSON report's run section).
+# Mutants the narrowed tests leave uncovered read "not covered by the narrowed
+# tests" and are neither scored nor gated on (--fail-on-no-coverage still gates)
 bundle exec kimera run app/models/order.rb --tests 'spec/models/order_spec.rb'
 
 # Drop spec files that can't run this way (order-dependent, need a browser)
@@ -343,6 +345,31 @@ of them needs the whole suite). If it isn't green there, the run stops with
 exit 1 and the error. A mutant's mirror then runs its covering tests fastest
 first and stops at the first that fails.
 
+A mirror is as safe as a warm worker:
+
+- Past the first, each concurrent mirror takes a test database of its own
+  through Rails' parallel-testing hooks (`<db>_1`, `<db>_2`, ...), as warm
+  workers do, so a `before(:suite)` that truncates or seeds cannot race
+  another mirror.
+- Its `.git` is a private snapshot (HEAD, index and refs) that reads the
+  project's objects, so a suite's `git ls-files` works and nothing the suite
+  does writes the project's `.git`.
+- A run that fails with an error outside every test (a load error, a suite
+  hook) names no test, so it is not a kill on sight. The mutant runs once
+  more; if the error recurs, a fresh mirror runs the same tests without the
+  mutant. Clean there, the mutant broke loading and is killed, the detail
+  saying so; failing there too, it is the environment and the mutant stays
+  `harness_error`.
+- A mutant with no coverage of its own (class-body DSL, a memoized value,
+  code the suite runs while it loads) runs every test in the test files that
+  cover its source file, plus the file's conventional spec or test file
+  (`user_spec.rb`, `user_test.rb`); the whole suite only where coverage names
+  no such test.
+- The watchdog renews on each test; a test whose baseline needs longer than
+  `--hard-timeout` gets its own limit (baseline × 3 + 1s), and a timed-out
+  mirror says so with its limit ("timed out after 16s without a test
+  finishing"), never "its tests fail".
+
 ### Re-judging what the warm pass could not
 
 The warm pass can't judge a mutant whose process died before it replied (the
@@ -355,7 +382,8 @@ while it loaded is judged again too.
 
 After the warm pass, Kimera judges each such mutant again in the isolated
 tier, in a fresh mirror of its own, against its covering tests only (every
-test under `--no-coverage`, and for a method that ran at load). A kill (or
+test under `--no-coverage`; for a method that ran at load, the tests near its
+file, as above). A kill (or
 timeout) stands only if those tests then pass in another fresh mirror
 without the mutant. The report carries the fresh
 verdict, and the row's `note` keeps what the warm pass said. The text report
@@ -368,6 +396,28 @@ tallies these mutants, and `github`/`sarif` findings append the note.
   baseline runs first; the confirming run replaces it.
 - `--no-rejudge` (or `rejudge: false` in `.kimera.yml`) turns this off: the
   mutants stay `harness_error` with the warm detail.
+
+### Confirming survivors
+
+A mutant's covering tests run together in one forked process, so an earlier
+test can load what the mutant broke and hide the kill: a run-once guard, a
+lazy registry, an autoloader. Under `--confirm-survivors`
+(`confirm_survivors: true`), each warm survivor's covering tests then run
+alone in a fresh fork with the mutant on, fastest first and at most 50. A test
+that fails alone kills the mutant only if it passes alone with the mutant
+off; the detail starts "failed alone in a fresh process (an earlier covering
+test masked it ...)". It is on by default for incremental runs (`--since`,
+`kimera ci`, `kimera changed`), where survivors are few, and off for full
+runs unless asked; the report's run section records the choice.
+
+### Per-test soft limit
+
+Each covering test may run for `--soft-timeout`, or for its own baseline ×
+3 + 1s when that is longer, so a DB-heavy example that takes 4.7s on a busy
+machine is not timed out at 5s. The raise stays a second under the hard
+watchdog (`--hard-timeout`), which still catches what the soft timeout cannot
+interrupt. A test with no baseline (under `--no-coverage`) keeps
+`--soft-timeout`. Timeout details name the limit the test ran under.
 
 ### Relative time budget
 
@@ -393,9 +443,10 @@ it was set.
   (`timeout_factor:`, `timeout_slack:`) tune it.
 - A test with no baseline has no budget: under `--no-coverage` nothing is
   timed, and the soft and hard timeouts alone apply, as they always do.
-- The isolated and reload tiers keep only their absolute limits. They bake the
-  mutant into a fresh process, so there is no run without it to compare with,
-  and a fresh process's first tests run slower than the warm baseline.
+- The isolated and reload tiers keep only their absolute limits (raised per
+  test as above in the isolated tier). They bake the mutant into a fresh
+  process, so there is no run without it to compare with, and a fresh
+  process's first tests run slower than the warm baseline.
 
 ### Strict attribution
 
@@ -553,8 +604,9 @@ operators: [comparison, boolean_connective, boolean_literal, statement_deletion,
 require: []
 jobs: 4
 max_survivors: 0
-# Fail when any mutant in scope lacks a covering test. Best on incremental
-# runs, where "no coverage" means the PR adds logic no test executes.
+# Fail when any mutant in scope lacks a covering test, even with
+# count_no_coverage off or on a narrowed run. Best on incremental runs, where
+# "no coverage" means the PR adds logic no test executes.
 fail_on_no_coverage: false
 # Score uncovered mutants as not killed, and fail on them, in every command
 # (default: true; untested code is not passing code). false reports them
@@ -564,6 +616,9 @@ count_no_coverage: true
 # callbacks, dependent:, lambdas a macro registers). Unset: on for --since,
 # ci and changed; off for full runs.
 # judge_isolated_only: true
+# Run each warm survivor's covering tests alone in a fresh process, so an
+# earlier test cannot mask a kill. Unset: on for --since, ci and changed.
+# confirm_survivors: true
 # Extra folders for the load path, beside each test file's nearest test/ or
 # spec/ and the project's own test/ and spec/. doctor and the printed
 # reproduce commands use the same load path.
@@ -627,7 +682,11 @@ neither does a guard that opens a method: `return @x if defined?(@x)`,
 `return @x if @x` (with `@x` assigned later in the method), or `return if @x`
 followed by `@x = true`, nor a guarded fill that ends on the ivar:
 `unless @x; ...; @x = value; end; @x` (also `@x = value unless @x`,
-`if @x.nil?`, `if !@x`). Everything the method computes is still mutated. A
+`if @x.nil?`, `if !@x`). A keyed cache is the same memo: `@cache[key] ||= …`
+marks its value as computed once, and an early return of a cache lookup
+(`return @cache[key] if @cache.key?(key)`, or `cached = @cache[key]; return
+cached if cached`) has no conditional mutant when the method stores into the
+same cache, nor does that store. Everything the method computes is still mutated. A
 re-entrancy guard with the run-once shape is skipped too.
 
 The extended families are one flag away. Use `--operators all`, or pick from:
@@ -751,7 +810,9 @@ comparison,rails` composes, and `all` includes them.
   Left unjudged, they are excluded from the score, and a scope where nothing
   else could be evaluated fails the gate instead of passing on nothing.
 - **Out of the box.** `kimera init` on a Rails app (one with
-  `config/application.rb`) writes the `rails` group into `operators:`.
+  `config/application.rb`), or on an engine (a `Rails::Engine` or
+  `isolate_namespace` under `lib/`) with a `spec/dummy` or `test/dummy` app,
+  writes the `rails` group into `operators:`.
 - **Zeitwerk.** Kimera calls `Rails.application.eager_load!` before overlaying,
   so lazily autoloaded constants can't escape mutation.
 
@@ -870,6 +931,14 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
 
 ## Design notes & known limits
 
+- **Test files load in the configured order.** `tests:` patterns keep their
+  order (each sorted within itself, a file listed once), so a helper listed
+  first (`tests: [test/helper.rb, "test/**/*_test.rb"]`) loads before the
+  files that rely on it, as a Rake task's `-r` would load it.
+- **RSpec filters as `rspec` applies them.** A `filter_run_including focus:
+  true` that matches nothing falls back to every example when the suite sets
+  `run_all_when_everything_filtered`; a baseline whose test files load but
+  select no test fails with exit 1 instead of scoring every mutant uncovered.
 - **Runs under your bundle.** `unparser` pulls in a `diff-lcs` version that can
   conflict with `rspec-expectations` outside a resolved bundle. Use
   `bundle exec`. A source checkout's `exe/kimera` activates the current

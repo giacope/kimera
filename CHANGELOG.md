@@ -2,6 +2,55 @@
 
 ## Unreleased
 
+Field test round 2, on twenty more MIT codebases (Rails apps and engines,
+rouge, steep, solargraph, asciidoctor among them): 141 of 143 sampled
+verdicts matched the plain test command. The two that did not, and the
+seams around them, are fixed here.
+
+- **No kill from an error outside every test.** An isolated child that fails
+  with no test named (a load error, a `before(:suite)` hook) is not a kill on
+  sight: the mutant runs again, and a recurring error kills only when a fresh
+  mirror without the mutant runs clean; otherwise the mutant stays unjudged.
+  A Claim-for-Crown-Court-Defence mutant was killed by a deadlock in a
+  `DatabaseCleaner` hook.
+- **Mirrors are as safe as warm workers.** Each concurrent isolated mirror
+  takes its own test database through Rails' parallel-testing hooks, and gets
+  a private `.git` snapshot that reads the project's objects, so a gemspec's
+  `git ls-files` works in a mirror (asciidoctor's isolated baseline was red)
+  and nothing writes the project's `.git`.
+- **Survivor confirmation.** `--[no-]confirm-survivors` (`confirm_survivors`)
+  runs each warm survivor's covering tests alone in a fresh process with the
+  mutant on, fastest first and at most 50; a failure there kills only if the
+  test passes alone without the mutant. On by default for incremental runs.
+  A rouge lexer survivor was masked by an earlier test's eager load.
+- **Per-test soft limit.** A covering test may run for `--soft-timeout` or
+  its baseline × 3 + 1s, whichever is longer, capped under the hard watchdog;
+  the isolated watchdog takes the same raise. Mirror timeouts say "timed out
+  after Ns" instead of "its tests fail".
+- RSpec suites with `filter_run_including focus: true` and
+  `run_all_when_everything_filtered` run every example, as `rspec` does; a
+  baseline whose test files select no test fails loudly instead of scoring
+  every mutant uncovered.
+- `tests:` keeps the configured order, so a helper listed first loads first.
+- On a run narrowed with `--tests`, uncovered mutants read "not covered by the
+  narrowed tests" and are neither scored nor gated on under
+  `count_no_coverage`.
+- Keyed caches are memoization: `@cache[key] ||= …` values are computed once,
+  and a lookup's early return plus its store into the same cache carry no
+  mutants (solargraph's equivalent survivors).
+- Isolated mutants with no coverage of their own (class-body DSL, memoized
+  values, load-time code) run the tests in the files that cover their source
+  file, plus its conventional spec/test file, instead of the whole suite.
+- Reload-tier rows record the tests they ran and their time; a mutated source
+  that fails to load says so in the detail.
+- `kimera init` writes `count_no_coverage: true` (not the redundant
+  `fail_on_no_coverage: false`), and treats an engine with a dummy app as
+  Rails.
+- The gate's `unjudged` line names its JSON status (`harness_error`), and
+  `kimera report --status unjudged` lists those rows; doctor's parallel
+  check says it is a sample.
+- Isolated child ledgers record the first failure's message.
+
 Field test on ten MIT Ruby and Rails codebases (Sequel, YARD, graphql-ruby,
 ruby-lsp, Feedbin, Human Essentials, Chatwoot among them): 217 of 217 sampled
 survived and killed verdicts matched the plain test command; these are the

@@ -87,7 +87,12 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   append). A narrowed run's verdicts hold only for the narrowed set: a
   survivor may be killed by a test left out, so confirm it with the full glob
   before writing a test or an ignore entry. The report flags such a run
-  (`narrowed run: ...`, `"narrowed": true` in the JSON `run` section).
+  (`narrowed run: ...`, `"narrowed": true` in the JSON `run` section). Its
+  uncovered mutants read "not covered by the narrowed tests" and are neither
+  scored nor gated on; confirm them with the full glob too.
+- `tests:` patterns load in the order listed: put a helper the runner
+  preloads (Rake's `-r`) first, e.g. `tests: [test/helper.rb,
+  "test/**/*_test.rb"]`.
 - `--jobs` sizes the warm pool and isolated mirrors. Coverage-based test
   selection and kill-on-first-failure are automatic.
 - A `timeout` verdict is a *detected* mutant (the suite hung on it), not an
@@ -107,9 +112,10 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   raise `--hard-timeout`. If it waits on something the workers share (a Redis
   db, a lock, a port), give each worker its own through a
   `parallelize_setup`/`after_fork_hook`.
-- A test that runs past `--soft-timeout` with the mutant on is a `timeout`
-  only when, alone with the mutant off, it passes in under half the soft
-  timeout. A mutant left unjudged with a detail saying the test "ran past the
+- Each test's soft limit is `--soft-timeout` or its baseline × 3 + 1s,
+  whichever is longer (under the hard watchdog). A test that runs past it with
+  the mutant on is a `timeout` only when, alone with the mutant off, it passes
+  in under half that limit. A mutant left unjudged with a detail saying the test "ran past the
   soft timeout ... with it off" means the test is too slow (or broken) on its
   own: raise `--soft-timeout` well above its time, or fix the test.
 - Code under test that calls `exit` or `abort` fails that test (`detail`:
@@ -128,10 +134,17 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   test also fails without it after the tests run before it) is judged again
   in a fresh isolated mirror of its own, against its covering tests, and so
   is a warm survivor whose method also ran while the suite loaded (against
-  the whole suite). Its report row carries that verdict plus a `note` with
-  the warm detail. It stays `harness_error` only if the tests also fail in a
-  fresh mirror without the mutant. `--no-rejudge` (`rejudge: false`) turns
-  this off.
+  the tests in the files that cover its source file). Its report row carries
+  that verdict plus a `note` with the warm detail. It stays `harness_error`
+  only if the tests also fail in a fresh mirror without the mutant.
+  `--no-rejudge` (`rejudge: false`) turns this off.
+- On incremental runs (`--since`, `ci`, `changed`) each warm survivor's
+  covering tests also run alone in a fresh process (`confirm_survivors`), so
+  an earlier test's state can't mask a kill; a kill found that way says
+  "failed alone in a fresh process". Turn it on for a full run with
+  `--confirm-survivors` when a library has lazy registries or run-once guards.
+- `unjudged` in the text report and gate is the JSON status `harness_error`;
+  `kimera report --status unjudged` lists them.
 - "Not mutated" (`unmutated` in the JSON report) lists code the scan holds
   no mutant for, with the reason: a block outside any method that isn't
   `define_method`/`lambda`/`proc`, or a file that does not parse. It is not a
@@ -284,6 +297,10 @@ gap: test that side effect.
   exits non-zero with zero failures (typically a SimpleCov `minimum_coverage`
   floor tripped by the partial run) is `harness_error`, not a kill, and so is
   a child that crashes before reporting (read its `detail` for the stderr).
+  An error outside every test (a load error, a suite hook) kills only when it
+  recurs with the mutant on and a fresh mirror without the mutant runs clean;
+  otherwise it is `harness_error`. Concurrent mirrors get their own test
+  database (Rails parallel testing) and a read-only view of `.git`.
   Kimera
   sets `KIMERA=1` wherever it loads the suite (warm, `--isolated`, doctor), so
   gate the floor on it (`minimum_coverage ... unless ENV["KIMERA"]`); `kimera
