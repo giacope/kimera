@@ -96,11 +96,11 @@ RSpec.describe(Kimera::Execution::IsolatedOutcome) do
 
   describe "#explain" do
     it "says why a red isolated baseline is red", :aggregate_failures do
-      expect(described_class.new(:timeout).explain(30)).to(eq("timed out after 30s"))
-      expect(described_class.new(:killed, %w[a b], "Error: why").explain(1)).to(eq("failing: a, b (Error: why)"))
-      expect(described_class.new(:killed, %w[a b]).explain(1)).to(eq("failing: a, b"))
-      expect(described_class.new(:killed, [], "LoadError: x").explain(1)).to(eq("LoadError: x"))
-      expect(described_class.new(:harness_error).explain(1)).to(eq("the test child failed without naming a test"))
+      expect(described_class.new(:timeout).timed(30).explain).to(eq("timed out after 30s without a test finishing"))
+      expect(described_class.new(:killed, %w[a b], "Error: why").explain).to(eq("failing: a, b (Error: why)"))
+      expect(described_class.new(:killed, %w[a b]).explain).to(eq("failing: a, b"))
+      expect(described_class.new(:killed, [], "LoadError: x").explain).to(eq("LoadError: x"))
+      expect(described_class.new(:harness_error).explain).to(eq("the test child failed without naming a test"))
     end
   end
 

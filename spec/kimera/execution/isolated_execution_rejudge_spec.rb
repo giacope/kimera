@@ -94,9 +94,14 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
   end
 
   it "names the timeout of a control that ran past --hard-timeout" do
-    slow = Kimera::Execution::IsolatedOutcome.new(:timeout)
+    slow = Kimera::Execution::IsolatedOutcome.new(:timeout).timed(9)
     results, = test_rejudge(isolated: { ids.first => [:killed, nil] }, control: slow, **test_quiet)
-    expect(results.first.detail).to(eq("its tests fail in a fresh mirror without the mutant too (timed out after 9s)"))
+    expect(results.first.detail).to(
+      eq(
+        "its tests time out in a fresh mirror without the mutant too " \
+          "(timed out after 9s without a test finishing); raise --hard-timeout"
+      )
+    )
   end
 
   it "reports a survivor or an isolated harness error as it is, without a control run" do

@@ -170,6 +170,12 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     expect(runner.__send__(:build, duty)).to(be_a(Kimera::Execution::Shift))
   end
 
+  # The hard watchdog renews on each test's beat, so a slow test's raised soft
+  # limit stays a second under it and the soft timeout still fires first.
+  it "keeps a test's raised soft limit under the hard watchdog" do
+    expect(pool.__send__(:soft_ceiling)).to(eq(1.0))
+  end
+
   it "hands the shift a pulse that ticks through the worker's duty" do
     duty = instance_spy(Kimera::Execution::Pool::Duty)
     pool.__send__(:pulse, duty).call

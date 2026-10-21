@@ -7,8 +7,8 @@ module Kimera
     module IsolatedWatchdog
       private
 
-      def waitfor(pid, pulse = File::NULL)
-        outlast(pid, Kimera::Execution::IsolatedPulse.new(pulse, limit))
+      def waitfor(pid, pulse = File::NULL, seconds = limit)
+        outlast(pid, Kimera::Execution::IsolatedPulse.new(pulse, seconds))
       rescue SignalException
         fail!(pid)
         raise

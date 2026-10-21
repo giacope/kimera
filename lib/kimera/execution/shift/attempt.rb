@@ -42,7 +42,7 @@ class Kimera::Execution::Shift::Attempt
     clear?(calm) ? finding.stall(calm) : finding.crawl(calm)
   end
 
-  def clear?(calm) = calm["passed"] && calm.fetch("elapsed") < @probe.deadline.seconds * CLEAR
+  def clear?(calm) = calm["passed"] && calm.fetch("elapsed") < calm.fetch("limit") * CLEAR
 
   def failed(finding)
     return finding.kill(finding.found, @killers) if finding.first?

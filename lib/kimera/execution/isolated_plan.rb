@@ -47,7 +47,9 @@ class Kimera::Execution::IsolatedPlan
 
   def quality? = @options[:quality] == true
 
-  def fastest(tests) = Kimera::Execution::Pace.new(@options.fetch(:timings, {})).fastest(tests)
+  def fastest(tests) = Kimera::Execution::Pace.new(timings).fastest(tests)
+
+  def timings = @options.fetch(:timings, {})
 
   def mutables
     @registry.files.map { |f| f.split(File::SEPARATOR).first }.uniq

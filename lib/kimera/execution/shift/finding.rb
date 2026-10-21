@@ -54,9 +54,10 @@ Kimera::Execution::Shift::Finding =
     def expiry = found.fetch("failures")[test]
 
     def lag(calm)
-      return "ran past the soft timeout with the mutant on and with it off" if calm["expired"]
-      return "ran past the soft timeout with the mutant on, and failed with it off" unless calm["passed"]
-      "ran past the soft timeout with the mutant on, and took #{calm.fetch("elapsed").round(2)}s with it off"
+      past = "ran past its soft timeout (#{calm["limit"]}s) with the mutant on"
+      return "#{past} and with it off" if calm["expired"]
+      return "#{past}, and failed with it off" unless calm["passed"]
+      "#{past}, and took #{calm.fetch("elapsed").round(2)}s with it off"
     end
 
     def suspect(failure, contradicted:)

@@ -5,6 +5,7 @@ require "timeout"
 require_relative "../results/result"
 require_relative "../runtime"
 require_relative "isolation"
+require_relative "patience"
 require_relative "zygote"
 
 class Kimera::Execution::Shift
@@ -76,10 +77,10 @@ class Kimera::Execution::Shift
   def probe
     kind = self.class
     beat = @options.fetch(:pulse, kind::Deadline::SILENT)
-    kind::Probe.new(@adapter, kind::Deadline.build(timeout, beat: beat, **budget))
+    kind::Probe.new(@adapter, kind::Deadline.build(timeout, patience: patience, beat: beat, **@options.slice(:budget)))
   end
 
-  def budget = @options.slice(:budget)
+  def patience = Kimera::Execution::Patience.new(timeout, **@options.slice(:timings, :ceiling))
 
   def channel = @_channel ||= self.class::CoverageChannel.new(@adapter, zygote: zygote)
 

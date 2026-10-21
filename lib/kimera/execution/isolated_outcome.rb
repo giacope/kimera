@@ -20,8 +20,20 @@ class Kimera::Execution::IsolatedOutcome
 
   def recurred = self.class.new(:killed, [], "#{detail} (it recurred in a second run with the mutant on)")
 
-  def explain(limit)
-    return "timed out after #{limit}s" if status == :timeout
+  def timed(seconds)
+    return self unless status == :timeout && !detail
+    self.class.new(:timeout, failing, "timed out after #{seconds}s without a test finishing")
+  end
+
+  def contradiction
+    return "its tests time out in a fresh mirror without the mutant too (#{explain}); raise --hard-timeout" if timeout?
+    "its tests fail in a fresh mirror without the mutant too (#{explain})"
+  end
+
+  def timeout? = status == :timeout
+
+  def explain
+    return detail || "timed out" if timeout?
     named = Array(failing)
     return "failing: #{named.join(", ")}#{" (#{detail})" if detail}" if named.any?
     detail || "the test child failed without naming a test"

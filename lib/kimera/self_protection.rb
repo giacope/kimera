@@ -38,6 +38,7 @@ module Kimera
       kimera/execution/baseline_tally.rb
       kimera/execution/stopwatch.rb
       kimera/execution/time_budget.rb
+      kimera/execution/patience.rb
       kimera/execution/reload.rb
       kimera/execution/worker_databases.rb
       kimera/execution/verdicts.rb

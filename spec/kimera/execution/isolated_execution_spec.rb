@@ -218,10 +218,15 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end
 
     it "aborts with the reason and the mirror layout when the unmutated suite is red", :aggregate_failures do
-      red = Kimera::Execution::IsolatedOutcome.new(:timeout)
+      red = Kimera::Execution::IsolatedOutcome.new(:timeout).timed(7)
       expect { test_baseline(red, progress: test_recording_bar([])) }.to(
         raise_error(Kimera::Execution::BaselineFailure) do |error|
-          expect(error.message).to(include("isolated baseline is not green", "timed out after 7s"))
+          expect(error.message).to(
+            include(
+              "isolated baseline is not green",
+              "timed out after 7s without a test finishing"
+            )
+          )
           expect(error.message).to(end_with(Kimera::Execution::IsolatedPlan::MIRROR_HINT))
         end
       )
@@ -565,8 +570,9 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
   describe "#verdict (command stubbed on the runner)" do
     # verdict only consumes the plan's command, so no real bake is needed. A
     # callable cmd receives the ledger path, as the real children do in argv.
-    def command(invocation, asked: [], **)
+    def command(invocation, asked: [], timings: {}, **)
       plan = Object.new
+      plan.define_singleton_method(:timings) { timings }
       plan.define_singleton_method(:command) do |_mirror, _locations, ledger, first:, **|
         asked << first
         [{}, invocation.respond_to?(:call) ? invocation.call(ledger) : invocation]
@@ -598,6 +604,20 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     it "maps a child that overruns the hard deadline to :timeout" do
       expect(test_verdict_of(%w[sleep 30], hard_timeout: 0.3).status).to(eq(:timeout))
+    end
+
+    # The watchdog renews on each test's beat; a test whose baseline needs
+    # longer than the hard timeout gets the warm pool's raised limit.
+    it "lets a test whose baseline outlasts the hard timeout run to its own limit", :aggregate_failures do
+      slow = command(%w[sleep 0.6], hard_timeout: 0.3, timings: { "t" => 0.1 })
+      outcome = Dir.mktmpdir { |m| test_invoke_private(slow, :verdict, m, ["t"]) }
+      expect(outcome.status).to(eq(:harness_error))
+      expect(
+        test_verdict_of(
+          %w[sleep 30],
+          hard_timeout: 0.3
+        ).detail
+      ).to(eq("timed out after 0.3s without a test finishing"))
     end
 
     it "kills on a reported failure and names the failing tests", :aggregate_failures do
