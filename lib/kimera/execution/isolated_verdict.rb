@@ -58,16 +58,21 @@ module Kimera
 
       def measure(trial, tests)
         started = now
-        [with_mutant(trial) { settle(trial, plan.fastest(tests)) }, now - started]
+        ordered = plan.fastest(tests)
+        [cleared(trial, ordered, with_mutant(trial) { settle(trial, ordered) }), now - started]
       rescue Kimera::Overlay::Unbakeable => error
         [IsolatedOutcome.new(:unmutatable, nil, "#{Kimera::MutationPoint::UNMUTATABLE}#{error.message}"), nil]
       end
 
       def settle(trial, tests)
         outcome = verdict(trial.mirror, tests, first: !plan.quality?, slot: trial.slot)
+        outcome.outside? ? verdict(trial.mirror, tests, first: !plan.quality?, slot: trial.slot) : outcome
+      end
+
+      def cleared(trial, tests, outcome)
         return outcome unless outcome.outside?
-        again = verdict(trial.mirror, tests, first: !plan.quality?, slot: trial.slot)
-        again.outside? ? again.recurred : again
+        control = with_mirror { |mirror| verdict(mirror, tests, slot: trial.slot) }
+        control.status == :survived ? outcome.recurred : outcome.environmental(control)
       end
 
       def with_mutant(trial)

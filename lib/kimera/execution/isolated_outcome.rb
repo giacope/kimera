@@ -18,7 +18,13 @@ class Kimera::Execution::IsolatedOutcome
 
   def outside? = status == :outside
 
-  def recurred = self.class.new(:killed, [], "#{detail} (it recurred in a second run with the mutant on)")
+  def recurred
+    self.class.new(:killed, [], "#{detail} (it recurred with the mutant on; a fresh mirror without it runs clean)")
+  end
+
+  def environmental(control)
+    self.class.new(:harness_error, nil, "#{detail}; without the mutant too (#{control.explain}), so it is no kill")
+  end
 
   def timed(seconds)
     return self unless status == :timeout && !detail

@@ -90,7 +90,8 @@ RSpec.describe(Kimera::Execution::IsolatedOutcome) do
   it "turns an outside error that recurred into a kill that says so", :aggregate_failures do
     recurred = described_class.new(:outside, [], "an error outside every test: x").recurred
     expect([recurred.status, recurred.failing]).to(eq([:killed, []]))
-    expect(recurred.detail).to(eq("an error outside every test: x (it recurred in a second run with the mutant on)"))
+    expect(recurred.detail)
+      .to(eq("an error outside every test: x (it recurred with the mutant on; a fresh mirror without it runs clean)"))
     expect([recurred.outside?, described_class.new(:outside).outside?]).to(eq([false, true]))
   end
 
