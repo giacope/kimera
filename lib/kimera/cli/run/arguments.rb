@@ -93,7 +93,7 @@ class Kimera::CLI::Run::Arguments
   end
 
   def scope
-    { exclude: [], exclude_tests: [], config: nil }
+    { exclude: [], exclude_tests: [], config: nil }.merge(exclude_test_names: [])
       .merge(ignore: [], isolate_db: false, isolated: false, rejudge: true)
       .merge(fail_on_no_coverage: false, count_no_coverage: true, judge_isolated_only: nil)
       .merge(confirm_survivors: nil)

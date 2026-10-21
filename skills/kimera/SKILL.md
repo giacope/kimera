@@ -133,7 +133,8 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   (SIGTERM)`, `exited 1`) and the exception it died of, with frames. A test
   that signals its own process with nothing trapping the signal ends the
   worker, as it would end `rails test`: trap it in the test, or leave the test
-  out with `--exclude-test`.
+  out with `--exclude-test` (its file) or `--exclude-test-name REGEX` (that
+  test alone).
 - A kill's `detail` holds the killing test's failure message and first
   frames. Every baseline test and every mutant runs in a process forked from
   one no test has run in, so a cache or flag another test left can't decide

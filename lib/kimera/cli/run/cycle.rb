@@ -11,11 +11,13 @@ require_relative "digest"
 require_relative "narrowing"
 require_relative "pass"
 require_relative "route"
+require_relative "../../frameworks/name_exclusion"
 require_relative "sources"
 
 class Kimera::CLI::Run::Cycle
   SETTINGS = %i[
-    framework source_root tests exclude_tests operators coverage isolated attribution unit_tests seed flaky_runs
+    framework source_root tests exclude_tests exclude_test_names operators coverage isolated attribution unit_tests
+    seed flaky_runs
     test_quality judge_isolated_only confirm_survivors
   ].freeze
 
@@ -114,7 +116,12 @@ class Kimera::CLI::Run::Cycle
     seed = @options[:seed]
     seed ? env.store(Kimera::Execution::SEED_ENV, seed.to_s) : env.delete(Kimera::Execution::SEED_ENV)
     env.store(Kimera::Frameworks::LoadPath::VARIABLE, Array(@options[:load_path]).join(File::PATH_SEPARATOR))
-    adapter = Kimera::Frameworks::ADAPTERS.load(@options[:framework])
     Kimera::CLI::Run::Pass.new(@registry, @options, adapter).call(remaining)
+  end
+
+  def adapter
+    loaded = Kimera::Frameworks::ADAPTERS.load(@options[:framework])
+    names = Array(@options[:exclude_test_names])
+    names.empty? ? loaded : Kimera::Frameworks::NameExclusion.new(loaded, names)
   end
 end

@@ -236,6 +236,10 @@ bundle exec kimera run app/models/order.rb --tests 'spec/models/order_spec.rb'
 # without rewriting the whole --tests glob
 bundle exec kimera run app --exclude-test 'spec/system/**/*_spec.rb'
 
+# Leave out single tests by name or id (a regular expression; exclude_test_names
+# in .kimera.yml), keeping the rest of their file: a test that fails only as root
+bundle exec kimera run lib --exclude-test-name 'unreadable directories'
+
 # Judge every mutant in a fresh subprocess: bake it into a mirror of the tree
 # and run its covering tests under plain rspec. Slower, but trustworthy even
 # for code that can't be instrumented in-process.

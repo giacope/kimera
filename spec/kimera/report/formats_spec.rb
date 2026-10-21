@@ -87,7 +87,7 @@ RSpec.describe(Kimera::Report::Formats, :aggregate_failures) do
     end
 
     it "lists uncovered mutants in the Markdown summary, escaping pipes" do
-      expect(output("markdown")).to(include("| Uncovered | `app/calc.rb:6` in `n` | `a \\|\\| b` → `a && b` |"))
+      expect(output("markdown")).to(include("| Uncovered | `app/calc.rb:6` in `n` | `a \\|\\| b` → `(a && b)` |"))
     end
   end
 

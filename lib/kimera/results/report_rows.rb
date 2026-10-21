@@ -26,8 +26,11 @@ module Kimera
     end
 
     def rendered(original, mutant)
-      { "original" => original, "mutated" => Kimera::Rewrite::Directive.new(mutant.directive).render(original) }
+      mutated = Kimera::Rewrite::Directive.new(mutant.directive).render(original)
+      { "original" => original, "mutated" => parenthesised(mutant, mutated) }
     end
+
+    def parenthesised(mutant, mutated) = mutant.directive["type"] == "boolean_connective" ? "(#{mutated})" : mutated
 
     def place(point, mutant)
       point.location.position

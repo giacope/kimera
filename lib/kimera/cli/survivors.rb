@@ -41,7 +41,7 @@ class Kimera::CLI::Survivors
     options = parse(argv)
     report = load(options[:report])
     id = options[:id]
-    id ? show(report, id) : list(report.results, options)
+    id ? show(report, id) : list(report.results, options.merge(narrowed: report.narrowed?))
   end
 
   def parse(argv)

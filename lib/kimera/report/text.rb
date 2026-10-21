@@ -31,7 +31,7 @@ class Kimera::Report::Text
   def report(report, scope: nil, coverage: :hint, path: nil)
     header(report, scope)
     survivors(report, Kimera::Report::TestList.new(report, path))
-    footer(report, coverage, path)
+    footer(report, coverage, path, narrowed: !scope.nil?)
   end
 
   private
@@ -42,8 +42,8 @@ class Kimera::Report::Text
     Kimera::Report::FileTable.new(io: @io).show(report)
   end
 
-  def footer(report, coverage, path)
-    __send__(COVERAGE_SECTIONS.fetch(coverage), report, path)
+  def footer(report, coverage, path, narrowed:)
+    __send__(COVERAGE_SECTIONS.fetch(coverage), report, path, narrowed: narrowed)
     regions(report.unmutated)
     leaks(report.leaks)
     flaky(report)
