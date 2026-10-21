@@ -45,9 +45,10 @@ RSpec.describe(Kimera::Execution::Shift) do
     end.new
   end
 
-  def worker(adapter, tests)
+  def worker(adapter, tests, **)
     described_class.new(
-      adapter: adapter, registry: registry, coverage: { target => tests }, soft_timeout: 5.0, zygote: InlineZygote.new
+      adapter: adapter, registry: registry, coverage: { target => tests }, soft_timeout: 5.0, zygote: InlineZygote.new,
+      **
     )
   end
 
@@ -63,11 +64,22 @@ RSpec.describe(Kimera::Execution::Shift) do
     expect(adapter.log).to(eq([["t1", target], ["t1", nil]]))
   end
 
+  # A slow example on a busy machine is not a hang: its limit is raised from
+  # its own baseline (× 3 + 1s), never past the hard watchdog's ceiling.
+  it "raises a slow test's soft limit from its baseline", :aggregate_failures do
+    expect(worker(timed({ "t1" => [hung] }), %w[t1], timings: { "t1" => 2.0 }).evaluate(target).status)
+      .to(eq(:survived))
+    late = worker(timed({ "t1" => [[8.0, true], [0.4, true]] }), %w[t1], timings: { "t1" => 2.0 }, ceiling: 6.5)
+    expect(late.evaluate(target).detail).to(start_with("soft timeout (6.5s) expired while t1 ran with the mutant on"))
+  end
+
   it "takes no kill from a test that needs half the soft timeout or more without the mutant", :aggregate_failures do
     adapter = timed({ "t1" => [hung, [2.5, true]] })
     result = worker(adapter, %w[t1 t2]).evaluate(target)
     expect(result.status).to(eq(:harness_error))
-    expect(result.detail).to(start_with("t1 ran past the soft timeout with the mutant on, and took 2.5s with it off"))
+    expect(result.detail).to(
+      start_with("t1 ran past its soft timeout (5.0s) with the mutant on, and took 2.5s with it off")
+    )
     expect(result.detail).to(end_with("killed it: raise --soft-timeout well above the test's own time"))
     expect(adapter.log).to(eq([["t1", target], ["t1", nil], ["t2", target]]))
   end
@@ -83,12 +95,14 @@ RSpec.describe(Kimera::Execution::Shift) do
 
   it "takes no kill when the test runs past the soft timeout with the mutant off too" do
     result = worker(timed({ "t1" => [hung, hung] }), %w[t1]).evaluate(target)
-    expect(result.detail).to(start_with("t1 ran past the soft timeout with the mutant on and with it off, so"))
+    expect(result.detail).to(start_with("t1 ran past its soft timeout (5.0s) with the mutant on and with it off, so"))
   end
 
   it "takes no kill when the test fails with the mutant off", :aggregate_failures do
     result = worker(timed({ "t1" => [hung, [0.1, false]] }), %w[t1]).evaluate(target)
-    expect(result.detail).to(start_with("t1 ran past the soft timeout with the mutant on, and failed with it off, so"))
+    expect(result.detail).to(
+      start_with("t1 ran past its soft timeout (5.0s) with the mutant on, and failed with it off, so")
+    )
     expect(result.detail).to(end_with(": fix the test, or raise --soft-timeout well above the test's own time"))
   end
 end

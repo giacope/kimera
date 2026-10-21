@@ -10,12 +10,16 @@ class Kimera::CLI::Run::Route
 
   def split(ids, &coverage) = ids.partition { |id| apart?(id, coverage) }
 
-  def judging?
-    chosen = @options[:judge_isolated_only]
-    chosen.nil? ? !@options[:since].nil? : chosen
-  end
+  def judging? = incremental(:judge_isolated_only)
+
+  def confirming? = incremental(:confirm_survivors)
 
   private
+
+  def incremental(key)
+    chosen = @options[key]
+    chosen.nil? ? !@options[:since].nil? : chosen
+  end
 
   def apart?(id, coverage) = critical?(id) || patterns.any? { |pattern| matches?(coverage.call, id, pattern) }
 

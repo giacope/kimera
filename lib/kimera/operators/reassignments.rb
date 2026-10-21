@@ -41,13 +41,13 @@ module Kimera
       def rebound?(node, scope) = node.depth.positive? || scope.bound?(node.name)
 
       def parameters(node)
-        held = node.respond_to?(:parameters) ? node.parameters : nil
+        held = node.deconstruct_keys([:parameters])[:parameters]
         held ? names(held) : []
       end
 
       def names(node)
-        (node.class.name.match?(BINDERS) && node.respond_to?(:name) && node.name ? [node.name] : []) +
-          node.compact_child_nodes.flat_map { |child| names(child) }
+        own = node.class.name.match?(BINDERS) ? Array(node.deconstruct_keys([:name])[:name]) : []
+        own + node.compact_child_nodes.flat_map { |child| names(child) }
       end
     end
   end

@@ -103,6 +103,11 @@ RSpec.describe("value operators") do
         def argument(x)
           record(@last = x)
         end
+
+        def defaulted(x = helper)
+          helper = x + 1
+          helper
+        end
       RUBY
       expect(scan(code, "assignment_deletion").each.count).to(eq(0))
     end

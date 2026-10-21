@@ -48,9 +48,7 @@ class Kimera::CLI::Run::Pass
   def harness = @_harness ||= Kimera::Execution::Harness.build(**settings)
 
   def files
-    @_files ||= Kimera::CLI::Run::Sources.new.expand(
-      @options[:tests], @options[:exclude_tests], "test", "check --tests"
-    )
+    @_files ||= Kimera::CLI::Run::Sources.new.tests(@options[:tests], @options[:exclude_tests])
   end
 
   def settings
@@ -62,6 +60,7 @@ class Kimera::CLI::Run::Pass
       .merge(soft_timeout: @options[:soft_timeout], jobs: @options[:jobs])
       .merge(isolate_db: @options[:isolate_db], progress: progress, filter: filter)
       .merge(@options.slice(:relative_timeout, :timeout_factor, :timeout_slack, :seed, :flaky_runs, :test_quality))
+      .merge(confirm_survivors: route.confirming?)
   end
 
   def warm(remaining)
@@ -118,8 +117,10 @@ class Kimera::CLI::Run::Pass
   def core
     { registry: @registry, root: @options[:source_root], tests: @adapter.test_ids }
       .merge(coverage: harness.coverage, timings: harness.timings, progress: progress, jobs: @options[:jobs])
-      .merge(framework: @options[:framework], test_files: files, filter: filter)
+      .merge(framework: @options[:framework], test_files: files, filter: filter, test_paths: paths)
   end
+
+  def paths = ->(id) { @adapter.test_file(id).to_s }
 
   def limits = @options.slice(:seed, :test_quality).merge({ hard_timeout: @options[:hard_timeout] }.compact)
 end

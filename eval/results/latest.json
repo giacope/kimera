@@ -1,0 +1,893 @@
+{
+  "kimera": "/home/user/kimera",
+  "revision": "bd77dfa",
+  "ruby": "4.0.7",
+  "at": "2026-10-21T00:44:26Z",
+  "cases": {
+    "H1": {
+      "title": "External holdout: 12 state-leak projects and an oracle written blind to kimera",
+      "wall_s": 56.4,
+      "pass": true,
+      "summary": {
+        "mutants": 453,
+        "compared": 453,
+        "false_survived": 0,
+        "false_killed": 0,
+        "false_no_coverage": 0,
+        "errors": 0,
+        "agreement_pct": 100.0
+      },
+      "totals": {
+        "mutants": 453,
+        "compared": 453,
+        "agree": 453,
+        "skipped": 0,
+        "false_survived": 0,
+        "false_killed": 0,
+        "no_coverage": 0,
+        "false_no_coverage": 0,
+        "errors": 0
+      },
+      "projects": {
+        "p01_memo_cache": {
+          "compared": 43,
+          "agree": 43,
+          "mutants": 43,
+          "skipped": 0,
+          "false_survived": 0,
+          "false_killed": 0,
+          "no_coverage": 0,
+          "false_no_coverage": 0
+        },
+        "p02_registry": {
+          "compared": 33,
+          "agree": 33,
+          "mutants": 33,
+          "skipped": 0,
+          "false_survived": 0,
+          "false_killed": 0,
+          "no_coverage": 0,
+          "false_no_coverage": 0
+        },
+        "p03_globals": {
+          "compared": 41,
+          "agree": 41,
+          "mutants": 41,
+          "skipped": 0,
+          "false_survived": 0,
+          "false_killed": 0,
+          "no_coverage": 0,
+          "false_no_coverage": 0
+        },
+        "p04_class_vars": {
+          "compared": 46,
+          "agree": 46,
+          "mutants": 46,
+          "skipped": 0,
+          "false_survived": 0,
+          "false_killed": 0,
+          "no_coverage": 0,
+          "false_no_coverage": 0
+        },
+        "p05_mutated_constant": {
+          "compared": 25,
+          "agree": 25,
+          "mutants": 25,
+          "skipped": 0,
+          "false_survived": 0,
+          "false_killed": 0,
+          "no_coverage": 0,
+          "false_no_coverage": 0
+        },
+        "p06_env_leak": {
+          "compared": 41,
+          "agree": 41,
+          "mutants": 41,
+          "skipped": 0,
+          "false_survived": 0,
+          "false_killed": 0,
+          "no_coverage": 0,
+          "false_no_coverage": 0
+        },
+        "p07_define_method": {
+          "compared": 33,
+          "agree": 33,
+          "mutants": 33,
+          "skipped": 0,
+          "false_survived": 0,
+          "false_killed": 0,
+          "no_coverage": 0,
+          "false_no_coverage": 0
+        },
+        "p08_singleton": {
+          "compared": 57,
+          "agree": 57,
+          "mutants": 57,
+          "skipped": 0,
+          "false_survived": 0,
+          "false_killed": 0,
+          "no_coverage": 0,
+          "false_no_coverage": 0
+        },
+        "p09_data_default": {
+          "compared": 37,
+          "agree": 37,
+          "mutants": 37,
+          "skipped": 0,
+          "false_survived": 0,
+          "false_killed": 0,
+          "no_coverage": 0,
+          "false_no_coverage": 0
+        },
+        "p10_counter": {
+          "compared": 23,
+          "agree": 23,
+          "mutants": 23,
+          "skipped": 0,
+          "false_survived": 0,
+          "false_killed": 0,
+          "no_coverage": 0,
+          "false_no_coverage": 0
+        },
+        "p11_keyed_cache": {
+          "compared": 49,
+          "agree": 49,
+          "mutants": 49,
+          "skipped": 0,
+          "false_survived": 0,
+          "false_killed": 0,
+          "no_coverage": 0,
+          "false_no_coverage": 0
+        },
+        "p12_alias_chain": {
+          "compared": 25,
+          "agree": 25,
+          "mutants": 25,
+          "skipped": 0,
+          "false_survived": 0,
+          "false_killed": 0,
+          "no_coverage": 0,
+          "false_no_coverage": 0
+        }
+      }
+    },
+    "K1": {
+      "title": "Verdicts agree with a fresh-process oracle on stateful suites",
+      "wall_s": 37.8,
+      "pass": true,
+      "summary": {
+        "mutants": 148,
+        "false_survived": 0,
+        "false_killed": 0,
+        "abstained": 2,
+        "agreement_pct": 100.0
+      },
+      "stateful": {
+        "mutants": 148,
+        "agree": 146,
+        "false_survived": 0,
+        "false_killed": 0,
+        "abstained": 2,
+        "unbakeable": 0,
+        "errors": 0,
+        "mode --jobs 1": {
+          "mutants": 74,
+          "agree": 73,
+          "false_survived": 0,
+          "false_killed": 0,
+          "abstained": 1,
+          "unbakeable": 0,
+          "errors": 0
+        },
+        "mode --jobs 4": {
+          "mutants": 74,
+          "agree": 73,
+          "false_survived": 0,
+          "false_killed": 0,
+          "abstained": 1,
+          "unbakeable": 0,
+          "errors": 0
+        }
+      },
+      "control": {
+        "mutants": 86,
+        "agree": 86,
+        "false_survived": 0,
+        "false_killed": 0,
+        "abstained": 0,
+        "unbakeable": 0,
+        "errors": 0
+      },
+      "runs": {
+        "s1_memo": {
+          "--jobs 1": {
+            "mutants": 15,
+            "agree": 15,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 1.13,
+            "exit": 0,
+            "rss": {
+              "max_process_mb": 49.0,
+              "max_tree_mb": 139.7,
+              "processes": 9
+            },
+            "statuses": {
+              "killed": 15
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4": {
+            "mutants": 15,
+            "agree": 15,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 0.95,
+            "exit": 0,
+            "rss": {
+              "max_process_mb": 49.2,
+              "max_tree_mb": 408.8,
+              "processes": 11
+            },
+            "statuses": {
+              "killed": 15
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          }
+        },
+        "s2_hidden": {
+          "--jobs 1": {
+            "mutants": 7,
+            "agree": 7,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 1.05,
+            "exit": 0,
+            "rss": {
+              "max_process_mb": 48.9,
+              "max_tree_mb": 140.0,
+              "processes": 8
+            },
+            "statuses": {
+              "killed": 7
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4": {
+            "mutants": 7,
+            "agree": 7,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 0.85,
+            "exit": 0,
+            "rss": {
+              "max_process_mb": 48.6,
+              "max_tree_mb": 365.0,
+              "processes": 11
+            },
+            "statuses": {
+              "killed": 7
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          }
+        },
+        "s3_stores": {
+          "--jobs 1": {
+            "mutants": 17,
+            "agree": 17,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 1.46,
+            "exit": 0,
+            "rss": {
+              "max_process_mb": 48.8,
+              "max_tree_mb": 140.1,
+              "processes": 17
+            },
+            "statuses": {
+              "killed": 17
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4": {
+            "mutants": 17,
+            "agree": 17,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 0.93,
+            "exit": 0,
+            "rss": {
+              "max_process_mb": 48.6,
+              "max_tree_mb": 411.2,
+              "processes": 23
+            },
+            "statuses": {
+              "killed": 17
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          }
+        },
+        "s4_env_leak": {
+          "--jobs 1": {
+            "mutants": 7,
+            "agree": 7,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 1.01,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 48.6,
+              "max_tree_mb": 139.2,
+              "processes": 5
+            },
+            "statuses": {
+              "survived": 3,
+              "killed": 4
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4": {
+            "mutants": 7,
+            "agree": 7,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 0.91,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 48.7,
+              "max_tree_mb": 361.8,
+              "processes": 13
+            },
+            "statuses": {
+              "survived": 3,
+              "killed": 4
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          }
+        },
+        "s5_registry": {
+          "--jobs 1": {
+            "mutants": 8,
+            "agree": 7,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 1,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 0.89,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 48.5,
+              "max_tree_mb": 139.2,
+              "processes": 4
+            },
+            "statuses": {
+              "isolated_only": 1,
+              "killed": 5,
+              "survived": 2
+            },
+            "disagreements": [
+              {
+                "file": "lib/plugins.rb",
+                "line": 6,
+                "label": "true => false",
+                "id": 1,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              }
+            ],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4": {
+            "mutants": 8,
+            "agree": 7,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 1,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 0.75,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 48.7,
+              "max_tree_mb": 360.7,
+              "processes": 8
+            },
+            "statuses": {
+              "isolated_only": 1,
+              "killed": 5,
+              "survived": 2
+            },
+            "disagreements": [
+              {
+                "file": "lib/plugins.rb",
+                "line": 6,
+                "label": "true => false",
+                "id": 1,
+                "kimera": "isolated_only",
+                "oracle": "killed",
+                "verdict": "abstained"
+              }
+            ],
+            "leaks": 0,
+            "rejudged": 0
+          }
+        },
+        "s6_constant": {
+          "--jobs 1": {
+            "mutants": 7,
+            "agree": 7,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 0.91,
+            "exit": 0,
+            "rss": {
+              "max_process_mb": 49.0,
+              "max_tree_mb": 139.9,
+              "processes": 7
+            },
+            "statuses": {
+              "killed": 7
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4": {
+            "mutants": 7,
+            "agree": 7,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 0.9,
+            "exit": 0,
+            "rss": {
+              "max_process_mb": 49.0,
+              "max_tree_mb": 364.7,
+              "processes": 17
+            },
+            "statuses": {
+              "killed": 7
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          }
+        },
+        "s7_minitest": {
+          "--jobs 1": {
+            "mutants": 8,
+            "agree": 8,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 0.94,
+            "exit": 0,
+            "rss": {
+              "max_process_mb": 45.9,
+              "max_tree_mb": 128.2,
+              "processes": 5
+            },
+            "statuses": {
+              "killed": 8
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4": {
+            "mutants": 8,
+            "agree": 8,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 0.7,
+            "exit": 0,
+            "rss": {
+              "max_process_mb": 46.0,
+              "max_tree_mb": 209.1,
+              "processes": 6
+            },
+            "statuses": {
+              "killed": 8
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          }
+        },
+        "s8_boot": {
+          "--jobs 1": {
+            "mutants": 5,
+            "agree": 5,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 2.0,
+            "exit": 0,
+            "rss": {
+              "max_process_mb": 48.9,
+              "max_tree_mb": 138.6,
+              "processes": 9
+            },
+            "statuses": {
+              "killed": 5
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 2
+          },
+          "--jobs 4": {
+            "mutants": 5,
+            "agree": 5,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 1.52,
+            "exit": 0,
+            "rss": {
+              "max_process_mb": 49.1,
+              "max_tree_mb": 362.4,
+              "processes": 13
+            },
+            "statuses": {
+              "killed": 5
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 2
+          }
+        },
+        "sample_app": {
+          "--jobs 1": {
+            "mutants": 28,
+            "agree": 28,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 1.74,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 48.3,
+              "max_tree_mb": 138.9,
+              "processes": 15
+            },
+            "statuses": {
+              "killed": 17,
+              "survived": 5,
+              "no_coverage": 6
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4": {
+            "mutants": 28,
+            "agree": 28,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 1.13,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 48.7,
+              "max_tree_mb": 408.0,
+              "processes": 19
+            },
+            "statuses": {
+              "killed": 17,
+              "survived": 5,
+              "no_coverage": 6
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          }
+        },
+        "minitest_app": {
+          "--jobs 1": {
+            "mutants": 15,
+            "agree": 15,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 0.84,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 45.7,
+              "max_tree_mb": 128.3,
+              "processes": 5
+            },
+            "statuses": {
+              "killed": 14,
+              "survived": 1
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          },
+          "--jobs 4": {
+            "mutants": 15,
+            "agree": 15,
+            "false_survived": 0,
+            "false_killed": 0,
+            "abstained": 0,
+            "unbakeable": 0,
+            "agreement_pct": 100.0,
+            "wall_s": 0.81,
+            "exit": 2,
+            "rss": {
+              "max_process_mb": 45.8,
+              "max_tree_mb": 292.2,
+              "processes": 8
+            },
+            "statuses": {
+              "killed": 14,
+              "survived": 1
+            },
+            "disagreements": [],
+            "leaks": 0,
+            "rejudged": 0
+          }
+        }
+      }
+    },
+    "K2": {
+      "title": "No silently unmutated code (define_method, blocks, unparseable files)",
+      "wall_s": 4.0,
+      "candidate_lines": 10,
+      "silent_lines": 0,
+      "silent": [],
+      "unparseable_files": 1,
+      "unreported_unparseable": [],
+      "differential": {
+        "mutants": 28,
+        "agree": 28,
+        "false_survived": 0,
+        "false_killed": 0,
+        "abstained": 0,
+        "unbakeable": 0,
+        "agreement_pct": 100.0,
+        "wall_s": 1.39,
+        "exit": 0,
+        "rss": {
+          "max_process_mb": 48.9,
+          "max_tree_mb": 138.8,
+          "processes": 12
+        },
+        "statuses": {
+          "killed": 28
+        },
+        "leaks": 0,
+        "rejudged": 0
+      },
+      "disagreements": [],
+      "pass": true,
+      "summary": {
+        "silent_lines": "0/10",
+        "unreported_unparseable": 0,
+        "false_verdicts": 0,
+        "mutants": 28
+      }
+    },
+    "K4": {
+      "title": "Coverage memory stays bounded in a hot loop",
+      "wall_s": 11.8,
+      "pass": true,
+      "summary": {
+        "peak_rss_mb": 48.8,
+        "wall_s": 11.8
+      },
+      "runs": {
+        "--jobs 1": {
+          "max_process_mb": 48.8,
+          "max_tree_mb": 139.3,
+          "processes": 11,
+          "wall_s": 6.59,
+          "exit": 0,
+          "tail": "mutants=7 killed=7 survived=0 timeout=0 error=0 no_coverage=0 score=100.0%\n"
+        },
+        "--jobs 2": {
+          "max_process_mb": 48.7,
+          "max_tree_mb": 228.8,
+          "processes": 11,
+          "wall_s": 5.25,
+          "exit": 0,
+          "tail": "mutants=7 killed=7 survived=0 timeout=0 error=0 no_coverage=0 score=100.0%\n"
+        }
+      }
+    },
+    "K5": {
+      "title": "--since diffs against the merge-base, keeping uncommitted work",
+      "wall_s": 1.2,
+      "pass": true,
+      "summary": {
+        "selected": "alpha+gamma",
+        "expected": "alpha+gamma"
+      },
+      "exit": 0
+    },
+    "K6": {
+      "title": "--session drops verdicts once the tests change",
+      "wall_s": 2.8,
+      "pass": true,
+      "summary": {
+        "stale_verdicts": 0,
+        "mutants": 5
+      },
+      "stale": []
+    },
+    "K7": {
+      "title": "Locale-independent: LANG unset and LANG=C",
+      "wall_s": 67.9,
+      "pass": true,
+      "runs": {
+        "unset": {
+          "run": {
+            "ok": true,
+            "exit": 2,
+            "tail": "Next actions:\n  1 surviving mutant(s): inspect #3 with `kimera mutant 3 --report /tmp/kimera-eval20261021-10988-cr4hdd/locale-83/tmp/locale.json`\nkimera: gate failed: survivors=1 > max_survivors=0\n"
+          },
+          "report": {
+            "ok": true,
+            "exit": 0,
+            "tail": "    covered by 2 test(s)\n\ndetail: kimera mutant <ID|KEY> --report /tmp/kimera-eval20261021-10988-cr4hdd/locale-83/tmp/locale.json\n"
+          },
+          "mutant": {
+            "ok": true,
+            "exit": 0,
+            "tail": "    spec/cafe_spec.rb:5  Café trouve 5 € abordable ✓\n  failing tests (1):\n    spec/cafe_spec.rb:5  Café trouve 5 € abordable ✓\n"
+          },
+          "doctor": {
+            "ok": true,
+            "exit": 0,
+            "tail": "! Git: not a repository; `kimera changed` is unavailable\n✓ Runtime: no Rails-specific parallel setup required\n✓ Test loading: every test file loads\n"
+          },
+          "suite": {
+            "ok": true,
+            "examples": 10,
+            "failures": 0,
+            "wall_s": 30.7
+          }
+        },
+        "C": {
+          "run": {
+            "ok": true,
+            "exit": 2,
+            "tail": "Next actions:\n  1 surviving mutant(s): inspect #3 with `kimera mutant 3 --report /tmp/kimera-eval20261021-10988-cr4hdd/locale-84/tmp/locale.json`\nkimera: gate failed: survivors=1 > max_survivors=0\n"
+          },
+          "report": {
+            "ok": true,
+            "exit": 0,
+            "tail": "    covered by 2 test(s)\n\ndetail: kimera mutant <ID|KEY> --report /tmp/kimera-eval20261021-10988-cr4hdd/locale-84/tmp/locale.json\n"
+          },
+          "mutant": {
+            "ok": true,
+            "exit": 0,
+            "tail": "    spec/cafe_spec.rb:5  Café trouve 5 € abordable ✓\n  failing tests (1):\n    spec/cafe_spec.rb:5  Café trouve 5 € abordable ✓\n"
+          },
+          "doctor": {
+            "ok": true,
+            "exit": 0,
+            "tail": "! Git: not a repository; `kimera changed` is unavailable\n✓ Runtime: no Rails-specific parallel setup required\n✓ Test loading: every test file loads\n"
+          },
+          "suite": {
+            "ok": true,
+            "examples": 10,
+            "failures": 0,
+            "wall_s": 31.6
+          }
+        }
+      },
+      "summary": {
+        "failed_steps": 0,
+        "suite_failures": 0
+      }
+    },
+    "K11": {
+      "title": "Overlay files get load semantics (own top-level scope)",
+      "wall_s": 2.5,
+      "pass": true,
+      "summary": {
+        "false_verdicts": 0,
+        "statuses": {
+          "killed": 9,
+          "survived": 2
+        }
+      },
+      "run": {
+        "mutants": 11,
+        "agree": 11,
+        "false_survived": 0,
+        "false_killed": 0,
+        "abstained": 0,
+        "unbakeable": 0,
+        "agreement_pct": 100.0,
+        "wall_s": 1.24,
+        "exit": 2,
+        "rss": {
+          "max_process_mb": 48.8,
+          "max_tree_mb": 139.6,
+          "processes": 10
+        },
+        "statuses": {
+          "killed": 9,
+          "survived": 2
+        },
+        "disagreements": [],
+        "leaks": 0,
+        "rejudged": 0
+      }
+    },
+    "X1": {
+      "title": "--session into a missing directory saves instead of crashing",
+      "wall_s": 1.6,
+      "pass": true,
+      "summary": {
+        "saved": true,
+        "exit": 0
+      }
+    }
+  }
+}

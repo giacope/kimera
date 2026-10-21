@@ -188,7 +188,9 @@ RSpec.describe(Kimera::CLI::TestCommand) do
   end
 
   it "runs one process per worker, each on its share of the tests", :aggregate_failures do
-    expect(parallel("rspec", ["", ""])).to(eq(["✓", "Parallel baseline: green split across 2 processes too (jobs: 2)"]))
+    expect(parallel("rspec", ["", ""])).to(
+      eq(["✓", "Parallel baseline: green split across 2 processes too (jobs: 2; #{described_class::SAMPLE})"])
+    )
     [0, 1].each { |index| expect(Kimera::Execution::SUITE).to(have_received(:call).with(*shard("rspec", index, 2), chdir: "/app")) }
     parallel("minitest", ["", "", ""])
     expect(Kimera::Execution::SUITE).to(have_received(:call).with(*shard("minitest", 2, 3), chdir: "/app"))

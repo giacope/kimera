@@ -29,8 +29,8 @@ class Kimera::TestQuality
 
   def rank
     covers, kills, unique = tallies(@results.select { |result| result.covered? && result.status != :uncovered_by_unit })
-    @suite.filter_map { |test| [test, Standing.new(covers[test], kills[test], unique[test])] if covers[test].positive? }
-      .to_h
+    @suite.to_h { |test| [test, Standing.new(covers[test], kills[test], unique[test])] }
+      .select { |_test, standing| standing.covers.positive? }
   end
 
   def tallies(judged)

@@ -391,7 +391,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         out, errors = streams
         command = Kimera::CLI::Init.new(io: out, errors: errors, root: dir)
         expect(command.run(["--dry-run"])).to(eq(0))
-        expect(out.string).to(include("framework: minitest", "paths:", "lib/**/*.rb", "fail_on_no_coverage: false"))
+        expect(out.string).to(include("framework: minitest", "paths:", "lib/**/*.rb", "count_no_coverage: true"))
         expect(YAML.safe_load(out.string).fetch("tests")).to(eq(["test/**/*_test.rb"]))
         expect(File).not_to(exist(File.join(dir, ".kimera.yml")))
         expect(command.run(["--bogus"])).to(eq(1))

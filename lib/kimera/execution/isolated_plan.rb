@@ -2,6 +2,7 @@
 
 require_relative "../self_protection"
 require_relative "isolated_child_command"
+require_relative "isolated_kin"
 require_relative "isolated_test_selection"
 require_relative "pace"
 
@@ -11,12 +12,14 @@ module Kimera
 end
 
 class Kimera::Execution::IsolatedPlan
-  MIRROR_SKIP = %w[.git coverage].freeze
+  MIRROR_SKIP = %w[coverage].freeze
   MIRROR_EMPTY = %w[tmp log].freeze
   MIRROR_LINK = %w[vendor node_modules .bundle].freeze
+  MIRROR_GIT = ".git"
   MIRROR_HINT =
     "  the mirror copies the project except #{MIRROR_SKIP.join(", ")} " \
-      "(#{MIRROR_EMPTY.join(", ")} start empty; #{MIRROR_LINK.join(", ")} are symlinked)".freeze
+      "(#{MIRROR_EMPTY.join(", ")} start empty; #{MIRROR_LINK.join(", ")} are symlinked; " \
+      ".git is a private snapshot of the index and refs that reads the project's objects)".freeze
 
   attr_reader :registry
 
@@ -29,23 +32,27 @@ class Kimera::Execution::IsolatedPlan
 
   def root = @_root ||= File.expand_path(@given)
 
-  def tests(id, point)
-    found = whole?(point) ? selection.all : selection.recorded(id)
-    screen = @options[:filter]
-    found && screen ? screen.keep(point.file, found) : found
+  def tests(id, point, screened: true)
+    file = point.file
+    found = whole?(point) ? kin.tests(file) : selection.recorded(id)
+    found = selection.all if everything?(point)
+    screen = @options[:filter] if screened
+    found && screen ? screen.keep(file, found) : found
   end
 
-  def settled(id, point) = @options[:filter]&.settle(id, whole?(point) ? selection.all : Array(selection.recorded(id)))
+  def settled(id, point) = @options[:filter]&.settle(id, Array(tests(id, point, screened: false)))
 
-  def command(mirror, locations, ledger, first: false)
-    child.command(mirror, child.request(locations, first: first), ledger: ledger, paths: mutables)
+  def command(mirror, locations, ledger, **)
+    child.command(mirror, child.request(locations, **), ledger: ledger, paths: mutables)
   end
 
   def suite = selection.all
 
   def quality? = @options[:quality] == true
 
-  def fastest(tests) = Kimera::Execution::Pace.new(@options.fetch(:timings, {})).fastest(tests)
+  def fastest(tests) = Kimera::Execution::Pace.new(timings).fastest(tests)
+
+  def timings = @options.fetch(:timings, {})
 
   def mutables
     @registry.files.map { |f| f.split(File::SEPARATOR).first }.uniq
@@ -53,6 +60,7 @@ class Kimera::Execution::IsolatedPlan
 
   def placement(entry)
     return :copy if mutables.include?(entry)
+    return :git if entry == MIRROR_GIT
     return :skip if MIRROR_SKIP.include?(entry)
     return :empty if MIRROR_EMPTY.include?(entry)
     MIRROR_LINK.include?(entry) ? :link : :copy
@@ -60,11 +68,22 @@ class Kimera::Execution::IsolatedPlan
 
   private
 
+  def everything?(point)
+    point.revisit == Kimera::MutationPoint::ORDER_REASON ||
+      Kimera::SelfProtection.new(File.join(root, point.file)).protected?
+  end
+
   def whole?(point)
-    Kimera::SelfProtection.new(File.join(root, point.file)).protected? || !point.safe? || point.revisit
+    !point.safe? || point.revisit
   end
 
   def selection = @_selection ||= TestSelection.new(all_tests: @tests, coverage: @options.fetch(:coverage, {}))
+
+  def kin
+    @_kin ||= Kin.new(
+      all: @tests, coverage: @options[:coverage] || {}, registry: @registry, locate: @options[:test_paths]
+    )
+  end
 
   def child
     @_child ||= ChildCommand.new(

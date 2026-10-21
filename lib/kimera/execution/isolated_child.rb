@@ -5,6 +5,7 @@ require "rspec/core"
 require "stringio"
 require "zlib"
 require_relative "../support/test_exit"
+require_relative "mirror_database"
 
 begin
   RSpec::Core::ConfigurationOptions.new([]).configure(RSpec.configuration)
@@ -23,6 +24,7 @@ end
 ledger, request, pulse = ARGV
 RSpec.configuration.prepend_before(:example) { File.write(pulse, ".", mode: "a") } if pulse
 request = JSON.parse(File.read(request, encoding: Encoding::UTF_8))
+RSpec.configuration.prepend_before(:suite) { Kimera::Execution::MirrorDatabase.new(request["slot"]).adopt }
 if (seed = request["seed"])
   RSpec.configuration.prepend_before(:example) { |example| Kernel.srand((seed ^ Zlib.crc32(example.id)) % (2**31)) }
 end
@@ -41,6 +43,8 @@ code = RSpec::Core::Runner.run(request.fetch("tests"))
 failed = RSpec.world.all_examples.select { |example| example.execution_result.status == :failed }
 outside = RSpec.world.non_example_failure ? 1 : 0
 report = { failures: failed.size + outside, failing: failed.map(&:id) }
+first = failed.first&.execution_result&.exception
+report[:message] = "#{first.class}: #{first.message}"[0, 2000] if first
 report[:load_error] = output.string.strip[0, 4000] if outside.positive?
 File.write(ledger, JSON.generate(report))
 

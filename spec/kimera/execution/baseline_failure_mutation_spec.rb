@@ -185,12 +185,14 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     pass.instance_variable_set(:@_files, ["a_spec.rb"])
 
     expect(pass.__send__(:core)).to(
-      eq(
+      match(
         registry: registry, root: "/root", tests: %w[t1 t2], coverage: { 1 => ["t1"] }, timings: { "t1" => 0.5 },
         progress: pass.__send__(:progress), jobs: 3, framework: "rspec", test_files: ["a_spec.rb"],
-        filter: pass.__send__(:filter)
+        filter: pass.__send__(:filter), test_paths: an_instance_of(Proc)
       )
     )
+    allow(adapter).to(receive(:test_file).with("t1").and_return("spec/t1_spec.rb"))
+    expect(pass.__send__(:core).fetch(:test_paths).call("t1")).to(eq("spec/t1_spec.rb"))
   end
 
   it "routes harness-critical mutants to fresh-process evaluation" do
@@ -236,9 +238,9 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     errand = Kimera::Execution::Reload::Errand.new(7, [], nil, nil)
     allow(reload).to(receive(:evaluate).with(errand).and_return([:killed, ["t1"]], [:unmutatable, [], "why"]))
     expect(JSON.parse(reload.__send__(:report, errand)))
-      .to(eq("id" => 7, "status" => "killed", "fails" => ["t1"], "detail" => nil))
+      .to(match("id" => 7, "status" => "killed", "fails" => ["t1"], "detail" => nil, "ms" => Float, "cover" => []))
     expect(JSON.parse(reload.__send__(:report, errand)))
-      .to(eq("id" => 7, "status" => "unmutatable", "fails" => [], "detail" => "why"))
+      .to(match("id" => 7, "status" => "unmutatable", "fails" => [], "detail" => "why", "ms" => Float, "cover" => []))
   end
 
   it "prunes leak records whose mutant result is absent" do

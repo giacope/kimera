@@ -18,7 +18,12 @@ Kimera::Execution::Reload::Errand =
       reader.close
       writer.sync = true
     end
-    define_method(:tick) { writer.write(tick) }
+    define_method(:tick) do |test|
+      ran << test
+      writer.write(tick)
+    end
+    def ran = @_ran ||= []
+
     def emit(payload)
       writer.puts(payload)
       writer.close

@@ -5,6 +5,7 @@ require "timeout"
 require_relative "../results/result"
 require_relative "../runtime"
 require_relative "isolation"
+require_relative "patience"
 require_relative "zygote"
 
 class Kimera::Execution::Shift
@@ -76,10 +77,10 @@ class Kimera::Execution::Shift
   def probe
     kind = self.class
     beat = @options.fetch(:pulse, kind::Deadline::SILENT)
-    kind::Probe.new(@adapter, kind::Deadline.build(timeout, beat: beat, **budget))
+    kind::Probe.new(@adapter, kind::Deadline.build(timeout, patience: patience, beat: beat, **@options.slice(:budget)))
   end
 
-  def budget = @options.slice(:budget)
+  def patience = Kimera::Execution::Patience.new(timeout, **@options.slice(:timings, :ceiling))
 
   def channel = @_channel ||= self.class::CoverageChannel.new(@adapter, zygote: zygote)
 
@@ -90,8 +91,11 @@ class Kimera::Execution::Shift
 
   def safely(subject)
     covered(subject)
+  rescue Kimera::Execution::Zygote::Died
+    raise
+  rescue Kimera::Execution::Zygote::Raised => error
+    subject.crashed(error, timeout, error.kind)
   rescue StandardError, ScriptError => error
-    raise if error.is_a?(Kimera::Execution::Zygote::Died)
     subject.crashed(error, timeout)
   end
 
@@ -103,9 +107,15 @@ class Kimera::Execution::Shift
 
   def outcome(subject, tests)
     started = monotonic
-    outcome = attempt.run(subject.id, tests)
+    outcome = attempt.run(subject.id, tests) || unmasked(subject.id, tests)
     return outcome.ruling(subject) if outcome.is_a?(Doubt)
     subject.judged(outcome, tests, monotonic - started)
+  end
+
+  def unmasked(id, tests)
+    return unless @options[:confirm]
+    pace = Kimera::Execution::Pace.new(@options.fetch(:timings, {}))
+    self.class::Unmask.new(attempt, pace).run(id, tests)
   end
 
   def available(id)
@@ -126,3 +136,4 @@ require_relative "shift/coverage_channel"
 require_relative "shift/killer_memory"
 require_relative "shift/subject"
 require_relative "shift/suspect"
+require_relative "shift/unmask"

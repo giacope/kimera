@@ -1,10 +1,17 @@
 # frozen_string_literal: true
 
 require_relative "isolated_outcome"
+require_relative "isolated_plan"
+require_relative "mirror_git"
+require_relative "patience"
 
 module Kimera
   module Execution
     module IsolatedVerdict
+      ChildCommand = Kimera::Execution::IsolatedPlan::ChildCommand
+      LEDGER = "ledger.json"
+      STDERR_LOG = "stderr.log"
+
       private
 
       def evaluate(trial)
@@ -15,20 +22,21 @@ module Kimera
         self.error(trial, "#{error.class}: #{error.message}")
       end
 
-      def single(id)
-        result = with_mirror { |mirror| evaluate(Kimera::Execution::Trial.new(id, mirror, Overlay.new(plan.registry))) }
+      def single(id, slot = nil)
+        trial = ->(mirror) { Kimera::Execution::Trial.new(id, mirror, Overlay.new(plan.registry), nil, slot) }
+        result = with_mirror { |mirror| evaluate(trial.call(mirror)) }
         return unstaged(result) if result.status == :error
-        result.killed? ? confirmed(result) : result
+        result.killed? ? confirmed(result, slot) : result
       end
 
       def unstaged(result)
         result.unjudged("the isolated tier could not stage it: #{result.detail}")
       end
 
-      def confirmed(result)
-        control = with_mirror { |mirror| verdict(mirror, result.covering_tests) }
+      def confirmed(result, slot = nil)
+        control = with_mirror { |mirror| verdict(mirror, result.covering_tests, slot: slot) }
         return result if control.status == :survived
-        result.unjudged("its tests fail in a fresh mirror without the mutant too (#{control.explain(limit)})")
+        result.unjudged(control.contradiction)
       end
 
       def bake(trial, point)
@@ -50,9 +58,21 @@ module Kimera
 
       def measure(trial, tests)
         started = now
-        [with_mutant(trial) { verdict(trial.mirror, plan.fastest(tests), first: !plan.quality?) }, now - started]
+        ordered = plan.fastest(tests)
+        [cleared(trial, ordered, with_mutant(trial) { settle(trial, ordered) }), now - started]
       rescue Kimera::Overlay::Unbakeable => error
         [IsolatedOutcome.new(:unmutatable, nil, "#{Kimera::MutationPoint::UNMUTATABLE}#{error.message}"), nil]
+      end
+
+      def settle(trial, tests)
+        outcome = verdict(trial.mirror, tests, first: !plan.quality?, slot: trial.slot)
+        outcome.outside? ? verdict(trial.mirror, tests, first: !plan.quality?, slot: trial.slot) : outcome
+      end
+
+      def cleared(trial, tests, outcome)
+        return outcome unless outcome.outside?
+        control = with_mirror { |mirror| verdict(mirror, tests, slot: trial.slot) }
+        control.status == :survived ? outcome.recurred : outcome.environmental(control)
       end
 
       def with_mutant(trial)
@@ -62,22 +82,27 @@ module Kimera
         File.write(target, original) if original
       end
 
-      def verdict(mirror, locations, first: false)
+      def verdict(mirror, locations, first: false, slot: nil)
         Dir.mktmpdir("kimera-ledger") do |dir|
-          ledger = File.join(dir, "ledger.json")
-          stderr = File.join(dir, "stderr.log")
-          command = plan.command(mirror, locations, ledger, first: first)
-          IsolatedOutcome::Ruling.new(launch(mirror, command, ledger, stderr), ledger, captured(stderr)).outcome
+          ledger = File.join(dir, LEDGER)
+          seconds = patience(locations)
+          exit = launch(mirror, plan.command(mirror, locations, ledger, first: first, slot: slot), dir, seconds)
+          IsolatedOutcome::Ruling.new(exit, ledger, captured(File.join(dir, STDERR_LOG))).outcome.timed(seconds)
         end
       end
 
       def captured(path) = File.read(path, encoding: Encoding::UTF_8).scrub
 
-      def launch(mirror, command, ledger, stderr)
-        env, invocation = command
-        pulse = "#{ledger}#{Kimera::Execution::IsolatedPlan::ChildCommand::PULSE}"
-        waitfor(Process.spawn(env, *invocation, chdir: mirror, pgroup: true, out: File::NULL, err: stderr), pulse)
+      def launch(mirror, command, dir, seconds)
+        waitfor(start(mirror, command, dir), File.join(dir, "#{LEDGER}#{ChildCommand::PULSE}"), seconds)
       end
+
+      def start(mirror, command, dir)
+        env, invocation = command
+        Process.spawn(env, *invocation, chdir: mirror, pgroup: true, out: File::NULL, err: File.join(dir, STDERR_LOG))
+      end
+
+      def patience(locations) = Kimera::Execution::Patience.new(limit, timings: plan.timings).longest(locations)
 
       def with_mirror
         Dir.mktmpdir("kimera-isolated") do |mirror|
@@ -96,6 +121,7 @@ module Kimera
         when :copy then FileUtils.cp_r(source, target)
         when :link then File.symlink(source, target)
         when :empty then FileUtils.mkdir_p(target) if File.directory?(source)
+        when :git then Kimera::Execution::MirrorGit.new(plan.root).copy(target)
         end
       end
 

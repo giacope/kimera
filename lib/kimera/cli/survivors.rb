@@ -17,10 +17,11 @@ class Kimera::CLI::Survivors
       Kimera::Flag.build(
         "--status NAME", :status,
         "List a different status (survived, uncovered_by_unit, no_coverage, " \
-          "timeout, error, killed, isolated_only, unmutatable)"
+          "timeout, error, killed, isolated_only, unmutatable, unjudged: the report's harness_error)"
       )
     ]
   )
+  STATUSES = { "unjudged" => "harness_error" }.freeze
 
   def initialize(io: $stdout, errors: $stderr)
     @io = io
@@ -70,7 +71,7 @@ class Kimera::CLI::Survivors
   end
 
   def matches(results, options)
-    status = options[:status]
+    status = STATUSES.fetch(options[:status], options[:status])
     filter = options[:filter]
     found = results.select { |row| row["status"] == status }.map { |row| [row["file"].to_s, row["line"] || 0, row] }
     filter ? found.select { |file,| file.include?(filter) } : found

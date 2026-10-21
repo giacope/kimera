@@ -15,8 +15,10 @@ require_relative "sources"
 class Kimera::CLI::Run::Cycle
   SETTINGS = %i[
     framework source_root tests exclude_tests operators coverage isolated attribution unit_tests seed flaky_runs
-    test_quality judge_isolated_only
+    test_quality judge_isolated_only confirm_survivors
   ].freeze
+
+  NARROWED = "not covered by the narrowed tests; a test outside --tests may cover it"
 
   def initialize(options, registry, changed, digest:)
     @options = options
@@ -61,9 +63,14 @@ class Kimera::CLI::Run::Cycle
   end
 
   def conclude(todo, ignored, loaded)
-    report = loaded.report(todo, ignored, @registry).counting(counted)
+    report = narrowed(loaded.report(todo, ignored, @registry)).counting(counted)
     @digest.emit(report, @registry, **emission)
-    @options[:gate] == false ? 0 : @digest.gate(report, @options)
+    @options[:gate] == false ? 0 : @digest.gate(report, @options.merge(narrowed: narrowing.narrowed?))
+  end
+
+  def narrowed(report)
+    return report unless narrowing.narrowed?
+    report.revise(report.uncovered.map { |result| result.dup.tap { |copy| copy.detail ||= NARROWED } })
   end
 
   def emission
@@ -83,7 +90,7 @@ class Kimera::CLI::Run::Cycle
 
   def coverage = @options[:fail_on_no_coverage] || @options[:count_no_coverage] ? :list : :hint
 
-  def counted = @options[:count_no_coverage] ? [:no_coverage] : []
+  def counted = @options[:count_no_coverage] && !narrowing.narrowed? ? [:no_coverage] : []
 
   def focus(eligible)
     ids = Array(@options[:focus]).map { |token| @registry.keys.id(token) }

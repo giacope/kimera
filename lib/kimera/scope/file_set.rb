@@ -27,7 +27,9 @@ module Kimera
       @exclude = exclude
     end
 
-    def files = without((Array(@patterns) + Array(@include)).flat_map { |pattern| resolve(pattern) }.uniq).sort
+    def files = listed.sort
+
+    def listed = without((Array(@patterns) + Array(@include)).flat_map { |pattern| resolve(pattern).sort }.uniq)
 
     def unused
       files = FileSet.new(@patterns).files

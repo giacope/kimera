@@ -64,7 +64,7 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
       expect(text).to(include("\n# Test framework: rspec or minitest.\nframework: rspec\n\n# Source files to mutate"))
       expect(text).to(include("\n# baseline: .kimera-baseline.yml\n", "# kimera:disable[-next-line]"))
       expect(text.lines.map(&:chomp)).to(all(satisfy { |line| line.size <= 120 }))
-      keys = %w[framework paths tests jobs max_survivors max_errors fail_on_no_coverage]
+      keys = %w[framework paths tests jobs max_survivors max_errors count_no_coverage]
       expect(YAML.safe_load(text).keys).to(eq(keys))
     end
   end
@@ -249,6 +249,31 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
     expect(test_initialized("spec/a_spec.rb" => "")).not_to(have_key("operators"))
   end
 
+  # camaleon-cms: an engine with a dummy app has no config/application.rb at
+  # its root, and is still Rails (E3).
+  it "turns on the rails operators for an engine with a dummy app", :aggregate_failures do
+    engine = { "lib/cms/engine.rb" => "module Cms\n  class Engine < ::Rails::Engine\n  end\nend\n" }
+    dummy = engine.merge("spec/dummy/config/application.rb" => "", "spec/a_spec.rb" => "")
+    expect(test_initialized(dummy)["operators"]).to(eq([*Kimera::Operators::DEFAULT_KEYS, "rails"]))
+    isolated = { "lib/cms/engine.rb" => "module Cms\n  class Engine\n    isolate_namespace Cms\n  end\nend\n" }
+    minitest = isolated.merge("test/dummy/config/application.rb" => "", "test/test_helper.rb" => "require 'minitest'\n")
+    expect(test_initialized(minitest)["operators"]).to(include("rails"))
+    expect(test_initialized(engine.merge("spec/a_spec.rb" => ""))).not_to(have_key("operators"))
+    other = { "lib/cms/engine.rb" => "class Engine; end\n", "spec/dummy/config/application.rb" => "" }
+    expect(test_initialized(other)).not_to(have_key("operators"))
+  end
+
+  # count_no_coverage, on by default, is what gates uncovered mutants; init
+  # writes it with its description instead of the redundant gate flag.
+  it "writes count_no_coverage, not fail_on_no_coverage", :aggregate_failures do
+    Dir.mktmpdir do |dir|
+      out, error = captured
+      Kimera::CLI::Init.new(io: out, errors: error, root: dir).run(["--dry-run"])
+      expect(out.string).to(include("# Score a mutant with no covering test as not killed", "count_no_coverage: true"))
+      expect(out.string).not_to(include("fail_on_no_coverage"))
+    end
+  end
+
   # rack names its tests test/spec_*.rb; rake-style gems use test/test_*.rb.
   it "finds minitest files named test_*.rb or spec_*.rb", :aggregate_failures do
     helper = { "test/helper.rb" => "require 'minitest/autorun'\n" }
@@ -346,7 +371,8 @@ RSpec.describe("Kimera guided CLI workflows", :aggregate_failures) do
   # A suite that is green in one process can still be red on the configured
   # workers; doctor runs it split across that many processes too.
   it "runs the baseline split across the configured jobs only when it is green serially", :aggregate_failures do
-    parallel = "✓ Parallel baseline: green split across 3 processes too (jobs: 3)\n"
+    parallel = "✓ Parallel baseline: green split across 3 processes too " \
+      "(jobs: 3; #{Kimera::CLI::TestCommand::SAMPLE})\n"
     Dir.mktmpdir do |dir|
       expect(test_doctor_jobs(dir, "jobs: 3\n").lines.last).to(eq(parallel))
       expect(Kimera::Execution::SUITE).to(have_received(:call).exactly(5).times)

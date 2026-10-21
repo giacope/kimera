@@ -24,12 +24,13 @@ Kimera::Execution::Shift::Probe =
     def report(test, outcome, elapsed)
       { "passed" => outcome.passed?, "failed_ids" => outcome.failed_ids, "failures" => outcome.failures }
         .merge("elapsed" => elapsed, "overran" => deadline.overran?(test, elapsed), "expired" => outcome.expired?)
+        .merge("limit" => deadline.limit(test))
     end
 
     def run(active, test)
       Kimera::RUNTIME.active = active
       deadline.guard(test) { adapter.run([test]) }
     rescue Timeout::Error => error
-      [Kimera::Execution::Shift::Expiry.new(test: test, message: error.message), deadline.seconds]
+      [Kimera::Execution::Shift::Expiry.new(test: test, message: error.message), deadline.limit(test)]
     end
   end

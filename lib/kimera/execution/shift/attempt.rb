@@ -18,6 +18,8 @@ class Kimera::Execution::Shift::Attempt
 
   def run(id, tests) = hunt(Kimera::Execution::Shift::Lineup.new(id, @killers.order(tests)), [])
 
+  def calm?(test) = replay(Kimera::Execution::Shift::Lineup.new(nil, [test]))["passed"]
+
   private
 
   def hunt(lineup, doubts)
@@ -42,7 +44,7 @@ class Kimera::Execution::Shift::Attempt
     clear?(calm) ? finding.stall(calm) : finding.crawl(calm)
   end
 
-  def clear?(calm) = calm["passed"] && calm.fetch("elapsed") < @probe.deadline.seconds * CLEAR
+  def clear?(calm) = calm["passed"] && calm.fetch("elapsed") < calm.fetch("limit") * CLEAR
 
   def failed(finding)
     return finding.kill(finding.found, @killers) if finding.first?

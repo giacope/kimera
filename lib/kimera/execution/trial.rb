@@ -6,7 +6,7 @@ module Kimera
 end
 
 Kimera::Execution::Trial =
-  Struct.new(:id, :mirror, :synth, :file) do
+  Struct.new(:id, :mirror, :synth, :file, :slot) do
     def stage(root)
       source = File.read(File.join(root, file), encoding: Encoding::UTF_8)
       target = File.join(mirror, file)

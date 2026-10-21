@@ -40,6 +40,18 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       expect(plan(coverage: { mutant_id => ["spec/a_spec.rb[1:1]"] }).tests(mutant_id, point)).to(eq(%w[t1 t2 t3]))
     end
 
+    # The tests near its file may leave out the earlier test whose state it
+    # needs, so an order-reached point keeps the whole suite.
+    it "runs the tests near the file for a load-time point, and the whole suite for an order-reached one",
+      :aggregate_failures do
+      suite = %w[./spec/a_spec.rb[1:1] ./spec/b_spec.rb[1:1]]
+      coverage = { mutant_id => ["./spec/a_spec.rb[1:1]"] }
+      point.revisit!(Kimera::MutationPoint::BOOT_REASON)
+      expect(plan(tests: suite, coverage: coverage).tests(mutant_id, point)).to(eq(["./spec/a_spec.rb[1:1]"]))
+      point.revisit!(Kimera::MutationPoint::ORDER_REASON)
+      expect(plan(tests: suite, coverage: coverage).tests(mutant_id, point)).to(eq(suite))
+    end
+
     it "runs only the tests a screen keeps of the whole suite, and settles a point it leaves none",
       :aggregate_failures do
       point.revisit!(Kimera::MutationPoint::BOOT_REASON)
@@ -157,6 +169,10 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       expect(child.request(["a"], first: true)).to(include("first_failure" => true))
     end
 
+    it "names the mirror's database slot only when it has one" do
+      expect([child.request(["a"], slot: 2)["slot"], child.request(["a"]).key?("slot")]).to(eq([2, false]))
+    end
+
     # The same load path the warm run and doctor use, read in the mirror.
     it "puts the test files' folders and the mirror's test and spec on the load path", :aggregate_failures do
       Dir.mktmpdir do |mirror|
@@ -205,12 +221,45 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
 
     # A Gemfile names gems by paths relative to it (a monorepo's engines); the
     # mirror sits elsewhere, so only the project's own Gemfile resolves them.
+    # A `gemspec` line read from the project's Gemfile puts the project's own
+    # lib on the load path beside the mirror's (asciidoctor's -w test then sees
+    # VERSION defined twice), so a Gemfile that names nothing by a relative
+    # path runs from the mirror.
+    it "pins BUNDLE_GEMFILE to the mirror's Gemfile when the project's names no gem by a relative path" do
+      Dir.mktmpdir do |root|
+        File.write(File.join(root, "Gemfile"), "gemspec\ngem 'kimera', path: '/opt/kimera'\n")
+        gemfile, env, = bundled(["spec/a_spec.rb[1:1]"], root: root)
+        expect(env.fetch("BUNDLE_GEMFILE")).to(eq(gemfile))
+      end
+    end
+
     it "pins BUNDLE_GEMFILE to the project's own Gemfile when it has one" do
       Dir.mktmpdir do |root|
         File.write(File.join(root, "Gemfile"), "gem 'engine', path: '../engine'\n")
         _gemfile, env, = bundled(["spec/a_spec.rb[1:1]"], root: root)
         expect(env.fetch("BUNDLE_GEMFILE")).to(eq(File.join(root, "Gemfile")))
       end
+    end
+
+    # The lockfile says where each path gem resolved, however the Gemfile
+    # spells it (`path: ENV.fetch("KIMERA_PATH", "../..")`): only a relative
+    # path out of the project needs the project's Gemfile; one inside it, or
+    # an absolute one, resolves from the mirror too.
+    def locked(remotes)
+      Dir.mktmpdir do |root|
+        File.write(File.join(root, "Gemfile"), "gem 'kimera', path: ENV.fetch('KIMERA_PATH', 'engines/kimera')\n")
+        lock = remotes.map { |remote| "PATH\n  remote: #{remote.sub("ROOT", File.basename(root))}\n  specs:\n" }.join
+        File.write(File.join(root, "Gemfile.lock"), lock)
+        gemfile, env, = bundled(["spec/a_spec.rb[1:1]"], root: root)
+        return env.fetch("BUNDLE_GEMFILE") == gemfile ? :mirror : :project
+      end
+    end
+
+    it "pins BUNDLE_GEMFILE by where the lockfile's path gems resolved", :aggregate_failures do
+      expect(locked(["../.."])).to(eq(:project))
+      expect(locked([".", "engines/kimera", "/opt/kimera", "../ROOTx"])).to(eq(:project))
+      expect(locked([".", "engines/kimera", "/opt/kimera", "engines/../lib"])).to(eq(:mirror))
+      expect(locked([])).to(eq(:mirror))
     end
 
     def mixed
@@ -276,11 +325,11 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
 
     # A boot that needs node_modules/ or a vendored bundle must load in the
     # mirror, or every mutant it covers scores as a false kill.
-    it "copies sources, links dependencies, empties scratch dirs and skips history", :aggregate_failures do
+    it "copies sources, links dependencies, empties scratch dirs and snapshots history", :aggregate_failures do
       expect(placements(%w[lib app spec Gemfile])).to(all(satisfy { |_e, how| how == :copy }))
       expect(placements(%w[vendor node_modules .bundle]).values).to(eq(%i[link link link]))
       expect(placements(%w[tmp log]).values).to(eq(%i[empty empty]))
-      expect(placements(%w[.git coverage]).values).to(eq(%i[skip skip]))
+      expect(placements(%w[.git coverage]).values).to(eq(%i[git skip]))
     end
 
     it "copies a would-be link that holds a mutated file, so no mutant writes through it" do

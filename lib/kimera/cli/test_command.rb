@@ -19,6 +19,7 @@ class Kimera::CLI::TestCommand
   QUIET_EXIT = " (it exited non-zero with no failing test: a coverage floor such as SimpleCov's " \
     "minimum_coverage? Skip it when ENV[\"KIMERA\"] is set)"
   DRY_RUN = "require 'minitest'; Minitest.class_variable_set(:@@installed_at_exit, true); #{LOADER}; exit!(0)".freeze
+  SAMPLE = "one sample split, not a proof: tests that share a port or directory can still collide in a run"
   SHARED = "red split across %d processes (jobs: %d), green in one: the suite shares state " \
     "between workers (a directory, file or port), which can turn `kimera run`'s baseline red; " \
     "use jobs: 1 until each test has its own"
@@ -49,7 +50,7 @@ class Kimera::CLI::TestCommand
 
   def parallel(jobs)
     red = shards(jobs).reject { |_output, status| status.success? }
-    return ["✓", "Parallel baseline: green split across #{jobs} processes too (jobs: #{jobs})"] if red.empty?
+    return ["✓", "Parallel baseline: green split across #{jobs} processes too (jobs: #{jobs}; #{SAMPLE})"] if red.empty?
     ["!", "Parallel baseline: #{format(SHARED, jobs, jobs)}#{failing(red.map(&:first).join)}"]
   end
 

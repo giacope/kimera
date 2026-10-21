@@ -13,7 +13,7 @@ module Kimera
       ConstantPathOperatorWriteNode GlobalVariableOperatorWriteNode
       InstanceVariableOperatorWriteNode LocalVariableOperatorWriteNode
       ConstantPathWriteNode ConstantReadNode ConstantWriteNode DefNode DefinedNode EmbeddedStatementsNode
-      FalseNode FloatNode
+      FalseNode FloatNode IndexOrWriteNode
       ForwardingArgumentsNode GlobalVariableOrWriteNode GlobalVariableReadNode
       GlobalVariableWriteNode HashNode IfNode InNode InstanceVariableOrWriteNode
       InstanceVariableReadNode InstanceVariableWriteNode IntegerNode KeywordHashNode

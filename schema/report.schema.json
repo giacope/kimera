@@ -496,6 +496,13 @@
             "null"
           ]
         },
+        "confirm_survivors": {
+          "description": "Whether warm survivors had each covering test run alone in a fresh process; null leaves it to the run (on with --since).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "attribution": {
           "description": "Which covering tests could kill a mutant: any, or only its unit's own (unit).",
           "enum": [

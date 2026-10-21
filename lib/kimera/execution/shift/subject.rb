@@ -21,10 +21,10 @@ Kimera::Execution::Shift::Subject =
       [Kimera::Execution::Shift::Overrun, Kimera::Execution::Shift::Stall].any? { outcome.is_a?(it) }
     end
 
-    def crashed(error, limit)
+    def crashed(error, limit, kind = error.class)
       message = error.message
       return verdict(:timeout, duration: limit, detail: message) if error.is_a?(Timeout::Error)
-      verdict(:error, detail: "#{error.respond_to?(:kind) ? error.kind : error.class}: #{message}")
+      verdict(:error, detail: "#{kind}: #{message}")
     end
 
     def killed(outcome, **fields)

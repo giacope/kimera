@@ -38,6 +38,7 @@ Kimera::Execution::Pool::Duty =
       nil
     end
 
+    # rubocop:disable Kata/NoTypeCheck -- ensure hands over whatever ended the worker, which no rescue clause can sort
     def echo(error)
       return unless error.is_a?(Kimera::Execution::Zygote::Died)
       signal = error.signal
@@ -50,4 +51,5 @@ Kimera::Execution::Pool::Duty =
       return "" unless error
       error.is_a?(Kimera::Execution::Zygote::Died) ? error.message : Kimera::Execution::LastWords.new(error).to_s
     end
+    # rubocop:enable Kata/NoTypeCheck
   end

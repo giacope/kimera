@@ -31,6 +31,7 @@ module Kimera
       kimera/execution/shift/finding.rb
       kimera/execution/shift/coverage_channel.rb
       kimera/execution/shift/killer_memory.rb
+      kimera/execution/shift/unmask.rb
       kimera/execution/pace.rb
       kimera/execution/zygote.rb
       kimera/execution/harness.rb
@@ -38,6 +39,7 @@ module Kimera
       kimera/execution/baseline_tally.rb
       kimera/execution/stopwatch.rb
       kimera/execution/time_budget.rb
+      kimera/execution/patience.rb
       kimera/execution/reload.rb
       kimera/execution/worker_databases.rb
       kimera/execution/verdicts.rb

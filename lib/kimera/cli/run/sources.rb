@@ -32,6 +32,11 @@ class Kimera::CLI::Run::Sources
     found
   end
 
+  def tests(patterns, exclude)
+    expand(patterns, exclude, "test", "check --tests")
+    Kimera::FileSet.new(patterns, exclude: exclude).listed
+  end
+
   def notice(patterns, exclude, kind)
     Kimera::FileSet.new(patterns, exclude: exclude).unused.each do |pattern|
       @errors.puts("kimera: warning: exclude pattern matched no #{kind} files: #{pattern}")

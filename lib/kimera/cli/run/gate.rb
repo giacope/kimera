@@ -28,8 +28,10 @@ class Kimera::CLI::Run::Gate
     uncovered = @report.uncovered.size
     return unless uncovered.positive?
     return "#{uncovered} mutant(s) with no covering test (--fail-on-no-coverage)" if @options[:fail_on_no_coverage]
-    "#{uncovered} mutant(s) with no covering test (count_no_coverage)" if @options[:count_no_coverage]
+    "#{uncovered} mutant(s) with no covering test (count_no_coverage)" if counted?
   end
+
+  def counted? = @options[:count_no_coverage] && !@options[:narrowed]
 
   def ignored
     cap = @options[:max_ignored]
@@ -40,7 +42,7 @@ class Kimera::CLI::Run::Gate
   def unjudged
     count = @report.errors.size
     cap = Integer(@options[:max_errors] || 0)
-    "unjudged=#{count} > max_errors=#{cap}" if count > cap
+    "unjudged=#{count} > max_errors=#{cap} (status harness_error in the JSON report)" if count > cap
   end
 
   def untested

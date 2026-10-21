@@ -3,6 +3,7 @@
 require "json"
 require "tmpdir"
 require_relative "child_process"
+require_relative "patience"
 require_relative "pool_duty"
 require_relative "shift"
 require_relative "stack_dump"
@@ -101,10 +102,15 @@ class Kimera::Execution::Pool
   def build(duty)
     Kimera::Execution::Shift.new(
       adapter: @adapter, registry: @registry, coverage: coverage, isolation: @isolation,
-      soft_timeout: @options.fetch(:soft), pulse: pulse(duty),
-      **@options.slice(:budget, :timings, :quality)
+      soft_timeout: @options.fetch(:soft), pulse: pulse(duty), ceiling: soft_ceiling,
+      **@options.slice(:budget, :timings, :quality, :confirm)
     )
   end
 
   def pulse(duty) = -> { duty.pulse }
+
+  def soft_ceiling
+    hard = @options[:hard]
+    hard && (hard - Kimera::Execution::Patience::SLACK)
+  end
 end

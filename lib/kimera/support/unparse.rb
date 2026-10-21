@@ -41,7 +41,7 @@ module Kimera
       private
 
       def dispatch
-        return super unless node.location.respond_to?(:begin) && node.location.begin
+        return super unless Hash(node.location)[:begin]
         parentheses { delimited(children) }
       end
     end

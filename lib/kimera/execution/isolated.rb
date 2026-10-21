@@ -37,7 +37,7 @@ class Kimera::Execution::IsolatedExecution
     progress.note("isolated baseline (unmutated mirror)")
     outcome = with_mirror { |mirror| verdict(mirror, tests) }
     return if outcome.status == :survived
-    mirror = Kimera::Execution::BaselineFailure::Mirror.new(outcome.explain(limit), Kimera::Execution::IsolatedPlan::MIRROR_HINT)
+    mirror = Kimera::Execution::BaselineFailure::Mirror.new(outcome.explain, Kimera::Execution::IsolatedPlan::MIRROR_HINT)
     raise(Kimera::Execution::BaselineFailure, mirror.to_s)
   end
 
@@ -75,7 +75,7 @@ class Kimera::Execution::IsolatedExecution
       coverage: @options.fetch(:coverage, {}), timings: @options.fetch(:timings, {}),
       framework: @options.fetch(:framework, "rspec"),
       test_files: @options.fetch(:test_files, []), filter: @options[:filter], seed: @options[:seed],
-      quality: @options[:test_quality]
+      quality: @options[:test_quality], test_paths: @options[:test_paths]
     )
   end
 
