@@ -18,6 +18,8 @@ class Kimera::Execution::Shift::Attempt
 
   def run(id, tests) = hunt(Kimera::Execution::Shift::Lineup.new(id, @killers.order(tests)), [])
 
+  def calm?(test) = replay(Kimera::Execution::Shift::Lineup.new(nil, [test]))["passed"]
+
   private
 
   def hunt(lineup, doubts)

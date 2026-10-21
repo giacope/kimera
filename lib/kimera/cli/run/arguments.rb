@@ -96,6 +96,7 @@ class Kimera::CLI::Run::Arguments
     { exclude: [], exclude_tests: [], config: nil }
       .merge(ignore: [], isolate_db: false, isolated: false, rejudge: true)
       .merge(fail_on_no_coverage: false, count_no_coverage: true, judge_isolated_only: nil)
+      .merge(confirm_survivors: nil)
       .merge(progress: nil, color: nil, quiet: false, verbose: false, log: nil)
       .merge(pidfile: nil, summary: nil)
       .merge(isolate_when_covered_by: [], methods: [])

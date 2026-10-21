@@ -104,9 +104,15 @@ class Kimera::Execution::Shift
 
   def outcome(subject, tests)
     started = monotonic
-    outcome = attempt.run(subject.id, tests)
+    outcome = attempt.run(subject.id, tests) || unmasked(subject.id, tests)
     return outcome.ruling(subject) if outcome.is_a?(Doubt)
     subject.judged(outcome, tests, monotonic - started)
+  end
+
+  def unmasked(id, tests)
+    return unless @options[:confirm]
+    pace = Kimera::Execution::Pace.new(@options.fetch(:timings, {}))
+    self.class::Unmask.new(attempt, pace).run(id, tests)
   end
 
   def available(id)
@@ -127,3 +133,4 @@ require_relative "shift/coverage_channel"
 require_relative "shift/killer_memory"
 require_relative "shift/subject"
 require_relative "shift/suspect"
+require_relative "shift/unmask"

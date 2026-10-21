@@ -106,7 +106,7 @@ class Kimera::Execution::Harness
     @_rig ||= Kimera::Execution::Rig.new(
       registry: registry, adapter: adapter, isolation: isolation, root: root, soft: soft, hard: hard, jobs: jobs,
       coverage: coverage, spawner: options[:spawner], progress: progress, aliases: state.aliases,
-      **options.slice(:filter, :test_quality)
+      **options.slice(:filter, :test_quality, :confirm_survivors)
     )
   end
 
