@@ -14,6 +14,14 @@ require "stringio"
 require "tmpdir"
 
 RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
+  # A warm worker (kimera's own, running this suite) carries its own
+  # TEST_ENV_NUMBER; each example starts without one and leaves it as found.
+  around do |example|
+    inherited = ENV.delete("TEST_ENV_NUMBER")
+    example.run
+    inherited ? ENV.store("TEST_ENV_NUMBER", inherited) : ENV.delete("TEST_ENV_NUMBER")
+  end
+
   def config(adapter, database) = Struct.new(:adapter, :database).new(adapter, database)
 
   def record(database, adapter: "sqlite3")
@@ -121,8 +129,6 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
     subject(:databases) { described_class.new(jobs: 2, errors: errors) }
 
     let(:errors) { StringIO.new }
-
-    after { ENV.delete("TEST_ENV_NUMBER") }
 
     def switch(flag)
       stub_const("ActiveSupport", Module.new) unless defined?(ActiveSupport)
