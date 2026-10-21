@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "config"
+require_relative "foreign_file"
 
 module Kimera
   class FileSet
@@ -29,7 +30,7 @@ module Kimera
 
     def files = listed.sort
 
-    def listed = without((Array(@patterns) + Array(@include)).flat_map { |pattern| resolve(pattern).sort }.uniq)
+    def listed = without((Array(@patterns) + Array(@include)).flat_map { |pattern| found(pattern) }.uniq)
 
     def unused
       files = FileSet.new(@patterns).files
@@ -46,6 +47,11 @@ module Kimera
     end
 
     private
+
+    def found(pattern)
+      matched = resolve(pattern).sort
+      File.file?(pattern) ? matched : matched.reject { |file| Kimera::ForeignFile.new(file).foreign? }
+    end
 
     def resolve(pattern)
       return Dir.glob(File.join(pattern, "**", "*.rb")) if File.directory?(pattern)

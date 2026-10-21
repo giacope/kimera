@@ -41,6 +41,7 @@ module Kimera
 
       def bake(trial, point)
         trial.file = point.file
+        return result(trial, status: :no_coverage, detail: point.unsafe_reason) if point.unloaded?
         settled = plan.settled(trial.id, point)
         return settled if settled
         tests = plan.tests(trial.id, point)

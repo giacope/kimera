@@ -5,27 +5,41 @@ require_relative "../self_protection"
 require_relative "../synthesis/body_trim"
 require_relative "../synthesis/overlay"
 require_relative "aliases"
+require_relative "definitions"
 require_relative "overrides"
 require_relative "overlay_guards"
 
 class Kimera::Execution::Schemata
   attr_reader :skipped
 
-  def initialize(registry, root: ".", errors: nil)
+  def initialize(registry, root: ".", errors: nil, loaded: proc { true })
     @registry = registry
     @root = root
     @errors = errors
+    @loaded = loaded
     @skipped = {}
   end
 
   def overlay!
     Kimera::Execution::OverlayGuards.new.install!
-    aliases.follow { weave(@registry.files) + weave(unresolved) }.tap { announce }
+    aliases.follow { weave(reachable) + weave(unresolved) }.tap { announce }
   end
 
   def aliases = @_aliases ||= Kimera::Execution::Aliases.new(@registry.files.map { |path| File.join(root, path) })
 
   private
+
+  def reachable
+    shut, open = @registry.files.partition { |path| shut?(path) }
+    shut.each { |path| @registry.at(path).select(&:safe?).each(&:unloaded!) }
+    open
+  end
+
+  def shut?(path)
+    return false if @loaded.call(path)
+    file = File.join(root, path)
+    File.file?(file) && !Kimera::Execution::Definitions.new(File.read(file, encoding: Encoding::UTF_8)).only?
+  end
 
   def weave(paths) = paths.flat_map { |path| load(path) }
 

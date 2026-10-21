@@ -5,6 +5,7 @@ require "rspec/core"
 require_relative "adapter"
 require_relative "group_scope"
 require_relative "group_tree"
+require_relative "dot_rspec"
 require_relative "../support/test_exit"
 
 module Kimera
@@ -28,6 +29,7 @@ class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
   end
 
   def source(files)
+    preload
     each_test_file(files) { |file| load(file) }
     examples
     self
@@ -79,11 +81,11 @@ class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
 
   private
 
-  def configure
-    RSpec::Core::ConfigurationOptions.new([]).configure(RSpec.configuration)
-  rescue StandardError, ScriptError
-    nil
-  end
+  def settings = @_settings ||= Kimera::Frameworks::DotRspec.new
+
+  def configure = settings.configure(RSpec.configuration)
+
+  def preload = settings.preload(RSpec.configuration)
 
   def hooks(store)
     config = RSpec.configuration

@@ -70,7 +70,11 @@ class Kimera::CLI::Run::Cycle
 
   def narrowed(report)
     return report unless narrowing.narrowed?
-    report.revise(report.uncovered.map { |result| result.dup.tap { |copy| copy.detail ||= NARROWED } })
+    report.revise(report.uncovered.map { |result| result.dup.tap { |copy| copy.detail = narrow(copy.detail) } })
+  end
+
+  def narrow(detail)
+    detail == Kimera::MutationPoint::NEVER_LOADED ? detail : NARROWED
   end
 
   def emission

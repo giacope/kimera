@@ -45,8 +45,7 @@ class Kimera::Execution::Verdicts
 
   def quarantine(id)
     found = point(id)
-    status = found.unmutatable? ? :unmutatable : :isolated_only
-    Kimera::MutantResult.new(mutant_id: id, status: status, file: found.file, detail: found.unsafe_reason)
+    Kimera::MutantResult.new(mutant_id: id, status: held(found), file: found.file, detail: found.unsafe_reason)
   end
 
   def point(id)
@@ -58,6 +57,11 @@ class Kimera::Execution::Verdicts
   end
 
   private
+
+  def held(point)
+    return :unmutatable if point.unmutatable?
+    point.unloaded? ? :no_coverage : :isolated_only
+  end
 
   def reclassify(result) = suspect?(result) ? result.isolated(detail(result.status)) : result
 

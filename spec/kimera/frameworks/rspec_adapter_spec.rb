@@ -333,9 +333,13 @@ RSpec.describe(Kimera::Frameworks::RSpecAdapter) do
   end
 
   # In-process so mutation coverage sees it; the subprocess spec below covers end-to-end.
-  it "applies the working directory's .rspec when constructed" do
+  # R3K5: its --require files load with the test files, inside kimera's load
+  # trace, not when the adapter is built.
+  it "applies the working directory's .rspec, loading its requires with the test files", :aggregate_failures do
     configuration
-    Dir.chdir(dir) { quietly { described_class.build } }
+    built = Dir.chdir(dir) { quietly { described_class.build } }
+    expect($probe).to(be_nil)
+    Dir.chdir(dir) { quietly { built.source([]) } }
     expect($probe).to(be(true))
   ensure
     $probe = nil

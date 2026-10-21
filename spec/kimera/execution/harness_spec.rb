@@ -865,6 +865,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       parallelization(true)
       stub(after: ->(_i) {}, cleanup: ->(i) { cleaned << i })
       db = database(jobs: 2)
+      allow(db).to(receive(:require).with("active_record/test_databases"))
       db.before_exit(0)
       db.before_exit(nil) # injected spawners have no slot
       cleaned
