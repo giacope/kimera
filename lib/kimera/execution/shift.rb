@@ -108,7 +108,6 @@ class Kimera::Execution::Shift
   def outcome(subject, tests)
     started = monotonic
     outcome = attempt.run(subject.id, tests) || unmasked(subject.id, tests)
-    return outcome.ruling(subject) if outcome.is_a?(Doubt)
     subject.judged(outcome, tests, monotonic - started)
   end
 

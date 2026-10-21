@@ -50,6 +50,9 @@ seams around them, are fixed here.
   `kimera report --status unjudged` lists those rows; doctor's parallel
   check says it is a sample.
 - Isolated child ledgers record the first failure's message.
+- Code that relies on a refinement runs warm: the trimmed overlay keeps its
+  `using` lines, so a refined call no longer raises NoMethodError in the
+  baseline.
 
 Field test on ten MIT Ruby and Rails codebases (Sequel, YARD, graphql-ruby,
 ruby-lsp, Feedbin, Human Essentials, Chatwoot among them): 217 of 217 sampled
