@@ -26,7 +26,8 @@ module Kimera
 
     def changed(before)
       after = snapshot
-      (before.keys | after.keys).reject { |path| before[path] == after[path] || ignored?(path) }.sort
+      known = git? ? before.keys | after.keys : before.keys
+      known.reject { |path| before[path] == after[path] || ignored?(path) }.sort
     end
 
     private

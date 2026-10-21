@@ -303,7 +303,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         eq(
           "framework" => "rspec", "source_root" => ".", "tests" => ["spec/**/*_spec.rb"],
           "exclude_tests" => [], "operators" => ["comparison"], "coverage" => true,
-          "isolated" => false, "jobs" => 1, "narrowed" => false
+          "isolated" => false, "jobs" => 1, "narrowed" => false,
+          "judge_isolated_only" => false, "confirm_survivors" => false
         )
       )
     end
@@ -560,8 +561,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     it "points at the mutants only a fresh process can judge, saved or not", :aggregate_failures do
-      hint = "1 mutant(s) only a fresh process can judge (validations, callbacks, load-time code): " \
-        "judge them with `kimera run --isolated`, or --judge-isolated-only"
+      hint = "1 #{Kimera::Report::Actions::ISOLATED}"
       [{ path: "out.json" }, {}].each do |where|
         io = StringIO.new
         Kimera::Report::Actions.new(io: io).show(report(result(4, :isolated_only)), **where)
@@ -758,12 +758,17 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         loader = Kimera::CLI::TestCommand::LOADER
         includes = ["-I", "test", "-I", "spec"]
         command = [Kimera::Execution::SUITE_ENV, "bundle", "exec", "ruby", *includes, "-e", loader, test]
-        allow(Kimera::Execution::SUITE).to(receive(:call).with(*command, chdir: dir).and_return(["", success]))
+        allow(Kimera::Execution::SUITE).to(
+          receive(:call).with(
+            *command, chdir: dir,
+            limit: 125
+          ).and_return(["", success])
+        )
 
         result = instance.__send__(:baselines, { framework: "minitest", tests: ["test/**/*_test.rb"] })
 
         expect(result).to(eq([["✓", "Baseline: configured test suite is green"]]))
-        expect(Kimera::Execution::SUITE).to(have_received(:call).with(*command, chdir: dir))
+        expect(Kimera::Execution::SUITE).to(have_received(:call).with(*command, chdir: dir, limit: 125))
       end
     end
 
@@ -776,7 +781,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         allow(Kimera::Execution::SUITE).to(
           receive(:call).with(
             Kimera::Execution::SUITE_ENV, *command,
-            chdir: dir
+            chdir: dir, limit: 125
           ).and_return(["noise\n3 examples, 1 failure\n", failure])
         )
 
@@ -787,7 +792,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         expect(Kimera::Execution::SUITE).to(
           have_received(:call).with(
             Kimera::Execution::SUITE_ENV, *command,
-            chdir: dir
+            chdir: dir, limit: 125
           )
         )
       end

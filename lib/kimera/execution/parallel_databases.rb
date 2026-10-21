@@ -25,7 +25,7 @@ class Kimera::Execution::ParallelDatabases
 
   def numbered(index) = { VARIABLE => number(index) }
 
-  def assign(index) = @env.update(numbered(index))
+  def assign(index, env = @env) = env.update(numbered(index))
 
   private
 

@@ -42,13 +42,13 @@ class Kimera::Execution::NumberedDatabases
 
   def number(index) = Kimera::Execution::ParallelDatabases.new(env: @env).numbered(index).values.first
 
-  def numbered(number)
+  def numbered(number, env = @env)
     variable = Kimera::Execution::ParallelDatabases::VARIABLE
-    saved = @env.fetch(variable, nil)
-    @env.store(variable, number)
+    saved = env.fetch(variable, nil)
+    env.store(variable, number)
     yield
   ensure
-    saved ? @env.store(variable, saved) : @env.delete(variable)
+    saved ? env.store(variable, saved) : env.delete(variable)
   end
 
   def same?(config)
