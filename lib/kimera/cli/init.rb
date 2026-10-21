@@ -23,6 +23,8 @@ class Kimera::CLI::Init
   LOCKS = %w[Gemfile.lock gems.locked].freeze
   LOCKED = { "rspec" => /^    rspec-core \(/, "minitest" => /^    minitest \(/ }.freeze
   DOCUMENT = ->(**fields) { fields.transform_keys(&:to_s) }
+  DUMMIES = %w[spec/dummy test/dummy].freeze
+  ENGINE = /<\s*(?:::)?Rails::Engine\b|^\s*isolate_namespace\b/
 
   def initialize(io: $stdout, errors: $stderr, root: ".")
     @io = io
@@ -68,17 +70,25 @@ class Kimera::CLI::Init
   def detected
     DOCUMENT.call(
       framework: framework, paths: sources, tests: tests, **browserless, **rails_operators,
-      jobs: [Etc.nprocessors, 8].min, max_survivors: 0, max_errors: 0, fail_on_no_coverage: false
+      jobs: [Etc.nprocessors, 8].min, max_survivors: 0, max_errors: 0, count_no_coverage: true
     )
   end
 
   def browserless = rails? && Dir.glob(File.join(@root, SYSTEM_TESTS)).any? ? { exclude_tests: [SYSTEM_TESTS] } : {}
 
-  def rails? = framework == "minitest" && application?
+  def rails? = framework == "minitest" && rails_app?
+
+  def rails_app? = application? || engine?
 
   def application? = File.file?(File.join(@root, "config", "application.rb"))
 
-  def rails_operators = application? ? { operators: [*Kimera::Operators::DEFAULT_KEYS, "rails"] } : {}
+  def engine? = dummy? && Dir.glob(File.join(@root, "lib", "**", "engine.rb")).any? { engine_class?(it) }
+
+  def dummy? = DUMMIES.any? { File.file?(File.join(@root, it, "config", "application.rb")) }
+
+  def engine_class?(path) = File.read(path, encoding: Encoding::UTF_8).scrub.match?(ENGINE)
+
+  def rails_operators = rails_app? ? { operators: [*Kimera::Operators::DEFAULT_KEYS, "rails"] } : {}
 
   def framework = @_framework ||= declared || bundled || layout
 

@@ -194,7 +194,7 @@
       "minimum": 0
     },
     "fail_on_no_coverage": {
-      "description": "Gate: also fail when a mutant in scope has no covering test (default: false; kimera ci turns it on).",
+      "description": "Gate: also fail when a mutant in scope has no covering test, even with count_no_coverage off or on a narrowed run (default: false; kimera ci turns it on). count_no_coverage already gates on uncovered mutants on full runs.",
       "type": "boolean"
     },
     "attribution": {
