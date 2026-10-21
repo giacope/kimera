@@ -32,13 +32,15 @@ class Kimera::Execution::IsolatedPlan
 
   def root = @_root ||= File.expand_path(@given)
 
-  def tests(id, point)
-    found = candidates(id, point)
-    screen = @options[:filter]
-    found && screen ? screen.keep(point.file, found) : found
+  def tests(id, point, screened: true)
+    file = point.file
+    found = whole?(point) ? kin.tests(file) : selection.recorded(id)
+    found = selection.all if Kimera::SelfProtection.new(File.join(root, file)).protected?
+    screen = @options[:filter] if screened
+    found && screen ? screen.keep(file, found) : found
   end
 
-  def settled(id, point) = @options[:filter]&.settle(id, Array(candidates(id, point)))
+  def settled(id, point) = @options[:filter]&.settle(id, Array(tests(id, point, screened: false)))
 
   def command(mirror, locations, ledger, **)
     child.command(mirror, child.request(locations, **), ledger: ledger, paths: mutables)
@@ -66,13 +68,6 @@ class Kimera::Execution::IsolatedPlan
 
   private
 
-  def candidates(id, point)
-    return selection.all if protected?(point)
-    whole?(point) ? kin.tests(point.file) : selection.recorded(id)
-  end
-
-  def protected?(point) = Kimera::SelfProtection.new(File.join(root, point.file)).protected?
-
   def whole?(point)
     !point.safe? || point.revisit
   end
@@ -81,7 +76,7 @@ class Kimera::Execution::IsolatedPlan
 
   def kin
     @_kin ||= Kin.new(
-      all: @tests, coverage: @options[:coverage] || {}, registry: @registry, paths: @options.fetch(:test_paths, {})
+      all: @tests, coverage: @options[:coverage] || {}, registry: @registry, locate: @options[:test_paths]
     )
   end
 

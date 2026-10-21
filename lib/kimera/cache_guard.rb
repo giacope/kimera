@@ -11,18 +11,23 @@ class Kimera::CacheGuard
   ].freeze
   CONDITIONALS = [Kimera::SyntaxTypes::IfNode, Kimera::SyntaxTypes::UnlessNode].freeze
   LOOKUPS = %i[[] key? include? has_key? member?].freeze
+  LOCAL = Kimera::SyntaxTypes::LocalVariableReadNode
   Exemption = Kimera::MemoGuard::Exemption
 
   def initialize(method)
     @method = method
   end
 
-  def exemptions = nodes.filter_map { |node| exempt(node) }.flatten
+  def exemptions
+    nodes = walk(@method)
+    stores = nodes.select { lookup(it, :[]=) }.group_by { lookup(it, :[]=) }
+    locals = nodes.grep(Kimera::SyntaxTypes::LocalVariableWriteNode).to_h { [it.name, lookup(it.value, :[])] }
+    nodes.filter_map { |node| exempt(node, stores, guarded(node, locals)) }.flatten
+  end
 
   private
 
-  def exempt(node)
-    cache = CONDITIONALS.include?(node.class) && guarded(node)
+  def exempt(node, stores, cache)
     return unless cache && stores.key?(cache)
     [
       Exemption.new(node.location, Kimera::MemoGuard::CONDITIONAL),
@@ -30,44 +35,30 @@ class Kimera::CacheGuard
     ]
   end
 
-  def nodes = @_nodes ||= walk(@method)
-
-  def walk(node) = [node, *node.compact_child_nodes.flat_map { walk(it) }]
-
-  def stores = @_stores ||= nodes.select { lookup(it, :[]=) }.group_by { cache(it) }
-
-  def guarded(node)
-    returned = early(node)
-    name = local(returned)
-    cache = lookup(returned, :[]) || cached[name]
+  def guarded(node, locals)
+    returned = early(node) if CONDITIONALS.include?(node.class)
+    name = returned.name if returned.is_a?(LOCAL)
+    cache = returned && (lookup(returned, :[]) || locals[name])
     cache if cache && mentions?(node.predicate, cache, name)
   end
 
   def early(node)
-    values = returned(node)&.arguments&.arguments
-    values&.size == 1 ? values.first : nil
+    returned, *rest = node.statements&.body
+    return if rest.any? || !returned.is_a?(Kimera::SyntaxTypes::ReturnNode)
+    value, *more = returned.arguments&.arguments
+    value if more.empty?
   end
-
-  def returned(node)
-    body = node.statements&.body
-    body.first if body&.size == 1 && body.first.is_a?(Kimera::SyntaxTypes::ReturnNode)
-  end
-
-  def cached
-    @_cached ||= nodes.grep(Kimera::SyntaxTypes::LocalVariableWriteNode)
-      .filter_map { |write| [write.name, lookup(write.value, :[])] if lookup(write.value, :[]) }.to_h
-  end
-
-  def local(node) = node.is_a?(Kimera::SyntaxTypes::LocalVariableReadNode) ? node.name : nil
 
   def mentions?(predicate, cache, name)
-    walk(predicate).any? { |node| (name && local(node) == name) || LOOKUPS.any? { lookup(node, it) == cache } }
+    walk(predicate).any? do |node|
+      (node.is_a?(LOCAL) && name && node.name == name) || LOOKUPS.any? { lookup(node, it) == cache }
+    end
   end
 
-  def lookup(node, name) = node.is_a?(Kimera::SyntaxTypes::CallNode) && node.name == name ? cache(node) : nil
+  def walk(node) = [node, *node.compact_child_nodes.flat_map { walk(it) }]
 
-  def cache(node)
-    receiver = node.receiver
+  def lookup(node, name)
+    receiver = node.receiver if node.is_a?(Kimera::SyntaxTypes::CallNode) && node.name == name
     receiver.name if CACHES.include?(receiver.class)
   end
 end

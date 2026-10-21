@@ -16,7 +16,7 @@ RSpec.describe(Kimera::Execution::IsolatedPlan::Kin) do
   let(:users) { %w[./spec/models/user_spec.rb[1:1] ./spec/models/user_spec.rb[1:2] ./spec/requests/user_spec.rb[1:1]] }
   let(:all) { [*users, "./spec/models/order_spec.rb[1:1]", "./spec/lib/report_spec.rb[1:1]"] }
 
-  def kin(coverage, paths: {}) = described_class.new(all: all, coverage: coverage, registry: registry, paths: paths)
+  def kin(coverage) = described_class.new(all: all, coverage: coverage, registry: registry)
 
   it "runs every test in the files that cover the source file, and its conventional spec files" do
     expect(kin({ id => ["./spec/lib/report_spec.rb[1:1]"] }).tests("app/models/user.rb"))
@@ -26,7 +26,8 @@ RSpec.describe(Kimera::Execution::IsolatedPlan::Kin) do
   it "maps test ids to files through the adapter's paths" do
     tests = %w[UserTest#test_a OrderTest#test_b]
     paths = { "UserTest#test_a" => "/p/test/user_test.rb", "OrderTest#test_b" => "/p/test/order_test.rb" }
-    narrowed = described_class.new(all: tests, coverage: { id => ["OrderTest#test_b"] }, registry: registry, paths:)
+    locate = paths.method(:fetch)
+    narrowed = described_class.new(all: tests, coverage: { id => ["OrderTest#test_b"] }, registry: registry, locate:)
     expect(narrowed.tests("app/models/user.rb")).to(eq(tests))
   end
 

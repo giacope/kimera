@@ -389,6 +389,11 @@
       "kind": "state_sprawl",
       "package": "Kimera::Report::Text",
       "reason": "already reported on main by the hashira release in Gemfile.lock; io, color, registry and tests are the four distinct inputs a text report needs; grouping them would be an undifferentiated bag"
+    },
+    {
+      "kind": "fragmentation",
+      "package": "Kimera::Execution::IsolatedPlan#settled",
+      "reason": "settled is the test filter's view of tests(): one line handing the same unscreened candidates to the filter; merging would copy tests()' choice of candidates"
     }
   ]
 }

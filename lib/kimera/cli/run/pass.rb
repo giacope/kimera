@@ -120,7 +120,7 @@ class Kimera::CLI::Run::Pass
       .merge(framework: @options[:framework], test_files: files, filter: filter, test_paths: paths)
   end
 
-  def paths = @adapter.test_ids.to_h { |id| [id, @adapter.test_file(id).to_s] }
+  def paths = ->(id) { @adapter.test_file(id).to_s }
 
   def limits = @options.slice(:seed, :test_quality).merge({ hard_timeout: @options[:hard_timeout] }.compact)
 end
