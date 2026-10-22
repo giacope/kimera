@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "digest"
+require_relative "suite_files"
 
 module Kimera
   module Incremental
@@ -9,7 +10,6 @@ end
 
 class Kimera::Incremental::Stamp
   ROOTS = %w[.rspec Gemfile.lock].freeze
-  GLOB = /[*?\[{]/
 
   def initialize(root:, sources:, settings:)
     @given = root
@@ -27,16 +27,9 @@ class Kimera::Incremental::Stamp
 
   def paths = (@sources + ROOTS + suite).map { |path| File.expand_path(path, root) }.uniq.sort
 
-  def suite = (patterns + folders.map { |folder| "#{folder}/**/*" }).flat_map { |glob| Dir.glob(glob, base: root) }
+  def suite = globs.flat_map { |glob| Dir.glob(glob, base: root) }
 
-  def patterns = Array(@settings[:tests])
-
-  def folders = patterns.filter_map { |pattern| folder(pattern) }.uniq
-
-  def folder(pattern)
-    first, *rest = pattern.split("/")
-    first if rest.any? && !first.match?(GLOB)
-  end
+  def globs = Kimera::Incremental::SuiteFiles.new(@settings[:tests]).globs
 
   def digest(path) = File.file?(path) ? Digest::SHA256.file(path).hexdigest : "-"
 end

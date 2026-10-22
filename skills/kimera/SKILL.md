@@ -38,7 +38,10 @@ bundle exec kimera doctor --check-baseline  # discovery, git, and a green suite
   Buildkite's base-branch variable) and on GitHub to `--summary
   $GITHUB_STEP_SUMMARY`): no new surviving mutants on changed lines. With no
   base, ci says so and runs a full run, which leaves `isolated_only` DSL
-  unjudged and ungated. **Full run nightly**, not per-PR.
+  unjudged and ungated. **Full run nightly**, not per-PR. On a big suite,
+  `--reuse-coverage` on both keeps the full run's coverage map and lets the
+  PR run rerun only the baseline tests that reach its changed files; when a
+  test, support or config file changed it says so and measures every test.
 - Exit codes: 0 pass; 1 invalid invocation or unmutated suite not green (fix
   the suite, not kimera); 2 gate failure (survivors, uncovered, ignore budget,
   or unjudged).
@@ -159,7 +162,10 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   `define_method`/`lambda`/`proc`, or a file that does not parse. It is not a
   survivor; it's a place no verdict covers.
 - On a Rails app that uses `parallelize`, `--jobs > 1` gives each worker its
-  own database, so there's no shared-DB fixture/RLS deadlock.
+  own database, so there's no shared-DB fixture/RLS deadlock. With no schema
+  file to load (a suite that migrates as it loads), each worker and mirror
+  gets a copy of the parent's PostgreSQL or SQLite database; on another
+  adapter kimera says the workers share one.
 - Operators: the default is the conservative core. `--operators all` enables
   the extended families; `--operators rails` (or `comparison,rails`) the
   Rails-aware ones.

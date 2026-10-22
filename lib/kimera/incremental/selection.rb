@@ -7,6 +7,8 @@ module Kimera
     class Selection
       def self.from_diff(since:, root: ".") = new(GitDiff.new(since: since, root: root).lines)
 
+      attr_reader :changes
+
       def initialize(changes)
         @changes = changes
       end

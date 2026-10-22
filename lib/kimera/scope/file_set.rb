@@ -30,6 +30,11 @@ module Kimera
 
     def files = listed.sort
 
+    def relative_to(root)
+      inside = Root.new(File.expand_path(root))
+      files.map { |file| inside.relative(file) }
+    end
+
     def listed = without((Array(@patterns) + Array(@include)).flat_map { |pattern| found(pattern) }.uniq)
 
     def unused
