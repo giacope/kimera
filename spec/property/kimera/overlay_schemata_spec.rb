@@ -19,6 +19,13 @@ RSpec.describe(Kimera::Overlay) do
   def every_id(registry) = registry.each.map { |mutant, _| mutant.id }
 
   # Every mutant is applied once and guarded, or skipped: none twice, none lost.
+  # Each mutant reduces to its bake, and the program with none active to the original.
+  def expect_reduced(schemata)
+    mismatches = schemata.mismatches
+    said = -> { mismatches.empty? ? "with no mutant active, the program changed" : explain(mismatches) }
+    expect([mismatches, schemata.projected(nil)]).to(eq([[], schemata.original]), said)
+  end
+
   def accounted(schemata)
     applied = schemata.result.mutant_ids.sort
     reported = (applied + schemata.result.skipped_unsafe).sort
@@ -34,9 +41,7 @@ RSpec.describe(Kimera::Overlay) do
   it "is each mutant when it is active and the original when none is, and guards every mutant it reports" do
     for_all(programs, runs: 100) do |program|
       schemata = SchemataProjection.check(render(program))
-      mismatches = schemata.mismatches
-      said = -> { mismatches.empty? ? "with no mutant active, the program changed" : explain(mismatches) }
-      expect([mismatches, schemata.projected(nil)]).to(eq([[], schemata.original]), said)
+      expect_reduced(schemata)
       accounted(schemata)
     end
   end
@@ -79,14 +84,18 @@ RSpec.describe(Kimera::Overlay) do
       Kimera::RUNTIME.active = nil
     end
 
+    # The mutants that, flipped live, answer the calls unlike their bakes.
+    def unlike_bakes(schemata, calls)
+      live = loaded(schemata.result.source)
+      schemata.result.mutant_ids.reject do |id|
+        bake = loaded(schemata.overlay.bake("x.rb", schemata.source, id))
+        flipped(live, id, calls) == calls.map { |call| outcome(bake, call) }
+      end
+    end
+
     it "behaves exactly like its bake on every input" do
       for_all(programs, inputs, runs: 40) do |program, calls|
-        schemata = SchemataProjection.check(render(program))
-        live = loaded(schemata.result.source)
-        schemata.result.mutant_ids.each do |id|
-          bake = loaded(schemata.overlay.bake("x.rb", schemata.source, id))
-          expect(flipped(live, id, calls)).to(eq(calls.map { |call| outcome(bake, call) }), "mutant #{id}")
-        end
+        expect(unlike_bakes(SchemataProjection.check(render(program)), calls)).to(be_empty)
       end
     end
   end
@@ -97,8 +106,7 @@ RSpec.describe(Kimera::Overlay) do
   it "reduces to each bake across real files" do
     root = File.expand_path("../../..", __dir__)
     sample(Dir[File.join(root, "{lib,examples}/**/*.rb")], (6 * PropertyRuns::SCALE).ceil).each do |path|
-      schemata = SchemataProjection.check(File.read(path, encoding: Encoding::UTF_8))
-      mismatches = schemata.mismatches
+      mismatches = SchemataProjection.check(File.read(path, encoding: Encoding::UTF_8)).mismatches
       expect(mismatches).to(be_empty, -> { "#{path}: #{explain(mismatches)}" })
     end
   end

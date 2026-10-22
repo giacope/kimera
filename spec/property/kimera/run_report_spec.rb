@@ -29,16 +29,22 @@ RSpec.describe(Kimera::RunReport) do
 
   def reloaded(subject) = JSON.parse(JSON.generate(subject.to_h))["results"].map { Kimera::MutantResult.from_h(it) }
 
+  # A report's score, total, statuses counted, and statuses after JSON, then what they must be.
+  def accounting(outcomes)
+    run = report(outcomes)
+    counts = run.counts
+    facts = {
+      score: run.score, total: counts[:total],
+      counted: counts.slice(*Kimera::Status::REPORTED).values.sum + outcomes.count(:killed),
+      reloaded: reloaded(run).map(&:status)
+    }
+    [facts, { score: score(outcomes), total: outcomes.size, counted: outcomes.size, reloaded: outcomes }]
+  end
+
   it "scores killed over covered, counts every result once, and survives JSON" do
     for_all(results, runs: 300) do |outcomes|
-      subject = report(outcomes)
-      counts = subject.counts
-      facts = {
-        score: subject.score, total: counts[:total],
-        counted: counts.slice(*Kimera::Status::REPORTED).values.sum + outcomes.count(:killed),
-        reloaded: reloaded(subject).map(&:status)
-      }
-      expect(facts).to(eq(score: score(outcomes), total: outcomes.size, counted: outcomes.size, reloaded: outcomes))
+      facts, expected = accounting(outcomes)
+      expect(facts).to(eq(expected))
     end
   end
 
@@ -87,28 +93,39 @@ RSpec.describe(Kimera::RunReport) do
       end
     end
 
-    it "passes at each threshold and fails one past it", :aggregate_failures do
-      expect(status([:killed], {})).to(eq(0))
-      expect(status([:survived], {})).to(eq(2))
-      expect([status([:survived], max_survivors: 1), status(%i[survived survived], max_survivors: 1)]).to(eq([0, 2]))
-      expect([status([:ignored] * 2, max_ignored: 2), status([:ignored] * 3, max_ignored: 2)]).to(eq([0, 2]))
-      expect([status([:ignored] * 9, {}), status([:harness_error], {})]).to(eq([0, 2]))
-      expect([status([:harness_error], max_errors: 1), status([:harness_error] * 2, max_errors: 1)]).to(eq([0, 2]))
-      expect([status([:no_coverage], {}), status([:no_coverage], fail_on_no_coverage: true)]).to(eq([0, 2]))
-      expect(status([:no_coverage], count_no_coverage: true)).to(eq(2))
-      expect([status([:isolated_only], {}), status(%i[isolated_only killed], {})]).to(eq([2, 0]))
-      expect(status(%i[isolated_only survived], max_survivors: 1)).to(eq(2))
+    # Outcomes, gate settings, and the status they must give.
+    def thresholds
+      [
+        [[:killed], {}, 0], [[:survived], {}, 2],
+        [[:survived], { max_survivors: 1 }, 0], [%i[survived survived], { max_survivors: 1 }, 2],
+        [[:ignored] * 2, { max_ignored: 2 }, 0], [[:ignored] * 3, { max_ignored: 2 }, 2],
+        [[:ignored] * 9, {}, 0], [[:harness_error], {}, 2],
+        [[:harness_error], { max_errors: 1 }, 0], [[:harness_error] * 2, { max_errors: 1 }, 2],
+        [[:no_coverage], {}, 0], [[:no_coverage], { fail_on_no_coverage: true }, 2],
+        [[:no_coverage], { count_no_coverage: true }, 2],
+        [[:isolated_only], {}, 2], [%i[isolated_only killed], {}, 0],
+        [%i[isolated_only survived], { max_survivors: 1 }, 2]
+      ]
+    end
+
+    it "passes at each threshold and fails one past it" do
+      expect(thresholds.reject { |outcomes, options, wanted| status(outcomes, options) == wanted }).to(be_empty)
     end
   end
 
   describe Kimera::Report::Tally do
+    # The width of the bar drawn after each tick.
+    def widths(total, ticks)
+      tally = described_class.new(total, "mutants", 0.0)
+      ticks.first(total).each_with_index.map do |status, i|
+        tally.count!(status)
+        tally.line(i + 1.5)[/\[[^\]]*\]/].size
+      end
+    end
+
     it "draws a bar of fixed width at every point of a run" do
       for_all(Pbt.integer(min: 1, max: 5000), Pbt.array(statuses, max: 60), runs: 300) do |total, ticks|
-        tally = described_class.new(total, "mutants", 0.0)
-        ticks.first(total).each_with_index do |status, i|
-          tally.count!(status)
-          expect(tally.line(i + 1.5)[/\[[^\]]*\]/].size).to(eq(described_class::BAR_WIDTH + 2))
-        end
+        expect(widths(total, ticks).uniq - [described_class::BAR_WIDTH + 2]).to(be_empty)
       end
     end
   end

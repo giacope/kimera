@@ -235,14 +235,19 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
   # The trace is checked once all runs are in: one TLC run per pool size.
   shared_examples("a pool the model describes") do
-    it "gives each mutant the one verdict its script calls for, and steps as formal/WorkerPool.tla does" do
+    # Each scripted run, judged; its job count and trace.
+    def scripted_runs
       runs = []
       for_all(scripts, Pbt.integer(min: 1, max: 3), runs: 30) do |script, jobs|
         tally = supervised(script, jobs)
         runs << [jobs, tally[:trace]]
         judged(tally, script, jobs)
       end
-      accepted, report = conforming(runs)
+      runs
+    end
+
+    it "gives each mutant the one verdict its script calls for, and steps as formal/WorkerPool.tla does" do
+      accepted, report = conforming(scripted_runs)
       expect(accepted).to(be(true), "a run is not a behavior of the model:\n#{report}")
     end
   end
@@ -254,8 +259,8 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     tally = supervised(script, 1, mutant: mutant)
     safe(tally, script)
     expect(verdicts(tally[:events])).to(match_array(expected(script)))
-    accepted, report = conforming([[1, tally[:trace]]])
-    expect([accepted, report[/REJECTED at step \d+/]]).to(eq([false, "REJECTED at step 5"]))
+    expect(conforming([[1, tally[:trace]]]).then { |accepted, report| [accepted, report[/REJECTED at step \d+/]] })
+      .to(eq([false, "REJECTED at step 5"]))
   end
 
   it "times out a worker that flushes half a line and hangs with its pipe open" do

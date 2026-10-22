@@ -70,26 +70,29 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
     end
 
     # The oracle below is only as good as this check.
-    it "judges subsequences exactly", :aggregate_failures do
-      expect(Subsequence.of?([], [])).to(be(true))
-      expect(Subsequence.of?([], %w[a])).to(be(true))
-      expect(Subsequence.of?(%w[a], [])).to(be(false))
-      expect(Subsequence.of?(%w[a c], %w[a b c])).to(be(true))
-      expect(Subsequence.of?(%w[z], %w[a b])).to(be(false))
-      expect(Subsequence.of?(%w[b a], %w[a b])).to(be(false))
-      expect(Subsequence.of?(%w[a a], %w[a])).to(be(false))
-      expect(Subsequence.of?(%w[a a], %w[a b a])).to(be(true))
+    it "judges subsequences exactly" do
+      cases = {
+        [[], []] => true, [[], %w[a]] => true, [%w[a], []] => false, [%w[a c], %w[a b c]] => true,
+        [%w[z], %w[a b]] => false, [%w[b a], %w[a b]] => false, [%w[a a], %w[a]] => false, [%w[a a], %w[a b a]] => true
+      }
+      expect(cases.reject { |(part, whole), wanted| Subsequence.of?(part, whole) == wanted }).to(be_empty)
     end
 
     it "reports a line an edit inserts" do
       expect(edited(%w[a b], %w[a z b]).to_a).to(eq([2]))
     end
 
+    # Lines reported past the file's end, and whether the unreported lines are
+    # old ones in order; then the unreported lines.
+    def reporting(old, new)
+      reported = edited(old, new)
+      kept = new.each_with_index.reject { |_, i| reported.include?(i + 1) }.map(&:first)
+      [{ beyond_the_file: reported.to_a - (1..new.size).to_a, unreported_are_old: Subsequence.of?(kept, old) }, kept]
+    end
+
     it "reports every line that is not an unchanged line of the old file" do
       for_all(lines, lines, runs: 40) do |old, new|
-        reported = edited(old, new)
-        kept = new.each_with_index.reject { |_, i| reported.include?(i + 1) }.map(&:first)
-        facts = { beyond_the_file: reported.to_a - (1..new.size).to_a, unreported_are_old: Subsequence.of?(kept, old) }
+        facts, kept = reporting(old, new)
         expect(facts).to(eq(beyond_the_file: [], unreported_are_old: true), "unreported: #{kept}")
       end
     end
