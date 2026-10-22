@@ -41,43 +41,44 @@ RSpec.describe("kimera run on a suite whose hooks misbehave under kimera (end-to
     end
   RUBY
 
-  it "runs the suite's hooks once, so two workers kill what one does" do
+  # The run over the calculator's spec and the given files, and its project root.
+  def hooked(files, *arguments)
     Dir.mktmpdir("kimera-hooks") do |root|
-      project(root, "spec/calc_spec.rb" => calculator)
-      test_run(cwd: root, arguments: ["--jobs", "2"]) do |output, report, status|
-        expect(report).not_to(be_nil, "no JSON report; output:\n#{output}")
-        expect(report["results"].map { |r| r["status"] }.uniq).to(eq(["killed"]))
-        expect(File.read(File.join(root, "hooks.log"))).to(eq("ran\n"))
-        expect(status).to(eq(0))
-      end
+      project(root, { "spec/calc_spec.rb" => calculator }.merge(files))
+      yield(test_outcome(cwd: root, arguments: arguments), root)
+    end
+  end
+
+  def outside = <<~RUBY
+    require_relative "spec_helper"
+    RSpec.describe("plain") { it("runs outside kimera") { expect($PROGRAM_NAME).not_to end_with("kimera") } }
+  RUBY
+
+  def failing = <<~RUBY
+    require_relative "spec_helper"
+    RSpec.describe("red") { it("fails anywhere") { expect(1).to eq(2) } }
+  RUBY
+
+  it "runs the suite's hooks once, so two workers kill what one does" do
+    hooked({}, "--jobs", "2") do |run, root|
+      expect([run.statuses, run.status]).to(eq([["killed"], 0]), run.output)
+      expect(File.read(File.join(root, "hooks.log"))).to(eq("ran\n"))
     end
   end
 
   it "stops with a harness error when a test fails only under kimera" do
-    Dir.mktmpdir("kimera-hooks") do |root|
-      only = "require_relative \"spec_helper\"\n" \
-        "RSpec.describe(\"plain\") { it(\"runs outside kimera\") " \
-        "{ expect($PROGRAM_NAME).not_to end_with(\"kimera\") } }\n"
-      project(root, "spec/calc_spec.rb" => calculator, "spec/plain_spec.rb" => only)
-      test_run(cwd: root) do |output, _report, status|
-        expect(output).to(include("harness error: 1 test(s) fail under kimera but pass in a plain run"))
-        expect(output).to(include("./spec/plain_spec.rb[1:1]"))
-        expect(status).to(eq(1))
-      end
+    hooked({ "spec/plain_spec.rb" => outside }) do |run|
+      expect(run.output).to(
+        include("harness error: 1 test(s) fail under kimera but pass in a plain run", "./spec/plain_spec.rb[1:1]")
+      )
+      expect(run.status).to(eq(1))
     end
   end
 
   it "excludes a test that fails plainly too, saying its coverage is unknown" do
-    Dir.mktmpdir("kimera-hooks") do |root|
-      red = "require_relative \"spec_helper\"\n" \
-        "RSpec.describe(\"red\") { it(\"fails anywhere\") { expect(1).to eq(2) } }\n"
-      project(root, "spec/calc_spec.rb" => calculator, "spec/red_spec.rb" => red)
-      test_run(cwd: root) do |output, report, status|
-        expect(output).to(include("1 test(s) fail in the baseline, in a plain run too"))
-        expect(output).to(include("their coverage is unknown"))
-        expect(report["results"].map { |r| r["status"] }.uniq).to(eq(["killed"]))
-        expect(status).to(eq(0))
-      end
+    hooked({ "spec/red_spec.rb" => failing }) do |run|
+      expect(run.output).to(include("1 test(s) fail in the baseline, in a plain run too", "their coverage is unknown"))
+      expect([run.statuses, run.status]).to(eq([["killed"], 0]))
     end
   end
 end

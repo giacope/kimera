@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "open3"
-require "tmpdir"
 
 # giacope/kimera#6: a helper that gates its coverage floor on KIMERA, as the
 # README advises, must pass every Kimera entry point without the caller
@@ -41,17 +40,23 @@ RSpec.describe("KIMERA in the suite's environment") do
     [output.force_encoding(Encoding::UTF_8), status]
   end
 
-  it "keeps a gated floor quiet in a warm run and in doctor", :aggregate_failures do
+  def suite_env(*)
     Dir.mktmpdir("kimera-suite-env") do |dir|
       project(dir)
       specs(dir)
-      output, status = launch(dir, "run", "app", "--tests", "spec/**/*_spec.rb", "--jobs", "1")
-      expect(status.exitstatus).to(eq(0), output)
-      expect(output).to(include("survived=0"))
-      expect(output).not_to(include("SimpleCov failed"))
-
-      output, = launch(dir, "doctor")
-      expect(output).to(include("✓ Test loading: every test file loads"))
+      launch(dir, *)
     end
+  end
+
+  it "keeps a gated floor quiet in a warm run", :aggregate_failures do
+    output, status = suite_env("run", "app", "--tests", "spec/**/*_spec.rb", "--jobs", "1")
+    expect(status.exitstatus).to(eq(0), output)
+    expect(output).to(include("survived=0"))
+    expect(output).not_to(include("SimpleCov failed"))
+  end
+
+  it "keeps a gated floor quiet in doctor" do
+    output, = suite_env("doctor")
+    expect(output).to(include("✓ Test loading: every test file loads"))
   end
 end
