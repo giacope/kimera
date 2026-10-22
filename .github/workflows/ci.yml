@@ -133,8 +133,7 @@ jobs:
           key: tla2tools-1.7.4
       - run: bin/model-check --deep
 
-  # hashira fails on any coupling/complexity/duplication/smell finding not in
-  # hashira_baseline.json.
+  # hashira fails on any finding of a kind it checks; there is no baseline.
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -144,7 +143,7 @@ jobs:
           ruby-version: "3.4"
           bundler-cache: true
       - run: bundle exec rubocop
-      - run: bundle exec hashira --ratchet
+      - run: bundle exec hashira --fail-on all
 
   # Self-gate: every mutant on the PR's changed lines killed and covered.
   mutation:
