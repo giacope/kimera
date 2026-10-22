@@ -32,6 +32,11 @@ module KimeraSubprocess
     Data.define(:output, :report, :status) do
       def results = report ? report.fetch("results") : []
 
+      def counts = report ? report.fetch("counts") : {}
+
+      # Each mutant's status, by id.
+      def verdicts = results.to_h { |row| [row["mutant_id"], row["status"]] }
+
       # The distinct statuses of the results for a file, or for every file.
       def statuses(file = nil)
         results.select { |row| file.nil? || row["file"] == file }.map { |row| row["status"] }.uniq
