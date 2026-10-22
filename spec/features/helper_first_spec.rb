@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-require "fileutils"
-require "tmpdir"
-
 # Spec-style Minitest files that never require their helper, which the
 # project's Rake task preloads with -r: listing the helper first in `tests:`
 # loads it first.
@@ -18,17 +15,14 @@ RSpec.describe("kimera run with a helper listed first in tests (end-to-end)", :a
     RUBY
   }
 
+  def ran
+    arguments = ["--framework", "minitest", "--no-progress", "--tests", "test/**/*_test.rb"]
+    test_tree(files, "kimera-helper") { |root| test_outcome(cwd: root, tests: "test/helper.rb", arguments: arguments) }
+  end
+
   it "loads the helper before the test files that rely on it" do
-    Dir.mktmpdir("kimera-helper") do |root|
-      files.each do |path, body|
-        FileUtils.mkdir_p(File.dirname(File.join(root, path)))
-        File.write(File.join(root, path), body)
-      end
-      arguments = ["--framework", "minitest", "--no-progress", "--tests", "test/**/*_test.rb"]
-      test_run(cwd: root, tests: "test/helper.rb", arguments: arguments) do |output, report, _status|
-        expect(report).not_to(be_nil, output)
-        expect(report.fetch("counts")["killed"]).to(eq(report.fetch("counts")["total"]))
-      end
-    end
+    run = ran
+    expect(run.report).not_to(be_nil, run.output)
+    expect(run.report.fetch("counts").values_at("killed", "total").uniq.size).to(eq(1))
   end
 end

@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-require "fileutils"
-require "tmpdir"
-
 # Every test runs, in the baseline and for each mutant, in a process forked
 # from one no test has run in. So a cache another file fills, a test that
 # hides a later caller behind that cache, and a registry later tests add to
@@ -58,28 +55,24 @@ RSpec.describe("kimera run on a suite whose state outlives a test (end-to-end)",
     RUBY
   }
 
-  def project(root)
-    files.each do |path, body|
-      FileUtils.mkdir_p(File.dirname(File.join(root, path)))
-      File.write(File.join(root, path), body)
+  def verdicts(report) = report.fetch("results").to_h { |row| ["#{row["file"]} #{row["label"]}", row["status"]] }
+
+  def ran(jobs)
+    test_tree(files, "kimera-state") do |root|
+      test_outcome(cwd: root, arguments: ["--jobs", jobs.to_s, "--no-progress"])
     end
   end
 
-  def verdicts(report) = report.fetch("results").to_h { |row| ["#{row["file"]} #{row["label"]}", row["status"]] }
+  # The verdicts that tell a fresh run of the suite from a stale one, and the leaks.
+  def telling(run)
+    plugins = verdicts(run.report).values_at("app/plugins.rb condition => true", "app/plugins.rb condition => false")
+    [run.statuses("app/rate.rb"), plugins, run.report.fetch("leaks")]
+  end
 
   [1, 2].each do |jobs|
     it "judges each mutant as a fresh run of the suite would, at --jobs #{jobs}" do
-      Dir.mktmpdir("kimera-state") do |root|
-        project(root)
-        test_run(cwd: root, arguments: ["--jobs", jobs.to_s, "--no-progress"]) do |output, report, _status|
-          expect(report).not_to(be_nil, output)
-          found = verdicts(report)
-          expect(found.select { |key, _| key.start_with?("app/rate.rb") }.values.uniq).to(eq(["killed"]))
-          expect(found.fetch("app/plugins.rb condition => true")).to(eq("survived"))
-          expect(found.fetch("app/plugins.rb condition => false")).to(eq("killed"))
-          expect(report.fetch("leaks")).to(be_empty)
-        end
-      end
+      run = ran(jobs)
+      expect(telling(run)).to(eq([["killed"], %w[survived killed], []]), run.output)
     end
   end
 end
