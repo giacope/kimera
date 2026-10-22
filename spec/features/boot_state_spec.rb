@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-require "fileutils"
-require "tmpdir"
-
 # Table::RATES is built while the suite loads, before any guard exists, so a
 # warm run of a Rate.compute mutant can't change it.
 RSpec.describe("kimera run on a method that also ran while the suite loaded (end-to-end)", :aggregate_failures) do
@@ -28,21 +25,11 @@ RSpec.describe("kimera run on a method that also ran while the suite loaded (end
     RUBY
   }
 
-  def project(root)
-    files.each do |path, body|
-      FileUtils.mkdir_p(File.dirname(File.join(root, path)))
-      File.write(File.join(root, path), body)
-    end
-  end
+  def ran = test_tree(files, "kimera-boot") { |root| test_outcome(cwd: root, arguments: ["--no-progress"]) }
 
   it "judges its warm survivors again against the whole suite, in fresh mirrors" do
-    Dir.mktmpdir("kimera-boot") do |root|
-      project(root)
-      test_run(cwd: root, arguments: ["--no-progress"]) do |output, report, status|
-        expect(report.fetch("results").map { |row| row["status"] }.uniq).to(eq(["killed"]), output)
-        expect(report.fetch("results").filter_map { |row| row["note"] }.size).to(eq(2))
-        expect(status).to(eq(0))
-      end
-    end
+    run = ran
+    notes = run.results.filter_map { |row| row["note"] }
+    expect([run.statuses, notes.size, run.status]).to(eq([["killed"], 2, 0]), run.output)
   end
 end
