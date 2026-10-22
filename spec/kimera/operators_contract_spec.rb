@@ -36,20 +36,29 @@ RSpec.describe(Kimera::Operators) do
     end
   RUBY
 
-  def built(key)
-    Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: [key])).source(contract_src, file: "contracts.rb")
+  def scan(keys, code = contract_src, file = "contracts.rb")
+    Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: Array(keys))).source(code, file: file)
   end
+
+  def built(key) = scan(key)
 
   def labels(key)
     built(key).each.map { |m, _p| m.label }
   end
 
-  def with_overlay(key)
+  def overlaid(catalog, code, file)
+    synthesized = Kimera::Overlay.new(catalog).synthesize(file, code)
+    Kimera::Overlay::Source.new(synthesized.source).evaluate(File.expand_path(file))
+  end
+
+  # What the block answers for a Contracts under the key's overlay, with the
+  # labelled mutant active, or none.
+  def under(key, label = nil)
     stub_const("Contracts", Class.new)
     catalog = built(key)
-    Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("contracts.rb", contract_src).source)
-      .evaluate(File.expand_path("contracts.rb"))
-    yield(catalog.each.to_h { |m, _p| [m.label, m.id] }, catalog)
+    overlaid(catalog, contract_src, "contracts.rb")
+    id = label && catalog.each.to_h { |m, _p| [m.label, m.id] }.fetch(label)
+    active(id) { yield(Contracts.new) }
   ensure
     Kimera::RUNTIME.reset!
   end
@@ -61,18 +70,23 @@ RSpec.describe(Kimera::Operators) do
     Kimera::RUNTIME.active = nil
   end
 
+  def contract_keys = %w[index_fetch kernel_coercion respond_to_guard symbol_literal default_argument]
+
   describe "index_fetch" do
-    it "turns a tolerated miss into a KeyError", :aggregate_failures do
+    it "has one label" do
       expect(labels("index_fetch")).to(eq(["[] => fetch"]))
-      with_overlay("index_fetch") do |ids|
-        object = Contracts.new
-        expect(object.lookup({ a: 1 }, :a)).to(eq(1))
-        expect(object.lookup({ a: 1 }, :nope)).to(be_nil)
-        active(ids.fetch("[] => fetch")) do
-          expect(object.lookup({ a: 1 }, :a)).to(eq(1))
-          expect { object.lookup({ a: 1 }, :nope) }.to(raise_error(KeyError))
-        end
-      end
+    end
+
+    it "leaves a hit and a tolerated miss alone with no mutant active" do
+      expect(under("index_fetch") { |o| [o.lookup({ a: 1 }, :a), o.lookup({ a: 1 }, :nope)] }).to(eq([1, nil]))
+    end
+
+    it "still answers a hit" do
+      expect(under("index_fetch", "[] => fetch") { |o| o.lookup({ a: 1 }, :a) }).to(eq(1))
+    end
+
+    it "turns a tolerated miss into a KeyError" do
+      expect { under("index_fetch", "[] => fetch") { |o| o.lookup({ a: 1 }, :nope) } }.to(raise_error(KeyError))
     end
 
     it "carries the bare directive and skips writes, multi-index reads and splats", :aggregate_failures do
@@ -98,10 +112,8 @@ RSpec.describe(Kimera::Operators) do
       expect(blocked.each.count).to(eq(0))
     end
 
-    # Dropping `&.` too would mutate nil- and miss-tolerance at once, so a survivor is unattributable.
-    it "rewrites the explicit and safe-navigated spellings, preserving &.", :aggregate_failures do
-      stub_const("Spellings", Class.new)
-      code = <<~RUBY
+    describe "on the explicit and safe-navigated spellings" do
+      let(:spellings) { <<~RUBY }
         class Spellings
           def explicit(h, k)
             h.[](k)
@@ -112,35 +124,55 @@ RSpec.describe(Kimera::Operators) do
           end
         end
       RUBY
-      catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["index_fetch"]))
-        .source(code, file: "spellings.rb")
-      sources = catalog.each.map { |m, p| Kimera::Rewrite::Directive.new(m.directive).render(p.original_source) }
-      expect(sources).to(contain_exactly("h.fetch(k)", "h&.fetch(k)"))
 
-      result = Kimera::Overlay.new(catalog).synthesize("spellings.rb", code)
-      Kimera::Overlay::Source.new(result.source).evaluate(File.expand_path("spellings.rb"))
-      ids = catalog.each.to_h { |m, p| [p.original_source, m.id] }
-      object = Spellings.new
-      expect(object.explicit({ a: 1 }, :nope)).to(be_nil)
-      expect(object.maybe(nil, :k)).to(be_nil)
-      active(ids.fetch("h.[](k)")) { expect { object.explicit({ a: 1 }, :nope) }.to(raise_error(KeyError)) }
-      active(ids.fetch("h&.[](k)")) do
-        expect(object.maybe(nil, :k)).to(be_nil)
-        expect { object.maybe({ a: 1 }, :nope) }.to(raise_error(KeyError))
+      # What the block answers for a Spellings, with the mutant of the point
+      # whose source is given active, or none.
+      def spelled(source)
+        stub_const("Spellings", Class.new)
+        catalog = scan("index_fetch", spellings, "spellings.rb")
+        overlaid(catalog, spellings, "spellings.rb")
+        id = source && catalog.each.to_h { |m, p| [p.original_source, m.id] }.fetch(source)
+        active(id) { yield(Spellings.new) }
+      ensure
+        Kimera::RUNTIME.reset!
       end
-    ensure
-      Kimera::RUNTIME.reset!
+
+      it "rewrites both, preserving &." do
+        catalog = scan("index_fetch", spellings, "spellings.rb")
+        sources = catalog.each.map { |m, p| Kimera::Rewrite::Directive.new(m.directive).render(p.original_source) }
+        expect(sources).to(contain_exactly("h.fetch(k)", "h&.fetch(k)"))
+      end
+
+      it "tolerates a miss and nil with no mutant active" do
+        expect(spelled(nil) { |o| [o.explicit({ a: 1 }, :nope), o.maybe(nil, :k)] }).to(eq([nil, nil]))
+      end
+
+      it "raises on a miss through the explicit spelling" do
+        expect { spelled("h.[](k)") { |o| o.explicit({ a: 1 }, :nope) } }.to(raise_error(KeyError))
+      end
+
+      # Dropping `&.` too would mutate nil- and miss-tolerance at once, so a survivor is unattributable.
+      it "keeps nil tolerance through the safe-navigated spelling" do
+        expect(spelled("h&.[](k)") { |o| o.maybe(nil, :k) }).to(be_nil)
+      end
+
+      it "raises on a miss through the safe-navigated spelling" do
+        expect { spelled("h&.[](k)") { |o| o.maybe({ a: 1 }, :nope) } }.to(raise_error(KeyError))
+      end
     end
   end
 
   describe "kernel_coercion" do
-    it "drops the normalization, exposing what the argument really is", :aggregate_failures do
+    it "has one label" do
       expect(labels("kernel_coercion")).to(eq(["delete Array()"]))
-      with_overlay("kernel_coercion") do |ids|
-        object = Contracts.new
-        expect(object.norm(nil)).to(eq([]))
-        active(ids.fetch("delete Array()")) { expect(object.norm(nil)).to(be_nil) }
-      end
+    end
+
+    it "normalizes nil with no mutant active" do
+      expect(under("kernel_coercion") { |o| o.norm(nil) }).to(eq([]))
+    end
+
+    it "drops the normalization, exposing what the argument really is" do
+      expect(under("kernel_coercion", "delete Array()") { |o| o.norm(nil) }).to(be_nil)
     end
 
     it "skips a receiver'd call, a block, and multi-argument Integer()" do
@@ -166,14 +198,16 @@ RSpec.describe(Kimera::Operators) do
   end
 
   describe "respond_to_guard" do
-    it "collapses the duck-type check to the receiver's own truthiness", :aggregate_failures do
+    it "has one label" do
       expect(labels("respond_to_guard")).to(eq(["delete .respond_to?"]))
-      with_overlay("respond_to_guard") do |ids|
-        object = Contracts.new
-        expect(object.duck([1])).to(be(true))
-        expect(object.duck(1)).to(be(false))
-        active(ids.fetch("delete .respond_to?")) { expect(object.duck(1)).to(eq(1)) }
-      end
+    end
+
+    it "answers the duck-type check with no mutant active" do
+      expect(under("respond_to_guard") { |o| [o.duck([1]), o.duck(1)] }).to(eq([true, false]))
+    end
+
+    it "collapses the duck-type check to the receiver's own truthiness" do
+      expect(under("respond_to_guard", "delete .respond_to?") { |o| o.duck(1) }).to(eq(1))
     end
 
     it "accepts the private-methods arity but not a computed method name" do
@@ -203,12 +237,12 @@ RSpec.describe(Kimera::Operators) do
   end
 
   describe "symbol_literal" do
-    it "renames a symbol so any name-identity dependency breaks", :aggregate_failures do
-      with_overlay("symbol_literal") do |ids|
-        object = Contracts.new
-        expect(object.tag).to(eq(:ok))
-        active(ids.fetch(":ok => :ok__kimera__")) { expect(object.tag).to(eq(:ok__kimera__)) }
-      end
+    it "keeps the symbol with no mutant active" do
+      expect(under("symbol_literal", &:tag)).to(eq(:ok))
+    end
+
+    it "renames a symbol so any name-identity dependency breaks" do
+      expect(under("symbol_literal", ":ok => :ok__kimera__", &:tag)).to(eq(:ok__kimera__))
     end
 
     # A label (`tier:`) has no parser-side node, so it would report no_coverage forever.
@@ -240,35 +274,48 @@ RSpec.describe(Kimera::Operators) do
   end
 
   describe "default_argument" do
-    it "makes an optional positional and keyword parameter required", :aggregate_failures do
+    it "makes an optional positional and keyword parameter required" do
       expect(labels("default_argument"))
         .to(contain_exactly("default => required (name)", "default => required (punct)"))
-
-      with_overlay("default_argument") do |ids|
-        object = Contracts.new
-        expect(object.greet).to(eq("hi world!"))
-
-        active(ids.fetch("default => required (name)")) do
-          expect { object.greet }.to(raise_error(ArgumentError, /missing argument: name/))
-          expect(object.greet("bob")).to(eq("hi bob!"))
-        end
-
-        active(ids.fetch("default => required (punct)")) do
-          expect { object.greet("bob") }.to(raise_error(ArgumentError, /missing keyword: punct/))
-          expect(object.greet("bob", punct: "?")).to(eq("hi bob?"))
-        end
-      end
     end
 
-    it "bakes to a genuinely required parameter", :aggregate_failures do
+    it "keeps both defaults with no mutant active" do
+      expect(under("default_argument", &:greet)).to(eq("hi world!"))
+    end
+
+    it "requires the positional parameter" do
+      expect { under("default_argument", "default => required (name)", &:greet) }
+        .to(raise_error(ArgumentError, /missing argument: name/))
+    end
+
+    it "still accepts the positional argument" do
+      expect(under("default_argument", "default => required (name)") { |o| o.greet("bob") }).to(eq("hi bob!"))
+    end
+
+    it "requires the keyword parameter" do
+      expect { under("default_argument", "default => required (punct)") { |o| o.greet("bob") } }
+        .to(raise_error(ArgumentError, /missing keyword: punct/))
+    end
+
+    it "still accepts the keyword argument" do
+      expect(under("default_argument", "default => required (punct)") { |o| o.greet("bob", punct: "?") })
+        .to(eq("hi bob?"))
+    end
+
+    # Each mutant's baked `def greet` line, by label.
+    def greets
       catalog = built("default_argument")
       overlay = Kimera::Overlay.new(catalog)
-      baked =
-        catalog.each.to_h do |m, _p|
-          [m.label, overlay.bake("contracts.rb", contract_src, m.id).lines.grep(/def greet/).first.strip]
-        end
-      expect(baked.fetch("default => required (name)")).to(eq('def greet(name, punct: "!")'))
-      expect(baked.fetch("default => required (punct)")).to(eq('def greet(name = "world", punct:)'))
+      catalog.each.to_h { |m, _p| [m.label, overlay.bake("contracts.rb", contract_src, m.id)[/def greet.*/]] }
+    end
+
+    it "bakes to a genuinely required parameter" do
+      expect(greets).to(
+        eq(
+          "default => required (name)" => 'def greet(name, punct: "!")',
+          "default => required (punct)" => 'def greet(name = "world", punct:)'
+        )
+      )
     end
 
     it "renders a report line for a parameter slice, which is not a parseable expression" do
@@ -278,23 +325,21 @@ RSpec.describe(Kimera::Operators) do
   end
 
   describe "selector_swap filter_map" do
-    it "stops filtering, one-way (map is never swapped to filter_map)", :aggregate_failures do
-      with_overlay("selector_swap") do |ids|
-        object = Contracts.new
-        expect(object.compact([1, nil, 2])).to(eq([1, 2]))
-        active(ids.fetch("filter_map => map")) { expect(object.compact([1, nil, 2])).to(eq([1, nil, 2])) }
-      end
+    it "keeps filtering with no mutant active" do
+      expect(under("selector_swap") { |o| o.compact([1, nil, 2]) }).to(eq([1, 2]))
+    end
 
-      catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["selector_swap"]))
-        .source("def m(xs)\n  xs.map { |x| x }\nend\n", file: "m.rb")
-      expect(catalog.each.count).to(eq(0))
+    it "stops filtering" do
+      expect(under("selector_swap", "filter_map => map") { |o| o.compact([1, nil, 2]) }).to(eq([1, nil, 2]))
+    end
+
+    it "is one-way: map is never swapped to filter_map" do
+      expect(scan("selector_swap", "def m(xs)\n  xs.map { |x| x }\nend\n", "m.rb").each.count).to(eq(0))
     end
   end
 
-  # A point the overlay cannot apply is permanent no_coverage noise.
-  it "applies every schema-safe point it proposes, across awkward positions", :aggregate_failures do
-    keys = %w[index_fetch kernel_coercion respond_to_guard symbol_literal default_argument]
-    code = <<~RUBY
+  describe "awkward positions" do
+    let(:awkward) { <<~RUBY }
       class Awkward
         def indexes(h, a)
           h[:k] += 1
@@ -317,25 +362,34 @@ RSpec.describe(Kimera::Operators) do
         end
       end
     RUBY
-    catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: keys)).source(code, file: "awkward.rb")
-    safe = catalog.points.select(&:safe?).flat_map(&:ids)
-    expect(safe.size).to(be > 10)
 
-    result = Kimera::Overlay.new(catalog).synthesize("awkward.rb", code)
-    expect(result.mutant_ids).to(match_array(safe))
-    expect { RubyVM::AbstractSyntaxTree.parse(result.source) }.not_to(raise_error)
+    def safe(catalog) = catalog.points.select(&:safe?).flat_map(&:ids)
+
+    it "hold more than ten schema-safe points" do
+      expect(safe(scan(contract_keys, awkward, "awkward.rb")).size).to(be > 10)
+    end
+
+    # A point the overlay cannot apply is permanent no_coverage noise.
+    it "are all applied by the overlay, into source that parses", :aggregate_failures do
+      catalog = scan(contract_keys, awkward, "awkward.rb")
+      result = Kimera::Overlay.new(catalog).synthesize("awkward.rb", awkward)
+      expect(result.mutant_ids).to(match_array(safe(catalog)))
+      expect { RubyVM::AbstractSyntaxTree.parse(result.source) }.not_to(raise_error)
+    end
+  end
+
+  def parses?(source)
+    RubyVM::AbstractSyntaxTree.parse(source)
+    true
+  rescue SyntaxError
+    false
   end
 
   it "bakes every contract mutant into source that still parses", :aggregate_failures do
-    keys = %w[index_fetch kernel_coercion respond_to_guard symbol_literal default_argument]
-    catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: keys))
-      .source(contract_src, file: "contracts.rb")
+    catalog = scan(contract_keys)
     overlay = Kimera::Overlay.new(catalog)
     expect(catalog.each.count).to(be > 5)
-    catalog.each.map { |mutant, _point| mutant }.each do |mutant|
-      baked = overlay.bake("contracts.rb", contract_src, mutant.id)
-      message = "#{mutant.label} baked to unparseable source"
-      expect { RubyVM::AbstractSyntaxTree.parse(baked) }.not_to(raise_error, message)
-    end
+    baked = catalog.each.to_h { |mutant, _point| [mutant.label, overlay.bake("contracts.rb", contract_src, mutant.id)] }
+    expect(baked.reject { |_label, source| parses?(source) }.keys).to(be_empty)
   end
 end
