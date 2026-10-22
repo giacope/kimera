@@ -39,12 +39,7 @@ RSpec.describe(Kimera::CLI::Run) do
   end
 
   def full(*argv)
-    allow(Kimera::Execution::Harness).to(receive(:build).and_wrap_original) do |original, **kwargs|
-      original.call(**kwargs).tap do |harness|
-        allow(harness).to(receive(:warm!))
-        allow(harness).to(receive(:run).and_return(Kimera::RunReport.new(results: [])))
-      end
-    end
+    stub_harness
     cli.run(["calc.rb", *argv])
   end
 

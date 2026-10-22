@@ -189,14 +189,18 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     expect(command.baseline).to(eq(["✗", "Baseline: Bundler is unavailable; run your test suite, then retry"]))
   end
 
-  def parallel(framework, outputs)
-    command = described_class.new(framework, ["t.rb"], root: "/app")
+  # Each shard's command answers with its own output; an empty one passes.
+  def answering(framework, outputs)
     shards = outputs.each_index.map { |index| Kimera::CLI::TestShard.new(index, outputs.size).argv(framework) }
     allow(Kimera::Execution::SUITE).to(receive(:call)) do |_env, *argv, **|
       output = outputs[shards.index { |shard| argv.each_cons(shard.size).include?(shard) }]
       [output, status(output.empty?)]
     end
-    command.parallel(outputs.size)
+  end
+
+  def parallel(framework, outputs)
+    answering(framework, outputs)
+    described_class.new(framework, ["t.rb"], root: "/app").parallel(outputs.size)
   end
 
   def shard(framework, index, count)

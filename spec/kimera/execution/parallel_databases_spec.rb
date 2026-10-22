@@ -322,20 +322,25 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
 
     let(:errors) { StringIO.new }
 
-    def rails(names, env = ENV)
-      configurations =
-        Class.new do
-          define_method(:initialize) do |*|
-            @named =
-              names.call(env.fetch("TEST_ENV_NUMBER", nil)).map do |db|
-                Struct.new(:name, :database).new("primary", db)
-              end
-          end
-          define_method(:configs_for) do |env_name:, name: nil|
-            named = env_name == "test" ? @named : []
-            name ? named.first : named
-          end
+    # Stand-in for ActiveRecord::DatabaseConfigurations: +names+ maps the
+    # worker's TEST_ENV_NUMBER to its test database names.
+    def configurations_for(names, env)
+      Class.new do
+        define_method(:initialize) do |*|
+          @named =
+            names.call(env.fetch("TEST_ENV_NUMBER", nil)).map do |db|
+              Struct.new(:name, :database).new("primary", db)
+            end
         end
+        define_method(:configs_for) do |env_name:, name: nil|
+          named = env_name == "test" ? @named : []
+          name ? named.first : named
+        end
+      end
+    end
+
+    def rails(names, env = ENV)
+      configurations = configurations_for(names, env)
       stub_const("ActiveRecord::DatabaseConfigurations", configurations)
       stub_const("ActiveRecord::ConnectionHandling::DEFAULT_ENV", -> { "test" })
       base = Class.new { class << self; attr_accessor :configurations; end }

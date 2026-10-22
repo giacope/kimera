@@ -20,21 +20,19 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   # +settling+ simulates the post-result leak-check re-run.
   def healthy(preamble: [], evaluation: 0, settling: 0)
     forked do |request, response|
-      while (line = request.gets)
-        id = JSON.parse(line)["id"]
-        preamble.each { |line| response.puts(line) }
-        response.puts(JSON.generate(t: "start", id: id))
-        sleep(evaluation) if evaluation.positive?
-        response.puts(JSON.generate(t: "result", id: id, status: "killed", ms: 1, fails: []))
-        response.flush
-        sleep(settling) if settling.positive?
-        response.puts(JSON.generate(t: "ready"))
-        response.flush
-      end
-      response.puts(JSON.generate(t: "done"))
-      response.close
+      serving(request, response) { |id| settle(response, id, preamble, evaluation, settling) }
       exit!(0)
     end
+  end
+
+  def settle(response, id, preamble, evaluation, settling)
+    response.puts(*preamble, JSON.generate(t: "start", id: id))
+    sleep(evaluation)
+    response.puts(JSON.generate(t: "result", id: id, status: "killed", ms: 1, fails: []))
+    response.flush
+    sleep(settling)
+    response.puts(JSON.generate(t: "ready"))
+    response.flush
   end
 
   def crashed

@@ -18,12 +18,7 @@ RSpec.describe(Kimera::CLI::Run) do
   end
 
   def run(*argv, &)
-    allow(Kimera::Execution::Harness).to(receive(:build).and_wrap_original) do |original, **kwargs|
-      original.call(**kwargs).tap do |harness|
-        allow(harness).to(receive(:warm!))
-        allow(harness).to(receive(:run, &))
-      end
-    end
+    stub_harness(&)
     described_class.new(io: StringIO.new, errors: StringIO.new).run(["calc.rb", *argv])
   end
 

@@ -186,26 +186,46 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
   def judged(tally, script, jobs)
     safe(tally, script)
-    if tally[:error]
-      expect(tally[:error]).to(include("died before reporting a result"))
-      expect(stillborn?(tally, script, jobs)).to(be(true), "aborted though StillbornGuard's condition did not hold")
-    else
-      expect(verdicts(tally[:events])).to(match_array(expected(script)))
-      expect(requeues(tally[:events])).to(match_array(requeued(script)))
-    end
+    tally[:error] ? aborted(tally, script, jobs) : completed(tally[:events], script)
+  end
+
+  def aborted(tally, script, jobs)
+    expect(tally[:error]).to(include("died before reporting a result"))
+    expect(stillborn?(tally, script, jobs)).to(be(true), "aborted though StillbornGuard's condition did not hold")
+  end
+
+  def completed(events, script)
+    expect(verdicts(events)).to(match_array(expected(script)))
+    expect(requeues(events)).to(match_array(requeued(script)))
   end
 
   # Safety holds whether or not the run completed.
   def safe(tally, script)
-    judged = verdicts(tally[:events])
+    released(tally)
+    once(tally[:events], script)
+    requeued_once(requeues(tally[:events]), script)
+    expect(tally[:offers]).not_to(include([anything, "true", "false"]), "a recheck reached a used worker")
+  end
+
+  def released(tally)
     expect(tally[:slots]).to(be_empty, "a slot was out of range or still held")
     expect(tally[:outlived]).to(be(false), "a process a worker started outlived the run")
-    expect(judged).to(all(satisfy { expected(script).include?(it) }))
-    expect(judged.map(&:first)).to(eq(judged.map(&:first).uniq), "a mutant got two verdicts")
-    expect(statuses(tally[:events])).to(all(satisfy { |id, status| status == status(final(script)[id - 1]) }))
-    requeues = requeues(tally[:events])
+  end
+
+  # Each mutant gets one verdict its script allows, and ends in its final status.
+  def once(events, script)
+    judged = verdicts(events)
+    ids = judged.map(&:first)
+    facts = {
+      unscripted: judged - expected(script), repeated: ids.size - ids.uniq.size, unfinished: unfinished(events, script)
+    }
+    expect(facts).to(eq(unscripted: [], repeated: 0, unfinished: []))
+  end
+
+  def unfinished(events, script) = statuses(events).reject { |id, status| status == status(final(script)[id - 1]) }
+
+  def requeued_once(requeues, script)
     expect(requeues).to(eq(requeues.uniq).and(all(satisfy { requeued(script).include?(it) })))
-    expect(tally[:offers]).not_to(include([anything, "true", "false"]), "a recheck reached a used worker")
   end
 
   def conforming(runs)

@@ -53,21 +53,19 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   # Re-selects the outer mutant before reporting, like a suite that manages
   # the runtime selector itself (Kimera's own does).
+  def reselected(outer, coverage, failing, test_ids)
+    Kimera::RUNTIME.active = outer
+    test_ids.each { |t| Array(coverage[t]).each { |mid| Kimera::RUNTIME.active?(mid) } }
+    failed = test_ids & failing
+    Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed)
+  end
+
   def reselecting(coverage: {}, failing: [])
-    outer = Kimera::RUNTIME.active
+    run = method(:reselected).curry[Kimera::RUNTIME.active, coverage, failing]
     Class.new(Kimera::Frameworks::Adapter) do
-      define_method(:initialize) do
-        @coverage = coverage
-        @failing = failing
-      end
       def source(_files) = self
-      def test_ids = @coverage.keys
-      define_method(:run) do |test_ids|
-        Kimera::RUNTIME.active = outer
-        test_ids.each { |t| Array(@coverage[t]).each { |mid| Kimera::RUNTIME.active?(mid) } }
-        failed = test_ids & @failing
-        Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed)
-      end
+      define_method(:test_ids) { coverage.keys }
+      define_method(:run) { |test_ids| run.call(test_ids) }
     end.new
   end
 
@@ -95,18 +93,10 @@ RSpec.describe(Kimera::Execution::Harness) do
   end
 
   def responder(status:, extra: nil)
+    leaks = ->(id) { extra ? [JSON.generate(t: "leak", id: id, detail: extra)] : [] }
     lambda do |_slot|
       forked do |request, response|
-        while (line = request.gets)
-          id = JSON.parse(line)["id"]
-          response.puts(JSON.generate(t: "start", id: id))
-          response.puts(JSON.generate(t: "result", id: id, status: status, ms: 1, fails: []))
-          response.puts(JSON.generate(t: "leak", id: id, detail: extra)) if extra
-          response.puts(JSON.generate(t: "ready"))
-          response.flush
-        end
-        response.puts(JSON.generate(t: "done"))
-        response.close
+        serving(request, response) { |id| judged(response, id, status, *leaks.call(id)) }
         exit!(0)
       end
     end
@@ -890,12 +880,17 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(connection).to(have_received(:truncate_tables).with("users", "posts"))
     end
 
+    def connected(adapter, truncate = nil)
+      double(tables: %w[users], adapter_name: adapter, execute: nil).tap do |connection|
+        truncation = allow(connection).to(receive(:truncate_tables))
+        truncation.and_raise(truncate) if truncate
+        stub_const("ActiveRecord::Base", Class.new)
+        allow(ActiveRecord::Base).to(receive(:connection).and_return(connection))
+      end
+    end
+
     def scrub(adapter, truncate: nil)
-      connection = double(tables: %w[users], adapter_name: adapter, execute: nil)
-      truncation = allow(connection).to(receive(:truncate_tables))
-      truncation.and_raise(truncate) if truncate
-      stub_const("ActiveRecord::Base", Class.new)
-      allow(ActiveRecord::Base).to(receive(:connection).and_return(connection))
+      connection = connected(adapter, truncate)
       cleaned = []
       stub(cleanup: ->(index) { cleaned << index })
       errors = StringIO.new
@@ -927,10 +922,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     # Serial workers share the app's own test database: emptying it, or
     # running teardown hooks meant for per-worker copies, would wipe it.
     def unisolated
-      connection = double(tables: %w[users], adapter_name: "SQLite")
-      allow(connection).to(receive(:truncate_tables))
-      stub_const("ActiveRecord::Base", Class.new)
-      allow(ActiveRecord::Base).to(receive(:connection).and_return(connection))
+      connection = connected("SQLite")
       parallelization(true)
       cleaned = []
       stub(after: ->(_i) {}, cleanup: ->(i) { cleaned << i })
@@ -1021,12 +1013,15 @@ RSpec.describe(Kimera::Execution::Harness) do
       parallelization(true)
       stub(before: -> { before << :before }, after: ->(_i) {})
       driver = described_class.build(registry: registry, adapter: adapter, jobs: 2).__send__(:driver)
-      pid, request, response = driver.worker(0)
+      reap(*driver.worker(0).first(3))
+      [before.dup, fleet(driver, before)]
+    end
+
+    def reap(pid, request, response)
       request.close
       response.read
       response.close
       Process.wait(pid)
-      [before.dup, fleet(driver, before)]
     end
 
     def fleet(driver, before)
@@ -1061,15 +1056,14 @@ RSpec.describe(Kimera::Execution::Harness) do
       parallelization(true)
       reader, writer = IO.pipe
       stub(before: -> {}, after: ->(i) { writer.puts(i) })
-      described_class.build(
-        registry: registry, jobs: 2, soft_timeout: nil,
-        adapter: adapter(coverage: { "t1" => [ids.first] })
-      ).run(ids: [ids.first])
+      paired.run(ids: [ids.first])
       writer.close
-      result = reader.read
+      reader.read.tap { reader.close }
+    end
 
-      reader.close
-      result
+    def paired
+      covered = adapter(coverage: { "t1" => [ids.first] })
+      described_class.build(registry: registry, jobs: 2, soft_timeout: nil, adapter: covered)
     end
 
     it "hands a real pool worker its slot index for the after-fork hooks" do
@@ -1444,12 +1438,15 @@ RSpec.describe(Kimera::Execution::Harness) do
       stub_const(name, Class.new)
       registry = fixture(name)
       ids = registry.each.map { |m, _p| m.id }
-      filter = Kimera::Execution::TestFilter.new(registry: registry, flaky: flaky)
       progress = journal
-      settings = { source_root: dir, soft_timeout: nil, filter: filter, progress: progress }
-      h = described_class.build(registry: registry, adapter: racing(ids), **settings)
+      h = described_class.build(registry: registry, adapter: racing(ids), **screened(registry, flaky, progress))
       h.warm!(%w[t1], scope: ids)
       [h.run(ids: ids).results, ids, progress.events]
+    end
+
+    def screened(registry, flaky, progress)
+      filter = Kimera::Execution::TestFilter.new(registry: registry, flaky: flaky)
+      { source_root: dir, soft_timeout: nil, filter: filter, progress: progress }
     end
 
     # Both tests kill every mutant, but "shaky" also fails, alone, under seed 6.
@@ -1585,6 +1582,10 @@ RSpec.describe(Kimera::Execution::Harness) do
   end
 
   # One schema-safe comparison and one memoized (schema-unsafe) one.
+  def unsafe_id(registry, label = nil)
+    registry.each.find { |mutant, point| !point.safe? && (label.nil? || mutant.label == label) }.first.id
+  end
+
   def writing(dir, klass)
     File.write(File.join(dir, "#{klass.downcase}.rb"), <<~RUBY)
       class #{klass}
@@ -1652,8 +1653,8 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry = writing(dir, "HarnessReload")
       # The constant must exist before the bake is overlaid.
       load(File.join(dir, "harnessreload.rb"))
-      reloader(observer("HarnessReload"), catalog: registry, root: dir)
-        .__send__(:evaluate, errand(registry.each.find { |m, p| !p.safe? && m.label == "< => >" }.first.id))
+      reloading = reloader(observer("HarnessReload"), catalog: registry, root: dir)
+      reloading.__send__(:evaluate, errand(unsafe_id(registry, "< => >")))
     end
 
     it "bakes the mutation, reloads, and classifies the outcome" do
@@ -1832,8 +1833,8 @@ RSpec.describe(Kimera::Execution::Harness) do
       stub_const("HarnessBoom", Class.new)
       registry = writing(dir, "HarnessBoom")
       load(File.join(dir, "harnessboom.rb"))
-      reloader(boom, catalog: registry, root: dir, isolation: reselection)
-        .__send__(:evaluate, errand(registry.each.map { |m, _p| m.id }.find { |id| !registry.index[id].safe? }))
+      reloading = reloader(boom, catalog: registry, root: dir, isolation: reselection)
+      reloading.__send__(:evaluate, errand(unsafe_id(registry)))
     end
 
     it "captures an exception during reload as an :error result, saying where it happened", :aggregate_failures do
@@ -1875,14 +1876,12 @@ RSpec.describe(Kimera::Execution::Harness) do
       stub_const(name, Class.new)
       registry = writing(dir, name)
       load(File.join(dir, "#{name.downcase}.rb"))
-      unsafe = registry.each.map { |m, _p| m.id }.find { |id| !registry.index[id].safe? }
+      clocked { reloader(adapt, catalog: registry, root: dir).run(unsafe_id(registry), deadline: deadline) }
+    end
 
+    def clocked
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-
-      [
-        reloader(adapt, catalog: registry, root: dir).run(unsafe, deadline: deadline),
-        Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
-      ]
+      [yield, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started]
     end
 
     # Without the SIGKILL, reaping blocks until the child's sleep ends.
@@ -1934,7 +1933,7 @@ RSpec.describe(Kimera::Execution::Harness) do
         progress: progress
       )
       h.warm!(["t1"])
-      unsafe = registry.each.map { |m, _p| m.id }.find { |id| !registry.index[id].safe? }
+      unsafe = unsafe_id(registry)
       report = h.run(ids: [unsafe])
       [report.results.find { |r| r.mutant_id == unsafe }, progress]
     end
@@ -2057,28 +2056,21 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   describe "pool crash recovery" do
     # The first worker accepts its id and dies; replacements kill everything.
+    def crashing(request, response)
+      request.gets
+      response.puts(JSON.generate(t: "crash", detail: "Boom: from the worker"))
+      response.flush
+      exit!(3)
+    end
+
+    # The first worker crashes on its first request; the ones after kill every mutant.
     def crash
       crashed = false
       lambda do |_slot|
         first = !crashed
         crashed = true
         forked do |request, response|
-          if first
-            request.gets
-            response.puts(JSON.generate(t: "crash", detail: "Boom: from the worker"))
-            response.flush
-            exit!(3)
-          else
-            while (line = request.gets)
-              id = JSON.parse(line)["id"]
-              response.puts(JSON.generate(t: "start", id: id))
-              response.puts(JSON.generate(t: "result", id: id, status: "killed", ms: 1, fails: []))
-              response.puts(JSON.generate(t: "ready"))
-              response.flush
-            end
-            response.puts(JSON.generate(t: "done"))
-            response.close
-          end
+          first ? crashing(request, response) : serving(request, response) { |id| judged(response, id, "killed") }
           exit!(0)
         end
       end

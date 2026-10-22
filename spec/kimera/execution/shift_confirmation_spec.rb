@@ -24,32 +24,34 @@ RSpec.describe(Kimera::Execution::Shift) do
 
   let(:ids) { registry.each.map { |m, _p| m.id } }
 
-  after { Kimera::RUNTIME.reset! }
-
   # +script+ maps a test to the outcomes of its successive runs, consumed in
   # order; unscripted runs pass.
-  def scripted(script, failures: {})
+  let(:scripted_class) do
     Class.new do
       attr_reader :log
 
-      define_method(:initialize) do
+      def initialize(script, failures)
         @script = script.transform_values(&:dup)
+        @test_ids = script.keys
+        @failures = failures
         @log = []
       end
 
-      define_method(:test_ids) { script.keys }
+      attr_reader :test_ids
 
-      define_method(:run) do |ids|
+      def run(ids)
         id = ids.first
         @log << [id, Kimera::RUNTIME.active]
-        passed = @script.fetch(id, []).shift != :fail
-        failed = passed ? [] : [id]
-        Kimera::Frameworks::RunOutcome.new(
-          passed: passed, failed_ids: failed, failures: failed.to_h { |t| [t, failures.fetch(t, "boom in #{t}")] }
-        )
+        failed = @script.fetch(id, []).shift == :fail ? [id] : []
+        messages = failed.to_h { |t| [t, @failures.fetch(t, "boom in #{t}")] }
+        Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed, failures: messages)
       end
-    end.new
+    end
   end
+
+  after { Kimera::RUNTIME.reset! }
+
+  def scripted(script, failures: {}) = scripted_class.new(script, failures)
 
   def worker(adapter, coverage, soft: nil)
     described_class.new(

@@ -464,27 +464,35 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       ).to(eq([:no_coverage, "covered only by flaky test(s), which never kill: t1", []]))
     end
 
+    # Evaluates mutant +id+ in a mirror of +root+; returns its result and the
+    # mirror's calc.rb afterward.
+    def test_mirrored(runner, root, id)
+      Dir.mktmpdir do |mirror|
+        FileUtils.cp_r(File.join(root, "calc.rb"), File.join(mirror, "calc.rb"))
+        trial = Kimera::Execution::Trial.new(id, mirror, Kimera::Overlay.new(registry))
+        [test_invoke_private(runner, :evaluate, trial), File.read(File.join(mirror, "calc.rb"))]
+      end
+    end
+
+    # Its verdict records the bake it saw (and whether it was the first), and kills.
+    def test_baker(root, id, sink, pause, quality)
+      Class.new(described_class) do
+        define_method(:verdict) do |mirror, _locations, first: false, **|
+          sink << [File.read(File.join(mirror, "calc.rb")), first]
+          sleep(pause) if pause
+          Kimera::Execution::IsolatedOutcome.new(:killed, ["t1[1:1]"])
+        end
+      end.new(registry: registry, root: root, tests: ["t1"], coverage: { id => ["t1"] }, **quality)
+    end
+
     def test_baking_evaluate(id, pause: nil, quality: {})
-      baked = nil
+      baked = []
       Dir.mktmpdir do |root|
         File.write(File.join(root, "calc.rb"), test_source_fixture)
-        r =
-          Class.new(described_class) do
-            define_method(:verdict) do |mirror, _locations, first: false, **|
-              baked = [File.read(File.join(mirror, "calc.rb")), first]
-              sleep(pause) if pause
-              Kimera::Execution::IsolatedOutcome.new(:killed, ["t1[1:1]"])
-            end
-          end.new(registry: registry, root: root, tests: ["t1"], coverage: { id => ["t1"] }, **quality)
-        allow(r).to(receive(:now).and_return(10.0, 12.5)) unless pause
-        Dir.mktmpdir do |mirror|
-          FileUtils.cp_r(File.join(root, "calc.rb"), File.join(mirror, "calc.rb"))
-          [
-            test_invoke_private(r, :evaluate, Kimera::Execution::Trial.new(id, mirror, Kimera::Overlay.new(registry))),
-            baked,
-            File.read(File.join(mirror, "calc.rb"))
-          ]
-        end
+        runner = test_baker(root, id, baked, pause, quality)
+        allow(runner).to(receive(:now).and_return(10.0, 12.5)) unless pause
+        result, restored = test_mirrored(runner, root, id)
+        [result, baked.first, restored]
       end
     end
 
@@ -520,14 +528,11 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     def test_raising_evaluate(id)
       Dir.mktmpdir do |root|
         File.write(File.join(root, "calc.rb"), test_source_fixture)
-        r =
+        runner =
           Class.new(described_class) do
             define_method(:verdict) { |*| raise RuntimeError, "boom" }
           end.new(registry: registry, root: root, tests: ["t1"], coverage: { id => ["t1"] })
-        Dir.mktmpdir do |mirror|
-          FileUtils.cp_r(File.join(root, "calc.rb"), File.join(mirror, "calc.rb"))
-          test_invoke_private(r, :evaluate, Kimera::Execution::Trial.new(id, mirror, Kimera::Overlay.new(registry)))
-        end
+        test_mirrored(runner, root, id).first
       end
     end
 

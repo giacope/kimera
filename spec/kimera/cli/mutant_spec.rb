@@ -17,17 +17,20 @@ RSpec.describe(Kimera::CLI::Mutant, :aggregate_failures) do
     Kimera::RunReport.new(results: [row], registry: registry).document(provenance)
   end
 
-  def rerun(id, document)
-    argv = []
+  def recording(argv)
     runner = instance_double(Kimera::CLI::Run)
     allow(runner).to(receive(:run) { |arguments| argv.concat(arguments).size })
     allow(Kimera::CLI::Run).to(receive(:new).and_return(runner))
-    Dir.mktmpdir do |dir|
-      path = File.join(dir, "report.json")
-      File.write(path, JSON.generate(document))
-      described_class.new(io: StringIO.new).run([id.to_s, "--report", path, "--rerun"])
+  end
+
+  def rerun(id, document)
+    [].tap do |argv|
+      recording(argv)
+      Dir.mktmpdir do |dir|
+        path = File.join(dir, "report.json").tap { |file| File.write(file, JSON.generate(document)) }
+        described_class.new(io: StringIO.new).run([id.to_s, "--report", path, "--rerun"])
+      end
     end
-    argv
   end
 
   def focused(options)

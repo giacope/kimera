@@ -10,7 +10,7 @@ require "stringio"
 RSpec.describe(Kimera::Execution::Shift) do
   # A test fails when the active mutant is in its catch set. Runs with no
   # mutant active (a kill's control run) go to +controls+, not +runs+.
-  def test_adapter_class
+  let(:test_adapter_class) do
     Class.new do
       attr_reader :runs, :controls
 

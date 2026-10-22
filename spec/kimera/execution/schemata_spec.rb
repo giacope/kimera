@@ -303,26 +303,29 @@ RSpec.describe(Kimera::Execution::Schemata) do
       Data.define(:kind, :filter).new(kind, filter)
     end
 
-    # Stand-in for ActiveSupport::Callbacks::ClassMethods.
-    def callbacks
-      fixture =
-        Module.new do
-          def set_callback(name, *filters, &block)
-            registered << [name, filters.dup, block]
-          end
-          private
-
-          # Order matters: shift and pop mutate filters before the dup.
-          def normalize_callback_params(filters, block)
-            type = %i[before after around].include?(filters.first) ? filters.shift : :before
-            options = filters.last.is_a?(Hash) ? filters.pop : {}
-            values = filters.dup
-            values << block if block
-            [type, values, options]
-          end
-
-          def get_callbacks(_name) = chain
+    # Stand-in for ActiveSupport::Callbacks::ClassMethods, fresh for each example.
+    let(:callback_methods) do
+      proc do
+        def set_callback(name, *filters, &block)
+          registered << [name, filters.dup, block]
         end
+        private
+
+        # Order matters: shift and pop mutate filters before the dup.
+        def normalize_callback_params(filters, block)
+          type = %i[before after around].include?(filters.first) ? filters.shift : :before
+          options = filters.last.is_a?(Hash) ? filters.pop : {}
+          values = filters.dup
+          values << block if block
+          [type, values, options]
+        end
+
+        def get_callbacks(_name) = chain
+      end
+    end
+
+    def callbacks
+      fixture = Module.new(&callback_methods)
       stub_const("ActiveSupport", Module.new) unless defined?(ActiveSupport)
       stub_const("ActiveSupport::Callbacks", Module.new)
       stub_const("ActiveSupport::Callbacks::ClassMethods", fixture)
@@ -504,12 +507,18 @@ RSpec.describe(Kimera::Execution::Schemata) do
   # Mimics a class_attribute: a subclass reads its parent's value until it writes its own.
   def reflective
     own = {}
-    cleared = Hash.new(0)
     Module.new do
       define_method(:_reflections) do
         own.fetch(self) { superclass.respond_to?(:_reflections) ? superclass._reflections : {} }
       end
       define_method(:_reflections=) { |value| own[self] = value }
+    end.include(clearing)
+  end
+
+  # Counts each class's reflection-cache clears, and finds its subclasses.
+  def clearing
+    cleared = Hash.new(0)
+    Module.new do
       define_method(:cleared) { cleared[self] }
       define_method(:clear_reflections_cache) { cleared[self] += 1 }
       define_method(:descendants) { ObjectSpace.each_object(Class).select { |k| k < self } }
@@ -519,13 +528,17 @@ RSpec.describe(Kimera::Execution::Schemata) do
   describe "reflection overlay guard" do
     # Mimics ActiveRecord::Reflection.add_reflection, which moves a redeclared
     # name to the end, and class_attribute copies.
-    def records(key)
-      normal = key.is_a?(String) ? :to_s : :to_sym
-      reflection = Module.new
-      reflection.define_singleton_method(:add_reflection) do |owner, name, value|
-        named = name.public_send(normal)
-        owner._reflections = owner._reflections.except(named).merge!(named => value)
+    def adding(normal)
+      Module.new.tap do |reflection|
+        reflection.define_singleton_method(:add_reflection) do |owner, name, value|
+          named = name.public_send(normal)
+          owner._reflections = owner._reflections.except(named).merge!(named => value)
+        end
       end
+    end
+
+    def records(key)
+      reflection = adding(key.is_a?(String) ? :to_s : :to_sym)
       stub_const("ActiveRecord", Module.new)
       stub_const("ActiveRecord::Reflection", reflection)
       Kimera::Execution::OverlayGuards.new.install!

@@ -102,9 +102,12 @@ module SchemataProjection
     id = guard(node)
     return project(node.children[id == active ? 1 : 2], active) if id
     hidden = privatized(node)
-    return hidden == active ? Parser::AST::Node.new(:send, [nil, :private, node.children[4]]) : VOID if hidden
+    return revealed(node, hidden == active) if hidden
     node.updated(nil, node.children.map { |child| project(child, active) }.reject { |child| child.equal?(VOID) })
   end
+
+  # A privatize guard is `private :name` while its mutant is active, and nothing otherwise.
+  def revealed(node, active) = active ? Parser::AST::Node.new(:send, [nil, :private, node.children[4]]) : VOID
 
   VOID = Object.new.freeze
 
@@ -169,17 +172,24 @@ module SchemataProjection
 
   def interpolation(node)
     parts = joined(node.children.flat_map { |child| node?(child, :dstr) ? child.children : [child] })
-    return text("") if node.type == :dstr && parts.empty?
-    return parts[0] if node.type == :dstr && parts.one? && string?(parts[0])
-    Parser::AST::Node.new(node.type, parts)
+    return Parser::AST::Node.new(node.type, parts) unless node.type == :dstr
+    plain(parts) || Parser::AST::Node.new(:dstr, parts)
+  end
+
+  # A dstr of no parts is the empty string, and of one string part that string.
+  def plain(parts)
+    return text("") if parts.empty?
+    parts[0] if parts.one? && string?(parts[0])
   end
 
   def joined(parts)
     parts.reject { |part| string?(part) && part.children[0].empty? }.each_with_object([]) do |part, out|
       next out << part unless string?(part) && string?(out.last)
-      out[-1] = text(out.last.children[0] + part.children[0])
+      out[-1] = text(joint(out.last, part))
     end
   end
+
+  def joint(left, right) = left.children[0] + right.children[0]
 
   def required(node)
     name, default = node.children

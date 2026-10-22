@@ -16,13 +16,18 @@ RSpec.describe(Kimera::Overlay) do
     "mutant #{id} reduces to\n#{got.inspect}\nbut its bake is\n#{want.inspect}"
   end
 
+  def every_id(registry) = registry.each.map { |mutant, _| mutant.id }
+
+  # Every mutant is applied once and guarded, or skipped: none twice, none lost.
   def accounted(schemata)
-    result = schemata.result
-    applied = result.mutant_ids
-    expect(applied).to(eq(applied.uniq), "a mutant is applied twice")
-    expect(schemata.guards.uniq).to(match_array(applied), "guards differ from the applied mutants")
-    expect(applied + result.skipped_unsafe)
-      .to(match_array(schemata.registry.each.map { |mutant, _| mutant.id }), "a mutant is neither applied nor skipped")
+    applied = schemata.result.mutant_ids.sort
+    reported = (applied + schemata.result.skipped_unsafe).sort
+    expect(applied: applied, guarded: schemata.guards.uniq.sort, reported: reported)
+      .to(eq(accounting(applied, schemata.registry)))
+  end
+
+  def accounting(applied, registry)
+    { applied: applied.uniq, guarded: applied.uniq, reported: every_id(registry).sort }
   end
 
   # One synthesis per program serves every check; synthesis is the costly part.

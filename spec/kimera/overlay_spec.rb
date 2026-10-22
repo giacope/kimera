@@ -756,13 +756,18 @@ RSpec.describe(Kimera::Overlay) do
         expect(Prism.parse(result.source)).to(be_success)
       end
 
-      def partial
-        registry = Kimera::RegistryScan.new.source(splice_source, file: "spliced.rb")
+      # Unparser writes no tree but a method, and not the method named compare.
+      def unparsing_methods
         allow(Unparser).to(receive(:unparse).and_wrap_original) do |original, node|
           raise(RuntimeError, "boom") unless %i[def defs].include?(node.type)
           raise(RuntimeError, "boom") if node.children.first == :compare
           original.call(node)
         end
+      end
+
+      def partial
+        registry = Kimera::RegistryScan.new.source(splice_source, file: "spliced.rb")
+        unparsing_methods
         result = nil
         expect { result = described_class.new(registry).synthesize("spliced.rb", splice_source) }
           .to(output(/2 mutant\(s\) spliced per method, 2 reported unmutatable/).to_stderr)

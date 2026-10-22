@@ -177,14 +177,15 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       ]
     end
 
+    # A flag's help line with its wrapped continuation lines, flag and argument removed.
+    def description(lines, index)
+      [lines[index], *lines[(index + 1)..].take_while { |l| l !~ /\A\s*--/ }].join.sub(/\A\s*--\S+( \S+)?/, "")
+    end
+
     def document(lines, flag)
       index = lines.index { |l| l =~ /\A\s*--(\[no-\])?#{flag}\b/ }
       expect(index).not_to(be_nil, "--#{flag} missing from --help")
-      # Include wrapped continuation lines.
-      expect(
-        [lines[index], *lines[(index + 1)..].take_while { |l| l !~ /\A\s*--/ }]
-          .join.sub(/\A\s*--\S+( \S+)?/, "").scan(/\w/).size
-      ).to(be >= 10, "--#{flag} lacks a description")
+      expect(description(lines, index).scan(/\w/).size).to(be >= 10, "--#{flag} lacks a description")
     end
 
     # Checks each flag has a real description, not the exact prose.
@@ -661,11 +662,15 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
 
     # Mirror the CLI's build so session ids line up and nothing reaches the harness.
-    def scope
+    def changed_source
       File.write("calc.rb", "def m(a, b)\n  a > b\nend\n")
       File.write("other.rb", "def n(a, b)\n  a < b\nend\n")
       diff = instance_double(Kimera::Incremental::GitDiff, lines: { "calc.rb" => Set[2] })
       allow(Kimera::Incremental::GitDiff).to(receive(:new).and_return(diff))
+    end
+
+    def scope
+      changed_source
       registry = Kimera::RegistryScan.new.build(["calc.rb"])
       journal = File.join(dir, "session.json")
       saved(registry, journal)
@@ -991,17 +996,32 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n\ndef n(a, b)\n  a < b\nend\n", file: "x.rb")
       end
 
-      def bootstrap
-        framework(test_ids: ["t1"], finish: nil)
-        harness = executor(coverage: { 1 => ["t1"], 2 => ["t1"] })
-        first, last = registry.each.map { |mutant, point| [mutant.id, point] }.uniq(&:last).first(2)
-        warm = Kimera::RunReport.new(results: [verdict(first.first, :survived), verdict(last.first, :survived)])
-        allow(harness).to(receive_messages(warm!: nil, run: warm))
-        runner = instance_double(Kimera::Execution::IsolatedExecution, rejudge: [verdict(last.first, :killed)])
-        allow(Kimera::Execution::IsolatedExecution).to(receive(:new).and_return(runner))
-        last.last.revisit!(Kimera::MutationPoint::BOOT_REASON)
-        [runner, first.first, last.first]
+      # The isolated tier, which kills what it re-judges.
+      def rejudging(result)
+        instance_double(Kimera::Execution::IsolatedExecution, rejudge: [result]).tap do |runner|
+          allow(Kimera::Execution::IsolatedExecution).to(receive(:new).and_return(runner))
+        end
       end
+
+      # The warm pass gives each method's mutant +status+; the second method's
+      # point is marked to revisit for +reason+. Returns the isolated tier and both ids.
+      def second_look(coverage, status, reason)
+        framework(test_ids: ["t1"], finish: nil)
+        first, last = per_method
+        warmed([first, last], status, coverage)
+        registry.index.fetch(last).revisit!(reason)
+        [rejudging(verdict(last, :killed)), first, last]
+      end
+
+      # The first mutant of each of the two methods.
+      def per_method = registry.each.map { |mutant, point| [mutant.id, point] }.uniq(&:last).first(2).map(&:first)
+
+      def warmed(ids, status, coverage)
+        warm = Kimera::RunReport.new(results: ids.map { |id| verdict(id, status) })
+        allow(executor(coverage: coverage)).to(receive_messages(warm!: nil, run: warm))
+      end
+
+      def bootstrap = second_look({ 1 => ["t1"], 2 => ["t1"] }, :survived, Kimera::MutationPoint::BOOT_REASON)
 
       it "re-judges a warm survivor whose method also ran while the suite loaded", :aggregate_failures do
         runner, kept, booted = bootstrap
@@ -1011,17 +1031,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         expect(runner).to(have_received(:rejudge).with([rejudged], label: "mutants (re-judged)"))
       end
 
-      def ordered
-        framework(test_ids: ["t1"], finish: nil)
-        harness = executor(coverage: { 1 => ["t1"] })
-        first, last = registry.each.map { |mutant, point| [mutant.id, point] }.uniq(&:last).first(2)
-        warm = Kimera::RunReport.new(results: [verdict(first.first, :no_coverage), verdict(last.first, :no_coverage)])
-        allow(harness).to(receive_messages(warm!: nil, run: warm))
-        runner = instance_double(Kimera::Execution::IsolatedExecution, rejudge: [verdict(last.first, :killed)])
-        allow(Kimera::Execution::IsolatedExecution).to(receive(:new).and_return(runner))
-        last.last.revisit!(Kimera::MutationPoint::ORDER_REASON)
-        [runner, first.first, last.first]
-      end
+      def ordered = second_look({ 1 => ["t1"] }, :no_coverage, Kimera::MutationPoint::ORDER_REASON)
 
       it "judges in the isolated tier a mutant only the suite run in order reaches", :aggregate_failures do
         runner, plain, reached = ordered

@@ -61,12 +61,7 @@ RSpec.describe(Kimera::CLI::Run::Narrowing) do
     before { File.write("calc.rb", "def m(a, b)\n  a > b\nend\n") }
 
     def run(*argv)
-      allow(Kimera::Execution::Harness).to(receive(:build).and_wrap_original) do |original, **kwargs|
-        original.call(**kwargs).tap do |harness|
-          allow(harness).to(receive(:warm!))
-          allow(harness).to(receive(:run).and_return(Kimera::RunReport.new(results: [])))
-        end
-      end
+      stub_harness
       out = StringIO.new
       Kimera::CLI::Run.new(io: out, errors: StringIO.new).run(["calc.rb", "--report", "report.json", *argv])
       [out.string.lines(chomp: true), JSON.parse(File.read("report.json"))["run"]]
@@ -86,16 +81,9 @@ RSpec.describe(Kimera::CLI::Run::Narrowing) do
     end
 
     def adapter_for(*argv)
-      built = []
-      allow(Kimera::Execution::Harness).to(receive(:build).and_wrap_original) do |original, **kwargs|
-        built << kwargs[:adapter]
-        original.call(**kwargs).tap do |harness|
-          allow(harness).to(receive(:warm!))
-          allow(harness).to(receive(:run).and_return(Kimera::RunReport.new(results: [])))
-        end
-      end
+      built = stub_harness
       Kimera::CLI::Run.new(io: StringIO.new, errors: StringIO.new).run(["calc.rb", "--report", "report.json", *argv])
-      [built.first, JSON.parse(File.read("report.json"))["run"]]
+      [built.first[:adapter], JSON.parse(File.read("report.json"))["run"]]
     end
 
     # rack's one root-only test, without the other 26 in its file.
@@ -110,13 +98,7 @@ RSpec.describe(Kimera::CLI::Run::Narrowing) do
     end
 
     def uncovered(*argv)
-      mutant = Kimera::MutantResult.new(mutant_id: 1, status: :no_coverage, file: "calc.rb")
-      allow(Kimera::Execution::Harness).to(receive(:build).and_wrap_original) do |original, **kwargs|
-        original.call(**kwargs).tap do |harness|
-          allow(harness).to(receive(:warm!))
-          allow(harness).to(receive(:run).and_return(Kimera::RunReport.new(results: [mutant])))
-        end
-      end
+      stub_harness([Kimera::MutantResult.new(mutant_id: 1, status: :no_coverage, file: "calc.rb")])
       out = StringIO.new
       Kimera::CLI::Run.new(io: out, errors: StringIO.new).run(["calc.rb", "--report", "report.json", *argv])
       out.string

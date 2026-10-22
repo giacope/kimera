@@ -102,14 +102,18 @@ RSpec.describe(Kimera::Report::Text) do
     expect(io.string).to(include("survived ##{found.id}  l.rb:1:14  [#{found.label}]"))
   end
 
+  def mixed_results(both)
+    uncovered = both.each.find { |_, point| point.file == "b.rb" }.first.id
+    [
+      Kimera::MutantResult.new(mutant_id: uncovered, status: :no_coverage, file: "b.rb"),
+      survivor, Kimera::MutantResult.new(mutant_id: 99, status: :killed, file: "calc.rb")
+    ]
+  end
+
   def mixed
     other = Kimera::RegistryScan.new.source("def b(x)\n  x > 1\nend\n", file: "b.rb")
     both = Kimera::Registry.new(points: registry.points + other.points)
-    pick = ->(file) { both.each.find { |_, point| point.file == file }.first.id }
-    results = [
-      Kimera::MutantResult.new(mutant_id: pick.call("b.rb"), status: :no_coverage, file: "b.rb"),
-      survivor, Kimera::MutantResult.new(mutant_id: 99, status: :killed, file: "calc.rb")
-    ]
+    results = mixed_results(both)
     io = StringIO.new
     described_class.new(both, io: io, color: false).report(Kimera::RunReport.new(results: results))
     io.string

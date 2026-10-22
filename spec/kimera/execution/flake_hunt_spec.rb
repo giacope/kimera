@@ -19,17 +19,20 @@ RSpec.describe(Kimera::Execution::FlakeHunt, :aggregate_failures) do
   let(:progress) { Kimera::Execution::NullProgress::NONE }
   let(:env) { { "KIMERA_SEED" => "11" } }
 
+  # Under seed 12, t2 fails; under 13, t2 and t1 fail and t3 times out.
+  def drive(log, tests, spawner, listeners)
+    seed = Integer(env.fetch("KIMERA_SEED"), 10)
+    log << [seed, tests, spawner.call]
+    failing = { 12 => %w[t2], 13 => %w[t2 t1] }.fetch(seed, [])
+    tests.each { |test| listeners.resolve.call("id" => test, "passed" => !failing.include?(test)) }
+    listeners.lost.call("t3", :timeout, nil) if seed == 13
+  end
+
   def driver(log)
-    seeds = { 12 => %w[t2], 13 => %w[t2 t1] }
-    variables = env
+    drive = method(:drive).curry[log]
     Class.new do
       define_method(:channel) { :channel }
-      define_method(:drive) do |tests, spawner, listeners|
-        seed = Integer(variables.fetch("KIMERA_SEED"), 10)
-        log << [seed, tests, spawner.call]
-        tests.each { |test| listeners.resolve.call("id" => test, "passed" => !seeds.fetch(seed, []).include?(test)) }
-        listeners.lost.call("t3", :timeout, nil) if seed == 13
-      end
+      define_method(:drive) { |tests, spawner, listeners| drive.call(tests, spawner, listeners) }
     end.new
   end
 

@@ -27,25 +27,21 @@ RSpec.describe("Harness watchdog") do
   def fake_spawner(timeout: nil, crash: nil, statuses: Hash.new("killed"))
     lambda do |_slot|
       forked do |request, response|
-        while (line = request.gets)
-          id = JSON.parse(line)["id"]
-          response.puts(JSON.generate(t: "start", id: id))
-          response.flush
-          if id == timeout
-            sleep(60)
-          elsif id == crash
-            exit!(0)
-          else
-            response.puts(JSON.generate(t: "result", id: id, status: statuses[id], ms: 1, fails: []))
-            response.puts(JSON.generate(t: "ready"))
-            response.flush
-          end
-        end
+        request.each_line { |line| answer(response, JSON.parse(line)["id"], timeout, crash, statuses) }
         response.puts(JSON.generate(t: "done"))
         response.close
         exit!(0)
       end
     end
+  end
+
+  def answer(response, id, timeout, crash, statuses)
+    response.puts(JSON.generate(t: "start", id: id))
+    response.flush
+    sleep(60) if id == timeout
+    exit!(0) if id == crash
+    response.puts(JSON.generate(t: "result", id: id, status: statuses[id], ms: 1, fails: []), JSON.generate(t: "ready"))
+    response.flush
   end
 
   def harness(registry, spawner, jobs: 1)

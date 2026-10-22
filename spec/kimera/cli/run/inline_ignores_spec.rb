@@ -55,12 +55,7 @@ RSpec.describe(Kimera::CLI::Run::InlineIgnores) do
   describe "kimera run" do
     def run(source)
       File.write("calc.rb", source)
-      allow(Kimera::Execution::Harness).to(receive(:build).and_wrap_original) do |original, **kwargs|
-        original.call(**kwargs).tap do |harness|
-          allow(harness).to(receive(:warm!))
-          allow(harness).to(receive(:run).and_return(Kimera::RunReport.new(results: [])))
-        end
-      end
+      stub_harness
       out = StringIO.new
       errors = StringIO.new
       Kimera::CLI::Run.new(io: out, errors: errors).run(%w[calc.rb --no-report --max-ignored 0])
