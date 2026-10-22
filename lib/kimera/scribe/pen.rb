@@ -1,0 +1,56 @@
+# frozen_string_literal: true
+
+module Kimera
+  class Scribe
+    class Pens
+      def initialize(pen, nodes)
+        @pen = pen
+        @nodes = nodes
+      end
+
+      def list = @nodes.each_with_object([@pen]) { |node, pens| pens << pens.last.with([node]) }.first(@nodes.size)
+    end
+
+    class Pen
+      INDENT = "  "
+
+      def initialize(binders, depth = 0, locals = Binders::NONE, open: true)
+        @binders = binders
+        @depth = depth
+        @locals = locals
+        @open = open
+      end
+
+      def write(node, floor = Level::STATEMENT)
+        form = form(node)
+        text = form.text
+        form.level < floor ? "(#{text})" : text
+      end
+
+      def form(node)
+        FORMS.fetch(node.type) { raise(ArgumentError, "kimera cannot write a #{node.type} node") }.new(node, self)
+      end
+
+      def level(node) = form(node).level
+
+      def deeper = Pen.new(@binders, @depth + 1, @locals)
+
+      def closed = Pen.new(@binders, @depth, @locals, open: false)
+
+      def opened = Pen.new(@binders, @depth, @locals)
+
+      def open? = @open
+
+      def with(nodes)
+        names = nodes.reduce(@locals) { |known, node| known | @binders.of(node) }
+        Pen.new(@binders, @depth, names.freeze, open: @open)
+      end
+
+      def scoped(nodes = []) = Pen.new(@binders, @depth, Binders::NONE, open: @open).with(nodes)
+
+      def local?(name) = @locals.include?(name)
+
+      def margin = INDENT * @depth
+    end
+  end
+end

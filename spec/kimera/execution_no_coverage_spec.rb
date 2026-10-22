@@ -29,7 +29,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
   end
 
   it "falls back to the original source when audit reprinting fails" do
-    allow(Unparser).to(receive(:parse).and_raise(StandardError, "unparseable"))
+    allow(Kimera::Scribe).to(receive(:parse).and_raise(StandardError, "unparseable"))
     rendering = Kimera::Operators::Audit::Rendering.new("original", "rendered")
 
     expect(rendering.__send__(:reprinted)).to(eq("original"))

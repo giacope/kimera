@@ -14,7 +14,7 @@ RSpec.describe(Kimera::Rewrite::Directive) do
       expect(out).to(eq("a || b"))
     end
 
-    # unparser prints `a || b and "c"` for this: a syntax error once it sits in an
+    # unparser printed `a || b and "c"` for this: a syntax error once it sits in an
     # argument list (thor's `Shellwords.split(ENV["THOR_DIFF"] || ENV["RAILS_DIFF"] || "diff -u")`).
     it "parenthesizes a nested connective so the variant stays valid in any context" do
       out = described_class.new({ "type" => "boolean_connective", "to" => "and" }).render('a || b || "c"')
@@ -106,7 +106,7 @@ RSpec.describe(Kimera::Rewrite::Directive) do
 
   describe "#apply" do
     it "raises on an unknown directive type, naming the directive" do
-      node = Unparser.parse("a > b")
+      node = Kimera::Scribe.parse("a > b")
       expect { described_class.new({ "type" => "mystery" }).apply(node) }
         .to(raise_error(ArgumentError, /unknown directive .*mystery/))
     end

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../support/unparse"
+require_relative "../scribe"
 require_relative "../rewrite/numbered_params"
 
 class Kimera::SourceMap
@@ -11,7 +11,7 @@ class Kimera::SourceMap
   end
 
   def ast
-    @_ast ||= Kimera::Rewrite::NumberedParams.new(Kimera::Unparse.parse(@source)).normalize
+    @_ast ||= Kimera::Rewrite::NumberedParams.new(Kimera::Scribe.parse(@source)).normalize
   end
 
   def span(expression)

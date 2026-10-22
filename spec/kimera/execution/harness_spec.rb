@@ -1334,7 +1334,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "is false for an unmutatable method-body point" do
       verdicts = Kimera::Execution::Verdicts.new(mixed_registry)
       mutant, point = mixed_registry.each.find { |_m, p| !p.body? }
-      point.unmutatable!("unparser could not round-trip its guard")
+      point.unmutatable!("kimera could not write its guard")
       expect(verdicts.reloadable?(mutant.id)).to(be(false))
     end
   end
@@ -1855,13 +1855,13 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     # The reload child reports the reason; an :error would count as killed.
-    it "reports a mutant unparser can't bake as unmutatable, with the reason", :aggregate_failures do
-      allow(Unparser).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
+    it "reports a mutant kimera can't bake as unmutatable, with the reason", :aggregate_failures do
+      allow(Kimera::Scribe).to(receive(:new).and_raise(KeyError, "key not found: :lvar"))
       report, progress = cold
       expect(report.results.first).to(
         have_attributes(
           status: :unmutatable,
-          detail: "unmutatable: unparser could not write its bake (KeyError: key not found: :lvar)"
+          detail: "unmutatable: kimera could not write its bake (KeyError: key not found: :lvar)"
         )
       )
       expect(progress.events).to(include(%i[tick unmutatable]))
@@ -1889,10 +1889,10 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(detail).to(start_with("#{Kimera::Execution::Reload::LOADING}RuntimeError: kaboom"))
     end
 
-    it "classifies a bake unparser can't write as unmutatable, with the reason" do
-      allow(Unparser).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
+    it "classifies a bake kimera can't write as unmutatable, with the reason" do
+      allow(Kimera::Scribe).to(receive(:new).and_raise(KeyError, "key not found: :lvar"))
       expect(evaluation).to(
-        eq([:unmutatable, [], "unmutatable: unparser could not write its bake (KeyError: key not found: :lvar)"])
+        eq([:unmutatable, [], "unmutatable: kimera could not write its bake (KeyError: key not found: :lvar)"])
       )
     end
   end

@@ -126,7 +126,7 @@ RSpec.describe(Kimera::Operators) do
 
   # `if page = next_page` binds page for the body: pinning the predicate to
   # a bare literal dropped the binding, and with it the whole point, since
-  # unparser cannot write the body's read of a local no longer assigned.
+  # Kimera won't write the body's read of a local no longer assigned.
   # A predicate that binds nothing is still not evaluated.
   describe "conditional on a predicate that assigns" do
     let(:linker) { <<~RUBY }

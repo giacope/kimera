@@ -100,7 +100,7 @@ order, and the killing example alone); none is the oracle's doing:
 | K6 | `--session` resumed after a test changes | 2 stale verdicts | 0 |
 | K7 | `LANG` unset and `LANG=C` | 4 failed steps, 10 suite failures | 0, 0 |
 | K8 | `bin/model-check` fetch, model check, trace validation | all fail (checksum of a re-published jar) | all pass (v1.7.4 pinned) |
-| K9 | unparser releases the gemspec allows, and the suite on each | 0.9.0 only | 0.8.1, 0.8.2, 0.9.0, none broken |
+| K9 | unparser releases the gemspec allows, and the suite on each (retired: kimera writes its own Ruby, `Kimera::Scribe`, and no longer depends on unparser) | 0.9.0 only | 0.8.1, 0.8.2, 0.9.0, none broken |
 | K10 | Runtime closure named in the README | parser, racc unnamed | all 6 named |
 | K11 | Two overlaid files sharing a top-level local name | baseline red, run fails | 0 false verdicts |
 | K12 | Top-level constants kimera adds; a project defining `MutantRuntime` | `Kimera`, `MutantRuntime`; collision run errors | `Kimera` only; collision run ok |
@@ -203,7 +203,7 @@ table is equivalent plus noise.
   runtime flip now applies to the names that hold the original definition;
   the 3 visibility mutants of p12 then agree with the oracle.
 - **Schemata.** `spec/kimera` and the schemata properties (which now
-  generate rescue, ensure, ivar, keyword and regexp forms) pass on unparser
+  generate rescue, ensure, ivar, keyword and regexp forms) passed on unparser
   0.8.1, 0.8.2 and 0.9.0, and every file of kimera's `lib` and
   `examples` reduces to each of its mutants' bakes under all operators.
 
@@ -225,8 +225,8 @@ wrong `--since` selection. About 5 minutes on a
 4-vCPU machine. K4 passes under 150 MB of peak RSS (46 MB measured), far from
 the 441 MB it guards against. Left out: S1 measures wall time; K3 and K13 need
 `examples/rails_app` (the `rails` job runs it end to end); K8 needs Java and
-downloads tla2tools.jar (the `model-check` job); K9 and K10 resolve gems from
-rubygems.org (the `unparser` job covers the allowed releases). H2 is
+downloads tla2tools.jar (the `model-check` job); K10 resolves gems from
+rubygems.org; K9 is retired. H2 is
 deterministic and takes 2 minutes, but it fails today, and a pass/fail gate
 cannot hold a case that already fails; once kimera passes it, record it in
 `after.json` and add it to the job's `CASES`. K12 is out for the same reason:

@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
-require_relative "../support/unparse"
+require_relative "../scribe"
 require_relative "overlay_splice"
 
 class Kimera::Overlay::FileWeave
   include Kimera::OverlaySplice
 
-  UNGUARDABLE = "unparser could not round-trip its guard"
+  UNGUARDABLE = "kimera could not write its guard"
   UNMATCHED = "no node to guard: the parser folds it into its parent (as in `--1`)"
 
   def initialize(file, map, safe, unsafe)
@@ -32,7 +32,7 @@ class Kimera::Overlay::FileWeave
 
   def render(weaver)
     Kimera::Overlay::Result.new(
-      file: @file, source: @map.restore(Kimera::Unparse.new(weaver.tree).source), mutant_ids: weaver.applied,
+      file: @file, source: @map.restore(Kimera::Scribe.new(weaver.tree).source), mutant_ids: weaver.applied,
       skipped_unsafe: @unsafe.flat_map(&:ids)
     )
   end
@@ -54,14 +54,14 @@ class Kimera::Overlay::FileWeave
     io.puts(
       "kimera: #{@file}: #{dropped.size} mutation point(s) at " \
         "#{dropped.map { |p| "line #{p.location.start_line}" }.uniq.join(", ")} " \
-        "are unguardable (unparser round-trip); their mutants are reported unmutatable"
+        "are unguardable (kimera could not write them); their mutants are reported unmutatable"
     )
   end
 
   def recover
     spliced = splice
     return spliced if spliced
-    @map.restore(Kimera::Unparse.new(Kimera::Guardrail.new(@map, @safe).tree).source)
+    @map.restore(Kimera::Scribe.new(Kimera::Guardrail.new(@map, @safe).tree).source)
   end
 
   def bisect(points)

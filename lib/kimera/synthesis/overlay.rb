@@ -2,7 +2,7 @@
 
 require_relative "../operators/base"
 
-require_relative "../support/unparse"
+require_relative "../scribe"
 
 require_relative "../error"
 require_relative "../registry/registry"
@@ -50,10 +50,10 @@ class Kimera::Overlay
   end
 
   def write(map, tree, point)
-    map.restore(Kimera::Unparse.new(tree).source)
+    map.restore(Kimera::Scribe.new(tree).source)
   rescue StandardError => error
     Kimera::Overlay::MethodBake.new(map, tree).source(point.location) ||
-      raise(Unbakeable, "unparser could not write its bake (#{error.class}: #{error.message})")
+      raise(Unbakeable, "kimera could not write its bake (#{error.class}: #{error.message})")
   end
 
   def unsafe(file, source, points)

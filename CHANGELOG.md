@@ -2,6 +2,43 @@
 
 ## Unreleased
 
+- **Kimera writes Ruby itself; the unparser gem is gone.** `Kimera::Scribe`
+  reads source with Prism's parser-gem translation and writes a tree back as
+  source that reads as the very same tree: across Kimera's own sources, every
+  installed gem and Ruby's standard library (4,505 files), 4,503 come back
+  identical, and the other two differ only by parentheses. The runtime
+  dependencies are now Prism and parser (with ast and racc); unparser and
+  diff-lcs are no longer pulled in, and the four patches on unparser's
+  internals, the spec that guarded them and CI's per-release unparser job are
+  gone. What unparser got wrong, and Kimera worked around, Scribe does not:
+  - Grouping comes from precedence, not from the parentheses a mutated tree
+    lacks: `x = a && b && c` with the inner `&&` swapped reads
+    `x = (a || b) && c`, a sign stays outside a call on a numeric literal
+    (`-(1.abs)`), a negative literal raised to a power keeps its parentheses
+    (`(-1) ** 2`), and `a ** b ** c`, `a + -b` and `!-a` are written plainly.
+  - Any string writes, of any shape: statements in one interpolation
+    (`"#{a; b}"`, which unparser refused), an `if` straight in a string,
+    nested and adjacent parts, empty parts. Heredocs come back as quoted
+    strings that read as the same parts, bytes that are not UTF-8 as `\x`
+    escapes in every literal (a backtick command came back with the raw byte),
+    and non-ASCII characters as `\u` escapes, so a file with a non-UTF-8
+    magic comment stays loadable. A regexp takes the first delimiter its
+    pattern does not use.
+  - An array range endpoint is an array literal, not `%w`/`%i`, and
+    `|(name)|` keeps its parentheses.
+  - Locals are bound as Ruby binds them: patterns, named captures, rescue,
+    `for`, block and method parameters (a default sees its own parameter). A
+    method a local shadows is written `name()`, a modifier is kept where the
+    body binds what its condition reads (`a = 1 if a.nil?`), and a read of a
+    local nothing binds where it sits is refused rather than written as a
+    method call, so the guard that caused it is dropped as before.
+  - `and`, `or` and `not` keep their spelling, and `return a ? b : c` stays a
+    ternary. A `rescue` list holding a ternary writes too.
+  - Nothing is written through a round-trip check, so there is no warning
+    noise and no "could not find a round tripping solution". Messages that
+    named unparser now name Kimera (`kimera could not write its guard`).
+  `prism` is now required at 1.5.1 or later (unparser 0.9 already did).
+
 Follow-ups to field test round 3:
 
 - **`--reuse-coverage` (`reuse_coverage`).** A full run keeps its baseline's

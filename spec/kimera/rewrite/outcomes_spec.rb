@@ -34,8 +34,8 @@ RSpec.describe(Kimera::Rewrite::Outcomes) do
     expect(distinct("\"é\"\nf(1, 1)\n", "f(1, 1)", drops(2))).to(eq([0]))
   end
 
-  # unparser 0.9 can't write an array range endpoint; programs compare as trees.
-  it "compares programs unparser can't write" do
+  # unparser 0.9 couldn't write an array range endpoint; programs compare as trees.
+  it "compares programs as trees, array range endpoints too" do
     expect(distinct("f([a, a]...a, [a, a]...a)\n", "f([a, a]...a, [a, a]...a)", drops(2))).to(eq([0]))
   end
 

@@ -61,7 +61,7 @@ RSpec.describe(Kimera::Overlay) do
       expect([Object.const_get(:Baked).equal?(captured), captured.build(1).v]).to(eq([true, true]))
     end
 
-    # An emptied segment leaves an empty str in a dstr, which unparser can't
+    # An emptied segment leaves an empty str in a dstr, which unparser couldn't
     # round-trip. The guarded path never hits this.
     def prune(program, keys, needle)
       catalog = selected(keys, program)
@@ -72,7 +72,7 @@ RSpec.describe(Kimera::Overlay) do
 
     it "prunes an emptied leading segment of an interpolated string", :aggregate_failures do
       baked = prune("def m(x)\n  \"prefix \#{x}\"\nend\n", %w[string_literal], "prefix ")
-      expect { Unparser.parse(baked) }.not_to(raise_error)
+      expect { Kimera::Scribe.parse(baked) }.not_to(raise_error)
       expect(baked).to(include("\"\#{x}\""))
       mod = Module.new.tap { |m| m.module_eval(baked) }
       expect(mod.instance_method(:m).bind_call(Object.new.extend(mod), "v")).to(eq("v"))
@@ -80,7 +80,7 @@ RSpec.describe(Kimera::Overlay) do
 
     it "prunes an emptied trailing segment, keeping the interpolation", :aggregate_failures do
       baked = prune("def m(x)\n  \"\#{x} suffix\"\nend\n", %w[string_literal], " suffix")
-      expect { Unparser.parse(baked) }.not_to(raise_error)
+      expect { Kimera::Scribe.parse(baked) }.not_to(raise_error)
       expect(baked).to(include("\"\#{x}\""))
     end
 
@@ -90,7 +90,7 @@ RSpec.describe(Kimera::Overlay) do
     end
 
     it "collapses a juxtaposed pair to the surviving plain string", :aggregate_failures do
-      # Unparser rejects a dstr with a lone str child.
+      # Unparser rejected a dstr with a lone str child.
       baked = prune("def m\n  \"a \" \"b\"\nend\n", %w[string_literal], '"a "')
       expect(baked).to(include('"b"'))
       expect(baked).not_to(include('"a "'))
@@ -130,7 +130,7 @@ RSpec.describe(Kimera::Overlay) do
       expect(described_class.new(catalog).bake("x.rb", program, mutant.id)).to(include("r = ([a, a]...a)", "a < b"))
     end
 
-    # unparser writes an interpolation only if it reads back as the same tree,
+    # unparser wrote an interpolation only if it read back as the same tree,
     # which an endpoint in parentheses did not.
     it "bakes a file interpolating a range with an array endpoint" do
       program = "def m(a, b)\n  \"x\#{([a]...[b]).size}y\"\n  a > b\nend\n"
@@ -187,9 +187,9 @@ RSpec.describe(Kimera::Overlay) do
       expect(baked).to(include('data.start_with?("\xFF\xD8".b)', "size / 2"))
     end
 
-    # unparser can't write such a byte back into a plain heredoc. As a warm
-    # run splices the file per method, a bake then writes the point's method alone.
-    describe "in a file unparser can't write" do
+    # When the whole file can't be written, a warm run splices it per method,
+    # so a bake writes the point's method alone.
+    describe "in a file kimera can't write whole" do
       let(:program) do
         <<~'RUBY'
           module Sniffer
@@ -213,9 +213,19 @@ RSpec.describe(Kimera::Overlay) do
       end
       let(:catalog) { selected(%w[arithmetic comparison], program) }
 
+      # Kimera writes no tree but a method, and not the method named banner.
+      def unwritable(method = nil)
+        allow(Kimera::Scribe).to(receive(:new).and_wrap_original) do |original, node|
+          raise(RuntimeError, "unwritable") unless %i[def defs].include?(node.type) && !node.children.include?(:banner)
+          method ? instance_double(Kimera::Scribe, source: method) : original.call(node)
+        end
+      end
+
       def bake(needle)
         point = catalog.points.find { |p| p.original_source == needle }
-        described_class.new(catalog).bake("x.rb", program, point.mutants.first.id)
+        synth = described_class.new(catalog)
+        unwritable
+        synth.bake("x.rb", program, point.mutants.first.id)
       end
 
       it "writes the method that holds the point and keeps the rest verbatim", :aggregate_failures do
@@ -232,24 +242,25 @@ RSpec.describe(Kimera::Overlay) do
       end
 
       it "raises Unbakeable for a point in the method it can't write, or in none", :aggregate_failures do
-        message = /\Aunparser could not write its bake \(EncodingError: /
+        message = /\Akimera could not write its bake \(RuntimeError: unwritable\)/
         expect { bake("size < LIMIT") }.to(raise_error(described_class::Unbakeable, message))
         expect { bake("value > LIMIT") }.to(raise_error(described_class::Unbakeable, message))
       end
 
       it "raises Unbakeable when the spliced method would not parse" do
-        allow(Unparser).to(receive(:unparse).and_wrap_original) do |original, node|
-          %i[def defs].include?(node.type) ? "def broken(" : original.call(node)
-        end
-        expect { bake("size * LIMIT") }.to(raise_error(described_class::Unbakeable, /could not write its bake/))
+        point = catalog.points.find { |p| p.original_source == "size * LIMIT" }
+        synth = described_class.new(catalog)
+        unwritable("def broken(")
+        expect { synth.bake("x.rb", program, point.mutants.first.id) }
+          .to(raise_error(described_class::Unbakeable, /could not write its bake/))
       end
     end
 
-    it "raises Unbakeable, naming the unparser failure, when unparser can't write the bake" do
+    it "raises Unbakeable, naming the failure, when kimera can't write the bake" do
       mutant = registry.each.first.first
-      allow(Unparser).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
+      allow(Kimera::Scribe).to(receive(:new).and_raise(KeyError, "key not found: :lvar"))
       expect { synth.bake("x.rb", source, mutant.id) }.to(
-        raise_error(described_class::Unbakeable, "unparser could not write its bake (KeyError: key not found: :lvar)")
+        raise_error(described_class::Unbakeable, "kimera could not write its bake (KeyError: key not found: :lvar)")
       )
     end
   end

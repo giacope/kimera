@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../support/unparse"
+require_relative "../scribe"
 require_relative "../rewrite/ast_walk"
 require_relative "../rewrite/directive"
 require_relative "guardrail_dispatch"
@@ -33,7 +33,7 @@ class Kimera::Guardrail
 
   def rewrite(node)
     woven = transform(node)
-    [Kimera::Unparse.new(woven).source, activated(woven)]
+    [Kimera::Scribe.new(woven).source, activated(woven)]
   end
 
   def activated(node)

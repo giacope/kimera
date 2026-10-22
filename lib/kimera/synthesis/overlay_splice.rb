@@ -30,7 +30,7 @@ module Kimera
     def report(edits, dropped, source)
       applied = edits.flat_map(&:last)
       announce(applied, dropped)
-      dropped.each { |point| point.unmutatable!("unparser could not round-trip its method") }
+      dropped.each { |point| point.unmutatable!("kimera could not write its method") }
       build(applied, dropped, source)
     end
 
@@ -43,7 +43,7 @@ module Kimera
 
     def announce(applied, dropped)
       io.puts(
-        "kimera: #{@file}: file-level round-trip failed; " \
+        "kimera: #{@file}: could not write the whole file; " \
           "#{applied.size} mutant(s) spliced per method, " \
           "#{dropped.flat_map(&:ids).size} reported unmutatable"
       )

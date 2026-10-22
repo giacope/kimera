@@ -7,8 +7,8 @@ module Kimera
   end
 end
 
-# unparser 0.9 on Ruby 4.0 needs Prism::Translation::Parser40, which prism
-# ships from 1.9; an older lockfile crashed every command (R3K1).
+# Kimera::Scribe on Ruby 4.0 parses with Prism::Translation::Parser40, which
+# prism ships from 1.9; an older lockfile crashed every command (R3K1).
 class Kimera::CLI::PrismCheck
   NEEDED = Gem::Version.new("1.9")
   RUBY = Gem::Version.new("4.0")

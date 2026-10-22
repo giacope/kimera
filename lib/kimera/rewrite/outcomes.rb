@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
-require_relative "../support/unparse"
+require_relative "../scribe"
 require_relative "conditions"
 require_relative "directive"
 require_relative "numbered_params"
 
 class Kimera::Rewrite::Outcomes
-  NUMERIC = %i[int float rational complex].freeze
+  NUMERIC = Kimera::Scribe::Numeral::TYPES
 
   def initialize(source)
     @source = source
@@ -34,7 +34,7 @@ class Kimera::Rewrite::Outcomes
 
   def tested = @_tested ||= Kimera::Rewrite::Conditions.new(tree).places
 
-  def tree = @_tree ||= Kimera::Rewrite::NumberedParams.new(Kimera::Unparse.parse(@source)).normalize
+  def tree = @_tree ||= Kimera::Rewrite::NumberedParams.new(Kimera::Scribe.parse(@source)).normalize
 
   def program(location, variant)
     programs[variant] ||= outcome(location, yield(variant))
