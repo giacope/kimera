@@ -35,15 +35,30 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
     Kimera::MutantResult.new(mutant_id: id, status: :harness_error, file: "calc.rb", detail: "warm #{id}")
   end
 
+  # Concurrent workers meet before either judges, so each takes a mutant of
+  # its own however the threads are scheduled.
+  def test_meet(arrived, slot)
+    return unless slot
+    arrived << slot
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
+    sleep(0.01) until arrived.size > 1 || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+  end
+
+  def test_judged(arrived, isolated, trial)
+    test_meet(arrived, trial.slot)
+    status, detail = isolated.fetch(trial.id)
+    Kimera::MutantResult.new(
+      mutant_id: trial.id, status: status, file: "calc.rb", covering_tests: ["t#{trial.id}"], detail: detail
+    )
+  end
+
   # isolated: id => [status, detail]; control: the unmutated outcome.
   def test_engine(log, isolated:, control:)
+    judged = method(:test_judged).curry[Thread::Queue.new, isolated]
     Class.new(described_class) do
       define_method(:evaluate) do |trial|
         log << [:mutant, trial.id, trial.mirror, trial.slot]
-        status, detail = isolated.fetch(trial.id)
-        Kimera::MutantResult.new(
-          mutant_id: trial.id, status: status, file: "calc.rb", covering_tests: ["t#{trial.id}"], detail: detail
-        )
+        judged.call(trial)
       end
       define_method(:verdict) do |mirror, tests, **|
         log << [:control, tests, mirror]
