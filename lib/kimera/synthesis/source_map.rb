@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../support/unparse"
+require_relative "../unparsing/unparse"
 require_relative "../rewrite/numbered_params"
 
 class Kimera::SourceMap

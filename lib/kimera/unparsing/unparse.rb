@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "warnings"
+require_relative "../support/warnings"
 require_relative "unparse_grouping"
 
 begin

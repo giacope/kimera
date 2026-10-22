@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "kimera/support/unparse"
+require "kimera/unparsing/unparse"
 
 # Kimera::Unparse prepends onto unparser's internals, which are not public
 # API. When an unparser upgrade renames or drops one of them, a prepended

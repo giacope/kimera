@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "prism"
-require_relative "../support/syntax"
+require_relative "../parsing/syntax"
 
 module Kimera
   module Execution

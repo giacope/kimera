@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "../unparsing/unparse_nodes"
+
 module Kimera
   module Rewrite
     module ClauseHandlers
@@ -7,6 +9,7 @@ module Kimera
 
       Operation =
         Data.define(:node, :directive) do
+          include Kimera::Unparse::Nodes
           def rescued = rebody { |body| unrescued(body) }
 
           def ensured = rebody { |body| body.children[0] }
@@ -54,10 +57,6 @@ module Kimera
             return handler.updated(nil, [guarded, *clauses, otherwise]) unless clauses.empty?
             parts = [guarded, otherwise].compact
             parts.one? ? parts.first : ast(:begin, *parts)
-          end
-
-          def ast(type, *children)
-            Parser::AST::Node.new(type, children)
           end
         end
     end

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "kimera/support/seed"
+require "kimera/frameworks/seed"
 
 # Two of Coin's tests draw a random number and fail on half the draws. Kimera
 # seeds each test from --seed and the test's id, so the seed picked here

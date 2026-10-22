@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "prism"
+require_relative "../parsing/syntax"
 require_relative "redefinition"
 
 module Kimera
@@ -31,7 +31,7 @@ class Kimera::Execution::Overrides
 
   def file = @_file ||= Kimera::Execution::Origin.new(@given).canonical
 
-  def defined = visit(Prism.parse(@source).value, [], :instance)
+  def defined = visit(Kimera::Syntax.parse(@source).value, [], :instance)
 
   def visit(node, scope, side)
     handler = VISITS[node.class]

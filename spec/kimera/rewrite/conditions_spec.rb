@@ -2,7 +2,7 @@
 
 require "prism"
 require "kimera/rewrite/conditions"
-require "kimera/support/unparse"
+require "kimera/unparsing/unparse"
 
 RSpec.describe(Kimera::Rewrite::Conditions) do
   let(:forms) do

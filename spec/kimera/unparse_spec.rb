@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "kimera/support/unparse"
+require "kimera/unparsing/unparse"
 
 # Minitest turns on deprecation warnings when it loads, and parser (under
 # unparser) trips them on every synthesis, flooding the run's stderr.

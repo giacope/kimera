@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../support/unparse"
+require_relative "../unparsing/unparse"
 require_relative "conditions"
 require_relative "directive"
 require_relative "numbered_params"

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../support/unparse"
+require_relative "../unparsing/unparse"
 require_relative "../registry/builder"
 require_relative "../rewrite/directive"
 

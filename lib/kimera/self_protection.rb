@@ -20,7 +20,7 @@ module Kimera
       kimera/frameworks/group_scope.rb
       kimera/frameworks/group_tree.rb
       kimera/frameworks/minitest_suite.rb
-      kimera/support/test_exit.rb
+      kimera/exits/test_exit.rb
       kimera/frameworks/class_hooks.rb
       kimera/execution/shift.rb
       kimera/execution/shift/attempt.rb
