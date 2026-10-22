@@ -590,29 +590,40 @@ RSpec.describe(Kimera::Overlay) do
       RUBY
     end
 
-    it "mutates the whole file, the literal's own point too", :aggregate_failures do
+    it "mutates the whole file, the literal's own point too" do
       result, registry = escaped(source)
       expect([result.mutant_ids.size, result.skipped_unsafe]).to(eq([registry.count, []]))
-      subject = subject(result)
-      Kimera::RUNTIME.active = nil
-      expect(subject.content_type("\xFF\xD8\xFF\xE0".b)).to(eq("image/jpeg"))
+    end
+
+    it "keeps the literal's mutant live", :aggregate_failures do
+      result, registry = escaped(source)
+      typed = subject(result)
+      expect(typed.content_type("\xFF\xD8\xFF\xE0".b)).to(eq("image/jpeg"))
       Kimera::RUNTIME.active = registry.each.find { |m, _p| m.label == '"\xFF\xD8\xFF" => ""' }.first.id
-      expect(subject.content_type("\x89PNG".b)).to(eq("image/jpeg"))
+      expect(typed.content_type("\x89PNG".b)).to(eq("image/jpeg"))
     end
 
     # unparser can't write such a byte back into a plain heredoc (a guarded
     # part is written as an interpolation, which it can), so only its method
     # is left out.
-    it "splices the other methods when unparser can't write the literal", :aggregate_failures do
+    # The overlay and registry of a file whose heredoc holds the byte, having
+    # announced the splice.
+    def spliced
       heredoc = "def banner(size)\n  return if size < 2 * 2\n  <<~TEXT\n    \\xFF\n    end\n  TEXT\nend\n\n#{source}"
-      result = nil
-      registry = nil
-      expect { result, registry = escaped(heredoc, %w[arithmetic comparison]) }
+      pair = nil
+      expect { pair = escaped(heredoc, %w[arithmetic comparison]) }
         .to(output(/escaped\.rb: file-level round-trip failed; 1 mutant\(s\) spliced per method, 3 reported/).to_stderr)
-      dropped = registry.points.reject(&:safe?)
-      expect(dropped.map(&:method_name).uniq).to(eq(["banner"]))
-      expect(dropped.map(&:unsafe_reason).uniq).to(eq(["unmutatable: unparser could not round-trip its method"]))
-      expect(subject(result).banner(5).bytes).to(eq([0xFF, 10, 101, 110, 100, 10]))
+      pair
+    end
+
+    it "splices the other methods when unparser can't write the literal" do
+      dropped = spliced.last.points.reject(&:safe?)
+      expect([dropped.map(&:method_name).uniq, dropped.map(&:unsafe_reason).uniq])
+        .to(eq([["banner"], ["unmutatable: unparser could not round-trip its method"]]))
+    end
+
+    it "still writes the byte through the method it left out" do
+      expect(subject(spliced.first).banner(5).bytes).to(eq([0xFF, 10, 101, 110, 100, 10]))
     end
   end
 
@@ -653,18 +664,26 @@ RSpec.describe(Kimera::Overlay) do
         .to(satisfy { |(m, s)| !m.empty? && !s.empty? && !m.intersect?(s) })
       expect(result.mutant_ids.size + result.skipped_unsafe.size).to(eq(registry.count))
       expect { Unparser.parse(result.source) }.not_to(raise_error)
+    end
+
+    it "reports the dropped points as unmutatable, with the reason", :aggregate_failures do
+      registry, result = fallback
       dropped = registry.points.reject(&:safe?)
       expect(dropped.flat_map(&:ids)).to(eq(result.skipped_unsafe))
       expect(dropped.map(&:unsafe_reason).uniq).to(eq(["unmutatable: unparser could not round-trip its guard"]))
     end
 
-    it "re-raises the original error when no point is guardable" do
-      synth = described_class.new(scan)
+    # Every weave fails to render.
+    def unweavable
       build = Kimera::Overlay::FileWeave.method(:new)
       allow(Kimera::Overlay::FileWeave).to(receive(:new)) do |*arguments, **options|
         build.call(*arguments, **options).tap { |weave| allow(weave).to(receive(:attempt).and_return(nil)) }
       end
-      expect { synth.synthesize("match_repro.rb", source) }
+    end
+
+    it "re-raises the original error when no point is guardable" do
+      unweavable
+      expect { described_class.new(scan).synthesize("match_repro.rb", source) }
         .to(raise_error(StandardError, /Unparser cannot round trip|unparse/i))
     end
 
@@ -774,13 +793,17 @@ RSpec.describe(Kimera::Overlay) do
         [registry, result]
       end
 
-      it "reports the points of a method it could not re-emit as unmutatable", :aggregate_failures do
+      it "accounts for every point exactly once", :aggregate_failures do
         registry, result = partial
         expect(result.mutant_ids.size + result.skipped_unsafe.size).to(eq(registry.count))
         expect(result.mutant_ids & result.skipped_unsafe).to(be_empty)
-        dropped = registry.points.select { |point| point.method_name.to_s == "compare" }
+      end
+
+      it "reports the points of a method it could not re-emit as unmutatable", :aggregate_failures do
+        registry, = partial
+        dropped, kept = registry.points.partition { |point| point.method_name.to_s == "compare" }
         expect(dropped.map(&:unsafe_reason).uniq).to(eq(["unmutatable: unparser could not round-trip its method"]))
-        expect(registry.points.reject { |point| dropped.include?(point) }).to(all(be_safe))
+        expect(kept).to(all(be_safe))
       end
 
       # A rebuild failure outside any method is a Kimera bug. Splicing would hide it.
@@ -858,35 +881,58 @@ RSpec.describe(Kimera::Overlay) do
         [registry, source]
       end
 
-      it "reopens value-object constants instead of redefining them", :aggregate_failures do
-        registry, source = reopened
+      # A Point, a SplicedTop and a Nested made before the spliced overlay runs.
+      def made_before(source)
         stub_const("Spliced", Module.new)
         stub_const("SplicedTop", nil)
         Kimera::Warnings::SILENCED.during { TOPLEVEL_BINDING.eval(value_source) }
-        before = [Spliced::Point.new(x: 11), SplicedTop.new(20), Spliced::Nested.new(x: 10)]
-        Kimera::Warnings::SILENCED.during { TOPLEVEL_BINDING.eval(source) }
-        expect([Spliced::Point, SplicedTop, Spliced::Nested]).to(eq(before.map(&:class)))
-        flip = ->(label, line) { registry.each.find { |m, p| m.label == label && p.location.start_line == line }.first }
-        Kimera::RUNTIME.active = flip.call("> => <", 3).id
-        expect(before[0].big?).to(be(false))
-        Kimera::RUNTIME.active = flip.call("< => >", 5).id
-        expect(before[1].small?).to(be(true))
-        Kimera::RUNTIME.active = flip.call("== => !=", 7).id
-        expect(before[2].same?).to(be(false))
+        [Spliced::Point.new(x: 11), SplicedTop.new(20), Spliced::Nested.new(x: 10)].tap do
+          Kimera::Warnings::SILENCED.during { TOPLEVEL_BINDING.eval(source) }
+        end
+      end
+
+      # Each ask's answer with the mutant of its label, at its line, active.
+      def flipped(registry, asks)
+        asks.map do |label, line, ask|
+          at = ->(mutant, point) { mutant.label == label && point.location.start_line == line }
+          Kimera::RUNTIME.active = registry.each.find { |mutant, point| at.call(mutant, point) }.first.id
+          ask.call
+        end
+      end
+
+      it "reopens value-object constants instead of redefining them" do
+        _registry, source = reopened
+        made = made_before(source)
+        expect([Spliced::Point, SplicedTop, Spliced::Nested]).to(eq(made.map(&:class)))
+      end
+
+      it "keeps the mutants of the reopened constants' methods live" do
+        registry, source = reopened
+        point, top, nested = made_before(source)
+        asks = [
+          ["> => <", 3, -> { point.big? }], ["< => >", 5, -> { top.small? }], ["== => !=", 7, -> { nested.same? }]
+        ]
+        expect(flipped(registry, asks)).to(eq([false, true, false]))
+      end
+
+      # How the splice reopens each kind of constant.
+      def reopenings
+        lexical = "(is_a?(::Module) ? self : ::Object)"
+        [
+          "Point = (#{lexical}.const_defined?(:Point, false) ? #{lexical}.const_get(:Point) : " \
+            "Data.define(:x)); Point.class_eval do",
+          "::SplicedTop = (::Object.const_defined?(:SplicedTop, false) ? ::Object.const_get(:SplicedTop) : " \
+            "Struct.new(:x)); ::SplicedTop.class_eval {",
+          "Spliced::Nested = (Spliced.const_defined?(:Nested, false) ? Spliced.const_get(:Nested) : " \
+            "Data.define(:x)); Spliced::Nested.class_eval do",
+          "Other = (#{lexical}.const_defined?(:Other, false) ? #{lexical}.const_get(:Other) : " \
+            "Class.new); Other.class_eval {"
+        ]
       end
 
       it "reopens with the constant's own scope, or the lexical one" do
         _registry, source = reopened
-        lexical = "(is_a?(::Module) ? self : ::Object)"
-        point = "Point = (#{lexical}.const_defined?(:Point, false) ? #{lexical}.const_get(:Point) : " \
-          "Data.define(:x)); Point.class_eval do"
-        top = "::SplicedTop = (::Object.const_defined?(:SplicedTop, false) ? ::Object.const_get(:SplicedTop) : " \
-          "Struct.new(:x)); ::SplicedTop.class_eval {"
-        nested = "Spliced::Nested = (Spliced.const_defined?(:Nested, false) ? Spliced.const_get(:Nested) : " \
-          "Data.define(:x)); Spliced::Nested.class_eval do"
-        other = "Other = (#{lexical}.const_defined?(:Other, false) ? #{lexical}.const_get(:Other) : " \
-          "Class.new); Other.class_eval {"
-        expect(source).to(include(point, top, nested, other))
+        expect(source).to(include(*reopenings))
       end
 
       it "leaves every other assignment as written", :aggregate_failures do
@@ -906,25 +952,39 @@ RSpec.describe(Kimera::Overlay) do
 
     # giacope/kimera#7: a string interpolating a pattern binding sank every
     # mutant in the file, including ones in unrelated methods.
-    it "weaves a file whose strings interpolate a case/in binding", :aggregate_failures do
-      code = <<~'RUBY'
-        class PatternBid
-          def big?(value) = value > 10
+    describe "a file whose strings interpolate a case/in binding" do
+      let(:code) do
+        <<~'RUBY'
+          class PatternBid
+            def big?(value) = value > 10
 
-          def bid(input)
-            case input
-            in [:parsed, chosen] then ["#{input.first} #{chosen}", chosen]
+            def bid(input)
+              case input
+              in [:parsed, chosen] then ["#{input.first} #{chosen}", chosen]
+              end
             end
           end
-        end
-      RUBY
-      registry = Kimera::RegistryScan.new.source(code, file: "bid.rb")
-      result = nil
-      expect { result = described_class.new(registry).synthesize("bid.rb", code) }.not_to(output.to_stderr)
-      expect(result.mutant_ids.size).to(eq(registry.count))
-      mod = Module.new
-      mod.module_eval(result.source)
-      expect(mod.const_get(:PatternBid).new.bid([:parsed, 2])).to(eq(["parsed 2", 2]))
+        RUBY
+      end
+
+      # The registry and the overlay, woven without a warning.
+      def woven
+        registry = Kimera::RegistryScan.new.source(code, file: "bid.rb")
+        result = nil
+        expect { result = described_class.new(registry).synthesize("bid.rb", code) }.not_to(output.to_stderr)
+        [registry, result]
+      end
+
+      it "is woven whole, quietly" do
+        registry, result = woven
+        expect(result.mutant_ids.size).to(eq(registry.count))
+      end
+
+      it "still answers as written" do
+        _, result = woven
+        bid = Module.new.tap { |mod| mod.module_eval(result.source) }.const_get(:PatternBid)
+        expect(bid.new.bid([:parsed, 2])).to(eq(["parsed 2", 2]))
+      end
     end
 
     it "does not warn when every point is guardable" do
