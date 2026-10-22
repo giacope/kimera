@@ -70,6 +70,13 @@ RSpec.describe(Kimera::Runtime) do
     end
   end
 
+  describe "#overlay" do
+    it "is overlaying only while its block runs" do
+      inside = runtime.overlay { runtime.overlaying? }
+      expect([runtime.overlaying?, inside, runtime.overlaying?]).to(eq([false, true, false]))
+    end
+  end
+
   # Assert only through our own handles: when self-hosted, an outer harness
   # holds a ledger open for the whole run.
   describe "coverage touch-ledgers" do

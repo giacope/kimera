@@ -9,6 +9,10 @@ end
 # non-main Ractor reads the active mutant (an Integer or nil) like any other
 # code, and records what it reaches in the open ledgers' spill files, whose
 # paths it can read.
+#
+# It holds all of kimera's process-wide state, and so is the one object that
+# reassigns its own fields at run time.
+# rubocop:disable-next Kata/FrozenState, Kata/NoSetter -- the process-wide mutation switch every thread and Ractor reads
 class Kimera::Runtime < Module
   SOURCE_PATH = File.expand_path(__FILE__)
 
@@ -43,31 +47,6 @@ class Kimera::Runtime < Module
       end
     end
 
-  Flip =
-    Struct.new(:owner, :definition, :names) do
-      def conceal
-        self.names = owner.public_instance_methods(false).select { |name| owner.instance_method(name) == definition }
-        expose(:private)
-      end
-
-      def reveal
-        expose(:public)
-        names.clear
-      end
-
-      def expose(visibility)
-        names.each { |name| owner.__send__(visibility, name) }
-        owner.clear_action_methods! if owner.respond_to?(:clear_action_methods!)
-      end
-    end
-
-  module Forks
-    def _fork
-      leaks = Kimera::RUNTIME.leaks
-      super.tap { |pid| Kimera::RUNTIME.forked!(leaks) if pid.zero? && leaks.any? }
-    end
-  end
-
   NONE = [].freeze
 
   attr_reader :active
@@ -75,6 +54,7 @@ class Kimera::Runtime < Module
   def initialize
     super
     @active = nil
+    @overlaying = false
     @ledgers = NONE
     @spills = NONE
   end
@@ -105,8 +85,17 @@ class Kimera::Runtime < Module
     ledger.drain!
   end
 
-  def reset!
-    self.active = nil
+  def reset! = self.active = nil
+
+  # Whether an overlay is re-running class bodies, so the guards it installs
+  # in Rails skip declarations those bodies already made.
+  def overlaying? = @overlaying
+
+  def overlay
+    @overlaying = true
+    yield
+  ensure
+    @overlaying = false
   end
 
   def privatize(id, owner, name)
@@ -139,6 +128,33 @@ class Kimera::Runtime < Module
   def publish = @spills = Ractor.make_shareable(leaks)
 
   def hidden = @_hidden ||= {}
+end
+
+# A visibility mutant: while it is active, the method's public names are private.
+Kimera::Runtime::Flip =
+  Struct.new(:owner, :definition, :names) do
+    def conceal
+      self.names = owner.public_instance_methods(false).select { |name| owner.instance_method(name) == definition }
+      expose(:private)
+    end
+
+    def reveal
+      expose(:public)
+      names.clear
+    end
+
+    def expose(visibility)
+      names.each { |name| owner.__send__(visibility, name) }
+      owner.clear_action_methods! if owner.respond_to?(:clear_action_methods!)
+    end
+  end
+
+# A forked child keeps recording what it reaches into the parent's open ledgers.
+module Kimera::Runtime::Forks
+  def _fork
+    leaks = Kimera::RUNTIME.leaks
+    super.tap { |pid| Kimera::RUNTIME.forked!(leaks) if pid.zero? && leaks.any? }
+  end
 end
 
 Kimera::RUNTIME = Kimera::Runtime.new unless Kimera.const_defined?(:RUNTIME, false)

@@ -87,21 +87,6 @@ Kata/NoOutputArgument:
   AllowedNames:
     # eval/'s oracle: worker threads drain a shared work queue; pop is its thread-safe API.
     - queue
-Kata/NoSetter:
-  inherit_mode:
-    merge:
-      - Exclude
-  Exclude:
-    # The process-wide switches every synthesized guard and Rails-prepended guard module reads.
-    - lib/kimera/runtime.rb
-    - lib/kimera/execution/overlay_guards.rb
-Kata/FrozenState:
-  inherit_mode:
-    merge:
-      - Exclude
-  Exclude:
-    # The injected runtime: its selector and open ledgers change by design, with no allocation on the hot path.
-    - lib/kimera/runtime.rb
 
 # --------------------------------------------------------------------------
 # kimera forks processes, not threads; a mutex here would only slow mutants.
@@ -113,8 +98,6 @@ ThreadSafety/ClassInstanceVariable:
 ThreadSafety/ClassAndModuleAttributes:
   Exclude:
     - spec/**/*
-    # "Overlays armed?" flag, set once before any fork.
-    - lib/kimera/execution/overlay_guards.rb
 ThreadSafety/NewThread:
   Exclude:
     # The oracle runs one mutant per sandbox copy at once.

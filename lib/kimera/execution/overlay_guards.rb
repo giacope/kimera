@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "../runtime"
 require_relative "guard_modules"
 
 module Kimera
@@ -13,22 +14,13 @@ module Kimera
         ["ActiveRecord::Reflection", :singleton_class, Reflections::GUARD]
       ].freeze
 
-      class << self
-        attr_accessor :overlaying
-
-        alias overlaying? overlaying
-      end
-
       def initialize(hooks = HOOKS)
         @hooks = hooks
       end
 
-      def overlay
+      def overlay(&)
         install!
-        self.class.overlaying = true
-        yield
-      ensure
-        self.class.overlaying = false
+        Kimera::RUNTIME.overlay(&)
       end
 
       def install!

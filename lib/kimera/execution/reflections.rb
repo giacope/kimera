@@ -12,7 +12,7 @@ module Kimera
             table = Reflections.new(owner)
             key = table.key(name)
             super
-            table.settle(before, Declared.new(key, reflection, before[key])) if OverlayGuards.overlaying?
+            table.settle(before, Declared.new(key, reflection, before[key])) if Kimera::RUNTIME.overlaying?
           end
         end
 
