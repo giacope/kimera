@@ -1,14 +1,11 @@
 # frozen_string_literal: true
 
-require "fileutils"
-require "tmpdir"
-
 # The suite reaches Pricing#price only through an alias and an alias_method
 # declared in other files, and Fees::Hook#charges only through a macro another
 # file's class body calls while it loads. Both used to come out uncovered,
 # though the suite kills every one of these mutants.
 RSpec.describe("kimera run on code reached through another file (end-to-end)", :aggregate_failures) do
-  def test_shop(root)
+  def shop_files
     {
       "app/shop.rb" => <<~RUBY,
         module Shop; end
@@ -50,37 +47,22 @@ RSpec.describe("kimera run on code reached through another file (end-to-end)", :
           it("adds one") { expect(described_class.new.cost(3)).to eq(4) }
         end
       RUBY
-    }.each do |path, body|
-      FileUtils.mkdir_p(File.dirname(File.join(root, path)))
-      File.write(File.join(root, path), body)
-    end
+    }
   end
 
-  it "kills the aliased mutants and sends the macro's to the isolated tier, never uncovered" do
-    Dir.mktmpdir("kimera-reach") do |root|
-      test_shop(root)
-      test_run(cwd: root, arguments: ["--fail-on-no-coverage"]) do |output, report, status|
-        expect(report).not_to(be_nil, "no JSON report; output:\n#{output}")
-        results = report["results"]
-        pricing, fees = %w[app/shop/pricing.rb app/shop/fees.rb].map { |file| results.select { |r| r["file"] == file } }
-        expect(pricing.map { |r| r["status"] }.uniq).to(eq(["killed"]))
-        expect(fees.map { |r| r["status"] }.uniq).to(eq(["isolated_only"]))
-        expect(fees.map { |r| r["detail"] }).to(all(start_with("runs only while the suite loads")))
-        expect(report["counts"]["no_coverage"]).to(eq(0))
-        expect(status).to(eq(0))
-      end
-    end
+  def reached(arguments)
+    test_tree(shop_files, "kimera-reach") { |root| test_outcome(cwd: root, arguments: arguments) }
+  end
+
+  it "kills the aliased mutants and sends the macro's to the isolated tier, never uncovered", :aggregate_failures do
+    run = reached(["--fail-on-no-coverage"])
+    verdicts = %w[app/shop/pricing.rb app/shop/fees.rb].map { |file| run.statuses(file) }
+    expect([*verdicts, run.counts["no_coverage"], run.status]).to(eq([["killed"], ["isolated_only"], 0, 0]), run.output)
+    expect(run.rows("app/shop/fees.rb").map { |r| r["detail"] }).to(all(start_with("runs only while the suite loads")))
   end
 
   it "kills every one of them with --isolated" do
-    Dir.mktmpdir("kimera-reach") do |root|
-      test_shop(root)
-      test_run(cwd: root, arguments: ["--isolated"]) do |output, report, status|
-        expect(report).not_to(be_nil, "no JSON report; output:\n#{output}")
-        expect(report["results"].map { |r| r["status"] }.uniq).to(eq(["killed"]))
-        expect(report["counts"]["total"]).to(eq(4))
-        expect(status).to(eq(0))
-      end
-    end
+    run = reached(["--isolated"])
+    expect([run.statuses, run.counts["total"], run.status]).to(eq([["killed"], 4, 0]), run.output)
   end
 end

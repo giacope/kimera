@@ -1,19 +1,9 @@
 # frozen_string_literal: true
 
-require "fileutils"
-require "tmpdir"
-
 # R3K5: code .rspec's --require loaded ran before kimera's load trace began.
 # R3K2: a lambda a class body calls ran while loading, not as a method.
 # K3-7: an in-scope file the suite never loads was evaluated anyway.
 RSpec.describe("kimera run on code that runs while the suite loads (end-to-end)", :aggregate_failures) do
-  def project(root, files)
-    files.each do |path, body|
-      FileUtils.mkdir_p(File.dirname(File.join(root, path)))
-      File.write(File.join(root, path), body)
-    end
-  end
-
   def files = {
     ".rspec" => "--require spec_helper\n",
     "spec/spec_helper.rb" =>
@@ -48,32 +38,18 @@ RSpec.describe("kimera run on code that runs while the suite loads (end-to-end)"
     RUBY
   }
 
-  def statuses(report, file) = report["results"].select { |r| r["file"] == file }.map { |r| r["status"] }.uniq
+  def loaded(arguments = []) = test_tree(files, "kimera-load") { |root| test_outcome(cwd: root, arguments: arguments) }
 
-  it "judges load-time code in the isolated tier and never evaluates a file nothing loads" do
-    Dir.mktmpdir("kimera-load") do |root|
-      project(root, files)
-      test_run(cwd: root) do |output, report, status|
-        expect(report).not_to(be_nil, "no JSON report; output:\n#{output}")
-        expect(statuses(report, "app/flags.rb")).to(eq(["isolated_only"]))
-        expect(statuses(report, "app/limits.rb")).to(eq(["isolated_only"]))
-        setup = report["results"].select { |r| r["file"] == "app/setup.rb" }
-        expect(setup.map { |r| r["status"] }.uniq).to(eq(["no_coverage"]))
-        expect(setup.map { |r| r["detail"] }.uniq).to(eq([Kimera::MutationPoint::NEVER_LOADED]))
-        expect(status).to(eq(2))
-      end
-    end
+  it "judges load-time code in the isolated tier and never evaluates a file nothing loads", :aggregate_failures do
+    run = loaded
+    expect(%w[app/flags.rb app/limits.rb app/setup.rb].map { |file| run.statuses(file) } << run.status)
+      .to(eq([["isolated_only"], ["isolated_only"], ["no_coverage"], 2]), run.output)
+    expect(run.rows("app/setup.rb").map { |r| r["detail"] }.uniq).to(eq([Kimera::MutationPoint::NEVER_LOADED]))
   end
 
   it "kills the load-time mutants a test can see when judged in mirrors" do
-    Dir.mktmpdir("kimera-load") do |root|
-      project(root, files)
-      test_run(cwd: root, arguments: ["--isolated", "--exclude", "app/setup.rb"]) do |output, report, _status|
-        expect(report).not_to(be_nil, "no JSON report; output:\n#{output}")
-        flags = report["results"].select { |r| r["file"] == "app/flags.rb" }
-        expect(flags.map { |r| r["status"] }).to(include("killed"))
-        expect(report["counts"]["no_coverage"]).to(eq(0))
-      end
-    end
+    run = loaded(["--isolated", "--exclude", "app/setup.rb"])
+    expect([run.rows("app/flags.rb").map { |r| r["status"] }, run.counts["no_coverage"]])
+      .to(match([include("killed"), 0]), run.output)
   end
 end

@@ -34,6 +34,8 @@ module KimeraSubprocess
 
       def counts = report ? report.fetch("counts") : {}
 
+      def rows(file) = results.select { |row| row["file"] == file }
+
       # Each mutant's status, by id.
       def verdicts = results.to_h { |row| [row["mutant_id"], row["status"]] }
 
