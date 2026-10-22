@@ -7,13 +7,21 @@ end
 
 Kimera::Execution::BaselineTally =
   Struct.new(:coverage, :failures, :irrelevant, :timings, :messages) do
-    measured = Struct.new(:coverage, :irrelevant, :recovered, :timings, keyword_init: true)
     def cover(test_id, touched, took)
       touched.each { |id| coverage[id] << test_id }
       timings[test_id] = took
     end
-    define_method(:measured) do |recovered|
+
+    def measured(recovered)
       excluded = irrelevant.to_h { |test_id| [test_id, messages[test_id]] }
-      measured.new(coverage: coverage, irrelevant: excluded, recovered: recovered, timings: timings)
+      Kimera::Execution::BaselineTally::Measured.new(
+        coverage: coverage, irrelevant: excluded, recovered: recovered, timings: timings
+      )
     end
   end
+
+# What the baseline measured: the tests covering each mutant, the failing
+# tests that cover none (with their messages), the tests a rerun recovered,
+# and how long each test took.
+Kimera::Execution::BaselineTally::Measured =
+  Struct.new(:coverage, :irrelevant, :recovered, :timings, keyword_init: true)
