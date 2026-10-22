@@ -81,10 +81,3 @@ Kata/GoodClassName:
 RSpec/SpecFilePathFormat:
   CustomTransform:
     RSpecSuite: rspec_suite # the cop wants r_spec_suite
-
-# --------------------------------------------------------------------------
-# Until the remaining long examples are split.
-# --------------------------------------------------------------------------
-
-RSpec/ExampleLength:
-  Max: 21
