@@ -3,10 +3,8 @@
 # A plain-Ruby `validates` stands in for Rails. It accumulates state at load,
 # so these mutants can't be judged in-process.
 RSpec.describe("rails class-body operators (end-to-end)") do
-  def write(fixture)
-    FileUtils.mkdir_p(File.join(fixture, "app"))
-    FileUtils.mkdir_p(File.join(fixture, "spec"))
-    File.write(File.join(fixture, "app", "signup.rb"), <<~RUBY)
+  def files = {
+    "app/signup.rb" => <<~RUBY,
       # frozen_string_literal: true
       class Signup
         def self.validators = @validators ||= []
@@ -17,7 +15,7 @@ RSpec.describe("rails class-body operators (end-to-end)") do
         end
       end
     RUBY
-    File.write(File.join(fixture, "spec", "signup_spec.rb"), <<~RUBY)
+    "spec/signup_spec.rb" => <<~RUBY
       # frozen_string_literal: true
       require_relative "../app/signup"
 
@@ -26,30 +24,23 @@ RSpec.describe("rails class-body operators (end-to-end)") do
         it { expect(Signup.new.valid?({})).to be(false) }
       end
     RUBY
-  end
+  }
+
+  def operated(fixture, *flags) = test_outcome(cwd: fixture, arguments: ["--operators", "rails_validation", *flags])
+
+  def isolated_hint = "only the isolated tier can judge (run with --isolated)"
 
   # The warm run alone evaluates nothing here, so its gate fails and names
   # --isolated rather than passing on 0 of 1.
   it "defers class-body mutants on the warm path and kills them isolated", :aggregate_failures do
-    Dir.mktmpdir("kimera-rails-ops") do |fixture|
-      write(fixture)
-      ops = ["--operators", "rails_validation"]
-
-      test_run(cwd: fixture, arguments: ops) do |output, report, status|
-        expect(report).not_to(be_nil, "no report; output:\n#{output}")
-        expect(report["counts"]["isolated_only"]).to(eq(1))
-        expect(report["counts"]["survived"]).to(eq(0))
-        hint = "only the isolated tier can judge (run with --isolated)"
-        expect([status, output]).to(match([2, a_string_including(hint)]))
-      end
-
-      test_run(cwd: fixture, arguments: [*ops, "--isolated"]) do |output, report, status|
-        expect(report).not_to(be_nil, "no report; output:\n#{output}")
-        expect(report["counts"]["killed"]).to(eq(1))
-        expect(report["counts"]["isolated_only"]).to(eq(0))
-        expect(report["counts"]["error"]).to(eq(0))
-        expect(status).to(eq(0))
-      end
+    test_tree(files, "kimera-rails-ops") do |fixture|
+      warm, isolated = [[], ["--isolated"]].map { |flags| operated(fixture, *flags) }
+      expect([warm.counts.slice("isolated_only", "survived"), warm.status, warm.output]).to(
+        match([{ "isolated_only" => 1, "survived" => 0 }, 2, a_string_including(isolated_hint)])
+      )
+      expect([isolated.counts.slice("killed", "isolated_only", "error"), isolated.status]).to(
+        eq([{ "killed" => 1, "isolated_only" => 0, "error" => 0 }, 0]), isolated.output
+      )
     end
   end
 end

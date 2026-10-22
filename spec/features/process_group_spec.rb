@@ -69,17 +69,21 @@ RSpec.describe("processes a test starts") do
     nil
   end
 
-  it "go with a warm worker the watchdog kills", :aggregate_failures do
+  # The run, and whether every server it started was gone once it ended.
+  def warm_run
     Dir.mktmpdir("kimera-process-group") do |fixture|
       scaffold(fixture)
-      test_run(cwd: fixture, arguments: %w[--soft-timeout 30 --hard-timeout 1]) do |output, report, _status|
-        expect(report).not_to(be_nil, "no report; output:\n#{output}")
-        statuses = report["results"].to_h { |result| [result["label"], result["status"]] }
-        expect(statuses["delete `ticks.push(:tick)`"]).to(eq("timeout"))
-        expect(released?(File.join(fixture, "server.lock"))).to(be(true), "a server outlived the run")
-      end
+      run = test_outcome(cwd: fixture, arguments: %w[--soft-timeout 30 --hard-timeout 1])
+      [run, released?(File.join(fixture, "server.lock"))]
     ensure
       stop(File.join(fixture, "servers.txt"))
     end
+  end
+
+  it "go with a warm worker the watchdog kills", :aggregate_failures do
+    run, released = warm_run
+    statuses = run.results.to_h { |row| [row["label"], row["status"]] }
+    expect(statuses).to(include("delete `ticks.push(:tick)`" => "timeout"), run.output)
+    expect(released).to(be(true), "a server outlived the run")
   end
 end
