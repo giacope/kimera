@@ -6,24 +6,10 @@ RSpec.describe("kimera run with the Minitest adapter") do
   end
 
   it "drives a Minitest suite, killing caught mutants and reporting the survivor", :aggregate_failures do
-    test_run(
-      cwd: minitest,
-      tests: "test/**/*_test.rb",
-      arguments: ["--framework", "minitest"]
-    ) do |output, report, status|
-      expect(report).not_to(be_nil, "no report; output:\n#{output}")
-      counts = report["counts"]
-
-      expect(counts["total"]).to(eq(15))
-      expect(counts["killed"]).to(eq(14))
-      expect(counts["survived"]).to(eq(1))
-      expect(counts["error"]).to(eq(0))
-      expect(counts["timeout"]).to(eq(0))
-      expect(counts["no_coverage"]).to(eq(0))
-
-      survivor = report["results"].find { |r| r["status"] == "survived" }
-      expect(survivor["mutant_id"]).to(eq(14))
-      expect(status).to(eq(2))
-    end
+    run = test_outcome(cwd: minitest, tests: "test/**/*_test.rb", arguments: ["--framework", "minitest"])
+    expect(run.counts.slice("total", "killed", "survived", "error", "timeout", "no_coverage")).to(
+      eq("total" => 15, "killed" => 14, "survived" => 1, "error" => 0, "timeout" => 0, "no_coverage" => 0), run.output
+    )
+    expect([run.verdicts.key("survived"), run.status]).to(eq([14, 2]))
   end
 end

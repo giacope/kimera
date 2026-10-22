@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-require "fileutils"
-require "tmpdir"
-
 # A run-once guard: whichever lexer test runs first readies Sql for the rest
 # of the process, so with the superclass call gone the Hql test still passes
 # after the Sql test. Alone in a fresh process it fails.
@@ -50,33 +47,28 @@ RSpec.describe("kimera run confirming survivors (end-to-end)", :aggregate_failur
     RUBY
   }
 
-  def project(root)
-    files.each do |path, body|
-      FileUtils.mkdir_p(File.dirname(File.join(root, path)))
-      File.write(File.join(root, path), body)
+  def run_lexer(*flags)
+    arguments = ["--framework", "minitest", "--no-progress", "lib/lexer.rb", *flags]
+    test_tree(files, "kimera-masked") do |root|
+      test_outcome(cwd: root, tests: "test/**/*_test.rb", arguments: arguments)
     end
   end
 
-  def statuses(report) = report.fetch("results").to_h { |row| [row["mutant_id"], row["status"]] }
-
-  def run_lexer(*flags)
-    Dir.mktmpdir("kimera-masked") do |root|
-      project(root)
-      arguments = ["--framework", "minitest", "--no-progress", "lib/lexer.rb", *flags]
-      test_run(cwd: root, tests: "test/**/*_test.rb", arguments: arguments) do |output, report, _status|
-        expect(report).not_to(be_nil, output)
-        return report
-      end
-    end
+  # What the confirming run says about the mutants the plain run let survive.
+  def confirmation(run, masked)
+    {
+      statuses: run.verdicts.values.uniq,
+      confirmed: run.report&.dig("run", "confirm_survivors"),
+      details: run.results.filter_map { |row| row["detail"] if masked.include?(row["mutant_id"]) }
+    }
   end
 
   it "kills what an earlier test masked once each covering test runs alone" do
-    masked = run_lexer
-    expect(statuses(masked).values).to(include("survived"))
-    confirmed = run_lexer("--confirm-survivors")
-    expect(statuses(confirmed).values.uniq).to(eq(["killed"]))
-    expect(confirmed.dig("run", "confirm_survivors")).to(be(true))
-    unmasked = confirmed.fetch("results").find { |row| statuses(masked)[row["mutant_id"]] == "survived" }
-    expect(unmasked["detail"]).to(start_with("failed alone in a fresh process"))
+    plain = run_lexer
+    masked = plain.verdicts.select { |_id, status| status == "survived" }.keys
+    expect(masked).not_to(be_empty, plain.output)
+    expect(confirmation(run_lexer("--confirm-survivors"), masked)).to(
+      match(statuses: ["killed"], confirmed: true, details: include(start_with("failed alone in a fresh process")))
+    )
   end
 end
