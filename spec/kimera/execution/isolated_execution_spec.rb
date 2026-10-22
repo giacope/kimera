@@ -452,11 +452,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     def paced_trial(given)
       Dir.mktmpdir do |root|
         File.write(File.join(root, "calc.rb"), test_source_fixture)
-        r = test_paced(given).new(registry: registry, root: root, tests: [], **paced)
-        Dir.mktmpdir do |mirror|
-          FileUtils.cp_r(File.join(root, "calc.rb"), File.join(mirror, "calc.rb"))
-          test_invoke_private(r, :evaluate, Kimera::Execution::Trial.new(first, mirror, Kimera::Overlay.new(registry)))
-        end
+        test_mirrored(test_paced(given).new(registry: registry, root: root, tests: [], **paced), root, first).first
       end
     end
 
