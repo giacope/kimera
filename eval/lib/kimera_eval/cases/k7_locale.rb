@@ -12,7 +12,7 @@ module KimeraEval
       "unset" => { "LANG" => nil, "LC_ALL" => nil, "LC_CTYPE" => nil }, "C" => { "LANG" => "C", "LC_ALL" => nil }
     }.freeze
     SPECS = %w[
-      spec/integration/relative_timeout_spec.rb spec/integration/shared_state_spec.rb
+      spec/features/relative_timeout_spec.rb spec/features/shared_state_spec.rb
       spec/kimera/cli/run/emission_spec.rb
     ].freeze
     EXPECTED = { "run" => 2, "report" => 0, "mutant" => 0, "doctor" => 0 }.freeze
