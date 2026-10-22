@@ -40,13 +40,15 @@ RSpec.describe("machine-readable stdout") do
     expect(diagnostics).to(include("LOAD_NOISE", "AT_EXIT_NOISE"))
   end
 
-  it "writes plain progress lines to stderr only, for every machine format", :aggregate_failures do
-    { "json" => /\A\{/, "sarif" => /\A\{/, "github" => /\A::/ }.each do |format, shape|
+  { "json" => /\A\{/, "sarif" => /\A\{/, "github" => /\A::/ }.each do |format, shape|
+    it "writes plain progress lines to stderr only, under --format #{format}", :aggregate_failures do
       report, diagnostics, = run_with(format)
       expect(report).to(match(shape))
       expect(report).not_to(include("kimera: "))
-      expect(diagnostics).to(include("kimera: baseline 0/1 0%", "kimera: mutants 0/"))
-      expect(diagnostics).to(match(%r{^kimera: mutants (\d+)/\1 100%  killed=\d+}))
+      expect(diagnostics).to(
+        include("kimera: baseline 0/1 0%", "kimera: mutants 0/")
+          .and(match(%r{^kimera: mutants (\d+)/\1 100%  killed=\d+}))
+      )
       expect(diagnostics).not_to(include("\r"))
     end
   end

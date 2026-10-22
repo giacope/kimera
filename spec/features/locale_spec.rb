@@ -1,24 +1,24 @@
 # frozen_string_literal: true
 
 require "English"
-require "fileutils"
 require "json"
 require "shellwords"
-require "tmpdir"
 
 # Under LANG=C, Ruby reads files and pipes as US-ASCII; kimera's own reads
 # and the pipes between its processes must still carry UTF-8 test names and
 # source.
 RSpec.describe("kimera under the C locale (end-to-end)", :aggregate_failures) do
-  def project(root)
-    FileUtils.mkdir_p([File.join(root, "app"), File.join(root, "spec")])
-    File.write(File.join(root, "app", "cafe.rb"), <<~RUBY)
+  def menu
+    <<~RUBY
       # Prix en euros
       module Cafe
         def self.libellé(prix) = prix > 10 ? "cher — \#{prix} €" : "abordable ✓"
       end
     RUBY
-    File.write(File.join(root, "spec", "cafe_spec.rb"), <<~RUBY)
+  end
+
+  def menu_spec
+    <<~RUBY
       require_relative "../app/cafe"
 
       RSpec.describe Cafe do
@@ -35,16 +35,21 @@ RSpec.describe("kimera under the C locale (end-to-end)", :aggregate_failures) do
       .force_encoding(Encoding::UTF_8).then { |text| [text, $CHILD_STATUS.exitstatus] }
   end
 
+  # The run's exit, each mutant's status and every test name, read as UTF-8.
+  def run_facts(root)
+    output, status = cli(root, "run", "app", "--tests", "spec/**/*_spec.rb", "--jobs", "2", "--no-progress")
+    expect(status).to(eq(0), output)
+    report = JSON.parse(File.read(File.join(root, "tmp", "kimera", "report.json"), encoding: Encoding::UTF_8))
+    {
+      statuses: report["results"].map { |row| row["status"] }.uniq,
+      names: report["tests"].values.map { |test| test["name"] }
+    }
+  end
+
   it "runs, reports and shows a mutant with UTF-8 names and source, at --jobs 2" do
-    Dir.mktmpdir("kimera-locale") do |root|
-      project(root)
-      output, status = cli(root, "run", "app", "--tests", "spec/**/*_spec.rb", "--jobs", "2", "--no-progress")
-      expect(status).to(eq(0), output)
-      report = JSON.parse(File.read(File.join(root, "tmp", "kimera", "report.json"), encoding: Encoding::UTF_8))
-      expect(report["results"].map { |row| row["status"] }.uniq).to(eq(["killed"]))
-      expect(report["tests"].values.map { |test| test["name"] }).to(include("Cafe trouve 12 € « cher »"))
-      shown, = cli(root, "mutant", "1")
-      expect(shown).to(include("in libellé"))
+    test_tree({ "app/cafe.rb" => menu, "spec/cafe_spec.rb" => menu_spec }, "kimera-locale") do |root|
+      expect(run_facts(root)).to(match(statuses: ["killed"], names: include("Cafe trouve 12 € « cher »")))
+      expect(cli(root, "mutant", "1").first).to(include("in libellé"))
     end
   end
 end
