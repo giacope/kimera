@@ -34,8 +34,7 @@ RSpec.describe(Kimera::Runtime) do
     it "records what it reaches in the main Ractor's open ledger, once per id", :aggregate_failures do
       ledger = runtime.start!
       runtime.active = 4
-      expect(in_ractor(runtime, 4)).to(be(true))
-      expect(in_ractor(runtime, 9)).to(be(false))
+      expect([in_ractor(runtime, 4), in_ractor(runtime, 9)]).to(eq([true, false]))
       expect(runtime.stop!(ledger)).to(contain_exactly(4, 9))
       expect(in_ractor(runtime, 4)).to(be(true))
     end
@@ -254,26 +253,34 @@ RSpec.describe(Kimera::Runtime) do
   describe "#privatize" do
     let(:owner) { Class.new { def shown = 1 } }
 
+    # Whether shown is private with each id active in turn.
+    def privacy(ids)
+      ids.map do |id|
+        runtime.active = id
+        owner.private_method_defined?(:shown)
+      end
+    end
+
     it "flips a registered method on activation and back on deactivation", :aggregate_failures do
       runtime.privatize(3, owner, :shown)
-      runtime.active = 3
-      expect(owner.private_method_defined?(:shown)).to(be(true))
-      runtime.active = 4
-      expect(owner.public_method_defined?(:shown)).to(be(true))
-      runtime.active = 3
+      expect(privacy([3, 4, 3])).to(eq([true, false, true]))
       runtime.reset!
       expect(owner.public_method_defined?(:shown)).to(be(true))
     end
 
-    it "flips the names that hold the registered definition, not a later redefinition", :aggregate_failures do
+    # Registers shown for mutant 6, then redefines it over an alias that keeps the registered one.
+    def overridden
       runtime.privatize(6, owner, :shown)
       owner.class_eval do
         alias_method :before, :shown
         def shown = before + 1
       end
+    end
+
+    it "flips the names that hold the registered definition, not a later redefinition", :aggregate_failures do
+      overridden
       runtime.active = 6
-      expect(owner.private_method_defined?(:before)).to(be(true))
-      expect(owner.public_method_defined?(:shown)).to(be(true))
+      expect([owner.private_method_defined?(:before), owner.public_method_defined?(:shown)]).to(eq([true, true]))
       runtime.active = nil
       expect(owner.public_method_defined?(:before)).to(be(true))
     end
