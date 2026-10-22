@@ -20,123 +20,71 @@ AllCops:
     - vendor/**/*
 
 # --------------------------------------------------------------------------
-# Naming: words this domain owns, or that a framework spells its own way.
+# Until rubocop-kata#19 merges: kata misreads its branch already fixes.
 # --------------------------------------------------------------------------
-
-Kata/GoodVariableName:
-  AllowedNames:
-    - $VERBOSE # Ruby's own global
 
 Kata/GoodMethodName:
   AllowedNames:
-    # ActiveSupport/ActiveRecord APIs that code and fixtures must match exactly.
-    - set_callback
-    - defined_enums
-    - normalize_callback_params
-    - get_callbacks
-    - add_reflection
-    - _reflections
+    # Overrides that call super, and foreign names a spec stand-in answers (K3, K4).
     - clear_reflections_cache
-    # RSpec and Minitest internals kimera extends each test with, to fail a test that calls exit.
     - with_around_example_hooks
-    - capture_exceptions
-    # Ruby's fork hook, which Process.fork calls and the coverage runtime prepends to.
-    - _fork
-    # Rails' controller action cache, which a visibility flip drops.
     - clear_action_methods!
-    # unparser's range emitter internals, overridden to write array endpoints.
     - visit_begin_node
     - visit_end_node
 
-Kata/GoodClassName:
-  inherit_mode:
-    merge:
-      - Terms
-  Terms:
-    - RSpecSuite # RSpec's suite; kata splits the brand RSpec into two words
-
 Kata/BuilderNoun:
   AllowedNames:
-    - get_callbacks # ActiveSupport's private name, mirrored by a fixture
+    - get_callbacks # ActiveSupport's private name, mirrored by a spec stand-in (K4)
 
+Kata/RealWords:
+  Terms:
+    # `--format NAME` values (K5).
+    - ndjson
+    - sarif
 
 Naming/PredicateMethod:
   AllowedMethods:
-    - run # overrides Minitest::Test#run
+    - run # overrides Minitest.run, which answers a boolean by contract
 
-RSpec/SpecFilePathFormat:
-  CustomTransform:
-    RSpecSuite: rspec_suite # the cop wants r_spec_suite
+Lint/BooleanSymbol:
+  Exclude:
+    # :true/:false are AST node types (K2).
+    - lib/kimera/synthesis/guardrail_factories.rb
 
-# --------------------------------------------------------------------------
-# The cop ignores side effects between assignment and read (closing a pipe,
-# starting a clock, forking). All 25 reports it ever made were such cases.
-# --------------------------------------------------------------------------
-
-Elegant/NoRedundantVariable:
-  Enabled: false
-
-# --------------------------------------------------------------------------
-# Object discipline: state a contract outside kimera's objects dictates.
-# --------------------------------------------------------------------------
-
-Kata/NoOutputArgument:
-  inherit_mode:
-    merge:
-      - AllowedNames
-  AllowedNames:
-    # eval/'s oracle: worker threads drain a shared work queue; pop is its thread-safe API.
-    - queue
-
-# --------------------------------------------------------------------------
-# kimera forks processes, not threads; a mutex here would only slow mutants.
-# --------------------------------------------------------------------------
-
+# A suite's fixture classes are not shared mutable state (K7).
 ThreadSafety/ClassInstanceVariable:
   Exclude:
     - spec/**/*
 ThreadSafety/ClassAndModuleAttributes:
   Exclude:
     - spec/**/*
+
+# Off outside the Rails profile: each thread waits on one child process.
 ThreadSafety/NewThread:
   Exclude:
-    # The oracle runs one mutant per sandbox copy at once.
     - eval/lib/kimera_eval/oracle.rb
-    # Reads a child's two streams and samples its memory while it runs.
     - eval/lib/kimera_eval/shell.rb
-    # One thread per job is this file's purpose.
     - lib/kimera/execution/isolated_scheduling.rb
-    # doctor waits on one suite process per job at once.
     - lib/kimera/cli/test_command.rb
-Style/CaseEquality:
-  Exclude:
-    # Prism::Node#=== is structural equality (locations ignored), not a case match.
-    - lib/kimera/operators/vocabulary.rb
 
 # --------------------------------------------------------------------------
-# Ruby source is this gem's data: fixtures, AST node types, asserted output.
+# Until kata reads RSpec as one word (issues.md, OPEN; K10 covers the path).
 # --------------------------------------------------------------------------
 
-Lint/BooleanSymbol:
-  Exclude:
-    # :true/:false are AST node types.
-    - lib/kimera/synthesis/guardrail_factories.rb
+Kata/GoodClassName:
+  inherit_mode:
+    merge:
+      - Terms
+  Terms:
+    - RSpecSuite
+
+RSpec/SpecFilePathFormat:
+  CustomTransform:
+    RSpecSuite: rspec_suite # the cop wants r_spec_suite
 
 # --------------------------------------------------------------------------
-# Spec-suite policy.
+# Until the remaining long examples are split.
 # --------------------------------------------------------------------------
 
-# Each long example drives one real run; splitting re-runs it per assertion.
-# Ratchet at the current longest.
 RSpec/ExampleLength:
   Max: 21
-
-# --------------------------------------------------------------------------
-# CLI and report layers.
-# --------------------------------------------------------------------------
-
-Kata/RealWords:
-  Terms:
-    # `--format NAME` values.
-    - ndjson
-    - sarif

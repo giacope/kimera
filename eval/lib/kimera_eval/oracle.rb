@@ -39,17 +39,21 @@ module KimeraEval
     private
 
     def judge(work)
-      queue = Queue.new
-      work.each { |bake| queue << bake }
-      queue.close
-      copies.map { |copy| Thread.new { drain(queue, copy) } }.each(&:join)
+      queue = Queue.new(work).tap(&:close)
+      workers =
+        copies.map do |copy|
+          Thread.new do
+            while (bake = queue.pop)
+              settle(copy, bake)
+            end
+          end
+        end
+      workers.each(&:join)
     end
 
-    def drain(queue, copy)
-      while (bake = queue.pop)
-        verdict = trial(copy, bake)
-        LOCK.synchronize { cache[key(bake)] = verdict }
-      end
+    def settle(copy, bake)
+      verdict = trial(copy, bake)
+      LOCK.synchronize { cache[key(bake)] = verdict }
     end
 
     def trial(copy, bake)
