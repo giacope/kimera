@@ -11,6 +11,23 @@ RSpec.describe(Kimera::Operators) do
     catalog.each.map { |m, _p| m }
   end
 
+  def overlaid(catalog, code)
+    synthesized = Kimera::Overlay.new(catalog).synthesize("p.rb", code)
+    Object.new.extend(Module.new.tap { |m| m.module_eval(synthesized.source) })
+  end
+
+  # What the block answers on the code's overlay with no mutant active, then
+  # with the first mutant whose label matches.
+  def live(code, key, label = //)
+    catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: [key])).source(code, file: "p.rb")
+    object = overlaid(catalog, code)
+    original = yield(object)
+    Kimera::RUNTIME.active = catalog.each.find { |m, _p| m.label.match?(label) }.first.id
+    [original, yield(object)]
+  ensure
+    Kimera::RUNTIME.reset!
+  end
+
   def only(code, key)
     ms = mutants(code, key)
     expect(ms.size).to(eq(1), "expected exactly one mutant, got #{ms.map(&:label)}")
@@ -24,20 +41,8 @@ RSpec.describe(Kimera::Operators) do
       expect(m.directive).to(eq("type" => "float_literal", "value" => 3.5))
     end
 
-    it "flips the float live through an overlay", :aggregate_failures do
-      code = "def rate\n  2.5\nend\n"
-      catalog = Kimera::RegistryScan.new(
-        operators: described_class.build(keys: ["numeric_literal"])
-      ).source(code, file: "p.rb")
-      result = Kimera::Overlay.new(catalog).synthesize("p.rb", code)
-      mod = Module.new.tap { |m| m.module_eval(result.source) }
-      object = Object.new.extend(mod)
-      Kimera::RUNTIME.active = nil
-      expect(object.rate).to(eq(2.5))
-      Kimera::RUNTIME.active = catalog.each.first.first.id
-      expect(object.rate).to(eq(3.5))
-    ensure
-      Kimera::RUNTIME.reset!
+    it "flips the float live through an overlay" do
+      expect(live("def rate\n  2.5\nend\n", "numeric_literal", &:rate)).to(eq([2.5, 3.5]))
     end
   end
 
@@ -75,18 +80,8 @@ RSpec.describe(Kimera::Operators) do
       expect(m.directive).to(eq("type" => "range_flip", "to" => "irange"))
     end
 
-    it "makes an exclusive range inclusive live through an overlay", :aggregate_failures do
-      code = "def s\n  (2...5)\nend\n"
-      catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["range"])).source(code, file: "p.rb")
-      result = Kimera::Overlay.new(catalog).synthesize("p.rb", code)
-      mod = Module.new.tap { |m| m.module_eval(result.source) }
-      object = Object.new.extend(mod)
-      Kimera::RUNTIME.active = nil
-      expect(object.s.to_a).to(eq([2, 3, 4]))
-      Kimera::RUNTIME.active = catalog.each.first.first.id
-      expect(object.s.to_a).to(eq([2, 3, 4, 5]))
-    ensure
-      Kimera::RUNTIME.reset!
+    it "makes an exclusive range inclusive live through an overlay" do
+      expect(live("def s\n  (2...5)\nend\n", "range") { |o| o.s.to_a }).to(eq([[2, 3, 4], [2, 3, 4, 5]]))
     end
   end
 
@@ -105,26 +100,26 @@ RSpec.describe(Kimera::Operators) do
   end
 
   describe "boolean_literal full directives" do
-    it "carries the exact target in the true and false directives", :aggregate_failures do
-      t = only("def y\n  true\nend\n", "boolean_literal")
-      expect(t.label).to(eq("true => false"))
-      expect(t.directive).to(eq("type" => "boolean_literal", "to" => "false"))
+    it "carries the exact target in the true directive" do
+      expect(only("def y\n  true\nend\n", "boolean_literal"))
+        .to(have_attributes(label: "true => false", directive: { "type" => "boolean_literal", "to" => "false" }))
+    end
 
-      f = only("def n\n  false\nend\n", "boolean_literal")
-      expect(f.label).to(eq("false => true"))
-      expect(f.directive).to(eq("type" => "boolean_literal", "to" => "true"))
+    it "carries the exact target in the false directive" do
+      expect(only("def n\n  false\nend\n", "boolean_literal"))
+        .to(have_attributes(label: "false => true", directive: { "type" => "boolean_literal", "to" => "true" }))
     end
   end
 
   describe "boolean_connective full directives" do
-    it "carries the exact connective target", :aggregate_failures do
-      a = only("def m(x, y)\n  x && y\nend\n", "boolean_connective")
-      expect(a.label).to(eq("&& => ||"))
-      expect(a.directive).to(eq("type" => "boolean_connective", "to" => "or"))
+    it "carries the exact target of &&" do
+      expect(only("def m(x, y)\n  x && y\nend\n", "boolean_connective"))
+        .to(have_attributes(label: "&& => ||", directive: { "type" => "boolean_connective", "to" => "or" }))
+    end
 
-      o = only("def m(x, y)\n  x || y\nend\n", "boolean_connective")
-      expect(o.label).to(eq("|| => &&"))
-      expect(o.directive).to(eq("type" => "boolean_connective", "to" => "and"))
+    it "carries the exact target of ||" do
+      expect(only("def m(x, y)\n  x || y\nend\n", "boolean_connective"))
+        .to(have_attributes(label: "|| => &&", directive: { "type" => "boolean_connective", "to" => "and" }))
     end
   end
 
@@ -135,21 +130,9 @@ RSpec.describe(Kimera::Operators) do
       expect(table["regexp => /(?!)/ (match none)"]).to(eq("type" => "regexp_literal", "source" => "(?!)"))
     end
 
-    it "flips a regexp to match-none live through an overlay", :aggregate_failures do
-      code = "def re(s)\n  s.match?(/ab+/)\nend\n"
-      catalog = Kimera::RegistryScan.new(
-        operators: described_class.build(keys: ["regexp"])
-      ).source(code, file: "p.rb")
-      result = Kimera::Overlay.new(catalog).synthesize("p.rb", code)
-      mod = Module.new.tap { |m| m.module_eval(result.source) }
-      object = Object.new.extend(mod)
-      Kimera::RUNTIME.active = nil
-      expect(object.re("abb")).to(be(true))
-      none = catalog.each.find { |m, _p| m.label.include?("match none") }.first
-      Kimera::RUNTIME.active = none.id
-      expect(object.re("abb")).to(be(false))
-    ensure
-      Kimera::RUNTIME.reset!
+    it "flips a regexp to match-none live through an overlay" do
+      expect(live("def re(s)\n  s.match?(/ab+/)\nend\n", "regexp", /match none/) { |o| o.re("abb") })
+        .to(eq([true, false]))
     end
   end
 
@@ -236,10 +219,14 @@ RSpec.describe(Kimera::Operators) do
     it "counts neighbors equal up to parentheses and a negated literal as equal", :aggregate_failures do
       expect(indexes("def m\n  [-(1), -1].include?(1)\nend\n", "element_drop")).to(eq([0]))
       expect(indexes("def m\n  f(-(1), -1)\nend\n", "argument_drop")).to(eq([0]))
-      expect(kept("(a), a, ((a))")).to(eq([0]))
-      expect(kept("-(-1), 1, (1)")).to(eq([0]))
-      expect(kept("-(1.5), -1.5, -(1r), -1r, -(2i), -2i")).to(eq([0, 2, 4]))
-      expect(kept("[-(1)].first, [-1].first, -a, -(a), a.-@")).to(eq([0, 2]))
+    end
+
+    it "counts elements equal up to parentheses and negation as equal" do
+      lists = [
+        "(a), a, ((a))", "-(-1), 1, (1)",
+        "-(1.5), -1.5, -(1r), -1r, -(2i), -2i", "[-(1)].first, [-1].first, -a, -(a), a.-@"
+      ]
+      expect(lists.map { |elements| kept(elements) }).to(eq([[0], [0], [0, 2, 4], [0, 2]]))
     end
 
     it "still tells apart neighbors that differ", :aggregate_failures do
@@ -305,14 +292,18 @@ RSpec.describe(Kimera::Operators) do
         .to(eq(2))
     end
 
-    it "conditional and boolean_literal skip a guard-style memo but not its neighbours", :aggregate_failures do
-      value = "def m\n  return @x if @x\n\n  @x = compute\nend\n"
-      flag = "def m\n  return if @done\n  @done = true\n  work\nend\n"
-      expect(mutants(value, "conditional")).to(be_empty)
+    def flag = "def m\n  return if @done\n  @done = true\n  work\nend\n"
+
+    it "conditional and boolean_literal skip a guard-style memo", :aggregate_failures do
+      expect(mutants("def m\n  return @x if @x\n\n  @x = compute\nend\n", "conditional")).to(be_empty)
       expect(mutants(flag, "conditional")).to(be_empty)
       expect(mutants(flag, "boolean_literal")).to(be_empty)
-      expect(mutants("#{flag}def n\n  return if @stopped\n  work(true)\nend\n", "conditional").size).to(eq(2))
-      expect(mutants("#{flag}def n\n  return if @stopped\n  work(true)\nend\n", "boolean_literal").size).to(eq(1))
+    end
+
+    it "conditional and boolean_literal still mutate a guard-style memo's neighbours", :aggregate_failures do
+      neighbour = "#{flag}def n\n  return if @stopped\n  work(true)\nend\n"
+      expect(mutants(neighbour, "conditional").size).to(eq(2))
+      expect(mutants(neighbour, "boolean_literal").size).to(eq(1))
     end
   end
 
