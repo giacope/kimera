@@ -183,23 +183,19 @@ RSpec.describe(Kimera::Memoization) do
     end
 
     it "taints nothing for an or-write node without a value" do
-      # Skips Prism's constructor, which requires args.
+      # allocate skips Prism's constructor, which requires args.
       fake = Class.new(Prism::InstanceVariableOrWriteNode) do
-        def initialize; end
-
         # stubs a valueless node on purpose
         def value; end
-      end.new
+      end.allocate
       expect(described_class.new("").__send__(:taint, fake)).to(be_nil)
     end
 
     it "taints nothing for a constant write without a value" do
       fake = Class.new(Prism::ConstantWriteNode) do
-        def initialize; end
-
         # stubs a valueless node on purpose
         def value; end
-      end.new
+      end.allocate
       expect(described_class.new("").__send__(:taint, fake)).to(be_nil)
     end
   end

@@ -88,9 +88,9 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
     it "reports every line that is not an unchanged line of the old file" do
       for_all(lines, lines, runs: 40) do |old, new|
         reported = edited(old, new)
-        expect(reported.to_a - (1..new.size).to_a).to(be_empty, "reported lines beyond the file")
         kept = new.each_with_index.reject { |_, i| reported.include?(i + 1) }.map(&:first)
-        expect(Subsequence.of?(kept, old)).to(be(true), "unreported #{kept} are not old lines in order")
+        facts = { beyond_the_file: reported.to_a - (1..new.size).to_a, unreported_are_old: Subsequence.of?(kept, old) }
+        expect(facts).to(eq(beyond_the_file: [], unreported_are_old: true), "unreported: #{kept}")
       end
     end
   end

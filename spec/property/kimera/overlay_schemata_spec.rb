@@ -30,8 +30,8 @@ RSpec.describe(Kimera::Overlay) do
     for_all(programs, runs: 100) do |program|
       schemata = SchemataProjection.check(render(program))
       mismatches = schemata.mismatches
-      expect(mismatches).to(be_empty, -> { explain(mismatches) })
-      expect(schemata.projected(nil)).to(eq(schemata.original), "with no mutant active, the program changed")
+      said = -> { mismatches.empty? ? "with no mutant active, the program changed" : explain(mismatches) }
+      expect([mismatches, schemata.projected(nil)]).to(eq([[], schemata.original]), said)
       accounted(schemata)
     end
   end

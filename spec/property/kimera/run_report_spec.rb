@@ -33,10 +33,12 @@ RSpec.describe(Kimera::RunReport) do
     for_all(results, runs: 300) do |outcomes|
       subject = report(outcomes)
       counts = subject.counts
-      expect(subject.score).to(eq(score(outcomes)))
-      expect(counts[:total]).to(eq(outcomes.size))
-      expect(counts.slice(*Kimera::Status::REPORTED).values.sum + outcomes.count(:killed)).to(eq(outcomes.size))
-      expect(reloaded(subject).map(&:status)).to(eq(outcomes))
+      facts = {
+        score: subject.score, total: counts[:total],
+        counted: counts.slice(*Kimera::Status::REPORTED).values.sum + outcomes.count(:killed),
+        reloaded: reloaded(subject).map(&:status)
+      }
+      expect(facts).to(eq(score: score(outcomes), total: outcomes.size, counted: outcomes.size, reloaded: outcomes))
     end
   end
 

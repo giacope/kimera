@@ -459,7 +459,7 @@ RSpec.describe(Kimera::Execution::Harness) do
         def source(_files) = self
         def test_ids = ["t1"]
         define_method(:run) do |_ids|
-          puts "SUITE NOISE out"
+          $stdout.puts("SUITE NOISE out")
 
           warn "SUITE NOISE err"
           Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
@@ -554,18 +554,22 @@ RSpec.describe(Kimera::Execution::Harness) do
   end
 
   describe "#load!" do
+    # Rails isn't loaded here: Rails and its application are plain stand-ins.
+    def rails_with(app) = stub_const("Rails", Data.define(:application).new(app))
+
+    def eager_app = Class.new { def eager_load!; end }.new
+
     it "eager-loads a detected Rails application before overlaying" do
-      app = double("app")
+      app = eager_app
       allow(app).to(receive(:eager_load!))
-      stub_const("Rails", double("Rails", application: app))
-      harness(adapter).__send__(:load!)
+      rails_with(app) && harness(adapter).__send__(:load!)
       expect(app).to(have_received(:eager_load!))
     end
 
     it "warns but continues when eager loading fails" do
-      app = double("app")
+      app = eager_app
       allow(app).to(receive(:eager_load!).and_raise(RuntimeError, "boom"))
-      stub_const("Rails", double("Rails", application: app))
+      rails_with(app)
       expect { harness(adapter).__send__(:load!) }.to(output(/eager_load! failed \(RuntimeError: boom\)/).to_stderr)
     end
 
@@ -575,7 +579,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     it "skips an application that cannot eager-load, without warning" do
-      stub_const("Rails", double("Rails", application: Object.new))
+      rails_with(Object.new)
       expect { harness(adapter).__send__(:load!) }.not_to(output.to_stderr)
     end
   end
@@ -729,9 +733,9 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def rails
-      app = double("app")
+      app = Class.new { def eager_load!; end }.new
       allow(app).to(receive(:eager_load!))
-      stub_const("Rails", double("Rails", application: app))
+      stub_const("Rails", Data.define(:application).new(app))
       app
     end
 

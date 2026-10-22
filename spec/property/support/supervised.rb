@@ -1,7 +1,10 @@
 # frozen_string_literal: true
 
+require "yaml"
+
 # Runs a block in a forked process of its own process group and returns what
-# it returns (via Marshal), or raises Overdue once `deadline` seconds pass.
+# it returns (as YAML of plain data, symbols and Crashed), or raises Overdue
+# once `deadline` seconds pass.
 # The bound holds whatever the block does: a loop wedged in a read, or a
 # watchdog that never fires, is killed along with every process it forked.
 # Forks that lead groups of their own (the pool's workers) are out of that
@@ -31,7 +34,7 @@ module Supervised
   def serve(reader, writer, &)
     reader.close
     Process.setpgid(0, 0)
-    writer.write(Marshal.dump(outcome(&)))
+    writer.write(YAML.dump(outcome(&)))
     writer.close
     exit!(0)
   end
@@ -42,7 +45,10 @@ module Supervised
     Crashed.new("#{error.class}: #{error.message}")
   end
 
-  def decoded(data) = data.empty? ? Crashed.new("the supervised process died without a report") : Marshal.load(data)
+  def decoded(data)
+    return Crashed.new("the supervised process died without a report") if data.empty?
+    YAML.safe_load(data, permitted_classes: [Symbol, Crashed], aliases: true)
+  end
 
   # Drains the report while waiting, so a large one can't block the child;
   # nil once the deadline passes first.

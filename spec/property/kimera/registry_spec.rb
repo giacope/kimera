@@ -22,9 +22,11 @@ RSpec.describe(Kimera::Registry) do
     for_all(programs, runs: 150) do |program|
       source = render(program)
       registry = scan(source)
-      expect(registry.each.map { |mutant, _| mutant.id }).to(eq((1..registry.count).to_a))
-      expect(registry.points.map(&:point_id)).to(eq((1..registry.size).to_a))
-      expect(registry.points.reject { |point| anchored?(point, source) }).to(be_empty)
+      facts = {
+        mutant_ids: registry.each.map { |mutant, _| mutant.id }, point_ids: registry.points.map(&:point_id),
+        unanchored: registry.points.reject { |point| anchored?(point, source) }
+      }
+      expect(facts).to(eq(mutant_ids: (1..registry.count).to_a, point_ids: (1..registry.size).to_a, unanchored: []))
     end
   end
 
@@ -40,8 +42,8 @@ RSpec.describe(Kimera::Registry) do
       registry = scan(render(program))
       keys = registry.keys
       ids = registry.each.map { |mutant, _| mutant.id }
-      expect(ids.map { |id| keys[id] }.uniq.size).to(eq(ids.size), "two mutants share a key")
-      expect(ids.map { |id| keys.id(keys[id]) }).to(eq(ids))
+      facts = { distinct: ids.map { |id| keys[id] }.uniq.size, resolved: ids.map { |id| keys.id(keys[id]) } }
+      expect(facts).to(eq(distinct: ids.size, resolved: ids), "two mutants share a key, or a key resolves elsewhere")
     end
   end
 
@@ -78,8 +80,8 @@ RSpec.describe(Kimera::Registry) do
       moved = after.each.map { |mutant, _| unlined(after.keys[mutant.id]) }
       before.each.map { |mutant, _| mutant.id }.each do |id|
         key = before.keys[id]
-        expect(moved.count(unlined(key))).to(eq(1), "#{key} is not unique once unlined")
-        expect(after.keys.id(key)).to(eq(id), "#{key} did not resolve to mutant #{id}")
+        facts = { unlined: moved.count(unlined(key)), resolved: after.keys.id(key) }
+        expect(facts).to(eq(unlined: 1, resolved: id), "#{key}: not unique once unlined, or not mutant #{id}")
       end
     end
   end
@@ -147,9 +149,11 @@ RSpec.describe(Kimera::Registry) do
         next if point.unsafe_reason == "#{Kimera::MutationPoint::UNMUTATABLE}#{Kimera::Overlay::FileWeave::UNMATCHED}"
         bakes = point.mutants.map { |mutant| schemata.baked(mutant.id) }
         source = point.original_source
-        expect(bakes).not_to(include(schemata.original), "#{source}: a mutant is the original")
-        expect(bakes).to(eq(bakes.uniq), "#{source}: #{point.mutants.map(&:label)} repeat a program")
-        expect(bakes.map(&:inspect)).not_to(include(/flipflop|match_current_line/), "#{source}: a mutant is misread")
+        facts = {
+          original: bakes.include?(schemata.original), repeated: bakes.size - bakes.uniq.size,
+          misread: bakes.map(&:inspect).grep(/flipflop|match_current_line/)
+        }
+        expect(facts).to(eq(original: false, repeated: 0, misread: []), "#{source}: #{point.mutants.map(&:label)}")
       end
     end
   end

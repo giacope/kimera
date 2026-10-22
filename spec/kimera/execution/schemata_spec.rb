@@ -360,7 +360,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
 
     it "registers a proc from a different file during overlay" do
       callbacks
-      existing = eval("-> { :other }", binding, "some/other_model.rb")
+      existing = RubyVM::InstructionSequence.compile("-> { :other }", "some/other_model.rb").eval
 
       fresh = -> { :fresh }
       klass = fake_model([fake_callback(:after, existing)])

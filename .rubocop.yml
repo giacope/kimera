@@ -138,55 +138,15 @@ Lint/BooleanSymbol:
   Exclude:
     # :true/:false are AST node types.
     - lib/kimera/synthesis/guardrail_factories.rb
-    - spec/kimera/overlay_spec.rb
-Security/MarshalLoad:
-  Exclude:
-    # Reads back what its own forked child wrote, never outside data.
-    - spec/property/support/supervised.rb
-Style/EvalWithLocation:
-  Exclude:
-    # The fake eval file name is the fixture the guard keys off.
-    - spec/kimera/execution/schemata_spec.rb
 
 # --------------------------------------------------------------------------
 # Spec-suite policy.
 # --------------------------------------------------------------------------
 
-# A property is one example: its checks run inside the generator loop, and
-# aggregate_failures would hide a failure from the shrinker.
-RSpec/MultipleExpectations:
-  Exclude:
-    - spec/property/**/*
-
 # Each long example drives one real run; splitting re-runs it per assertion.
 # Ratchet at the current longest.
 RSpec/ExampleLength:
   Max: 21
-
-RSpec/VerifiedDoubles:
-  Exclude:
-    # Rails isn't loaded; the doubled classes don't exist.
-    - spec/kimera/execution/harness_spec.rb
-
-RSpec/SubjectStub:
-  Exclude:
-    # The CLI is subject and composition root; the seam is on the object itself.
-    - spec/kimera/cli/run_spec.rb
-
-RSpec/AnyInstance:
-  Exclude:
-    # FileWeave and Guardrail are built inside the synthesizer; no injection seam.
-    - spec/kimera/overlay_spec.rb
-
-RSpec/Output:
-  Exclude:
-    # The stdout write is the fixture (a noisy suite).
-    - spec/kimera/execution/harness_spec.rb
-
-Lint/MissingSuper:
-  Exclude:
-    # Stand-in nodes bypass Prism's arg-requiring constructor.
-    - spec/kimera/memoization_spec.rb
 
 # --------------------------------------------------------------------------
 # CLI and report layers.

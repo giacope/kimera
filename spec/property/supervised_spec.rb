@@ -35,7 +35,7 @@ RSpec.describe(Supervised) do
 
   # The pool's workers lead process groups of their own; only its ensure can
   # stop them.
-  it "lets an overdue block's ensures run before it is killed" do
+  it "lets an overdue block's ensures run before it is killed", :aggregate_failures do
     reader, writer = IO.pipe
     expect do
       described_class.run(deadline: 0.5) do

@@ -660,7 +660,10 @@ RSpec.describe(Kimera::Overlay) do
 
     it "re-raises the original error when no point is guardable" do
       synth = described_class.new(scan)
-      allow_any_instance_of(Kimera::Overlay::FileWeave).to(receive(:attempt).and_return(nil))
+      build = Kimera::Overlay::FileWeave.method(:new)
+      allow(Kimera::Overlay::FileWeave).to(receive(:new)) do |*arguments, **options|
+        build.call(*arguments, **options).tap { |weave| allow(weave).to(receive(:attempt).and_return(nil)) }
+      end
       expect { synth.synthesize("match_repro.rb", source) }
         .to(raise_error(StandardError, /Unparser cannot round trip|unparse/i))
     end
@@ -777,10 +780,14 @@ RSpec.describe(Kimera::Overlay) do
 
       # A rebuild failure outside any method is a Kimera bug. Splicing would hide it.
       def broken
-        allow_any_instance_of(Kimera::Guardrail)
-          .to(receive(:reopen).and_wrap_original) do |original, node|
-          raise(NoMethodError, "undefined method 'children' for nil") if node.type == :casgn
-          original.call(node)
+        build = Kimera::Guardrail.method(:new)
+        allow(Kimera::Guardrail).to(receive(:new)) do |*arguments|
+          build.call(*arguments).tap do |guardrail|
+            allow(guardrail).to(receive(:reopen).and_wrap_original) do |original, node|
+              raise(NoMethodError, "undefined method 'children' for nil") if node.type == :casgn
+              original.call(node)
+            end
+          end
         end
       end
 
