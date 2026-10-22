@@ -68,7 +68,8 @@ class Kimera::Incremental::CoverageCache
   end
 
   def by_file(coverage)
-    coverage.each_with_object(Hash.new { |files, file| files[file] = [] }) do |(id, tests), files|
+    own = coverage.slice(*@registry.index.keys)
+    own.each_with_object(Hash.new { |files, file| files[file] = [] }) do |(id, tests), files|
       files[@registry.index.fetch(id).file] |= tests
     end
   end
