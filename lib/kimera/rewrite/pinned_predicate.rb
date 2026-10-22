@@ -1,15 +1,19 @@
 # frozen_string_literal: true
 
+require_relative "../scribe/nodes"
+
 module Kimera
   module Rewrite
     class PinnedPredicate
+      include Kimera::Scribe::Nodes
+
       BINDINGS = %i[lvasgn match_with_lvasgn].freeze
 
       def initialize(predicate)
         @predicate = predicate
       end
 
-      def to(literal) = binds?(@predicate) ? Parser::AST::Node.new(:begin, [@predicate, literal]) : literal
+      def to(literal) = binds?(@predicate) ? ast(:begin, @predicate, literal) : literal
 
       private
 

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../support/deferral"
+require_relative "../parsing/deferral"
 
 module Kimera::RegistryWalking
   PATTERN_HOLDERS = [

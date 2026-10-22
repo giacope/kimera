@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "prism"
+require_relative "../parsing/syntax"
 
 module Kimera
   class SuperclassPin
@@ -20,7 +20,7 @@ module Kimera
     end
 
     def pinned
-      classes(Prism.parse(@source).value).reverse_each.with_object(@source.b) do |node, text|
+      classes(Kimera::Syntax.parse(@source).value).reverse_each.with_object(@source.b) do |node, text|
         location = node.superclass.location
         text[location.start_offset, location.length] = reopened(node)
       end.force_encoding(@source.encoding)

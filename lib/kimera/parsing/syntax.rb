@@ -24,6 +24,8 @@ module Kimera
       SymbolNode TrueNode UnlessNode
     ].each { |name| const_set(name, Prism.const_get(name)) }
 
+    Translation = Prism::Translation
+
     OPERATOR_WRITES = [
       CallOperatorWriteNode, ClassVariableOperatorWriteNode, ConstantOperatorWriteNode,
       ConstantPathOperatorWriteNode, GlobalVariableOperatorWriteNode,
@@ -64,7 +66,11 @@ module Kimera
         end
       end
 
-    def self.parse(source) = Prism.parse(source)
+    def self.parse(source, **) = Prism.parse(source, **)
+
+    # The scope a directive's snippet parses in: a method body that may forward
+    # its arguments (`*`, `**`, `&`, `...`).
+    FORWARDING = Prism.scope(forwarding: %i[* ** & ...])
 
     BRANCHES = ->(conditional) { Kimera::Branches.new(conditional).bodies }
   end

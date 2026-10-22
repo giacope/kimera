@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../support/syntax"
+require_relative "../parsing/syntax"
 
 module Kimera
   module Operators

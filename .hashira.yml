@@ -1,0 +1,18 @@
+# Every kind on but change_coupling, which reads git history: CI checks out a
+# single commit, so a gate there would see none of it. Run it locally instead.
+checks:
+  all: true
+  change_coupling: false
+boundaries:
+  - root: Prism
+    role: interpreted_model
+    entrypoint: lib/kimera/parsing/syntax.rb
+    reason: >-
+      kimera scans source for mutation points by walking Prism's tree, so every operator tests its node
+      types; Kimera::Syntax parses and hands the node classes out, and nothing else calls Prism
+  - root: Parser
+    role: interpreted_model
+    entrypoint: lib/kimera/scribe/nodes.rb
+    reason: >-
+      mutants are written as Parser AST nodes for Kimera::Scribe to turn back into Ruby, so the rewrites and
+      Scribe test and build that tree; Kimera::Scribe::Nodes builds every node

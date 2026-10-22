@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "prism"
+require_relative "../parsing/syntax"
 
 module Kimera
   module Execution
@@ -48,7 +48,8 @@ module Kimera
       end
 
       def declared
-        after(calls(Prism.parse_file(source).value), @concern.name.split("::").last)
+        tree = Kimera::Syntax.parse(File.read(source, encoding: Encoding::UTF_8), filepath: source)
+        after(calls(tree.value), @concern.name.split("::").last)
       rescue StandardError
         []
       end

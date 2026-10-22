@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "../scribe/nodes"
 require_relative "extra_handlers"
 require_relative "invocation"
 require_relative "pinned_predicate"
@@ -9,6 +10,7 @@ module Kimera
     module DirectiveHandlers
       Operation =
         Data.define(:node, :directive) do
+          include Kimera::Scribe::Nodes
           def target = directive["to"]&.to_sym
 
           def swap
@@ -125,10 +127,6 @@ module Kimera
 
           def extra
             ExtraHandlers::Operation.new(node, directive)
-          end
-
-          def ast(type, *children)
-            Parser::AST::Node.new(type, children)
           end
         end
     end

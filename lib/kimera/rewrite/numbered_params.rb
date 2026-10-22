@@ -1,10 +1,13 @@
 # frozen_string_literal: true
 
 require_relative "ast_walk"
+require_relative "../scribe/nodes"
 
 module Kimera
   module Rewrite
     class NumberedParams
+      include Kimera::Scribe::Nodes
+
       PREFIX = "__kimera_"
 
       def initialize(tree)
@@ -38,9 +41,9 @@ module Kimera
       end
 
       def arguments(names)
-        parameters = names.map { Parser::AST::Node.new(:arg, [it]) }
-        parameters = [Parser::AST::Node.new(:procarg0, parameters)] if parameters.one?
-        Parser::AST::Node.new(:args, parameters)
+        parameters = names.map { ast(:arg, it) }
+        parameters = [ast(:procarg0, *parameters)] if parameters.one?
+        ast(:args, *parameters)
       end
 
       def rename(node, renames)

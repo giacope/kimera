@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "kimera/support/seed"
+require "kimera/frameworks/seed"
 
 RSpec.describe(Kimera::Seed) do
   def seed(value) = described_class.new("KIMERA_SEED" => value.to_s)

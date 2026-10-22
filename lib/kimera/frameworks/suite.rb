@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../error"
-require_relative "../support/seed"
+require_relative "seed"
 
 module Kimera
   module Frameworks

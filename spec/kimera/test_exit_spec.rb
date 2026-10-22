@@ -3,7 +3,7 @@
 require "fileutils"
 require "kimera/frameworks/minitest_suite"
 require "kimera/frameworks/rspec_suite"
-require "kimera/support/test_exit"
+require "kimera/exits/test_exit"
 require "stringio"
 require "tmpdir"
 

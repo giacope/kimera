@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require_relative "../support/syntax"
-require_relative "../support/syntax_types"
-require_relative "../support/deferral"
+require_relative "../parsing/syntax"
+require_relative "../parsing/syntax_types"
+require_relative "../parsing/deferral"
 
 module Kimera
   class Memoization

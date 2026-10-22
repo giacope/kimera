@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../support/syntax_types"
+require_relative "../parsing/syntax_types"
 require_relative "vocabulary"
 
 class Kimera::Operators::Base

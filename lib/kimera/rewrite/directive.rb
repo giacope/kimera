@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "prism"
+require_relative "../parsing/syntax"
 require_relative "../support/operator_protocol"
 require_relative "../scribe"
 
@@ -31,7 +31,6 @@ module Kimera
         "kwarg_element_drop", :keyword, "kwarg_pair_drop", :option
       )
       HANDLERS = VALUE_HANDLERS.merge(STRUCTURAL_HANDLERS).freeze
-      FORWARDING = %i[* ** & ...].freeze
       BINDINGS = [Prism::LocalVariableWriteNode, Prism::MatchWriteNode].freeze
       CLAUSE_HANDLERS = TABLE.call(
         "drop_rescue", :rescued, "drop_ensure", :ensured, "privatize", :privatize,
@@ -57,7 +56,7 @@ module Kimera
       end
 
       def forced(source, value)
-        tree = Prism.parse(source, scopes: [Prism.scope(forwarding: FORWARDING)])
+        tree = Kimera::Syntax.parse(source, scopes: [Kimera::Syntax::FORWARDING])
         pinned(source, tree.value.statements.body.first.predicate, value) if value && tree.success?
       rescue NoMethodError
         nil

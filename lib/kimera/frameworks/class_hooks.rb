@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../support/test_exit"
+require_relative "../exits/test_exit"
 
 module Kimera
   module Frameworks

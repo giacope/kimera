@@ -1,17 +1,21 @@
 # frozen_string_literal: true
 
-require "prism"
+require_relative "../parsing/syntax"
 require_relative "../support/warnings"
 
 Kimera::Warnings::SILENCED.during { require "parser" }
 
+require_relative "nodes"
+
 module Kimera
   class Scribe
     class Reading
+      include Nodes
+
       VERSION = Gem::Version.new(RUBY_VERSION) >= Gem::Version.new("4.0") ? :Parser40 : :Parser34
       GRAMMAR =
         begin
-          Prism::Translation.const_get(VERSION)
+          Kimera::Syntax::Translation.const_get(VERSION)
         rescue NameError, LoadError => error
           raise(
             LoadError,
@@ -20,7 +24,7 @@ module Kimera
           )
         end
 
-      class Builder < Prism::Translation::Parser::Builder
+      class Builder < Kimera::Syntax::Translation::Parser::Builder
         modernize
 
         def accessible(node) = node
@@ -38,7 +42,7 @@ module Kimera
         Kimera::Warnings::SILENCED.during do
           parser = GRAMMAR.new(Builder.new)
           parser.diagnostics.all_errors_are_fatal = true
-          parser.parse(Parser::Source::Buffer.new("(kimera)", source: @source))
+          parser.parse(buffer(@source))
         end
       end
     end

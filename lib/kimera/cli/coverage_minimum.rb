@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "prism"
+require_relative "../parsing/syntax"
 
 module Kimera
 end
@@ -22,7 +22,7 @@ class Kimera::CLI::CoverageMinimum
 
   def ungated?
     return false unless @source.include?("minimum_coverage") && !@source.include?("KIMERA")
-    result = Prism.parse(@source)
+    result = Kimera::Syntax.parse(@source)
     result.failure? || floor?(result.value)
   end
 

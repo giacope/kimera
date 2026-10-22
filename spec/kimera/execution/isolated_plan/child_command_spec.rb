@@ -5,7 +5,7 @@ require "open3"
 require "rbconfig"
 require "tmpdir"
 require "kimera/execution/isolated_child_command"
-require "kimera/support/seed"
+require "kimera/frameworks/seed"
 
 # A mutant's child stops at its first failing test: any failure kills it. The
 # baseline's child runs them all, so a red baseline names every failing test.

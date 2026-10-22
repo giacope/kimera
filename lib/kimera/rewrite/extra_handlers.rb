@@ -1,10 +1,13 @@
 # frozen_string_literal: true
 
+require_relative "../scribe/nodes"
+
 module Kimera
   module Rewrite
     module ExtraHandlers
       Operation =
         Data.define(:node, :directive) do
+          include Kimera::Scribe::Nodes
           def trim(pair)
             key, value = pair.children
             elements = value.children.dup
@@ -41,10 +44,6 @@ module Kimera
           def regexp
             source = directive["source"].to_s
             ast(:regexp, *(source.empty? ? [] : [ast(:str, source)]), ast(:regopt))
-          end
-
-          def ast(type, *children)
-            Parser::AST::Node.new(type, children)
           end
         end
     end
