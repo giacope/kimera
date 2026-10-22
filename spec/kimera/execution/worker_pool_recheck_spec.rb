@@ -47,15 +47,21 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
   def result(resolved, id) = results(resolved).find { |message| message["id"] == id }
 
+  # Whether mutant 2's recheck ran on mutant 1's worker, and the others' recheck flags.
+  def rechecked(resolved)
+    {
+      same_pid: result(resolved, 2)["pid"] == result(resolved, 1)["pid"],
+      others: [1, 3].map { |id| result(resolved, id)["recheck"] }
+    }
+  end
+
   it "rechecks a suspect kill on a fresh worker and retires the worker that asked", :aggregate_failures do
     resolved, lost = Timeout.timeout(10) { pool(queue: [1, 2, 3], spawner: ->(_slot) { echo(suspect: [2]) }) }
-
-    expect(lost).to(be_empty)
-    expect(resolved.find { |message| message["t"] == "requeue" }).to(include("id" => 2, "detail" => "suspect"))
+    expect([lost, resolved.find { |message| message["t"] == "requeue" }])
+      .to(match([be_empty, include("id" => 2, "detail" => "suspect")]))
     expect(result(resolved, 2)).to(include("recheck" => true, "served" => 1))
-    expect(result(resolved, 2)["pid"]).not_to(eq(result(resolved, 1)["pid"]))
+    expect(rechecked(resolved)).to(eq(same_pid: false, others: [nil, nil]))
     expect(results(resolved).map { |message| message["id"] }).to(contain_exactly(1, 2, 3))
-    expect([1, 3].map { |id| result(resolved, id)["recheck"] }).to(eq([nil, nil]))
   end
 
   it "spawns a fresh worker for a recheck even when the queue is empty" do
@@ -72,23 +78,29 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     expect(spawned).to(eq(3))
   end
 
+  # Stacks for any pid.
+  def stacks = Object.new.tap { |taker| taker.define_singleton_method(:take) { |pid| "stacks of #{pid}" } }
+
   it "hands a timed-out worker's stacks to the loss" do
-    stacks = Object.new
-    stacks.define_singleton_method(:take) { |pid| "stacks of #{pid}" }
     worker = nil
     spawner = ->(_slot) { worker = forked { sleep(30) }.push(stacks) }
-
     _, lost = Timeout.timeout(10) { pool(queue: [1], spawner: spawner, deadline: 0.3) }
     expect(lost).to(eq([[1, :timeout, "stacks of #{worker.first}"]]))
   end
 
-  it "loses a crash with how the worker died, never its stacks, even from an armed worker" do
-    stacks = Object.new
-    stacks.define_singleton_method(:take) { |_pid| raise(ArgumentError, "a crash is never dumped") }
+  describe "a crash" do
+    after { Process.waitall }
 
-    _, lost = pool(queue: [1], spawner: ->(_slot) { forked { exit!(1) }.push(stacks) })
-    expect(lost).to(eq([[1, :crash, "exited 1"]]))
-  ensure
-    Process.waitall
+    # Stacks that must never be taken.
+    def untouchable
+      Object.new.tap do |never|
+        never.define_singleton_method(:take) { |_pid| raise(ArgumentError, "a crash is never dumped") }
+      end
+    end
+
+    it "is lost with how the worker died, never its stacks, even from an armed worker" do
+      _, lost = pool(queue: [1], spawner: ->(_slot) { forked { exit!(1) }.push(untouchable) })
+      expect(lost).to(eq([[1, :crash, "exited 1"]]))
+    end
   end
 end

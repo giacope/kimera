@@ -54,14 +54,19 @@ RSpec.describe(Kimera::Operators) do
       end
     RUBY
 
-    it "drops an ivar store and a local that rebinds a bound name, keeping the value", :aggregate_failures do
+    it "drops an ivar store and a local that rebinds a bound name" do
       expect(sources(code, "assignment_deletion"))
         .to(contain_exactly("@name = name", "word = word.strip", "sum = sum + x"))
+    end
+
+    it "keeps the value with no mutant active, and loses each store under its own" do
       live(code, "assignment_deletion") do |ids|
-        expect(ValueOps.new("a").name).to(eq("a"))
-        active(ids.fetch("@name = name")) { expect(ValueOps.new("a").name).to(be_nil) }
-        active(ids.fetch("word = word.strip")) { expect(ValueOps.new("a").tidy(" b ")).to(eq(" b ")) }
-        active(ids.fetch("sum = sum + x")) { expect(ValueOps.new("a").total([1, 2])).to(eq(0)) }
+        answers = [
+          ValueOps.new("a").name, active(ids.fetch("@name = name")) { ValueOps.new("a").name },
+          active(ids.fetch("word = word.strip")) { ValueOps.new("a").tidy(" b ") },
+          active(ids.fetch("sum = sum + x")) { ValueOps.new("a").total([1, 2]) }
+        ]
+        expect(answers).to(eq(["a", nil, " b ", 0]))
       end
     end
 
@@ -126,15 +131,19 @@ RSpec.describe(Kimera::Operators) do
       end
     RUBY
 
-    it "makes a returned nil a fresh object", :aggregate_failures do
+    it "makes a returned nil a fresh object" do
       expect(labels(code, "nil_literal"))
         .to(contain_exactly("return nil => return Object.new", "nil => Object.new", "next nil => next Object.new"))
+    end
+
+    it "answers nil with no mutant active, and a fresh object under each" do
       live(code, "nil_literal") do |ids|
         object = ValueOps.new
-        expect(object.find([], 1)).to(be_nil)
-        active(ids.fetch("return nil")) { expect(object.find([], 1)).to(be_an_instance_of(Object)) }
-        active(ids.fetch("nil")) { expect(object.find([2], 1)).to(be_an_instance_of(Object)) }
-        active(ids.fetch("next nil")) { expect(object.firsts([[]]).first).to(be_an_instance_of(Object)) }
+        answers = [
+          object.find([], 1), active(ids.fetch("return nil")) { object.find([], 1) },
+          active(ids.fetch("nil")) { object.find([2], 1) }, active(ids.fetch("next nil")) { object.firsts([[]]).first }
+        ]
+        expect(answers).to(match([be_nil, *Array.new(3) { be_an_instance_of(Object) }]))
       end
     end
 
@@ -155,19 +164,21 @@ RSpec.describe(Kimera::Operators) do
       end
     RUBY
 
-    it "drops one keyword argument at a time", :aggregate_failures do
+    it "drops one keyword argument at a time" do
       expect(labels(code, "keyword_drop"))
         .to(
           contain_exactly(
             "drop keyword `invalid:`", "drop keyword `undef:`", "drop keyword `replace:`", "drop keyword `exception:`"
           )
         )
+    end
+
+    it "raises where the dropped keyword let the call answer nil", :aggregate_failures do
       live(code, "keyword_drop") do |ids|
         object = ValueOps.new
         expect(object.parse("x")).to(be_nil)
-        active(ids.fetch("Integer(text, exception: false) { |v| v }")) do
-          expect { object.parse("x") }.to(raise_error(ArgumentError))
-        end
+        expect { active(ids.fetch("Integer(text, exception: false) { |v| v }")) { object.parse("x") } }
+          .to(raise_error(ArgumentError))
       end
     end
 

@@ -251,26 +251,26 @@ RSpec.describe(Kimera::Report::Progress) do
   it "keeps a completed phase visible when the next phase starts" do
     bar, io = progress(interval: 0)
     bar.start(1, "baseline")
-    bar.tick
-    bar.finish
+    bar.tap(&:tick).finish
     bar.start(1, "mutants (warm)")
 
     expect(io.string).to(match(%r{baseline \[========================\]  1/1  100%.*\n\r\e\[Kmutants \(warm\)}m))
   end
 
-  it "erases every terminal row occupied by a wrapped frame" do
+  # A bar on a 20-column terminal, its stream, and its first frame.
+  def narrow
     io = fake_tty
     allow(io).to(receive(:winsize).and_return([24, 20]))
-    bar = described_class.new(io: io, enabled: true, interval: 0)
-    bar.start(2, "mutants (isolated)")
-    first = io.string.dup
+    bar =
+      described_class.new(io: io, enabled: true, interval: 0).tap { |started| started.start(2, "mutants (isolated)") }
+    [bar, io, io.string.dup]
+  end
+
+  it "erases every terminal row occupied by a wrapped frame" do
+    bar, io, first = narrow
     rows = (first.delete_prefix("\r\e[K").length + 19) / 20
-
     bar.tick(:killed)
-
-    upward = "\e[1A\r\e[K" * (rows - 1)
-    erasure = "\r\e[K#{upward}"
-    expect(io.string.delete_prefix(first)).to(start_with(erasure))
+    expect(io.string.delete_prefix(first)).to(start_with("\r\e[K#{"\e[1A\r\e[K" * (rows - 1)}"))
   end
 
   it "does not emit the erase sequence when nothing was drawn" do
@@ -343,11 +343,9 @@ RSpec.describe(Kimera::Report::Progress) do
 
   it "flushes once more when a heartbeat run finishes", :aggregate_failures do
     io = watched(tty: false)
-    bar = described_class.new(io: io, enabled: true, interval: 0)
-    bar.start(1, "mutants")
+    bar = described_class.new(io: io, enabled: true, interval: 0).tap { |started| started.start(1, "mutants") }
     painted = io.flushes
     bar.finish
-    expect(painted).to(eq(1))
-    expect(io.flushes).to(eq(2))
+    expect([painted, io.flushes]).to(eq([1, 2]))
   end
 end

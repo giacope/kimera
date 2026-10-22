@@ -60,11 +60,11 @@ RSpec.describe(Kimera::Execution::StackDump) do
   it "shows frames relative to the project and caps them per thread", :aggregate_failures do
     frames = Array.new(described_class::MAX_FRAMES + 2) { |i| "#{Dir.pwd}/app/m.rb:#{i}:in 'm'" }
     lines = dump.__send__(:describe, thread(nil, frames: frames)).lines(chomp: true)
-
-    expect(lines.first).to(match(/\Athread \d+ \(sleep\):\z/))
-    expect(lines[1]).to(eq("  app/m.rb:0:in 'm'"))
-    expect(lines.size).to(eq(described_class::MAX_FRAMES + 2))
-    expect(lines.last).to(eq("  … 2 more frame(s)"))
+    expect([lines.first, lines[1], lines.size, lines.last]).to(
+      match(
+        [/\Athread \d+ \(sleep\):\z/, "  app/m.rb:0:in 'm'", described_class::MAX_FRAMES + 2, "  … 2 more frame(s)"]
+      )
+    )
   end
 
   it "labels a dead thread and one with no backtrace", :aggregate_failures do
@@ -114,19 +114,24 @@ RSpec.describe(Kimera::Execution::StackDump) do
     expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to(be_between(0.05, 1.0))
   end
 
-  it "waits for a dump the worker is still writing" do
-    folder = dir
-    writer =
-      fork do
-        sleep(0.1)
-        target = File.join(folder, "#{Process.pid}.txt")
-        File.write("#{target}.tmp", "late")
-        File.rename("#{target}.tmp", target)
-        exit!(0)
-      end
-    expect(dump.__send__(:collect, File.join(folder, "#{writer}.txt"))).to(eq("late"))
-  ensure
-    Process.wait(writer) if writer
+  # A worker that writes its dump through a temporary file a little later; its pid.
+  def late_writer(folder)
+    fork do
+      sleep(0.1)
+      target = File.join(folder, "#{Process.pid}.txt")
+      File.write("#{target}.tmp", "late")
+      File.rename("#{target}.tmp", target)
+      exit!(0)
+    end
+  end
+
+  describe "a dump the worker is still writing" do
+    after { Process.waitall }
+
+    it "is waited for" do
+      folder = dir
+      expect(dump.__send__(:collect, File.join(folder, "#{late_writer(folder)}.txt"))).to(eq("late"))
+    end
   end
 
   it "returns nil for a worker that already exited" do
@@ -142,16 +147,18 @@ RSpec.describe(Kimera::Execution::StackDump) do
 
   # A worker in the pool's own process group gets the signal alone; only a
   # worker that leads its own group has the group signalled.
-  it "signals a process in this group alone, and a group leader's whole group", :aggregate_failures do
-    member = fork { sleep(5) }
-    leader = fork { sleep(5) }
-    Process.setpgid(leader, leader)
-    allow(Process).to(receive(:kill).and_call_original)
-    allow(Process).to(receive(:kill).with(described_class::SIGNAL, anything))
-    [member, leader].each { |pid| dump.__send__(:ask, pid) }
-    expect(Process).to(have_received(:kill).with(described_class::SIGNAL, member))
-    expect(Process).to(have_received(:kill).with(described_class::SIGNAL, -leader))
-  ensure
-    [member, leader].compact.each { |pid| Process.kill("KILL", pid) && Process.wait(pid) }
+  describe "asking a worker" do
+    let!(:member) { fork { sleep(5) } }
+    let!(:leader) { fork { sleep(5) }.tap { |pid| Process.setpgid(pid, pid) } }
+
+    after { [member, leader].each { |pid| Process.kill("KILL", pid) && Process.wait(pid) } }
+
+    it "signals a process in this group alone, and a group leader's whole group", :aggregate_failures do
+      allow(Process).to(receive(:kill).and_call_original)
+      allow(Process).to(receive(:kill).with(described_class::SIGNAL, anything))
+      [member, leader].each { |pid| dump.__send__(:ask, pid) }
+      expect(Process).to(have_received(:kill).with(described_class::SIGNAL, member))
+      expect(Process).to(have_received(:kill).with(described_class::SIGNAL, -leader))
+    end
   end
 end
