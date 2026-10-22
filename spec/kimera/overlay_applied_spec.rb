@@ -9,11 +9,10 @@ require "kimera/synthesis/overlay"
 RSpec.describe(Kimera::Overlay, :aggregate_failures) do
   it "names each applied mutant once, privatized ones too" do
     source = "class Shown\n  def shown(a) = a > 1\nend\n"
-    operators = Kimera::Operators.build(keys: %w[visibility comparison])
-    registry = Kimera::RegistryScan.new(operators: operators).source(source, file: "shown.rb")
+    registry = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: %w[visibility comparison]))
+      .source(source, file: "shown.rb")
     result = described_class.new(registry).synthesize("shown.rb", source)
-    expect(result.mutant_ids).to(match_array(registry.each.map { |mutant, _point| mutant.id }))
-    expect(result.mutant_ids).to(eq(result.mutant_ids.uniq))
+    expect(result.mutant_ids.sort).to(eq(registry.each.map { |mutant, _point| mutant.id }.sort))
     expect(result.source).to(include("privatize"))
   end
 end

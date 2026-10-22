@@ -149,17 +149,26 @@ RSpec.describe(Kimera::Report::Text) do
     expect(render(killed)).not_to(include("Test quality"))
   end
 
+  # The report of a mutant whose twelve covering tests kill nothing.
+  def idle_tests = Array.new(12) { |index| "idle#{index}" }
+
+  def idle_mutant
+    killed.tap { |result| result.covering_tests = idle_tests }.tap { |result| result.killing_tests = [] }
+  end
+
+  def idle_report
+    report = Kimera::RunReport.new(results: [idle_mutant]).annotate(suite: idle_tests)
+    StringIO.new.tap { |io| described_class.new(registry, io: io, color: false).report(report) }.string
+  end
+
   it "names at most ten tests of each kind, pointing at the JSON report for the rest", :aggregate_failures do
-    idle = Array.new(12) { |index| "idle#{index}" }
-    many = killed.tap { |result| result.covering_tests = idle }.tap { |result| result.killing_tests = [] }
-    io = StringIO.new
-    described_class.new(
-      registry, io: io,
-      color: false
-    ).report(Kimera::RunReport.new(results: [many]).annotate(suite: idle))
-    expect(io.string).to(include("  Kill nothing:\n    idle0\n"))
-    expect(io.string).to(include("    idle9\n    (+2 more; the JSON report's test_quality lists them all)\n"))
-    expect(io.string).not_to(include("idle10"))
+    shown = idle_report
+    expect(shown).to(
+      include(
+        "  Kill nothing:\n    idle0\n", "    idle9\n    (+2 more; the JSON report's test_quality lists them all)\n"
+      )
+    )
+    expect(shown).not_to(include("idle10"))
   end
 
   it "says when the reruns found no flaky test, and nothing when none ran", :aggregate_failures do

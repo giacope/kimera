@@ -163,8 +163,8 @@ RSpec.describe(Kimera::Overlay) do
         catalog = selected(%w[numeric_literal], program)
         mutant = catalog.points.find { |p| p.original_source == needle }.mutants.find { |m| m.label == label }
         baked = described_class.new(catalog).bake("x.rb", program, mutant.id)
-        expect(baked).to(include(written))
-        expect(Object.new.extend(Module.new.tap { |mod| mod.module_eval(baked) }).m).to(eq(value))
+        expect([baked.include?(written), Object.new.extend(Module.new.tap { |mod| mod.module_eval(baked) }).m])
+          .to(eq([true, value]))
       end
     end
 

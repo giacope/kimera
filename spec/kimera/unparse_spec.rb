@@ -279,15 +279,16 @@ RSpec.describe(Kimera::Unparse) do
       expect(write(s(:send, s(:send, one, :-@), :-@))).to(eq("--(1.abs)"))
     end
 
-    it "leaves other signs, and other operands, as unparser writes them", :aggregate_failures do
-      expect(write(s(:send, one, :~))).to(eq("~1.abs"))
-      expect(write(s(:send, one, :!))).to(eq("!1.abs"))
-      expect(write(s(:send, s(:int, 1), :-@))).to(eq("-1"))
-      expect(write(s(:send, s(:int, 1), :+@))).to(eq("++1"))
-      expect(write(s(:send, s(:array, s(:int, 1)), :-@))).to(eq("-[1]"))
-      expect(write(s(:csend, one, :-@))).to(eq("1.abs&.-@"))
-      expect(reemit("-a.abs")).to(eq("-a.abs"))
-      expect(reemit("-(1)")).to(eq("-(1)"))
+    it "leaves other signs, and other operands, as unparser writes them" do
+      nodes = [
+        s(:send, one, :~), s(:send, one, :!), s(:send, s(:int, 1), :-@), s(:send, s(:int, 1), :+@),
+        s(:send, s(:array, s(:int, 1)), :-@), s(:csend, one, :-@)
+      ]
+      expect(nodes.map { |node| write(node) }).to(eq(["~1.abs", "!1.abs", "-1", "++1", "-[1]", "1.abs&.-@"]))
+    end
+
+    it "re-emits a negated call and a parenthesized literal as written" do
+      expect([reemit("-a.abs"), reemit("-(1)")]).to(eq(["-a.abs", "-(1)"]))
     end
 
     {
