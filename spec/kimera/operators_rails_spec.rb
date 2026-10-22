@@ -3,10 +3,13 @@
 require "kimera/operators"
 require "kimera/registry/builder"
 require "kimera/runtime"
+require "kimera/support/warnings"
 require "kimera/synthesis/overlay"
 
 # Class-body DSL runs once at load, so its points must go to the isolated oracle.
 RSpec.describe(Kimera::Operators) do
+  after { Kimera::RUNTIME.reset! }
+
   def registry(code, keys)
     Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(code, file: "app.rb")
   end
@@ -31,29 +34,29 @@ RSpec.describe(Kimera::Operators) do
       expect(registry(code, ["rails_permit"]).each.count).to(eq(0))
     end
 
-    it "actually narrows the allowlist through a live overlay", :aggregate_failures do
+    # Params whose require answers themselves and whose permit answers the keys.
+    def fake_params
+      Class.new do
+        def require(_key) = self
+        def permit(*keys) = keys
+      end
+    end
+
+    # A UsersController from the catalog's overlay, with fake params.
+    def controller(catalog)
       stub_const("UsersController", Class.new)
+      overlay = Kimera::Overlay.new(catalog).synthesize("app.rb", permit_src)
+      Kimera::Warnings::SILENCED.during { TOPLEVEL_BINDING.eval(overlay.source, "app.rb") }
+      params = fake_params
+      UsersController.new.tap { |users| users.define_singleton_method(:params) { params.new } }
+    end
+
+    it "actually narrows the allowlist through a live overlay" do
       catalog = registry(permit_src, ["rails_permit"])
-      result = Kimera::Overlay.new(catalog).synthesize("app.rb", permit_src)
-      fake_params =
-        Class.new do
-          def require(_key) = self
-          def permit(*keys) = keys
-        end
-      verbose = $VERBOSE
-      $VERBOSE = nil
-      TOPLEVEL_BINDING.eval(result.source, "app.rb")
-      $VERBOSE = verbose
-
-      controller = UsersController.new
-      controller.define_singleton_method(:params) { fake_params.new }
-      expect(controller.user_params).to(eq(%i[name admin]))
-
-      mutant = catalog.each.find { |m, _p| m.label == "permit: drop :admin" }.first.id
-      Kimera::RUNTIME.active = mutant
-      expect(controller.user_params).to(eq(%i[name]))
-    ensure
-      Kimera::RUNTIME.reset!
+      users = controller(catalog)
+      plain = users.user_params
+      Kimera::RUNTIME.active = catalog.each.find { |m, _p| m.label == "permit: drop :admin" }.first.id
+      expect([plain, users.user_params]).to(eq([%i[name admin], %i[name]]))
     end
   end
 
@@ -72,19 +75,15 @@ RSpec.describe(Kimera::Operators) do
 
     it "creates points marked for the isolated oracle", :aggregate_failures do
       catalog = registry(model_src, %w[rails_validation rails_callback])
-      labels = catalog.each.map { |m, _p| m.label }
-      expect(labels).to(
+      expect(catalog.each.map { |m, _p| m.label }).to(
         contain_exactly(
           "delete `validates :email, presence: true`",
           "delete `before_action :authenticate_user!`",
           "delete `after_commit :notify`"
         )
       )
-      catalog.points.each do |point|
-        expect(point.safe?).to(be(false))
-        expect(point.body?).to(be(true))
-        expect(point.unsafe_reason).to(eq(Kimera::MutationPoint::CLASS_BODY_REASON))
-      end
+      expect(catalog.points.map { |point| [point.safe?, point.body?, point.unsafe_reason] }.uniq)
+        .to(eq([[false, true, Kimera::MutationPoint::CLASS_BODY_REASON]]))
     end
 
     it "matches nothing when only default operators are active" do
@@ -136,9 +135,9 @@ RSpec.describe(Kimera::Operators) do
       catalog = registry(scoped_src, ["rails_callback"])
       id = catalog.each.find { |m, _p| m.label == "before_action: drop :edit from only:" }.first.id
       baked = Kimera::Overlay.new(catalog).bake("app.rb", scoped_src, id)
-      expect(baked).to(include("only: [:update]"))
+      # The other filter is untouched.
+      expect(baked).to(include("only: [:update]", "except: [:index]"))
       expect(baked).not_to(include(":edit"))
-      expect(baked).to(include("except: [:index]")) # the other filter is untouched
     end
   end
 
@@ -162,8 +161,8 @@ RSpec.describe(Kimera::Operators) do
       posts = catalog.each.find { |_m, p| p.original_source.include?(":posts") }.first.id
       baked = Kimera::Overlay.new(catalog).bake("app.rb", assoc_src, posts)
       expect(baked).not_to(include("dependent: :destroy"))
-      expect(baked).to(match(/has_many\(?:posts\)?\s*$/m)) # no trailing empty hash
-      expect(baked).to(include("dependent: :nullify"))     # the other one untouched
+      # No trailing empty hash, and the other one untouched.
+      expect(baked).to(match(/has_many\(?:posts\)?\s*$/m).and(include("dependent: :nullify")))
     end
 
     it "keeps sibling options when dropping dependent: from a fuller hash", :aggregate_failures do
@@ -176,30 +175,29 @@ RSpec.describe(Kimera::Operators) do
   end
 
   describe "class-body lambda bodies (scopes)" do
-    it "treats lambda bodies as re-executing, schemata-safe code", :aggregate_failures do
+    def pricing_code = "class Pricing\n  DISCOUNT = ->(total) { total > 100 ? 10 : 0 }\nend\n"
+
+    def evaluated(source) = Kimera::Warnings::SILENCED.during { TOPLEVEL_BINDING.eval(source, "pricing.rb") }
+
+    def pricing
       stub_const("Pricing", Class.new)
-      code = <<~RUBY
-        class Pricing
-          DISCOUNT = ->(total) { total > 100 ? 10 : 0 }
-        end
-      RUBY
-      catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["comparison"]))
-        .source(code, file: "pricing.rb")
-      expect(catalog.each.count).to(eq(2)) # > gets its boundary + swap
-      catalog.points.each { |point| expect(point.safe?).to(be(true)) }
+      Kimera::RegistryScan.new(operators: described_class.build(keys: ["comparison"]))
+        .source(pricing_code, file: "pricing.rb")
+    end
 
-      result = Kimera::Overlay.new(catalog).synthesize("pricing.rb", code)
-      verbose = $VERBOSE
-      $VERBOSE = nil
-      TOPLEVEL_BINDING.eval(result.source, "pricing.rb")
-      $VERBOSE = verbose
+    # > gets its boundary and its swap.
+    it "treats lambda bodies as re-executing, schemata-safe code", :aggregate_failures do
+      catalog = pricing
+      expect(catalog.each.count).to(eq(2))
+      expect(catalog.points.map(&:safe?)).to(all(be(true)))
+    end
 
-      expect(Pricing::DISCOUNT.call(100)).to(eq(0))
-      boundary = catalog.each.find { |m, _p| m.label == "> => >=" }.first.id
-      Kimera::RUNTIME.active = boundary
-      expect(Pricing::DISCOUNT.call(100)).to(eq(10))
-    ensure
-      Kimera::RUNTIME.reset!
+    it "runs a lambda body's mutant live" do
+      catalog = pricing
+      evaluated(Kimera::Overlay.new(catalog).synthesize("pricing.rb", pricing_code).source)
+      plain = Pricing::DISCOUNT.call(100)
+      Kimera::RUNTIME.active = catalog.each.find { |m, _p| m.label == "> => >=" }.first.id
+      expect([plain, Pricing::DISCOUNT.call(100)]).to(eq([0, 10]))
     end
 
     it "still excludes plain do-blocks at class body (run-once DSL)" do
