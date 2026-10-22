@@ -10,7 +10,6 @@ RSpec.describe(Kimera::Execution::Schemata) do
 
   after do
     FileUtils.remove_entry(dir)
-    Kimera::RUNTIME.reset!
   end
 
   def write(relative, body)
@@ -33,17 +32,13 @@ RSpec.describe(Kimera::Execution::Schemata) do
     [registry, schemata(registry).overlay!]
   end
 
-  def activate(registry, label = "> => <")
-    Kimera::RUNTIME.active = registry.each.find { |mutant, _point| mutant.label == label }.first.id
+  # What the block returns with the labelled mutant on.
+  def flipped(registry, label = "> => <", &)
+    Kimera::RUNTIME.during(registry.each.find { |mutant, _point| mutant.label == label }.first.id, &)
   end
 
   # What the block returns with no mutant active, then with the labelled one.
-  def outcomes(registry, label = "> => <")
-    Kimera::RUNTIME.active = nil
-    original = yield
-    activate(registry, label)
-    [original, yield]
-  end
+  def outcomes(registry, label = "> => <", &) = [yield, flipped(registry, label, &)]
 
   def noisily(loader)
     live = nil
@@ -74,9 +69,9 @@ RSpec.describe(Kimera::Execution::Schemata) do
         end
       end
     RUBY
-    activate(overlaid("sl_required.rb").first)
+    registry, = overlaid("sl_required.rb")
     expect(SchemataRequired.loads).to(eq(1))
-    expect(SchemataRequired.new.gt(2, 1)).to(be(false))
+    expect(flipped(registry) { SchemataRequired.new.gt(2, 1) }).to(be(false))
   end
 
   # An alias declared in another file copies the body before the overlay runs;
@@ -86,8 +81,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
     stub_const("SchemataAliased", Module.new)
     loaded("sl_aliased.rb", "module SchemataAliased\n  def gt(a, b)\n    a > b\n  end\nend\n")
     holder = Class.new { include SchemataAliased }.tap { |klass| klass.alias_method(:above, :gt) }
-    activate(overlaid("sl_aliased.rb").first)
-    expect(holder.new.above(2, 1)).to(be(false))
+    expect(flipped(overlaid("sl_aliased.rb").first) { holder.new.above(2, 1) }).to(be(false))
   end
 
   # dry-validation requires its extensions on demand. Unregistered, that require
@@ -101,21 +95,23 @@ RSpec.describe(Kimera::Execution::Schemata) do
       registry.each.find { |m, _p| m.label == "> => <" }.first.id
     end
 
+    # The file's mutant, and the file by its linked and its real path.
     def lazy
       stub_const("SchemataLazy", Class.new)
       write("real/sl_lazy.rb", greater("SchemataLazy"))
       File.symlink(File.join(dir, "real"), File.join(dir, "linked"))
-      Kimera::RUNTIME.active = lazily(File.join(dir, "linked"))
-      %w[linked real].map { |root| File.join(dir, root, "sl_lazy.rb") }
+      [lazily(File.join(dir, "linked")), %w[linked real].map { |root| File.join(dir, root, "sl_lazy.rb") }]
     end
 
     it "counts as already required by either path" do
-      expect(lazy.map { |path| require(path) }).to(eq([false, false]))
+      _, paths = lazy
+      expect(paths.map { |path| require(path) }).to(eq([false, false]))
     end
 
     it "keeps its guards when the suite requires it" do
-      lazy.each { |path| require(path) }
-      expect(SchemataLazy.new.gt(2, 1)).to(be(false))
+      id, paths = lazy
+      paths.each { |path| require(path) }
+      expect(Kimera::RUNTIME.during(id) { SchemataLazy.new.gt(2, 1) }).to(be(false))
     end
   end
 

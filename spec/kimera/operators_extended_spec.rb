@@ -97,19 +97,12 @@ RSpec.describe(Kimera::Operators) do
     overlay = Kimera::Overlay.new(catalog).synthesize("ext_ops.rb", ext_source)
     Kimera::Warnings::SILENCED.during { TOPLEVEL_BINDING.eval(overlay.source, "ext_ops.rb") }
     active(wanted && pick(catalog, wanted)) { yield(ExtOps.new) }
-  ensure
-    Kimera::RUNTIME.reset!
   end
 
   # The block's answer with no mutant active, then with the wanted one.
   def outcomes(key, wanted, &) = [under(key, &), under(key, wanted, &)]
 
-  def active(id)
-    Kimera::RUNTIME.active = id
-    yield
-  ensure
-    Kimera::RUNTIME.active = nil
-  end
+  def active(id, &) = Kimera::RUNTIME.during(id, &)
 
   it "arithmetic swaps binary operators", :aggregate_failures do
     expect(labels("arithmetic")).to(include("+ => -"))
@@ -149,8 +142,6 @@ RSpec.describe(Kimera::Operators) do
         end
       end
     RUBY
-
-    after { Kimera::RUNTIME.reset! }
 
     # The overlay, and each mutant's id by method and label.
     def linked
@@ -364,8 +355,6 @@ RSpec.describe(Kimera::Operators) do
         catalog = chained(demo)
         evaluated(catalog, demo, "chain.rb")
         active(label && pick(catalog, label)) { ChainDemo.new.evens_then_first([4, 2, 3]) }
-      ensure
-        Kimera::RUNTIME.reset!
       end
 
       it "drops the selected link" do

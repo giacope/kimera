@@ -61,8 +61,6 @@ RSpec.describe(Kimera::Execution::Shift) do
 
   def request(*names) = StringIO.new(names.map { |name| "#{JSON.generate(id: name)}\n" }.join)
 
-  after { Kimera::RUNTIME.reset! }
-
   describe "#run streaming protocol" do
     it "emits a result for each mutant and a final done", :aggregate_failures do
       worker(coverage: ids.to_h { |id| [id, ["t1"]] }).run(ids, io)

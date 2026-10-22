@@ -22,10 +22,7 @@ RSpec.describe(Kimera::Operators) do
     catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: [key])).source(code, file: "p.rb")
     object = overlaid(catalog, code)
     original = yield(object)
-    Kimera::RUNTIME.active = catalog.each.find { |m, _p| m.label.match?(label) }.first.id
-    [original, yield(object)]
-  ensure
-    Kimera::RUNTIME.reset!
+    [original, Kimera::RUNTIME.during(catalog.each.find { |m, _p| m.label.match?(label) }.first.id) { yield(object) }]
   end
 
   def only(code, key)

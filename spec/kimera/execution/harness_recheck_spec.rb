@@ -19,8 +19,6 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   let(:ids) { registry.each.map { |m, _p| m.id } }
 
-  after { Kimera::RUNTIME.reset! }
-
   def harness(adapter, **)
     described_class.build(registry: registry, adapter: adapter, **)
   end

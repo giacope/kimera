@@ -49,8 +49,6 @@ RSpec.describe(Kimera::Execution::Shift) do
     end
   end
 
-  after { Kimera::RUNTIME.reset! }
-
   def scripted(script, failures: {}) = scripted_class.new(script, failures)
 
   def worker(adapter, coverage, soft: nil)

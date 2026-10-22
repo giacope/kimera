@@ -32,8 +32,6 @@ RSpec.describe(Kimera::Execution::Shift::Census) do
     )
   end
 
-  after { Kimera::RUNTIME.reset! }
-
   it "records every covering test that fails, errs or times out alone with the mutant on", :aggregate_failures do
     runs = []
     result = shift(adapter(runs)).evaluate(target)

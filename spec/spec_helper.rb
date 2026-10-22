@@ -26,4 +26,7 @@ RSpec.configure do |config|
   ensure
     ENV["KIMERA"] = before
   end
+  # When kimera runs on itself, the run's mutant is on while these examples
+  # run; an example that drives the switch hands it back to the next one.
+  config.around { |example| Kimera::RUNTIME.during(Kimera::RUNTIME.active) { example.run } }
 end

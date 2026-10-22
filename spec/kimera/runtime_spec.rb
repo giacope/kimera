@@ -69,6 +69,24 @@ RSpec.describe(Kimera::Runtime) do
     end
   end
 
+  describe "#during" do
+    it "selects the mutant only while its block runs, then the one selected before" do
+      runtime.active = 5
+      inside = runtime.during(9) { runtime.active }
+      expect([inside, runtime.active]).to(eq([9, 5]))
+    end
+
+    it "hands the switch back when its block raises", :aggregate_failures do
+      runtime.active = 5
+      expect { runtime.during(9) { raise(KeyError) } }.to(raise_error(KeyError))
+      expect(runtime.active).to(eq(5))
+    end
+
+    it "answers its block's value" do
+      expect(runtime.during(nil) { :answer }).to(eq(:answer))
+    end
+  end
+
   describe "#overlay" do
     it "is overlaying only while its block runs" do
       inside = runtime.overlay { runtime.overlaying? }

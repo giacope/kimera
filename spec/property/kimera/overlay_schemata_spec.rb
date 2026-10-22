@@ -78,10 +78,7 @@ RSpec.describe(Kimera::Overlay) do
     # one forgets the ivars (`@v`) an earlier mutant's calls set.
     def flipped(live, id, calls)
       live.instance_variables.each { |name| live.remove_instance_variable(name) }
-      Kimera::RUNTIME.active = id
-      calls.map { |call| outcome(live, call) }
-    ensure
-      Kimera::RUNTIME.active = nil
+      Kimera::RUNTIME.during(id) { calls.map { |call| outcome(live, call) } }
     end
 
     # The mutants that, flipped live, answer the calls unlike their bakes.

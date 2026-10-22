@@ -56,10 +56,10 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   def test_expect_toggle(registry, object)
-    Kimera::RUNTIME.active = nil
     expect(object.gt(2, 1)).to(be(true))
-    Kimera::RUNTIME.active = registry.each.find { |m, _p| m.label == "> => <" }.first.id
-    expect(object.gt(2, 1)).to(be(false))
+    Kimera::RUNTIME.during(registry.each.find { |m, _p| m.label == "> => <" }.first.id) do
+      expect(object.gt(2, 1)).to(be(false))
+    end
   end
 
   it "builds a registry from a UTF-8 file regardless of default_external", :aggregate_failures do
@@ -86,8 +86,6 @@ RSpec.describe(Kimera::Overlay) do
     registry, result, object = test_synthesized_module
     expect(result.mutant_ids).not_to(be_empty)
     test_expect_toggle(registry, object)
-  ensure
-    Kimera::RUNTIME.reset!
   end
 
   it "round-trips a registry with non-ASCII source snippets through disk" do

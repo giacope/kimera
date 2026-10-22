@@ -23,16 +23,9 @@ RSpec.describe(Kimera::Operators) do
     catalog = scan(code, *keys)
     Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("c.rb", code).source).evaluate("c.rb")
     yield(catalog.each.to_h { |m, _p| [m.label, m.id] })
-  ensure
-    Kimera::RUNTIME.reset!
   end
 
-  def active(id)
-    Kimera::RUNTIME.active = id
-    yield
-  ensure
-    Kimera::RUNTIME.active = nil
-  end
+  def active(id, &) = Kimera::RUNTIME.during(id, &)
 
   describe "super_call" do
     let(:code) { <<~RUBY }

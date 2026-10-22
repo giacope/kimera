@@ -93,15 +93,9 @@ RSpec.describe(Kimera::Operators::Visibility) do
 
     after do
       Kimera::RUNTIME.stop!(ledger)
-      Kimera::RUNTIME.reset!
     end
 
-    def active(name)
-      Kimera::RUNTIME.active = ids.fetch(name)
-      yield
-    ensure
-      Kimera::RUNTIME.active = nil
-    end
+    def active(name, &) = Kimera::RUNTIME.during(ids.fetch(name), &)
 
     it "stays public until its mutant is active" do
       expect([VisibilityOps.new.part, VisibilityOps.public_method_defined?(:part)]).to(eq([1, true]))

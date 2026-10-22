@@ -59,16 +59,9 @@ RSpec.describe(Kimera::Operators) do
     overlaid(catalog, contract_src, "contracts.rb")
     id = label && catalog.each.to_h { |m, _p| [m.label, m.id] }.fetch(label)
     active(id) { yield(Contracts.new) }
-  ensure
-    Kimera::RUNTIME.reset!
   end
 
-  def active(id)
-    Kimera::RUNTIME.active = id
-    yield
-  ensure
-    Kimera::RUNTIME.active = nil
-  end
+  def active(id, &) = Kimera::RUNTIME.during(id, &)
 
   def contract_keys = %w[index_fetch kernel_coercion respond_to_guard symbol_literal default_argument]
 
@@ -133,8 +126,6 @@ RSpec.describe(Kimera::Operators) do
         overlaid(catalog, spellings, "spellings.rb")
         id = source && catalog.each.to_h { |m, p| [p.original_source, m.id] }.fetch(source)
         active(id) { yield(Spellings.new) }
-      ensure
-        Kimera::RUNTIME.reset!
       end
 
       it "rewrites both, preserving &." do

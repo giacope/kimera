@@ -102,8 +102,6 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
   end
 
-  after { Kimera::RUNTIME.reset! }
-
   # A subclass that keeps the parent's memo under an alias and calls it from its own.
   def aliasing(name, parent)
     subclass =

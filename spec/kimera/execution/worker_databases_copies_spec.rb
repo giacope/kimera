@@ -33,6 +33,11 @@ RSpec.describe(Kimera::Execution::WorkerDatabases) do
     expect(errors.string).to(include("the 3 workers share one test database (app_test)"))
   end
 
+  it "leaves a lone worker on the parent's database" do
+    described_class.new(jobs: 1, errors: errors, env: {}).before_fork
+    expect(copies).not_to(have_received(:prepare))
+  end
+
   it "has each worker take its copy" do
     databases.after_fork(2)
     expect(copies).to(have_received(:adopt).with(2))

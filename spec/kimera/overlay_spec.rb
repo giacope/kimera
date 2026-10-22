@@ -22,7 +22,8 @@ RSpec.describe(Kimera::Overlay) do
     Object.new.extend(mod)
   end
 
-  after { Kimera::RUNTIME.reset! }
+  # What the block answers with the mutant of that label on.
+  def flipped(registry, label, &) = Kimera::RUNTIME.during(registry.each.find { |m, _p| m.label == label }.first.id, &)
 
   describe "round-tripping gnarly expressions" do
     corpus = [
@@ -85,7 +86,6 @@ RSpec.describe(Kimera::Overlay) do
       result, = extended(guarded_return)
       subject = subject(result)
 
-      Kimera::RUNTIME.active = nil
       expect(subject.permission_mode("auto-accept")).to(be(:auto_accept))
       expect(subject.permission_mode(nil)).to(be(:ask))
     end
@@ -95,8 +95,7 @@ RSpec.describe(Kimera::Overlay) do
       subject = subject(result)
 
       mutant = registry.each.find { |m, _p| m.label == "return => return nil" }.first
-      Kimera::RUNTIME.active = mutant.id
-      expect(subject.permission_mode("auto-accept")).to(be_nil)
+      Kimera::RUNTIME.during(mutant.id) { expect(subject.permission_mode("auto-accept")).to(be_nil) }
     end
   end
 
@@ -106,7 +105,6 @@ RSpec.describe(Kimera::Overlay) do
     end
 
     it "matches the original for every corpus expression" do
-      Kimera::RUNTIME.active = nil
       original = baseline
       subject = Object.new.extend(materialize("def m(a, b)\n  a > b && b < 10\nend\n").first)
       cases = [[5, 3], [1, 9], [20, 20], [11, 11]]
@@ -122,10 +120,8 @@ RSpec.describe(Kimera::Overlay) do
 
     it "flips a comparison when its mutant is active", :aggregate_failures do
       subject, mutant = comparison
-      Kimera::RUNTIME.active = nil
       expect(subject.gt(2, 1)).to(be(true))
-      Kimera::RUNTIME.active = mutant.id
-      expect(subject.gt(2, 1)).to(be(false))
+      Kimera::RUNTIME.during(mutant.id) { expect(subject.gt(2, 1)).to(be(false)) }
     end
   end
 
@@ -198,10 +194,8 @@ RSpec.describe(Kimera::Overlay) do
 
     it "flips the segment live when its mutant is active", :aggregate_failures do
       subject, part = segment
-      Kimera::RUNTIME.active = nil
       expect(subject.banner("1.0")).to(eq("kimera 1.0"))
-      Kimera::RUNTIME.active = part.mutants.first.id
-      expect(subject.banner("1.0")).to(eq("1.0"))
+      Kimera::RUNTIME.during(part.mutants.first.id) { expect(subject.banner("1.0")).to(eq("1.0")) }
     end
 
     # `"a " "b"` nests a dstr in a dstr, which unparser refuses once guarded.
@@ -210,7 +204,6 @@ RSpec.describe(Kimera::Overlay) do
       result, registry = synthesis(
         "def m(a, b)\n  \"Found \#{a} mutants \" \\\n    \"across \#{b} files.\"\nend\n", %w[string_literal]
       )
-      Kimera::RUNTIME.active = nil
       [result, subject(result), registry.points.find { |p| p.original_source == "across " }]
     end
 
@@ -218,8 +211,7 @@ RSpec.describe(Kimera::Overlay) do
       result, subject, part = splice
       expect { Unparser.parse(result.source) }.not_to(raise_error)
       expect(subject.m(3, 2)).to(eq("Found 3 mutants across 2 files."))
-      Kimera::RUNTIME.active = part.mutants.first.id
-      expect(subject.m(3, 2)).to(eq("Found 3 mutants 2 files."))
+      Kimera::RUNTIME.during(part.mutants.first.id) { expect(subject.m(3, 2)).to(eq("Found 3 mutants 2 files.")) }
     end
 
     # A guarded whole segment becomes a bare `#{}`, which can't start a
@@ -227,7 +219,6 @@ RSpec.describe(Kimera::Overlay) do
     # forces that path. Exact output pins the coalescing predicates.
     def flatten
       result, registry = synthesis("def m(x)\n  \"alpha \" \"beta \#{x} gamma \" \"delta\"\nend\n", %w[string_literal])
-      Kimera::RUNTIME.active = nil
       [result, subject(result), registry.points.find { |p| p.original_source == '"alpha "' }]
     end
 
@@ -235,8 +226,7 @@ RSpec.describe(Kimera::Overlay) do
       result, subject, alpha = flatten
       expect { Unparser.parse(result.source) }.not_to(raise_error)
       expect(subject.m(1)).to(eq("alpha beta 1 gamma delta"))
-      Kimera::RUNTIME.active = alpha.mutants.first.id
-      expect(subject.m(1)).to(eq("beta 1 gamma delta"))
+      Kimera::RUNTIME.during(alpha.mutants.first.id) { expect(subject.m(1)).to(eq("beta 1 gamma delta")) }
     end
 
     it "round-trips guarded parts of dsym, regexp and xstr literals" do
@@ -277,7 +267,6 @@ RSpec.describe(Kimera::Overlay) do
       # Coalescing would leave a lone str child, which unparser refuses.
       mod, = materialize("def m(a, b)\n  [\"a \" \"b\", a > b]\nend\n")
       subject = Object.new.extend(mod)
-      Kimera::RUNTIME.active = nil
       expect(subject.m(2, 1)).to(eq(["a b", true]))
     end
 
@@ -286,7 +275,6 @@ RSpec.describe(Kimera::Overlay) do
       result, = synth("def m(a, b)\n  \"x\" \"y\#{a > b}z\" \"w\"\nend\n")
       expect { RubyVM::InstructionSequence.compile(result.source) }.not_to(raise_error)
       subject = subject(result)
-      Kimera::RUNTIME.active = nil
       expect(subject.m(2, 1)).to(eq("xytruezw"))
     end
   end
@@ -296,7 +284,6 @@ RSpec.describe(Kimera::Overlay) do
     it "leaves adjacent string elements of an array untouched" do
       mod, = materialize("def m(a, b)\n  [\"a\", \"b\", (a > b)]\nend\n")
       subject = Object.new.extend(mod)
-      Kimera::RUNTIME.active = nil
       expect(subject.m(2, 1)).to(eq(["a", "b", true]))
     end
   end
@@ -311,22 +298,22 @@ RSpec.describe(Kimera::Overlay) do
 
     def navigation
       result, registry = synthesis("def first_neg(xs)\n  xs&.find { |a| a < 0 }\nend\n", %w[safe_navigation])
-      Kimera::RUNTIME.active = nil
       [result, subject(result), registry.each.find { |m, _p| m.label == "&. => ." }.first]
     end
 
     # Returns [result, whether nil raised].
     def activated(subject, mutant)
-      Kimera::RUNTIME.active = mutant.id
-      [
-        subject.first_neg([1, -2]),
-        begin
-          subject.first_neg(nil)
-          false
-        rescue NoMethodError
-          true
-        end
-      ]
+      Kimera::RUNTIME.during(mutant.id) do
+        [
+          subject.first_neg([1, -2]),
+          begin
+            subject.first_neg(nil)
+            false
+          rescue NoMethodError
+            true
+          end
+        ]
+      end
     end
 
     it "strips safe navigation on a call with a block", :aggregate_failures do
@@ -416,18 +403,16 @@ RSpec.describe(Kimera::Overlay) do
 
     it "fires guards through a reference captured before the overlay", :aggregate_failures do
       held, registry = overlay(struct_source, "KimeraReopenProbe::Point")
-      Kimera::RUNTIME.active = nil
       expect(held.new(x: 2, y: 1).bigger?).to(be(true))
-      Kimera::RUNTIME.active = registry.each.find { |m, _p| m.label == "> => <" }.first.id
-      expect(held.new(x: 2, y: 1).bigger?).to(be(false))
+      expect(flipped(registry, "> => <") { held.new(x: 2, y: 1).bigger? }).to(be(false))
     end
 
     it "instruments to_h key literals reachable through described_class", :aggregate_failures do
       held, registry = overlay(tag_source, "KimeraReopenProbe::Tag", keys: %w[string_literal])
-      Kimera::RUNTIME.active = nil
       expect(held.new(name: "a").to_h).to(eq("name" => "a"))
-      Kimera::RUNTIME.active = registry.points.find { |p| p.original_source == '"name"' }.mutants.first.id
-      expect(held.new(name: "a").to_h).to(eq("" => "a"))
+      Kimera::RUNTIME.during(registry.points.find { |p| p.original_source == '"name"' }.mutants.first.id) do
+        expect(held.new(name: "a").to_h).to(eq("" => "a"))
+      end
     end
 
     it "leaves factory lookalikes that are not casgn+block+factory untouched", :aggregate_failures do
@@ -458,10 +443,8 @@ RSpec.describe(Kimera::Overlay) do
 
     it "reopens a Data.define value object in place too", :aggregate_failures do
       held, registry = overlay(span_source, "KimeraReopenProbe::Span", keys: %w[arithmetic])
-      Kimera::RUNTIME.active = nil
       expect(held.new(lo: 1, hi: 5).width).to(eq(4))
-      Kimera::RUNTIME.active = registry.each.find { |m, _p| m.label == "- => +" }.first.id
-      expect(held.new(lo: 1, hi: 5).width).to(eq(6))
+      expect(flipped(registry, "- => +") { held.new(lo: 1, hi: 5).width }).to(eq(6))
     end
   end
 
@@ -539,8 +522,7 @@ RSpec.describe(Kimera::Overlay) do
     end
 
     def flip(live, id)
-      Kimera::RUNTIME.active = id
-      outcomes(live)
+      Kimera::RUNTIME.during(id) { outcomes(live) }
     end
 
     # chain_link_deletion reaches into its receiver, a node with points of its own.
@@ -599,8 +581,7 @@ RSpec.describe(Kimera::Overlay) do
       result, registry = escaped(source)
       typed = subject(result)
       expect(typed.content_type("\xFF\xD8\xFF\xE0".b)).to(eq("image/jpeg"))
-      Kimera::RUNTIME.active = registry.each.find { |m, _p| m.label == '"\xFF\xD8\xFF" => ""' }.first.id
-      expect(typed.content_type("\x89PNG".b)).to(eq("image/jpeg"))
+      expect(flipped(registry, '"\xFF\xD8\xFF" => ""') { typed.content_type("\x89PNG".b) }).to(eq("image/jpeg"))
     end
 
     # unparser can't write such a byte back into a plain heredoc (a guarded
@@ -867,8 +848,7 @@ RSpec.describe(Kimera::Overlay) do
       it "still selects a spliced mutant at runtime", :aggregate_failures do
         klass, flip = compiled
         expect(klass.new.compare(2, 1)).to(be(true))
-        Kimera::RUNTIME.active = flip.id
-        expect(klass.new.compare(2, 1)).to(be(false))
+        Kimera::RUNTIME.during(flip.id) { expect(klass.new.compare(2, 1)).to(be(false)) }
       end
 
       def reopened
@@ -895,8 +875,7 @@ RSpec.describe(Kimera::Overlay) do
       def flipped(registry, asks)
         asks.map do |label, line, ask|
           at = ->(mutant, point) { mutant.label == label && point.location.start_line == line }
-          Kimera::RUNTIME.active = registry.each.find { |mutant, point| at.call(mutant, point) }.first.id
-          ask.call
+          Kimera::RUNTIME.during(registry.each.find { |mutant, point| at.call(mutant, point) }.first.id) { ask.call }
         end
       end
 
