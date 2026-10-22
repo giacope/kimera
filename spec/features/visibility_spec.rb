@@ -4,10 +4,8 @@
 # activation, and its verdicts match the isolated tier's, which bakes
 # `private(:name)` into a fresh copy of the project.
 RSpec.describe("kimera run --operators visibility (end-to-end)") do
-  def project(root)
-    FileUtils.mkdir_p(File.join(root, "app"))
-    FileUtils.mkdir_p(File.join(root, "spec"))
-    File.write(File.join(root, "app", "ledger.rb"), <<~RUBY)
+  def files = {
+    "app/ledger.rb" => <<~RUBY,
       # frozen_string_literal: true
       class Ledger
         def total = entries.sum
@@ -19,7 +17,7 @@ RSpec.describe("kimera run --operators visibility (end-to-end)") do
         def respond_to_missing?(name, include_private = false) = name == :ghost || super
       end
     RUBY
-    File.write(File.join(root, "spec", "ledger_spec.rb"), <<~RUBY)
+    "spec/ledger_spec.rb" => <<~RUBY
       # frozen_string_literal: true
       require_relative "../app/ledger"
 
@@ -29,20 +27,20 @@ RSpec.describe("kimera run --operators visibility (end-to-end)") do
         it { expect(Ledger.new.ghost).to eq(:real) }
       end
     RUBY
+  }
+
+  def statuses(run) = run.results.to_h { |result| [result["method"], result["status"]] }
+
+  def visibility(mode)
+    arguments = ["--operators", "visibility", *mode]
+    test_tree(files, "kimera-visibility") { |root| test_outcome(cwd: root, arguments: arguments) }
   end
 
-  def statuses(report) = report["results"].to_h { |result| [result["method"], result["status"]] }
-
-  it "kills a method tests call from outside, spares one called only inside or through send", :aggregate_failures do
-    Dir.mktmpdir("kimera-visibility") do |root|
-      project(root)
+  { "warm" => [], "isolated" => ["--isolated"] }.each do |tier, mode|
+    it "kills a method tests call from outside, spares one called only inside or through send, #{tier}" do
+      run = visibility(mode)
       expected = { "total" => "killed", "entries" => "survived", "audit" => "survived", "ghost" => "killed" }
-      [[], ["--isolated"]].each do |mode|
-        test_run(cwd: root, arguments: ["--operators", "visibility", *mode]) do |output, report, _status|
-          expect(report).not_to(be_nil, "no report; output:\n#{output}")
-          expect(statuses(report)).to(eq(expected), "#{mode.inspect}:\n#{output}")
-        end
-      end
+      expect(statuses(run)).to(eq(expected), run.output)
     end
   end
 end

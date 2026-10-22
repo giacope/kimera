@@ -54,38 +54,33 @@ RSpec.describe("Harness watchdog") do
     expect(report.killed.map(&:mutant_id)).to(contain_exactly(1, 2, 3))
   end
 
-  it "hard-kills a hung worker, marks the in-flight mutant as timeout, and finishes the rest", :aggregate_failures do
-    catalog = catalog([1, 2, 3])
-    spawner = fake_spawner(timeout: 2)
-    report = harness(catalog, spawner).run(ids: [1, 2, 3])
-
-    statuses = report.results.to_h { |r| [r.mutant_id, r.status] }
-    expect(statuses[2]).to(eq(:timeout))
+  it "hard-kills a hung worker, marks the in-flight mutant as timeout, and finishes the rest" do
+    report = harness(catalog([1, 2, 3]), fake_spawner(timeout: 2)).run(ids: [1, 2, 3])
     # 3 is picked up by the replacement worker.
-    expect(statuses[1]).to(eq(:killed))
-    expect(statuses[3]).to(eq(:killed))
+    expect(report.results.to_h { |r| [r.mutant_id, r.status] }).to(eq(1 => :killed, 2 => :timeout, 3 => :killed))
+  end
+
+  # A worker that exits 3 before it reads a request.
+  def stillborn
+    lambda do |_slot|
+      request, sender = IO.pipe
+      response, receiver = IO.pipe
+      pid =
+        fork do
+          sender.close
+          response.close
+          exit!(3)
+        end
+      request.close
+      receiver.close
+      [pid, sender, response]
+    end
   end
 
   # E.g. an after-fork hook that raises. Marking every mutant unjudged would
   # report a clean run over code that never ran.
   it "aborts when worker after worker dies without reporting anything" do
-    stillborn =
-      lambda do |_slot|
-        request, sender = IO.pipe
-        response, receiver = IO.pipe
-        pid =
-          fork do
-            sender.close
-            response.close
-            exit!(3)
-          end
-        request.close
-        receiver.close
-        [pid, sender, response]
-      end
-
-    catalog = catalog([1, 2, 3, 4])
-    expect { harness(catalog, stillborn).run(ids: [1, 2, 3, 4]) }
+    expect { harness(catalog([1, 2, 3, 4]), stillborn).run(ids: [1, 2, 3, 4]) }
       .to(raise_error(Kimera::Error, /died before reporting a result.*status 3/m))
   end
 
