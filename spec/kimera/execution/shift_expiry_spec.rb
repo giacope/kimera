@@ -79,8 +79,8 @@ RSpec.describe(Kimera::Execution::Shift) do
     expect(result.status).to(eq(:harness_error))
     expect(result.detail).to(
       start_with("t1 ran past its soft timeout (5.0s) with the mutant on, and took 2.5s with it off")
+        .and(end_with("killed it: raise --soft-timeout well above the test's own time"))
     )
-    expect(result.detail).to(end_with("killed it: raise --soft-timeout well above the test's own time"))
     expect(adapter.log).to(eq([["t1", target], ["t1", nil], ["t2", target]]))
   end
 

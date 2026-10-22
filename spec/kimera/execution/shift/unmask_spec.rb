@@ -69,8 +69,7 @@ RSpec.describe(Kimera::Execution::Shift::Unmask) do
     adapter = scripted({})
     judged(adapter, tests, timings: { "t9" => 0.01 })
     alone = adapter.log.drop(tests.size)
-    expect(alone.size).to(eq(described_class::CAP))
-    expect(alone.first).to(eq(["t9", target]))
+    expect([alone.size, alone.first]).to(eq([described_class::CAP, ["t9", target]]))
   end
 
   # A timeout found alone carries no failure messages to annotate.
