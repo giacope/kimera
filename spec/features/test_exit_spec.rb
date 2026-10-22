@@ -60,23 +60,23 @@ RSpec.describe("abort in code under test (end-to-end)") do
     expect(test_killer(["--framework", "minitest", "--isolated"], tests: tests)).to(include(errors: 0, killed: true))
   end
 
-  def test_red(root, arguments)
-    test_fixture(root)
-    File.write(File.join(root, "spec", "task_spec.rb"), <<~RUBY)
-      require_relative "../app/task"
-      RSpec.describe(Task) { it("runs unready") { Task.new.run(false) } }
-    RUBY
-    test_run(cwd: root, arguments: arguments) { |output, _report, status| yield(output, status) }
+  def test_red(arguments)
+    Dir.mktmpdir("kimera-abort") do |root|
+      test_fixture(root)
+      File.write(File.join(root, "spec", "task_spec.rb"), <<~RUBY)
+        require_relative "../app/task"
+        RSpec.describe(Task) { it("runs unready") { Task.new.run(false) } }
+      RUBY
+      test_outcome(cwd: root, arguments: arguments)
+    end
   end
 
-  it "reports a test that aborts as a failing baseline test, serially and in parallel", :aggregate_failures do
-    [["--jobs", "1"], ["--jobs", "2"]].each do |arguments|
-      Dir.mktmpdir("kimera-abort") do |root|
-        test_red(root, arguments) do |output, status|
-          expect(output).to(include("not green: ./spec/task_spec.rb[1:1]", "SystemExit: exit(1) called from app/"))
-          expect(status).to(eq(1))
-        end
-      end
+  %w[1 2].each do |jobs|
+    it "reports a test that aborts as a failing baseline test at --jobs #{jobs}" do
+      run = test_red(["--jobs", jobs])
+      expect([run.output, run.status]).to(
+        match([a_string_including("not green: ./spec/task_spec.rb[1:1]", "SystemExit: exit(1) called from app/"), 1])
+      )
     end
   end
 end
