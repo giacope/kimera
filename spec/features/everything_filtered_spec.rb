@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-require "fileutils"
-require "tmpdir"
-
 # An older RSpec idiom focuses on `focus: true` examples and falls back to
 # all of them when none is focused; kimera loads examples as `rspec` does.
 # A baseline whose filter still leaves nothing to run fails loudly instead of
@@ -27,31 +24,20 @@ RSpec.describe("kimera run under an inclusion filter that matches nothing (end-t
     RUBY
   }
 
-  def project(root, fallback)
-    files(fallback).each do |path, body|
-      FileUtils.mkdir_p(File.dirname(File.join(root, path)))
-      File.write(File.join(root, path), body)
-    end
+  def ran(fallback)
+    test_tree(files(fallback), "kimera-filtered") { |root| test_outcome(cwd: root, arguments: ["--no-progress"]) }
   end
 
   it "runs every example when the focus filter matches none and the suite asks for that" do
-    Dir.mktmpdir("kimera-filtered") do |root|
-      project(root, true)
-      test_run(cwd: root, arguments: ["--no-progress"]) do |output, report, _status|
-        expect(report).not_to(be_nil, output)
-        expect(report.fetch("counts").slice("no_coverage", "survived")).to(eq({ "no_coverage" => 0, "survived" => 0 }))
-        expect(report.fetch("counts")["killed"]).to(be_positive)
-      end
-    end
+    run = ran(true)
+    counts = run.report&.fetch("counts") || {}
+    expect(counts.slice("no_coverage", "survived")).to(eq({ "no_coverage" => 0, "survived" => 0 }), run.output)
+    expect(counts["killed"]).to(be_positive)
   end
 
   it "fails the baseline when the filter leaves no test to run" do
-    Dir.mktmpdir("kimera-filtered") do |root|
-      project(root, false)
-      test_run(cwd: root, arguments: ["--no-progress"]) do |output, report, status|
-        expect([report, status]).to(eq([nil, 1]), output)
-        expect(output).to(include("baseline has no tests to run: 1 test file(s) loaded"))
-      end
-    end
+    run = ran(false)
+    expect([run.report, run.status]).to(eq([nil, 1]), run.output)
+    expect(run.output).to(include("baseline has no tests to run: 1 test file(s) loaded"))
   end
 end
