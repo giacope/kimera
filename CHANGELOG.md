@@ -4,9 +4,9 @@
 
 - **Kimera writes Ruby itself; the unparser gem is gone.** `Kimera::Scribe`
   reads source with Prism's parser-gem translation and writes a tree back as
-  source that reads as the very same tree: across Kimera's own sources, every
-  installed gem and Ruby's standard library (4,505 files), 4,503 come back
-  identical, and the other two differ only by parentheses. The runtime
+  source that reads as the very same tree: across Kimera's own sources, Ruby's
+  standard library and every gem a Rails 8.1 app installs (7,135 files),
+  7,133 come back identical, and the other two differ only by parentheses. The runtime
   dependencies are now Prism and parser (with ast and racc); unparser and
   diff-lcs are no longer pulled in, and the four patches on unparser's
   internals, the spec that guarded them and CI's per-release unparser job are
@@ -33,7 +33,8 @@
     local nothing binds where it sits is refused rather than written as a
     method call, so the guard that caused it is dropped as before.
   - `and`, `or` and `not` keep their spelling, and `return a ? b : c` stays a
-    ternary. A `rescue` list holding a ternary writes too.
+    ternary. A `rescue` list holding a ternary writes too, and `{ frozen?: }`
+    is never written as a shorthand Ruby rejects.
   - Nothing is written through a round-trip check, so there is no warning
     noise and no "could not find a round tripping solution". Messages that
     named unparser now name Kimera (`kimera could not write its guard`).

@@ -5,7 +5,7 @@ module Kimera
     class Bracketed < Form
       TYPES = %i[kwbegin].freeze
 
-      def text = "begin#{children.one? ? clauses(children.first) : lines(@node.updated(:begin), @pen)}#{closing}"
+      def text = "begin#{children.size > 1 ? lines(@node.updated(:begin), @pen) : clauses(children.first)}#{closing}"
 
       def level = Level::KEYWORD
     end
@@ -16,16 +16,18 @@ module Kimera
       def text
         return "begin#{clauses(@node)}#{closing}" unless modifier?
         fallback = children[1].children.last || @node.updated(:nil, [])
-        "#{leading(0, Level::TERNARY)} rescue #{@pen.with([children.first]).write(fallback, Level::EXPRESSION)}"
+        "#{body} rescue #{@pen.with([children.first]).write(fallback, Level::EXPRESSION)}"
       end
 
       def level = modifier? ? Level::STATEMENT : Level::KEYWORD
 
       private
 
+      def body = Jump::TYPES.include?(children.first.type) ? part(0) : leading(0, Level::TERNARY)
+
       def modifier?
-        body, handler, *rest = children
-        body && rest == [nil] && handler.children.first(2).none?
+        guarded, handler, *rest = children
+        guarded && rest == [nil] && handler.children.first(2).none?
       end
     end
 

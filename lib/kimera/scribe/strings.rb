@@ -33,7 +33,7 @@ module Kimera
       def piece_text(piece, following, delimiter)
         return embedded(piece, following) if piece.is_a?(Integer)
         return Quote.new(piece, delimiter).text unless piece.end_with?("\n") && following.is_a?(::String)
-        "#{Quote.new(piece.chomp, delimiter).text}\n"
+        "#{Quote.new(piece.delete_suffix("\n"), delimiter).text}\n"
       end
 
       def embedded(index, following)

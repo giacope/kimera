@@ -626,6 +626,18 @@ RSpec.describe(Kimera::Scribe) do
         "case a\nin { d:, e: 1, **f } if d\n  1\nin {}\n  6\nin { j: 1, **nil }\n  7\nend",
       "case a; in A | B => h then 3; in ^h then 4; in C(k, l) then 8; in C(m:) then 9; in ^(1 + 1) then 11; end" =>
         "case a\nin A | B => h\n  3\nin ^h\n  4\nin C(k, l)\n  8\nin C(m:)\n  9\nin ^(1 + 1)\n  11\nend",
+      "x = { frozen?: frozen? }" =>
+        "x = { frozen?: frozen? }",
+      "x = \"\\r\\n\" \"\\r\\n\#{y}\\r\\n\" \"z\"" =>
+        "x = \"\\r\\n\" \"\\r\\n\#{y}\\r\\n\" \"z\"",
+      "x = \"a\\r\\nb\#{c}\"" =>
+        "x = \"a\\r\\nb\#{c}\"",
+      "begin; end" =>
+        "begin\nend",
+      "return x rescue y" =>
+        "return x rescue y",
+      "loop { a = b || next }" =>
+        "loop {\n  a = b || next\n}",
       "case a; in 1; else; end" =>
         "case a\nin 1\nelse\nend",
       "a => b" =>
@@ -711,12 +723,20 @@ RSpec.describe(Kimera::Scribe) do
       "an interpolation beside a nested string" => [
         s(:dstr, s(:dstr, s(:str, "a"), s(:begin, s(:int, 1))), s(:begin, s(:int, 2))), "\"a\#{1}\" \"\#{2}\""
       ],
+      "a line ending in a carriage return and a newline" => [
+        s(:dstr, s(:str, "a\r\n"), s(:str, "b"), s(:begin, c)), "\"a\\r\nb\#{c}\""
+      ],
+      "an assignment rescued as a modifier" => [
+        s(:rescue, s(:lvasgn, :x, a), s(:resbody, nil, nil, b), nil),
+        "(x = a) rescue b"
+      ],
       "a setter with no receiver" => [s(:send, nil, :a=, s(:int, 1)), "self.a = 1"],
       "a destructuring parameter built with no source" => [
         s(:block, s(:send, nil, :x), s(:args, s(:procarg0, s(:arg, :a), s(:arg, :b))), nil), "x { |(a, b)|\n}"
       ],
       "a loop after return" => [s(:return, s(:while, a, b)), "return (while a\n  b\nend)"],
-      "or over a jump, built with no source" => [s(:or, a, s(:return)), "a or return"],
+      "or over a bare jump, built with no source" => [s(:or, a, s(:return)), "a || return"],
+      "or over a jump with a value, built with no source" => [s(:or, a, s(:return, s(:int, 1))), "a or return 1"],
       "and with not on its right" => [bare(described_class.parse("a && (not b)")), "a && (not b)"],
       "and as a value" => [bare(described_class.parse("x = (a and b)")), "x = (a and b)"],
       "a modifier as a value" => [bare(described_class.parse("x = (b = 1 if b)")), "x = (b = 1 if b)"],

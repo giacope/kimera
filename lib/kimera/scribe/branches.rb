@@ -112,7 +112,9 @@ module Kimera
 
       private
 
-      def keyword? = Shape.new(@node).spelled?(type.to_s) || children.any? { |child| FLOWS.include?(child.type) }
+      def keyword? = Shape.new(@node).spelled?(type.to_s) || children.any? { |child| carrying?(child) }
+
+      def carrying?(child) = FLOWS.include?(child.type) && child.children.any?
 
       def right(floor)
         node = children[1]

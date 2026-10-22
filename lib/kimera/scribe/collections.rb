@@ -34,6 +34,7 @@ module Kimera
 
     class Pair < Form
       TYPES = %i[pair].freeze
+      LOCAL = /\A[a-z_][A-Za-z0-9_]*\z/
 
       def text
         key = children.first
@@ -48,7 +49,7 @@ module Kimera
       private
 
       def labelled(name, written)
-        shorthand = written == name.to_s && %i[lvar send].include?(children[1].type)
+        shorthand = written == name.to_s && %i[lvar send].include?(children[1].type) && name.match?(LOCAL)
         shorthand ? "#{name}:" : "#{Name.new(name).label} #{written}"
       end
     end
