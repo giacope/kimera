@@ -65,9 +65,8 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       r = runner(hard_timeout: 5.0, poll_interval: 0.0125)
       allow(Process).to(receive(:waitpid2).and_return([nil, nil]))
       allow(r).to(receive(:sleep))
-
-      watch = instance_double(Kimera::Execution::IsolatedPulse, expired?: false)
-      expect(test_invoke_private(r, :attempt, 123, watch)).to(eq(:continue))
+      expect(test_invoke_private(r, :attempt, 123, instance_double(Kimera::Execution::IsolatedPulse, expired?: false)))
+        .to(eq(:continue))
       expect(r).to(have_received(:sleep).with(0.0125))
     end
 
@@ -249,24 +248,36 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     def runner_at(root) = described_class.new(registry: registry, root: root, tests: ["t1"])
 
-    it "copies sources, links dependencies, empties scratch dirs and skips history", :aggregate_failures do
+    # What a mirror holds, by what each check looks at.
+    def contents(mirror)
+      at = ->(*parts) { File.join(mirror, *parts) }
+      {
+        sub: File.directory?(at["lib", "sub"]), lib_linked: File.symlink?(at["lib"]),
+        modules: File.readlink(at["node_modules"]), tmp: Dir.children(at["tmp"]),
+        git: File.exist?(at[".git"]), gemfile: File.file?(at["Gemfile"])
+      }
+    end
+
+    it "copies sources, links dependencies, empties scratch dirs and skips history" do
       test_mirror do |root, mirror|
-        expect(File.directory?(File.join(mirror, "lib", "sub"))).to(be(true))
-        expect(File.symlink?(File.join(mirror, "lib"))).to(be(false))
-        expect(File.readlink(File.join(mirror, "node_modules"))).to(eq(File.join(root, "node_modules")))
-        expect(Dir.children(File.join(mirror, "tmp"))).to(be_empty)
-        expect(File.exist?(File.join(mirror, ".git"))).to(be(false))
-        expect(File.file?(File.join(mirror, "Gemfile"))).to(be(true))
+        expect(contents(mirror)).to(
+          eq(sub: true, lib_linked: false, modules: File.join(root, "node_modules"), tmp: [], git: false, gemfile: true)
+        )
+      end
+    end
+
+    # Whether the mirror of root holds the path once populated.
+    def mirrors?(root, path)
+      Dir.mktmpdir do |mirror|
+        test_invoke_private(runner_at(root), :populate, mirror)
+        File.exist?(File.join(mirror, path))
       end
     end
 
     it "does not turn a scratch file into a directory" do
       Dir.mktmpdir do |root|
         File.write(File.join(root, "log"), "")
-        Dir.mktmpdir do |mirror|
-          test_invoke_private(runner_at(root), :populate, mirror)
-          expect(File.exist?(File.join(mirror, "log"))).to(be(false))
-        end
+        expect(mirrors?(root, "log")).to(be(false))
       end
     end
   end
@@ -434,28 +445,35 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end
 
     # The child runs them in the order given; the report keeps coverage order.
-    it "hands the mutant's child its covering tests fastest first by baseline time", :aggregate_failures do
-      given = []
+    # The result for a mutant whose covering tests the baseline timed; the
+    # tests its child was given land in +given+.
+    def paced = { coverage: { first => %w[slow fast] }, timings: { "fast" => 0.1, "slow" => 2.0 } }
+
+    def paced_trial(given)
       Dir.mktmpdir do |root|
         File.write(File.join(root, "calc.rb"), test_source_fixture)
-        paced = { coverage: { first => %w[slow fast] }, timings: { "fast" => 0.1, "slow" => 2.0 } }
         r = test_paced(given).new(registry: registry, root: root, tests: [], **paced)
-        result =
-          Dir.mktmpdir do |mirror|
-            FileUtils.cp_r(File.join(root, "calc.rb"), File.join(mirror, "calc.rb"))
-            test_invoke_private(r, :evaluate, Kimera::Execution::Trial.new(first, mirror, Kimera::Overlay.new(registry)))
-          end
-        expect([given, result.covering_tests]).to(eq([%w[fast slow], %w[slow fast]]))
+        Dir.mktmpdir do |mirror|
+          FileUtils.cp_r(File.join(root, "calc.rb"), File.join(mirror, "calc.rb"))
+          test_invoke_private(r, :evaluate, Kimera::Execution::Trial.new(first, mirror, Kimera::Overlay.new(registry)))
+        end
       end
+    end
+
+    it "hands the mutant's child its covering tests fastest first by baseline time" do
+      given = []
+      result = paced_trial(given)
+      expect([given, result.covering_tests]).to(eq([%w[fast slow], %w[slow fast]]))
     end
 
     it "settles a mutant whose tests the screen drops, without staging or running it", :aggregate_failures do
       given = []
       registry.index.fetch(first).revisit!(Kimera::MutationPoint::BOOT_REASON)
-      filter = Kimera::Execution::TestFilter.new(registry: registry, flaky: %w[t1])
-      r = test_paced(given).new(registry: registry, root: ".", tests: %w[t1], filter: filter)
-      trial = Kimera::Execution::Trial.new(first, "/nonexistent", Kimera::Overlay.new(registry))
-      result = test_invoke_private(r, :evaluate, trial)
+      r = test_paced(given).new(
+        registry: registry, root: ".", tests: %w[t1],
+        filter: Kimera::Execution::TestFilter.new(registry: registry, flaky: %w[t1])
+      )
+      result = test_invoke_private(r, :evaluate, Kimera::Execution::Trial.new(first, "/nonexistent", Kimera::Overlay.new(registry)))
       expect(
         [
           result.status, result.detail,
@@ -498,10 +516,8 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     it "bakes the mutant, takes the verdict, and restores the file afterward", :aggregate_failures do
       result, baked, restored = test_baking_evaluate(first)
-      expect(result.status).to(eq(:killed))
-      expect(result.duration).to(eq(2.5))
-      expect(result.covering_tests).to(eq(["t1"]))
-      expect(result.failing_tests).to(eq(["t1[1:1]"]))
+      expect(result)
+        .to(have_attributes(status: :killed, duration: 2.5, covering_tests: ["t1"], failing_tests: ["t1[1:1]"]))
       expect(baked.first).not_to(eq(test_source_fixture))
       expect(restored).to(eq(test_source_fixture))
     end
@@ -693,12 +709,8 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end
 
     it "builds an :error result carrying the file and detail with zero duration", :aggregate_failures do
-      trial = Kimera::Execution::Trial.new(5, nil, nil, "calc.rb")
-      result = test_invoke_private(runner, :error, trial, "boom")
-      expect(result.status).to(eq(:error))
-      expect(result.file).to(eq("calc.rb"))
-      expect(result.detail).to(eq("boom"))
-      expect(result.duration).to(eq(0.0))
+      result = test_invoke_private(runner, :error, Kimera::Execution::Trial.new(5, nil, nil, "calc.rb"), "boom")
+      expect(result).to(have_attributes(status: :error, file: "calc.rb", detail: "boom", duration: 0.0))
     end
   end
 end
