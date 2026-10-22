@@ -8,11 +8,12 @@ require "kimera/synthesis/overlay"
 
 # Class-body DSL runs once at load, so its points must go to the isolated oracle.
 RSpec.describe(Kimera::Operators) do
-  after { Kimera::RUNTIME.reset! }
-
   def registry(code, keys)
     Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(code, file: "app.rb")
   end
+
+  # What the block answers with the mutant of that label on.
+  def flipped(catalog, label, &) = Kimera::RUNTIME.during(catalog.each.find { |m, _p| m.label == label }.first.id, &)
 
   describe "rails_permit" do
     let(:permit_src) { <<~RUBY }
@@ -55,8 +56,7 @@ RSpec.describe(Kimera::Operators) do
       catalog = registry(permit_src, ["rails_permit"])
       users = controller(catalog)
       plain = users.user_params
-      Kimera::RUNTIME.active = catalog.each.find { |m, _p| m.label == "permit: drop :admin" }.first.id
-      expect([plain, users.user_params]).to(eq([%i[name admin], %i[name]]))
+      expect([plain, flipped(catalog, "permit: drop :admin") { users.user_params }]).to(eq([%i[name admin], %i[name]]))
     end
   end
 
@@ -196,8 +196,7 @@ RSpec.describe(Kimera::Operators) do
       catalog = pricing
       evaluated(Kimera::Overlay.new(catalog).synthesize("pricing.rb", pricing_code).source)
       plain = Pricing::DISCOUNT.call(100)
-      Kimera::RUNTIME.active = catalog.each.find { |m, _p| m.label == "> => >=" }.first.id
-      expect([plain, Pricing::DISCOUNT.call(100)]).to(eq([0, 10]))
+      expect([plain, flipped(catalog, "> => >=") { Pricing::DISCOUNT.call(100) }]).to(eq([0, 10]))
     end
 
     it "still excludes plain do-blocks at class body (run-once DSL)" do

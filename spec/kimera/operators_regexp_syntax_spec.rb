@@ -94,10 +94,9 @@ RSpec.describe(Kimera::Operators) do
     code = "class RegexpOps\n  def code?(s) = s.match?(/\\A[A-Z]{3}\\z/)\nend\n"
     catalog = scan(code, "regexp_anchor", "regexp_quantifier")
     overlaid(catalog, code)
-    Kimera::RUNTIME.active = label && catalog.each.find { |m, _p| m.label == label }.first.id
-    RegexpOps.new.code?(text)
-  ensure
-    Kimera::RUNTIME.reset!
+    Kimera::RUNTIME.during(label && catalog.each.find { |m, _p| m.label == label }.first.id) do
+      RegexpOps.new.code?(text)
+    end
   end
 
   it "matches as the mutant does once flipped" do

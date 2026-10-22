@@ -124,8 +124,6 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
   end
 
   describe "the coverage channel" do
-    after { Kimera::RUNTIME.reset! }
-
     # Its one test, "t", reaches mutant 7 and fails with "boom".
     def reaching
       Object.new.tap do |adapter|

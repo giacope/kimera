@@ -12,7 +12,6 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
 
   after do
     FileUtils.remove_entry(dir)
-    Kimera::RUNTIME.reset!
   end
 
   def write(relative, body)

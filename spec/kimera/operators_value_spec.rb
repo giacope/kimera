@@ -21,16 +21,9 @@ RSpec.describe(Kimera::Operators) do
     catalog = scan(code, *keys)
     Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("v.rb", code).source).evaluate("v.rb")
     yield(catalog.each.to_h { |m, p| [p.original_source, m.id] })
-  ensure
-    Kimera::RUNTIME.reset!
   end
 
-  def active(id)
-    Kimera::RUNTIME.active = id
-    yield
-  ensure
-    Kimera::RUNTIME.active = nil
-  end
+  def active(id, &) = Kimera::RUNTIME.during(id, &)
 
   describe "assignment_deletion" do
     let(:code) { <<~RUBY }

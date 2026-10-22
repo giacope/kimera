@@ -16,8 +16,6 @@ RSpec.describe(Kimera::Execution::Shift::Unmask) do
 
   let(:target) { registry.each.first.first.id }
 
-  after { Kimera::RUNTIME.reset! }
-
   # +script+ maps a test to the outcomes of its successive runs; unscripted
   # runs pass.
   def scripted(script)

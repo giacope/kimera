@@ -25,8 +25,6 @@ RSpec.describe(Kimera::Execution::Shift) do
 
   before { stub_const("Kimera::Execution::Shift::Deadline::CLOCK", -> { clock.first }) }
 
-  after { Kimera::RUNTIME.reset! }
-
   # +script+ maps a test to its successive runs, as [seconds, passed?]
   # pairs; each run advances the fake clock. Unscripted runs are instant passes.
   def timed(script)

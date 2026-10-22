@@ -22,6 +22,14 @@ Follow-ups to field test round 3:
   file (and its write-ahead log) on SQLite, never an in-memory database. The
   copies are dropped when the run ends; other adapters still say the workers
   share one database.
+- **A run on kimera itself sees every mutant its specs reach.** Kimera's specs
+  switch fixture mutants on through `Kimera::RUNTIME`, and they switched it
+  off afterwards, which also turned off the run's own mutant: for the rest of
+  that example, and through `after` hooks for the examples after it. The specs
+  now hand the switch back with `Kimera::Runtime#during`. Of the 9 survivors
+  the first full self-run on main reported, 7 were hidden that way; the other
+  2, in `WorkerDatabases#separate?`, are killed by a spec that keeps a lone
+  worker on the parent's database.
 
 Field test round 3, on MIT libraries and Rails apps (casa, thredded, devise,
 rack, grape, jekyll among them): the verdicts that disagreed with the plain

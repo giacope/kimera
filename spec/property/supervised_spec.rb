@@ -12,6 +12,14 @@ RSpec.describe(Supervised) do
     false
   end
 
+  # kill returns before its target exits, so a process just killed may still be
+  # running; whether it still is a second later.
+  def outlives?(pid)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 1
+    sleep(0.01) while running?(pid) && Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
+    running?(pid)
+  end
+
   it "returns what the block returns" do
     expect(described_class.run(deadline: 5) { { events: [[:result, 1]] } }).to(eq(events: [[:result, 1]]))
   end
@@ -35,7 +43,7 @@ RSpec.describe(Supervised) do
   it "stops a block that never finishes, with everything it forked, at its deadline", :aggregate_failures do
     took, grandchild = overdue
     expect(took).to(be < 5)
-    expect(running?(grandchild)).to(be(false))
+    expect(outlives?(grandchild)).to(be(false))
   end
 
   def ensured(writer)

@@ -87,6 +87,17 @@ class Kimera::Runtime < Module
 
   def reset! = self.active = nil
 
+  # Switches a mutant on for the block, then back to the one on before, so code
+  # that borrows the switch (kimera's specs, while kimera runs on itself) hands
+  # the run's mutant back instead of turning it off.
+  def during(id)
+    previous = @active
+    self.active = id
+    yield
+  ensure
+    self.active = previous
+  end
+
   # Whether an overlay is re-running class bodies, so the guards it installs
   # in Rails skip declarations those bodies already made.
   def overlaying? = @overlaying
