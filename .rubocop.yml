@@ -20,54 +20,6 @@ AllCops:
     - vendor/**/*
 
 # --------------------------------------------------------------------------
-# Until rubocop-kata#19 merges: kata misreads its branch already fixes.
-# --------------------------------------------------------------------------
-
-Kata/GoodMethodName:
-  AllowedNames:
-    # Overrides that call super, and foreign names a spec stand-in answers (K3, K4).
-    - clear_reflections_cache
-    - with_around_example_hooks
-    - clear_action_methods!
-    - visit_begin_node
-    - visit_end_node
-
-Kata/BuilderNoun:
-  AllowedNames:
-    - get_callbacks # ActiveSupport's private name, mirrored by a spec stand-in (K4)
-
-Kata/RealWords:
-  Terms:
-    # `--format NAME` values (K5).
-    - ndjson
-    - sarif
-
-Naming/PredicateMethod:
-  AllowedMethods:
-    - run # overrides Minitest.run, which answers a boolean by contract
-
-Lint/BooleanSymbol:
-  Exclude:
-    # :true/:false are AST node types (K2).
-    - lib/kimera/synthesis/guardrail_factories.rb
-
-# A suite's fixture classes are not shared mutable state (K7).
-ThreadSafety/ClassInstanceVariable:
-  Exclude:
-    - spec/**/*
-ThreadSafety/ClassAndModuleAttributes:
-  Exclude:
-    - spec/**/*
-
-# Off outside the Rails profile: each thread waits on one child process.
-ThreadSafety/NewThread:
-  Exclude:
-    - eval/lib/kimera_eval/oracle.rb
-    - eval/lib/kimera_eval/shell.rb
-    - lib/kimera/execution/isolated_scheduling.rb
-    - lib/kimera/cli/test_command.rb
-
-# --------------------------------------------------------------------------
 # Until kata reads RSpec as one word (issues.md, OPEN; K10 covers the path).
 # --------------------------------------------------------------------------
 
