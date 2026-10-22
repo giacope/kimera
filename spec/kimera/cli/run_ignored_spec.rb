@@ -50,55 +50,77 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
   def ids(*labels) = mutants.filter_map { |mutant, _point| mutant.id if labels.include?(mutant.label) }
 
-  it "skips ignored mutants by default, including the baseline's" do
-    configure
-    runner = harness(:killed)
-    status, document = run
-    expect(status).to(eq(0))
-    expect(runner).to(evaluated(ids("< => <=", "< => >")))
-    expect(rows(document, "ignored").map { |row| row["detail"] }).to(all(eq("marked equivalent (ignored)")))
-    expect(out.string).to(include("Ignoring 2 mutant(s) marked equivalent."))
-    expect(out.string).not_to(include("Evaluating them anyway", "are now killed"))
+  before { configure }
+
+  describe "by default" do
+    let!(:runner) { harness(:killed) }
+
+    it "skips ignored mutants, including the baseline's" do
+      status, = run
+      expect(status).to(eq(0))
+      expect(runner).to(evaluated(ids("< => <=", "< => >")))
+    end
+
+    it "reports them ignored as marked equivalent" do
+      _, document = run
+      expect(rows(document, "ignored").map { |row| row["detail"] }).to(all(eq("marked equivalent (ignored)")))
+      expect(out.string).to(include("Ignoring 2 mutant(s) marked equivalent."))
+      expect(out.string).not_to(include("Evaluating them anyway", "are now killed"))
+    end
   end
 
-  it "evaluates ignored mutants with --evaluate-ignored, keeping them ignored with their verdict" do
-    configure
-    runner = harness(:killed)
-    status, document = run("--evaluate-ignored", "--max-ignored", "2")
-    expect(status).to(eq(0))
-    expect(runner).to(evaluated(mutants.map { |mutant, _point| mutant.id }))
-    expect(rows(document, "ignored").map { |row| row.slice("verdict", "detail") })
-      .to(all(eq("verdict" => "killed", "detail" => "ignored (killed)")))
-    expect(document["counts"]).to(include("ignored" => 2, "killed" => 2))
-    expect(out.string).to(include("Evaluating them anyway (--evaluate-ignored)"))
-    expect(out.string).to(include("2 ignored mutant(s) are now killed (their entries can be pruned); 0 still survive."))
+  describe "with --evaluate-ignored" do
+    let!(:runner) { harness(:killed) }
+
+    def evaluating = run("--evaluate-ignored", "--max-ignored", "2")
+
+    it "evaluates ignored mutants" do
+      expect(evaluating.first).to(eq(0))
+      expect(runner).to(evaluated(mutants.map { |mutant, _point| mutant.id }))
+    end
+
+    it "keeps them ignored, with their verdict" do
+      document = evaluating.last
+      expect(rows(document, "ignored").map { |row| row.slice("verdict", "detail") })
+        .to(all(eq("verdict" => "killed", "detail" => "ignored (killed)")))
+      expect(document["counts"]).to(include("ignored" => 2, "killed" => 2))
+    end
+
+    it "says it evaluates them, and which are now killed" do
+      evaluating
+      expect(out.string).to(
+        include(
+          "Evaluating them anyway (--evaluate-ignored)",
+          "2 ignored mutant(s) are now killed (their entries can be pruned); 0 still survive."
+        )
+      )
+    end
   end
 
-  it "never gates an evaluated ignored survivor as a survivor, but still budgets it" do
-    configure
+  it "never gates an evaluated ignored survivor as a survivor" do
     harness(:survived)
     expect(run("--evaluate-ignored", "--max-ignored", "2", "--max-survivors", "2").first).to(eq(0))
-    expect(run("--evaluate-ignored", "--max-ignored", "1", "--max-survivors", "2").first).to(eq(2))
-    expect(errors.string).to(include("ignored=2 > max_ignored=1"))
     expect(out.string).to(include("0 ignored mutant(s) are now killed (their entries can be pruned); 2 still survive."))
   end
 
+  it "still budgets an evaluated ignored survivor" do
+    harness(:survived)
+    expect(run("--evaluate-ignored", "--max-ignored", "1", "--max-survivors", "2").first).to(eq(2))
+    expect(errors.string).to(include("ignored=2 > max_ignored=1"))
+  end
+
   it "judges the baseline's mutants like any other with --no-baseline" do
-    configure
     runner = harness(:survived)
     status, document = run("--no-baseline")
-    expect(status).to(eq(2))
+    expect([status, rows(document, "survived").size]).to(eq([2, 3]))
     expect(runner).to(evaluated(ids("< => <=", "< => >", "> => >=")))
-    expect(rows(document, "survived").size).to(eq(3))
     expect(out.string).to(include("Ignoring 1 mutant(s) marked equivalent."))
   end
 
   it "re-anchors a drifted ignore entry that still singles out one mutant" do
-    configure
     File.write("calc.rb", "\n#{File.read("calc.rb")}")
     harness(:killed)
-    _status, document = run
-    expect(rows(document, "ignored").size).to(eq(2))
+    expect(rows(run.last, "ignored").size).to(eq(2))
     expect(errors.string).to(include("kimera: warning: ignore entry re-anchored: calc.rb:2 → 3 [> => <]"))
     expect(errors.string).not_to(include("stale anchor"))
   end
@@ -109,13 +131,11 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
   end
 
   it "keeps the raw baseline entries out of the parsed options" do
-    configure
     expect(cli.__send__(:parse, ["--config", "custom.yml"])).not_to(have_key(:baseline_ignore))
     expect(cli.__send__(:parse, ["--config", "custom.yml", "--evaluate-ignored"])[:evaluate_ignored]).to(be(true))
   end
 
   it "records the --since ref in the report's run provenance" do
-    configure
     harness(:killed)
     expect(run.last.dig("run", "since")).to(be_nil)
     expect(run.last["run"]).to(have_key("since"))
