@@ -31,7 +31,8 @@ RSpec.describe(Kimera::Execution::ChildProcess) do
   describe "process groups" do
     def call(name, *) = reader.__send__(name, *)
 
-    it "makes a forked child lead a process group of its own" do
+    # A forked child that took the lead, and the process group it reports.
+    def led
       group, report = IO.pipe
       pid =
         fork do
@@ -40,9 +41,14 @@ RSpec.describe(Kimera::Execution::ChildProcess) do
           exit!(0)
         end
       report.close
-      expect(Integer(group.gets)).to(eq(pid))
+      [pid, Integer(group.gets)]
     ensure
-      Process.wait(pid)
+      Process.wait(pid) if pid
+    end
+
+    it "makes a forked child lead a process group of its own" do
+      pid, group = led
+      expect(group).to(eq(pid))
     end
 
     # The fork above records no coverage for `lead`; this runs it in-process.

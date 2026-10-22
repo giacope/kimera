@@ -40,9 +40,7 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
     ran = []
     screen(red: %w[t1 t2], ran: ran).call(failures)
     env, argv, chdir = ran.first
-    expect(env).to(eq("KIMERA" => "1"))
-    expect(argv.first(3)).to(eq(%w[plain t1 t2]))
-    expect(chdir).to(eq("/project"))
+    expect([env, argv.first(3), chdir]).to(eq([{ "KIMERA" => "1" }, %w[plain t1 t2], "/project"]))
   end
 
   # K3-3: tests red only under kimera were dropped as "covering nothing".

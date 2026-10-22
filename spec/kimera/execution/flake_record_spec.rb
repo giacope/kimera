@@ -11,10 +11,9 @@ RSpec.describe(Kimera::Execution::FlakeRecord, :aggregate_failures) do
   end
 
   it "records each failed or lost rerun under its test, with the seed and the first failure" do
-    record.note({ "id" => "t2", "passed" => false, "failure" => "Expected 0" }, 11)
-    record.note({ "id" => "t2", "passed" => false }, 12)
-    record.lose("t3", :timeout, 12)
-    record.lose("t1", :crash, 11)
+    [[{ "id" => "t2", "passed" => false, "failure" => "Expected 0" }, 11], [{ "id" => "t2", "passed" => false }, 12]]
+      .each { |row, seed| record.note(row, seed) }
+    [["t3", :timeout, 12], ["t1", :crash, 11]].each { |test, how, seed| record.lose(test, how, seed) }
     expect(record.flaky).to(eq(%w[t2 t3 t1]))
     expect(record.to_h.fetch("flaky")).to(
       eq(

@@ -66,9 +66,9 @@ RSpec.describe(Kimera::Execution::FlakeHunt, :aggregate_failures) do
     env.delete("KIMERA_SEED")
     log = []
     hunt(log, seed: nil, flaky_runs: 3, filter: filter)
-    expect(log.map(&:first)).to(all(be_between(0, (2**31) - 1)))
-    expect(log.map(&:first).uniq.size).to(eq(3))
-    expect(env).not_to(have_key("KIMERA_SEED"))
+    seeds = log.map(&:first)
+    expect([seeds.uniq.size, seeds.all? { |seed| seed.between?(0, (2**31) - 1) }, env.key?("KIMERA_SEED")])
+      .to(eq([3, true, false]))
   end
 
   it "does nothing without reruns" do
