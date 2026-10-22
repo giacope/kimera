@@ -74,10 +74,9 @@ RSpec.describe(Kimera::Execution::LoadTrace) do
   it "leaves a point a test covers, by integer or string id", :aggregate_failures do
     ternary = point("flag ? 1 : 2")
     first, *rest = ternary.ids
-    traced({ first => ["t1"] })
-    expect(ternary.safe?).to(be(true))
-    traced({ rest.first.to_s => ["t1"] })
-    expect(ternary.safe?).to(be(true))
+    coverages = [{ first => ["t1"] }, { rest.first.to_s => ["t1"] }]
+    safe = coverages.map { |coverage| traced(coverage).then { ternary.safe? } }
+    expect(safe).to(eq([true, true]))
   end
 
   it "resolves a relative root against the working directory" do
@@ -85,11 +84,17 @@ RSpec.describe(Kimera::Execution::LoadTrace) do
     expect(point("flag ? 1 : 2").safe?).to(be(false))
   end
 
+  # The scan of fees.rb through a directory linked to its real one.
+  def linked_scan
+    real, linked = %w[real linked].map { |name| File.join(dir, name) }
+    FileUtils.mkdir_p(real)
+    File.write(File.join(real, "fees.rb"), source)
+    File.symlink(real, linked)
+    Kimera::RegistryScan.new(root: linked).build([File.join(linked, "fees.rb")])
+  end
+
   it "recognizes a file loaded through its real path" do
-    FileUtils.mkdir_p(File.join(dir, "real"))
-    File.write(File.join(dir, "real", "fees.rb"), source)
-    File.symlink(File.join(dir, "real"), File.join(dir, "linked"))
-    linked = Kimera::RegistryScan.new(root: File.join(dir, "linked")).build([File.join(dir, "linked", "fees.rb")])
+    linked = linked_scan
     trace = described_class.new(linked, File.join(dir, "linked"))
     macro(trace, File.realpath(File.join(dir, "real", "fees.rb")))
     trace.quarantine!({})

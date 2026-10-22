@@ -35,9 +35,8 @@ RSpec.describe(Kimera::BodyTrim) do
     RUBY
     trimmed = trim(source, "size > 1")
     expect(lines(trimmed)).to(eq(["class Widget < Base", "def label(size) = size > 1", "end"]))
-    expect(trimmed.bytesize).to(eq(source.bytesize))
-    expect(trimmed.lines.size).to(eq(source.lines.size))
-    expect(trimmed.index("size > 1")).to(eq(source.index("size > 1")))
+    expect([trimmed.bytesize, trimmed.lines.size, trimmed.index("size > 1")])
+      .to(eq([source.bytesize, source.lines.size, source.index("size > 1")]))
   end
 
   it "keeps a UTF-8 file UTF-8, blanking multibyte text byte for byte", :aggregate_failures do
@@ -328,16 +327,21 @@ RSpec.describe(Kimera::BodyTrim) do
       expect(described_class.new(source, locations).trim(write("never.rb"))).to(eq(source))
     end
 
-    it "finds a required file under its real path or the path it was required by", :aggregate_failures do
+    # Requires real.rb, and linked.rb through a link to dir; answers linked.rb's own path.
+    def linked_requires
       real = write("real.rb")
       linked = write("linked.rb")
       FileUtils.ln_s(dir, File.join(dir, "link"))
       require(real)
       require(File.join(dir, "link", "linked.rb"))
-      expect(loaded?(File.join(dir, "link", "real.rb"))).to(be(true))
-      expect(loaded?(File.join(dir, "link", "linked.rb"))).to(be(true))
-      expect(loaded?(linked)).to(be(false))
-      expect(loaded?(File.join(dir, "missing.rb"))).to(be(false))
+      linked
+    end
+
+    it "finds a required file under its real path or the path it was required by" do
+      linked = linked_requires
+      paths = [File.join(dir, "link", "real.rb"), File.join(dir, "link", "linked.rb"), linked]
+        .push(File.join(dir, "missing.rb"))
+      expect(paths.map { |path| loaded?(path) }).to(eq([true, true, false, false]))
     end
   end
 end
