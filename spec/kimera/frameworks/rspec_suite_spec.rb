@@ -87,9 +87,8 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
     passing = ids.find { |id| adapter.describe(id) == "KimeraDemo passes" }
     catalog = adapter.catalog([passing, "no/such[1:1]"])
     expect(catalog.keys).to(eq([passing]))
-    expect(catalog.fetch(passing)).to(include("name" => "KimeraDemo passes"))
-    expect(catalog.fetch(passing)["location"]).to(end_with("demo_spec.rb:2"))
-    expect(catalog.fetch(passing)["location"]).not_to(start_with("./"))
+    expect(catalog.fetch(passing))
+      .to(include("name" => "KimeraDemo passes", "location" => match(%r{\A(?!\./).*demo_spec\.rb:2\z})))
   end
 
   # Strict attribution maps each test to the spec file that declares it.
@@ -326,17 +325,27 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
   # In-process so mutation coverage sees it; the subprocess spec below covers end-to-end.
   # R3K5: its --require files load with the test files, inside kimera's load
   # trace, not when the adapter is built.
-  it "applies the working directory's .rspec, loading its requires with the test files", :aggregate_failures do
-    configuration
-    File.write(File.join(dir, ".rspec"), "--require ./dotrspec_probe\n--default-path dotspec\n")
-    path = RSpec.configuration.default_path
-    built = Dir.chdir(dir) { quietly { described_class.build } }
-    expect(probed).to(be_empty)
-    expect(RSpec.configuration.default_path).to(eq("dotspec"))
-    Dir.chdir(dir) { quietly { built.source([]) } }
-    expect(probed).to(eq([:required]))
-  ensure
-    RSpec.configuration.default_path = path
+  describe "the working directory's .rspec" do
+    around do |example|
+      path = RSpec.configuration.default_path
+      example.run
+    ensure
+      RSpec.configuration.default_path = path
+    end
+
+    # A suite built in a directory whose .rspec requires a probe and moves the default path.
+    def dotted
+      configuration
+      File.write(File.join(dir, ".rspec"), "--require ./dotrspec_probe\n--default-path dotspec\n")
+      Dir.chdir(dir) { quietly { described_class.build } }
+    end
+
+    it "is applied, loading its requires with the test files", :aggregate_failures do
+      built = dotted
+      expect([probed, RSpec.configuration.default_path]).to(eq([[], "dotspec"]))
+      Dir.chdir(dir) { quietly { built.source([]) } }
+      expect(probed).to(eq([:required]))
+    end
   end
 
   # rspec puts lib and the spec folder on the load path whatever .rspec says.
@@ -405,32 +414,25 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
 
     it "scopes only the wanted example's ancestor chain while the block runs", :aggregate_failures do
       outer = top
-      inner = outer.children.first
       c = example(outer, "c")
       filtered = {}
-      seen = nil
-      narrow(filtered, [c]) { seen = filtered.dup }
-      expect(seen).to(eq(outer => [], inner => [c]))
-      expect(filtered).to(be_empty)
+      seen = narrow(filtered, [c]) { filtered.dup }
+      expect([seen, filtered]).to(eq([{ outer => [], outer.children.first => [c] }, {}]))
     end
 
     it "hides children off the chain while the block runs, then restores them", :aggregate_failures do
       outer = top
       inner = outer.children.first
-      seen = nil
-      narrow({}, [example(outer, "a")]) { seen = outer.children.dup }
-      expect(seen).to(be_empty)
-      expect(outer.children).to(eq([inner]))
+      seen = narrow({}, [example(outer, "a")]) { outer.children.dup }
+      expect([seen, outer.children]).to(eq([[], [inner]]))
     end
 
     it "restores entries it did not add, and the children it hid, after a raise", :aggregate_failures do
       outer = top
       inner = outer.children.first
-      other = Object.new
-      filtered = { other => %i[a b] }
+      filtered = { other: %i[a b] }
       expect { narrow(filtered, [example(outer, "a")]) { raise(ArgumentError) } }.to(raise_error(ArgumentError))
-      expect(filtered).to(eq(other => %i[a b]))
-      expect(outer.children).to(eq([inner]))
+      expect([filtered, outer.children]).to(eq([{ other: %i[a b] }, [inner]]))
     end
   end
 end
