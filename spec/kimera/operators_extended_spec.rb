@@ -3,6 +3,7 @@
 require "kimera/operators"
 require "kimera/registry/builder"
 require "kimera/runtime"
+require "kimera/support/warnings"
 require "kimera/synthesis/overlay"
 
 # Each family also runs live, since one variant rendering bad source breaks the whole file's overlay.
@@ -77,18 +78,31 @@ RSpec.describe(Kimera::Operators) do
     built(key).each.map { |m, _p| m.label }
   end
 
-  def with_overlay(key)
+  def scan(keys, code, file)
+    Kimera::RegistryScan.new(operators: described_class.build(keys: Array(keys))).source(code, file: file)
+  end
+
+  def evaluated(catalog, code, file)
+    synthesized = Kimera::Overlay.new(catalog).synthesize(file, code)
+    Kimera::Overlay::Source.new(synthesized.source).evaluate(file)
+  end
+
+  def pick(catalog, wanted) = catalog.each.find { |m, p| m.label == wanted || p.original_source == wanted }.first.id
+
+  # What the block answers for an ExtOps under the key's overlay, with the
+  # mutant of that label (or source) active, or none.
+  def under(key, wanted = nil)
     stub_const("ExtOps", Class.new)
     catalog = built(key)
-    verbose = $VERBOSE
-
-    $VERBOSE = nil
-    TOPLEVEL_BINDING.eval(Kimera::Overlay.new(catalog).synthesize("ext_ops.rb", ext_source).source, "ext_ops.rb")
-    $VERBOSE = verbose
-    yield(catalog.each.to_h { |m, _p| [m.label, m.id] }, catalog)
+    overlay = Kimera::Overlay.new(catalog).synthesize("ext_ops.rb", ext_source)
+    Kimera::Warnings::SILENCED.during { TOPLEVEL_BINDING.eval(overlay.source, "ext_ops.rb") }
+    active(wanted && pick(catalog, wanted)) { yield(ExtOps.new) }
   ensure
     Kimera::RUNTIME.reset!
   end
+
+  # The block's answer with no mutant active, then with the wanted one.
+  def outcomes(key, wanted, &) = [under(key, &), under(key, wanted, &)]
 
   def active(id)
     Kimera::RUNTIME.active = id
@@ -99,48 +113,30 @@ RSpec.describe(Kimera::Operators) do
 
   it "arithmetic swaps binary operators", :aggregate_failures do
     expect(labels("arithmetic")).to(include("+ => -"))
-    with_overlay("arithmetic") do |ids|
-      object = ExtOps.new
-      expect(object.add(4, 2)).to(eq(6))
-      active(ids.fetch("+ => -")) { expect(object.add(4, 2)).to(eq(2)) }
-    end
+    expect(outcomes("arithmetic", "+ => -") { |o| o.add(4, 2) }).to(eq([6, 2]))
   end
 
-  it "negation deletes the bang", :aggregate_failures do
-    with_overlay("negation") do |ids|
-      object = ExtOps.new
-      expect(object.negate(true)).to(be(false))
-      active(ids.fetch("delete !")) { expect(object.negate(true)).to(be(true)) }
-    end
+  it "negation deletes the bang" do
+    expect(outcomes("negation", "delete !") { |o| o.negate(true) }).to(eq([false, true]))
   end
 
   it "safe_navigation strengthens &. to .", :aggregate_failures do
-    with_overlay("safe_navigation") do |ids|
-      object = ExtOps.new
-      expect(object.safe_len(nil)).to(be_nil)
-      active(ids.fetch("&. => .")) do
-        expect { object.safe_len(nil) }.to(raise_error(NoMethodError))
-      end
-    end
+    expect(under("safe_navigation") { |o| o.safe_len(nil) }).to(be_nil)
+    expect { under("safe_navigation", "&. => .") { |o| o.safe_len(nil) } }.to(raise_error(NoMethodError))
   end
 
   it "conditional pins the predicate to true or false", :aggregate_failures do
     expect(labels("conditional")).to(contain_exactly("condition => true", "condition => false"))
-    with_overlay("conditional") do |ids|
-      object = ExtOps.new
-      expect(object.pick(true)).to(eq(:yes))
-      active(ids.fetch("condition => false")) { expect(object.pick(true)).to(eq(:no)) }
-      active(ids.fetch("condition => true")) { expect(object.pick(false)).to(eq(:yes)) }
-    end
+    expect(outcomes("conditional", "condition => false") { |o| o.pick(true) }).to(eq(%i[yes no]))
+    expect(under("conditional", "condition => true") { |o| o.pick(false) }).to(eq(:yes))
   end
 
   # `if page = next_page` binds page for the body: pinning the predicate to
   # a bare literal dropped the binding, and with it the whole point, since
   # unparser cannot write the body's read of a local no longer assigned.
   # A predicate that binds nothing is still not evaluated.
-  it "conditional keeps an assignment the predicate makes, then pins it", :aggregate_failures do
-    stub_const("Linker", Class.new)
-    source = <<~RUBY
+  describe "conditional on a predicate that assigns" do
+    let(:linker) { <<~RUBY }
       class Linker
         def link(pages)
           if pages.any? && (page = pages.shift)
@@ -153,19 +149,40 @@ RSpec.describe(Kimera::Operators) do
         end
       end
     RUBY
-    catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["conditional"]))
-      .source(source, file: "linker.rb")
-    result = Kimera::Overlay.new(catalog).synthesize("linker.rb", source)
-    expect(result.skipped_unsafe).to(be_empty)
-    TOPLEVEL_BINDING.eval(result.source, "linker.rb")
-    ids = catalog.each.to_h { |m, p| [[p.method_name, m.label], m.id] }
-    active(ids.fetch(["link", "condition => true"])) { expect(Linker.new.link([])).to(eq("<>")) }
-    pages = [1, 2]
-    active(ids.fetch(["link", "condition => false"])) { expect(Linker.new.link(pages)).to(be_nil) }
-    active(ids.fetch(["skip", "condition => true"])) { expect(Linker.new.skip(pages)).to(eq(:next)) }
-    expect(pages).to(eq([2]))
-  ensure
-    Kimera::RUNTIME.reset!
+
+    after { Kimera::RUNTIME.reset! }
+
+    # The overlay, and each mutant's id by method and label.
+    def linked
+      stub_const("Linker", Class.new)
+      catalog = scan("conditional", linker, "linker.rb")
+      result = Kimera::Overlay.new(catalog).synthesize("linker.rb", linker)
+      TOPLEVEL_BINDING.eval(result.source, "linker.rb")
+      [result, catalog.each.to_h { |m, p| [[p.method_name, m.label], m.id] }]
+    end
+
+    it "is overlaid, not skipped as unsafe" do
+      expect(linked.first.skipped_unsafe).to(be_empty)
+    end
+
+    it "keeps the assignment when pinned true" do
+      _, ids = linked
+      expect(active(ids.fetch(["link", "condition => true"])) { Linker.new.link([]) }).to(eq("<>"))
+    end
+
+    it "still makes the assignment when pinned false", :aggregate_failures do
+      _, ids = linked
+      pages = [1, 2]
+      expect(active(ids.fetch(["link", "condition => false"])) { Linker.new.link(pages) }).to(be_nil)
+      expect(pages).to(eq([2]))
+    end
+
+    it "does not evaluate a predicate that binds nothing", :aggregate_failures do
+      _, ids = linked
+      pages = [1, 2]
+      expect(active(ids.fetch(["skip", "condition => true"])) { Linker.new.skip(pages) }).to(eq(:next))
+      expect(pages).to(eq([1, 2]))
+    end
   end
 
   it "skips elsif arms (not a wrappable expression)" do
@@ -186,61 +203,44 @@ RSpec.describe(Kimera::Operators) do
     expect(catalog.each.count).to(eq(2))
   end
 
-  it "numeric_literal perturbs integers with the off-by-one pair and zero", :aggregate_failures do
+  it "numeric_literal perturbs integers with the off-by-one pair and zero" do
     expect(labels("numeric_literal")).to(include("10 => 9", "10 => 11", "10 => 0"))
+  end
+
+  it "numeric_literal perturbs one to zero and two" do
     one = Kimera::RegistryScan.new(operators: described_class.build(keys: ["numeric_literal"]))
       .source("def m\n  1\nend\n", file: "one.rb")
     expect(one.each.map { |m, _p| m.label }).to(contain_exactly("1 => 0", "1 => 2"))
-    with_overlay("numeric_literal") do |ids|
-      object = ExtOps.new
-      expect(object.limit).to(eq(10))
-      active(ids.fetch("10 => 0")) { expect(object.limit).to(eq(0)) }
-      active(ids.fetch("10 => 11")) { expect(object.limit).to(eq(11)) }
-    end
   end
 
-  it "string_literal empties non-empty strings", :aggregate_failures do
-    with_overlay("string_literal") do |ids|
-      object = ExtOps.new
-      expect(object.greeting).to(eq("hello"))
-      active(ids.fetch('"hello" => ""')) { expect(object.greeting).to(eq("")) }
-    end
+  it "numeric_literal runs live" do
+    limits = [nil, "10 => 0", "10 => 11"].map { |label| under("numeric_literal", label, &:limit) }
+    expect(limits).to(eq([10, 0, 11]))
   end
 
-  it "collection_literal empties arrays and hashes", :aggregate_failures do
-    with_overlay("collection_literal") do |ids|
-      object = ExtOps.new
-      expect(object.pair).to(eq([1, 2]))
-      active(ids.fetch("array => []")) { expect(object.pair).to(eq([])) }
-    end
+  it "string_literal empties non-empty strings" do
+    expect(outcomes("string_literal", '"hello" => ""', &:greeting)).to(eq(["hello", ""]))
   end
 
-  it "range flips inclusivity", :aggregate_failures do
-    with_overlay("range") do |ids|
-      object = ExtOps.new
-      expect(object.span.to_a).to(eq([2, 3, 4, 5]))
-      active(ids.fetch(".. => ...")) { expect(object.span.to_a).to(eq([2, 3, 4])) }
-    end
+  it "collection_literal empties arrays and hashes" do
+    expect(outcomes("collection_literal", "array => []", &:pair)).to(eq([[1, 2], []]))
   end
 
-  it "method_unwrap removes a transformation call", :aggregate_failures do
-    with_overlay("method_unwrap") do |ids|
-      object = ExtOps.new
-      expect(object.tidy(" x ")).to(eq("x"))
-      active(ids.fetch("delete .strip")) { expect(object.tidy(" x ")).to(eq(" x ")) }
-    end
+  it "range flips inclusivity" do
+    expect(outcomes("range", ".. => ...") { |o| o.span.to_a }).to(eq([[2, 3, 4, 5], [2, 3, 4]]))
   end
 
-  it "return_value nils explicit returns and non-call tails", :aggregate_failures do
-    with_overlay("return_value") do |ids, catalog|
-      object = ExtOps.new
-      expect(object.evens([1, 2, 3])).to(eq([2]))
-      active(ids.fetch("return => return nil")) { expect(object.evens([1, 2])).to(be_nil) }
-      # Looked up by source: several methods have a "tail => nil" mutant.
-      mutant = catalog.each.find { |_m, p| p.original_source == "a * b" }.first.id
-      expect(object.total(3, 4)).to(eq(12))
-      active(mutant) { expect(object.total(3, 4)).to(be_nil) }
-    end
+  it "method_unwrap removes a transformation call" do
+    expect(outcomes("method_unwrap", "delete .strip") { |o| o.tidy(" x ") }).to(eq(["x", " x "]))
+  end
+
+  it "return_value nils explicit returns" do
+    expect(outcomes("return_value", "return => return nil") { |o| o.evens([1, 2]) }).to(eq([[2], nil]))
+  end
+
+  # Looked up by source: several methods have a "tail => nil" mutant.
+  it "return_value nils non-call tails" do
+    expect(outcomes("return_value", "a * b") { |o| o.total(3, 4) }).to(eq([12, nil]))
   end
 
   it "return_value skips bare `return`, `return nil`, and identifier-call tails" do
@@ -256,31 +256,25 @@ RSpec.describe(Kimera::Operators) do
     expect(catalog.each.count).to(eq(0))
   end
 
-  it "selector_swap swaps predicate duals, preserving blocks", :aggregate_failures do
-    with_overlay("selector_swap") do |ids|
-      object = ExtOps.new
-      expect(object.evens([1, 2, 3])).to(eq([2]))
-      active(ids.fetch("select => reject")) { expect(object.evens([1, 2, 3])).to(eq([1, 3])) }
-    end
+  it "selector_swap swaps predicate duals, preserving blocks" do
+    expect(outcomes("selector_swap", "select => reject") { |o| o.evens([1, 2, 3]) }).to(eq([[2], [1, 3]]))
   end
 
-  it "regexp replaces the pattern with match-all and match-none extremes", :aggregate_failures do
-    with_overlay("regexp") do |ids|
-      object = ExtOps.new
-      expect(object.code?("ABC")).to(be(true))
-      expect(object.code?("ab")).to(be(false))
-      active(ids.fetch("regexp => // (match all)")) { expect(object.code?("ab")).to(be(true)) }
-      active(ids.fetch("regexp => /(?!)/ (match none)")) { expect(object.code?("ABC")).to(be(false)) }
-    end
+  it "regexp matches its pattern with no mutant active" do
+    expect(under("regexp") { |o| [o.code?("ABC"), o.code?("ab")] }).to(eq([true, false]))
   end
 
-  it "element_drop removes one element at a time from multi-element literals", :aggregate_failures do
-    with_overlay("element_drop") do |ids|
-      object = ExtOps.new
-      expect(object.pair).to(eq([1, 2]))
-      active(ids.fetch("drop `1`")) { expect(object.pair).to(eq([2])) }
-      active(ids.fetch("drop `2`")) { expect(object.pair).to(eq([1])) }
-    end
+  it "regexp's match-all extreme matches anything" do
+    expect(under("regexp", "regexp => // (match all)") { |o| o.code?("ab") }).to(be(true))
+  end
+
+  it "regexp's match-none extreme matches nothing" do
+    expect(under("regexp", "regexp => /(?!)/ (match none)") { |o| o.code?("ABC") }).to(be(false))
+  end
+
+  it "element_drop removes one element at a time from multi-element literals" do
+    pairs = [nil, "drop `1`", "drop `2`"].map { |label| under("element_drop", label, &:pair) }
+    expect(pairs).to(eq([[1, 2], [2], [1]]))
   end
 
   it "element_drop skips single-element and splatted literals" do
@@ -290,20 +284,12 @@ RSpec.describe(Kimera::Operators) do
     expect(catalog.each.map { |m, _p| m.label }).to(contain_exactly("drop `a`", "drop `b`"))
   end
 
-  it "argument_drop removes one positional argument at a time", :aggregate_failures do
-    with_overlay("argument_drop") do |ids|
-      object = ExtOps.new
-      expect(object.pad("ab")).to(eq("ab..."))
-      active(ids.fetch('drop arg `"."`')) { expect(object.pad("ab")).to(eq("ab   ")) }
-    end
+  it "argument_drop removes one positional argument at a time" do
+    expect(outcomes("argument_drop", 'drop arg `"."`') { |o| o.pad("ab") }).to(eq(["ab...", "ab   "]))
   end
 
-  it "op_assign swaps the compound-assignment operator", :aggregate_failures do
-    with_overlay("op_assign") do |ids|
-      object = ExtOps.new
-      expect(object.bump(10)).to(eq(13))
-      active(ids.fetch("+= => -=")) { expect(object.bump(10)).to(eq(7)) }
-    end
+  it "op_assign swaps the compound-assignment operator" do
+    expect(outcomes("op_assign", "+= => -=") { |o| o.bump(10) }).to(eq([13, 7]))
   end
 
   it "dedups identical directives across operators (permit vs argument_drop)" do
@@ -363,30 +349,28 @@ RSpec.describe(Kimera::Operators) do
       expect(chained("def m(xs)\n  xs[0].to_s\nend\n").each.count).to(eq(0))
     end
 
-    it "rewrites a live chain when the mutant is selected", :aggregate_failures do
-      stub_const("ChainDemo", Class.new)
-      code = <<~RUBY
+    describe "on a live chain" do
+      let(:demo) { <<~RUBY }
         class ChainDemo
           def evens_then_first(xs)
             xs.select(&:even?).sort.first
           end
         end
       RUBY
-      catalog = chained(code)
-      result = Kimera::Overlay.new(catalog).synthesize("chain.rb", code)
-      Kimera::Overlay::Source.new(result.source).evaluate("chain.rb")
-      ids = catalog.each.to_h { |m, _p| [m.label, m.id] }
-      object = ChainDemo.new
 
-      expect(object.evens_then_first([4, 2, 3])).to(eq(2))
-      active(ids.fetch("drop chain link `.sort`")) do
-        expect(object.evens_then_first([4, 2, 3])).to(eq(4))
+      # The chain's answer, with the labelled mutant active, or none.
+      def demoed(label = nil)
+        stub_const("ChainDemo", Class.new)
+        catalog = chained(demo)
+        evaluated(catalog, demo, "chain.rb")
+        active(label && pick(catalog, label)) { ChainDemo.new.evens_then_first([4, 2, 3]) }
+      ensure
+        Kimera::RUNTIME.reset!
       end
-      active(ids.fetch("drop chain link `.select`")) do
-        expect(object.evens_then_first([4, 2, 3])).to(eq(2))
+
+      it "drops the selected link" do
+        expect([demoed, demoed("drop chain link `.sort`"), demoed("drop chain link `.select`")]).to(eq([2, 4, 2]))
       end
-    ensure
-      Kimera::RUNTIME.reset!
     end
   end
 
