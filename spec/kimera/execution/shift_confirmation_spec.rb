@@ -61,15 +61,20 @@ RSpec.describe(Kimera::Execution::Shift) do
 
   def messages(io) = io.string.each_line.map { |line| JSON.parse(line) }
 
+  def serve(adapter, coverage, requests, soft: nil)
+    request = StringIO.new(requests.map { |id| "#{JSON.generate(id: id)}\n" }.join)
+    response = StringIO.new
+    worker(adapter, coverage, soft: soft).serve(request, response)
+    messages(response)
+  end
+
   describe "a confirmed kill" do
     # The coverage pass ran it without the mutant, first in a fresh process too.
     it "takes a failing first test as the kill, running it once", :aggregate_failures do
       target = ids.first
       adapter = scripted({ "t1" => %i[fail] })
       result = worker(adapter, { target => ["t1"] }).evaluate(target)
-
-      expect(result.status).to(eq(:killed))
-      expect(result.failing_tests).to(eq(["t1"]))
+      expect([result.status, result.failing_tests]).to(eq([:killed, ["t1"]]))
       expect(adapter.log).to(eq([["t1", target]]))
     end
 
@@ -96,12 +101,8 @@ RSpec.describe(Kimera::Execution::Shift) do
     it "remembers only a confirmed killer for the next mutant", :aggregate_failures do
       a, b = ids.first(2)
       adapter = scripted({ "slow" => [], "t1" => %i[fail pass pass], "t2" => %i[fail fail] })
-      shift = worker(adapter, { a => %w[t1], b => %w[slow t2] })
-      shift.evaluate(a)
-      adapter.log.clear
-
-      shift.evaluate(b)
-      expect(adapter.log.first).to(eq(["slow", b]))
+      worker(adapter, { a => %w[t1], b => %w[slow t2] }).tap { |shift| shift.evaluate(a) }.evaluate(b)
+      expect(adapter.log.find { |_test, active| active == b }).to(eq(["slow", b]))
     end
   end
 
@@ -110,9 +111,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       target = ids.first
       adapter = scripted({ "t0" => [], "t1" => %i[fail pass pass fail] })
       result = worker(adapter, { target => %w[t0 t1] }).evaluate(target)
-
-      expect(result.status).to(eq(:killed))
-      expect(result.failing_tests).to(eq(["t1"]))
+      expect([result.status, result.failing_tests]).to(eq([:killed, ["t1"]]))
       expect(adapter.log).to(
         eq([["t0", target], ["t1", target], ["t1", target], ["t0", nil], ["t1", nil], ["t0", target], ["t1", target]])
       )
@@ -169,13 +168,6 @@ RSpec.describe(Kimera::Execution::Shift) do
   end
 
   describe "the pool protocol" do
-    def serve(adapter, coverage, requests)
-      request = StringIO.new(requests.map { |id| "#{JSON.generate(id: id)}\n" }.join)
-      response = StringIO.new
-      worker(adapter, coverage).serve(request, response)
-      messages(response)
-    end
-
     it "answers every mutant, doubtful or not, and asks for no recheck" do
       a, b = ids.first(2)
       sent = serve(scripted({ "t1" => %i[fail pass fail fail fail] }), { a => ["t1"], b => ["t1"] }, [a, b])
@@ -220,11 +212,7 @@ RSpec.describe(Kimera::Execution::Shift) do
     # keeps serving.
     it "keeps taking work after a timeout", :aggregate_failures do
       first, second = ids.first(2)
-      request = StringIO.new([first, second].map { |id| "#{JSON.generate(id: id)}\n" }.join)
-      response = StringIO.new
-      worker(swallowing(1.0), { first => %w[t1], second => %w[t2] }, soft: 0.1).serve(request, response)
-
-      sent = messages(response)
+      sent = serve(swallowing(1.0), { first => %w[t1], second => %w[t2] }, [first, second], soft: 0.1)
       expect(sent.map { |m| m["t"] }).to(eq(%w[result ready result ready done]))
       expect(sent.first).to(include("id" => first, "status" => "timeout"))
     end
@@ -237,22 +225,29 @@ RSpec.describe(Kimera::Execution::Shift) do
 
     # The control run, mutant off, is the one that runs past the deadline: the
     # test is slow on its own, so its timeout says nothing about the mutant.
-    it "lays no timeout on the mutant when the deadline passes during a run with it off", :aggregate_failures do
-      target = ids.first
-      adapter = scripted({ "t0" => [], "t1" => [] })
+    # Sleeps past the deadline, interrupted or not.
+    def idle
+      sleep(1.0)
+    rescue Timeout::ExitException
+      nil
+    end
+
+    # Slow with the mutant off; with it on, t1 fails only its first run.
+    def slow_off
       runs = Hash.new(0)
-      adapter.define_singleton_method(:run) do |ids|
-        on = Kimera::RUNTIME.active
-        runs[[ids, on]] += 1
-        begin
-          sleep(1.0) unless on
-        rescue Timeout::ExitException
-          nil
+      nap = method(:idle)
+      scripted({ "t0" => [], "t1" => [] }).tap do |adapter|
+        adapter.define_singleton_method(:run) do |ids|
+          on = Kimera::RUNTIME.active
+          nap.call unless on
+          passed = !on || ids == ["t0"] || (runs[ids] += 1) > 1
+          Kimera::Frameworks::RunOutcome.new(passed: passed, failed_ids: passed ? [] : ids)
         end
-        passed = !on || ids == ["t0"] || runs[[ids, on]] > 1
-        Kimera::Frameworks::RunOutcome.new(passed: passed, failed_ids: passed ? [] : ids)
       end
-      result = worker(adapter, { target => %w[t0 t1] }, soft: 0.1).evaluate(target)
+    end
+
+    it "lays no timeout on the mutant when the deadline passes during a run with it off", :aggregate_failures do
+      result = worker(slow_off, { ids.first => %w[t0 t1] }, soft: 0.1).evaluate(ids.first)
       expect(result.status).to(eq(:harness_error))
       expect(result.detail).to(include("also failed with the mutant switched off (soft timeout (0.1s) expired"))
     end
