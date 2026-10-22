@@ -19,10 +19,7 @@ class Kimera::Operators::RailsPermit < Kimera::Operators::Base
   end
 
   def variant(words, index)
-    Kimera::Operators::Variant.new(
-      label: "permit: drop #{words[index].location.slice}",
-      directive: directive("drop_argument", index: index)
-    )
+    mutation("permit: drop #{words[index].location.slice}", "drop_argument", index: index)
   end
 
   def plain?(node)

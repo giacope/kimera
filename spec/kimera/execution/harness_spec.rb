@@ -4,7 +4,7 @@ require "fileutils"
 require "json"
 require "kimera/execution/harness"
 require "kimera/execution/test_filter"
-require "kimera/frameworks/adapter"
+require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 require "tmpdir"
 
@@ -22,7 +22,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   # Running a test touches the mutant ids it covers, like a synthesized guard.
   def adapter(coverage: {}, failing: [], message: nil)
-    Class.new(Kimera::Frameworks::Adapter) do
+    Class.new(Kimera::Frameworks::Suite) do
       define_method(:initialize) do
         @coverage = coverage
         @failing = failing
@@ -53,27 +53,25 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   # Re-selects the outer mutant before reporting, like a suite that manages
   # the runtime selector itself (Kimera's own does).
+  def reselected(outer, coverage, failing, test_ids)
+    Kimera::RUNTIME.active = outer
+    test_ids.each { |t| Array(coverage[t]).each { |mid| Kimera::RUNTIME.active?(mid) } }
+    failed = test_ids & failing
+    Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed)
+  end
+
   def reselecting(coverage: {}, failing: [])
-    outer = Kimera::RUNTIME.active
-    Class.new(Kimera::Frameworks::Adapter) do
-      define_method(:initialize) do
-        @coverage = coverage
-        @failing = failing
-      end
+    run = method(:reselected).curry[Kimera::RUNTIME.active, coverage, failing]
+    Class.new(Kimera::Frameworks::Suite) do
       def source(_files) = self
-      def test_ids = @coverage.keys
-      define_method(:run) do |test_ids|
-        Kimera::RUNTIME.active = outer
-        test_ids.each { |t| Array(@coverage[t]).each { |mid| Kimera::RUNTIME.active?(mid) } }
-        failed = test_ids & @failing
-        Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed)
-      end
+      define_method(:test_ids) { coverage.keys }
+      define_method(:run) { |test_ids| run.call(test_ids) }
     end.new
   end
 
   # A forked run cannot append to the caller's +pids+.
   def processes(pids)
-    Class.new(Kimera::Frameworks::Adapter) do
+    Class.new(Kimera::Frameworks::Suite) do
       def source(_files) = self
       def test_ids = ["t1"]
       define_method(:run) do |_ids|
@@ -95,24 +93,26 @@ RSpec.describe(Kimera::Execution::Harness) do
   end
 
   def responder(status:, extra: nil)
+    leaks = ->(id) { extra ? [JSON.generate(t: "leak", id: id, detail: extra)] : [] }
     lambda do |_slot|
       forked do |request, response|
-        while (line = request.gets)
-          id = JSON.parse(line)["id"]
-          response.puts(JSON.generate(t: "start", id: id))
-          response.puts(JSON.generate(t: "result", id: id, status: status, ms: 1, fails: []))
-          response.puts(JSON.generate(t: "leak", id: id, detail: extra)) if extra
-          response.puts(JSON.generate(t: "ready"))
-          response.flush
-        end
-        response.puts(JSON.generate(t: "done"))
-        response.close
+        serving(request, response) { |id| judged(response, id, status, *leaks.call(id)) }
         exit!(0)
       end
     end
   end
 
   after { Kimera::RUNTIME.reset! }
+
+  # A subclass that keeps the parent's memo under an alias and calls it from its own.
+  def aliasing(name, parent)
+    subclass =
+      Class.new(parent) do
+        alias_method :remembered, :memo
+        define_method(:memo) { |a, b| remembered(a, b) }
+      end
+    stub_const(name, subclass)
+  end
 
   # Progress double that records events instead of drawing.
   def journal
@@ -227,16 +227,22 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(h.coverage[ids.first]).to(include("t1"))
     end
 
-    it "names each excluded failing test with its failure, up to a limit", :aggregate_failures do
+    # Seven failing tests, each failing with a two-line message.
+    def crowded
       failing = %w[t2 t3 t4 t5 t6 t7 t8]
       coverage = failing.to_h { |id| [id, []] }.merge("t1" => [ids.first])
-      h = harness(adapter(coverage: coverage, failing: failing, message: "boom\nframe"))
-      h.__send__(:measure!)
-      excluded = h.__send__(:screen)
-      expect { h.__send__(:notice, excluded) }.to(output(/coverage is unknown.*:\n  t2: boom\n/).to_stderr)
-      expect do
-        h.__send__(:notice, excluded)
-      end.to(output(/\n  t6: boom\n  … and 2 more\n  plain run: rspec t2 /).to_stderr)
+      harness(adapter(coverage: coverage, failing: failing, message: "boom\nframe")).tap { |h| h.__send__(:measure!) }
+    end
+
+    it "names each excluded failing test with its failure" do
+      h = crowded
+      expect { h.__send__(:notice, h.__send__(:screen)) }.to(output(/coverage is unknown.*:\n  t2: boom\n/).to_stderr)
+    end
+
+    it "names failing tests up to a limit, then counts the rest and gives their plain run" do
+      h = crowded
+      expect { h.__send__(:notice, h.__send__(:screen)) }
+        .to(output(/\n  t6: boom\n  … and 2 more\n  plain run: rspec t2 /).to_stderr)
     end
 
     it "closes its own ledger afterward" do
@@ -247,7 +253,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     # Suites may reset the selector in their own hooks (Kimera's do).
     # The ledger is handle-scoped, so touches from before the reset survive.
     def resetting
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = %w[t_reset t_after]
         define_method(:run) do |test_ids|
@@ -272,7 +278,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     # Kimera's own harness specs measure coverage inside the measured suite.
     def nested
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t_nested"]
         define_method(:run) do |_ids|
@@ -390,19 +396,25 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     # A test lost with its worker is not a test failure; say which it was.
-    it "explains why a lost parallel test counts as failed", :aggregate_failures do
+    def lost_messages
       lost = Kimera::Execution::BaselinePass.new(adapter: adapter, registry: registry)
       lost.__send__(:lost, "t1", :timeout, nil)
       lost.__send__(:relapse, "t1", :timeout)
       lost.__send__(:lost, "t2", :crash, nil)
-      messages = lost.__send__(:tally).messages
-      expect(messages["t1"]).to(
+      lost.__send__(:tally).messages
+    end
+
+    it "explains a test whose worker hit the hard timeout twice" do
+      expect(lost_messages["t1"]).to(
         eq(
           "its worker was killed at the hard timeout (--hard-timeout) before reporting a result, " \
             "and again when rerun alone"
         )
       )
-      expect(messages["t2"]).to(eq("its worker died before reporting a result"))
+    end
+
+    it "explains a test whose worker died" do
+      expect(lost_messages["t2"]).to(eq("its worker died before reporting a result"))
     end
   end
 
@@ -455,11 +467,11 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def noisy
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
         define_method(:run) do |_ids|
-          puts "SUITE NOISE out"
+          $stdout.puts("SUITE NOISE out")
 
           warn "SUITE NOISE err"
           Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
@@ -529,7 +541,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     # The suite calls the macro while it loads, so its code runs before any
     # guard exists and no test's coverage reaches it.
     def loading(path)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         define_method(:source) { |_files| load(path) && HarnessMacro.charges(true) && self }
         def test_ids = ["t1"]
         def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
@@ -554,18 +566,22 @@ RSpec.describe(Kimera::Execution::Harness) do
   end
 
   describe "#load!" do
+    # Rails isn't loaded here: Rails and its application are plain stand-ins.
+    def rails_with(app) = stub_const("Rails", Data.define(:application).new(app))
+
+    def eager_app = Class.new { def eager_load!; end }.new
+
     it "eager-loads a detected Rails application before overlaying" do
-      app = double("app")
+      app = eager_app
       allow(app).to(receive(:eager_load!))
-      stub_const("Rails", double("Rails", application: app))
-      harness(adapter).__send__(:load!)
+      rails_with(app) && harness(adapter).__send__(:load!)
       expect(app).to(have_received(:eager_load!))
     end
 
     it "warns but continues when eager loading fails" do
-      app = double("app")
+      app = eager_app
       allow(app).to(receive(:eager_load!).and_raise(RuntimeError, "boom"))
-      stub_const("Rails", double("Rails", application: app))
+      rails_with(app)
       expect { harness(adapter).__send__(:load!) }.to(output(/eager_load! failed \(RuntimeError: boom\)/).to_stderr)
     end
 
@@ -575,7 +591,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     it "skips an application that cannot eager-load, without warning" do
-      stub_const("Rails", double("Rails", application: Object.new))
+      rails_with(Object.new)
       expect { harness(adapter).__send__(:load!) }.not_to(output.to_stderr)
     end
   end
@@ -584,7 +600,7 @@ RSpec.describe(Kimera::Execution::Harness) do
   # run past baseline × factor + slack, twice, is a timeout.
   describe "relative time budget" do
     def dawdling(target)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def test_ids = %w[t1]
         define_method(:run) do |_test_ids|
           sleep(0.3) if Kimera::RUNTIME.active?(target)
@@ -638,7 +654,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def sink(sink)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         define_method(:initialize) { |s| @sink = s }
         define_method(:source) do |files|
           @sink.concat(Array(files))
@@ -662,7 +678,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def red
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
         def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: false, failed_ids: ["t1"])
@@ -677,7 +693,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def green(mods = nil)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
         def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
@@ -703,7 +719,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def active(id)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         define_method(:initialize) { |mid| @id = mid }
         def source(_files) = self
         def test_ids = ["t1"]
@@ -729,9 +745,9 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def rails
-      app = double("app")
+      app = Class.new { def eager_load!; end }.new
       allow(app).to(receive(:eager_load!))
-      stub_const("Rails", double("Rails", application: app))
+      stub_const("Rails", Data.define(:application).new(app))
       app
     end
 
@@ -877,21 +893,23 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     it "empties the worker's database as it drains" do
-      connection = double(tables: %w[users posts], adapter_name: "SQLite")
-      allow(connection).to(receive(:truncate_tables))
-      base = Class.new
-      base.define_singleton_method(:connection) { connection }
-      stub_const("ActiveRecord::Base", base)
+      connection = double(tables: %w[users posts], adapter_name: "SQLite", truncate_tables: nil)
+      stub_const("ActiveRecord::Base", Class.new { define_singleton_method(:connection) { connection } })
       drain
       expect(connection).to(have_received(:truncate_tables).with("users", "posts"))
     end
 
+    def connected(adapter, truncate = nil)
+      double(tables: %w[users], adapter_name: adapter, execute: nil).tap do |connection|
+        truncation = allow(connection).to(receive(:truncate_tables))
+        truncation.and_raise(truncate) if truncate
+        stub_const("ActiveRecord::Base", Class.new)
+        allow(ActiveRecord::Base).to(receive(:connection).and_return(connection))
+      end
+    end
+
     def scrub(adapter, truncate: nil)
-      connection = double(tables: %w[users], adapter_name: adapter, execute: nil)
-      truncation = allow(connection).to(receive(:truncate_tables))
-      truncation.and_raise(truncate) if truncate
-      stub_const("ActiveRecord::Base", Class.new)
-      allow(ActiveRecord::Base).to(receive(:connection).and_return(connection))
+      connection = connected(adapter, truncate)
       cleaned = []
       stub(cleanup: ->(index) { cleaned << index })
       errors = StringIO.new
@@ -903,14 +921,19 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     # A thread left behind by a timed-out test can hold a table lock forever.
-    it "bounds how long the teardown truncate waits for locks", :aggregate_failures do
+    it "bounds how long a PostgreSQL teardown truncate waits for locks", :aggregate_failures do
       postgres, = scrub("PostgreSQL")
-      mysql, = scrub("Mysql2")
-      lite, = scrub("SQLite")
-
       expect(postgres).to(have_received(:execute).with("SET lock_timeout = '5s'").ordered)
       expect(postgres).to(have_received(:truncate_tables).with("users").ordered)
+    end
+
+    it "bounds how long a MySQL teardown truncate waits for locks" do
+      mysql, = scrub("Mysql2")
       expect(mysql).to(have_received(:execute).with("SET SESSION lock_wait_timeout = 5"))
+    end
+
+    it "sets no lock bound on SQLite" do
+      lite, = scrub("SQLite")
       expect(lite).not_to(have_received(:execute))
     end
 
@@ -923,10 +946,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     # Serial workers share the app's own test database: emptying it, or
     # running teardown hooks meant for per-worker copies, would wipe it.
     def unisolated
-      connection = double(tables: %w[users], adapter_name: "SQLite")
-      allow(connection).to(receive(:truncate_tables))
-      stub_const("ActiveRecord::Base", Class.new)
-      allow(ActiveRecord::Base).to(receive(:connection).and_return(connection))
+      connection = connected("SQLite")
       parallelization(true)
       cleaned = []
       stub(after: ->(_i) {}, cleanup: ->(i) { cleaned << i })
@@ -1017,12 +1037,15 @@ RSpec.describe(Kimera::Execution::Harness) do
       parallelization(true)
       stub(before: -> { before << :before }, after: ->(_i) {})
       driver = described_class.build(registry: registry, adapter: adapter, jobs: 2).__send__(:driver)
-      pid, request, response = driver.worker(0)
+      reap(*driver.worker(0).first(3))
+      [before.dup, fleet(driver, before)]
+    end
+
+    def reap(pid, request, response)
       request.close
       response.read
       response.close
       Process.wait(pid)
-      [before.dup, fleet(driver, before)]
     end
 
     def fleet(driver, before)
@@ -1057,15 +1080,14 @@ RSpec.describe(Kimera::Execution::Harness) do
       parallelization(true)
       reader, writer = IO.pipe
       stub(before: -> {}, after: ->(i) { writer.puts(i) })
-      described_class.build(
-        registry: registry, jobs: 2, soft_timeout: nil,
-        adapter: adapter(coverage: { "t1" => [ids.first] })
-      ).run(ids: [ids.first])
+      paired.run(ids: [ids.first])
       writer.close
-      result = reader.read
+      reader.read.tap { reader.close }
+    end
 
-      reader.close
-      result
+    def paired
+      covered = adapter(coverage: { "t1" => [ids.first] })
+      described_class.build(registry: registry, jobs: 2, soft_timeout: nil, adapter: covered)
     end
 
     it "hands a real pool worker its slot index for the after-fork hooks" do
@@ -1124,7 +1146,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def red
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
         def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: false, failed_ids: ["t1"])
@@ -1234,7 +1256,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     let(:results) do
       {
         1 => result(1, :error, "lib/kimera/execution/shift.rb"),
-        2 => result(2, :timeout, "lib/kimera/frameworks/rspec_adapter.rb"),
+        2 => result(2, :timeout, "lib/kimera/frameworks/rspec_suite.rb"),
         3 => result(3, :killed, "lib/kimera/execution/shift.rb"),
         4 => result(4, :error, "app/models/user.rb"),
         5 => result(5, :survived, "lib/kimera/execution/shift.rb"),
@@ -1351,6 +1373,13 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     after { FileUtils.remove_entry(dir) }
 
+    # A stubbed fixture class's registry, and its mutant ids.
+    def stubbed(name)
+      stub_const(name, Class.new)
+      registry = fixture(name)
+      [registry, registry.each.map { |m, _p| m.id }]
+    end
+
     def fixture(name)
       File.write(File.join(dir, "#{name.downcase}.rb"), <<~RUBY)
         class #{name}
@@ -1363,7 +1392,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def touching(mids)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         define_method(:initialize) { |m| @mids = m }
         def source(_files) = self
         def test_ids = ["t1"]
@@ -1389,7 +1418,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def plain
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
         def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
@@ -1398,7 +1427,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     # Reaches the mutants only when both tests run in one process, in order.
     def ordered(mids)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         define_method(:initialize) { |m| @mids = m }
         def source(_files) = self
         def test_ids = %w[t1 t2]
@@ -1409,21 +1438,26 @@ RSpec.describe(Kimera::Execution::Harness) do
       end.new(mids)
     end
 
-    it "sends a mutant only the suite run in order reaches to a second look", :aggregate_failures do
-      stub_const("WarmOrdered", Class.new)
-      registry = fixture("WarmOrdered")
-      ids = registry.each.map { |m, _p| m.id }
+    def in_order
+      registry, ids = stubbed("WarmOrdered")
       progress = journal
       h = described_class.build(registry: registry, adapter: ordered(ids), source_root: dir, progress: progress)
       h.warm!(%w[t1 t2])
-      expect(progress.events).to(include([:note, "baseline (whole suite, in order)"]))
-      expect(h.coverage.slice(*ids).values.flatten).to(be_empty)
-      expect(registry.points.map(&:revisit).uniq).to(eq([Kimera::MutationPoint::ORDER_REASON]))
+      revisits = registry.points.map(&:revisit).uniq
+      { events: progress.events, covered: h.coverage.slice(*ids).values.flatten, revisits: revisits }
+    end
+
+    it "notes the baseline run of the whole suite in order" do
+      expect(in_order[:events]).to(include([:note, "baseline (whole suite, in order)"]))
+    end
+
+    it "sends a mutant only the suite run in order reaches to a second look" do
+      expect(in_order).to(include(covered: [], revisits: [Kimera::MutationPoint::ORDER_REASON]))
     end
 
     # Both tests kill every mutant; "slow" comes first in coverage order.
     def racing(mids)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         define_method(:initialize) { |m| @mids = m }
         def source(_files) = self
         def test_ids = %w[slow fast]
@@ -1440,17 +1474,20 @@ RSpec.describe(Kimera::Execution::Harness) do
       stub_const(name, Class.new)
       registry = fixture(name)
       ids = registry.each.map { |m, _p| m.id }
-      filter = Kimera::Execution::TestFilter.new(registry: registry, flaky: flaky)
       progress = journal
-      settings = { source_root: dir, soft_timeout: nil, filter: filter, progress: progress }
-      h = described_class.build(registry: registry, adapter: racing(ids), **settings)
+      h = described_class.build(registry: registry, adapter: racing(ids), **screened(registry, flaky, progress))
       h.warm!(%w[t1], scope: ids)
       [h.run(ids: ids).results, ids, progress.events]
     end
 
+    def screened(registry, flaky, progress)
+      filter = Kimera::Execution::TestFilter.new(registry: registry, flaky: flaky)
+      { source_root: dir, soft_timeout: nil, filter: filter, progress: progress }
+    end
+
     # Both tests kill every mutant, but "shaky" also fails, alone, under seed 6.
     def shaking(mids)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         define_method(:initialize) do |m|
           super()
           @mids = m
@@ -1464,16 +1501,21 @@ RSpec.describe(Kimera::Execution::Harness) do
       end.new(mids)
     end
 
-    it "reruns the covering tests under other seeds, and lets no test that changed its result kill",
-      :aggregate_failures do
-      stub_const("WarmShaky", Class.new)
-      registry = fixture("WarmShaky")
-      ids = registry.each.map { |m, _p| m.id }
+    def shaken
+      registry, ids = stubbed("WarmShaky")
       filter = Kimera::Execution::TestFilter.new(registry: registry)
       settings = { source_root: dir, soft_timeout: nil, filter: filter, flaky_runs: 1, seed: 5 }
       h = described_class.build(registry: registry, adapter: shaking(ids), **settings)
-      h.warm!(%w[t1], scope: ids)
+      [h.tap { h.warm!(%w[t1], scope: ids) }, ids]
+    end
+
+    it "reruns the covering tests under other seeds and names the test that changed its result" do
+      h, = shaken
       expect([h.flakes.flaky, h.flakes.to_h["seeds"]]).to(eq([["shaky"], [6]]))
+    end
+
+    it "lets no test that changed its result kill" do
+      h, ids = shaken
       expect(h.run(ids: ids).results.map(&:failing_tests).uniq).to(eq([["steady"]]))
     end
 
@@ -1491,10 +1533,8 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(events.count { |event| event == %i[tick no_coverage] }).to(eq(ids.size))
     end
 
-    it "records every killing test of a warm mutant under test quality, and the same verdicts", :aggregate_failures do
-      stub_const("WarmCensus", Class.new)
-      registry = fixture("WarmCensus")
-      ids = registry.each.map { |m, _p| m.id }
+    it "records every killing test of a warm mutant under test quality, and the same verdicts" do
+      registry, ids = stubbed("WarmCensus")
       h = described_class.build(
         registry: registry, adapter: racing(ids), source_root: dir, soft_timeout: nil,
         test_quality: true
@@ -1506,9 +1546,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     it "kills each mutant with the covering test the baseline timed fastest", :aggregate_failures do
-      stub_const("WarmRacing", Class.new)
-      registry = fixture("WarmRacing")
-      ids = registry.each.map { |m, _p| m.id }
+      registry, ids = stubbed("WarmRacing")
       h = described_class.build(registry: registry, adapter: racing(ids), source_root: dir, soft_timeout: nil)
       h.warm!(%w[t1], scope: ids)
       expect(h.timings.fetch("slow")).to(be > h.timings.fetch("fast"))
@@ -1533,15 +1571,18 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     # Its marks would reach no mutant the run judges, so it could change no verdict.
-    it "skips the run in order when every mutant in scope is covered, or none is in scope", :aggregate_failures do
+    it "skips the run in order when every mutant in scope is covered", :aggregate_failures do
       stub_const("WarmCovered", Class.new)
+      events, reasons = scoped("WarmCovered", method(:touching), ->(registry) { registry.each.map { |m, _p| m.id } })
+      expect(events).not_to(include([:note, "baseline (whole suite, in order)"]))
+      expect(reasons).to(eq([nil]))
+    end
+
+    it "skips the run in order when no mutant is in scope", :aggregate_failures do
       stub_const("WarmOutside", Class.new)
-      all = ->(registry) { registry.each.map { |m, _p| m.id } }
-      runs = [scoped("WarmCovered", method(:touching), all), scoped("WarmOutside", method(:ordered), ->(_) { [] })]
-      runs.each do |events, reasons|
-        expect(events).not_to(include([:note, "baseline (whole suite, in order)"]))
-        expect(reasons).to(eq([nil]))
-      end
+      events, reasons = scoped("WarmOutside", method(:ordered), ->(_) { [] })
+      expect(events).not_to(include([:note, "baseline (whole suite, in order)"]))
+      expect(reasons).to(eq([nil]))
     end
 
     it "runs the plain baseline check when coverage is disabled" do
@@ -1581,6 +1622,10 @@ RSpec.describe(Kimera::Execution::Harness) do
   end
 
   # One schema-safe comparison and one memoized (schema-unsafe) one.
+  def unsafe_id(registry, label = nil)
+    registry.each.find { |mutant, point| !point.safe? && (label.nil? || mutant.label == label) }.first.id
+  end
+
   def writing(dir, klass)
     File.write(File.join(dir, "#{klass.downcase}.rb"), <<~RUBY)
       class #{klass}
@@ -1597,7 +1642,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   # Kept fork-safe: pure Ruby, no shared IO.
   def observer(klass)
-    Class.new(Kimera::Frameworks::Adapter) do
+    Class.new(Kimera::Frameworks::Suite) do
       define_method(:initialize) { @klass = klass }
       def source(_files) = self
       def test_ids = ["t1"]
@@ -1648,8 +1693,8 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry = writing(dir, "HarnessReload")
       # The constant must exist before the bake is overlaid.
       load(File.join(dir, "harnessreload.rb"))
-      reloader(observer("HarnessReload"), catalog: registry, root: dir)
-        .__send__(:evaluate, errand(registry.each.find { |m, p| !p.safe? && m.label == "< => >" }.first.id))
+      reloading = reloader(observer("HarnessReload"), catalog: registry, root: dir)
+      reloading.__send__(:evaluate, errand(unsafe_id(registry, "< => >")))
     end
 
     it "bakes the mutation, reloads, and classifies the outcome" do
@@ -1658,30 +1703,35 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(status).to(eq(:killed))
     end
 
-    it "re-runs only the reloaded method of a file that was already required", :aggregate_failures do
+    # The fixture file, already required, counts its class body's runs.
+    def required
       stub_const("HarnessRequired", Class.new)
       writing(dir, "HarnessRequired")
       path = File.join(dir, "harnessrequired.rb")
       File.write(path, File.read(path).sub("class HarnessRequired\n", "\\0  @loads = (@loads || 0) + 1\n"))
-      registry = Kimera::RegistryScan.new(root: dir).build([path])
-      require(path)
-      unsafe = registry.each.find { |m, p| !p.safe? && m.label == "< => >" }.first.id
-      status, = reloader(observer("HarnessRequired"), catalog: registry, root: dir).__send__(:evaluate, errand(unsafe))
+      Kimera::RegistryScan.new(root: dir).build([path]).tap { require(path) }
+    end
+
+    it "re-runs only the reloaded method of a file that was already required", :aggregate_failures do
+      registry = required
+      status, = reloader(observer("HarnessRequired"), catalog: registry, root: dir)
+        .__send__(:evaluate, errand(unsafe_id(registry, "< => >")))
       expect(status).to(eq(:killed))
       expect(HarnessRequired.instance_variable_get(:@loads)).to(eq(1))
+    end
+
+    def aliased_verdict(registry)
+      aliases = Kimera::Execution::Aliases.new([File.join(dir, "harnessaliased.rb")]).tap { |a| a.follow { :captured } }
+      runner = reloader(observer("HarnessAliasing"), catalog: registry, root: dir, aliases: aliases)
+      runner.__send__(:evaluate, errand(unsafe_id(registry, "< => >")))
     end
 
     it "reaches the reloaded method through an alias declared in another file" do
       stub_const("HarnessAliased", Class.new)
       registry = writing(dir, "HarnessAliased")
       load(File.join(dir, "harnessaliased.rb"))
-      stub_const("HarnessAliasing", Class.new(HarnessAliased) { alias_method :remembered, :memo })
-      HarnessAliasing.define_method(:memo) { |a, b| remembered(a, b) }
-      unsafe = registry.each.find { |m, p| !p.safe? && m.label == "< => >" }.first.id
-      aliases = Kimera::Execution::Aliases.new([File.join(dir, "harnessaliased.rb")]).tap { |a| a.follow { :captured } }
-      runner = reloader(observer("HarnessAliasing"), catalog: registry, root: dir, aliases: aliases)
-      status, = runner.__send__(:evaluate, errand(unsafe))
-      expect(status).to(eq(:killed))
+      aliasing("HarnessAliasing", HarnessAliased)
+      expect(aliased_verdict(registry).first).to(eq(:killed))
     end
 
     def reload(name)
@@ -1692,7 +1742,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def plain(passed:)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         define_method(:initialize) { @passed = passed }
         def source(_files) = self
         def test_ids = ["t1"]
@@ -1709,7 +1759,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def counting(tests, failing, calls)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         define_method(:source) { |_files| self }
         define_method(:test_ids) { tests }
         define_method(:run) do |ids|
@@ -1810,14 +1860,17 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "reports a mutant unparser can't bake as unmutatable, with the reason", :aggregate_failures do
       allow(Unparser).to(receive(:unparse).and_raise(KeyError, "key not found: :lvar"))
       report, progress = cold
-      result = report.results.first
-      expect(result.status).to(eq(:unmutatable))
-      expect(result.detail).to(eq("unmutatable: unparser could not write its bake (KeyError: key not found: :lvar)"))
+      expect(report.results.first).to(
+        have_attributes(
+          status: :unmutatable,
+          detail: "unmutatable: unparser could not write its bake (KeyError: key not found: :lvar)"
+        )
+      )
       expect(progress.events).to(include(%i[tick unmutatable]))
     end
 
     def boom
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
         def run(_ids) = raise(RuntimeError, "kaboom")
@@ -1828,8 +1881,8 @@ RSpec.describe(Kimera::Execution::Harness) do
       stub_const("HarnessBoom", Class.new)
       registry = writing(dir, "HarnessBoom")
       load(File.join(dir, "harnessboom.rb"))
-      reloader(boom, catalog: registry, root: dir, isolation: reselection)
-        .__send__(:evaluate, errand(registry.each.map { |m, _p| m.id }.find { |id| !registry.index[id].safe? }))
+      reloading = reloader(boom, catalog: registry, root: dir, isolation: reselection)
+      reloading.__send__(:evaluate, errand(unsafe_id(registry)))
     end
 
     it "captures an exception during reload as an :error result, saying where it happened", :aggregate_failures do
@@ -1852,7 +1905,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     after { FileUtils.remove_entry(dir) }
 
     def hanging
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
         def run(_ids) = sleep(30)
@@ -1860,7 +1913,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def crashing
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
         def run(_ids) = exit!(1)
@@ -1871,14 +1924,12 @@ RSpec.describe(Kimera::Execution::Harness) do
       stub_const(name, Class.new)
       registry = writing(dir, name)
       load(File.join(dir, "#{name.downcase}.rb"))
-      unsafe = registry.each.map { |m, _p| m.id }.find { |id| !registry.index[id].safe? }
+      clocked { reloader(adapt, catalog: registry, root: dir).run(unsafe_id(registry), deadline: deadline) }
+    end
 
+    def clocked
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-
-      [
-        reloader(adapt, catalog: registry, root: dir).run(unsafe, deadline: deadline),
-        Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
-      ]
+      [yield, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started]
     end
 
     # Without the SIGKILL, reaping blocks until the child's sleep ends.
@@ -1889,7 +1940,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def sluggish(tests, pause)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         define_method(:source) { |_files| self }
         define_method(:test_ids) { tests }
         define_method(:run) do |_ids|
@@ -1930,7 +1981,7 @@ RSpec.describe(Kimera::Execution::Harness) do
         progress: progress
       )
       h.warm!(["t1"])
-      unsafe = registry.each.map { |m, _p| m.id }.find { |id| !registry.index[id].safe? }
+      unsafe = unsafe_id(registry)
       report = h.run(ids: [unsafe])
       [report.results.find { |r| r.mutant_id == unsafe }, progress]
     end
@@ -1941,18 +1992,21 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(result.status).to(satisfy { |status| %i[killed survived no_coverage].include?(status) })
     end
 
-    it "re-points an alias declared in another file at the reloaded mutant" do
-      stub_const("HarnessReached", Class.new)
-      registry = writing(dir, "HarnessReached")
-      load(File.join(dir, "harnessreached.rb"))
-      stub_const("HarnessReaching", Class.new(HarnessReached) { alias_method :remembered, :memo })
-      HarnessReaching.define_method(:memo) { |a, b| remembered(a, b) }
+    def reached(registry)
       h = described_class.build(
         registry: registry, adapter: observer("HarnessReaching"), source_root: dir, soft_timeout: nil, leak_every: 0
       )
       h.warm!(["t1"])
       unsafe = registry.each.find { |m, p| !p.safe? && m.label == "< => >" }.first.id
-      expect(h.run(ids: [unsafe]).results.first.status).to(eq(:killed))
+      h.run(ids: [unsafe]).results.first.status
+    end
+
+    it "re-points an alias declared in another file at the reloaded mutant" do
+      stub_const("HarnessReached", Class.new)
+      registry = writing(dir, "HarnessReached")
+      load(File.join(dir, "harnessreached.rb"))
+      aliasing("HarnessReaching", HarnessReached)
+      expect(reached(registry)).to(eq(:killed))
     end
 
     it "reports reload progress like the pool path and reaps the child", :aggregate_failures do
@@ -2024,7 +2078,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def terminating
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
 
@@ -2053,28 +2107,21 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   describe "pool crash recovery" do
     # The first worker accepts its id and dies; replacements kill everything.
+    def crashing(request, response)
+      request.gets
+      response.puts(JSON.generate(t: "crash", detail: "Boom: from the worker"))
+      response.flush
+      exit!(3)
+    end
+
+    # The first worker crashes on its first request; the ones after kill every mutant.
     def crash
       crashed = false
       lambda do |_slot|
         first = !crashed
         crashed = true
         forked do |request, response|
-          if first
-            request.gets
-            response.puts(JSON.generate(t: "crash", detail: "Boom: from the worker"))
-            response.flush
-            exit!(3)
-          else
-            while (line = request.gets)
-              id = JSON.parse(line)["id"]
-              response.puts(JSON.generate(t: "start", id: id))
-              response.puts(JSON.generate(t: "result", id: id, status: "killed", ms: 1, fails: []))
-              response.puts(JSON.generate(t: "ready"))
-              response.flush
-            end
-            response.puts(JSON.generate(t: "done"))
-            response.close
-          end
+          first ? crashing(request, response) : serving(request, response) { |id| judged(response, id, "killed") }
           exit!(0)
         end
       end

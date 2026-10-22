@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "kimera/memo_guard"
+require "kimera/registry/memo_guard"
 
 RSpec.describe(Kimera::MemoGuard) do
   def exemptions(source) = described_class::Source.new(source).exemptions.map { [it.location.slice, it.operator] }

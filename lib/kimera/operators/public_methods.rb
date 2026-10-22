@@ -4,10 +4,16 @@ require_relative "survey"
 
 module Kimera
   module Operators
-    class PublicMethods < Survey
+    class PublicMethods
+      include Survey
+
       BODIES = [SyntaxTypes::ClassNode, SyntaxTypes::ModuleNode, SyntaxTypes::SingletonClassNode].freeze
       HIDING = %i[private protected module_function].freeze
       SHOWING = %i[public].freeze
+
+      def initialize(root)
+        @root = root
+      end
 
       private
 

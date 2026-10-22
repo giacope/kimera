@@ -15,11 +15,12 @@ class Kimera::Execution::TestFilter
     def build(registry:, adapter:, root: ".", rules: nil)
       base = "#{File.expand_path(root)}/"
       locate = ->(test) { File.expand_path(adapter.test_file(test).to_s).delete_prefix(base) }
-      new(registry: registry, attribution: rules && Kimera::Execution::Attribution.new(rules), locate: locate)
+      attribution = rules ? Kimera::Execution::Attribution.new(rules) : Kimera::Execution::Attribution::ANY
+      new(registry: registry, attribution: attribution, locate: locate)
     end
   end
 
-  def initialize(registry:, attribution: nil, flaky: [], locate: ->(_test) { "" })
+  def initialize(registry:, attribution: Kimera::Execution::Attribution::ANY, flaky: [], locate: ->(_test) { "" })
     @registry = registry
     @attribution = attribution
     @flaky = flaky.to_set
@@ -29,7 +30,7 @@ class Kimera::Execution::TestFilter
 
   def flag!(tests) = @flaky.merge(tests)
 
-  def active? = !@attribution.nil? || @flaky.any?
+  def active? = @attribution.strict? || @flaky.any?
 
   def keep(file, tests) = tests.select { |test| eligible?(test, file) }
 
@@ -51,7 +52,7 @@ class Kimera::Execution::TestFilter
 
   def eligible?(test, file)
     return false if @flaky.include?(test)
-    @attribution.nil? || @attribution.own?(@files[test] ||= @locate.call(test).to_s, file.to_s)
+    @attribution.admits?(file.to_s) { @files[test] ||= @locate.call(test).to_s }
   end
 
   def unsteady(tests) = { status: :no_coverage, detail: "#{UNSTEADY}#{tests.join(", ")}" }

@@ -2,7 +2,7 @@
 
 require "json"
 require "kimera/execution/shift"
-require "kimera/frameworks/adapter"
+require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 require "stringio"
 
@@ -10,7 +10,7 @@ require "stringio"
 RSpec.describe(Kimera::Execution::Shift) do
   # A test fails when the active mutant is in its catch set. Runs with no
   # mutant active (a kill's control run) go to +controls+, not +runs+.
-  def test_adapter_class
+  let(:test_adapter_class) do
     Class.new do
       attr_reader :runs, :controls
 
@@ -51,13 +51,15 @@ RSpec.describe(Kimera::Execution::Shift) do
     io.string.each_line.map { |l| JSON.parse(l) }
   end
 
-  def worker(coverage: nil, catches: {}, adapter: nil)
+  def worker(coverage: nil, catches: {}, adapter: nil, **settings)
     described_class.new(
       adapter: adapter || test_adapter_class.new(catches: catches),
       registry: registry, coverage: coverage,
-      soft_timeout: nil, zygote: InlineZygote.new
+      soft_timeout: nil, zygote: InlineZygote.new, **settings
     )
   end
+
+  def request(*names) = StringIO.new(names.map { |name| "#{JSON.generate(id: name)}\n" }.join)
 
   after { Kimera::RUNTIME.reset! }
 
@@ -85,26 +87,24 @@ RSpec.describe(Kimera::Execution::Shift) do
   end
 
   describe "#run result message shape" do
-    it "emits every documented field on a result message", :aggregate_failures do
+    def killed_result
       target = ids.first
-      coverage = { target => ["t1"] }
-      io = StringIO.new
-      described_class.new(
-        adapter: test_adapter_class.new(catches: { "t1" => [target] }),
-        registry: registry, coverage: coverage, soft_timeout: nil, zygote: InlineZygote.new
-      ).run([target], io)
+      worker(catches: { "t1" => [target] }, coverage: { target => ["t1"] }).run([target], io)
+      messages(io).find { |m| m["t"] == "result" }
+    end
 
-      notes = messages(io)
-      result = notes.find { |m| m["t"] == "result" }
-      expect(result.keys).to(contain_exactly("t", "id", "status", "ms", "fails", "cover", "detail"))
-      expect(result["id"]).to(eq(target))
-      expect(result["status"]).to(eq("killed"))
-      expect(result["fails"]).to(eq(["t1"]))
-      expect(result["cover"]).to(eq(["t1"]))
-      # The `-`=>`+` mutant would make this about twice a clock read.
-      expect(result["ms"]).to(be_a(Numeric))
-      expect(result["ms"]).to(be >= 0.0)
-      expect(result["ms"]).to(be < 1.0)
+    it "emits every documented field on a result message" do
+      expect(killed_result.keys).to(contain_exactly("t", "id", "status", "ms", "fails", "cover", "detail"))
+    end
+
+    it "names the mutant, its verdict, and its failing and covering tests" do
+      expect(killed_result.slice("id", "status", "fails", "cover"))
+        .to(eq("id" => ids.first, "status" => "killed", "fails" => ["t1"], "cover" => ["t1"]))
+    end
+
+    # The `-`=>`+` mutant would make this about twice a clock read.
+    it "times the mutant in milliseconds" do
+      expect(killed_result["ms"]).to(be_a(Numeric).and(be >= 0.0).and(be < 1.0))
     end
 
     it "reports the status as its string name (not a symbol or object)" do
@@ -116,21 +116,19 @@ RSpec.describe(Kimera::Execution::Shift) do
   end
 
   describe "#serve pool protocol" do
-    it "answers each id with result/ready and closes with done", :aggregate_failures do
-      target = ids.first
-      other = ids.last
-      coverage = { target => ["t1"], other => ["t1"] }
-      request = StringIO.new("#{JSON.generate(id: target)}\n#{JSON.generate(id: other)}\n")
-      response = StringIO.new
-      described_class.new(
-        adapter: test_adapter_class.new(catches: { "t1" => [target] }),
-        registry: registry, coverage: coverage, soft_timeout: nil, zygote: InlineZygote.new
-      ).serve(request, response)
+    def served
+      coverage = { ids.first => ["t1"], ids.last => ["t1"] }
+      worker(catches: { "t1" => [ids.first] }, coverage: coverage).serve(request(ids.first, ids.last), response)
+      messages(response)
+    end
 
-      notes = messages(response)
-      expect(notes.map { |m| m["t"] }).to(eq(%w[result ready result ready done]))
-      results = notes.select { |m| m["t"] == "result" }
-      expect(results.map { |m| [m["id"], m["status"]] }).to(eq([[target, "killed"], [other, "survived"]]))
+    it "answers each id with result/ready and closes with done" do
+      expect(served.map { |m| m["t"] }).to(eq(%w[result ready result ready done]))
+    end
+
+    it "judges each id it is asked" do
+      results = served.select { |m| m["t"] == "result" }
+      expect(results.map { |m| [m["id"], m["status"]] }).to(eq([[ids.first, "killed"], [ids.last, "survived"]]))
     end
 
     it "resets the active mutant when the request pipe closes" do
@@ -197,17 +195,11 @@ RSpec.describe(Kimera::Execution::Shift) do
       expect(worker.__send__(:zygote)).to(be_an_instance_of(Kimera::Execution::Zygote))
     end
 
-    it "classifies a soft-timeout hang as :timeout carrying the soft-timeout", :aggregate_failures do
+    it "classifies a soft-timeout hang as :timeout carrying the soft-timeout" do
       target = ids.first
-      worker = described_class.new(
-        adapter: test_adapter_class.new(catches: { "t1" => [] }, timeout: target),
-        registry: registry, coverage: { target => ["t1"] },
-        soft_timeout: 0.2, zygote: InlineZygote.new
-      )
-      result = worker.evaluate(target)
-      expect(result.status).to(eq(:timeout))
-      expect(result.duration).to(be >= 0.2)
-      expect(result.file).to(eq("calc.rb"))
+      adapter = test_adapter_class.new(catches: { "t1" => [] }, timeout: target)
+      result = worker(adapter: adapter, coverage: { target => ["t1"] }, soft_timeout: 0.2).evaluate(target)
+      expect(result).to(have_attributes(status: :timeout, duration: be >= 0.2, file: "calc.rb"))
     end
 
     it "records the point's file on a normal verdict" do
@@ -224,11 +216,10 @@ RSpec.describe(Kimera::Execution::Shift) do
       expect(result.file).to(be_nil)
     end
 
-    # Kimera's own specs reset the selector in after-hooks. Without re-selecting,
-    # later tests see no active mutant and it falsely survives.
-    it "re-selects the mutant before each covering test despite a resetting example", :aggregate_failures do
-      target = ids.first
-      resetting = Class.new do
+    # Its first test resets the selector, as Kimera's own specs do in
+    # after-hooks; its second catches whichever mutant is active.
+    def resetting
+      Class.new do
         def test_ids = %w[t_reset t_catch]
         define_method(:run) do |test_ids|
           t = test_ids.first
@@ -237,15 +228,13 @@ RSpec.describe(Kimera::Execution::Shift) do
           Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed)
         end
       end.new
+    end
 
-      worker = described_class.new(
-        adapter: resetting, registry: registry,
-        coverage: { target => %w[t_reset t_catch] },
-        soft_timeout: nil, zygote: InlineZygote.new
-      )
-      result = worker.evaluate(target)
-      expect(result.status).to(eq(:killed))
-      expect(result.failing_tests).to(eq(["t_catch"]))
+    # Without re-selecting, later tests see no active mutant and it falsely survives.
+    it "re-selects the mutant before each covering test despite a resetting example" do
+      target = ids.first
+      result = worker(adapter: resetting, coverage: { target => %w[t_reset t_catch] }).evaluate(target)
+      expect([result.status, result.failing_tests]).to(eq([:killed, ["t_catch"]]))
     end
 
     it "stops running covering tests at the first failure", :aggregate_failures do
@@ -256,22 +245,25 @@ RSpec.describe(Kimera::Execution::Shift) do
       expect(adapter.runs).to(eq([["t1"]])) # t2 never ran
     end
 
+    # "slow" comes first in both mutants' covering sets, so only reordering skips it.
+    def killer_pair
+      a, b = ids.first(2)
+      adapter = test_adapter_class.new(catches: { "slow" => [], "killer" => [a, b] })
+      [adapter, worker(adapter: adapter, coverage: { a => %w[slow killer], b => %w[slow killer] })]
+    end
+
+    it "walks the covering set in order on the first mutant", :aggregate_failures do
+      adapter, shift = killer_pair
+      expect(shift.evaluate(ids.first).status).to(eq(:killed))
+      expect(adapter.runs).to(eq([["slow"], ["killer"], ["killer"]]))
+    end
+
     # The walk stops at the first failure, so order decides how many tests run.
     it "tries the most recent killer first on the next mutant", :aggregate_failures do
-      a, b = ids.first(2)
-      # "slow" comes first in both sets, so only reordering skips it.
-      adapter = test_adapter_class.new(catches: { "slow" => [], "killer" => [a, b] })
-      worker = described_class.new(
-        adapter: adapter, registry: registry,
-        coverage: { a => %w[slow killer], b => %w[slow killer] },
-        soft_timeout: nil, zygote: InlineZygote.new
-      )
-
-      expect(worker.evaluate(a).status).to(eq(:killed))
-      expect(adapter.runs).to(eq([["slow"], ["killer"], ["killer"]]))
-
+      adapter, shift = killer_pair
+      shift.evaluate(ids.first)
       adapter.runs.clear
-      expect(worker.evaluate(b).status).to(eq(:killed))
+      expect(shift.evaluate(ids[1]).status).to(eq(:killed))
       expect(adapter.runs).to(eq([["killer"]])) # slow skipped this time
     end
 
@@ -318,19 +310,23 @@ RSpec.describe(Kimera::Execution::Shift) do
       expect(worker.evaluate(a).failing_tests).to(eq(["kb"]))
     end
 
-    it "still runs the rest of the covering set after the promoted tests", :aggregate_failures do
+    # Two mutants, each caught by its own test; both tests cover both.
+    def crossed
       a, b = ids.first(2)
       adapter = test_adapter_class.new(catches: { "ka" => [a], "kb" => [b] })
-      worker = described_class.new(
-        adapter: adapter, registry: registry,
-        coverage: { a => %w[ka kb], b => %w[ka kb] },
-        soft_timeout: nil, zygote: InlineZygote.new
-      )
+      [adapter, worker(adapter: adapter, coverage: { a => %w[ka kb], b => %w[ka kb] })]
+    end
 
-      expect(worker.evaluate(a).status).to(eq(:killed)) # promotes "ka"
+    it "kills the first mutant with its own test, which it then promotes" do
+      _, shift = crossed
+      expect(shift.evaluate(ids.first).failing_tests).to(eq(["ka"]))
+    end
+
+    it "still runs the rest of the covering set after the promoted tests" do
+      adapter, shift = crossed
+      shift.evaluate(ids.first)
       adapter.runs.clear
-      expect(worker.evaluate(b).status).to(eq(:killed))
-      expect(adapter.runs).to(eq([["ka"], ["kb"], ["kb"]]))
+      expect([shift.evaluate(ids[1]).status, adapter.runs]).to(eq([:killed, [["ka"], ["kb"], ["kb"]]]))
     end
 
     it "looks up coverage by integer or string mutant id" do
@@ -357,60 +353,53 @@ RSpec.describe(Kimera::Execution::Shift) do
 
     # The real harness passes a default-proc Hash. A [] lookup would insert on a
     # miss and break the string-key fallback.
+    def defaulting = Hash.new { |h, k| h[k] = [] }.tap { |coverage| coverage[ids.first] = ["t1"] }
+
+    it "finds a mutant in a default-proc coverage map" do
+      expect(evaluate(ids.first, coverage: defaulting, catches: { "t1" => [ids.first] }).status).to(eq(:killed))
+    end
+
     it "does not auto-insert into a default-proc coverage map on a miss", :aggregate_failures do
-      target = ids.first
-      other = ids.last
-      coverage = Hash.new { |h, k| h[k] = [] }
-      coverage[target] = ["t1"]
-
-      killed = evaluate(target, coverage: coverage, catches: { "t1" => [target] })
-      expect(killed.status).to(eq(:killed))
-
-      missed = evaluate(other, coverage: coverage, catches: {})
-      expect(missed.status).to(eq(:no_coverage))
-      expect(coverage.key?(other)).to(be(false))
+      coverage = defaulting
+      expect(evaluate(ids.last, coverage: coverage, catches: {}).status).to(eq(:no_coverage))
+      expect(coverage.key?(ids.last)).to(be(false))
     end
   end
 
   describe "isolation lifecycle" do
-    it "resets isolation after every mutant, even a passing one" do
-      resets = []
-      isolation = Class.new do
+    def counting(resets)
+      Class.new do
         define_method(:around) { |&block| block.call }
         define_method(:reset!) { resets << true }
       end.new
-      target = ids.first
-      worker = described_class.new(
-        adapter: test_adapter_class.new(catches: { "t1" => [] }),
-        registry: registry, coverage: { target => ["t1"] },
-        isolation: isolation, soft_timeout: nil, zygote: InlineZygote.new
-      )
-      worker.run([target], StringIO.new)
+    end
+
+    it "resets isolation after every mutant, even a passing one" do
+      resets = []
+      shift = worker(catches: { "t1" => [] }, coverage: { ids.first => ["t1"] }, isolation: counting(resets))
+      shift.run([ids.first], io)
       expect(resets.size).to(eq(1))
     end
   end
 
   describe "#coverage protocol" do
-    it "answers each test id with result + ready and closes with done", :aggregate_failures do
-      adapter = test_adapter_class.new(catches: { "t1" => [], "t2" => [] })
-      request = StringIO.new(
-        "#{JSON.generate(id: "t1")}\n#{JSON.generate(id: "t2")}\n"
-      )
-      response = StringIO.new
-      described_class.new(
-        adapter: adapter, registry: registry,
-        soft_timeout: nil, zygote: InlineZygote.new
-      ).coverage(request, response)
+    def covered
+      worker(catches: { "t1" => [], "t2" => [] }).coverage(request("t1", "t2"), response)
+      messages(response)
+    end
 
-      notes = messages(response)
+    it "answers each test id with result + ready and closes with done", :aggregate_failures do
+      notes = covered
       expect(notes.map { |m| m["t"] }).to(eq(%w[result ready result ready done]))
       expect(notes.select { |m| m["t"] == "result" }.map { |m| m["id"] }).to(eq(%w[t1 t2]))
-      result = notes.first
-      expect(result.keys).to(contain_exactly("t", "id", "touched", "passed", "failure", "took"))
-      # When self-hosted, the loop's own guards land in the ledger too.
-      expect(result["passed"]).to(be(true))
-      expect(result["touched"]).to(be_an(Array))
       expect(notes[1]).to(eq("t" => "ready"))
+    end
+
+    # When self-hosted, the loop's own guards land in the ledger too.
+    it "reports each test's result with what it touched", :aggregate_failures do
+      result = covered.first
+      expect(result.keys).to(contain_exactly("t", "id", "touched", "passed", "failure", "took"))
+      expect(result).to(include("passed" => true, "touched" => an_instance_of(Array)))
     end
 
     it "leaves no ledger behind when the request pipe closes" do
@@ -430,8 +419,8 @@ RSpec.describe(Kimera::Execution::Shift) do
       expect(messages(response).last).to(eq("t" => "done"))
     end
 
-    it "reports the mutation points each example touches, drained per example", :aggregate_failures do
-      touching = Class.new do
+    def touching
+      Class.new do
         def test_ids = %w[t1 t2]
         define_method(:run) do |test_ids|
           Kimera::RUNTIME.active?(7) if test_ids == ["t1"]
@@ -439,22 +428,16 @@ RSpec.describe(Kimera::Execution::Shift) do
           Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
         end
       end.new
+    end
 
-      request = StringIO.new(
-        "#{JSON.generate(id: "t1")}\n#{JSON.generate(id: "t2")}\n"
-      )
-      response = StringIO.new
-      described_class.new(
-        adapter: touching, registry: registry,
-        soft_timeout: nil, zygote: InlineZygote.new
-      ).coverage(request, response)
+    # Of 7 and 8, what each test touched; when self-hosted, the loop's own guards add ids.
+    def touched
+      worker(adapter: touching).coverage(request("t1", "t2"), response)
+      messages(response).select { |m| m["t"] == "result" }.map { |m| m["touched"] & [7, 8] }
+    end
 
-      results = messages(response).select { |m| m["t"] == "result" }
-      # include, not eq: when self-hosted, the loop's own guards add ids.
-      expect(results[0]["touched"]).to(include(7))
-      expect(results[0]["touched"]).not_to(include(8))
-      expect(results[1]["touched"]).to(include(8))
-      expect(results[1]["touched"]).not_to(include(7))
+    it "reports the mutation points each example touches, drained per example" do
+      expect(touched).to(eq([[7], [8]]))
     end
   end
 end

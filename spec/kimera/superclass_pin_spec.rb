@@ -17,9 +17,18 @@ RSpec.describe(Kimera::SuperclassPin) do
     expect(KimeraPinnedPair.new(1).a).to(eq(1))
   end
 
+  # Evaluates the source twice, as an overlay re-runs a file; answers what the
+  # named constant was after the first run.
+  def twice(source, file, name)
+    Kimera::Overlay::Source.new(source).evaluate(file)
+    first = Object.const_get(name)
+    Kimera::Overlay::Source.new(source).evaluate(file)
+    first
+  end
+
   it "keeps a class's superclass when the constant it names was rebound", :aggregate_failures do
     stub_const("KimeraRebound", Module.new)
-    source = <<~RUBY
+    first = twice(<<~RUBY, "rebound.rb", "KimeraRebound::Row")
       module KimeraRebound
         Row = Data.define(:cells)
         class PersonRow < Row
@@ -27,23 +36,21 @@ RSpec.describe(Kimera::SuperclassPin) do
         end
       end
     RUBY
-    Kimera::Overlay::Source.new(source).evaluate("rebound.rb")
-    first = KimeraRebound::Row
-    Kimera::Overlay::Source.new(source).evaluate("rebound.rb")
     expect(KimeraRebound::PersonRow.superclass).to(equal(first))
     expect(KimeraRebound::PersonRow.new(cells: 4).wide?).to(be(true))
   end
 
-  it "pins a class named by a path against that path's owner", :aggregate_failures do
+  it "pins a class named by a path against that path's owner" do
     stub_const("KimeraPinPath", Module.new)
     source = "KimeraPinPath::Base = Class.new\nclass KimeraPinPath::Leaf < KimeraPinPath::Base; end\n"
-    Kimera::Overlay::Source.new(source).evaluate("path.rb")
-    first = KimeraPinPath::Base
-    Kimera::Overlay::Source.new(source).evaluate("path.rb")
+    first = twice(source, "path.rb", "KimeraPinPath::Base")
     expect(KimeraPinPath::Leaf.superclass).to(equal(first))
+  end
+
+  it "pins a class named from the top against Object" do
     pinned = "(::Kimera::SuperclassPin::Existing.new(::Object, :KimeraRooted).superclass || Base)"
-    source = "class ::KimeraRooted < Base; end\n"
-    expect(described_class.new(source).pinned).to(eq("class ::KimeraRooted < #{pinned}; end\n"))
+    expect(described_class.new("class ::KimeraRooted < Base; end\n").pinned)
+      .to(eq("class ::KimeraRooted < #{pinned}; end\n"))
   end
 
   it "leaves a class without a superclass alone" do
@@ -55,8 +62,13 @@ RSpec.describe(Kimera::SuperclassPin) do
     stub_const("KimeraLexical", Module.new)
     stub_const("KimeraLexicalHost", Class.new)
     stub_const("KimeraLexicalHost::Row", Class.new(ArgumentError))
-    source = "module KimeraLexical\n  KimeraLexicalHost.class_eval do\n    class Row < StandardError; end\n  end\nend\n"
-    Kimera::Overlay::Source.new(source).evaluate("lexical.rb")
+    Kimera::Overlay::Source.new(<<~RUBY).evaluate("lexical.rb")
+      module KimeraLexical
+        KimeraLexicalHost.class_eval do
+          class Row < StandardError; end
+        end
+      end
+    RUBY
     expect(KimeraLexical::Row.superclass).to(equal(StandardError))
   end
 

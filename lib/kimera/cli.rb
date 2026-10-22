@@ -24,7 +24,7 @@ class Kimera::CLI
 
   COMMANDS = { "registry" => :registry, "dump" => :registry, "synthesize" => :synthesize }
     .merge("run" => :execute, "survivors" => :survivors, "report" => :report, "mutant" => :mutant)
-    .merge("init" => :init, "doctor" => :doctor, "changed" => :changed, "ci" => :ci, "completion" => :completion)
+    .merge("init" => :configure, "doctor" => :doctor, "changed" => :changed, "ci" => :ci, "completion" => :completion)
     .merge("baseline" => :baseline, "skill" => :skill, "version" => :version)
     .merge("-v" => :version, "--version" => :version, "help" => :help)
     .merge("-h" => :help, "--help" => :help)
@@ -113,7 +113,7 @@ class Kimera::CLI
   def report(argv) = delegate("survivors", :Survivors, argv)
   def mutant(argv) = delegate("mutant", :Mutant, argv)
   def baseline(argv) = delegate("baseline", :Baseline, argv)
-  def init(argv) = workflow(:Init, argv)
+  def configure(argv) = workflow(:Init, argv)
   def doctor(argv) = workflow(:Doctor, argv)
   def changed(argv) = workflow(:Changed, argv)
   def ci(argv) = workflow(:CI, argv)

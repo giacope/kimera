@@ -60,36 +60,38 @@ RSpec.describe(Kimera::Execution::LoadTrace, :aggregate_failures) do
   end
 
   it "ignores what runs outside the in-scope files while the suite loads" do
-    trace.record do
-      load(file)
-      [1].each { |n| n + 1 }
-    end
+    trace.record { load(file) && [1].each { |n| n + 1 } }
     expect { trace.quarantine!({}) }.not_to(raise_error)
     expect(point("val >= 0").unsafe_reason).to(eq(Kimera::MutationPoint::LOAD_REASON))
   end
 
   # A macro that defines a method with def at load: the method holds what
   # the original macro defined, which the warm overlay cannot replace.
+  # A file whose class body runs a macro that defines a method with def.
+  def macro_file
+    File.join(dir, "nested.rb").tap do |path|
+      File.write(path, "class LoadBlocks\n  def self.make\n    def built(a) = a > 1\n  end\n  make\nend\n")
+    end
+  end
+
+  # A scan of the files, and a trace that recorded loading some of them.
+  def recorded(files, loads)
+    scan = Kimera::RegistryScan.new(root: dir).build(files)
+    [scan, described_class.new(scan, dir).tap { |watched| watched.record { loads.each { |path| load(path) } } }]
+  end
+
   it "keeps a method a load-time macro defines inside the macro's span" do
-    nested =
-      File.join(dir, "nested.rb").tap do |path|
-        File.write(path, "class LoadBlocks\n  def self.make\n    def built(a) = a > 1\n  end\n  make\nend\n")
-      end
-    scan = Kimera::RegistryScan.new(root: dir).build([nested])
-    watched = described_class.new(scan, dir)
-    watched.record { load(nested) }
+    nested = macro_file
+    scan, watched = recorded([nested], [nested])
     watched.quarantine!({})
-    built = scan.points.find { |found| found.original_source == "a > 1" }
-    expect(built.unsafe_reason).to(eq(Kimera::MutationPoint::LOAD_REASON))
+    expect(scan.points.find { |found| found.original_source == "a > 1" }.unsafe_reason)
+      .to(eq(Kimera::MutationPoint::LOAD_REASON))
   end
 
   it "knows which in-scope files the suite loaded" do
     other = File.join(dir, "other.rb").tap { |path| File.write(path, "class LoadBlocksOther; end\n") }
-    scan = Kimera::RegistryScan.new(root: dir).build([file, other])
-    watched = described_class.new(scan, dir)
-    watched.record { load(file) }
-    expect(watched.loaded?("blocks.rb")).to(be(true))
-    expect(watched.loaded?("other.rb")).to(be(false))
+    _, watched = recorded([file, other], [file])
+    expect([watched.loaded?("blocks.rb"), watched.loaded?("other.rb")]).to(eq([true, false]))
   end
 
   it "knows a file the suite required, though none of its code ran under the trace" do
@@ -132,10 +134,7 @@ RSpec.describe(Kimera::Execution::LoadTrace, :aggregate_failures) do
     plan = Kimera::Execution::IsolatedPlan.new(
       registry: registry, root: dir, tests: ["t1"], framework: "rspec", test_files: [], coverage: {}
     )
-    expect(plan.tests(found.ids.first, found)).to(be_nil)
-    found.unsafe!(Kimera::MutationPoint::LOAD_REASON)
-    expect(plan.tests(found.ids.first, found)).to(eq(["t1"]))
-    found.unloaded!
-    expect(plan.tests(found.ids.first, found)).to(be_nil)
+    steps = [-> {}, -> { found.unsafe!(Kimera::MutationPoint::LOAD_REASON) }, -> { found.unloaded! }]
+    expect(steps.map { |step| step.call.then { plan.tests(found.ids.first, found) } }).to(eq([nil, ["t1"], nil]))
   end
 end

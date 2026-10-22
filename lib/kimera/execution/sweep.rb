@@ -13,9 +13,13 @@ class Kimera::Execution::Sweep
 
   def results = @_results ||= []
 
-  def pop = queue.pop(timeout: 0)
-
   def each(&) = @ids.each(&)
+
+  def drain
+    while (id = queue.pop(timeout: 0))
+      yield(id)
+    end
+  end
 
   def record(result)
     @lock.synchronize { results << result }

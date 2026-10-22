@@ -3,7 +3,7 @@
 require_relative "../../execution/harness"
 require_relative "../../execution/isolated"
 require_relative "../../execution/test_filter"
-require_relative "../../frameworks/adapter"
+require_relative "../../frameworks/suite"
 require_relative "../../incremental/coverage_cache"
 require_relative "../../report/progress"
 require_relative "../../results/run_report"

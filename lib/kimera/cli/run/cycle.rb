@@ -7,6 +7,8 @@ require_relative "../../incremental/session"
 require_relative "../../incremental/stamp"
 require_relative "aim"
 require_relative "inline_ignores"
+require_relative "../../scope/ignore_list"
+require_relative "alerts"
 require_relative "digest"
 require_relative "narrowing"
 require_relative "pass"
@@ -23,16 +25,16 @@ class Kimera::CLI::Run::Cycle
 
   NARROWED = "not covered by the narrowed tests; a test outside --tests may cover it"
 
-  def initialize(options, registry, changed, digest:)
+  def initialize(options, registry, digest:, alerts: Kimera::CLI::Run::Alerts.new)
     @options = options
     @registry = registry
-    @changed = changed
     @digest = digest
+    @alerts = alerts
   end
 
-  def call
+  def call(changed = nil)
     @digest.verbose(@options) if @options[:verbose]
-    scope(@changed && Kimera::Incremental::Selection.new(@changed).ids(@registry))
+    scope(changed && Kimera::Incremental::Selection.new(changed).ids(@registry))
   end
 
   private
@@ -46,7 +48,7 @@ class Kimera::CLI::Run::Cycle
   end
 
   def notify(selected, ignored, resolution)
-    @digest.anchors(resolution)
+    @alerts.anchors(resolution)
     @digest.announce(selected, ignored, files: @registry.files.size, since: @options[:since])
     @digest.evaluating(ignored) if @options[:evaluate_ignored]
   end
@@ -67,7 +69,7 @@ class Kimera::CLI::Run::Cycle
   def conclude(todo, ignored, loaded)
     report = narrowed(loaded.report(todo, ignored, @registry)).counting(counted)
     @digest.emit(report, @registry, **emission)
-    @options[:gate] == false ? 0 : @digest.gate(report, @options.merge(narrowed: narrowing.narrowed?))
+    @options[:gate] == false ? 0 : @alerts.gate(report, @options.merge(narrowed: narrowing.narrowed?))
   end
 
   def narrowed(report)
@@ -120,7 +122,7 @@ class Kimera::CLI::Run::Cycle
   end
 
   def adapter
-    loaded = Kimera::Frameworks::ADAPTERS.load(@options[:framework])
+    loaded = Kimera::Frameworks::SUITES.load(@options[:framework])
     names = Array(@options[:exclude_test_names])
     names.empty? ? loaded : Kimera::Frameworks::NameExclusion.new(loaded, names)
   end

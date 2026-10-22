@@ -15,6 +15,6 @@ class Kimera::Operators::KeywordDrop < Kimera::Operators::Base
   def drop(assoc)
     name = assoc.is_a?(AssocNode) && unescaped(assoc.key)
     return unless name
-    Kimera::Operators::Variant.new(label: "drop keyword `#{name}:`", directive: directive("kwarg_pair_drop", key: name))
+    mutation("drop keyword `#{name}:`", "kwarg_pair_drop", key: name)
   end
 end

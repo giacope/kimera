@@ -39,9 +39,7 @@ class Kimera::Operators::RailsCallback < Kimera::Operators::RailsDeclaration
   end
 
   def variant(node, key, elements, index)
-    Kimera::Operators::Variant.new(
-      label: "#{node.name}: drop #{elements[index].location.slice} from #{key}:",
-      directive: directive("kwarg_element_drop", key: key, index: index)
-    )
+    label = "#{node.name}: drop #{elements[index].location.slice} from #{key}:"
+    mutation(label, "kwarg_element_drop", key: key, index: index)
   end
 end

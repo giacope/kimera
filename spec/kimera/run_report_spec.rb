@@ -95,8 +95,7 @@ RSpec.describe(Kimera::RunReport) do
         counted = results.first.tap { |killed| killed.killing_tests = ["k1"] }
         quality = described_class.new(results: [counted]).annotate(suite: %w[k1 s2])
         expect(quality.to_h.fetch("test_quality")).to(include("tests" => 2, "covers_nothing" => %w[k1 s2]))
-        expect(quality.quality).to(eq(quality.to_h.fetch("test_quality")))
-        expect(quality.test_ids).to(eq(%w[k1 s2]))
+        expect([quality.quality, quality.test_ids]).to(eq([quality.to_h.fetch("test_quality"), %w[k1 s2]]))
         expect([report.to_h.key?("test_quality"), report.quality]).to(eq([false, nil]))
       end
     end
@@ -162,12 +161,9 @@ RSpec.describe(Kimera::RunReport) do
     end
 
     it "omits ignored, isolated_only, and leaks from the summary when there are none", :aggregate_failures do
-      rep = described_class.new(results: [result(1, :killed)])
-      expect(rep.summary).not_to(include("ignored="))
-      expect(rep.summary).not_to(include("isolated_only="))
-      expect(rep.summary).not_to(include("unmutatable="))
-      expect(rep.summary).not_to(include("leaks="))
-      expect(rep.summary).not_to(include("unjudged="))
+      summary = described_class.new(results: [result(1, :killed)]).summary
+      expect(%w[ignored= isolated_only= unmutatable= leaks= unjudged=].select { |field| summary.include?(field) })
+        .to(be_empty)
     end
 
     describe "unjudged mutants" do
@@ -270,9 +266,8 @@ RSpec.describe(Kimera::RunReport) do
       it "keeps the names through merge, revise and described", :aggregate_failures do
         base = described_class.new(results: cited, tests: named.slice("t1"))
         merged = base.merge(described_class.new(results: [], tests: named.slice("t2")))
-        expect(merged.tests.keys).to(eq(%w[t1 t2]))
-        expect(merged.revise([]).tests.keys).to(eq(%w[t1 t2]))
-        expect(base.described(named.slice("t9")).tests.keys).to(eq(%w[t1 t9]))
+        expect([merged.tests.keys, merged.revise([]).tests.keys, base.described(named.slice("t9")).tests.keys])
+          .to(eq([%w[t1 t2], %w[t1 t2], %w[t1 t9]]))
         expect([base.test("t1"), base.test("t5")]).to(eq([{ "name" => "one" }, {}]))
       end
     end

@@ -16,4 +16,5 @@ hard_timeout: 30.0
 # design problem: remove it or expose the effect through an explicit boundary.
 max_survivors: 0
 max_ignored: 0
+fail_on_no_coverage: true
 ignore: []

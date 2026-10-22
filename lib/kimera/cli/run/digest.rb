@@ -1,20 +1,15 @@
 # frozen_string_literal: true
 
 require_relative "../../results/run_report"
-require_relative "../../scope/ignore_list"
 require_relative "emission"
-require_relative "gate"
 
 class Kimera::CLI::Run::Digest
-  def initialize(emission:, io: $stdout, errors: $stderr)
+  def initialize(emission:, io: $stdout)
     @io = io
-    @errors = errors
     @emission = emission
   end
 
   def emit(...) = @emission.emit(...)
-
-  def gate(report, options) = Kimera::CLI::Run::Gate.new(report, options).status(@errors)
 
   def announce(selected, ignored, files:, since:)
     incremental(selected, files, since) if selected
@@ -24,11 +19,6 @@ class Kimera::CLI::Run::Digest
   def evaluating(ignored)
     return if ignored.empty?
     @io.puts("Evaluating them anyway (--evaluate-ignored): each keeps status ignored and records its verdict.")
-  end
-
-  def anchors(resolution)
-    resolution.stale.each { |rule| @errors.puts(anchor(rule)) }
-    resolution.moved.each { |shift| @errors.puts(moved(shift)) }
   end
 
   def verbose(options)
@@ -43,17 +33,5 @@ class Kimera::CLI::Run::Digest
 
   def incremental(selected, files, since)
     @io.puts("Incremental: #{selected.size} mutants on lines changed since #{since} (#{files} changed files).")
-  end
-
-  def anchor(rule)
-    "kimera: warning: #{kind(rule)} matches no mutant (stale anchor?): #{spot(rule)} #{rule[:label]}".rstrip
-  end
-
-  def kind(rule) = rule[:starts] ? "kimera:disable comment" : "ignore entry"
-
-  def moved(shift) = "kimera: warning: ignore entry re-anchored: #{shift} (update the entry to silence this)"
-
-  def spot(rule)
-    [rule[:file], rule[:line] || rule[:starts]].compact.join(":")
   end
 end

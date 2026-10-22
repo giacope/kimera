@@ -39,12 +39,7 @@ RSpec.describe(Kimera::CLI::Run) do
   end
 
   def full(*argv)
-    allow(Kimera::Execution::Harness).to(receive(:build).and_wrap_original) do |original, **kwargs|
-      original.call(**kwargs).tap do |harness|
-        allow(harness).to(receive(:warm!))
-        allow(harness).to(receive(:run).and_return(Kimera::RunReport.new(results: [])))
-      end
-    end
+    stub_harness
     cli.run(["calc.rb", *argv])
   end
 
@@ -67,15 +62,19 @@ RSpec.describe(Kimera::CLI::Run) do
     expect(diagnostics.first.read_nonblock(100_000)).to(end_with("later"))
   end
 
-  it "keeps stdout for the report and sends everything else to stderr", :aggregate_failures do
+  # What reaches the report pipe and the diagnostics pipe when a run detaches
+  # stdout between buffered writes.
+  def detached_writes
     stdout = report.last
     stdout.sync = false
     stdout.write("early,")
-    run = cli.__send__(:detached)
-    run.instance_variable_get(:@io).write("report")
+    cli.__send__(:detached).instance_variable_get(:@io).write("report")
     stdout.write("noise")
     stdout.flush
-    expect(report.first.read_nonblock(100)).to(eq("early,report"))
-    expect(diagnostics.first.read_nonblock(100)).to(eq("noise"))
+    [report.first.read_nonblock(100), diagnostics.first.read_nonblock(100)]
+  end
+
+  it "keeps stdout for the report and sends everything else to stderr" do
+    expect(detached_writes).to(eq(["early,report", "noise"]))
   end
 end

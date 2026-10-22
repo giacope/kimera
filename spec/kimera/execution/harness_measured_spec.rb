@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "kimera/execution/harness"
-require "kimera/frameworks/adapter"
+require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 require "tmpdir"
 
@@ -12,7 +12,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   # Every test reaches the one mutant.
   def adapter(id)
-    Class.new(Kimera::Frameworks::Adapter) do
+    Class.new(Kimera::Frameworks::Suite) do
       define_method(:source) { |_files| self }
       define_method(:test_ids) { %w[t1 t2] }
       define_method(:run) do |ids|

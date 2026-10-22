@@ -45,11 +45,13 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
     expect(live & template.ids).to(be_empty)
   end
 
-  it "still evaluates such a file the suite did load, and a definitions-only file it did not" do
+  it "still evaluates such a file the suite did load", :aggregate_failures do
     registry, live = overlaid(proc { true })
     expect(live).to(include(*point(registry, "reach_template.rb").ids))
     expect(point(registry, "reach_template.rb").unloaded?).to(be(false))
-    Kimera::RUNTIME.reset!
+  end
+
+  it "still evaluates a definitions-only file the suite did not load", :aggregate_failures do
     registry, live = overlaid(proc { |path| path != "reach_defined.rb" })
     expect(live).to(include(*point(registry, "reach_defined.rb").ids))
     expect(point(registry, "reach_defined.rb").unloaded?).to(be(false))

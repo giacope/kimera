@@ -11,9 +11,12 @@ RSpec.describe(Kimera::CLI::Run::Route) do
     reads = 0
     coverage = -> { (reads += 1) && { ids.first => ["spec/acp/end_to_end_spec.rb[1:1]"] } }
     apart, together = described_class.new(registry, isolate_when_covered_by: ["end_to_end_spec"]).split(ids, &coverage)
-    expect([apart, together]).to(eq([[ids.first], ids.drop(1)]))
-    described_class.new(registry, {}).split(ids) { raise(ArgumentError, "coverage read without a pattern") }
-    expect(reads).to(eq(ids.size))
+    expect([apart, together, reads]).to(eq([[ids.first], ids.drop(1), ids.size]))
+  end
+
+  it "reads no coverage without a pattern" do
+    expect { described_class.new(registry, {}).split(ids) { raise(ArgumentError, "coverage read without a pattern") } }
+      .not_to(raise_error)
   end
 
   it "judges isolated-only mutants on incremental runs unless told otherwise", :aggregate_failures do

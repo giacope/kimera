@@ -2,7 +2,7 @@
 
 require "json"
 require "kimera/execution/shift"
-require "kimera/frameworks/adapter"
+require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 require "stringio"
 

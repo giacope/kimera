@@ -180,12 +180,14 @@ RSpec.describe(Kimera::Unparse) do
       return [s(:send, nil, :a)] if depth.zero?
       inner = trees(depth - 1)
       pairs = inner.product(inner)
-      [
-        inner.first, *%i[and or].flat_map { |type| pairs.map { |pair| s(type, *pair) } },
-        *%i[+ **].flat_map { |operator| pairs.map { |(left, right)| s(:send, left, operator, right) } },
-        *%i[! -@].flat_map { |operator| inner.map { |operand| s(:send, operand, operator) } }
-      ]
+      [inner.first, *connected(pairs), *operated(pairs), *prefixed(inner)]
     end
+
+    def connected(pairs) = %i[and or].flat_map { |type| pairs.map { |pair| s(type, *pair) } }
+
+    def operated(pairs) = %i[+ **].flat_map { |operator| pairs.map { |(left, right)| s(:send, left, operator, right) } }
+
+    def prefixed(inner) = %i[! -@].flat_map { |operator| inner.map { |operand| s(:send, operand, operator) } }
 
     def s(type, *children) = Parser::AST::Node.new(type, children)
 
@@ -205,13 +207,20 @@ RSpec.describe(Kimera::Unparse) do
     def numerals(depth)
       return [s(:int, 2), s(:int, -2)] if depth.zero?
       inner = numerals(depth - 1)
+      [*inner, *powered(inner), *chained(inner), *blocked(inner), *signed(inner)]
+    end
+
+    def powered(inner) = inner.product(inner).map { |(left, right)| s(:send, left, :**, right) }
+
+    def chained(inner)
+      inner.flat_map { |base| [s(:send, base, :abs), s(:csend, base, :abs), s(:index, base, s(:int, 1))] }
+    end
+
+    def blocked(inner) = inner.map { |base| s(:block, s(:send, base, :then), s(:args), nil) }
+
+    def signed(inner)
       signable = inner.reject { |operand| operand.type == :int }
-      [
-        *inner, *inner.product(inner).map { |(left, right)| s(:send, left, :**, right) },
-        *inner.flat_map { |base| [s(:send, base, :abs), s(:csend, base, :abs), s(:index, base, s(:int, 1))] },
-        *inner.map { |base| s(:block, s(:send, base, :then), s(:args), nil) },
-        *signable.product(%i[-@ +@]).map { |(operand, sign)| s(:send, operand, sign) }
-      ]
+      signable.product(%i[-@ +@]).map { |(operand, sign)| s(:send, operand, sign) }
     end
 
     it "writes every nested sign, power and call on a literal so it reads back as written", :aggregate_failures do
@@ -270,15 +279,16 @@ RSpec.describe(Kimera::Unparse) do
       expect(write(s(:send, s(:send, one, :-@), :-@))).to(eq("--(1.abs)"))
     end
 
-    it "leaves other signs, and other operands, as unparser writes them", :aggregate_failures do
-      expect(write(s(:send, one, :~))).to(eq("~1.abs"))
-      expect(write(s(:send, one, :!))).to(eq("!1.abs"))
-      expect(write(s(:send, s(:int, 1), :-@))).to(eq("-1"))
-      expect(write(s(:send, s(:int, 1), :+@))).to(eq("++1"))
-      expect(write(s(:send, s(:array, s(:int, 1)), :-@))).to(eq("-[1]"))
-      expect(write(s(:csend, one, :-@))).to(eq("1.abs&.-@"))
-      expect(reemit("-a.abs")).to(eq("-a.abs"))
-      expect(reemit("-(1)")).to(eq("-(1)"))
+    it "leaves other signs, and other operands, as unparser writes them" do
+      nodes = [
+        s(:send, one, :~), s(:send, one, :!), s(:send, s(:int, 1), :-@), s(:send, s(:int, 1), :+@),
+        s(:send, s(:array, s(:int, 1)), :-@), s(:csend, one, :-@)
+      ]
+      expect(nodes.map { |node| write(node) }).to(eq(["~1.abs", "!1.abs", "-1", "++1", "-[1]", "1.abs&.-@"]))
+    end
+
+    it "re-emits a negated call and a parenthesized literal as written" do
+      expect([reemit("-a.abs"), reemit("-(1)")]).to(eq(["-a.abs", "-(1)"]))
     end
 
     {
@@ -294,6 +304,7 @@ RSpec.describe(Kimera::Unparse) do
       expect(write(s(:send, s(:int, 2), :**, s(:int, -1)))).to(eq("2 ** -1"))
       expect(write(s(:send, s(:int, -1), :*, s(:int, 2)))).to(eq("-1 * 2"))
       expect(write(s(:send, s(:send, s(:int, -1), :abs), :**, s(:int, 2)))).to(eq("-1.abs ** 2"))
+      expect(write(s(:send, s(:str, "-a"), :**, s(:int, 2)))).to(eq("\"-a\" ** 2"))
       expect(reemit("10 ** 3")).to(eq("10 ** 3"))
     end
 

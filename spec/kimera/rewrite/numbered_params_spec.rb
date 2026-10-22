@@ -14,26 +14,29 @@ RSpec.describe(Kimera::Rewrite::NumberedParams) do
   end
 
   it "renames numbered params so interpolation survives unparsing", :aggregate_failures do
-    # Single-quoted: the #{} is source text for the parser.
-    out = normalize('x.each { puts "a #{_1} b #{_2}" }')
+    out = normalize(<<~'RUBY')
+      x.each { puts "a #{_1} b #{_2}" }
+    RUBY
 
     expect(out).to(include("|__kimera_1, __kimera_2|"))
-    expect(out).to(include('puts("a #{__kimera_1} b #{__kimera_2}")'))
+    expect(out).to(include("puts(\"a \#{__kimera_1} b \#{__kimera_2}\")"))
 
     expect { Unparser.parse(out) }.not_to(raise_error)
   end
 
   it "renames it-blocks", :aggregate_failures do
-    out = normalize('x.each { puts "a #{it}" }')
+    out = normalize(<<~'RUBY')
+      x.each { puts "a #{it}" }
+    RUBY
 
     expect(out).to(include("|__kimera_it|"))
-    expect(out).to(include('puts("a #{__kimera_it}")'))
+    expect(out).to(include("puts(\"a \#{__kimera_it}\")"))
   end
 
   it "keeps single-parameter non-destructuring semantics (procarg0)", :aggregate_failures do
-    expect(eval(normalize("[[1, 2]].map { _1 }"))).to(eq([[1, 2]]))
+    expect(Module.new.module_eval(normalize("[[1, 2]].map { _1 }"))).to(eq([[1, 2]]))
 
-    expect(eval(normalize("[[1, 2]].map { it }"))).to(eq([[1, 2]]))
+    expect(Module.new.module_eval(normalize("[[1, 2]].map { it }"))).to(eq([[1, 2]]))
   end
 
   it "scopes renames to the owning block, including nested it-blocks", :aggregate_failures do

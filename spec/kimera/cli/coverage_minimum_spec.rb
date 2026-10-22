@@ -17,21 +17,27 @@ RSpec.describe(Kimera::CLI::CoverageMinimum) do
     expect(ungated?("SimpleCov.maximum_coverage_drop 5 # not a minimum_coverage\n")).to(be(false))
   end
 
+  def env_conditions
+    [
+      <<~RUBY,
+        if ENV["COVERAGE"]
+          require "simplecov"
+          SimpleCov.start { add_filter "/spec/" }
+          SimpleCov.minimum_coverage_by_file line: 100, branch: 100
+        end
+      RUBY
+      %(SimpleCov.minimum_coverage 90 unless ENV.key?("NO_FLOOR")\n),
+      %(SimpleCov.minimum_coverage 90 if ENV.fetch("CI", nil)\n),
+      %(ENV.include?("CI") ? minimum_coverage(90) : nil\n),
+      %(::ENV["CI"] && SimpleCov.minimum_coverage(90)\n),
+      %(ENV["SKIP"] || SimpleCov.minimum_coverage(90)\n),
+      %(if RUBY_ENGINE == "jruby"\nelsif ENV["CI"] == "1"\n  minimum_coverage 90\nend\n)
+    ]
+  end
+
   # giacope/kimera#19: pundit's spec/spec_helper.rb.
-  it "passes over a floor under a condition that reads ENV, whatever the key", :aggregate_failures do
-    expect(ungated?(<<~RUBY)).to(be(false))
-      if ENV["COVERAGE"]
-        require "simplecov"
-        SimpleCov.start { add_filter "/spec/" }
-        SimpleCov.minimum_coverage_by_file line: 100, branch: 100
-      end
-    RUBY
-    expect(ungated?(%(SimpleCov.minimum_coverage 90 unless ENV.key?("NO_FLOOR")\n))).to(be(false))
-    expect(ungated?(%(SimpleCov.minimum_coverage 90 if ENV.fetch("CI", nil)\n))).to(be(false))
-    expect(ungated?(%(ENV.include?("CI") ? minimum_coverage(90) : nil\n))).to(be(false))
-    expect(ungated?(%(::ENV["CI"] && SimpleCov.minimum_coverage(90)\n))).to(be(false))
-    expect(ungated?(%(ENV["SKIP"] || SimpleCov.minimum_coverage(90)\n))).to(be(false))
-    expect(ungated?(%(if RUBY_ENGINE == "jruby"\nelsif ENV["CI"] == "1"\n  minimum_coverage 90\nend\n))).to(be(false))
+  it "passes over a floor under a condition that reads ENV, whatever the key" do
+    expect(env_conditions.select { |source| ungated?(source) }).to(be_empty)
   end
 
   it "passes over a floor in a case on ENV", :aggregate_failures do
@@ -41,14 +47,20 @@ RSpec.describe(Kimera::CLI::CoverageMinimum) do
     expect(ungated?(%(case RUBY_ENGINE\nwhen "ruby" then minimum_coverage 100\nend\n))).to(be(true))
   end
 
-  it "passes over a floor after an early exit guarded by ENV", :aggregate_failures do
-    expect(ungated?(%(return unless ENV["COVERAGE"]\n\nSimpleCov.minimum_coverage 90\n))).to(be(false))
-    expect(ungated?(%(exit if ENV["NO_COVERAGE"]\nminimum_coverage 90\n))).to(be(false))
-    expect(ungated?(%(abort("no") unless ENV["CI"]\nminimum_coverage 90\n))).to(be(false))
-    expect(ungated?(%(exit! unless ENV["CI"]\nminimum_coverage 90\n))).to(be(false))
-    expect(ungated?(%(ENV["COVERAGE"] or return\nminimum_coverage 90\n))).to(be(false))
-    expect(ungated?(%(SimpleCov.start do\n  next unless ENV["CI"]\n  minimum_coverage 90\nend\n))).to(be(false))
-    expect(ungated?(%(loop do\n  break unless ENV["CI"]\n  minimum_coverage 90\nend\n))).to(be(false))
+  def early_exits
+    [
+      %(return unless ENV["COVERAGE"]\n\nSimpleCov.minimum_coverage 90\n),
+      %(exit if ENV["NO_COVERAGE"]\nminimum_coverage 90\n),
+      %(abort("no") unless ENV["CI"]\nminimum_coverage 90\n),
+      %(exit! unless ENV["CI"]\nminimum_coverage 90\n),
+      %(ENV["COVERAGE"] or return\nminimum_coverage 90\n),
+      %(SimpleCov.start do\n  next unless ENV["CI"]\n  minimum_coverage 90\nend\n),
+      %(loop do\n  break unless ENV["CI"]\n  minimum_coverage 90\nend\n)
+    ]
+  end
+
+  it "passes over a floor after an early exit guarded by ENV" do
+    expect(early_exits.select { |source| ungated?(source) }).to(be_empty)
   end
 
   it "flags a floor before the guard, or after a guard that doesn't exit or doesn't read ENV", :aggregate_failures do

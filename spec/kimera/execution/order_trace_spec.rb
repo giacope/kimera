@@ -54,9 +54,8 @@ RSpec.describe(Kimera::Execution::OrderTrace) do
       first, second = mutants
       registry.points.last.unsafe!("class body")
       coverage = first.to_h { |id| [id, ["t1"]] }
-      expect(trace.wanted?(first + second, coverage)).to(be(false))
-      expect(trace.wanted?([999], {})).to(be(false))
-      expect(trace.wanted?([], {})).to(be(false))
+      expect([trace.wanted?(first + second, coverage), trace.wanted?([999], {}), trace.wanted?([], {})])
+        .to(eq([false, false, false]))
     end
   end
 

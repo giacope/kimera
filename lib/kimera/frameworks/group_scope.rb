@@ -6,24 +6,25 @@ module Kimera
 end
 
 class Kimera::Frameworks::GroupScope
-  def initialize(wanted)
+  def initialize(wanted, world)
     @wanted = wanted
+    @world = world
   end
 
   def tops = @wanted.map { |example| example.example_group.parent_groups.last }.uniq
 
-  def narrow(filtered, &)
+  def narrow(&)
     lineage = @wanted.flat_map { |example| example.example_group.parent_groups }.uniq
-    swap(filtered, lineage.to_h { |group| [group, group.examples & @wanted] }) { prune(lineage, &) }
+    swap(lineage.to_h { |group| [group, group.examples & @wanted] }) { prune(lineage, &) }
   end
 
   private
 
-  def swap(filtered, scoped)
-    filtered.merge!(scoped)
+  def swap(scoped)
+    @world.filtered_examples.merge!(scoped)
     yield
   ensure
-    scoped.each_key { |group| filtered.delete(group) }
+    scoped.each_key { |group| @world.filtered_examples.delete(group) }
   end
 
   def prune(lineage)

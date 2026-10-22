@@ -40,11 +40,10 @@ RSpec.describe(Kimera::Report::Formats, :aggregate_failures) do
 
   it "emits a SARIF 2.1.0 document, with the region's columns and the diff in the message" do
     sarif = JSON.parse(output("sarif"))
-    expect(sarif).to(include("version" => "2.1.0"))
     result = sarif.fetch("runs").first.fetch("results").first
-    expect(result.fetch("ruleId")).to(eq("kimera/comparison"))
-    region = result.dig("locations", 0, "physicalLocation", "region")
-    expect(region).to(eq("startLine" => 2, "startColumn" => 3, "endLine" => 2, "endColumn" => 8))
+    expect([sarif["version"], result.fetch("ruleId"), result.dig("locations", 0, "physicalLocation", "region")]).to(
+      eq(["2.1.0", "kimera/comparison", { "startLine" => 2, "startColumn" => 3, "endLine" => 2, "endColumn" => 8 }])
+    )
     expect(result.dig("message", "text")).to(end_with("> => >=\n- a > b\n+ a >= b"))
   end
 
@@ -78,9 +77,7 @@ RSpec.describe(Kimera::Report::Formats, :aggregate_failures) do
 
     it "annotates a mutant only other units' tests reach as an error, like a survivor", :aggregate_failures do
       results = report.results.map { |result| result.dup.tap { |copy| copy.status = :uncovered_by_unit } }
-      io = StringIO.new
-      described_class.new(io: io).emit("github", Kimera::RunReport.new(registry: registry, results: results))
-      lines = io.string.lines
+      lines = emitted("github", Kimera::RunReport.new(registry: registry, results: results)).lines
       title = "title=Kimera%3A 2 unit-uncovered mutant(s)"
       expect(lines.first).to(start_with("::error file=app/calc.rb,line=2,col=3,#{title}"))
       expect(lines.last).to(start_with("::error file=app/calc.rb,line=6,col=3,#{title.sub("2", "1")}"))
@@ -105,32 +102,37 @@ RSpec.describe(Kimera::Report::Formats, :aggregate_failures) do
     )
   end
 
-  it "says when GitHub will show only some of the annotations", :aggregate_failures do
-    document = {
-      "results" => (1..11).map { |line| { "status" => "survived", "file" => "a.rb", "line" => line, "label" => "x" } }
-    }
-    io = StringIO.new
-    described_class.new(io: io).render("github", document)
-    expect(io.string.lines.size).to(eq(12))
-    notice = "::notice title=Kimera::11 annotations; GitHub shows 10 of each level per step. " \
-      "The job summary and the JSON report list every finding.\n"
-    expect(io.string.lines.last).to(eq(notice))
-    io = StringIO.new
-    described_class.new(io: io).render("github", { "results" => document["results"].first(10) })
-    expect(io.string).not_to(include("::notice"))
+  def emitted(format, run) = StringIO.new.tap { |io| described_class.new(io: io).emit(format, run) }.string
+
+  def rendered(format, document) = StringIO.new.tap { |io| described_class.new(io: io).render(format, document) }.string
+
+  # Findings on lines 1 to count of a.rb.
+  def findings(count, **row)
+    (1..count).map { |line| { "file" => "a.rb", "line" => line }.merge(row.transform_keys(&:to_s)) }
   end
 
-  it "renders a Markdown summary without findings, or past fifty of them", :aggregate_failures do
-    counts = { "total" => 2, "killed" => 0, "survived" => 0 }
-    calm = { "counts" => counts, "mutation_score" => 1.0, "results" => [] }
-    io = StringIO.new
-    described_class.new(io: io).render("markdown", calm)
-    expect(io.string).to(eq("### Kimera: 0 surviving of 2 mutants\n\nEvery mutant in scope was killed.\n"))
-    rows = (1..51).map { |line| { "status" => "harness_error", "file" => "a.rb", "line" => line, "detail" => "a|b" } }
-    io = StringIO.new
-    described_class.new(io: io).render("markdown", calm.merge("results" => rows))
-    expect(io.string).to(include("| Unjudged | `a.rb:1` | a\\|b |", "…and 1 more; the JSON report lists every one."))
-    expect(io.string).not_to(include("`a.rb:51`"))
+  it "says when GitHub will show only some of the annotations" do
+    lines = rendered("github", "results" => findings(11, status: "survived", label: "x")).lines
+    notice = "::notice title=Kimera::11 annotations; GitHub shows 10 of each level per step. " \
+      "The job summary and the JSON report list every finding.\n"
+    expect([lines.size, lines.last]).to(eq([12, notice]))
+  end
+
+  it "adds no notice for ten annotations" do
+    expect(rendered("github", "results" => findings(10, status: "survived", label: "x"))).not_to(include("::notice"))
+  end
+
+  def calm = { "counts" => { "total" => 2, "killed" => 0, "survived" => 0 }, "mutation_score" => 1.0, "results" => [] }
+
+  it "renders a Markdown summary without findings" do
+    expect(rendered("markdown", calm))
+      .to(eq("### Kimera: 0 surviving of 2 mutants\n\nEvery mutant in scope was killed.\n"))
+  end
+
+  it "renders a Markdown summary past fifty findings", :aggregate_failures do
+    shown = rendered("markdown", calm.merge("results" => findings(51, status: "harness_error", detail: "a|b")))
+    expect(shown).to(include("| Unjudged | `a.rb:1` | a\\|b |", "…and 1 more; the JSON report lists every one."))
+    expect(shown).not_to(include("`a.rb:51`"))
   end
 
   context "with a mutant judged again in a fresh mirror" do

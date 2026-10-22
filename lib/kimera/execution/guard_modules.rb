@@ -48,7 +48,7 @@ module Kimera
     ConcernHook =
       Data.define(:concern, :stored) do
         def replacing?(base)
-          Kimera::Execution::OverlayGuards.overlaying? && !base && concern.instance_variable_defined?(stored)
+          Kimera::RUNTIME.overlaying? && !base && concern.instance_variable_defined?(stored)
         end
 
         def chained(trimmed)
@@ -88,7 +88,7 @@ module Kimera
       CALLBACKGUARD =
         Module.new do
           def set_callback(name, *arguments, &block)
-            return super unless Kimera::Execution::OverlayGuards.overlaying?
+            return super unless Kimera::RUNTIME.overlaying?
             type, filters, options = normalize_callback_params(arguments.dup, block)
             fresh = Kimera::Execution::CallbackChain.new(__send__(:get_callbacks, name)).fresh(type, filters)
             return if fresh.empty?
@@ -99,7 +99,7 @@ module Kimera
       SERIALIZEGUARD =
         Module.new do
           def serialize(attribute, *words, **options, &)
-            return if OverlayGuards.overlaying? && AttributeType.new(type_for_attribute(attribute)).serialized?
+            return if Kimera::RUNTIME.overlaying? && AttributeType.new(type_for_attribute(attribute)).serialized?
             super
           end
         end

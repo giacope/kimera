@@ -61,18 +61,21 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       expect([none.tests(mutant_id, point), none.settled(mutant_id, point).status]).to(eq([[], :no_coverage]))
     end
 
-    it "screens the measured covering set too, and leaves an uncovered point to no_coverage", :aggregate_failures do
-      filter = Kimera::Execution::TestFilter.new(registry: registry, flaky: %w[t2])
-      screened = plan(coverage: { mutant_id => %w[t1 t2] }, filter: filter)
+    def flaky_t2 = Kimera::Execution::TestFilter.new(registry: registry, flaky: %w[t2])
+
+    it "screens the measured covering set too" do
+      screened = plan(coverage: { mutant_id => %w[t1 t2] }, filter: flaky_t2)
       expect([screened.tests(mutant_id, point), screened.settled(mutant_id, point)]).to(eq([["t1"], nil]))
-      flaky = plan(coverage: { mutant_id => ["t2"] }, filter: filter)
+    end
+
+    it "settles a point only screened tests cover as no_coverage" do
+      flaky = plan(coverage: { mutant_id => ["t2"] }, filter: flaky_t2)
       expect([flaky.tests(mutant_id, point), flaky.settled(mutant_id, point).status]).to(eq([[], :no_coverage]))
-      expect(
-        [
-          plan(filter: filter).tests(mutant_id, point),
-          plan(filter: filter).settled(mutant_id, point)
-        ]
-      ).to(eq([nil, nil]))
+    end
+
+    it "leaves an uncovered point to no_coverage" do
+      uncovered = plan(filter: flaky_t2)
+      expect([uncovered.tests(mutant_id, point), uncovered.settled(mutant_id, point)]).to(eq([nil, nil]))
     end
 
     it "returns the measured covering set (integer-keyed) when present" do
@@ -178,8 +181,8 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       Dir.mktmpdir do |mirror|
         FileUtils.mkdir_p(File.join(mirror, "test"))
         nested = child(framework: "minitest", test_files: %w[lib/x/test/a_test.rb])
-        expect(nested.helpers(mirror)).to(eq(["-I", "lib/x/test", "-I", "test"]))
-        expect(child.helpers(mirror)).to(eq(["-I", "test"]))
+        expect([nested.helpers(mirror), child.helpers(mirror)])
+          .to(eq([["-I", "lib/x/test", "-I", "test"], ["-I", "test"]]))
       end
     end
   end
@@ -272,11 +275,10 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
 
     it "writes the locations to the request file instead of argv" do
       Dir.mktmpdir do |mirror|
-        ledger = File.join(mirror, "l.json")
         many = Array.new(50_000) { |n| "spec/a_spec.rb[1:#{n}]" }
-        plan.command(mirror, many, ledger, first: true)
-        request = JSON.parse(File.read("#{ledger}.request"))
-        expect(request).to(eq("tests" => many, "files" => [], "first_failure" => true))
+        plan.command(mirror, many, File.join(mirror, "l.json"), first: true)
+        expect(JSON.parse(File.read(File.join(mirror, "l.json.request"))))
+          .to(eq("tests" => many, "files" => [], "first_failure" => true))
       end
     end
 

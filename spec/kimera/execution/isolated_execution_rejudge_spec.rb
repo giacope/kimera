@@ -35,15 +35,30 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
     Kimera::MutantResult.new(mutant_id: id, status: :harness_error, file: "calc.rb", detail: "warm #{id}")
   end
 
+  # Concurrent workers meet before either judges, so each takes a mutant of
+  # its own however the threads are scheduled.
+  def test_meet(arrived, slot)
+    return unless slot
+    arrived << slot
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
+    sleep(0.01) until arrived.size > 1 || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+  end
+
+  def test_judged(arrived, isolated, trial)
+    test_meet(arrived, trial.slot)
+    status, detail = isolated.fetch(trial.id)
+    Kimera::MutantResult.new(
+      mutant_id: trial.id, status: status, file: "calc.rb", covering_tests: ["t#{trial.id}"], detail: detail
+    )
+  end
+
   # isolated: id => [status, detail]; control: the unmutated outcome.
   def test_engine(log, isolated:, control:)
+    judged = method(:test_judged).curry[Thread::Queue.new, isolated]
     Class.new(described_class) do
       define_method(:evaluate) do |trial|
         log << [:mutant, trial.id, trial.mirror, trial.slot]
-        status, detail = isolated.fetch(trial.id)
-        Kimera::MutantResult.new(
-          mutant_id: trial.id, status: status, file: "calc.rb", covering_tests: ["t#{trial.id}"], detail: detail
-        )
+        judged.call(trial)
       end
       define_method(:verdict) do |mirror, tests, **|
         log << [:control, tests, mirror]
@@ -71,12 +86,11 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
   it "confirms a kill against the mutant's covering tests in another fresh mirror" do
     id = ids.first
     results, log = test_rejudge(isolated: { id => [:killed, nil] }, **test_quiet)
-    expected = { "status" => "killed", "covering_tests" => ["t#{id}"], "detail" => nil, "note" => "#{note}#{id}" }
-    expect(results.map(&:to_h)).to(match([include(expected)]))
+    expect(results.map(&:to_h)).to(
+      match([include("status" => "killed", "covering_tests" => ["t#{id}"], "detail" => nil, "note" => "#{note}#{id}")])
+    )
     (_, _, mutated), (_, tests, unmutated) = log
-    expect(log.map(&:first)).to(eq(%i[mutant control]))
-    expect(tests).to(eq(["t#{id}"]))
-    expect(unmutated).not_to(eq(mutated))
+    expect([log.map(&:first), tests, unmutated == mutated]).to(eq([%i[mutant control], ["t#{id}"], false]))
   end
 
   it "confirms a timeout the same way" do
@@ -108,8 +122,8 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
     first, second = ids
     isolated = { first => [:survived, nil], second => [:harness_error, "test child exited 1"] }
     results, log = test_rejudge(isolated: isolated, **test_quiet)
-    expected = [[:survived, nil, "#{note}#{first}"], [:harness_error, "test child exited 1", "#{note}#{second}"]]
-    expect(results.map { |r| [r.status, r.detail, r.note] }).to(eq(expected))
+    expect(results.map { |r| [r.status, r.detail, r.note] })
+      .to(eq([[:survived, nil, "#{note}#{first}"], [:harness_error, "test child exited 1", "#{note}#{second}"]]))
     expect(log.map(&:first)).to(eq(%i[mutant mutant]))
   end
 

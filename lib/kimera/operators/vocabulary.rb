@@ -32,9 +32,9 @@ module Kimera
         { TYPE => type }.merge(fields.transform_keys(&:to_s))
       end
 
-      def solo(label, type, **fields)
-        [Variant.new(label: label, directive: directive(type, **fields))]
-      end
+      def mutation(label, type, **fields) = Variant.new(label: label, directive: directive(type, **fields))
+
+      def solo(label, type, **fields) = [mutation(label, type, **fields)]
 
       def deletion(node)
         solo("delete `#{first(node)}`", STATEMENT_DELETION)
@@ -42,7 +42,7 @@ module Kimera
 
       def drops(nodes, type, label:)
         nodes.each_with_index.map do |node, index|
-          Variant.new(label: "#{label} `#{first(node)}`", directive: directive(type, index: index))
+          mutation("#{label} `#{first(node)}`", type, index: index)
         end
       end
 

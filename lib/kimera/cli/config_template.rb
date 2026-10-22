@@ -37,9 +37,10 @@ class Kimera::CLI::ConfigTemplate
 
   private
 
-  def entry(key, value) = ["", *note(key), YAML.dump(key => value).delete_prefix("---\n").chomp].join("\n")
-
-  def note(key) = wrap(properties.fetch(key).fetch("description")).map { |line| "# #{line}" }
+  def entry(key, value)
+    note = wrap(properties.fetch(key).fetch("description")).map { |line| "# #{line}" }
+    ["", *note, YAML.dump(key => value).delete_prefix("---\n").chomp].join("\n")
+  end
 
   def wrap(text)
     text.split.reduce([]) do |lines, word|

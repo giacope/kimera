@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 require "fileutils"
-require "kimera/frameworks/minitest_adapter"
-require "kimera/frameworks/rspec_adapter"
+require "kimera/frameworks/minitest_suite"
+require "kimera/frameworks/rspec_suite"
 require "kimera/support/test_exit"
 require "stringio"
 require "tmpdir"
@@ -44,14 +44,13 @@ RSpec.describe(Kimera::TestExit) do
       (RSpec.world.example_groups - groups).each { |group| RSpec.world.example_groups.delete(group) }
       config = RSpec.configuration
       config.output_stream, config.error_stream, config.deprecation_stream = streams
-      $probe = nil
     end
 
     def fixture
       File.join(dir, "exits_spec.rb").tap do |path|
         File.write(path, <<~RUBY)
           RSpec.describe "KimeraExits" do
-            after { $probe << :after }
+            after { PROBE << :after }
 
             it("exits") { exit(4) }
 
@@ -71,13 +70,13 @@ RSpec.describe(Kimera::TestExit) do
     def adapter
       original = $stderr
       $stderr = StringIO.new
-      Kimera::Frameworks::RSpecAdapter.build.source([fixture])
+      Kimera::Frameworks::RSpecSuite.build.source([fixture])
     ensure
       $stderr = original
     end
 
     def run(loaded, name, group: "KimeraExits")
-      $probe = []
+      PROBE.clear
       id = loaded.test_ids.find { |test| loaded.describe(test) == "#{group} #{name}" }
       [id, loaded.run([id])]
     rescue SystemExit => error
@@ -86,12 +85,16 @@ RSpec.describe(Kimera::TestExit) do
 
     it "fails the example that exits, after its after hooks ran", :aggregate_failures do
       id, outcome = run(adapter, "exits")
-      expect(outcome).to(be_a(Kimera::Frameworks::RunOutcome))
-      expect(outcome.failed_ids).to(eq([id]))
-      lines = outcome.failures[id].lines(chomp: true)
-      expect(lines.first).to(eq("SystemExit: exit(4) called from #{dir}/exits_spec.rb:4:in 'Kernel#exit'"))
-      expect(lines[1]).to(match(/\A    \S*exits_spec\.rb:4:in /))
-      expect($probe).to(eq([:after]))
+      expect(outcome).to(be_a(Kimera::Frameworks::RunOutcome).and(have_attributes(failed_ids: [id])))
+      expect(outcome.failures[id].lines(chomp: true).first(2)).to(
+        match(
+          [
+            eq("SystemExit: exit(4) called from #{dir}/exits_spec.rb:4:in 'Kernel#exit'"),
+            match(/\A    \S*exits_spec\.rb:4:in /)
+          ]
+        )
+      )
+      expect(probed).to(eq([:after]))
     end
 
     it "runs the next example normally" do
@@ -107,14 +110,12 @@ RSpec.describe(Kimera::TestExit) do
   end
 
   describe "under Minitest" do
-    after { $probe = nil }
-
     def fixture
       File.join(dir, "exits_test.rb").tap do |path|
         File.write(path, <<~RUBY)
           require "minitest"
           class KimeraExitsTest < Minitest::Test
-            def teardown = $probe&.push(:teardown)
+            def teardown = PROBE << :teardown
             def test_aborts = abort("no such task")
             def test_interrupted = raise(Interrupt)
           end
@@ -124,10 +125,10 @@ RSpec.describe(Kimera::TestExit) do
 
     # abort prints its message to $stderr.
     def run(id)
-      $probe = []
+      PROBE.clear
       original = $stderr
       $stderr = StringIO.new
-      Kimera::Frameworks::MinitestAdapter.build.source([fixture]).run([id])
+      Kimera::Frameworks::MinitestSuite.build.source([fixture]).run([id])
     rescue SystemExit => error
       error
     ensure
@@ -137,8 +138,7 @@ RSpec.describe(Kimera::TestExit) do
     it "fails the test that aborts, after its teardown ran", :aggregate_failures do
       id = "KimeraExitsTest#test_aborts"
       outcome = run(id)
-      expect(outcome).to(be_a(Kimera::Frameworks::RunOutcome))
-      expect(outcome.failed_ids).to(eq([id]))
+      expect(outcome).to(be_a(Kimera::Frameworks::RunOutcome).and(have_attributes(failed_ids: [id])))
       expect(outcome.failures[id].lines(chomp: true).first(2)).to(
         eq(
           [
@@ -147,7 +147,7 @@ RSpec.describe(Kimera::TestExit) do
           ]
         )
       )
-      expect($probe).to(eq([:teardown]))
+      expect(probed).to(eq([:teardown]))
     end
 
     it "lets an interrupt through" do

@@ -44,6 +44,10 @@ class Kimera::Registry
     groups.fetch(file, [])
   end
 
+  def start_lines(file) = at(file).map { |point| point.location.start_line }.uniq.sort
+
+  def method_names = @points.filter_map(&:method_name).uniq.sort
+
   def index
     @_index ||= by_mutant_id { |_mutant, point| point }
   end

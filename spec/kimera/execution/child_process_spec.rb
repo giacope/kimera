@@ -24,6 +24,16 @@ RSpec.describe(Kimera::Execution::ChildProcess) do
     expect(line.encoding).to(eq(Encoding::BINARY))
   end
 
+  # A stream that closed its descriptor when collected would free 1 or 2 for
+  # the next pipe the child opens.
+  it "points a descriptor at the null device through a stream that never closes it", :aggregate_failures do
+    stream = instance_double(IO, reopen: :discarded)
+    allow(IO).to(receive(:for_fd).and_return(stream))
+    expect(reader.__send__(:discard, 2)).to(eq(:discarded))
+    expect(IO).to(have_received(:for_fd).with(2, autoclose: false))
+    expect(stream).to(have_received(:reopen).with(File::NULL, "w"))
+  end
+
   it "skips a line that isn't JSON" do
     expect(parse("!!not json!!")).to(be_nil)
   end
@@ -31,7 +41,8 @@ RSpec.describe(Kimera::Execution::ChildProcess) do
   describe "process groups" do
     def call(name, *) = reader.__send__(name, *)
 
-    it "makes a forked child lead a process group of its own" do
+    # A forked child that took the lead, and the process group it reports.
+    def led
       group, report = IO.pipe
       pid =
         fork do
@@ -40,9 +51,14 @@ RSpec.describe(Kimera::Execution::ChildProcess) do
           exit!(0)
         end
       report.close
-      expect(Integer(group.gets)).to(eq(pid))
+      [pid, Integer(group.gets)]
     ensure
-      Process.wait(pid)
+      Process.wait(pid) if pid
+    end
+
+    it "makes a forked child lead a process group of its own" do
+      pid, group = led
+      expect(group).to(eq(pid))
     end
 
     # The fork above records no coverage for `lead`; this runs it in-process.

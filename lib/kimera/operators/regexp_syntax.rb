@@ -21,6 +21,6 @@ class Kimera::Operators::RegexpSyntax < Kimera::Operators::Base
   def rewrite(source, token, replacement, label)
     offset = token.offset
     edited = source[0, offset] + replacement + source[(offset + token.text.length)..]
-    Kimera::Operators::Variant.new(label: "regexp: #{label}", directive: directive("regexp_source", source: edited))
+    mutation("regexp: #{label}", "regexp_source", source: edited)
   end
 end

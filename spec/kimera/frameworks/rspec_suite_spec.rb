@@ -1,0 +1,438 @@
+# frozen_string_literal: true
+
+require "fileutils"
+require "kimera/frameworks/rspec_suite"
+require "stringio"
+require "tmpdir"
+
+RSpec.describe(Kimera::Frameworks::RSpecSuite) do
+  # Hides RSpec's warning about re-pointing already-initialized streams.
+  def quietly
+    original = $stderr
+    $stderr = StringIO.new
+    yield
+  ensure
+    $stderr = original
+  end
+
+  subject(:adapter) { quietly { described_class.build.source([fixture]) } }
+
+  let(:dir) { Dir.mktmpdir }
+  # Suite hooks are global; a leaked after(:suite) would fire at the end of Kimera's own suite.
+  let(:attributes) { %i[@before_suite_hooks @after_suite_hooks].freeze }
+
+  after { FileUtils.remove_entry(dir) }
+
+  # Loading a spec file registers groups in the global RSpec.world, so snapshot and restore it.
+  around do |example|
+    groups = RSpec.world.example_groups.dup
+    out = RSpec.configuration.output_stream
+    error = RSpec.configuration.error_stream
+    deprecation = RSpec.configuration.deprecation_stream
+    hooks =
+      attributes.to_h do |attribute|
+        [attribute, RSpec.configuration.instance_variable_get(attribute).dup]
+      end
+    example.run
+  ensure
+    (RSpec.world.example_groups - groups).each do |group|
+      RSpec.world.example_groups.delete(group)
+    end
+    RSpec.configuration.output_stream = out
+    RSpec.configuration.error_stream = error
+    RSpec.configuration.deprecation_stream = deprecation
+    hooks.each { |attribute, callbacks| RSpec.configuration.instance_variable_set(attribute, callbacks) }
+  end
+
+  def fixture
+    path = File.join(dir, "demo_spec.rb")
+    File.write(path, <<~RUBY)
+      RSpec.describe "KimeraDemo" do
+        it "passes" do
+          expect(1 + 1).to eq(2)
+        end
+        it "is conditional" do
+          expect(ENV.key?("KIMERA_PROBE")).to be(true)
+        end
+        describe "nested" do
+          it "also passes" do
+            expect(true).to be(true)
+          end
+        end
+      end
+    RUBY
+    path
+  end
+
+  def ids
+    adapter.test_ids.select { |id| adapter.describe(id).start_with?("KimeraDemo") }
+  end
+
+  def flag(value, &) = steer(value, &)
+
+  it "indexes loaded examples, including nested groups" do
+    descriptions = ids.map { |id| adapter.describe(id) }
+    expect(descriptions).to(include("KimeraDemo passes", "KimeraDemo is conditional", "KimeraDemo nested also passes"))
+  end
+
+  it "indexes the examples its files defined when it sourced them, not a file loaded later" do
+    sourced = adapter
+    later = File.join(dir, "later_spec.rb")
+    File.write(later, %(RSpec.describe("KimeraLater") { it("is loaded later") { expect(1).to(eq(1)) } }\n))
+    quietly { Kernel.load(later) }
+    expect(sourced.test_ids.grep(/later_spec/)).to(be_empty)
+  end
+
+  it "catalogs known examples by description and file:line, leaving unknown ids out", :aggregate_failures do
+    passing = ids.find { |id| adapter.describe(id) == "KimeraDemo passes" }
+    catalog = adapter.catalog([passing, "no/such[1:1]"])
+    expect(catalog.keys).to(eq([passing]))
+    expect(catalog.fetch(passing))
+      .to(include("name" => "KimeraDemo passes", "location" => match(%r{\A(?!\./).*demo_spec\.rb:2\z})))
+  end
+
+  # Strict attribution maps each test to the spec file that declares it.
+  it "names the spec file each example runs from, and parses an unknown id's", :aggregate_failures do
+    passing = ids.find { |id| adapter.describe(id) == "KimeraDemo passes" }
+    expect(adapter.test_file(passing)).to(end_with("demo_spec.rb"))
+    expect(adapter.test_file("./spec/models/order_spec.rb[1:2]")).to(eq("./spec/models/order_spec.rb"))
+    expect(adapter.test_file("unknown")).to(be_nil)
+  end
+
+  it "seeds a run's random numbers from the run's seed and its first example's id", :aggregate_failures do
+    passing = ids.find { |id| adapter.describe(id) == "KimeraDemo passes" }
+    seeded(9) { quietly { adapter.run([passing]) } }
+    expect(rand(1_000_000)).to(eq(Random.new(Kimera::Seed.new("KIMERA_SEED" => "9").for(passing)).rand(1_000_000)))
+  end
+
+  it "describes an unknown id as itself" do
+    expect(adapter.describe("no/such[1:1]")).to(eq("no/such[1:1]"))
+  end
+
+  def guarded
+    path = File.join(dir, "guarded_spec.rb")
+    File.write(path, <<~RUBY)
+      RSpec.describe "KimeraGuarded", if: false do
+        it "must never be indexed" do
+          raise "filtered-out example was executed"
+        end
+      end
+    RUBY
+    path
+  end
+
+  # Backend-gated suites use `if: ENV["DB_URL"]`; running them anyway fails the baseline on skipped setup.
+  it "does not index examples the real runner would filter out (:if false)" do
+    filtered = quietly { described_class.build.source([guarded]) }
+    indexed = filtered.test_ids.select { |id| filtered.describe(id).start_with?("KimeraGuarded") }
+    expect(indexed).to(be_empty)
+  end
+
+  def recorder
+    ran = []
+    RSpec.configuration.before(:suite) { ran << :before }
+    RSpec.configuration.after(:suite) { ran << :after }
+    ran
+  end
+
+  # Running groups directly skips suite hooks, where e.g. webmock/rspec calls WebMock.enable!.
+  it "does not fire suite hooks merely from finishing without starting" do
+    ran = recorder
+    described_class.build.finish
+    expect(ran).to(be_empty)
+  end
+
+  def twice
+    fresh = described_class.build
+    2.times { fresh.start }
+    fresh.finish
+  end
+
+  it "fires before(:suite) once and after(:suite) only once starting has happened" do
+    ran = recorder
+    twice
+    expect(ran).to(eq(%i[before after]))
+  end
+
+  it "propagates a raising before(:suite) hook instead of running the suite" do
+    RSpec.configuration.before(:suite) { raise(RuntimeError, "backend unavailable") }
+
+    expect { described_class.build.start }.to(raise_error(RuntimeError, "backend unavailable"))
+  end
+
+  it "passes when running a green example" do
+    id = ids.find { |i| adapter.describe(i) == "KimeraDemo passes" }
+    expect(adapter.run([id]).passed?).to(be(true))
+  end
+
+  # Callers stay separate examples, not :aggregate_failures. The nested run shares
+  # this thread, so the outer aggregator would swallow its failure.
+  def outcome(id)
+    flag(false) { adapter.run([id]) }
+  end
+
+  it "reports a failing example as a kill" do
+    id = ids.find { |i| adapter.describe(i) == "KimeraDemo is conditional" }
+    expect(outcome(id).passed?).to(be(false))
+  end
+
+  it "carries the failing example's id in failed_ids" do
+    id = ids.find { |i| adapter.describe(i) == "KimeraDemo is conditional" }
+    expect(outcome(id).failed_ids).to(eq([id]))
+  end
+
+  it "re-runs the same example reliably across changing state" do
+    id = ids.find { |i| adapter.describe(i) == "KimeraDemo is conditional" }
+    results = [true, false, true].map { |value| flag(value) { adapter.run([id]).passed? } }
+    expect(results).to(eq([true, false, true]))
+  end
+
+  def quitting
+    RSpec.world.wants_to_quit = true
+    yield
+  ensure
+    RSpec.world.wants_to_quit = false
+  end
+
+  # --fail-fast sets wants_to_quit; left set, later runs skip every example and kills become survivals.
+  it "clears a stuck fail-fast quit flag so a killing example still runs" do
+    id = ids.find { |i| adapter.describe(i) == "KimeraDemo is conditional" }
+    outcome = quitting { flag(false) { adapter.run([id]) } }
+    expect(outcome.passed?).to(be(false))
+  end
+
+  def failure
+    RSpec.world.non_example_failure = true
+    yield
+  ensure
+    RSpec.world.non_example_failure = false
+  end
+
+  # A raising suite hook sets this; left set, the outer runner exits red although every example passed.
+  it "clears a stuck non-example failure flag before each run" do
+    id = ids.find { |i| adapter.describe(i) == "KimeraDemo passes" }
+    failure { adapter.run([id]) }
+    expect(RSpec.world.non_example_failure).to(be(false))
+  end
+
+  it "runs examples across sibling and nested groups together" do
+    wanted = ["KimeraDemo passes", "KimeraDemo nested also passes"]
+    selected = ids.select { |i| wanted.include?(adapter.describe(i)) }
+    expect(adapter.run(selected).passed?).to(be(true))
+  end
+
+  # Separate examples for the same reason as #outcome.
+  def message
+    id = ids.find { |i| adapter.describe(i) == "KimeraDemo is conditional" }
+    flag(false) { adapter.run([id]).failures[id] }
+  end
+
+  it "formats a failure message as ExceptionClass: message" do
+    expect(message).to(be_a(String))
+  end
+
+  it "prefixes the failure message with the exception class" do
+    expect(message).to(start_with("RSpec::Expectations::ExpectationNotMetError: "))
+  end
+
+  it "includes the expectation detail in the failure message" do
+    expect(message).to(include("expected true"))
+  end
+
+  def counted
+    path = File.join(dir, "counted_spec.rb")
+    File.write(path, <<~RUBY)
+      RSpec.describe "KimeraCounted" do
+        it("a") { PROBE << :a }
+        it("b") { PROBE << :b }
+        describe "inner" do
+          it("c") { PROBE << :c }
+          it("d") { PROBE << :d }
+        end
+      end
+    RUBY
+    path
+  end
+
+  def prepared
+    quietly { described_class.build.source([counted]) }
+  end
+
+  def executions
+    PROBE.clear
+    yield
+    probed
+  end
+
+  # The filtered-examples override, set through the whole tree, is what keeps siblings from running.
+  it "executes only the selected example, not its group or nested siblings" do
+    ad = prepared
+    id = ad.test_ids.find { |i| ad.describe(i) == "KimeraCounted inner c" }
+    ran = executions { ad.run([id]) }
+    expect(ran).to(eq([:c]))
+  end
+
+  def contextual
+    path = File.join(dir, "contextual_spec.rb")
+    File.write(path, <<~RUBY)
+      RSpec.describe "KimeraContextual" do
+        it("outside") { PROBE << :outside }
+        describe "hooked" do
+          before(:context) { PROBE << :before_context }
+          after(:context) { PROBE << :after_context }
+          it("inside") { PROBE << :inside }
+        end
+      end
+    RUBY
+    path
+  end
+
+  def sequenced(*descriptions)
+    ad = quietly { described_class.build.source([contextual]) }
+    runs = descriptions.map { |text| ad.test_ids.find { |i| ad.describe(i) == "KimeraContextual #{text}" } }
+    executions { runs.each { |id| ad.run([id]) } }
+  end
+
+  # RSpec memoizes each group's descendant_filtered_examples. Left from an earlier
+  # narrow run, it skips before(:context) (rubocop-ast's alias_matcher) or runs it
+  # for a group with nothing selected.
+  it "runs a group's context hooks when an earlier run selected none of its examples" do
+    expect(sequenced("outside", "hooked inside")).to(eq(%i[outside before_context inside after_context]))
+  end
+
+  it "skips a group's context hooks when this run selects none of its examples" do
+    expect(sequenced("hooked inside", "outside")).to(eq(%i[before_context inside after_context outside]))
+  end
+
+  def overrides(description)
+    groups = RSpec.world.example_groups.select { |g| g.description == description }
+    RSpec.world.filtered_examples.keys & (groups + groups.flat_map(&:children))
+  end
+
+  # Under self-hosting a leftover override would corrupt the outer suite's runs.
+  it "removes its filtered-examples overrides once the run finishes" do
+    ad = prepared
+    id = ad.test_ids.find { |i| ad.describe(i) == "KimeraCounted inner c" }
+    executions { ad.run([id]) }
+    expect(overrides("KimeraCounted")).to(be_empty)
+  end
+
+  def configuration
+    File.write(File.join(dir, ".rspec"), "--require ./dotrspec_probe\n")
+    File.write(File.join(dir, "dotrspec_probe.rb"), "PROBE << :required\n")
+  end
+
+  # In-process so mutation coverage sees it; the subprocess spec below covers end-to-end.
+  # R3K5: its --require files load with the test files, inside kimera's load
+  # trace, not when the adapter is built.
+  describe "the working directory's .rspec" do
+    around do |example|
+      path = RSpec.configuration.default_path
+      example.run
+    ensure
+      RSpec.configuration.default_path = path
+    end
+
+    # A suite built in a directory whose .rspec requires a probe and moves the default path.
+    def dotted
+      configuration
+      File.write(File.join(dir, ".rspec"), "--require ./dotrspec_probe\n--default-path dotspec\n")
+      Dir.chdir(dir) { quietly { described_class.build } }
+    end
+
+    it "is applied, loading its requires with the test files", :aggregate_failures do
+      built = dotted
+      expect([probed, RSpec.configuration.default_path]).to(eq([[], "dotspec"]))
+      Dir.chdir(dir) { quietly { built.source([]) } }
+      expect(probed).to(eq([:required]))
+    end
+  end
+
+  # rspec puts lib and the spec folder on the load path whatever .rspec says.
+  it "puts the project's lib folder on the load path before loading test files" do
+    FileUtils.mkdir_p([File.join(dir, "lib"), File.join(dir, "spec")])
+    added = []
+    allow(RSpec::Core::RubyProject).to(receive(:add_to_load_path) { |*dirs| added.concat(dirs) })
+    Dir.chdir(dir) { quietly { described_class.build.source([]) } }
+    expect(added).to(include("lib"))
+  end
+
+  it "returns passed for an empty / unknown selection", :aggregate_failures do
+    expect(adapter.run([]).passed?).to(be(true))
+    expect(adapter.run(["nope[1:1]"]).passed?).to(be(true))
+  end
+
+  def probe(root)
+    FileUtils.mkdir_p(File.join(root, "spec"))
+    File.write(File.join(root, "spec", "probe_helper.rb"), "PROBE_OK = true\n")
+    File.write(File.join(root, ".rspec"), "--require probe_helper\n")
+    File.write(File.join(root, "spec", "probe_spec.rb"), <<~RUBY)
+      RSpec.describe("probe") { it("sees helper") { expect(PROBE_OK).to be(true) } }
+    RUBY
+  end
+
+  # RSpec can only be configured before it runs, so this needs a fresh subprocess.
+  def script(lib)
+    <<~RUBY
+      $LOAD_PATH.unshift(#{lib.inspect})
+      require "kimera/frameworks/rspec_suite"
+      adapter = Kimera::Frameworks::RSpecSuite.build
+      adapter.source(["spec/probe_spec.rb"])
+      outcome = adapter.run(adapter.test_ids)
+      exit(outcome.passed? ? 0 : 1)
+    RUBY
+  end
+
+  def subprocess(root)
+    lib = File.expand_path("../../../lib", __dir__)
+    system(
+      { "BUNDLE_GEMFILE" => File.join(lib, "..", "Gemfile") },
+      "ruby", "-e", script(lib),
+      chdir: root, out: File::NULL, err: File::NULL
+    )
+  end
+
+  it "honors the project .rspec --require when constructed" do
+    Dir.mktmpdir do |root|
+      probe(root)
+      expect(subprocess(root)).to(be(true))
+    end
+  end
+
+  describe "narrowing the filtered-example table" do
+    def narrow(filtered, wanted, &)
+      world = instance_double(RSpec::Core::World, filtered_examples: filtered)
+      Kimera::Frameworks::GroupScope.new(wanted, world).narrow(&)
+    end
+
+    def top
+      prepared
+      RSpec.world.example_groups.find { |g| g.description == "KimeraCounted" }
+    end
+
+    def example(group, text) = group.descendants.flat_map(&:examples).find { |ex| ex.description == text }
+
+    it "scopes only the wanted example's ancestor chain while the block runs", :aggregate_failures do
+      outer = top
+      c = example(outer, "c")
+      filtered = {}
+      seen = narrow(filtered, [c]) { filtered.dup }
+      expect([seen, filtered]).to(eq([{ outer => [], outer.children.first => [c] }, {}]))
+    end
+
+    it "hides children off the chain while the block runs, then restores them", :aggregate_failures do
+      outer = top
+      inner = outer.children.first
+      seen = narrow({}, [example(outer, "a")]) { outer.children.dup }
+      expect([seen, outer.children]).to(eq([[], [inner]]))
+    end
+
+    it "restores entries it did not add, and the children it hid, after a raise", :aggregate_failures do
+      outer = top
+      inner = outer.children.first
+      filtered = { other: %i[a b] }
+      expect { narrow(filtered, [example(outer, "a")]) { raise(ArgumentError) } }.to(raise_error(ArgumentError))
+      expect([filtered, outer.children]).to(eq([{ other: %i[a b] }, [inner]]))
+    end
+  end
+end

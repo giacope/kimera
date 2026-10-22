@@ -34,29 +34,23 @@ RSpec.describe(Kimera::Operators::Audit) do
       expect(described_class.new(operators).faults(controller)).to(eq([]))
     end
 
-    it "flags a directive that no handler can render" do
-      operator =
-        Class.new(Kimera::Operators::Base) do
-          def key = "bogus_type"
+    # An operator that proposes the labelled directive for each call of +name+.
+    def proposing(key, name, label, type, **directive)
+      Class.new(Kimera::Operators::Base) do
+        define_method(:key) { key }
+        define_method(:variants) { |node, **| solo(label, type, **directive) if matches?(node, name) }
+      end.new
+    end
 
-          def variants(node, **)
-            solo("nonsense", "no_such_directive") if matches?(node, :sum)
-          end
-        end
-      faults = described_class.new([operator.new]).faults("def total = xs.sum")
+    it "flags a directive that no handler can render" do
+      operator = proposing("bogus_type", :sum, "nonsense", "no_such_directive")
+      faults = described_class.new([operator]).faults("def total = xs.sum")
       expect(faults.map(&:verdict)).to(eq([Kimera::Operators::Audit::UNRENDERABLE]))
     end
 
     it "flags a directive that rebuilds the original source" do
-      operator =
-        Class.new(Kimera::Operators::Base) do
-          def key = "no_change"
-
-          def variants(node, **)
-            solo("select => select", "selector_swap", to: "select") if matches?(node, :select)
-          end
-        end
-      faults = described_class.new([operator.new]).faults("def kept = xs.select { |x| x }")
+      operator = proposing("no_change", :select, "select => select", "selector_swap", to: "select")
+      faults = described_class.new([operator]).faults("def kept = xs.select { |x| x }")
       expect(faults.map(&:verdict)).to(eq([Kimera::Operators::Audit::IDENTICAL]))
     end
   end

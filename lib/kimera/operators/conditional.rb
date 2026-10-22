@@ -17,7 +17,7 @@ class Kimera::Operators::Conditional < Kimera::Operators::Base
   private
 
   def flip(to)
-    Kimera::Operators::Variant.new(label: "condition => #{to}", directive: directive("condition", to: to))
+    mutation("condition => #{to}", "condition", to: to)
   end
 
   def conditional?(node)

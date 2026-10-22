@@ -26,8 +26,7 @@ RSpec.describe(Kimera::Incremental::Session) do
 
   it "merges the meta it saves into the meta it resumed" do
     Dir.mktmpdir do |dir|
-      path = File.join(dir, "s.json")
-      described_class.new.save(path, meta: { "since" => "main" })
+      path = File.join(dir, "s.json").tap { |file| described_class.new.save(file, meta: { "since" => "main" }) }
       described_class.from(path).save(path, meta: { "extra" => "v" })
       expect(JSON.parse(File.read(path))["meta"]).to(eq("since" => "main", "extra" => "v"))
     end

@@ -36,6 +36,8 @@ module Kimera
           raise(UsageError, "unknown attribution #{mode.inspect} (choose: #{ATTRIBUTIONS.join(", ")})")
         end
 
+        def settings = { attribution: mode, unit_tests: rules }
+
         def rules
           given = Array(options[:cli_unit_tests])
           return given.to_h { |text| pair(text) } unless given.empty?

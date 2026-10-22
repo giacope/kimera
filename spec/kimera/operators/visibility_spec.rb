@@ -87,13 +87,13 @@ RSpec.describe(Kimera::Operators::Visibility) do
     let!(:ledger) { Kimera::RUNTIME.start! }
 
     before do
+      stub_const("VisibilityOps", Class.new)
       Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("vis.rb", code).source).evaluate("vis.rb")
     end
 
     after do
       Kimera::RUNTIME.stop!(ledger)
       Kimera::RUNTIME.reset!
-      Object.__send__(:remove_const, :VisibilityOps) if defined?(VisibilityOps)
     end
 
     def active(name)
@@ -103,15 +103,20 @@ RSpec.describe(Kimera::Operators::Visibility) do
       Kimera::RUNTIME.active = nil
     end
 
-    it "stays public until its mutant is active, and turns private while it is", :aggregate_failures do
+    it "stays public until its mutant is active" do
+      expect([VisibilityOps.new.part, VisibilityOps.public_method_defined?(:part)]).to(eq([1, true]))
+    end
+
+    it "turns private while its mutant is active", :aggregate_failures do
       object = VisibilityOps.new
-      expect(object.part).to(eq(1))
       active("part") do
-        expect(object.total).to(eq(2))
-        expect(object.part).to(eq(:ghost))
-        expect(object.__send__(:part)).to(eq(1))
+        expect([object.total, object.part, object.__send__(:part)]).to(eq([2, :ghost, 1]))
         expect(VisibilityOps.private_method_defined?(:part)).to(be(true))
       end
+    end
+
+    it "turns public again once its mutant is off" do
+      active("part") { VisibilityOps.new.part }
       expect(VisibilityOps.public_method_defined?(:part)).to(be(true))
     end
 

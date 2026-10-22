@@ -2,7 +2,7 @@
 
 require "json"
 require "kimera/cli/run"
-require "kimera/frameworks/rspec_adapter"
+require "kimera/frameworks/rspec_suite"
 require "kimera/registry/builder"
 require "tmpdir"
 
@@ -25,7 +25,7 @@ RSpec.describe(Kimera::CLI::Run::Pass) do
 
   def pass(**over)
     options = { framework: "rspec", source_root: ".", tests: ["*_spec.rb"], paths: ["x.rb"], coverage: true }
-    adapter = instance_double(Kimera::Frameworks::RSpecAdapter, catalog: {}, finish: nil, test_ids: %w[t1 t2])
+    adapter = instance_double(Kimera::Frameworks::RSpecSuite, catalog: {}, finish: nil, test_ids: %w[t1 t2])
     described_class.new(registry, options.merge(jobs: 1, **over), adapter).call([id])
   end
 

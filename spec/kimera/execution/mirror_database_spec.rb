@@ -7,17 +7,19 @@ require "kimera/execution/mirror_database"
 RSpec.describe(Kimera::Execution::MirrorDatabase, :aggregate_failures) do
   # rails: which of ActiveRecord and Rails' parallel testing are loaded, and
   # whether ActiveSupport answers parallelize_test_databases.
-  def test_adopted(slot, parallel: true, rails: %i[record testing], answers: true)
-    calls = []
+  def test_rails(rails, parallel, answers, calls)
     stub_const("ActiveRecord::Base", Class.new) if rails.include?(:record)
-    stub_const("ActiveSupport::Testing::Parallelization", Module.new) if rails.include?(:testing)
     stub_const("ActiveSupport", Module.new) unless defined?(ActiveSupport)
     ActiveSupport.define_singleton_method(:parallelize_test_databases) { parallel } if answers
-    if rails.include?(:testing)
-      ActiveSupport::Testing::Parallelization.define_singleton_method(:after_fork_hooks) do
-        [->(worker) { calls << worker }]
-      end
-    end
+    return unless rails.include?(:testing)
+    hooks = [->(worker) { calls << worker }]
+    stub_const("ActiveSupport::Testing::Parallelization", Module.new)
+    ActiveSupport::Testing::Parallelization.define_singleton_method(:after_fork_hooks) { hooks }
+  end
+
+  def test_adopted(slot, parallel: true, rails: %i[record testing], answers: true)
+    calls = []
+    test_rails(rails, parallel, answers, calls)
     database = described_class.new(slot)
     allow(database).to(receive(:require))
     [database.adopt, calls, database]

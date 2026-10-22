@@ -54,14 +54,15 @@ RSpec.describe(Kimera::Execution::Overrides) do
     expect(displaced.map(&:name)).to(eq([:total]))
   end
 
-  it "keeps a later file's top-level method", :aggregate_failures do
-    evaluate(Object, "def overrides_top = :own", own)
-    evaluate(Object, "def overrides_top = :later", later)
-    overrides = described_class.new(own, "def overrides_top = :own\n")
-    _, displaced = overrides.keep { evaluate(Object, "def overrides_top = :again", own) }
-    expect([overrides_top, displaced.map(&:name)]).to(eq([:later, [:overrides_top]]))
-  ensure
-    Object.__send__(:remove_method, :overrides_top)
+  describe "a later file's top-level method" do
+    after { Object.__send__(:remove_method, :overrides_top) }
+
+    it "is kept" do
+      { own => :own, later => :later }.each { |file, value| evaluate(Object, "def overrides_top = :#{value}", file) }
+      overrides = described_class.new(own, "def overrides_top = :own\n")
+      _, displaced = overrides.keep { evaluate(Object, "def overrides_top = :again", own) }
+      expect([overrides_top, displaced.map(&:name)]).to(eq([:later, [:overrides_top]]))
+    end
   end
 
   it "lets the overlay redefine what only its own file defined" do

@@ -17,17 +17,20 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#evaluate", :aggregate_fai
 
   def test_trial(mirror) = Kimera::Execution::Trial.new(id, mirror, Kimera::Overlay.new(registry), nil, 3)
 
+  def test_runner(root, outcomes, seen)
+    Class.new(described_class) do
+      define_method(:verdict) do |mirror, _tests, slot: nil, first: false|
+        seen << [slot, File.basename(mirror).start_with?("kimera-isolated"), first]
+        outcomes.shift
+      end
+    end.new(registry: registry, root: root, tests: ["t1"], coverage: { id => ["t1"] })
+  end
+
   def test_settled(*outcomes)
     seen = []
     Dir.mktmpdir do |root|
       File.write(File.join(root, "calc.rb"), "def a(x, y)\n  x > y\nend\n")
-      runner =
-        Class.new(described_class) do
-          define_method(:verdict) do |mirror, _tests, slot: nil, first: false|
-            seen << [slot, File.basename(mirror).start_with?("kimera-isolated"), first]
-            outcomes.shift
-          end
-        end.new(registry: registry, root: root, tests: ["t1"], coverage: { id => ["t1"] })
+      runner = test_runner(root, outcomes, seen)
       Dir.mktmpdir do |mirror|
         FileUtils.cp(File.join(root, "calc.rb"), mirror)
         [runner.__send__(:evaluate, test_trial(mirror)), seen]

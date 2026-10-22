@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "prism"
+require_relative "branches"
 
 module Kimera
   module Syntax
@@ -64,5 +65,7 @@ module Kimera
       end
 
     def self.parse(source) = Prism.parse(source)
+
+    BRANCHES = ->(conditional) { Kimera::Branches.new(conditional).bodies }
   end
 end

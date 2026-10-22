@@ -72,14 +72,22 @@ class RubyPrograms < Pbt::Arbitrary::Arbitrary
     [signature(random), *Array.new(random.rand(1..@statements)) { statement(random) }]
   end
 
+  # Simpler signatures first, then the body one statement shorter, then each
+  # statement smaller.
   def shrink(current)
     signature, *body = current
     Enumerator.new do |out|
       simpler(signature).each { |s| out << [s, *body] }
-      body.each_index { |i| out << [signature, *body[0...i], *body[(i + 1)..]] if body.size > 1 }
-      body.each_with_index { |node, i| smaller(node).each { |s| out << [signature, *body.dup.tap { |c| c[i] = s }] } }
+      shorter(body).each { |fewer| out << [signature, *fewer] }
+      reduced(body).each { |fewer| out << [signature, *fewer] }
     end
   end
+
+  def reduced(body)
+    body.each_with_index.flat_map { |node, i| smaller(node).map { |s| body.dup.tap { |c| c[i] = s } } }
+  end
+
+  def shorter(body) = body.size > 1 ? body.each_index.map { |i| [*body[0...i], *body[(i + 1)..]] } : []
 
   def self.render(program)
     signature, *body = program

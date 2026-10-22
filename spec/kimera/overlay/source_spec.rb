@@ -28,9 +28,9 @@ RSpec.describe(Kimera::Overlay::Source) do
   it "runs with its path as __FILE__ and __dir__, and requires relative to it" do
     Dir.mktmpdir do |dir|
       File.write(File.join(dir, "dep.rb"), "KimeraSourceSeen[:dep] = true\n")
-      path = File.join(dir, "first.rb")
-      described_class.new("require_relative 'dep'\nKimeraSourceSeen[:at] = [__FILE__, __dir__]\n").evaluate(path)
-      expect(seen).to(eq(dep: true, at: [path, dir]))
+      described_class.new("require_relative 'dep'\nKimeraSourceSeen[:at] = [__FILE__, __dir__]\n")
+        .evaluate(File.join(dir, "first.rb"))
+      expect(seen).to(eq(dep: true, at: [File.join(dir, "first.rb"), dir]))
     end
   end
 

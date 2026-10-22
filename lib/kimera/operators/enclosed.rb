@@ -4,9 +4,11 @@ require_relative "survey"
 
 module Kimera
   module Operators
-    class Enclosed < Survey
+    class Enclosed
+      include Survey
+
       def initialize(root, names, &pick)
-        super(root)
+        @root = root
         @names = names
         @pick = pick
       end

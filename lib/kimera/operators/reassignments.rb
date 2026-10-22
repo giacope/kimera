@@ -4,7 +4,9 @@ require_relative "survey"
 
 module Kimera
   module Operators
-    class Reassignments < Survey
+    class Reassignments
+      include Survey
+
       SCOPES = [
         SyntaxTypes::DefNode, SyntaxTypes::BlockNode, SyntaxTypes::LambdaNode, SyntaxTypes::ClassNode,
         SyntaxTypes::ModuleNode, SyntaxTypes::SingletonClassNode, SyntaxTypes::ProgramNode
@@ -20,6 +22,10 @@ module Kimera
         def bound?(name) = @names.include?(name)
 
         def bind(name) = @names.add(name)
+      end
+
+      def initialize(root)
+        @root = root
       end
 
       private

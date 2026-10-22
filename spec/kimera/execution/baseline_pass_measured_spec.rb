@@ -2,14 +2,14 @@
 
 require "kimera/execution/baseline_pass"
 require "kimera/execution/null_progress"
-require "kimera/frameworks/adapter"
+require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 
 # --reuse-coverage measures some of the suite: the tests a stored coverage map
 # says can reach the changed code.
 RSpec.describe(Kimera::Execution::BaselinePass) do
   let(:registry) { Kimera::RegistryScan.new.source("def a(x) = x > 1\n", file: "calc.rb") }
-  let(:adapter) { Class.new(Kimera::Frameworks::Adapter) { def test_ids = %w[t1 t2 t3] }.new }
+  let(:adapter) { Class.new(Kimera::Frameworks::Suite) { def test_ids = %w[t1 t2 t3] }.new }
   let(:counted) { [] }
 
   def meter

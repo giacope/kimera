@@ -21,6 +21,11 @@ module KimeraEval
       ["--baseline FILE", "exit 1 on a failure FILE does not record", ->(settings, file) { settings.baseline = file }]
     ].freeze
 
+    def initialize(out: $stdout, errors: $stderr)
+      @out = out
+      @errors = errors
+    end
+
     def run(argv)
       settings = parse(argv)
       checkout = Checkout.new(settings.kimera)
@@ -47,7 +52,7 @@ module KimeraEval
       context = Context.new(checkout, sandbox, settings)
       Scoreboard.new(checkout).tap { |board| selected(settings).each { |kind| measure(board, kind, context) } }
     ensure
-      settings.keep ? warn("eval: sandbox kept at #{sandbox.root}") : sandbox.remove!
+      settings.keep ? @errors.puts("eval: sandbox kept at #{sandbox.root}") : sandbox.remove!
     end
 
     def selected(settings)
@@ -56,11 +61,11 @@ module KimeraEval
     end
 
     def measure(board, kind, context)
-      warn("eval: #{kind::ID} #{kind::TITLE}")
+      @errors.puts("eval: #{kind::ID} #{kind::TITLE}")
       started = clock
       result = attempt(kind, context)
       board.record(kind, result, clock - started)
-      warn("eval: #{kind::ID} #{result["pass"] ? "pass" : "FAIL"} #{result["summary"]}")
+      @errors.puts("eval: #{kind::ID} #{result["pass"] ? "pass" : "FAIL"} #{result["summary"]}")
     end
 
     def clock(now = Process.clock_gettime(Process::CLOCK_MONOTONIC)) = now
@@ -75,7 +80,7 @@ module KimeraEval
       baseline = settings.baseline
       worse = baseline ? board.failing - recorded(board, baseline) : []
       board.write(settings.out)
-      puts(board.markdown)
+      @out.puts(board.markdown)
       verdict(worse, baseline)
     end
 
@@ -83,7 +88,7 @@ module KimeraEval
 
     def verdict(worse, baseline)
       return 0 if worse.empty?
-      warn("eval: worse than #{baseline}: #{worse.join(" ")}")
+      @errors.puts("eval: worse than #{baseline}: #{worse.join(" ")}")
       1
     end
   end

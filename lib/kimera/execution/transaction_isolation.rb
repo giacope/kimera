@@ -2,12 +2,11 @@
 
 require_relative "isolation"
 
-class Kimera::Execution::TransactionIsolation < Kimera::Execution::Isolation; end
+class Kimera::Execution::TransactionIsolation; end
 class Kimera::Execution::TransactionIsolation::Rollback < StandardError; end
 
 class Kimera::Execution::TransactionIsolation
   def initialize(owner)
-    super()
     @owner = owner
   end
 
@@ -16,6 +15,8 @@ class Kimera::Execution::TransactionIsolation
     rollback { result = yield }
     result
   end
+
+  def reset!; end
 
   private
 

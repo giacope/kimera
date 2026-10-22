@@ -26,7 +26,7 @@ class Kimera::Operators::NumericLiteral < Kimera::Operators::Base
 
   def integers(value)
     IntegerTargets.new(value).map do |to|
-      Kimera::Operators::Variant.new(label: "#{value} => #{to}", directive: directive("integer_literal", value: to))
+      mutation("#{value} => #{to}", "integer_literal", value: to)
     end
   end
 

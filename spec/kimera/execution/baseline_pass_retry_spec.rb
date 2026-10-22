@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "kimera/execution/baseline_pass"
-require "kimera/frameworks/adapter"
+require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 
 # A baseline test whose worker hits the hard timeout under parallel load runs
@@ -19,7 +19,7 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
 
   let(:adapter) do
     tests = %w[t1 t2 t3]
-    Class.new(Kimera::Frameworks::Adapter) do
+    Class.new(Kimera::Frameworks::Suite) do
       define_method(:test_ids) { tests }
       define_method(:reproduce) { |failed| "rspec #{failed.join(" ")}" }
     end.new
@@ -179,6 +179,26 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     end
 
     def summary = Kimera::Execution::BaselineFailure::Summary
+
+    # A suite that warns as it runs.
+    def noisy
+      quiet = outcome([])
+      adapter.define_singleton_method(:run) do |_ids|
+        warn("suite noise")
+        quiet
+      end
+    end
+
+    it "closes the ledger it opens" do
+      scripted([])
+      pass = described_class.new(adapter: adapter, registry: registry)
+      expect { pass.sequence }.not_to(change(Kimera::RUNTIME, :leaks))
+    end
+
+    it "keeps the suite's own output off the terminal" do
+      noisy
+      expect { described_class.new(adapter: adapter, registry: registry).sequence }.not_to(output.to_stderr)
+    end
 
     # Under a run of kimera on itself the outer run's guards fire too.
     it "reports which mutants it reached" do

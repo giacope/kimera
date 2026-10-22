@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
-require "kimera/frameworks/adapter"
+require "kimera/frameworks/suite"
 require "kimera/frameworks/name_exclusion"
 
 # rack's one test that fails as root covered in-scope mutants; leaving out
 # its whole file dropped 26 more tests.
 RSpec.describe(Kimera::Frameworks::NameExclusion, :aggregate_failures) do
   let(:adapter) do
-    Class.new(Kimera::Frameworks::Adapter) do
+    Class.new(Kimera::Frameworks::Suite) do
       def test_ids = %w[./dir_spec.rb[1:1] ./dir_spec.rb[1:2] ./other_spec.rb[1:1]]
       def describe(id)
         { "./dir_spec.rb[1:1]" => "Directory serves a file", "./dir_spec.rb[1:2]" => "Directory 404s unreadable" }[id]

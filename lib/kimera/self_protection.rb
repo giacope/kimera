@@ -14,12 +14,12 @@ module Kimera
     HOME = File.dirname(Runtime::SOURCE_PATH)
 
     HARNESS_CRITICAL_SUFFIXES = %w[
-      kimera/frameworks/adapter.rb
-      kimera/frameworks/rspec_adapter.rb
-      kimera/frameworks/adapter_registry.rb
+      kimera/frameworks/suite.rb
+      kimera/frameworks/rspec_suite.rb
+      kimera/frameworks/suite_registry.rb
       kimera/frameworks/group_scope.rb
       kimera/frameworks/group_tree.rb
-      kimera/frameworks/minitest_adapter.rb
+      kimera/frameworks/minitest_suite.rb
       kimera/support/test_exit.rb
       kimera/frameworks/class_hooks.rb
       kimera/execution/shift.rb

@@ -50,15 +50,20 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
 
     # main moved on after the branch point; only the branch's own changes,
     # committed or not, belong to it.
-    it "diffs against the merge-base with the ref, keeping uncommitted work", :aggregate_failures do
+    # A feature branch off main, both moved on, uncommitted work on top; main's name.
+    def branched
       commit("calc.rb", "a = 1\nb = 1\nc = 1\n", "init")
       git("branch", "-q", "feature", dir: dir)
       commit("calc.rb", "a = 1\nb = 2\nc = 1\n", "main moves on")
-      main = git("rev-parse", "--abbrev-ref", "HEAD", dir: dir).strip
-      git("checkout", "-q", "feature", dir: dir)
-      commit("calc.rb", "a = 2\nb = 1\nc = 1\n", "feature")
-      edit("calc.rb", "a = 2\nb = 1\nc = 3\n")
-      expect(described_class.new(since: main, root: dir).lines["calc.rb"].to_a).to(eq([1, 3]))
+      git("rev-parse", "--abbrev-ref", "HEAD", dir: dir).strip.tap do
+        git("checkout", "-q", "feature", dir: dir)
+        commit("calc.rb", "a = 2\nb = 1\nc = 1\n", "feature")
+        edit("calc.rb", "a = 2\nb = 1\nc = 3\n")
+      end
+    end
+
+    it "diffs against the merge-base with the ref, keeping uncommitted work" do
+      expect(described_class.new(since: branched, root: dir).lines["calc.rb"].to_a).to(eq([1, 3]))
     end
 
     it "raises rather than returning {} when the git command fails (bad ref)" do
@@ -67,11 +72,14 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
         .to(raise_error(Kimera::Incremental::DiffError, /git diff against "no-such-ref" failed \(unknown ref/))
     end
 
-    it "names a shallow clone as the likely cause of a missing ref, and only then", :aggregate_failures do
+    # A one-commit clone of a two-commit history.
+    def shallow
       commit("calc.rb", "x = 1\n", "init")
       commit("calc.rb", "x = 2\n", "next")
-      shallow = File.join(dir, "shallow")
-      git("clone", "-q", "--depth", "1", "file://#{dir}", shallow, dir: dir)
+      File.join(dir, "shallow").tap { |clone| git("clone", "-q", "--depth", "1", "file://#{dir}", clone, dir: dir) }
+    end
+
+    it "names a shallow clone as the likely cause of a missing ref, and only then", :aggregate_failures do
       expect { described_class.new(since: "origin/nope", root: shallow).lines }
         .to(raise_error(Kimera::Incremental::DiffError, /git missing\); this clone is shallow, so fetch the base ref/))
       expect { described_class.new(since: "nope", root: dir).lines }

@@ -21,6 +21,10 @@ class Kimera::Execution::Attribution
 
   def expected(source) = conventional(source).first(2)
 
+  def strict? = true
+
+  def admits?(source) = own?(yield, source)
+
   private
 
   def conventional(source)
@@ -47,3 +51,5 @@ class Kimera::Execution::Attribution
 
   def prefix(glob) = glob.split("/").take_while { |part| !part.match?(GLOB) }.map { |part| "#{part}/" }.join
 end
+
+require_relative "open_attribution"

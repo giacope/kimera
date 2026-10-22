@@ -3,14 +3,14 @@
 require "kimera/execution/flake_hunt"
 require "kimera/execution/null_progress"
 require "kimera/execution/test_filter"
-require "kimera/frameworks/adapter"
+require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 
 # The driver stands in for the warm pool: it answers each test with the
 # result the seed in the environment calls for, as a worker forked then would.
 RSpec.describe(Kimera::Execution::FlakeHunt, :aggregate_failures) do
   let(:adapter) do
-    Class.new(Kimera::Frameworks::Adapter) do
+    Class.new(Kimera::Frameworks::Suite) do
       def test_ids = %w[t1 t2 t3 t4]
     end.new
   end
@@ -19,17 +19,20 @@ RSpec.describe(Kimera::Execution::FlakeHunt, :aggregate_failures) do
   let(:progress) { Kimera::Execution::NullProgress::NONE }
   let(:env) { { "KIMERA_SEED" => "11" } }
 
+  # Under seed 12, t2 fails; under 13, t2 and t1 fail and t3 times out.
+  def drive(log, tests, spawner, listeners)
+    seed = Integer(env.fetch("KIMERA_SEED"), 10)
+    log << [seed, tests, spawner.call]
+    failing = { 12 => %w[t2], 13 => %w[t2 t1] }.fetch(seed, [])
+    tests.each { |test| listeners.resolve.call("id" => test, "passed" => !failing.include?(test)) }
+    listeners.lost.call("t3", :timeout, nil) if seed == 13
+  end
+
   def driver(log)
-    seeds = { 12 => %w[t2], 13 => %w[t2 t1] }
-    variables = env
+    drive = method(:drive).curry[log]
     Class.new do
       define_method(:channel) { :channel }
-      define_method(:drive) do |tests, spawner, listeners|
-        seed = Integer(variables.fetch("KIMERA_SEED"), 10)
-        log << [seed, tests, spawner.call]
-        tests.each { |test| listeners.resolve.call("id" => test, "passed" => !seeds.fetch(seed, []).include?(test)) }
-        listeners.lost.call("t3", :timeout, nil) if seed == 13
-      end
+      define_method(:drive) { |tests, spawner, listeners| drive.call(tests, spawner, listeners) }
     end.new
   end
 
@@ -63,9 +66,9 @@ RSpec.describe(Kimera::Execution::FlakeHunt, :aggregate_failures) do
     env.delete("KIMERA_SEED")
     log = []
     hunt(log, seed: nil, flaky_runs: 3, filter: filter)
-    expect(log.map(&:first)).to(all(be_between(0, (2**31) - 1)))
-    expect(log.map(&:first).uniq.size).to(eq(3))
-    expect(env).not_to(have_key("KIMERA_SEED"))
+    seeds = log.map(&:first)
+    expect([seeds.uniq.size, seeds.all? { |seed| seed.between?(0, (2**31) - 1) }, env.key?("KIMERA_SEED")])
+      .to(eq([3, true, false]))
   end
 
   it "does nothing without reruns" do

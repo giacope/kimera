@@ -22,11 +22,8 @@ RSpec.describe Kimera::Execution::WorkerPool::Worker do
 
   it "hands back only whole lines and keeps the rest for the next chunk", :aggregate_failures do
     worker = described_class.new
-    expect(worker.lines("a\nb")).to(eq(["a"]))
-    expect(worker.lines("c\n\nd\n")).to(eq(["bc", "", "d"]))
-    expect(worker.rest).to(eq(""))
-    expect(worker.lines("e")).to(eq([]))
-    expect([worker.rest, worker.rest]).to(eq(["e", ""]))
+    chunks = [worker.lines("a\nb"), worker.lines("c\n\nd\n"), worker.rest, worker.lines("e"), worker.rest, worker.rest]
+    expect(chunks).to(eq([["a"], ["bc", "", "d"], "", [], "e", ""]))
   end
 
   it "is fresh until it claims a mutant", :aggregate_failures do
@@ -40,36 +37,34 @@ RSpec.describe Kimera::Execution::WorkerPool::Worker do
   it "stays on the clock while it retires", :aggregate_failures do
     worker = described_class.new(request: :pipe, inflight: 5, deadline: nil)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-
-    expect(worker.retire(3.0)).to(eq(:pipe))
-    expect(worker.inflight).to(be_nil)
+    expect([worker.retire(3.0), worker.inflight]).to(eq([:pipe, nil]))
     expect(worker.deadline).to(be_within(1.0).of(started + 3.0))
     expect(worker.expired?(started + 4.0)).to(be(true))
   end
 
   it "offers a recheck with its flag, and plain work without one" do
-    reader, writer = IO.pipe
-    worker = described_class.new(request: writer)
-    worker.offer(5, recheck: true)
-    worker.offer(6)
-    writer.close
-
-    expect(reader.each_line.map { |line| JSON.parse(line) }).to(eq([{ "id" => 5, "recheck" => true }, { "id" => 6 }]))
-  ensure
-    reader&.close
+    IO.pipe do |reader, writer|
+      described_class.new(request: writer).tap { |worker| worker.offer(5, recheck: true) }.offer(6)
+      writer.close
+      expect(reader.each_line.map { |line| JSON.parse(line) }).to(eq([{ "id" => 5, "recheck" => true }, { "id" => 6 }]))
+    end
   end
 
   # Any line proves the worker alive; a crash line also says why it is dying.
-  it "renews its deadline on every message and keeps a crash's last words", :aggregate_failures do
+  it "renews its deadline on every message", :aggregate_failures do
     worker = described_class.new
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     expect(worker.heard({ "t" => "tick" }, 3.0)).to(equal(worker))
     expect(worker.deadline).to(be_within(1.0).of(started + 3.0))
-    expect(worker.last_words).to(be_nil)
-    worker.heard({ "t" => "requeue", "detail" => "state leak" }, 3.0)
-    expect(worker.last_words).to(be_nil)
-    worker.heard({ "t" => "crash", "detail" => "Boom: x" }, 3.0)
-    expect(worker.last_words).to(eq("Boom: x"))
+  end
+
+  it "keeps a crash's last words, and only a crash's" do
+    worker = described_class.new
+    words = [
+      worker.last_words, worker.heard({ "t" => "requeue", "detail" => "state leak" }, 3.0).last_words,
+      worker.heard({ "t" => "crash", "detail" => "Boom: x" }, 3.0).last_words
+    ]
+    expect(words).to(eq([nil, nil, "Boom: x"]))
   end
 
   describe "#obituary" do

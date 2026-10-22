@@ -180,16 +180,19 @@ RSpec.describe(Kimera::RegistryScan) do
     # Kimera's own specs drive the runtime with ids from 1 (a nested harness
     # forks real workers that switch on mutant 1). A run on kimera itself
     # numbers its mutants far above them, so a spec never switches one on.
-    it "numbers kimera's own mutants from OWN_FIRST, and a project's from 1", :aggregate_failures do
+    # The lowest mutant id of a scan of these paths.
+    def first_id(paths) = described_class.new(root: "/").build(paths).each.map { |m, _p| m.id }.min
+
+    it "numbers kimera's own mutants from OWN_FIRST, and a project's from 1" do
       Dir.mktmpdir do |dir|
-        project = File.join(dir, "calc.rb")
-        File.write(project, "def a(x, y) = x > y\n")
+        project = File.join(dir, "calc.rb").tap { |file| File.write(file, "def a(x, y) = x > y\n") }
         own = File.join(File.dirname(Kimera::Runtime::SOURCE_PATH), "registry", "numbering.rb")
-        first = ->(paths) { described_class.new(root: "/").build(paths).each.map { |m, _p| m.id }.min }
-        expect(first.call([project])).to(eq(1))
-        expect(first.call([project, own])).to(eq(described_class::OWN_FIRST))
-        expect([numbering.point, Kimera::RegistryScan::Numbering.new(7).mutant]).to(eq([1, 7]))
+        expect([first_id([project]), first_id([project, own])]).to(eq([1, described_class::OWN_FIRST]))
       end
+    end
+
+    it "numbers points and mutants from where it is told" do
+      expect([numbering.point, Kimera::RegistryScan::Numbering.new(7).mutant]).to(eq([1, 7]))
     end
 
     it "numbers every point in a scan uniquely" do

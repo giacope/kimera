@@ -34,8 +34,7 @@ RSpec.describe(Kimera::Runtime) do
     it "records what it reaches in the main Ractor's open ledger, once per id", :aggregate_failures do
       ledger = runtime.start!
       runtime.active = 4
-      expect(in_ractor(runtime, 4)).to(be(true))
-      expect(in_ractor(runtime, 9)).to(be(false))
+      expect([in_ractor(runtime, 4), in_ractor(runtime, 9)]).to(eq([true, false]))
       expect(runtime.stop!(ledger)).to(contain_exactly(4, 9))
       expect(in_ractor(runtime, 4)).to(be(true))
     end
@@ -67,6 +66,13 @@ RSpec.describe(Kimera::Runtime) do
       runtime.reset!
       expect(runtime.active).to(be_nil)
       expect(runtime.active?(5)).to(be(false))
+    end
+  end
+
+  describe "#overlay" do
+    it "is overlaying only while its block runs" do
+      inside = runtime.overlay { runtime.overlaying? }
+      expect([runtime.overlaying?, inside, runtime.overlaying?]).to(eq([false, true, false]))
     end
   end
 
@@ -154,10 +160,10 @@ RSpec.describe(Kimera::Runtime) do
     end
 
     # Start from an empty table: an outer measurer or leaked ledgers would
-    # skip the nil-teardown path.
+    # skip the empty-table path.
     def preserve
       saved = runtime.instance_variable_get(:@ledgers)
-      runtime.instance_variable_set(:@ledgers, nil)
+      runtime.instance_variable_set(:@ledgers, Kimera::Runtime::NONE)
       yield
     ensure
       runtime.instance_variable_set(:@ledgers, saved)
@@ -171,12 +177,11 @@ RSpec.describe(Kimera::Runtime) do
       end
     end
 
-    # White-box: an empty array would stay on active?'s hot path forever.
-    it "frees the ledger table when the last ledger closes" do
+    it "leaves no ledger open once the last one closes" do
       preserve do
         ledger = runtime.start!
         runtime.stop!(ledger)
-        expect(runtime.instance_variable_get(:@ledgers)).to(be_nil)
+        expect(runtime.leaks).to(be_empty)
       end
     end
 
@@ -233,7 +238,7 @@ RSpec.describe(Kimera::Runtime) do
     end
 
     it "are not looked for while no ledger is open" do
-      expect(runtime.leaks).to(be_nil)
+      expect(runtime.leaks).to(be_empty)
     end
 
     it "write each mutant once" do
@@ -248,26 +253,34 @@ RSpec.describe(Kimera::Runtime) do
   describe "#privatize" do
     let(:owner) { Class.new { def shown = 1 } }
 
+    # Whether shown is private with each id active in turn.
+    def privacy(ids)
+      ids.map do |id|
+        runtime.active = id
+        owner.private_method_defined?(:shown)
+      end
+    end
+
     it "flips a registered method on activation and back on deactivation", :aggregate_failures do
       runtime.privatize(3, owner, :shown)
-      runtime.active = 3
-      expect(owner.private_method_defined?(:shown)).to(be(true))
-      runtime.active = 4
-      expect(owner.public_method_defined?(:shown)).to(be(true))
-      runtime.active = 3
+      expect(privacy([3, 4, 3])).to(eq([true, false, true]))
       runtime.reset!
       expect(owner.public_method_defined?(:shown)).to(be(true))
     end
 
-    it "flips the names that hold the registered definition, not a later redefinition", :aggregate_failures do
+    # Registers shown for mutant 6, then redefines it over an alias that keeps the registered one.
+    def overridden
       runtime.privatize(6, owner, :shown)
       owner.class_eval do
         alias_method :before, :shown
         def shown = before + 1
       end
+    end
+
+    it "flips the names that hold the registered definition, not a later redefinition", :aggregate_failures do
+      overridden
       runtime.active = 6
-      expect(owner.private_method_defined?(:before)).to(be(true))
-      expect(owner.public_method_defined?(:shown)).to(be(true))
+      expect([owner.private_method_defined?(:before), owner.public_method_defined?(:shown)]).to(eq([true, true]))
       runtime.active = nil
       expect(owner.public_method_defined?(:before)).to(be(true))
     end

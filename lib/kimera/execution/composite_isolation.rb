@@ -2,9 +2,8 @@
 
 require_relative "isolation"
 
-class Kimera::Execution::CompositeIsolation < Kimera::Execution::Isolation
+class Kimera::Execution::CompositeIsolation
   def initialize(strategies)
-    super()
     @given = strategies
   end
 

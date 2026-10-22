@@ -4,20 +4,18 @@ require_relative "vocabulary"
 
 module Kimera
   module Operators
-    class Survey
-      def initialize(root)
-        @root = root
-      end
-
+    module Survey
       def include?(node) = found.include?(node)
-
-      NONE = new(Kimera::Syntax.parse("").value)
 
       private
 
       def found = @_found ||= Set.new.compare_by_identity.merge(nodes)
-
-      def nodes = []
     end
+
+    class EmptySurvey
+      def include?(_node) = false
+    end
+
+    Survey::NONE = EmptySurvey.new
   end
 end

@@ -2,7 +2,7 @@
 
 require "json"
 require "kimera/execution/shift"
-require "kimera/frameworks/adapter"
+require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 require "stringio"
 
@@ -13,7 +13,7 @@ RSpec.describe(Kimera::Execution::Shift::Census) do
 
   # t1 and t2 fail with the mutant on; t3 passes; "raise" errors, "hang" sleeps past the soft timeout.
   def adapter(runs = [])
-    Class.new(Kimera::Frameworks::Adapter) do
+    Class.new(Kimera::Frameworks::Suite) do
       define_method(:test_ids) { %w[t1 t2 t3 raise hang] }
       define_method(:run) do |ids|
         runs << [Kimera::RUNTIME.active, ids]
@@ -37,10 +37,9 @@ RSpec.describe(Kimera::Execution::Shift::Census) do
   it "records every covering test that fails, errs or times out alone with the mutant on", :aggregate_failures do
     runs = []
     result = shift(adapter(runs)).evaluate(target)
-    expect([result.status, result.failing_tests]).to(eq([:killed, ["t1"]]))
-    expect(result.killing_tests).to(eq(%w[t1 t2 raise hang]))
+    expect([result.status, result.failing_tests, result.killing_tests, result.message[:kills]])
+      .to(eq([:killed, ["t1"], %w[t1 t2 raise hang], %w[t1 t2 raise hang]]))
     expect(runs.drop(1)).to(eq([[target, ["t2"]], [target, ["t3"]], [target, ["raise"]], [target, ["hang"]]]))
-    expect(result.message[:kills]).to(eq(%w[t1 t2 raise hang]))
   end
 
   it "counts a test whose process dies with the mutant on as a killer" do

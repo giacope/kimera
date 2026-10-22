@@ -86,12 +86,16 @@ RSpec.describe(Kimera::CLI::Baseline, :aggregate_failures) do
     )
   end
 
-  it "leaves the file alone on a dry run, or when nothing changed" do
+  it "leaves the file alone on a dry run", :aggregate_failures do
     seed
     before = File.read("base.yml")
     expect(cli.run(%w[prune base.yml --report r.json --dry-run])).to(eq(0))
     expect(File.read("base.yml")).to(eq(before))
     expect(out.string).to(include("Would remove 2 entr(ies)", "would hold 5", "(dry run: base.yml is unchanged)"))
+  end
+
+  it "leaves the file alone when nothing changed", :aggregate_failures do
+    seed
     File.write("base.yml", "# reviewed in #42\n#{YAML.dump("ignore" => [entry("app/a.rb", 5, "< => <=")])}")
     expect(cli.run(%w[prune base.yml --report r.json])).to(eq(0))
     expect(out.string).to(end_with("Nothing to prune: base.yml keeps its 1 accepted mutant(s).\n"))
@@ -105,10 +109,12 @@ RSpec.describe(Kimera::CLI::Baseline, :aggregate_failures) do
     [out.string, kept["ignore"]]
   end
 
-  it "reports only the kind of change it made" do
+  it "reports only a removal when it only removed" do
     removed, left = pruned(entry("app/a.rb", 3, "> => >="), entry("app/a.rb", 5, "< => <="))
-    expect(removed).not_to(include("Re-anchored"))
-    expect(left).to(eq([entry("app/a.rb", 5, "< => <=")]))
+    expect([removed.include?("Re-anchored"), left]).to(eq([false, [entry("app/a.rb", 5, "< => <=")]]))
+  end
+
+  it "reports only a re-anchoring when it only moved an entry", :aggregate_failures do
     moved, left = pruned(entry("app/a.rb", 11, "!x => x"))
     expect(moved).not_to(include("Removed"))
     expect(moved).to(include("max_ignored can be lowered by 0."))
@@ -147,10 +153,8 @@ RSpec.describe(Kimera::CLI::Baseline, :aggregate_failures) do
 
   it "rejects a prune or review it cannot carry out" do
     seed
-    expect(cli.run(%w[prune base.yml])).to(eq(1))
-    expect(cli.run(%w[prune base.yml --report missing.json])).to(eq(1))
-    expect(cli.run(%w[review missing.yml --report r.json])).to(eq(1))
-    expect(cli.run(%w[review base.yml extra])).to(eq(1))
+    argvs = [%w[prune base.yml], %w[prune base.yml --report missing.json], %w[review missing.yml --report r.json]]
+    expect([*argvs, %w[review base.yml extra]].map { |argv| cli.run(argv) }).to(eq([1, 1, 1, 1]))
     expect(errors.string.lines).to(
       eq(
         [
@@ -170,10 +174,19 @@ RSpec.describe(Kimera::CLI::Baseline, :aggregate_failures) do
     expect(kept["ignore"].first.keys).to(eq(%w[file line label original reason]))
   end
 
-  it "accepts mutants only other units' tests reach as survivors, in a new baseline and in a review" do
+  # A baseline created from a report whose one mutant only other units' tests reach.
+  def unit_uncovered
     File.write("r.json", JSON.generate("results" => [row(30, "> => <", "uncovered_by_unit")]))
     cli.run(%w[create r.json --reason debt --output base.yml])
+  end
+
+  it "accepts mutants only other units' tests reach as survivors in a new baseline" do
+    unit_uncovered
     expect(kept["ignore"]).to(eq([entry("app/a.rb", 30, "> => <", "original" => "x")]))
+  end
+
+  it "counts them as still surviving in a review" do
+    unit_uncovered
     File.write("r.json", JSON.generate("results" => [row(30, "> => <", "ignored", "uncovered_by_unit")]))
     cli.run(%w[review base.yml --report r.json])
     expect(out.string).to(include("Still surviving (1)"))

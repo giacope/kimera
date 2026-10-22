@@ -4,6 +4,7 @@ require_relative "../rewrite/directive"
 require_relative "coloring"
 require_relative "screen"
 require_relative "sections"
+require_relative "../support/snippet"
 require_relative "test_health"
 require_relative "actions"
 require_relative "file_table"
@@ -104,9 +105,5 @@ class Kimera::Report::Text
     source(green("+"), variant) if variant
   end
 
-  def source(sign, text)
-    first, *rest = text.split("\n")
-    @io.puts("    #{sign} #{first}")
-    rest.each { |line| @io.puts("      #{line}") }
-  end
+  def source(sign, text) = @io.puts(Kimera::Snippet.new(sign, text).lines("    "))
 end

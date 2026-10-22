@@ -58,9 +58,9 @@ RSpec.describe(Kimera::SelfProtection) do
   describe "#critical?" do
     def fixtures
       %w[
-        lib/kimera/frameworks/rspec_adapter.rb
-        lib/kimera/frameworks/minitest_adapter.rb
-        lib/kimera/frameworks/adapter.rb
+        lib/kimera/frameworks/rspec_suite.rb
+        lib/kimera/frameworks/minitest_suite.rb
+        lib/kimera/frameworks/suite.rb
         lib/kimera/support/test_exit.rb
         lib/kimera/execution/shift.rb
         lib/kimera/execution/harness.rb

@@ -31,18 +31,18 @@ RSpec.describe(Kimera::WorkTree, :aggregate_failures) do
     tree.changed(before)
   end
 
+  # Deletes a.rb, rewrites b.rb, and writes kimera's report and a log.
+  def churn(root)
+    File.delete(File.join(root, "a.rb"))
+    File.write(File.join(root, "b.rb"), "22\n")
+    File.write(File.join(root, "tmp/kimera/report.json"), "{}")
+    File.write(File.join(root, "log/x.log"), "more\n")
+  end
+
   [true, false].each do |git|
     it "names what a run deleted or rewrote, and nothing else (git: #{git})" do
       project(git: git) do |root|
-        changed =
-          changes(root) do
-            File.delete(File.join(root, "a.rb"))
-            File.write(File.join(root, "b.rb"), "22\n")
-            File.write(File.join(root, "tmp/kimera/report.json"), "{}")
-            File.write(File.join(root, "log/x.log"), "more\n")
-          end
-        expect(changed).to(eq(%w[a.rb b.rb]))
-        expect(changes(root) { :nothing }).to(be_empty)
+        expect([changes(root) { churn(root) }, changes(root) { :nothing }]).to(eq([%w[a.rb b.rb], []]))
       end
     end
   end
@@ -61,42 +61,58 @@ RSpec.describe(Kimera::WorkTree, :aggregate_failures) do
     end
   end
 
-  it "says nothing when nothing changed, and lists at most ten" do
+  it "says nothing when nothing changed" do
+    project(git: false) { |root| expect(described_class.new(root).watch { :done }).to(eq([:done, nil])) }
+  end
+
+  it "says nothing of a file the run added" do
     project(git: false) do |root|
-      tree = described_class.new(root)
-      expect(tree.watch { :done }).to(eq([:done, nil]))
-      (1..12).each { |n| File.write(File.join(root, "f#{n}.rb"), "") }
-      expect(tree.watch { File.write(File.join(root, "new.rb"), "") }.last).to(be_nil)
-      _, warning = tree.watch { (1..12).each { |n| File.write(File.join(root, "f#{n}.rb"), "changed\n") } }
-      expect(warning).to(start_with("kimera: the run changed 12 tracked file(s) in the project"))
-      expect(warning.lines.size).to(eq(12))
-      expect(warning.lines.last).to(eq("  … and 2 more"))
+      expect(described_class.new(root).watch { File.write(File.join(root, "new.rb"), "") }.last).to(be_nil)
     end
   end
 
-  it "sees a tracked file of any kind under git, and only Ruby files without it", :aggregate_failures do
+  def twelve(root) = (1..12).map { |n| File.join(root, "f#{n}.rb") }
+
+  it "lists at most ten changed files" do
+    project(git: false) do |root|
+      twelve(root).each { |file| File.write(file, "") }
+      _, warning = described_class.new(root).watch { twelve(root).each { |file| File.write(file, "changed\n") } }
+      expect([warning.lines.first, warning.lines.size, warning.lines.last])
+        .to(match([start_with("kimera: the run changed 12 tracked file(s) in the project"), 12, "  … and 2 more"]))
+    end
+  end
+
+  it "sees a tracked file of any kind under git" do
     project(git: true) do |root|
       File.write(File.join(root, "fixture.txt"), "x\n")
       commit(root)
       expect(changes(root) { File.delete(File.join(root, "fixture.txt")) }).to(eq(["fixture.txt"]))
     end
+  end
+
+  it "sees only Ruby files without git" do
     project(git: false) do |root|
       File.write(File.join(root, "fixture.txt"), "x\n")
       expect(changes(root) { File.delete(File.join(root, "fixture.txt")) }).to(be_empty)
     end
   end
 
+  # A cache file under tmp, and a directory named like a Ruby file.
+  def decoys(root)
+    FileUtils.mkdir_p(File.join(root, "tmp", "cache"))
+    File.write(File.join(root, "tmp", "cache", "x.rb"), "1\n")
+    FileUtils.mkdir_p(File.join(root, "lib", "odd.rb"))
+  end
+
+  def disturb(root)
+    File.write(File.join(root, "tmp", "cache", "x.rb"), "22\n")
+    File.write(File.join(root, "lib", "odd.rb", "inside"), "")
+  end
+
   it "leaves what the run writes under tmp, and a directory that only looks like a Ruby file" do
     project(git: false) do |root|
-      FileUtils.mkdir_p(File.join(root, "tmp", "cache"))
-      File.write(File.join(root, "tmp", "cache", "x.rb"), "1\n")
-      FileUtils.mkdir_p(File.join(root, "lib", "odd.rb"))
-      changed =
-        changes(root) do
-          File.write(File.join(root, "tmp", "cache", "x.rb"), "22\n")
-          File.write(File.join(root, "lib", "odd.rb", "inside"), "")
-        end
-      expect(changed).to(be_empty)
+      decoys(root)
+      expect(changes(root) { disturb(root) }).to(be_empty)
     end
   end
 
@@ -109,9 +125,7 @@ RSpec.describe(Kimera::WorkTree, :aggregate_failures) do
 
   it "leaves a tracked file kimera itself writes, such as its report" do
     project(git: true) do |root|
-      report = File.join(root, "report.json")
-      File.write(report, "{}")
-      commit(root)
+      report = File.join(root, "report.json").tap { |file| File.write(file, "{}") }.tap { commit(root) }
       expect(changes(root, ignored: [report, nil]) { File.write(report, "{\"x\": 1}") }).to(be_empty)
       expect(changes(root, ignored: [nil]) { File.write(report, "{\"x\": 2}") }).to(eq(["report.json"]))
     end

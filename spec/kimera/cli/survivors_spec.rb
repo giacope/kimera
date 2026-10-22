@@ -8,7 +8,7 @@ require "kimera/cli"
 require "kimera/cli/survivors"
 require "tmpdir"
 
-RSpec.describe("kimera survivors", :aggregate_failures) do
+RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
   let(:dir) { Dir.mktmpdir }
   let(:report_path) { File.join(dir, "report.json") }
   let(:report) do
@@ -127,11 +127,7 @@ RSpec.describe("kimera survivors", :aggregate_failures) do
 
   it "omits the optional lines for a bare result with --id" do
     out, status = run(report_path, "--id", "12")
-    expect(status).to(eq(0))
-    expect(out).to(include("#12  timeout  app/models/bare.rb", "- z"))
-    absent = %w[at: operator: label: duration: detail: note: covering failing +]
-    absent.each { |a| expect(out).not_to(include(a)) }
-    expect(out).to(eq("#12  timeout  app/models/bare.rb\n  - z\n"))
+    expect([status, out]).to(eq([0, "#12  timeout  app/models/bare.rb\n  - z\n"]))
   end
 
   describe "multiline diffs" do
@@ -293,9 +289,7 @@ RSpec.describe("kimera survivors", :aggregate_failures) do
     FileUtils.mkdir_p(File.join(dir, "tmp/kimera"))
     FileUtils.cp(report_path, File.join(dir, "tmp/kimera/report.json"))
     out, status = Dir.chdir(dir) { run("book") }
-    expect(status).to(eq(0))
-    expect(out).to(include("#9"))
-    expect(out).not_to(include("#7"))
+    expect([status, out.include?("#9"), out.include?("#7")]).to(eq([0, true, false]))
   end
 
   # `kimera mutant ID --report FILE` names its report with a flag; so may this.
@@ -310,6 +304,6 @@ RSpec.describe("kimera survivors", :aggregate_failures) do
     expect do
       _, status = run("nope.json")
       expect(status).to(eq(1))
-    end.to(output(/no such report/).to_stderr)
+    end.to(output(/no such report: nope\.json/).to_stderr)
   end
 end

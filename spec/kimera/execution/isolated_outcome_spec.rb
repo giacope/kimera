@@ -96,13 +96,20 @@ RSpec.describe(Kimera::Execution::IsolatedOutcome) do
   end
 
   describe "#explain" do
-    it "says why a red isolated baseline is red", :aggregate_failures do
-      expect(described_class.new(:timeout).timed(30).explain).to(eq("timed out after 30s without a test finishing"))
-      expect(described_class.new(:timeout).explain).to(eq("timed out"))
-      expect(described_class.new(:killed, %w[a b], "Error: why").explain).to(eq("failing: a, b (Error: why)"))
-      expect(described_class.new(:killed, %w[a b]).explain).to(eq("failing: a, b"))
-      expect(described_class.new(:killed, [], "LoadError: x").explain).to(eq("LoadError: x"))
-      expect(described_class.new(:harness_error).explain).to(eq("the test child failed without naming a test"))
+    it "says why a red isolated baseline is red" do
+      outcomes = [
+        described_class.new(:timeout).timed(30), described_class.new(:timeout),
+        described_class.new(:killed, %w[a b], "Error: why"), described_class.new(:killed, %w[a b]),
+        described_class.new(:killed, [], "LoadError: x"), described_class.new(:harness_error)
+      ]
+      expect(outcomes.map(&:explain)).to(
+        eq(
+          [
+            "timed out after 30s without a test finishing", "timed out", "failing: a, b (Error: why)",
+            "failing: a, b", "LoadError: x", "the test child failed without naming a test"
+          ]
+        )
+      )
     end
   end
 

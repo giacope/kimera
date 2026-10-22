@@ -86,21 +86,20 @@ RSpec.describe(Kimera::Execution::Zygote) do
   # The child's half runs only in a forked child, where no coverage reaches;
   # run it here, with its exit stubbed.
   describe "the child's half, run here" do
-    def spawned(zygote, saved)
+    # A zygote whose child half ran here with its exit stubbed, and its reply.
+    def spawned(saved)
       reader, writer = IO.pipe
-      allow(zygote).to(receive(:exit!))
+      zygote = described_class.new.tap { |stubbed| allow(stubbed).to(receive(:exit!)) }
       zygote.__send__(:spawned, described_class::Pipe.new(reader.dup, writer), saved) { 7 }
-      reader.read
+      [zygote, reader.read]
     end
 
     it "hands back the caller's QUIT handler, replies, and exits without unwinding", :aggregate_failures do
-      zygote = described_class.new
       handler = proc {}
       previous = Signal.trap("QUIT", "IGNORE")
-      reply = spawned(zygote, handler)
-      expect(Signal.trap("QUIT", previous)).to(be(handler))
-      expect(JSON.parse(reply)).to(eq("value" => 7))
-      expect(zygote).to(have_received(:exit!).with(0))
+      child, reply = spawned(handler)
+      expect([Signal.trap("QUIT", previous), JSON.parse(reply)]).to(eq([handler, { "value" => 7 }]))
+      expect(child).to(have_received(:exit!).with(0))
     end
   end
 
@@ -120,8 +119,7 @@ RSpec.describe(Kimera::Execution::Zygote) do
     it "takes the reply and closes both of the parent's ends", :aggregate_failures do
       reader, writer = IO.pipe
       pipe = described_class.new(reader, writer.dup)
-      writer.write("reply")
-      writer.close
+      writer.tap { |sink| sink.write("reply") }.close
       expect(pipe.take).to(eq("reply"))
       expect([pipe.reader, pipe.writer]).to(all(be_closed))
     end

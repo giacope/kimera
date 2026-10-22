@@ -18,6 +18,8 @@ class Kimera::Incremental::SuiteFiles
 
   def globs = @patterns + folders.map { |folder| "#{folder}/**/*" }
 
+  def files(root) = globs.flat_map { |glob| Dir.glob(glob, base: root) }
+
   private
 
   def folders = @patterns.filter_map { |pattern| pattern[FOLDER, 1] }.uniq

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "kimera/memoization"
+require "kimera/registry/memoization"
 
 RSpec.describe(Kimera::Memoization) do
   def reasons(source)
@@ -84,12 +84,12 @@ RSpec.describe(Kimera::Memoization) do
     end
 
     # A keyed cache is memoization too (D6): each key's value is computed once.
-    it "taints a keyed cache's ||= on an instance, class or global variable, or a memoized hash", :aggregate_failures do
-      %w[@cache @@cache $cache (@cache||={})].each do |cache|
-        line = "#{cache}[key] ||= compute(a > b)"
-        code = "def m(key)\n  #{line}\nend\n"
-        expect(reasons(code)).to(include("memoized via `cache[key] ||=`"), line)
-        expect(covers?(code, "a > b")).to(be(true), line)
+    # An instance, class or global variable, or a memoized hash.
+    %w[@cache @@cache $cache (@cache||={})].each do |cache|
+      it "taints a keyed cache's ||= on #{cache}", :aggregate_failures do
+        code = "def m(key)\n  #{cache}[key] ||= compute(a > b)\nend\n"
+        expect(reasons(code)).to(include("memoized via `cache[key] ||=`"))
+        expect(covers?(code, "a > b")).to(be(true))
       end
     end
 
@@ -183,23 +183,19 @@ RSpec.describe(Kimera::Memoization) do
     end
 
     it "taints nothing for an or-write node without a value" do
-      # Skips Prism's constructor, which requires args.
+      # allocate skips Prism's constructor, which requires args.
       fake = Class.new(Prism::InstanceVariableOrWriteNode) do
-        def initialize; end
-
         # stubs a valueless node on purpose
         def value; end
-      end.new
+      end.allocate
       expect(described_class.new("").__send__(:taint, fake)).to(be_nil)
     end
 
     it "taints nothing for a constant write without a value" do
       fake = Class.new(Prism::ConstantWriteNode) do
-        def initialize; end
-
         # stubs a valueless node on purpose
         def value; end
-      end.new
+      end.allocate
       expect(described_class.new("").__send__(:taint, fake)).to(be_nil)
     end
   end

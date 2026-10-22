@@ -96,20 +96,25 @@ RSpec.describe(Kimera::Report::Text) do
   it "places a mutant outside any method without naming one" do
     lambda = Kimera::RegistryScan.new.source("check = -> { a > b }\n", file: "l.rb")
     found = lambda.each.first.first
-    io = StringIO.new
-    result = Kimera::MutantResult.new(mutant_id: found.id, status: :survived, file: "l.rb")
-    described_class.new(lambda, io: io, color: false).report(Kimera::RunReport.new(results: [result]))
+    run = Kimera::RunReport.new(
+      results: [Kimera::MutantResult.new(mutant_id: found.id, status: :survived, file: "l.rb")]
+    )
+    io = StringIO.new.tap { |sink| described_class.new(lambda, io: sink, color: false).report(run) }
     expect(io.string).to(include("survived ##{found.id}  l.rb:1:14  [#{found.label}]"))
+  end
+
+  def mixed_results(both)
+    uncovered = both.each.find { |_, point| point.file == "b.rb" }.first.id
+    [
+      Kimera::MutantResult.new(mutant_id: uncovered, status: :no_coverage, file: "b.rb"),
+      survivor, Kimera::MutantResult.new(mutant_id: 99, status: :killed, file: "calc.rb")
+    ]
   end
 
   def mixed
     other = Kimera::RegistryScan.new.source("def b(x)\n  x > 1\nend\n", file: "b.rb")
     both = Kimera::Registry.new(points: registry.points + other.points)
-    pick = ->(file) { both.each.find { |_, point| point.file == file }.first.id }
-    results = [
-      Kimera::MutantResult.new(mutant_id: pick.call("b.rb"), status: :no_coverage, file: "b.rb"),
-      survivor, Kimera::MutantResult.new(mutant_id: 99, status: :killed, file: "calc.rb")
-    ]
+    results = mixed_results(both)
     io = StringIO.new
     described_class.new(both, io: io, color: false).report(Kimera::RunReport.new(results: results))
     io.string
@@ -157,35 +162,34 @@ RSpec.describe(Kimera::Report::Text) do
     expect(io.string).not_to(include("\e["))
   end
 
-  it "auto-detects: color on a tty stream" do
+  # Runs the block with NO_COLOR set to the value, or unset.
+  def no_color(value)
+    saved = ENV.fetch("NO_COLOR", nil)
+    ENV["NO_COLOR"] = value
+    yield
+  ensure
+    ENV["NO_COLOR"] = saved
+  end
+
+  # Whether a report on a terminal comes out colored, with NO_COLOR as given.
+  def colored?(value)
     io = StringIO.new
     def io.tty? = true
     run = Kimera::RunReport.new(results: [survivor])
-    old = ENV.delete("NO_COLOR")
-    described_class.new(registry, io: io, color: nil).report(run)
-    expect(io.string).to(include("\e["))
-  ensure
-    ENV["NO_COLOR"] = old if old
+    no_color(value) { described_class.new(registry, io: io, color: nil).report(run) }
+    io.string.include?("\e[")
+  end
+
+  it "auto-detects: color on a tty stream" do
+    expect(colored?(nil)).to(be(true))
   end
 
   it "respects NO_COLOR when color is not explicitly requested" do
-    io = StringIO.new
-    def io.tty? = true
-    run = Kimera::RunReport.new(results: [survivor])
-    old = ENV.fetch("NO_COLOR", nil)
-    ENV["NO_COLOR"] = "1"
-    described_class.new(registry, io: io, color: nil).report(run)
-    expect(io.string).not_to(include("\e["))
-  ensure
-    ENV["NO_COLOR"] = old
+    expect(colored?("1")).to(be(false))
   end
 
   it "lets an explicit color choice override NO_COLOR" do
-    old = ENV.fetch("NO_COLOR", nil)
-    ENV["NO_COLOR"] = "1"
-    expect(render(results: [survivor], color: true)).to(include("\e["))
-  ensure
-    ENV["NO_COLOR"] = old
+    expect(no_color("1") { render(results: [survivor], color: true) }).to(include("\e["))
   end
 
   it "skips a survivor whose mutant is not in the registry", :aggregate_failures do

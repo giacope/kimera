@@ -20,21 +20,19 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   # +settling+ simulates the post-result leak-check re-run.
   def healthy(preamble: [], evaluation: 0, settling: 0)
     forked do |request, response|
-      while (line = request.gets)
-        id = JSON.parse(line)["id"]
-        preamble.each { |line| response.puts(line) }
-        response.puts(JSON.generate(t: "start", id: id))
-        sleep(evaluation) if evaluation.positive?
-        response.puts(JSON.generate(t: "result", id: id, status: "killed", ms: 1, fails: []))
-        response.flush
-        sleep(settling) if settling.positive?
-        response.puts(JSON.generate(t: "ready"))
-        response.flush
-      end
-      response.puts(JSON.generate(t: "done"))
-      response.close
+      serving(request, response) { |id| settle(response, id, preamble, evaluation, settling) }
       exit!(0)
     end
+  end
+
+  def settle(response, id, preamble, evaluation, settling)
+    response.puts(*preamble, JSON.generate(t: "start", id: id))
+    sleep(evaluation)
+    response.puts(JSON.generate(t: "result", id: id, status: "killed", ms: 1, fails: []))
+    response.flush
+    sleep(settling)
+    response.puts(JSON.generate(t: "ready"))
+    response.flush
   end
 
   def crashed
@@ -218,18 +216,21 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     expect(witness.outlived?).to(be(false))
   end
 
-  it "kills what a worker left running when it crashed or exited", :aggregate_failures do
-    witness = self.witness
+  # Spawns a worker that leaves the witness running and exits at its first
+  # request, then healthy workers.
+  def crash_once(witness)
     spawned = 0
-    spawner =
-      lambda do |_slot|
-        spawned += 1
-        spawned == 1 ? founder(witness) { |request, _| exit!(1) if request.gets } : healthy
-      end
-    resolved, lost = pool(queue: [1, 2], spawner: spawner)
-    expect(lost).to(eq([[1, :crash]]))
-    expect(resolved.select { |m| m["t"] == "result" }.map { |m| m["id"] }).to(eq([2]))
-    expect(witness.outlived?).to(be(false))
+    lambda do |_slot|
+      spawned += 1
+      spawned == 1 ? founder(witness) { |request, _| exit!(1) if request.gets } : healthy
+    end
+  end
+
+  it "kills what a worker left running when it crashed or exited" do
+    witness = self.witness
+    resolved, lost = pool(queue: [1, 2], spawner: crash_once(witness))
+    expect([lost, resolved.select { |m| m["t"] == "result" }.map { |m| m["id"] }, witness.outlived?])
+      .to(eq([[[1, :crash]], [2], false]))
   end
 
   # Workers lead their own process groups, out of reach of the terminal's
@@ -251,20 +252,15 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   it "kills and reaps every live worker, and what it started, when the run aborts", :aggregate_failures do
     witness = self.witness
     error, (pid, *pipes) = Timeout.timeout(10) { stopped(witness, ->(_slot) { crashed }) }
-    expect(error).to(be_a(Kimera::Error))
-    expect(reaped?(pid)).to(be(true))
-    expect(pipes).to(all(be_closed))
-    expect(witness.outlived?).to(be(false))
+    expect([error, reaped?(pid), pipes, witness.outlived?])
+      .to(match([be_a(Kimera::Error), true, all(be_closed), false]))
   end
 
   it "kills and reaps every live worker, and what it started, when kimera is interrupted", :aggregate_failures do
     witness = self.witness
     interrupt = ->(message) { raise(Interrupt) if message["t"] == "result" }
     error, (pid, *pipes) = Timeout.timeout(10) { stopped(witness, ->(_slot) { healthy }, resolve: interrupt) }
-    expect(error).to(be_a(Interrupt))
-    expect(reaped?(pid)).to(be(true))
-    expect(pipes).to(all(be_closed))
-    expect(witness.outlived?).to(be(false))
+    expect([error, reaped?(pid), pipes, witness.outlived?]).to(match([be_a(Interrupt), true, all(be_closed), false]))
   end
 
   # A hang is the mutant's fault; only crashes are systemic.
@@ -396,17 +392,15 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     expect(slots).to(eq([0, 0]))
   end
 
-  it "closes both parent pipe ends when a worker crashes" do
-    pipes = []
-    spawner =
-      lambda do |_slot|
-        crashed.tap { |connection| pipes.concat(connection.drop(1)) }
-      end
+  describe "a crashed worker's pipes" do
+    let(:pipes) { [] }
 
-    pool(queue: [1], spawner: spawner)
-    expect(pipes).to(all(be_closed))
-  ensure
-    pipes&.each { |pipe| pipe.close unless pipe.closed? }
+    after { pipes.each { |pipe| pipe.close unless pipe.closed? } }
+
+    it "are closed at both parent ends" do
+      pool(queue: [1], spawner: ->(_slot) { crashed.tap { |connection| pipes.concat(connection.drop(1)) } })
+      expect(pipes).to(all(be_closed))
+    end
   end
 
   it "extends the deadline through the post-result leak-check", :aggregate_failures do

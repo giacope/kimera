@@ -9,6 +9,8 @@ module Kimera
 end
 
 class Kimera::Execution::Verdicts
+  WIRE = { "id" => "mutant_id", "ms" => "duration", "fails" => "failing_tests", "cover" => "covering_tests" }.freeze
+
   def initialize(registry)
     @registry = registry
   end
@@ -24,12 +26,7 @@ class Kimera::Execution::Verdicts
   def reclassified(results) = results.transform_values { |result| reclassify(result) }
 
   def parse(message)
-    id = message["id"]
-    Kimera::MutantResult.new(
-      mutant_id: id, status: message["status"].to_sym, file: path(id),
-      duration: message["ms"], failing_tests: message["fails"], covering_tests: message["cover"],
-      detail: message["detail"]
-    )
+    Kimera::MutantResult.from_h(message.transform_keys(WIRE).merge("file" => path(message["id"])))
   end
 
   def timeout(id, duration, stacks = nil)

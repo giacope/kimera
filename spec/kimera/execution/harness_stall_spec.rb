@@ -19,9 +19,10 @@ RSpec.describe(Kimera::Execution::Harness) do
     harness = described_class.build(registry: registry, adapter: nil, errio: errors, hard_timeout: 7.0, jobs: 3)
     harness.__send__(:state).recovered = { "A#t" => "trace" }
     harness.__send__(:notice, nil)
-
-    expect(errors.string).to(start_with("kimera: 1 baseline test(s) hit the hard timeout (7.0s) with 3 workers"))
-    expect(errors.string).to(end_with("  A#t:\n    trace\n"))
+    expect(errors.string).to(
+      start_with("kimera: 1 baseline test(s) hit the hard timeout (7.0s) with 3 workers")
+        .and(end_with("  A#t:\n    trace\n"))
+    )
   end
 
   it "prints nothing when no baseline test stalled" do
