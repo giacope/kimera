@@ -264,7 +264,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   end
 
   # The real Shift in each child, with an adapter that injects the faults
-  # (support/faulty_adapter.rb). Shift decides what goes down the pipe, so
+  # (support/faulty_suite.rb). Shift decides what goes down the pipe, so
   # the child side of the protocol is the code's, not a script's.
   context("with Shift as the child") do
     let(:warm) { Pbt.one_of(:killed, :killed, :survived, :leak, :tainted, :requeue, :requeue, :crash, :hang) }
@@ -299,7 +299,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
     def shift(script, offers)
       Kimera::Execution::Shift.new(
-        adapter: FaultyAdapter.new(script, offers), registry: Struct.new(:index).new({}),
+        adapter: FaultySuite.new(script, offers), registry: Struct.new(:index).new({}),
         coverage: (1..script.size).to_h { [it, ["t"]] }, soft_timeout: soft
       )
     end

@@ -51,9 +51,9 @@ Kata/GoodMethodName:
 Kata/GoodClassName:
   inherit_mode:
     merge:
-      - AllowedNames
-  AllowedNames:
-    - Adapter # a boundary pattern, not a job
+      - Terms
+  Terms:
+    - RSpecSuite # RSpec's suite; kata splits the brand RSpec into two words
 
 Kata/BuilderNoun:
   AllowedNames:
@@ -66,7 +66,7 @@ Naming/PredicateMethod:
 
 RSpec/SpecFilePathFormat:
   CustomTransform:
-    RSpecAdapter: rspec_adapter # the cop wants r_spec_adapter
+    RSpecSuite: rspec_suite # the cop wants r_spec_suite
 
 # --------------------------------------------------------------------------
 # The cop ignores side effects between assignment and read (closing a pipe,

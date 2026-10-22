@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "kimera/execution/baseline_screen"
-require "kimera/frameworks/adapter"
+require "kimera/frameworks/suite"
 
 RSpec.describe(Kimera::Execution::BaselineScreen) do
   # Reruns ids "plainly": the ids in `red` fail; `ran` records each argv.
@@ -14,7 +14,7 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
   end
 
   def adapter(plain: true)
-    Class.new(Kimera::Frameworks::Adapter) do
+    Class.new(Kimera::Frameworks::Suite) do
       def test_ids = %w[t1 t2 t3]
       define_method(:plain) { |ids, out| plain ? ["plain", *ids, out] : [] }
       def failed_plainly(_output, out) = File.read(out).split("\n")

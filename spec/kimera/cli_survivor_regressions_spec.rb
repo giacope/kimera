@@ -370,7 +370,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     it "sets KIMERA before loading the framework adapter" do
       env = {}
       seen = nil
-      allow(Kimera::Frameworks::ADAPTERS).to(receive(:load) { seen = env["KIMERA"] })
+      allow(Kimera::Frameworks::SUITES).to(receive(:load) { seen = env["KIMERA"] })
       harnessed({ framework: "rspec" }, env)
       expect(seen).to(eq("1"))
     end
@@ -379,7 +379,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     it "exports the run's seed to the environment before loading the adapter, and clears a stale one" do
       seen = []
       env = { "KIMERA_SEED" => "3" }
-      allow(Kimera::Frameworks::ADAPTERS).to(receive(:load) { seen << env["KIMERA_SEED"] })
+      allow(Kimera::Frameworks::SUITES).to(receive(:load) { seen << env["KIMERA_SEED"] })
       [{ framework: "rspec", seed: 42 }, { framework: "rspec" }].each { |settings| harnessed(settings, env) }
       expect([seen, env.key?("KIMERA_SEED")]).to(eq([["42", nil], false]))
     end
@@ -388,7 +388,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     it "exports the configured load path to the environment before loading the adapter" do
       seen = []
       env = {}
-      allow(Kimera::Frameworks::ADAPTERS).to(receive(:load) { seen << env["KIMERA_LOAD_PATH"] })
+      allow(Kimera::Frameworks::SUITES).to(receive(:load) { seen << env["KIMERA_LOAD_PATH"] })
       [{ framework: "rspec", load_path: %w[support test/helpers] }, { framework: "rspec" }]
         .each { |settings| harnessed(settings, env) }
       expect(seen).to(eq(["support#{File::PATH_SEPARATOR}test/helpers", ""]))

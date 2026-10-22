@@ -94,7 +94,7 @@ RSpec.describe(Kimera::CLI::Run::Narrowing) do
       expect(provenance).to(include("exclude_test_names" => ["unreadable", "root only"]))
       plain, = adapter_for
       expect(plain).not_to(be_a(Kimera::Frameworks::NameExclusion))
-      expect(plain).to(be_a(Kimera::Frameworks::Adapter))
+      expect(plain).to(be_a(Kimera::Frameworks::Suite))
     end
 
     def uncovered(*argv)

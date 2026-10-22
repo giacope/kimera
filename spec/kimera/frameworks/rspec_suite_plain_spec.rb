@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
 require "json"
-require "kimera/frameworks/rspec_adapter"
+require "kimera/frameworks/rspec_suite"
 require "tmpdir"
 
 # F9: a test red only under kimera is rerun outside it before kimera trusts it.
-RSpec.describe(Kimera::Frameworks::RSpecAdapter, :aggregate_failures) do
+RSpec.describe(Kimera::Frameworks::RSpecSuite, :aggregate_failures) do
   describe "rerunning baseline failures without kimera" do
     let(:adapter) { described_class.allocate }
 

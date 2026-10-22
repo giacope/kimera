@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "kimera/execution/boot"
-require "kimera/frameworks/adapter"
+require "kimera/frameworks/suite"
 require "kimera/execution/memory_databases"
 
 # ActiveRecord drops every pool in a forked child and reconnects. An in-memory
@@ -43,7 +43,7 @@ RSpec.describe(Kimera::Execution::MemoryDatabases) do
   it "is kept from the moment the suite boots, before any worker forks" do
     kind = pools
     stub_const("ActiveRecord::ConnectionAdapters::PoolConfig", kind)
-    suite = instance_double(Kimera::Frameworks::Adapter, source: nil, start: nil)
+    suite = instance_double(Kimera::Frameworks::Suite, source: nil, start: nil)
     Kimera::Execution::Boot.new(adapter: suite, isolate: false).suite([])
     expect(kind.ancestors).to(include(described_class::INHERITED))
   end

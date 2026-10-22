@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
 require "fileutils"
-require "kimera/frameworks/rspec_adapter"
+require "kimera/frameworks/rspec_suite"
 require "stringio"
 require "tmpdir"
 
-RSpec.describe(Kimera::Frameworks::RSpecAdapter) do
+RSpec.describe(Kimera::Frameworks::RSpecSuite) do
   let(:dir) { Dir.mktmpdir }
 
   # Loading a spec file registers groups in the global RSpec.world, so snapshot and restore it.

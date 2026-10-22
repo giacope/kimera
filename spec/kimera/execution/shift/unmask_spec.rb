@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "kimera/execution/shift"
-require "kimera/frameworks/adapter"
+require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 
 # A survivor's covering tests ran together in one process, where an earlier

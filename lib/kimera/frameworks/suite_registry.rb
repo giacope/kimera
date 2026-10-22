@@ -2,19 +2,19 @@
 
 require_relative "../error"
 
-class Kimera::Frameworks::AdapterRegistry
+class Kimera::Frameworks::SuiteRegistry
   NO_LOADER = -> {}
   LOADERS = {
     "rspec" => lambda do
-      require_relative "rspec_adapter"
+      require_relative "rspec_suite"
     end,
     "minitest" => lambda do
-      require_relative "minitest_adapter"
+      require_relative "minitest_suite"
     end
   }.freeze
 
   def initialize
-    @adapters = {}
+    @suites = {}
   end
 
   def load(name)
@@ -25,11 +25,11 @@ class Kimera::Frameworks::AdapterRegistry
   end
 
   def register(name, klass)
-    @adapters[name.to_s] ||= klass
+    @suites[name.to_s] ||= klass
   end
 
   def fetch(name)
-    @adapters.fetch(name.to_s) do
+    @suites.fetch(name.to_s) do
       raise(Kimera::Error, "unknown test framework adapter: #{name}")
     end
   end
@@ -42,4 +42,4 @@ class Kimera::Frameworks::AdapterRegistry
   end
 end
 
-Kimera::Frameworks::ADAPTERS = Kimera::Frameworks::AdapterRegistry.new
+Kimera::Frameworks::SUITES = Kimera::Frameworks::SuiteRegistry.new

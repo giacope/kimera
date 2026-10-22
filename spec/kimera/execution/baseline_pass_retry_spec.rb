@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "kimera/execution/baseline_pass"
-require "kimera/frameworks/adapter"
+require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 
 # A baseline test whose worker hits the hard timeout under parallel load runs
@@ -19,7 +19,7 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
 
   let(:adapter) do
     tests = %w[t1 t2 t3]
-    Class.new(Kimera::Frameworks::Adapter) do
+    Class.new(Kimera::Frameworks::Suite) do
       define_method(:test_ids) { tests }
       define_method(:reproduce) { |failed| "rspec #{failed.join(" ")}" }
     end.new

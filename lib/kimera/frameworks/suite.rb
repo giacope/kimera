@@ -24,7 +24,9 @@ module Kimera
   end
 end
 
-class Kimera::Frameworks::Adapter
+# A test framework's suite as kimera drives it: it loads the test files, names
+# each test by id, and runs the tests a mutant needs.
+class Kimera::Frameworks::Suite
   def source(files)
     raise(NotImplementedError)
   end
@@ -104,4 +106,4 @@ class Kimera::Frameworks::Adapter
   end
 end
 
-require_relative "adapter_registry"
+require_relative "suite_registry"

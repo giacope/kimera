@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
 require "fileutils"
-require "kimera/frameworks/rspec_adapter"
+require "kimera/frameworks/rspec_suite"
 require "stringio"
 require "tmpdir"
 
-RSpec.describe(Kimera::Frameworks::RSpecAdapter) do
+RSpec.describe(Kimera::Frameworks::RSpecSuite) do
   # Hides RSpec's warning about re-pointing already-initialized streams.
   def quietly
     original = $stderr
@@ -366,8 +366,8 @@ RSpec.describe(Kimera::Frameworks::RSpecAdapter) do
   def script(lib)
     <<~RUBY
       $LOAD_PATH.unshift(#{lib.inspect})
-      require "kimera/frameworks/rspec_adapter"
-      adapter = Kimera::Frameworks::RSpecAdapter.build
+      require "kimera/frameworks/rspec_suite"
+      adapter = Kimera::Frameworks::RSpecSuite.build
       adapter.source(["spec/probe_spec.rb"])
       outcome = adapter.run(adapter.test_ids)
       exit(outcome.passed? ? 0 : 1)

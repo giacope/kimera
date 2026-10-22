@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "kimera/cli/run"
-require "kimera/frameworks/rspec_adapter"
+require "kimera/frameworks/rspec_suite"
 require "kimera/registry/builder"
 require "stringio"
 require "tmpdir"
@@ -411,32 +411,30 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
   end
 
-  describe "#build_adapter" do
-    it "builds the rspec adapter" do
-      # In-process, RSpec warns when the adapter re-points its streams.
-      built = hushed { Kimera::Frameworks::ADAPTERS.load("rspec") }
-      expect(built).to(be_a(Kimera::Frameworks::RSpecAdapter))
+  describe "framework suites" do
+    it "builds the RSpec suite" do
+      # In-process, RSpec warns when the suite re-points its streams.
+      built = hushed { Kimera::Frameworks::SUITES.load("rspec") }
+      expect(built).to(be_a(Kimera::Frameworks::RSpecSuite))
     end
 
-    it "builds the minitest adapter" do
-      expect(Kimera::Frameworks::ADAPTERS.load("minitest")).to(be_a(Kimera::Frameworks::MinitestAdapter))
+    it "builds the Minitest suite" do
+      expect(Kimera::Frameworks::SUITES.load("minitest")).to(be_a(Kimera::Frameworks::MinitestSuite))
     end
 
-    # The suite already loaded the adapters, so pin the require itself.
-    # require_relative is Kernel-private on AdapterRegistry; there is nothing else to stub.
+    # The spec run already loaded the suites, so pin the require itself.
+    # require_relative is Kernel-private on SuiteRegistry; there is nothing else to stub.
     def substitute
-      allow(Kimera::Frameworks::ADAPTERS).to(receive(:fetch).and_return(Class.new { def self.build = new }))
-      allow(Kimera::Frameworks::AdapterRegistry).to(receive(:require_relative))
+      allow(Kimera::Frameworks::SUITES).to(receive(:fetch).and_return(Class.new { def self.build = new }))
+      allow(Kimera::Frameworks::SuiteRegistry).to(receive(:require_relative))
     end
 
-    it "requires each framework's adapter file before fetching it" do
+    it "requires each framework's suite file before fetching it", :aggregate_failures do
       substitute
-      Kimera::Frameworks::ADAPTERS.load("rspec")
-      Kimera::Frameworks::ADAPTERS.load("minitest")
-      adapters = Kimera::Frameworks::AdapterRegistry
-      expect(adapters).to(have_received(:require_relative).with("rspec_adapter"))
-
-      expect(adapters).to(have_received(:require_relative).with("minitest_adapter"))
+      %w[rspec minitest].each { |name| Kimera::Frameworks::SUITES.load(name) }
+      registry = Kimera::Frameworks::SuiteRegistry
+      expect(registry).to(have_received(:require_relative).with("rspec_suite"))
+      expect(registry).to(have_received(:require_relative).with("minitest_suite"))
     end
   end
 
@@ -801,14 +799,14 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
 
     def framework(**attributes)
-      adapter = instance_double(Kimera::Frameworks::RSpecAdapter, catalog: {}, **attributes)
-      allow(Kimera::Frameworks::ADAPTERS).to(receive(:load).and_return(adapter))
+      adapter = instance_double(Kimera::Frameworks::RSpecSuite, catalog: {}, **attributes)
+      allow(Kimera::Frameworks::SUITES).to(receive(:load).and_return(adapter))
 
       adapter
     end
 
     def pass(registry, options, todo)
-      adapter = Kimera::Frameworks::ADAPTERS.load(options[:framework])
+      adapter = Kimera::Frameworks::SUITES.load(options[:framework])
       Kimera::CLI::Run::Pass.new(registry, options, adapter).call(todo)
     end
 
@@ -848,7 +846,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     it "names the tests the verdicts cite, from the adapter" do
       unjudged
       named = { "t1" => { "name" => "M compares", "location" => "spec/m_spec.rb:3" } }
-      allow(Kimera::Frameworks::ADAPTERS.load("rspec")).to(receive(:catalog).and_return(named))
+      allow(Kimera::Frameworks::SUITES.load("rspec")).to(receive(:catalog).and_return(named))
       report = pass(registry, settings, [1, 2])
       expect(report.tests).to(eq(named))
     end
@@ -1115,7 +1113,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       File.write("calc.rb", "def m(a, b)\n  a > b\nend\n")
       manifest = File.join(dir, "reg.json")
       Kimera::RegistryScan.new.source(File.read("calc.rb"), file: "calc.rb").write(manifest)
-      allow(Kimera::Frameworks::ADAPTERS).to(receive(:load).and_return(nil))
+      allow(Kimera::Frameworks::SUITES).to(receive(:load).and_return(nil))
       allow(Kimera::CLI::Run::Pass).to(receive(:new).and_raise(failure))
 
       manifest

@@ -4,7 +4,7 @@ require "fileutils"
 require "json"
 require "kimera/execution/harness"
 require "kimera/execution/test_filter"
-require "kimera/frameworks/adapter"
+require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 require "tmpdir"
 
@@ -22,7 +22,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   # Running a test touches the mutant ids it covers, like a synthesized guard.
   def adapter(coverage: {}, failing: [], message: nil)
-    Class.new(Kimera::Frameworks::Adapter) do
+    Class.new(Kimera::Frameworks::Suite) do
       define_method(:initialize) do
         @coverage = coverage
         @failing = failing
@@ -62,7 +62,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   def reselecting(coverage: {}, failing: [])
     run = method(:reselected).curry[Kimera::RUNTIME.active, coverage, failing]
-    Class.new(Kimera::Frameworks::Adapter) do
+    Class.new(Kimera::Frameworks::Suite) do
       def source(_files) = self
       define_method(:test_ids) { coverage.keys }
       define_method(:run) { |test_ids| run.call(test_ids) }
@@ -71,7 +71,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   # A forked run cannot append to the caller's +pids+.
   def processes(pids)
-    Class.new(Kimera::Frameworks::Adapter) do
+    Class.new(Kimera::Frameworks::Suite) do
       def source(_files) = self
       def test_ids = ["t1"]
       define_method(:run) do |_ids|
@@ -237,7 +237,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     # Suites may reset the selector in their own hooks (Kimera's do).
     # The ledger is handle-scoped, so touches from before the reset survive.
     def resetting
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = %w[t_reset t_after]
         define_method(:run) do |test_ids|
@@ -262,7 +262,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     # Kimera's own harness specs measure coverage inside the measured suite.
     def nested
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t_nested"]
         define_method(:run) do |_ids|
@@ -445,7 +445,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def noisy
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
         define_method(:run) do |_ids|
@@ -519,7 +519,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     # The suite calls the macro while it loads, so its code runs before any
     # guard exists and no test's coverage reaches it.
     def loading(path)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         define_method(:source) { |_files| load(path) && HarnessMacro.charges(true) && self }
         def test_ids = ["t1"]
         def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
@@ -578,7 +578,7 @@ RSpec.describe(Kimera::Execution::Harness) do
   # run past baseline × factor + slack, twice, is a timeout.
   describe "relative time budget" do
     def dawdling(target)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def test_ids = %w[t1]
         define_method(:run) do |_test_ids|
           sleep(0.3) if Kimera::RUNTIME.active?(target)
@@ -632,7 +632,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def sink(sink)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         define_method(:initialize) { |s| @sink = s }
         define_method(:source) do |files|
           @sink.concat(Array(files))
@@ -656,7 +656,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def red
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
         def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: false, failed_ids: ["t1"])
@@ -671,7 +671,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def green(mods = nil)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
         def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
@@ -697,7 +697,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def active(id)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         define_method(:initialize) { |mid| @id = mid }
         def source(_files) = self
         def test_ids = ["t1"]
@@ -1122,7 +1122,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def red
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
         def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: false, failed_ids: ["t1"])
@@ -1232,7 +1232,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     let(:results) do
       {
         1 => result(1, :error, "lib/kimera/execution/shift.rb"),
-        2 => result(2, :timeout, "lib/kimera/frameworks/rspec_adapter.rb"),
+        2 => result(2, :timeout, "lib/kimera/frameworks/rspec_suite.rb"),
         3 => result(3, :killed, "lib/kimera/execution/shift.rb"),
         4 => result(4, :error, "app/models/user.rb"),
         5 => result(5, :survived, "lib/kimera/execution/shift.rb"),
@@ -1361,7 +1361,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def touching(mids)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         define_method(:initialize) { |m| @mids = m }
         def source(_files) = self
         def test_ids = ["t1"]
@@ -1387,7 +1387,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def plain
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
         def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
@@ -1396,7 +1396,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     # Reaches the mutants only when both tests run in one process, in order.
     def ordered(mids)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         define_method(:initialize) { |m| @mids = m }
         def source(_files) = self
         def test_ids = %w[t1 t2]
@@ -1421,7 +1421,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     # Both tests kill every mutant; "slow" comes first in coverage order.
     def racing(mids)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         define_method(:initialize) { |m| @mids = m }
         def source(_files) = self
         def test_ids = %w[slow fast]
@@ -1451,7 +1451,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     # Both tests kill every mutant, but "shaky" also fails, alone, under seed 6.
     def shaking(mids)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         define_method(:initialize) do |m|
           super()
           @mids = m
@@ -1602,7 +1602,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   # Kept fork-safe: pure Ruby, no shared IO.
   def observer(klass)
-    Class.new(Kimera::Frameworks::Adapter) do
+    Class.new(Kimera::Frameworks::Suite) do
       define_method(:initialize) { @klass = klass }
       def source(_files) = self
       def test_ids = ["t1"]
@@ -1697,7 +1697,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def plain(passed:)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         define_method(:initialize) { @passed = passed }
         def source(_files) = self
         def test_ids = ["t1"]
@@ -1714,7 +1714,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def counting(tests, failing, calls)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         define_method(:source) { |_files| self }
         define_method(:test_ids) { tests }
         define_method(:run) do |ids|
@@ -1822,7 +1822,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def boom
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
         def run(_ids) = raise(RuntimeError, "kaboom")
@@ -1857,7 +1857,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     after { FileUtils.remove_entry(dir) }
 
     def hanging
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
         def run(_ids) = sleep(30)
@@ -1865,7 +1865,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def crashing
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
         def run(_ids) = exit!(1)
@@ -1892,7 +1892,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def sluggish(tests, pause)
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         define_method(:source) { |_files| self }
         define_method(:test_ids) { tests }
         define_method(:run) do |_ids|
@@ -2027,7 +2027,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def terminating
-      Class.new(Kimera::Frameworks::Adapter) do
+      Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
 

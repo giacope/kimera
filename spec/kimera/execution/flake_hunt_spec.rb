@@ -3,14 +3,14 @@
 require "kimera/execution/flake_hunt"
 require "kimera/execution/null_progress"
 require "kimera/execution/test_filter"
-require "kimera/frameworks/adapter"
+require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 
 # The driver stands in for the warm pool: it answers each test with the
 # result the seed in the environment calls for, as a worker forked then would.
 RSpec.describe(Kimera::Execution::FlakeHunt, :aggregate_failures) do
   let(:adapter) do
-    Class.new(Kimera::Frameworks::Adapter) do
+    Class.new(Kimera::Frameworks::Suite) do
       def test_ids = %w[t1 t2 t3 t4]
     end.new
   end

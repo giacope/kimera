@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
 require "fileutils"
-require "kimera/frameworks/minitest_adapter"
+require "kimera/frameworks/minitest_suite"
 # Examples stub Minitest before any adapter is built, so load it here, not by
 # whichever example happens to run first.
 require "minitest"
 require "tmpdir"
 
-RSpec.describe(Kimera::Frameworks::MinitestAdapter) do
+RSpec.describe(Kimera::Frameworks::MinitestSuite) do
   subject(:adapter) { described_class.build.source([testfile]) }
 
   let(:dir) { Dir.mktmpdir }

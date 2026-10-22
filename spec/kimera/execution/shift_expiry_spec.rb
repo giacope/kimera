@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "kimera/execution/shift"
-require "kimera/frameworks/adapter"
+require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 
 # A covering test that runs past the soft timeout with the mutant on counts

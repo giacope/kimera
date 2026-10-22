@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-require "kimera/frameworks/minitest_adapter"
+require "kimera/frameworks/minitest_suite"
 
 # F9: a test red only under kimera is rerun outside it before kimera trusts it.
-RSpec.describe(Kimera::Frameworks::MinitestAdapter, :aggregate_failures) do
+RSpec.describe(Kimera::Frameworks::MinitestSuite, :aggregate_failures) do
   describe "rerunning baseline failures without kimera" do
     let(:adapter) { described_class.allocate }
 

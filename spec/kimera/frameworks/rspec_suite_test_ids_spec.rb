@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
 require "fileutils"
-require "kimera/frameworks/rspec_adapter"
+require "kimera/frameworks/rspec_suite"
 require "tmpdir"
 
 # kimera loads examples as the rspec executable does: an inclusion filter that
 # matches nothing falls back to every example when the suite sets
 # run_all_when_everything_filtered, and keeps the focused ones otherwise.
-RSpec.describe(Kimera::Frameworks::RSpecAdapter, "#test_ids") do
+RSpec.describe(Kimera::Frameworks::RSpecSuite, "#test_ids") do
   let(:dir) { Dir.mktmpdir }
 
   around do |example|

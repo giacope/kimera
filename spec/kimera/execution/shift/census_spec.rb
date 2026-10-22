@@ -2,7 +2,7 @@
 
 require "json"
 require "kimera/execution/shift"
-require "kimera/frameworks/adapter"
+require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 require "stringio"
 
@@ -13,7 +13,7 @@ RSpec.describe(Kimera::Execution::Shift::Census) do
 
   # t1 and t2 fail with the mutant on; t3 passes; "raise" errors, "hang" sleeps past the soft timeout.
   def adapter(runs = [])
-    Class.new(Kimera::Frameworks::Adapter) do
+    Class.new(Kimera::Frameworks::Suite) do
       define_method(:test_ids) { %w[t1 t2 t3 raise hang] }
       define_method(:run) do |ids|
         runs << [Kimera::RUNTIME.active, ids]

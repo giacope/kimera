@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "adapter"
+require_relative "suite"
 require_relative "load_path"
 require_relative "class_hooks"
 require_relative "../support/test_exit"
@@ -10,7 +10,7 @@ module Kimera
   end
 end
 
-class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
+class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
   INSTALLED = true
   CONSTANT = /\A[A-Z]\w*(?:::[A-Z]\w*)*\z/
   PLAIN = %r{\A[\w./@:+-]+\z}
@@ -121,4 +121,4 @@ class Kimera::Frameworks::MinitestAdapter < Kimera::Frameworks::Adapter
   end
 end
 
-Kimera::Frameworks::ADAPTERS.register(:minitest, Kimera::Frameworks::MinitestAdapter)
+Kimera::Frameworks::SUITES.register(:minitest, Kimera::Frameworks::MinitestSuite)

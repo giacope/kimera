@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 require "fileutils"
-require "kimera/frameworks/minitest_adapter"
-require "kimera/frameworks/rspec_adapter"
+require "kimera/frameworks/minitest_suite"
+require "kimera/frameworks/rspec_suite"
 require "kimera/support/test_exit"
 require "stringio"
 require "tmpdir"
@@ -70,7 +70,7 @@ RSpec.describe(Kimera::TestExit) do
     def adapter
       original = $stderr
       $stderr = StringIO.new
-      Kimera::Frameworks::RSpecAdapter.build.source([fixture])
+      Kimera::Frameworks::RSpecSuite.build.source([fixture])
     ensure
       $stderr = original
     end
@@ -124,7 +124,7 @@ RSpec.describe(Kimera::TestExit) do
       PROBE.clear
       original = $stderr
       $stderr = StringIO.new
-      Kimera::Frameworks::MinitestAdapter.build.source([fixture]).run([id])
+      Kimera::Frameworks::MinitestSuite.build.source([fixture]).run([id])
     rescue SystemExit => error
       error
     ensure

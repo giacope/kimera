@@ -2,7 +2,7 @@
 
 require "json"
 require "kimera/execution/harness"
-require "kimera/frameworks/adapter"
+require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 require "timeout"
 
@@ -27,7 +27,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   # Every covering test of an active mutant blocks in a method the dump can name.
   def hanging
-    Class.new(Kimera::Frameworks::Adapter) do
+    Class.new(Kimera::Frameworks::Suite) do
       def source(_files) = self
       def test_ids = ["t1"]
 

@@ -122,7 +122,7 @@ class Kimera::CLI::Run::Cycle
   end
 
   def adapter
-    loaded = Kimera::Frameworks::ADAPTERS.load(@options[:framework])
+    loaded = Kimera::Frameworks::SUITES.load(@options[:framework])
     names = Array(@options[:exclude_test_names])
     names.empty? ? loaded : Kimera::Frameworks::NameExclusion.new(loaded, names)
   end

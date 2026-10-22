@@ -178,7 +178,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
 
   it "builds the isolated runner contract without lossy intermediate hashes" do
     registry = Object.new
-    adapter = instance_double(Kimera::Frameworks::Adapter, test_ids: %w[t1 t2])
+    adapter = instance_double(Kimera::Frameworks::Suite, test_ids: %w[t1 t2])
     options = {
       source_root: "/root", jobs: 3, framework: "rspec", hard_timeout: 9,
       progress: false, tests: [], exclude_tests: []

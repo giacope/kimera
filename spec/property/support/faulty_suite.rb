@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
-require "kimera/frameworks/adapter"
+require "kimera/frameworks/suite"
 
 # The request pipe as Shift reads it (Shift::Channel calls #gets). Logs each
 # offer as the scripted children do, "id recheck first?", and remembers it,
@@ -45,7 +45,7 @@ end
 # control run, which belongs to the mutant the offer brought. Shift runs
 # each mutant, and each control run, in a child of its own, so a run
 # counter starts over in each.
-class FaultyAdapter
+class FaultySuite
   FAILING = %i[killed requeue].freeze
 
   def initialize(script, offers)

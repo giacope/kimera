@@ -2,7 +2,7 @@
 
 require "json"
 require "rspec/core"
-require_relative "adapter"
+require_relative "suite"
 require_relative "group_scope"
 require_relative "group_tree"
 require_relative "dot_rspec"
@@ -13,7 +13,7 @@ module Kimera
   end
 end
 
-class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
+class Kimera::Frameworks::RSpecSuite < Kimera::Frameworks::Suite
   class << self
     def build = new.configured
   end
@@ -134,4 +134,4 @@ class Kimera::Frameworks::RSpecAdapter < Kimera::Frameworks::Adapter
   end
 end
 
-Kimera::Frameworks::ADAPTERS.register(:rspec, Kimera::Frameworks::RSpecAdapter)
+Kimera::Frameworks::SUITES.register(:rspec, Kimera::Frameworks::RSpecSuite)
