@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../unparsing/unparse_nodes"
+require_relative "../scribe/nodes"
 require_relative "extra_handlers"
 require_relative "invocation"
 require_relative "pinned_predicate"
@@ -10,7 +10,7 @@ module Kimera
     module DirectiveHandlers
       Operation =
         Data.define(:node, :directive) do
-          include Kimera::Unparse::Nodes
+          include Kimera::Scribe::Nodes
           def target = directive["to"]&.to_sym
 
           def swap

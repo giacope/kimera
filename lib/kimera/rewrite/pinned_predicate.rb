@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
-require_relative "../unparsing/unparse_nodes"
+require_relative "../scribe/nodes"
 
 module Kimera
   module Rewrite
     class PinnedPredicate
-      include Kimera::Unparse::Nodes
+      include Kimera::Scribe::Nodes
 
       BINDINGS = %i[lvasgn match_with_lvasgn].freeze
 

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../unparsing/unparse"
+require_relative "../scribe"
 require_relative "../registry/builder"
 require_relative "../rewrite/directive"
 
@@ -24,7 +24,7 @@ class Kimera::Operators::Audit
       end
       private
       def reprinted
-        Kimera::Unparse.new(Kimera::Unparse.parse(original)).source
+        Kimera::Scribe.new(Kimera::Scribe.parse(original)).source
       rescue StandardError
         original
       end

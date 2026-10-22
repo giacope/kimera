@@ -12,8 +12,8 @@ require "kimera/synthesis/overlay"
 # Both sides are compared as parser ASTs up to rewrites that never change
 # behavior, applied to both alike:
 # - a lone expression in parentheses is that expression;
-# - adjacent string parts join and empty ones drop (unparser splits them);
-# - && and || chains are associative (unparser regroups them);
+# - adjacent string parts join and empty ones drop (writing may split them);
+# - && and || chains are associative (writing may regroup them);
 # - minus on a numeric literal is the negative literal (`-(1)` is `-1`);
 # - a `nil` statement that is not a sequence's last is no statement (a
 #   visibility mutant's coverage probe reduces to one);
@@ -64,11 +64,11 @@ module SchemataProjection
 
   Case =
     Struct.new(:source, :registry, :overlay, :result) do
-      def schemata = @_schemata ||= Kimera::Unparse.parse(result.source)
+      def schemata = @_schemata ||= Kimera::Scribe.parse(result.source)
 
       def original
         map = Kimera::SourceMap.new(source)
-        SchemataProjection.canon(Kimera::Unparse.new(Kimera::Guardrail.new(map, []).tree).source)
+        SchemataProjection.canon(Kimera::Scribe.new(Kimera::Guardrail.new(map, []).tree).source)
       end
 
       def baked(id) = SchemataProjection.canon(overlay.bake("x.rb", source, id))
@@ -87,7 +87,7 @@ module SchemataProjection
       def guards = SchemataProjection.guards(schemata)
     end
 
-  def canon(source) = normal(Kimera::Unparse.parse(source))
+  def canon(source) = normal(Kimera::Scribe.parse(source))
 
   def guard(node)
     return unless node?(node, :if)

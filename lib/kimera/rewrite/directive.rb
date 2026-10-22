@@ -2,7 +2,7 @@
 
 require_relative "../parsing/syntax"
 require_relative "../support/operator_protocol"
-require_relative "../unparsing/unparse"
+require_relative "../scribe"
 
 require_relative "clause_handlers"
 require_relative "directive_handlers"
@@ -82,7 +82,7 @@ module Kimera
       end
 
       def attempt(source)
-        Kimera::Unparse.new(apply(NumberedParams.new(Kimera::Unparse.parse(source)).normalize)).source
+        Kimera::Scribe.new(apply(NumberedParams.new(Kimera::Scribe.parse(source)).normalize)).source
       rescue StandardError
         nil
       end

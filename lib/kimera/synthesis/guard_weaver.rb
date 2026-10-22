@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require_relative "../unparsing/unparse"
-require_relative "../unparsing/unparse_nodes"
+require_relative "../scribe"
+require_relative "../scribe/nodes"
 require_relative "../rewrite/ast_walk"
 require_relative "../rewrite/directive"
 require_relative "guardrail_dispatch"
@@ -13,7 +13,7 @@ class Kimera::Guardrail
   include Kimera::GuardrailDispatch
   include Kimera::GuardrailInterpolation
   include Kimera::GuardrailFactories
-  include Kimera::Unparse::Nodes
+  include Kimera::Scribe::Nodes
 
   Patch =
     Data.define(:map, :span, :directive) do
@@ -35,7 +35,7 @@ class Kimera::Guardrail
 
   def rewrite(node)
     woven = transform(node)
-    [Kimera::Unparse.new(woven).source, activated(woven)]
+    [Kimera::Scribe.new(woven).source, activated(woven)]
   end
 
   def activated(node)

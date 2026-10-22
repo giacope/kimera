@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../unparsing/unparse_nodes"
+require_relative "../scribe/nodes"
 
 module Kimera
   module Rewrite
@@ -9,7 +9,7 @@ module Kimera
 
       Operation =
         Data.define(:node, :directive) do
-          include Kimera::Unparse::Nodes
+          include Kimera::Scribe::Nodes
           def rescued = rebody { |body| unrescued(body) }
 
           def ensured = rebody { |body| body.children[0] }

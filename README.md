@@ -39,8 +39,8 @@ and flips them at runtime, so your app boots once, not once per mutant.
   fresh process.
 - **Small.** Ruby >= 3.4 (CI covers 3.4 and 4.0), RSpec or Minitest, and two
   direct dependencies: [Prism](https://github.com/ruby/prism) and
-  [unparser](https://github.com/mbj/unparser) (0.8.1 to 0.9.x), which bring
-  parser, ast, diff-lcs and racc.
+  [parser](https://github.com/whitequark/parser), which brings ast and racc.
+  Kimera writes Ruby back from a tree itself (`Kimera::Scribe`).
 
 ```sh
 $ bundle exec kimera run app --since origin/main
@@ -944,7 +944,7 @@ expect(faults).to(be_empty)
 ## How it works
 
 ```
-source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ synthesis (unparser) ─▶ schemata
+source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ synthesis (Scribe) ─▶ schemata
                                                       └─▶ reporting
                                                                 │
    suite ─load once─▶ overlay schemata ─▶ fork workers ─▶ per test: fork, run, record coverage
@@ -994,19 +994,22 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   true` that matches nothing falls back to every example when the suite sets
   `run_all_when_everything_filtered`; a baseline whose test files load but
   select no test fails with exit 1 instead of scoring every mutant uncovered.
-- **Runs under your bundle.** `unparser` pulls in a `diff-lcs` version that can
-  conflict with `rspec-expectations` outside a resolved bundle. Use
-  `bundle exec`. A source checkout's `exe/kimera` activates the current
+- **Runs under your bundle.** Use `bundle exec`. A source checkout's `exe/kimera` activates the current
   directory's Gemfile before booting Kimera. `--isolated` mirrors run under
   the project's own Gemfile and lockfile, so a gem named by a relative
   `path:` (a monorepo's engines) resolves there too.
-- **unparser 0.8.1 to 0.9.x.** Kimera prepends onto three of unparser's
-  internals, which are not public API: `Unparser.parser` (to let a literal's
-  raw bytes through), `Unparser::AST::LocalVariableScopeEnumerator#enter` (to
-  bind pattern and block-argument names) and `Unparser::Emitter::Range`'s
-  `visit_begin_node`/`visit_end_node` (array endpoints).
-  `spec/kimera/unparse_patches_spec.rb` fails first when a release moves one,
-  and CI runs the suite on each release the gemspec allows.
+- **Kimera writes its own Ruby.** `Kimera::Scribe` reads source with Prism's
+  parser-gem translation and writes a mutated tree back as source that reads
+  as the very same tree: it groups operators, signs and powers by precedence
+  rather than by the parentheses a mutated tree lacks, writes any string,
+  symbol, regexp or backtick shape (heredocs come back as quoted strings,
+  bytes that are not UTF-8 and non-ASCII characters as escapes), and keeps
+  the parentheses of `|(name)|`. It tracks locals as Ruby binds them
+  (patterns, captures, rescue, block and method parameters), so a method a
+  local shadows is written `name()`, and a read of a local nothing binds where
+  it sits (a guard that replaced the regexp of `/(?<n>.)/ =~ s`) is refused
+  rather than written as a method call. `spec/kimera/scribe_spec.rb` holds it
+  to reading Kimera's own sources back as the same trees.
 - **What is not mutated is listed.** The scan mutates method bodies, and the
   bodies of blocks that run on each call: `define_method`,
   `define_singleton_method`, `lambda`, `proc`, `Proc.new` and `->`. Any other
@@ -1034,11 +1037,11 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   loaded later redefined (a wrapper around an `alias_method` chain) keeps
   that definition; the alias then calls the overlaid original, so its
   mutants are covered.
-- **An un-emittable node costs one method, not a file.** `unparser` refuses to
-  re-emit some valid Ruby (an interpolated `%r{}x` pattern, for example). When
-  a whole file won't round-trip, Kimera guards and re-emits each method that
-  carries points and splices those back into the original text. The offending
-  constant stays verbatim and the rest of the file stays mutatable.
+- **An unwritable tree costs one method, not a file.** When a guard leaves a
+  tree Kimera can't write faithfully (a local read it unbinds), only those
+  points are dropped; when the whole file still won't write, Kimera guards and
+  writes each method that carries points and splices those back into the
+  original text. The rest of the file stays verbatim and mutatable.
 - **Standing risks and mitigations:**
   - State a test leaves behind: no process-local state (a memo cache, a
     registry, a class variable, an `ENV` flag, a constant) carries from one
@@ -1161,7 +1164,7 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   `::Kimera::RUNTIME`, the process's one `Kimera::Runtime`, bound once: a
   second copy of `kimera/runtime.rb` keeps the runtime it finds. Kimera's
   dependencies do define top-level constants in the process that loads your
-  suite (`Parser`, `AST`, `Unparser`, `Racc`, `Diff`, `Prism`), so a project
+  suite (`Parser`, `AST`, `Racc`, `Prism`), so a project
   with its own top-level class of one of those names cannot load beside them;
   the load error names the constant and the gem, and the fix is a namespace.
 - **One load path.** Each test file's nearest `test/` or `spec/` folder, the

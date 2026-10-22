@@ -12,7 +12,7 @@ boundaries:
       types; Kimera::Syntax parses and hands the node classes out, and nothing else calls Prism
   - root: Parser
     role: interpreted_model
-    entrypoint: lib/kimera/unparsing/unparse_nodes.rb
+    entrypoint: lib/kimera/scribe/nodes.rb
     reason: >-
-      mutants are written as Parser AST nodes for unparser to turn back into Ruby, so the rewrites test and
-      build that tree; Kimera::Unparse::Nodes builds every node
+      mutants are written as Parser AST nodes for Kimera::Scribe to turn back into Ruby, so the rewrites and
+      Scribe test and build that tree; Kimera::Scribe::Nodes builds every node

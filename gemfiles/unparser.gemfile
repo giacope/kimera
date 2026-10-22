@@ -1,6 +1,0 @@
-# frozen_string_literal: true
-
-# CI's unparser job: the development bundle, with one unparser release.
-eval_gemfile File.expand_path("../Gemfile", __dir__)
-
-gem "unparser", ENV.fetch("UNPARSER", "0.9.0")

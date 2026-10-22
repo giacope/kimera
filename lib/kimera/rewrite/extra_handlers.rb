@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
-require_relative "../unparsing/unparse_nodes"
+require_relative "../scribe/nodes"
 
 module Kimera
   module Rewrite
     module ExtraHandlers
       Operation =
         Data.define(:node, :directive) do
-          include Kimera::Unparse::Nodes
+          include Kimera::Scribe::Nodes
           def trim(pair)
             key, value = pair.children
             elements = value.children.dup

@@ -63,7 +63,7 @@ class Kimera::Frameworks::Suite
 
   HARNESS = File.expand_path("..", __dir__)
   FRAMES = 5
-  DEPENDENCIES = %w[ast diff-lcs parser prism racc unparser].freeze
+  DEPENDENCIES = %w[ast parser prism racc].freeze
   KIND_CLASH = /\A(\w+) is not a (?:class|module)\b/
 
   private

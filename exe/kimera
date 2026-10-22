@@ -4,7 +4,7 @@
 begin
   if File.file?(File.join(Dir.pwd, "Gemfile")) && !defined?(Bundler)
     require "bundler/setup"
-    raise(LoadError, "kimera is not in this project's Gemfile") if Gem.find_files("unparser.rb").empty?
+    raise(LoadError, "kimera is not in this project's Gemfile") if Gem.find_files("parser.rb").empty?
   end
   $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
   require "kimera"

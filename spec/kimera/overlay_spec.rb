@@ -46,15 +46,15 @@ RSpec.describe(Kimera::Overlay) do
         source = "def m(a = 1, b = 2, c = 3, d = 4, e = 5, f = 6, arr = [1, 2])\n  #{snippet}\nend\n"
         result, = synth(source)
         # Check MRI too: whitequark and prism disagree on some malformed output.
-        expect { Unparser.parse(result.source) }.not_to(raise_error)
+        expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
         expect { RubyVM::InstructionSequence.compile(result.source) }.not_to(raise_error)
       end
     end
   end
 
   describe "guards in keyword-argument positions" do
-    # Unparser may emit a guard as a keyword `if`, which after `return` parses
-    # as a modifier. The extended operators plant guards in the returned chain.
+    # A guard written as a keyword `if` right after `return` reads as a
+    # modifier, so it is written as a ternary there. The extended operators plant guards in the returned chain.
     let(:extended_keys) do
       (Kimera::Operators::DEFAULT_KEYS + %w[string_literal return_value argument_drop element_drop]).freeze
     end
@@ -126,7 +126,8 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   describe "magic comments" do
-    # Unparser drops magic comments. Without them string literals turn mutable.
+    # A written tree has no comments, magic ones included. Without them string
+    # literals turn mutable.
     it "preserves # frozen_string_literal: true across synthesis" do
       source = "# frozen_string_literal: true\ndef m(a = 1, b = 2)\n  a > b\nend\n"
       result, = synth(source)
@@ -158,7 +159,7 @@ RSpec.describe(Kimera::Overlay) do
       source = "def kind(x, a, b)\n  case x\n  in true then a > b\n  else a < b\n  end\nend\n"
       result, registry = synth(source)
       expect(registry.points.map(&:original_source)).not_to(include("true"))
-      expect { Unparser.parse(result.source) }.not_to(raise_error)
+      expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
     end
 
     it "still mutates the guarded branch bodies of a case/in" do
@@ -169,7 +170,7 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   describe "interpolated-literal parts" do
-    # A guard is an if node, which unparser won't emit as a direct dstr child.
+    # A guard is an if node, which unparser wouldn't emit as a direct dstr child.
     # It must be re-wrapped as a #{} interpolation.
     def synthesis(source, keys)
       registry = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(source, file: "x.rb")
@@ -189,7 +190,7 @@ RSpec.describe(Kimera::Overlay) do
       result, registry = banner
       part = registry.points.find { |p| p.original_source == "kimera " }
       expect(result.mutant_ids).to(include(*part.ids))
-      expect { Unparser.parse(result.source) }.not_to(raise_error)
+      expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
     end
 
     it "flips the segment live when its mutant is active", :aggregate_failures do
@@ -198,7 +199,7 @@ RSpec.describe(Kimera::Overlay) do
       Kimera::RUNTIME.during(part.mutants.first.id) { expect(subject.banner("1.0")).to(eq("1.0")) }
     end
 
-    # `"a " "b"` nests a dstr in a dstr, which unparser refuses once guarded.
+    # `"a " "b"` nests a dstr in a dstr, which unparser refused once guarded.
     # The inner parts get spliced into the parent.
     def splice
       result, registry = synthesis(
@@ -209,7 +210,7 @@ RSpec.describe(Kimera::Overlay) do
 
     it "splices juxtaposed strings so a guarded segment stays emittable", :aggregate_failures do
       result, subject, part = splice
-      expect { Unparser.parse(result.source) }.not_to(raise_error)
+      expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
       expect(subject.m(3, 2)).to(eq("Found 3 mutants across 2 files."))
       Kimera::RUNTIME.during(part.mutants.first.id) { expect(subject.m(3, 2)).to(eq("Found 3 mutants 2 files.")) }
     end
@@ -224,7 +225,7 @@ RSpec.describe(Kimera::Overlay) do
 
     it "flattens and coalesces a guarded whole-segment juxtaposition", :aggregate_failures do
       result, subject, alpha = flatten
-      expect { Unparser.parse(result.source) }.not_to(raise_error)
+      expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
       expect(subject.m(1)).to(eq("alpha beta 1 gamma delta"))
       Kimera::RUNTIME.during(alpha.mutants.first.id) { expect(subject.m(1)).to(eq("beta 1 gamma delta")) }
     end
@@ -236,11 +237,11 @@ RSpec.describe(Kimera::Overlay) do
         end
       RUBY
       result, = synthesis(source, %w[string_literal])
-      expect { Unparser.parse(result.source) }.not_to(raise_error)
+      expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
     end
 
-    # Merging a multi-line %r{}x's str parts can leave no delimiter unparser
-    # can emit, which sinks the whole file (mastodon lost 107 mutants to it).
+    # Merging a multi-line %r{}x's str parts could leave no delimiter unparser
+    # could emit, which sinks the whole file (mastodon lost 107 mutants to it).
     def expression
       source = <<~'RUBY'
         PATTERN = %r{
@@ -260,18 +261,18 @@ RSpec.describe(Kimera::Overlay) do
       # No warning means no round-trip fallback.
       expect { result = described_class.new(registry).synthesize("re.rb", source) }.not_to(output.to_stderr)
       expect(result.mutant_ids.size).to(eq(registry.count))
-      expect { Unparser.parse(result.source) }.not_to(raise_error)
+      expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
     end
 
     it "keeps a pure string juxtaposition uncoalesced" do
-      # Coalescing would leave a lone str child, which unparser refuses.
+      # Coalescing would leave a lone str child, which unparser refused.
       mod, = materialize("def m(a, b)\n  [\"a \" \"b\", a > b]\nend\n")
       subject = Object.new.extend(mod)
       expect(subject.m(2, 1)).to(eq(["a b", true]))
     end
 
     it "coalesces plain parts spliced out of a nested juxtaposition", :aggregate_failures do
-      # Splicing the inner dstr leaves adjacent str parts, which unparser refuses.
+      # Splicing the inner dstr leaves adjacent str parts, which unparser refused.
       result, = synth("def m(a, b)\n  \"x\" \"y\#{a > b}z\" \"w\"\nend\n")
       expect { RubyVM::InstructionSequence.compile(result.source) }.not_to(raise_error)
       subject = subject(result)
@@ -318,7 +319,7 @@ RSpec.describe(Kimera::Overlay) do
 
     it "strips safe navigation on a call with a block", :aggregate_failures do
       result, subject, mutant = navigation
-      expect { Unparser.parse(result.source) }.not_to(raise_error)
+      expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
       expect([subject.first_neg([1, -2]), subject.first_neg(nil)]).to(eq([-2, nil]))
       expect(activated(subject, mutant)).to(eq([-2, true]))
     end
@@ -326,7 +327,7 @@ RSpec.describe(Kimera::Overlay) do
     it "drops an argument of a call with a block" do
       source = "def m(xs)\n  xs.each_slice(2) { |s| yield s }\nend\n"
       result, = synthesis(source, %w[argument_drop])
-      expect { Unparser.parse(result.source) }.not_to(raise_error)
+      expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
     end
   end
 
@@ -438,7 +439,7 @@ RSpec.describe(Kimera::Overlay) do
       result, = synth(source)
       expect(result.mutant_ids).not_to(be_empty)
       expect(result.source).not_to(include("class_eval"))
-      expect { Unparser.parse(result.source) }.not_to(raise_error)
+      expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
     end
 
     it "reopens a Data.define value object in place too", :aggregate_failures do
@@ -572,6 +573,12 @@ RSpec.describe(Kimera::Overlay) do
       RUBY
     end
 
+    # unparser could not write such a byte back into a plain heredoc, so the
+    # file was spliced per method and the heredoc's method left unmutated.
+    let(:heredoc) do
+      "def banner(size)\n  return if size < 2 * 2\n  <<~TEXT\n    \\xFF\n    end\n  TEXT\nend\n\n#{source}"
+    end
+
     it "mutates the whole file, the literal's own point too" do
       result, registry = escaped(source)
       expect([result.mutant_ids.size, result.skipped_unsafe]).to(eq([registry.count, []]))
@@ -584,34 +591,23 @@ RSpec.describe(Kimera::Overlay) do
       expect(flipped(registry, '"\xFF\xD8\xFF" => ""') { typed.content_type("\x89PNG".b) }).to(eq("image/jpeg"))
     end
 
-    # unparser can't write such a byte back into a plain heredoc (a guarded
-    # part is written as an interpolation, which it can), so only its method
-    # is left out.
-    # The overlay and registry of a file whose heredoc holds the byte, having
-    # announced the splice.
-    def spliced
-      heredoc = "def banner(size)\n  return if size < 2 * 2\n  <<~TEXT\n    \\xFF\n    end\n  TEXT\nend\n\n#{source}"
-      pair = nil
-      expect { pair = escaped(heredoc, %w[arithmetic comparison]) }
-        .to(output(/escaped\.rb: file-level round-trip failed; 1 mutant\(s\) spliced per method, 3 reported/).to_stderr)
-      pair
+    it "mutates a file whose heredoc holds the byte, the heredoc's method too", :aggregate_failures do
+      result, registry = nil
+      expect { result, registry = escaped(heredoc, %w[arithmetic comparison]) }.not_to(output.to_stderr)
+      expect([result.mutant_ids.size, result.skipped_unsafe]).to(eq([registry.count, []]))
     end
 
-    it "splices the other methods when unparser can't write the literal" do
-      dropped = spliced.last.points.reject(&:safe?)
-      expect([dropped.map(&:method_name).uniq, dropped.map(&:unsafe_reason).uniq])
-        .to(eq([["banner"], ["unmutatable: unparser could not round-trip its method"]]))
-    end
-
-    it "still writes the byte through the method it left out" do
-      expect(subject(spliced.first).banner(5).bytes).to(eq([0xFF, 10, 101, 110, 100, 10]))
+    it "writes the heredoc's byte through" do
+      result, = escaped(heredoc, %w[arithmetic comparison])
+      expect(subject(result).banner(5).bytes).to(eq([0xFF, 10, 101, 110, 100, 10]))
     end
   end
 
-  describe "unparser round-trip fallback" do
+  describe "write fallback" do
     # A named capture binds its local only when the regexp is a literal, so a
-    # regexp guarded in place leaves the body's read of it unbound: unparser
-    # can't round-trip that point. Only that point should drop, not the file.
+    # regexp guarded in place leaves the body's read of it unbound: kimera
+    # won't write that read as a method call. Only that point should drop, not
+    # the file.
     let(:source) do
       <<~'RUBY'
         class MatchRepro
@@ -623,7 +619,9 @@ RSpec.describe(Kimera::Overlay) do
         end
       RUBY
     end
-    let(:unguardable) { /match_repro\.rb: 1 mutation point\(s\) at line 3 are unguardable \(unparser round-trip\)/ }
+    let(:unguardable) do
+      /match_repro\.rb: 1 mutation point\(s\) at line 3 are unguardable \(kimera could not write them\)/
+    end
 
     def scan
       Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: %w[regexp comparison]))
@@ -644,14 +642,14 @@ RSpec.describe(Kimera::Overlay) do
       expect([result.mutant_ids, result.skipped_unsafe])
         .to(satisfy { |(m, s)| !m.empty? && !s.empty? && !m.intersect?(s) })
       expect(result.mutant_ids.size + result.skipped_unsafe.size).to(eq(registry.count))
-      expect { Unparser.parse(result.source) }.not_to(raise_error)
+      expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
     end
 
     it "reports the dropped points as unmutatable, with the reason", :aggregate_failures do
       registry, result = fallback
       dropped = registry.points.reject(&:safe?)
       expect(dropped.flat_map(&:ids)).to(eq(result.skipped_unsafe))
-      expect(dropped.map(&:unsafe_reason).uniq).to(eq(["unmutatable: unparser could not round-trip its guard"]))
+      expect(dropped.map(&:unsafe_reason).uniq).to(eq(["unmutatable: kimera could not write its guard"]))
     end
 
     # Every weave fails to render.
@@ -665,7 +663,7 @@ RSpec.describe(Kimera::Overlay) do
     it "re-raises the original error when no point is guardable" do
       unweavable
       expect { described_class.new(scan).synthesize("match_repro.rb", source) }
-        .to(raise_error(StandardError, /Unparser cannot round trip|unparse/i))
+        .to(raise_error(Kimera::Scribe::Unbound, /cannot write this read of count/))
     end
 
     # A failure outside any method can't be fixed by dropping points. Splicing
@@ -730,8 +728,8 @@ RSpec.describe(Kimera::Overlay) do
       end
 
       # Whole-file emission fails; individual methods are fine.
-      def unparse!
-        allow(Unparser).to(receive(:unparse).and_wrap_original) do |original, node|
+      def unwritable!
+        allow(Kimera::Scribe).to(receive(:new).and_wrap_original) do |original, node|
           unless %i[def defs].include?(node.type)
             raise(RuntimeError, "Could not find a round tripping solution for regexp")
           end
@@ -741,10 +739,10 @@ RSpec.describe(Kimera::Overlay) do
 
       def spliced
         registry = Kimera::RegistryScan.new.source(splice_source, file: "spliced.rb")
-        unparse!
+        unwritable!
         result = nil
         expect { result = described_class.new(registry).synthesize("spliced.rb", splice_source) }
-          .to(output(/spliced\.rb: file-level round-trip failed; 4 mutant\(s\) spliced per method/).to_stderr)
+          .to(output(/spliced\.rb: could not write the whole file; 4 mutant\(s\) spliced per method/).to_stderr)
         [registry, result]
       end
 
@@ -756,9 +754,9 @@ RSpec.describe(Kimera::Overlay) do
         expect(Prism.parse(result.source)).to(be_success)
       end
 
-      # Unparser writes no tree but a method, and not the method named compare.
+      # Kimera writes no tree but a method, and not the method named compare.
       def unparsing_methods
-        allow(Unparser).to(receive(:unparse).and_wrap_original) do |original, node|
+        allow(Kimera::Scribe).to(receive(:new).and_wrap_original) do |original, node|
           raise(RuntimeError, "boom") unless %i[def defs].include?(node.type)
           raise(RuntimeError, "boom") if node.children.first == :compare
           original.call(node)
@@ -783,7 +781,7 @@ RSpec.describe(Kimera::Overlay) do
       it "reports the points of a method it could not re-emit as unmutatable", :aggregate_failures do
         registry, = partial
         dropped, kept = registry.points.partition { |point| point.method_name.to_s == "compare" }
-        expect(dropped.map(&:unsafe_reason).uniq).to(eq(["unmutatable: unparser could not round-trip its method"]))
+        expect(dropped.map(&:unsafe_reason).uniq).to(eq(["unmutatable: kimera could not write its method"]))
         expect(kept).to(all(be_safe))
       end
 
@@ -808,7 +806,7 @@ RSpec.describe(Kimera::Overlay) do
       end
 
       def invalid!
-        allow(Unparser).to(receive(:unparse).and_wrap_original) do |_original, node|
+        allow(Kimera::Scribe).to(receive(:new).and_wrap_original) do |_original, node|
           unless %i[def defs].include?(node.type)
             raise(RuntimeError, "Could not find a round tripping solution for regexp")
           end
@@ -825,7 +823,7 @@ RSpec.describe(Kimera::Overlay) do
 
       def nested
         registry = Kimera::RegistryScan.new.source(nested_source, file: "nested.rb")
-        unparse!
+        unwritable!
         [registry, described_class.new(registry).synthesize("nested.rb", nested_source)]
       end
 
@@ -833,13 +831,13 @@ RSpec.describe(Kimera::Overlay) do
         registry, result = nested
         expect(result.mutant_ids.size).to(eq(registry.count))
         expect(Prism.parse(result.source)).to(be_success)
-        # Methods without points aren't re-emitted, so unparser can't normalise this.
+        # Methods without points aren't re-emitted, so kimera can't normalise this.
         expect(result.source).to(include("def  untouched_by_points"))
       end
 
       def compiled
         registry = Kimera::RegistryScan.new.source(splice_source, file: "spliced.rb")
-        unparse!
+        unwritable!
         mod = Module.new
         mod.module_eval(described_class.new(registry).synthesize("spliced.rb", splice_source).source)
         [mod.const_get(:Spliced), registry.each.find { |m, _p| m.label == "> => <" }.first]
@@ -853,9 +851,9 @@ RSpec.describe(Kimera::Overlay) do
 
       def reopened
         registry = Kimera::RegistryScan.new.source(value_source, file: "value.rb")
-        unparse!
+        unwritable!
         source = nil
-        announced = /value\.rb: file-level round-trip failed; #{registry.count} mutant\(s\) spliced per method/
+        announced = /value\.rb: could not write the whole file; #{registry.count} mutant\(s\) spliced per method/
         expect { source = described_class.new(registry).synthesize("value.rb", value_source).source }
           .to(output(announced).to_stderr)
         [registry, source]
@@ -923,7 +921,7 @@ RSpec.describe(Kimera::Overlay) do
       it "leaves a file with nothing to splice unreopened" do
         code = "Point = Data.define(:x) do\n  def big? = x > 10\nend\n"
         registry = Kimera::RegistryScan.new.source(code, file: "p.rb")
-        allow(Unparser).to(receive(:unparse).and_raise(RuntimeError, "Could not find a round tripping solution"))
+        allow(Kimera::Scribe).to(receive(:new).and_raise(RuntimeError, "Could not find a round tripping solution"))
         expect { described_class.new(registry).synthesize("p.rb", code) }
           .to(raise_error(RuntimeError, /round tripping/))
       end

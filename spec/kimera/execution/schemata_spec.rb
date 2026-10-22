@@ -209,10 +209,10 @@ RSpec.describe(Kimera::Execution::Schemata) do
       [registry, schemata(registry).tap { |loader| unparseable(loader) }]
     end
 
-    # Unparser can raise on nodes it can't emit, such as `defined?`.
+    # Synthesis can raise, as on a node kimera can't write.
     def unparseable(loader)
       allow(loader.__send__(:synth)).to(receive(:synthesize).and_wrap_original) do |original, file, source|
-        raise(Unparser::UnknownNodeError, "Unknown node type: :defined") if file == "sl_synth_bad.rb"
+        raise(ArgumentError, "kimera cannot write a foo node") if file == "sl_synth_bad.rb"
 
         original.call(file, source)
       end
@@ -220,7 +220,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
 
     it "is diagnosed on stderr" do
       _, loader = synthesized
-      expect { loader.overlay! }.to(output(/sl_synth_bad\.rb cannot run in warm workers.*UnknownNodeError/).to_stderr)
+      expect { loader.overlay! }.to(output(/sl_synth_bad\.rb cannot run in warm workers.*ArgumentError/).to_stderr)
     end
 
     it "does not stop the rest from being overlaid", :aggregate_failures do
@@ -234,8 +234,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
       registry, loader = synthesized
       noisily(loader)
       reasons = registry.points.select { |p| p.file == "sl_synth_bad.rb" }.map(&:unsafe_reason).uniq
-      expect(reasons)
-        .to(eq(["unmutatable: schemata setup failed (Unparser::UnknownNodeError: Unknown node type: :defined)"]))
+      expect(reasons).to(eq(["unmutatable: schemata setup failed (ArgumentError: kimera cannot write a foo node)"]))
     end
   end
 

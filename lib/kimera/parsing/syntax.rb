@@ -24,6 +24,8 @@ module Kimera
       SymbolNode TrueNode UnlessNode
     ].each { |name| const_set(name, Prism.const_get(name)) }
 
+    Translation = Prism::Translation
+
     OPERATOR_WRITES = [
       CallOperatorWriteNode, ClassVariableOperatorWriteNode, ConstantOperatorWriteNode,
       ConstantPathOperatorWriteNode, GlobalVariableOperatorWriteNode,

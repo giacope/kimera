@@ -5,12 +5,12 @@ require "kimera/synthesis/overlay"
 
 RSpec.describe(Kimera::Rewrite::NumberedParams) do
   it "renames only lvar references, never a literal :_1 symbol" do
-    node = described_class.new(Unparser.parse("x { [:_1, _1] }")).normalize
-    expect(Unparser.unparse(node)).to(include("[:_1, __kimera_1]"))
+    node = described_class.new(Kimera::Scribe.parse("x { [:_1, _1] }")).normalize
+    expect(Kimera::Scribe.new(node).source).to(include("[:_1, __kimera_1]"))
   end
 
   def normalize(source)
-    Unparser.unparse(described_class.new(Unparser.parse(source)).normalize)
+    Kimera::Scribe.new(described_class.new(Kimera::Scribe.parse(source)).normalize).source
   end
 
   it "renames numbered params so interpolation survives unparsing", :aggregate_failures do
@@ -21,7 +21,7 @@ RSpec.describe(Kimera::Rewrite::NumberedParams) do
     expect(out).to(include("|__kimera_1, __kimera_2|"))
     expect(out).to(include("puts(\"a \#{__kimera_1} b \#{__kimera_2}\")"))
 
-    expect { Unparser.parse(out) }.not_to(raise_error)
+    expect { Kimera::Scribe.parse(out) }.not_to(raise_error)
   end
 
   it "renames it-blocks", :aggregate_failures do
@@ -41,7 +41,7 @@ RSpec.describe(Kimera::Rewrite::NumberedParams) do
 
   it "scopes renames to the owning block, including nested it-blocks", :aggregate_failures do
     out = normalize("a.map { it + b.map { it * 2 }.sum }")
-    expect { Unparser.parse(out) }.not_to(raise_error)
+    expect { Kimera::Scribe.parse(out) }.not_to(raise_error)
     expect(out.scan("__kimera_it").size).to(eq(4))
   end
 
@@ -60,6 +60,6 @@ RSpec.describe(Kimera::Rewrite::NumberedParams) do
     registry = Kimera::RegistryScan.new.source(source, file: "x.rb")
     result = Kimera::Overlay.new(registry).synthesize("x.rb", source)
     expect(result.mutant_ids).not_to(be_empty)
-    expect { Unparser.parse(result.source) }.not_to(raise_error)
+    expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
   end
 end

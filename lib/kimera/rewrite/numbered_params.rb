@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
 require_relative "ast_walk"
-require_relative "../unparsing/unparse_nodes"
+require_relative "../scribe/nodes"
 
 module Kimera
   module Rewrite
     class NumberedParams
-      include Kimera::Unparse::Nodes
+      include Kimera::Scribe::Nodes
 
       PREFIX = "__kimera_"
 
