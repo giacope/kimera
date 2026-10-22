@@ -56,26 +56,36 @@ RSpec.describe(Kimera::Execution::Pool) do
   end
 
   # The worker's request pipe closes at once, so it exits without work.
-  it "gives its own workers a stack dump that lives as long as the fleet", :aggregate_failures do
-    pool = driver
-    launched = []
-    spawner = ->(slot) { pool.worker(slot).tap { |worker| launched << worker.last }.tap { |worker| worker[1].close } }
-    pool.drive([1], spawner, listeners)
+  # Spawns the pool's real workers, noting each one's stack dump.
+  def launching(pool, launched)
+    ->(slot) { pool.worker(slot).tap { |worker| launched << worker.last }.tap { |worker| worker[1].close } }
+  end
 
-    expect(launched.first).to(be_a(Kimera::Execution::StackDump))
-    expect(File.exist?(launched.first.instance_variable_get(:@dir))).to(be(false))
-  ensure
-    Process.waitall
+  describe "its own workers' stack dump" do
+    after { Process.waitall }
+
+    it "lives as long as the fleet", :aggregate_failures do
+      pool = driver
+      launched = []
+      pool.drive([1], launching(pool, launched), listeners)
+      expect(launched.first).to(be_a(Kimera::Execution::StackDump))
+      expect(File.exist?(launched.first.instance_variable_get(:@dir))).to(be(false))
+    end
+  end
+
+  # A driver with this stack dump, whose spawn forks inline.
+  def arming(stacks)
+    driver.tap do |pool|
+      pool.__send__(:armed).stacks = stacks
+      allow(pool).to(receive_messages(lead: nil))
+      allow(pool).to(receive(:fork).and_yield.and_return(7))
+    end
   end
 
   it "arms the stack dump inside the fork, before the worker boots", :aggregate_failures do
-    pool = driver
     stacks = instance_spy(Kimera::Execution::StackDump)
-    pool.__send__(:armed).stacks = stacks
-    allow(pool).to(receive(:fork).and_yield.and_return(7))
-    allow(pool).to(receive(:lead))
+    pool = arming(stacks)
     allow(pool).to(receive(:boot)) { expect(stacks).to(have_received(:arm!)) }
-
     expect(pool.__send__(:spawn, :duty)).to(eq(7))
     expect(pool).to(have_received(:boot).with(:duty))
   end

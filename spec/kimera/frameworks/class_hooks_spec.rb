@@ -51,14 +51,17 @@ RSpec.describe(Kimera::Frameworks::ClassHooks) do
     expect(described_class.new(hooked(after: result(passed: false, skipped: true))).run { own }).to(be(own))
   end
 
+  # A test class whose run answers its name and whether kimera's exit guard extends it.
+  def named
+    Class.new do
+      define_singleton_method(:with_info_handler) { |_, &block| block.call }
+      define_method(:initialize) { |name| @name = name }
+      define_method(:run) { [@name, singleton_class.include?(Kimera::TestExit::Test)] }
+    end
+  end
+
   it "runs one test by name inside the handler, as kimera's test runner extends it" do
-    klass =
-      Class.new do
-        define_singleton_method(:with_info_handler) { |_, &block| block.call }
-        define_method(:initialize) { |name| @name = name }
-        define_method(:run) { [@name, singleton_class.include?(Kimera::TestExit::Test)] }
-      end
-    expect(described_class.new(klass).test("test_it")).to(eq(["test_it", true]))
+    expect(described_class.new(named).test("test_it")).to(eq(["test_it", true]))
   end
 
   it "answers nil when the handler never ran the test and nothing failed" do
@@ -66,21 +69,24 @@ RSpec.describe(Kimera::Frameworks::ClassHooks) do
   end
 
   # Minitest's info handler asks the reporter passed? when it prints results.
-  it "hands the handler a reporter that has passed until a hook fails", :aggregate_failures do
-    said = []
-    klass =
-      Class.new do
-        define_singleton_method(:with_info_handler) do |reporter, &block|
-          said << reporter.passed?
-          reporter.record(Struct.new(:passed?, :skipped?).new(true, false))
-          reporter.record(Struct.new(:passed?, :skipped?).new(false, true))
-          said << reporter.passed?
-          reporter.record(Struct.new(:passed?, :skipped?).new(false, false))
-          said << reporter.passed?
-          block.call
-        end
+  # A class whose handler notes whether its reporter has passed: first, after a
+  # pass and a skip, then after a failure.
+  def reporting(said)
+    Class.new do
+      define_singleton_method(:with_info_handler) do |reporter, &block|
+        said << reporter.passed?
+        [[true, false], [false, true]].each { |outcome| reporter.record(Struct.new(:passed?, :skipped?).new(*outcome)) }
+        said << reporter.passed?
+        reporter.record(Struct.new(:passed?, :skipped?).new(false, false))
+        said << reporter.passed?
+        block.call
       end
-    described_class.new(klass).run { :ran }
+    end
+  end
+
+  it "hands the handler a reporter that has passed until a hook fails" do
+    said = []
+    described_class.new(reporting(said)).run { :ran }
     expect(said).to(eq([true, true, false]))
   end
 end

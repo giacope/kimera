@@ -28,8 +28,8 @@ RSpec.describe(Kimera::ForeignFile, :aggregate_failures) do
     end
   end
 
-  it "knows a file a parser generator wrote by its grammar beside it" do
-    %w[.rl .y .racc .treetop .rex].each do |grammar|
+  %w[.rl .y .racc .treetop .rex].each do |grammar|
+    it "knows a file a parser generator wrote by its #{grammar} grammar beside it", :aggregate_failures do
       tree("lib/parser.rb" => "", "lib/parser#{grammar}" => "", "lib/lexer.rb" => "") do
         expect(foreign?("lib/parser.rb")).to(be(true))
         expect(foreign?("lib/lexer.rb")).to(be(false))
@@ -45,9 +45,8 @@ RSpec.describe(Kimera::ForeignFile, :aggregate_failures) do
       "e.rb" => "# This file is generated, regenerate it\n"
     }
     tree(files) do
-      expect(%w[a.rb b.rb].map { |p| foreign?(p) }).to(all(be(true)))
-      expect(%w[c.rb d.rb e.rb].map { |p| foreign?(p) }).to(all(be(false)))
-      expect(foreign?("missing.rb")).to(be(false))
+      expect(%w[a.rb b.rb c.rb d.rb e.rb missing.rb].map { |p| foreign?(p) })
+        .to(eq([true, true, false, false, false, false]))
     end
   end
 
