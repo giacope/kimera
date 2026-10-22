@@ -59,25 +59,21 @@ RSpec.describe("kimera run --since (incremental CI mode)") do
       raise(Kimera::Error, "git #{arguments} failed")
   end
 
-  it "evaluates only mutants on changed lines, and resumes from a session", :aggregate_failures do
+  # Two runs over a repository's uncommitted change, sharing a session; each run's outcome.
+  def resumed
     Dir.mktmpdir("kimera-incr") do |dir|
       test_build_repository(dir)
-      session = File.join(dir, "session.json")
-
-      test_run(cwd: dir, arguments: ["--since", "HEAD", "--session", session]) do |output, report, status|
-        expect(report).not_to(be_nil, "no report; output:\n#{output}")
-        expect(output).to(match(/Incremental: \d+ mutants on lines changed/))
-        # `<=` -> `<` and `>=`, both on b's changed line.
-        expect(report["counts"]["total"]).to(eq(2))
-        expect(report["counts"]["killed"]).to(eq(2))
-        expect(status).to(eq(0))
-        expect(File).to(exist(session))
-      end
-
-      test_run(cwd: dir, arguments: ["--since", "HEAD", "--session", session]) do |_output, report, _status|
-        expect(report["counts"]["total"]).to(eq(2))
-        expect(report["counts"]["killed"]).to(eq(2))
-      end
+      arguments = ["--since", "HEAD", "--session", File.join(dir, "session.json")]
+      first = test_outcome(cwd: dir, arguments: arguments)
+      [first, File.exist?(File.join(dir, "session.json")), test_outcome(cwd: dir, arguments: arguments)]
     end
+  end
+
+  # `<=` -> `<` and `>=`, both on b's changed line.
+  it "evaluates only mutants on changed lines, and resumes from a session", :aggregate_failures do
+    first, saved, again = resumed
+    expect(first.output).to(match(/Incremental: \d+ mutants on lines changed/))
+    expect([first.report&.fetch("counts")&.values_at("total", "killed"), first.status, saved]).to(eq([[2, 2], 0, true]))
+    expect(again.report&.fetch("counts")&.values_at("total", "killed")).to(eq([2, 2]))
   end
 end
