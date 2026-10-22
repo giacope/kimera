@@ -13,39 +13,33 @@ RSpec.describe(Kimera::Execution::IsolatedPulse) do
 
   def beat(path) = File.write(path, ".", mode: "a")
 
-  it "expires once the limit passes without a beat", :aggregate_failures do
+  it "expires once the limit passes without a beat" do
     Dir.mktmpdir do |dir|
       pulse = watch(File.join(dir, "pulse")).observed
-      at(4.9)
-      expect(pulse.observed.expired?).to(be(false))
-      at(5.0)
-      expect(pulse.observed.expired?).to(be(true))
+      expect([4.9, 5.0].map { |seconds| at(seconds).then { pulse.observed.expired? } }).to(eq([false, true]))
     end
   end
 
-  it "renews the deadline from each new beat", :aggregate_failures do
-    Dir.mktmpdir do |dir|
-      path = File.join(dir, "pulse")
-      pulse = watch(path).observed
-      at(4.0)
-      beat(path)
-      renewed = pulse.observed
-      expect(renewed.expired?).to(be(false))
-      at(8.9)
-      expect(renewed.observed.expired?).to(be(false))
-      at(9.0)
-      expect(renewed.observed.expired?).to(be(true))
-    end
+  # Whether a pulse beaten at 4.0 has expired: when looked at again then, and
+  # at each later time.
+  def renewed(dir, times)
+    path = File.join(dir, "pulse")
+    pulse = watch(path).observed
+    at(4.0)
+    beat(path)
+    looked = pulse.observed
+    [looked.expired?, *times.map { |seconds| at(seconds).then { looked.observed.expired? } }]
   end
 
-  it "does not renew on a pulse that has not grown since the last look", :aggregate_failures do
+  it "renews the deadline from each new beat" do
+    Dir.mktmpdir { |dir| expect(renewed(dir, [8.9, 9.0])).to(eq([false, false, true])) }
+  end
+
+  it "does not renew on a pulse that has not grown since the last look" do
     Dir.mktmpdir do |dir|
-      path = File.join(dir, "pulse")
-      beat(path)
-      at(1.0)
-      pulse = watch(path).observed
-      at(6.0)
-      expect(pulse.observed.expired?).to(be(true))
+      path = File.join(dir, "pulse").tap { |file| beat(file) }
+      pulse = at(1.0).then { watch(path).observed }
+      expect(at(6.0).then { pulse.observed.expired? }).to(be(true))
     end
   end
 end
