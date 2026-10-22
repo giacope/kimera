@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "prism"
+require_relative "../../parsing/document"
 require_relative "../../error"
 require_relative "../../operators"
 
@@ -14,15 +14,13 @@ class Kimera::CLI::Run::InlineIgnores
     @root = root
   end
 
-  def rules = @registry.files.flat_map { |file| scan(file) }
+  def rules
+    @registry.files.flat_map do |file|
+      Kimera::Syntax::Document.new(@root, file).result.comments.filter_map { |comment| rule(file, comment) }
+    end
+  end
 
   private
-
-  def scan(file)
-    path = File.join(@root, file)
-    return [] unless File.file?(path)
-    Prism.parse_comments(File.read(path, encoding: Encoding::UTF_8)).filter_map { |comment| rule(file, comment) }
-  end
 
   def rule(file, comment)
     location = comment.location

@@ -2,7 +2,7 @@
 
 require "prism"
 require_relative "../registry/mutation_point"
-require_relative "../support/syntax"
+require_relative "../parsing/document"
 
 module Kimera
   module Execution
@@ -32,11 +32,7 @@ class Kimera::Execution::MacroLambdas
     point.safe? && !point.revisit && point.inside?(ranges) && point.uncovered?(coverage)
   end
 
-  def handed(file)
-    path = File.join(root, file)
-    return [] unless File.exist?(path)
-    lambdas(Kimera::Syntax.parse(File.read(path, encoding: Encoding::UTF_8)).value, argument: false)
-  end
+  def handed(file) = lambdas(Kimera::Syntax::Document.new(root, file).result.value, argument: false)
 
   def lambdas(node, argument:)
     return [] if node.is_a?(Prism::DefNode)

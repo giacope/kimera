@@ -6,7 +6,7 @@ require_relative "suite"
 require_relative "group_scope"
 require_relative "group_tree"
 require_relative "dot_rspec"
-require_relative "../support/test_exit"
+require_relative "../exits/test_exit"
 
 module Kimera
   module Frameworks

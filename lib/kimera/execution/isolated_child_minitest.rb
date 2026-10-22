@@ -4,7 +4,7 @@ require "json"
 require "minitest"
 require "zlib"
 require_relative "../frameworks/class_hooks"
-require_relative "../support/test_exit"
+require_relative "../exits/test_exit"
 require_relative "mirror_database"
 
 Minitest.seed ||= 1

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "kimera/support/branches"
+require "kimera/parsing/branches"
 
 RSpec.describe(Kimera::Branches) do
   def branches(source) = described_class.new(Prism.parse(source).value.statements.body.first)

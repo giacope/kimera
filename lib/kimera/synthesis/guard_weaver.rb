@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
-require_relative "../support/unparse"
+require_relative "../unparsing/unparse"
+require_relative "../unparsing/unparse_nodes"
 require_relative "../rewrite/ast_walk"
 require_relative "../rewrite/directive"
 require_relative "guardrail_dispatch"
@@ -12,6 +13,7 @@ class Kimera::Guardrail
   include Kimera::GuardrailDispatch
   include Kimera::GuardrailInterpolation
   include Kimera::GuardrailFactories
+  include Kimera::Unparse::Nodes
 
   Patch =
     Data.define(:map, :span, :directive) do
@@ -81,9 +83,5 @@ class Kimera::Guardrail
     expression = node.location&.expression
     return [] unless expression
     (@_ranges ||= group(@points)).fetch(@map.span(expression), [])
-  end
-
-  def ast(type, *children)
-    Parser::AST::Node.new(type, children)
   end
 end

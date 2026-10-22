@@ -3,7 +3,7 @@
 require_relative "suite"
 require_relative "load_path"
 require_relative "class_hooks"
-require_relative "../support/test_exit"
+require_relative "../exits/test_exit"
 
 module Kimera
   module Frameworks

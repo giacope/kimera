@@ -2,7 +2,7 @@
 
 require "prism"
 require_relative "../registry/mutation_point"
-require_relative "../support/syntax"
+require_relative "../parsing/syntax"
 require_relative "macro_lambdas"
 
 module Kimera

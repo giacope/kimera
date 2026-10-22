@@ -4,7 +4,7 @@ require "json"
 require "rspec/core"
 require "stringio"
 require "zlib"
-require_relative "../support/test_exit"
+require_relative "../exits/test_exit"
 require_relative "mirror_database"
 
 begin

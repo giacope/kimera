@@ -1,11 +1,13 @@
 # frozen_string_literal: true
 
-require "parser"
+require_relative "unparse_nodes"
 require_relative "unparse_precedence"
 
 module Kimera
   class Unparse
     class Grouping
+      include Nodes
+
       NUMERALS = %i[int float rational complex].freeze
       CHAINS = %i[send csend index block numblock itblock].freeze
       SIGNS = %i[-@ +@].freeze
@@ -27,7 +29,7 @@ module Kimera
 
       def wrap(node, floor) = node && PRECEDENCE.tightness(node) < floor ? enclose(node) : node
 
-      def enclose(node) = Parser::AST::Node.new(:begin, [node])
+      def enclose(node) = ast(:begin, node)
 
       def separate(node, children)
         receiver, *rest = children
