@@ -10,6 +10,7 @@ require_relative "isolated_plan"
 require_relative "isolated_scheduling"
 require_relative "isolated_verdict"
 require_relative "isolated_watchdog"
+require_relative "mirror_database"
 require_relative "null_progress"
 require_relative "numbered_databases"
 require_relative "parent_connections"
@@ -70,7 +71,8 @@ class Kimera::Execution::IsolatedExecution
     return if @_ready || jobs == 1
     @_ready = true
     databases = Kimera::Execution::NumberedDatabases.new
-    (1...jobs).each { |slot| databases.prepare(slot) } if databases.numbered?
+    return (1...jobs).each { |slot| databases.prepare(slot) } if databases.numbered?
+    Kimera::Execution::MirrorDatabase.new(nil).prepare(1...jobs)
   end
 
   def progress = @options.fetch(:progress, Kimera::Execution::NullProgress::NONE)

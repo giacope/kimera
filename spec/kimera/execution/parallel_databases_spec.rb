@@ -177,7 +177,7 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
 
     it "stays off, and says the workers share one database, without a schema file to load from" do
       parallelization(after: ->(_i) {})
-      record("app_test", adapter: "postgresql")
+      record("app_test", adapter: "mysql2")
       allow(ActiveRecord::Base).to(receive(:connection_handler).and_return(double(connection_pool_list: [])))
       allow(Kimera::Execution::ParallelDatabases).to(
         receive(:new).and_return(
@@ -219,7 +219,7 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       expect(ENV.fetch("TEST_ENV_NUMBER")).to(eq("3"))
     end
 
-    def shared(database = "app_test", adapter: "postgresql")
+    def shared(database = "app_test", adapter: "mysql2")
       record(database, adapter: adapter)
       allow(ActiveRecord::Base).to(receive(:connection_handler).and_return(double(connection_pool_list: [])))
       2.times { databases.before_fork }

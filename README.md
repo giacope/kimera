@@ -357,8 +357,9 @@ first and stops at the first that fails.
 A mirror is as safe as a warm worker:
 
 - Past the first, each concurrent mirror takes a test database of its own
-  through Rails' parallel-testing hooks (`<db>_1`, `<db>_2`, ...), as warm
-  workers do, so a `before(:suite)` that truncates or seeds cannot race
+  through Rails' parallel-testing hooks (`<db>_1`, `<db>_2`, ...), or a copy
+  of the parent's when there is no schema file to load, as warm workers do,
+  so a `before(:suite)` that truncates or seeds cannot race
   another mirror. Each also gets `TEST_ENV_NUMBER` (parallel_tests'
   convention), and kimera closes its own database connections before it
   starts one, so a suite that drops and re-creates its database at load runs.
@@ -420,6 +421,44 @@ off; the detail starts "failed alone in a fresh process (an earlier covering
 test masked it ...)". It is on by default for incremental runs (`--since`,
 `kimera ci`, `kimera changed`), where survivors are few, and off for full
 runs unless asked; the report's run section records the choice.
+
+### Reusing coverage on incremental runs
+
+An incremental run still measures the coverage baseline first: every test,
+once, under coverage, before any mutant runs. On a big suite that is most of
+the wait. Under `--reuse-coverage` (`reuse_coverage: true`) a full run keeps
+its baseline's coverage map in `tmp/kimera/coverage.json`: which tests reached
+each source file, every test the suite held, and what it was measured
+against: the commit, Ruby, the settings that pick the tests and sources, and a
+digest of each source and of each test, support and config file (everything
+under the test roots, `.rspec`, `Gemfile.lock`, `config/`, `db/schema.rb`;
+files git ignores are left out, since a suite rewrites some on every run). A
+later `--since`, `kimera ci` or `kimera changed` run with the flag reruns only
+the tests the map says reached a source file that changed since it was built,
+or one in scope, and the tests it does not know. Every test that can cover a
+changed line gets a fresh baseline, so no mutant is judged against old
+coverage.
+
+```sh
+bundle exec kimera run --reuse-coverage       # a full run (on main) stores the map
+bundle exec kimera changed --reuse-coverage   # a branch reruns only what its change reaches
+```
+
+The incremental run says what it reused, for example `kimera: reusing the
+coverage map from 1a2b3c4 (2 source file(s) changed since): the baseline runs
+38 of 1,204 tests`. When the map cannot hold (none is stored, another Ruby,
+other settings, or a test, support or config file changed, was added or was
+removed) it runs every test and says why in one line: `kimera: not reusing
+the stored coverage map: spec/support/auth.rb changed; the baseline runs every
+test`. Only a full run stores a map; in CI, cache `tmp/kimera/coverage.json`
+from the main branch's full run and restore it in pull requests.
+
+A map cannot see a test that reached none of the changed or in-scope files
+when it was built but reaches them now through code that ran only at load (a
+new method that overrides an inherited one, a changed constant), or through a
+changed file outside the source, test and config sets (a view, a data file).
+Leaving such a test out can only turn a kill into a survivor or an uncovered
+mutant, never the reverse: confirm a surprising one without the flag.
 
 ### Per-test soft limit
 
@@ -630,6 +669,10 @@ count_no_coverage: true
 # Run each warm survivor's covering tests alone in a fresh process, so an
 # earlier test cannot mask a kill. Unset: on for --since, ci and changed.
 # confirm_survivors: true
+# Keep a full run's coverage map in tmp/kimera; --since, ci and changed then
+# rerun only the baseline tests that reach the changed files, while the tests,
+# support and config files, settings and Ruby still match it.
+# reuse_coverage: true
 # Extra folders for the load path, beside each test file's nearest test/ or
 # spec/ and the project's own test/ and spec/. doctor and the printed
 # reproduce commands use the same load path.
@@ -1070,9 +1113,15 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   no `parallelize_test_databases` switch). Each worker gets its own database
   (`app_test_0`, `app_test_1`, …), as with `rails test -j`, and
   `TEST_ENV_NUMBER` (`""`, `"2"`, …): a `database.yml` that names the database
-  by it gets each worker's database created and loaded. An in-memory SQLite
+  by it gets each worker's database created and loaded. A suite that builds
+  its database as it loads (migrates it, as thredded's does) leaves no schema
+  file for Rails to load: kimera copies the database the parent prepared for
+  each worker and mirror past the first, after the parent disconnects
+  (`CREATE DATABASE app_test_1 TEMPLATE app_test` on PostgreSQL, a copy of the
+  file on SQLite), and drops the copies when the run ends. An in-memory SQLite
   database is never renamed; each fork keeps its own copy of the schema.
-  When workers would share one database, kimera says so. Anything *else* your suite shares
+  When workers would share one database (another adapter), kimera says so.
+  Anything *else* your suite shares
   (Redis, Elasticsearch, a temp directory) needs the same treatment. Register
   a hook and Kimera runs it:
   `ActiveSupport::Testing::Parallelization.after_fork_hook { |i| ... }`.

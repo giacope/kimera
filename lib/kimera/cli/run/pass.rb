@@ -4,6 +4,7 @@ require_relative "../../execution/harness"
 require_relative "../../execution/isolated"
 require_relative "../../execution/test_filter"
 require_relative "../../frameworks/suite"
+require_relative "../../incremental/coverage_cache"
 require_relative "../../report/progress"
 require_relative "../../results/run_report"
 require_relative "route"
@@ -60,12 +61,13 @@ class Kimera::CLI::Run::Pass
       .merge(soft_timeout: @options[:soft_timeout], jobs: @options[:jobs])
       .merge(isolate_db: @options[:isolate_db], progress: progress, filter: filter)
       .merge(@options.slice(:relative_timeout, :timeout_factor, :timeout_slack, :seed, :flaky_runs, :test_quality))
-      .merge(confirm_survivors: route.confirming?)
+      .merge(confirm_survivors: route.confirming?, measured: cache.method(:measured))
   end
 
   def warm(remaining)
     if @options[:isolated] || @options[:coverage]
       harness.warm!(files, scope: remaining)
+      cache.keep(harness, @adapter)
     else
       harness.without_coverage!(files)
     end
@@ -90,6 +92,11 @@ class Kimera::CLI::Run::Pass
   end
 
   def route = @_route ||= Kimera::CLI::Run::Route.new(@registry, @options)
+
+  def cache
+    sources = -> { Kimera::FileSet.new(@options[:paths], exclude: @options[:exclude]).relative_to(@options[:source_root]) }
+    @_cache ||= Kimera::Incremental::CoverageCache.new(registry: @registry, options: @options, sources: sources)
+  end
 
   def rejudged(report)
     unjudged = report.errors + revisited(report)
