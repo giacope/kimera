@@ -112,6 +112,19 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     expect(out.string.scan(/^framework: \w+/)).to(eq(["framework: rspec", "framework: rspec"]))
   end
 
+  # Neither autorun nor a test class: only the gem's name says Minitest.
+  it "detects Minitest from a helper that only requires a Minitest library" do
+    project("spec/spec_helper.rb" => "require \"minitest/pride\"\n")
+    configure
+    expect(configured).to(include("framework" => "minitest"))
+  end
+
+  it "configures the default source globs when neither app nor lib holds Ruby" do
+    project("spec/thing_spec.rb" => "")
+    configure
+    expect(configured).to(include("paths" => Kimera::FileSet::DEFAULT_GLOBS))
+  end
+
   it "detects RSpec from .rspec even without a spec directory" do
     project("test/.keep" => "", ".rspec" => "--require spec_helper\n")
     configure("--dry-run")

@@ -180,6 +180,26 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
 
     def summary = Kimera::Execution::BaselineFailure::Summary
 
+    # A suite that warns as it runs.
+    def noisy
+      quiet = outcome([])
+      adapter.define_singleton_method(:run) do |_ids|
+        warn("suite noise")
+        quiet
+      end
+    end
+
+    it "closes the ledger it opens" do
+      scripted([])
+      pass = described_class.new(adapter: adapter, registry: registry)
+      expect { pass.sequence }.not_to(change(Kimera::RUNTIME, :leaks))
+    end
+
+    it "keeps the suite's own output off the terminal" do
+      noisy
+      expect { described_class.new(adapter: adapter, registry: registry).sequence }.not_to(output.to_stderr)
+    end
+
     # Under a run of kimera on itself the outer run's guards fire too.
     it "reports which mutants it reached" do
       scripted([], touch: [ids.first, ids.first])

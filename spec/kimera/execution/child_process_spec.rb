@@ -24,6 +24,16 @@ RSpec.describe(Kimera::Execution::ChildProcess) do
     expect(line.encoding).to(eq(Encoding::BINARY))
   end
 
+  # A stream that closed its descriptor when collected would free 1 or 2 for
+  # the next pipe the child opens.
+  it "points a descriptor at the null device through a stream that never closes it", :aggregate_failures do
+    stream = instance_double(IO, reopen: :discarded)
+    allow(IO).to(receive(:for_fd).and_return(stream))
+    expect(reader.__send__(:discard, 2)).to(eq(:discarded))
+    expect(IO).to(have_received(:for_fd).with(2, autoclose: false))
+    expect(stream).to(have_received(:reopen).with(File::NULL, "w"))
+  end
+
   it "skips a line that isn't JSON" do
     expect(parse("!!not json!!")).to(be_nil)
   end

@@ -304,6 +304,6 @@ RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
     expect do
       _, status = run("nope.json")
       expect(status).to(eq(1))
-    end.to(output(/no such report/).to_stderr)
+    end.to(output(/no such report: nope\.json/).to_stderr)
   end
 end

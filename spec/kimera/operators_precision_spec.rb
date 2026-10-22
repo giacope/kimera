@@ -292,6 +292,12 @@ RSpec.describe(Kimera::Operators) do
         .to(eq(2))
     end
 
+    # The operator passes over the guard itself, before any memo exemption applies.
+    it "conditional offers no variant of a defined?(@ivar) guard" do
+      guard = Kimera::Syntax.parse("return @x if defined?(@x)").value.statements.body.first
+      expect(Kimera::Operators::Conditional.new.variants(guard)).to(be_nil)
+    end
+
     def flag = "def m\n  return if @done\n  @done = true\n  work\nend\n"
 
     it "conditional and boolean_literal skip a guard-style memo", :aggregate_failures do

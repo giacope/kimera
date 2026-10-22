@@ -231,10 +231,20 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     expect(adapter.describe("DemoKimeraTest#test_passes")).to(eq("DemoKimeraTest#test_passes"))
   end
 
+  # The stubbed run stands in for Minitest's own, which would run every test
+  # class loaded so far (and pass), and is restored after the example.
   it "falls back to neutering Minitest.run when the autorun internal is absent", :aggregate_failures do
     allow(Minitest).to(receive(:class_variable_set).and_raise(NameError))
+    allow(Minitest).to(receive(:run).and_return(:ran))
     expect { described_class.build }.not_to(raise_error)
     expect(Minitest.run).to(be(true))
+  end
+
+  # This file loads Minitest itself, so only the call shows the build loads it.
+  it "loads Minitest when it builds" do
+    allow(described_class).to(receive(:require).and_call_original)
+    described_class.build
+    expect(described_class).to(have_received(:require).with("minitest"))
   end
 
   # minitest-hooks builds each test from an instance its with_info_handler
