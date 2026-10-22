@@ -74,13 +74,18 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     Minitest::Runnable.runnables.delete(anonymous)
   end
 
-  it "falls back to the test method's file when the class name is no constant" do
-    named = Class.new(Minitest::Test) { define_method(:test_it) { true } }
-    named.define_singleton_method(:name) { "a described thing" }
-    adapter.instance_variable_get(:@_indexed)["named#test_it"] = [named, :test_it]
-    expect(adapter.test_file("named#test_it")).to(eq(__FILE__.delete_prefix("#{Dir.pwd}/")))
-  ensure
-    Minitest::Runnable.runnables.delete(named)
+  describe "a test class whose name is no constant" do
+    let(:named) do
+      Class.new(Minitest::Test) { define_method(:test_it) { true } }
+        .tap { |klass| klass.define_singleton_method(:name) { "a described thing" } }
+    end
+
+    after { Minitest::Runnable.runnables.delete(named) }
+
+    it "falls back to the test method's file" do
+      adapter.instance_variable_get(:@_indexed)["named#test_it"] = [named, :test_it]
+      expect(adapter.test_file("named#test_it")).to(eq(__FILE__.delete_prefix("#{Dir.pwd}/")))
+    end
   end
 
   def drawn(seed) = seeded(seed) { [adapter.run(["DemoKimeraTest#test_passes"]), rand(1_000_000)].last }
@@ -93,14 +98,20 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     expect(drawn(nil)).to(eq(Random.new(5).rand(1_000_000)))
   end
 
-  it "orders and reproduces the suite by the run's seed, once given one", :aggregate_failures do
-    saved = Minitest.seed
-    stub_const("DemoKimeraTest", Class.new(Minitest::Test))
-    seeded(77) { described_class.build.source([testfile]) }
-    expect(Minitest.seed).to(eq(77))
-    expect(adapter.reproduce(["DemoKimeraTest#test_passes"])).to(end_with("--seed 77"))
-  ensure
-    Minitest.seed = saved
+  describe "once given the run's seed" do
+    around do |example|
+      saved = Minitest.seed
+      example.run
+    ensure
+      Minitest.seed = saved
+    end
+
+    it "orders and reproduces the suite by it", :aggregate_failures do
+      stub_const("DemoKimeraTest", Class.new(Minitest::Test))
+      seeded(77) { described_class.build.source([testfile]) }
+      expect(Minitest.seed).to(eq(77))
+      expect(adapter.reproduce(["DemoKimeraTest#test_passes"])).to(end_with("--seed 77"))
+    end
   end
 
   it "indexes the tests its files defined when it sourced them, not a class defined later" do
@@ -180,12 +191,23 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
 
   # The command must load what kimera loaded: a nested test folder and the
   # project's root test/ both, quoted where the shell needs it.
-  it "puts every folder kimera loaded tests from on the reproduce command's load path" do
-    stub_const("NestedKimeraTest", Class.new(Minitest::Test))
+  # A test file in a folder whose name holds a space, beside a test folder.
+  def nested_test
     nested = File.join(dir, "lib", "my tool", "test")
     FileUtils.mkdir_p([nested, File.join(dir, "test")])
-    file = File.join(nested, "nested_test.rb")
-    File.write(file, "require 'minitest'\nclass NestedKimeraTest < Minitest::Test\n  def test_it = assert(true)\nend\n")
+    File.join(nested, "nested_test.rb").tap do |file|
+      File.write(file, <<~RUBY)
+        require 'minitest'
+        class NestedKimeraTest < Minitest::Test
+          def test_it = assert(true)
+        end
+      RUBY
+    end
+  end
+
+  it "puts every folder kimera loaded tests from on the reproduce command's load path" do
+    stub_const("NestedKimeraTest", Class.new(Minitest::Test))
+    file = nested_test
     command = Dir.chdir(dir) { described_class.build.source([file]).reproduce(["NestedKimeraTest#test_it"]) }
     expect(command).to(start_with("bundle exec ruby -I'lib/my tool/test' -Itest -rminitest/autorun -e "))
   end
@@ -259,16 +281,20 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     end
   end
 
-  it "passes a test whose class's info handler never ran it" do
-    silent =
+  describe "a test whose class's info handler never ran it" do
+    let(:silent) do
       Class.new(Minitest::Test) do
         define_singleton_method(:with_info_handler) { |*| :skipped }
         define_method(:test_it) { flunk }
       end
-    adapter.instance_variable_get(:@_indexed)["silent#test_it"] = [silent, :test_it]
-    expect(adapter.run(["silent#test_it"]).passed?).to(be(true))
-  ensure
-    Minitest::Runnable.runnables.delete(silent)
+    end
+
+    after { Minitest::Runnable.runnables.delete(silent) }
+
+    it "passes" do
+      adapter.instance_variable_get(:@_indexed)["silent#test_it"] = [silent, :test_it]
+      expect(adapter.run(["silent#test_it"]).passed?).to(be(true))
+    end
   end
 
   # `rails test` puts test/ on $LOAD_PATH for `require "test_helper"`; kimera loads files directly.
