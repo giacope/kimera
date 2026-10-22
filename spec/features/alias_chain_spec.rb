@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-require "fileutils"
-require "tmpdir"
-
 # A second file wraps Order#total through alias_method, so the original body
 # runs only through the alias. Its mutants must reach the tests through the
 # alias, whichever of the two files sorts first.
@@ -40,25 +37,14 @@ RSpec.describe("kimera run on a method wrapped by an alias chain in another file
     RUBY
   }
 
-  def project(root, wrapper)
-    files(wrapper).each do |path, body|
-      FileUtils.mkdir_p(File.dirname(File.join(root, path)))
-      File.write(File.join(root, path), body)
-    end
+  def ran(wrapper)
+    test_tree(files(wrapper), "kimera-alias") { |root| test_outcome(cwd: root, arguments: ["--no-progress"]) }
   end
 
   %w[order_tax a_tax].each do |wrapper|
-    it "covers and kills the wrapped original's mutants when the wrapper is #{wrapper}.rb", :aggregate_failures do
-      Dir.mktmpdir("kimera-alias") do |root|
-        project(root, wrapper)
-        test_run(cwd: root, arguments: ["--no-progress"]) do |output, report, status|
-          expect(report).not_to(be_nil, output)
-          original = report.fetch("results").select { |row| row["file"] == "app/order.rb" }
-          expect(original).not_to(be_empty)
-          expect(original.map { |row| row["status"] }.uniq).to(eq(["killed"]), output)
-          expect(status).to(eq(0))
-        end
-      end
+    it "covers and kills the wrapped original's mutants when the wrapper is #{wrapper}.rb" do
+      run = ran(wrapper)
+      expect([run.statuses("app/order.rb"), run.status]).to(eq([["killed"], 0]), run.output)
     end
   end
 end
