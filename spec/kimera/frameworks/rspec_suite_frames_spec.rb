@@ -47,13 +47,17 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
     $stderr = original
   end
 
-  it "follows the exception with the example's own frames", :aggregate_failures do
+  it "follows the exception with the example's own frames" do
     loaded = adapter
     id = loaded.test_ids.find { |test| loaded.describe(test) == "KimeraFrames raises" }
     lines = loaded.run([id]).failures[id].lines(chomp: true)
-
-    expect(lines.first).to(eq("RuntimeError: kaboom"))
-    expect(lines[1]).to(match(/\A    \S*frames_spec\.rb:2:in '\S*explode'\z/))
-    expect(lines[2]).to(match(/\A    \S*frames_spec\.rb:5:in /))
+    expect(lines.first(3)).to(
+      match(
+        [
+          eq("RuntimeError: kaboom"), match(/\A    \S*frames_spec\.rb:2:in '\S*explode'\z/),
+          match(/\A    \S*frames_spec\.rb:5:in /)
+        ]
+      )
+    )
   end
 end

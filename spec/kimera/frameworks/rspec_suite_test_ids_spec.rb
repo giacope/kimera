@@ -66,12 +66,17 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite, "#test_ids") do
 
   # RSpec memoizes each group's filtered examples; a stale empty entry would
   # keep the example from running.
-  it "forgets the examples the filter had selected before it fell back" do
+  # A focus filter that matched nothing, so RSpec fell back to running everything.
+  def unfocused
     RSpec.configuration.filter_run_including(focus: true)
     RSpec.configuration.run_all_when_everything_filtered = true
     Kernel.load(fixture)
     RSpec.world.example_groups.each { |group| RSpec.world.filtered_examples[group] }
-    adapter = described_class.new.source([])
+    described_class.new.source([])
+  end
+
+  it "forgets the examples the filter had selected before it fell back" do
+    adapter = unfocused
     failing = adapter.test_ids.find { |id| adapter.describe(id) == "KimeraFiltered fails" }
     expect(adapter.run([failing]).failed_ids).to(eq([failing]))
   end

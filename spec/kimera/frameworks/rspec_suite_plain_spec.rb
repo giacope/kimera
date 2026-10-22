@@ -22,16 +22,22 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite, :aggregate_failures) do
       expect(adapter.plain(%w[./a_spec.rb[1:1]], "/out.json").first(2)).to(eq(%w[rspec --format]))
     end
 
-    it "reads the failed examples' ids from the JSON report, nothing when there is none" do
+    # The failed ids read from a JSON report with this body, or from none.
+    def reported(body)
       Dir.mktmpdir do |dir|
         out = File.join(dir, "out.json")
-        examples = [{ "id" => "a[1:1]", "status" => "failed" }, { "id" => "a[1:2]", "status" => "passed" }]
-        File.write(out, JSON.generate("examples" => examples))
-        expect(adapter.failed_plainly("", out)).to(eq(["a[1:1]"]))
-        expect(adapter.failed_plainly("", File.join(dir, "missing.json"))).to(eq([]))
-        File.write(out, "{")
-        expect(adapter.failed_plainly("", out)).to(eq([]))
+        File.write(out, body) if body
+        adapter.failed_plainly("", out)
       end
+    end
+
+    it "reads the failed examples' ids from the JSON report" do
+      examples = [{ "id" => "a[1:1]", "status" => "failed" }, { "id" => "a[1:2]", "status" => "passed" }]
+      expect(reported(JSON.generate("examples" => examples))).to(eq(["a[1:1]"]))
+    end
+
+    it "reads nothing when there is no report, or it does not parse" do
+      expect([reported(nil), reported("{")]).to(eq([[], []]))
     end
   end
 end

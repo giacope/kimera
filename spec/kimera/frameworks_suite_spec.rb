@@ -85,11 +85,9 @@ RSpec.describe(Kimera::Frameworks) do
 
     it "constructs a registered extension without a built-in loader" do
       registry = described_class.new
-      instance = Object.new
-      klass = Class.new(Kimera::Frameworks::Suite)
-      allow(klass).to(receive(:build).and_return(instance))
+      klass = Class.new(Kimera::Frameworks::Suite).tap { |suite| allow(suite).to(receive(:build).and_return(:built)) }
       registry.register(:demo, klass)
-      expect(registry.load(:demo)).to(equal(instance))
+      expect(registry.load(:demo)).to(eq(:built))
     end
 
     it "loads a built-in adapter in a fresh Ruby process", :aggregate_failures do
