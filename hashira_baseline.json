@@ -80,13 +80,11 @@
     "synthesis -> support"
   ],
   "findings": {
-    "fragmentation:Kimera::Incremental::Stamp#to_s": 6,
     "low_cohesion:Kimera::CLI::Baseline": null,
     "low_cohesion:Kimera::CLI::Baseline::Entry": null,
     "repeated_call:Kimera::Execution::IsolatedVerdict": null
   },
   "traces": {
-    "fragmentation:Kimera::Incremental::Stamp#to_s": "fragmentation|incremental/stamp.rb|entries;paths;suite;folders;folder;digest",
     "low_cohesion:Kimera::CLI::Baseline": "low_cohesion|cli/baseline.rb|help, create, review, prune, baseline, existing, ledger, list, line (@io);run, command (@errors)",
     "low_cohesion:Kimera::CLI::Baseline::Entry": "low_cohesion|cli/baseline/entry.rb|moved, kept, place, anchors (@fields);kind, prunable?, statuses, verdict, matching, fits?, squeeze (@missing, @rows)",
     "repeated_call:Kimera::Execution::IsolatedVerdict": "repeated_call|execution/isolated_verdict.rb|Kimera::Execution::IsolatedVerdict#settle: verdict(trial.mirror, tests, first: !plan.quality?, slot: trial.slot) × 2"

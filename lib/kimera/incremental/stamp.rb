@@ -23,13 +23,11 @@ class Kimera::Incremental::Stamp
 
   def root = @_root ||= File.expand_path(@given)
 
-  def entries = paths.map { |path| "#{path.delete_prefix(root)}\0#{digest(path)}" }
-
-  def paths = (@sources + ROOTS + suite).map { |path| File.expand_path(path, root) }.uniq.sort
-
-  def suite = globs.flat_map { |glob| Dir.glob(glob, base: root) }
-
-  def globs = Kimera::Incremental::SuiteFiles.new(@settings[:tests]).globs
+  def entries
+    read = @sources + ROOTS + Kimera::Incremental::SuiteFiles.new(@settings[:tests]).files(root)
+    paths = read.map { |path| File.expand_path(path, root) }.uniq.sort
+    paths.map { |path| "#{path.delete_prefix(root)}\0#{digest(path)}" }
+  end
 
   def digest(path) = File.file?(path) ? Digest::SHA256.file(path).hexdigest : "-"
 end
