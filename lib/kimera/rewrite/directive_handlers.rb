@@ -8,126 +8,76 @@ require_relative "pinned_predicate"
 module Kimera
   module Rewrite
     module DirectiveHandlers
+      CONNECTIVES = { or: ["nil || nil", "nil or nil"], and: ["nil && nil", "nil and nil"] }.freeze
+      SPELLED = %w[and or].freeze
+
       Operation =
         Data.define(:node, :directive) do
           include Kimera::Scribe::Nodes
           def target = directive["to"]&.to_sym
 
-          def swap
-            receiver, _selector, *arguments = node.children
-            node.updated(:send, [receiver, target, *arguments])
+          def swap = node.copy(name: target)
+
+          def retype = node.type == :range_node ? spanned : connected
+
+          def spanned = flagged(node, Kimera::Syntax::RangeFlags, exclude_end: target == :erange)
+
+          def connected
+            spelled = SPELLED.include?(node.operator_loc.slice)
+            snippet(CONNECTIVES.fetch(target)[spelled ? 1 : 0]).copy(left: node.left, right: node.right)
           end
 
-          def retype = node.updated(target, node.children)
+          def literal = snippet(target.to_s)
 
-          def literal
-            node.updated(target, [])
-          end
+          def clear = snippet("nil")
 
-          def clear
-            node.updated(:nil, [])
-          end
+          def receiver = node.receiver
 
-          def receiver
-            node.children[0]
-          end
+          def unlink = node.copy(receiver: node.receiver.receiver)
 
-          def unlink
-            Invocation.new(node).block do |call|
-              receiver, *rest = call.children
-              call.updated(nil, [receiver.children[0], *rest])
-            end
-          end
+          def send = flagged(node, Kimera::Syntax::CallNodeFlags, safe_navigation: false)
 
-          def send
-            Invocation.new(node).block { |call| call.updated(:send, call.children) }
-          end
+          def retest = node.copy(predicate: PinnedPredicate.new(node.predicate).to(snippet(target.to_s)))
 
-          def retest
-            predicate, *rest = node.children
-            node.updated(nil, [PinnedPredicate.new(predicate).to(ast(target)), *rest])
-          end
+          def integer = node.copy(value: Integer(directive["value"]))
 
-          def integer
-            node.updated(:int, [Integer(directive["value"])])
-          end
+          def float = node.copy(value: Float(directive["value"]))
 
-          def float
-            node.updated(:float, [Float(directive["value"])])
-          end
+          def string = node.copy(unescaped: String(directive["value"]))
 
-          def string
-            node.updated(:str, [String(directive["value"])])
-          end
-
-          def empty
-            node.updated(nil, [])
-          end
+          def empty = node.copy(elements: [])
 
           def drop
-            Invocation.new(node).block do |call|
-              receiver, selector, *arguments = call.children
-              arguments.delete_at(Integer(directive[INDEX]))
-              call.updated(nil, [receiver, selector, *arguments])
-            end
+            Invocation.new(node).listed { |arguments| arguments.reject.with_index { |_, index| index == position } }
           end
 
-          def nothing
-            node.updated(nil, [ast(:nil)])
-          end
+          def nothing = node.copy(arguments: snippet("return nil").arguments)
 
-          def select
-            Invocation.new(node).block do |call|
-              Invocation.new(call).select(target)
-            end
-          end
+          def select = node.copy(name: target)
 
-          def remove
-            elements = node.children.dup
-            elements.delete_at(Integer(directive[INDEX]))
-            node.updated(nil, elements)
-          end
+          def remove = node.copy(elements: node.elements.reject.with_index { |_, index| index == position })
 
-          def assign
-            target, _operator, value = node.children
-            node.updated(nil, [target, self.target, value])
-          end
+          def assign = node.copy(binary_operator: target)
 
-          def keyword
-            kwargs { |pair| extra.trim(pair) }
-          end
+          def keyword = kwargs { |pair| extra.trim(pair) }
 
-          def option
-            kwargs { |_pair| next }
-          end
+          def option = kwargs { |_pair| next }
 
-          def kwargs(&)
-            Invocation.new(node).block { |call| Invocation.new(call).rewrite(directive["key"], &) }
-          end
+          def kwargs(&) = Invocation.new(node).rewrite(directive["key"], &)
 
-          def fetch
-            extra.fetch
-          end
+          def position = Integer(directive[INDEX])
 
-          def argument
-            extra.argument
-          end
+          def fetch = node.copy(name: :fetch)
 
-          def symbol
-            extra.symbol
-          end
+          def argument = node.arguments.arguments.first
 
-          def default
-            extra.default
-          end
+          def symbol = node.copy(unescaped: directive["value"].to_s)
 
-          def regexp
-            extra.regexp
-          end
+          def default = extra.default
 
-          def extra
-            ExtraHandlers::Operation.new(node, directive)
-          end
+          def regexp = extra.regexp
+
+          def extra = ExtraHandlers::Operation.new(node, directive)
         end
     end
   end

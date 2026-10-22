@@ -1,26 +1,29 @@
 # frozen_string_literal: true
 
 require_relative "../scribe"
+require_relative "ast_walk"
 require_relative "conditions"
 require_relative "directive"
 require_relative "numbered_params"
 
 class Kimera::Rewrite::Outcomes
   NUMERIC = Kimera::Scribe::Numeral::TYPES
+  FLAG = /\A(?!forced_).*\?\z/
+  INCIDENTAL = %i[node_id location locals].freeze
 
   def initialize(source)
     @source = source
   end
 
-  def distinct(location, variants, &)
+  def distinct(node, variants, &)
     variants.each_with_object([]) do |variant, kept|
-      kept << variant if kept.none? { |earlier| program(location, earlier, &) == program(location, variant, &) }
+      kept << variant if kept.none? { |earlier| program(node, earlier, &) == program(node, variant, &) }
     end
   end
 
-  def writable(location, variants)
-    node = nodes[[location.start_offset, location.end_offset]]
-    variants.reject { |variant| misread?(node, yield(variant)) }
+  def writable(node, variants)
+    found = nodes[key(node)]
+    variants.reject { |variant| misread?(found, yield(variant)) }
   end
 
   private
@@ -36,57 +39,67 @@ class Kimera::Rewrite::Outcomes
 
   def tree = @_tree ||= Kimera::Rewrite::NumberedParams.new(Kimera::Scribe.parse(@source)).normalize
 
-  def program(location, variant)
-    programs[variant] ||= outcome(location, yield(variant))
+  def program(node, variant)
+    (@_programs ||= {}.compare_by_identity)[variant] ||= rendered(node, yield(variant))
   end
 
-  def outcome(location, directive) = rendered(location, directive) || directive
-
-  def programs = @_programs ||= {}.compare_by_identity
-
-  def rendered(location, directive)
-    node = nodes[[location.start_offset, location.end_offset]]
-    node && form(Kimera::Rewrite::Directive.new(directive).apply(node))
+  def rendered(node, directive)
+    found = nodes[key(node)]
+    (found && form(Kimera::Rewrite::Directive.new(directive).apply(found))) || directive
   rescue StandardError
-    nil
+    directive
   end
 
   def nodes
-    @_nodes ||= spans(tree).uniq(&:first).to_h
+    @_nodes ||= {}.tap { |found| Kimera::Rewrite::AstWalk.new(tree).visit { |node| found[key(node)] ||= node } }
   rescue StandardError
     @_nodes ||= {}
   end
 
-  def spans(node)
-    return [] unless node.is_a?(Parser::AST::Node)
-    expression = node.location&.expression
-    (expression ? [[[offsets[expression.begin_pos], offsets[expression.end_pos]], node]] : []) +
-      node.children.flat_map { |child| spans(child) }
+  def key(node)
+    location = node.location
+    [location.start_offset, location.end_offset, node.type]
   end
 
-  def offsets = @_offsets ||= @source.each_char.with_object([0]) { |char, table| table << (table.last + char.bytesize) }
-
   def form(node)
-    return node unless node.is_a?(Parser::AST::Node)
     inner = bare(node)
     number = value(inner)
-    number ? [Numeric, number.inspect] : [inner.type, *inner.children.map { form(it) }]
+    number ? [Numeric, number.inspect] : [inner.type, *flags(inner), *fields(inner)]
+  end
+
+  def flags(node) = node.class.instance_methods(false).grep(FLAG).sort.map { |flag| node.public_send(flag) }
+
+  def fields(node)
+    node.deconstruct_keys(nil).except(*INCIDENTAL).filter_map do |field, value|
+      [field, part(value)] unless field.end_with?("_loc")
+    end
+  end
+
+  def part(value)
+    case value
+    when Kimera::Syntax::Node then form(value)
+    when Array then value.map { |item| part(item) }
+    else value
+    end
   end
 
   def value(node)
-    receiver, selector, *arguments = node.children
-    return receiver if NUMERIC.include?(node.type)
-    number = selector == :-@ && arguments.empty? && value(bare(receiver))
+    return node.value if NUMERIC.include?(node.type)
+    number = negated?(node) && value(bare(node.receiver))
     -number if number
   end
 
+  def negated?(node) = node.type == :call_node && node.name == :-@ && node.receiver && !(node.arguments || node.block)
+
   def bare(node)
-    inner = lone(node)
-    inner ? bare(inner) : node
+    inner = contents(node)
+    inner&.one? ? bare(inner.first) : node
   end
 
-  def lone(node)
-    children = node.children
-    children[0] if node.type == :begin && children.one?
+  def contents(node)
+    case node.type
+    when :statements_node then node.body
+    when :parentheses_node then node.body && contents(node.body)
+    end
   end
 end

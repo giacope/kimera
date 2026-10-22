@@ -5,46 +5,23 @@ require_relative "../scribe/nodes"
 module Kimera
   module Rewrite
     module ExtraHandlers
+      REQUIRED = { optional_parameter_node: :requireds, optional_keyword_parameter_node: :keywords }.freeze
+
       Operation =
         Data.define(:node, :directive) do
           include Kimera::Scribe::Nodes
           def trim(pair)
-            key, value = pair.children
-            elements = value.children.dup
-            elements.delete_at(Integer(directive[INDEX]))
-            pair.updated(nil, [key, value.updated(nil, elements)])
-          end
-
-          def fetch
-            node.type == :index ? index(node) : call(node)
-          end
-
-          def index(node)
-            receiver, *arguments = node.children
-            node.updated(:send, [receiver, :fetch, *arguments])
-          end
-
-          def call(node)
-            receiver, _selector, *arguments = node.children
-            node.updated(nil, [receiver, :fetch, *arguments])
-          end
-
-          def argument
-            node.children[2]
-          end
-
-          def symbol
-            node.updated(:sym, [directive["value"].to_sym])
+            value = pair.value
+            position = Integer(directive[INDEX])
+            pair.copy(value: value.copy(elements: value.elements.reject.with_index { |_, index| index == position }))
           end
 
           def default
-            node.updated(node.type == :kwoptarg ? :kwarg : :arg, [node.children[0]])
+            parameters = snippet("def kimera(required, keyword:) = nil").parameters
+            parameters.public_send(REQUIRED.fetch(node.type)).first.copy(name: node.name)
           end
 
-          def regexp
-            source = directive["source"].to_s
-            ast(:regexp, *(source.empty? ? [] : [ast(:str, source)]), ast(:regopt))
-          end
+          def regexp = pattern(directive["source"].to_s, node.closing[1..])
         end
     end
   end

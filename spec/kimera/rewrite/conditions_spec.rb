@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "prism"
+require "kimera/rewrite/ast_walk"
 require "kimera/rewrite/conditions"
 require "kimera/scribe"
 
@@ -21,14 +22,11 @@ RSpec.describe(Kimera::Rewrite::Conditions) do
   # `r` stands for the literal a mutation leaves: parsed in place, the parser
   # would already read it as a condition.
   def placed(form, literal)
-    swap(Kimera::Scribe.parse(form), Kimera::Scribe.parse(literal))
+    written = Kimera::Scribe.parse(literal).statements.body.first
+    Kimera::Rewrite::AstWalk.new(Kimera::Scribe.parse(form)).rebuild { |node| r?(node) ? written : node }
   end
 
-  def swap(node, literal)
-    return node unless node.is_a?(Parser::AST::Node)
-    return literal if node == Parser::AST::Node.new(:send, [nil, :r])
-    node.updated(nil, node.children.map { swap(it, literal) })
-  end
+  def r?(node) = node.type == :call_node && node.name == :r && node.variable_call?
 
   # What Ruby runs when the tree is written out.
   def rereads?(tree)

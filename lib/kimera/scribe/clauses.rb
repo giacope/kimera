@@ -8,39 +8,35 @@ module Kimera
         @pen = pen
       end
 
-      def text
-        case @node&.type
-        when :ensure then guarded
-        when :rescue then rescued(@node)
-        else Lines.new(@node, @pen.deeper).text
-        end
+      def text = structured? ? structure : Lines.new(@node, @pen.deeper).text
+
+      def structured? = @node&.type == :begin_node && !@node.begin_keyword_loc
+
+      def structure
+        handlers = Kimera::Syntax::RESCUES.call(@node.rescue_clause)
+        body = Lines.new(@node.statements, @pen.deeper).text
+        "#{body}#{handling(handlers)}#{fallback(handlers)}#{cleanup(handlers)}"
       end
 
       private
 
-      def guarded
-        body, cleanup = @node.children
-        "#{Clauses.new(body, @pen).text}#{keyword("ensure")}#{Lines.new(cleanup, @pen.with([body]).deeper).text}"
+      def handling(handlers)
+        pens = Pens.new(@pen.with([@node.statements]), handlers).list
+        handlers.zip(pens).sum("") { |handler, pen| Rescue.new(handler, pen).text }
       end
 
-      def rescued(node)
-        body, *handlers, fallback = node.children
-        text = Lines.new(body, @pen.deeper).text + handling(body, handlers)
-        fallback ? "#{text}#{keyword("else")}#{Lines.new(fallback, @pen.with([body, *handlers]).deeper).text}" : text
+      def fallback(handlers)
+        otherwise = @node.else_clause
+        otherwise ? "#{keyword("else")}#{Lines.new(otherwise.statements, after(handlers).deeper).text}" : ""
       end
 
-      def handling(body, handlers)
-        pens = Pens.new(@pen, [body, *handlers]).list
-        handlers.zip(pens.drop(1)).sum("") { |handler, pen| handled(handler, pen) }
+      def cleanup(handlers)
+        ensure_clause = @node.ensure_clause
+        return "" unless ensure_clause
+        "#{keyword("ensure")}#{Lines.new(ensure_clause.statements, after([*handlers, @node.else_clause]).deeper).text}"
       end
 
-      def handled(handler, pen)
-        classes, target, body = handler.children
-        head = "rescue"
-        head += " #{Exceptions.new(classes, pen).text}" if classes
-        head += " => #{Target.new(target, pen).text}" if target
-        "#{keyword(head)}#{Lines.new(body, pen.with([classes, target]).deeper).text}"
-      end
+      def after(nodes) = @pen.with([@node.statements, *nodes.compact])
 
       def keyword(word) = "\n#{@pen.margin}#{word}"
     end

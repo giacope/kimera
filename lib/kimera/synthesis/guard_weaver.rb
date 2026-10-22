@@ -5,21 +5,20 @@ require_relative "../scribe/nodes"
 require_relative "../rewrite/ast_walk"
 require_relative "../rewrite/directive"
 require_relative "guardrail_dispatch"
-require_relative "guardrail_interpolation"
 require_relative "guardrail_factories"
 require_relative "source_map"
 
 class Kimera::Guardrail
   include Kimera::GuardrailDispatch
-  include Kimera::GuardrailInterpolation
   include Kimera::GuardrailFactories
   include Kimera::Scribe::Nodes
 
+  ANCHOR = ->(node) { [node.location.start_offset, node.location.end_offset, node.type.to_s] }
+
   Patch =
-    Data.define(:map, :span, :directive) do
+    Data.define(:anchor, :directive) do
       def apply(rebuilt, original)
-        expression = original.location&.expression
-        return rebuilt unless expression && map.span(expression) == span
+        return rebuilt unless ANCHOR.call(original) == anchor
         Kimera::Rewrite::Directive.new(directive).apply(rebuilt)
       end
     end
@@ -39,49 +38,57 @@ class Kimera::Guardrail
   end
 
   def activated(node)
-    return [] unless node.is_a?(Parser::AST::Node)
-    children = node.children
-    own = children.first(2) == [runtime, :active?] ? [children[2].children.first] : []
-    own + children.flat_map { |child| activated(child) }
+    found = []
+    Kimera::Rewrite::AstWalk.new(node).visit { |visited| found << activation(visited) }
+    found.compact
   end
 
   def transform(node) = weave(node).first
 
-  def bake(location, directive)
-    target = [location.start_offset, location.finish]
-    prune(overlay(target, directive)) if spans.include?(target)
+  def bake(point, directive)
+    location = point.location
+    target = [location.start_offset, location.finish, point.node_type]
+    overlay(target, directive) if anchors.include?(target)
   end
 
   private
 
-  def spans
-    Set.new.tap { |found| Kimera::Rewrite::AstWalk.new(@map.ast).visit { |node| found << span(node) } }
+  def activation(node)
+    return unless node.type == :call_node && node.name == :active? && runtime?(node.receiver)
+    node.arguments.arguments.first.value
   end
 
-  def span(node)
-    expression = node.location&.expression
-    expression && @map.span(expression)
+  def runtime?(node) = node&.type == :constant_path_node && node.name == :RUNTIME && node.parent&.name == :Kimera
+
+  def anchors
+    Set.new.tap { |found| Kimera::Rewrite::AstWalk.new(@map.ast).visit { |node| found << ANCHOR.call(node) } }
   end
 
   def weave(node)
-    return [node, node] unless node.is_a?(Parser::AST::Node)
-    woven = node.children.map { |child| weave(child) }
-    bare = settle(node.updated(nil, woven.map(&:last)))
-    [reopen(dispatch(settle(node.updated(nil, woven.map(&:first))), bare, points(node))), reopen(bare)]
+    fields = node.deconstruct_keys(nil).filter_map { |field, value| [field, split(value)] if woven?(value) }.to_h
+    woven = node.copy(**fields.transform_values(&:first))
+    bare = node.copy(**fields.transform_values(&:last))
+    [reopen(dispatch(woven, bare, points(node))), reopen(bare)]
   end
 
-  def settle(node) = node.type == :dstr ? flatten(node) : node
+  def woven?(value) = value.is_a?(Kimera::Syntax::Node) || (value.is_a?(Array) && value.all?(Kimera::Syntax::Node))
+
+  def split(value)
+    if value.is_a?(Array)
+      value.map do |item|
+        weave(item)
+      end.transpose.then { |pair| pair.empty? ? [[], []] : pair }
+    else
+      weave(value)
+    end
+  end
 
   def overlay(target, directive)
-    patch = Patch.new(@map, target, directive)
+    patch = Patch.new(target, directive)
     Kimera::Rewrite::AstWalk.new(@map.ast).rebuild do |rebuilt, original|
       reopen(patch.apply(rebuilt, original))
     end
   end
 
-  def points(node)
-    expression = node.location&.expression
-    return [] unless expression
-    (@_ranges ||= group(@points)).fetch(@map.span(expression), [])
-  end
+  def points(node) = (@_anchored ||= group(@points)).fetch(ANCHOR.call(node), [])
 end

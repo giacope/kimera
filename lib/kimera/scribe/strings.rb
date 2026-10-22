@@ -3,103 +3,97 @@
 module Kimera
   class Scribe
     class Interpolated < Form
-      SIGILS = %i[ivar cvar gvar nth_ref back_ref].freeze
       TAIL = /\A[A-Za-z0-9_]/
 
       private
 
-      def inner(delimiter, count = children.size)
-        pieces = segments(count)
+      def inner(delimiter)
+        pieces = segments
         pieces.each_with_index.sum("") { |piece, index| piece_text(piece, pieces[index + 1], delimiter) }
       end
 
-      def segments(count)
-        runs = children.first(count).each_with_index.chunk_while { |(left, _), (right, _)| joinable?(left, right) }
-        runs.map do |run|
-          if run.first.first.type == :str
-            run.sum("") do |(node, _)|
-              node.children.first
-            end
-          else
-            run.first.last
-          end
-        end
+      def segments
+        runs = @node.parts.chunk_while { |left, right| [left, right].all? { |part| part.type == :string_node } }
+        runs.map { |run| run.first.type == :string_node ? run.sum("") { |part| content(part) } : run.first }
       end
 
-      def joinable?(left, right)
-        [left, right].all? { |node| node.type == :str } && !left.children.first.end_with?("\n")
-      end
+      def content(part) = part.unescaped
 
       def piece_text(piece, following, delimiter)
-        return embedded(piece, following) if piece.is_a?(Integer)
-        return Quote.new(piece, delimiter).text unless piece.end_with?("\n") && following.is_a?(::String)
-        "#{Quote.new(piece.delete_suffix("\n"), delimiter).text}\n"
+        piece.is_a?(::String) ? escaped(piece, delimiter) : embedded(piece, following)
       end
 
-      def embedded(index, following)
-        node = children.fetch(index)
-        bare = SIGILS.include?(node.type) && !(following.is_a?(::String) && following.match?(TAIL))
-        bare ? "##{part(index)}" : "\#{#{interpolation(index)}}"
+      def escaped(piece, delimiter) = Quote.new(piece, delimiter).text
+
+      def embedded(node, following)
+        return "##{part(node.variable)}" if node.type == :embedded_variable_node && !tail?(following)
+        "\#{#{interpolation(node)}}"
       end
 
-      def interpolation(index)
-        pen = pens.fetch(index).opened
-        node = children.fetch(index)
-        node.type == :begin ? Sequence.new(node, pen).text : pen.write(node)
+      def tail?(following) = following.is_a?(::String) && following.match?(TAIL)
+
+      def interpolation(node) = pen_of(node).opened.write(node)
+    end
+
+    class Embedded < Form
+      TYPES = %i[embedded_statements_node embedded_variable_node].freeze
+
+      def text
+        return part(@node.variable) if type == :embedded_variable_node
+        @node.statements ? Sequence.new(@node.statements, @pen).text : ""
       end
     end
 
-    class Dstr < Interpolated
-      TYPES = %i[dstr].freeze
+    class InterpolatedString < Interpolated
+      TYPES = %i[interpolated_string_node].freeze
 
       def text
-        return '""' if children.empty?
+        return '""' if @node.parts.empty?
         return %("#{inner('"')}") unless juxtaposed?
-        children.each_index.map { |index| literal(index) }.join(" ")
+        @node.parts.map { |piece| literal(piece) }.join(" ")
       end
 
       private
 
-      def juxtaposed? = children.any? { |child| child.type == :dstr } || children.all? { |child| child.type == :str }
+      def juxtaposed?
+        @node.parts.any? do |piece|
+          piece.type == :interpolated_string_node || (piece.type == :string_node && piece.opening_loc)
+        end
+      end
 
-      def literal(index)
-        %i[str dstr].include?(children.fetch(index).type) ? part(index) : %("\#{#{interpolation(index)}}")
+      def literal(piece)
+        %i[string_node interpolated_string_node].include?(piece.type) ? part(piece) : %("\#{#{interpolation(piece)}}")
       end
     end
 
-    class Dsym < Interpolated
-      TYPES = %i[dsym].freeze
+    class InterpolatedSymbol < Interpolated
+      TYPES = %i[interpolated_symbol_node].freeze
 
       def text = %(:"#{inner('"')}")
     end
 
-    class Xstr < Interpolated
-      TYPES = %i[xstr].freeze
+    class InterpolatedCommand < Interpolated
+      TYPES = %i[interpolated_x_string_node].freeze
 
       def text = "`#{inner("`")}`"
     end
 
-    class RegularExpression < Interpolated
-      TYPES = %i[regexp].freeze
-      DELIMITERS = [%w[/ /], %w[{ }], %w[[ ]], %w[( )], %w[< >], %w[| |], %w[! !]].freeze
-      SLASH = %r{(?<!\\)((?:\\\\)*)/}
+    class Pattern < Interpolated
+      TYPES = %i[
+        regular_expression_node interpolated_regular_expression_node match_last_line_node
+        interpolated_match_last_line_node
+      ].freeze
+      PLAIN = %i[regular_expression_node match_last_line_node].freeze
 
-      def text
-        open, close = delimiters
-        "#{"%r" unless open == "/"}#{open}#{inner(close, children.size - 1)}#{close}#{children.last.children.join}"
-      end
+      def text = "#{@node.opening}#{inner(@node.closing)}#{@node.closing}"
 
       private
 
-      def piece_text(piece, following, delimiter)
-        return embedded(piece, following) if piece.is_a?(Integer)
-        delimiter == "/" ? piece.gsub(SLASH) { "#{::Regexp.last_match(1)}\\/" } : piece
-      end
+      def segments = PLAIN.include?(type) ? [@node.content] : super
 
-      def delimiters
-        raw = children.select { |child| child.type == :str }.sum("") { |child| child.children.first }
-        DELIMITERS.find { |pair| pair.none? { |mark| raw.include?(mark) } } || DELIMITERS.first
-      end
+      def content(part) = part.content
+
+      def escaped(piece, _delimiter) = piece
     end
   end
 end

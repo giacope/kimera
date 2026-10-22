@@ -221,9 +221,10 @@ RSpec.describe(Kimera::RegistryScan) do
       expect(labels("def m(a)\n  f(a, a)\n  a.map { it }\nend\n")).to(eq(["delete `f(a, a)`", "drop arg `a`"]))
     end
 
-    # The parser gem rejects /\xff/ in a UTF-8 file, where Prism reads it.
-    it "keeps every variant of a file it can't render" do
-      expect(labels("def m\n  f(1, 1)\n  /\\xff/\nend\n")).to(eq(["delete `f(1, 1)`"] + (["drop arg `1`"] * 2)))
+    # The parser gem rejected /\xff/ in a UTF-8 file; kimera writes the tree
+    # Prism reads, so that file's variants are compared like any other's.
+    it "compares the variants of a file with a regexp escape that is invalid UTF-8" do
+      expect(labels("def m\n  f(1, 1)\n  /\\xff/\nend\n")).to(eq(["delete `f(1, 1)`", "drop arg `1`"]))
     end
 
     it "reads a file with a string escape that is invalid UTF-8" do

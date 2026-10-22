@@ -26,13 +26,13 @@ RSpec.describe(Kimera::Frameworks) do
       error.message
     end
 
-    before { require "parser" }
+    before { require "prism" }
 
     it "names the constant and the gem that defines it", :aggregate_failures do
-      message = loaded(TypeError.new("Parser is not a class"))
-      hint = "Parser is a top-level constant that parser, a gem kimera runs on, defines in the process that " \
-        "loads your suite, so the project's own Parser cannot load beside it: put the project's Parser in a namespace"
-      expect(message).to(start_with("cannot load test file test/x_test.rb (TypeError: Parser is not a class)\n"))
+      message = loaded(TypeError.new("Prism is not a class"))
+      hint = "Prism is a top-level constant that prism, a gem kimera runs on, defines in the process that " \
+        "loads your suite, so the project's own Prism cannot load beside it: put the project's Prism in a namespace"
+      expect(message).to(start_with("cannot load test file test/x_test.rb (TypeError: Prism is not a class)\n"))
       expect(message).to(end_with(hint))
     end
 
@@ -43,8 +43,8 @@ RSpec.describe(Kimera::Frameworks) do
     end
 
     it "adds nothing for any other error" do
-      plain = "cannot load test file test/x_test.rb (NameError: Parser is not a class)"
-      expect(loaded(NameError.new("Parser is not a class"))).to(eq(plain))
+      plain = "cannot load test file test/x_test.rb (NameError: Prism is not a class)"
+      expect(loaded(NameError.new("Prism is not a class"))).to(eq(plain))
     end
 
     it "adds nothing for a constant no one defines" do

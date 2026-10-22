@@ -14,13 +14,17 @@ class Kimera::SourceMap
     @_ast ||= Kimera::Rewrite::NumberedParams.new(Kimera::Scribe.parse(@source)).normalize
   end
 
-  def span(expression)
-    [bytes[expression.begin_pos], bytes[expression.end_pos]]
-  end
-
   def restore(source)
     prefix = comments.join("\n")
     prefix.empty? ? source : "#{prefix}\n#{source}"
+  end
+
+  def splice(edits)
+    text =
+      edits.sort_by(&:first).reverse_each.with_object(@source.b) do |(from, to, replacement), spliced|
+        spliced[from...to] = replacement.b
+      end
+    text.force_encoding(@source.encoding)
   end
 
   MAGIC_COMMENT =
@@ -34,9 +38,5 @@ class Kimera::SourceMap
     shebang = first&.start_with?("#!") ? first : nil
     candidate = shebang ? second : first
     [shebang, (candidate&.match?(MAGIC_COMMENT) ? candidate : nil)].compact.map(&:chomp)
-  end
-
-  def bytes
-    @_bytes ||= @source.each_char.map(&:bytesize).each_with_object([0]) { |size, map| map << (map.last + size) }
   end
 end

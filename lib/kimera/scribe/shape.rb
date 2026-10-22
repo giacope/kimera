@@ -3,35 +3,38 @@
 module Kimera
   class Scribe
     class Shape
-      ASSIGNING = %i[lvasgn ivasgn gvasgn cvasgn casgn op_asgn or_asgn and_asgn indexasgn].freeze
-      SPREAD = %i[splat block_pass kwargs forwarded_args forwarded_restarg forwarded_kwrestarg].freeze
-      SETTER = /\A[A-Za-z_].*=\z/
+      WRITES = /_(?:operator_|or_|and_)?write_node\z/
+      NUMERALS = %i[integer_node float_node rational_node imaginary_node].freeze
+      SPREAD = %i[splat_node keyword_hash_node forwarding_arguments_node block_argument_node].freeze
 
       def initialize(node)
         @node = node
       end
 
-      def assignment? = ASSIGNING.include?(@node.type) || setter?
+      def assignment? = (@node.type.match?(WRITES) && @node.type != :multi_write_node) || setter?
 
-      def setter? = call? && @node.children[1].match?(SETTER) && single?
+      def setter? = call? && @node.attribute_write? && !@node.name.end_with?("]=")
 
-      def single?
-        arguments = @node.children.drop(2)
-        arguments.one? && !SPREAD.include?(arguments.first.type)
-      end
+      def prefix? = call? && Level::PREFIX.key?(@node.name) && @node.receiver && plain? && arguments.empty?
 
-      def prefix? = @node.type == :send && Level::PREFIX.key?(@node.children[1]) && @node.children.size == 2
+      def binary? = call? && Level::BINARY.key?(@node.name) && @node.receiver && plain? && single?
 
-      def numeral? = Numeral::TYPES.include?(@node.type)
+      def numeral? = NUMERALS.include?(@node.type)
 
       def spelled?(word)
-        keyword = Hash(@node.location&.to_hash).values_at(:selector, :operator).compact.first
-        keyword ? keyword.source == word : false
+        return @node.message == word if call?
+        @node.respond_to?(:operator_loc) && @node.operator_loc&.slice == word
       end
+
+      def arguments = @node.arguments&.arguments || []
 
       private
 
-      def call? = %i[send csend].include?(@node.type)
+      def call? = @node.type == :call_node
+
+      def plain? = !@node.safe_navigation? && @node.block.nil?
+
+      def single? = arguments.one? && !SPREAD.include?(arguments.first.type)
     end
   end
 end

@@ -3,45 +3,73 @@
 module Kimera
   class Scribe
     class Condition < Form
-      TYPES = %i[if].freeze
+      TYPES = %i[if_node].freeze
 
       def text
-        return Postfix.new(children[1] ? "if" : "unless", children[0], body, @pen).text if postcondition?
-        children[1].nil? && children[2] ? negative : positive
+        return Postfix.new(keyword, @node.predicate, @node.statements, @pen).text if postcondition?
+        "#{keyword} #{guard}#{lines(@node.statements, pen_of(@node.statements))}#{alternative}#{closing}"
       end
 
       def level = postcondition? ? Level::STATEMENT : Level::KEYWORD
 
-      def ternary = "#{leading(0, Level::RANGE)} ? #{middle} : #{children[2] ? trailing(2, Level::RANGE) : "nil"}"
+      def ternary
+        middle, last = sides
+        "#{leading(@node.predicate, Level::RANGE)} ? #{branch(middle, Level::RANGE)} : #{branch(last, Level::RANGE)}"
+      end
 
-      def chained? = type == :if && children[1] && !postcondition?
+      def chained? = !postcondition?
 
       private
 
-      def guard = part(0, Level::EXPRESSION)
+      def keyword = "if"
 
-      def positive = "if #{guard}#{lines(children[1], pens[1])}#{alternative}#{closing}"
+      def following = @node.subsequent
 
-      def negative = "unless #{guard}#{lines(children[2], pens[2])}#{closing}"
+      def sides = [@node.statements, otherwise]
 
-      def middle
-        branch = children[1]
-        return "nil" unless branch
-        pens[1].opened.write(branch, Shape.new(branch).assignment? ? Level::ASSIGNMENT : Level::RANGE)
+      def otherwise
+        subsequent = following
+        subsequent&.type == :else_node ? subsequent.statements : subsequent
+      end
+
+      def guard = part(@node.predicate, Level::EXPRESSION)
+
+      def branch(node, floor)
+        return "nil" unless node
+        pen = pen_of(node).opened
+        body = node.type == :statements_node ? node.body : [node]
+        return "(#{Sequence.new(node, pen).text})" unless body.one?
+        only = body.first
+        pen.write(only, Shape.new(only).assignment? ? Level::ASSIGNMENT : floor)
       end
 
       def alternative
-        branch = children[2]
-        return "" unless branch
-        pen = pens[2]
-        nested = Condition.new(branch, pen)
-        return "\n#{margin}els#{nested.text.delete_suffix(closing)}" if nested.chained?
-        "\n#{margin}else#{lines(branch, pen)}"
+        subsequent = following
+        return "" unless subsequent
+        pen = pen_of(subsequent)
+        form = pen.form(subsequent) if subsequent.type == :if_node
+        return "\n#{margin}els#{form.text.delete_suffix(closing)}" if form&.chained?
+        "\n#{margin}else#{lines(subsequent.type == :else_node ? subsequent.statements : subsequent, pen)}"
       end
 
-      def body = children[1] || children[2]
+      def postcondition?
+        body = @node.statements
+        !following && body && Postcondition.new(@node.predicate, body, @pen).needed?
+      end
+    end
 
-      def postcondition? = (children[1].nil? ^ children[2].nil?) && Postcondition.new(children[0], body, @pen).needed?
+    class Unless < Condition
+      TYPES = %i[unless_node].freeze
+
+      def chained? = false
+
+      private
+
+      def keyword = "unless"
+
+      def following = @node.else_clause
+
+      def sides = [otherwise, @node.statements]
     end
 
     class Postfix
@@ -53,11 +81,25 @@ module Kimera
       end
 
       def text
-        "#{@pen.closed.write(@body, Level::EXPRESSION)} #{@keyword} #{@pen.with([@body]).write(@condition, Level::EXPRESSION)}"
+        "#{Body.new(@body, @pen.closed).text} #{@keyword} #{@pen.with([@body]).write(@condition, Level::EXPRESSION)}"
+      end
+    end
+
+    class Body
+      def initialize(node, pen)
+        @node = node
+        @pen = pen
+      end
+
+      def text
+        body = @node.type == :statements_node ? @node.body : [@node]
+        body.one? ? @pen.write(body.first, Level::EXPRESSION) : "(#{Sequence.new(@node, @pen.opened).text})"
       end
     end
 
     class Postcondition
+      SEALED = %i[def_node class_node module_node singleton_class_node].freeze
+
       def initialize(condition, body, pen)
         @condition = condition
         @body = body
@@ -71,8 +113,12 @@ module Kimera
 
       private
 
-      def reads(node)
-        node.type == :lvar ? node.children : node.children.grep(Parser::AST::Node).flat_map { reads(it) }
+      def reads(node, nesting = 0)
+        type = node.type
+        return node.depth == nesting ? [node.name] : [] if type == :local_variable_read_node
+        return [] if SEALED.include?(type)
+        inner = %i[block_node lambda_node].include?(type) ? nesting + 1 : nesting
+        node.compact_child_nodes.flat_map { reads(it, inner) }
       end
     end
   end

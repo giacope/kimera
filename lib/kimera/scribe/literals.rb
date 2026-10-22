@@ -4,10 +4,10 @@ module Kimera
   class Scribe
     class Keyword < Form
       WORDS = {
-        true: "true", false: "false", nil: "nil", self: "self", zsuper: "super", redo: "redo", retry: "retry",
-        forward_arg: "...", forwarded_args: "...", forwarded_restarg: "*", forwarded_kwrestarg: "**",
-        kwnilarg: "**nil", match_nil_pattern: "**nil", cbase: "::", __FILE__: "__FILE__", __LINE__: "__LINE__",
-        __ENCODING__: "__ENCODING__", lambda: "->", empty_else: ""
+        true_node: "true", false_node: "false", nil_node: "nil", self_node: "self", source_file_node: "__FILE__",
+        source_line_node: "__LINE__", source_encoding_node: "__ENCODING__", redo_node: "redo", retry_node: "retry",
+        forwarding_arguments_node: "...", forwarding_parameter_node: "...", no_keywords_parameter_node: "**nil",
+        it_local_variable_read_node: "it", implicit_rest_node: ""
       }.freeze
       TYPES = WORDS.keys.freeze
 
@@ -15,54 +15,70 @@ module Kimera
     end
 
     class Variable < Form
-      TYPES = %i[ivar gvar cvar match_var].freeze
+      TYPES = %i[
+        instance_variable_read_node class_variable_read_node global_variable_read_node back_reference_read_node
+        local_variable_target_node instance_variable_target_node class_variable_target_node
+        global_variable_target_node constant_target_node constant_read_node required_parameter_node
+        block_local_variable_node
+      ].freeze
 
-      def text = children.first.to_s
+      def text = @node.name.to_s
+    end
+
+    class Reference < Form
+      TYPES = %i[numbered_reference_read_node].freeze
+
+      def text = "$#{@node.number}"
     end
 
     class Local < Form
-      TYPES = %i[lvar].freeze
-      IMPLICIT = /\A(?:_[1-9]|it)\z/
+      TYPES = %i[local_variable_read_node].freeze
+      IMPLICIT = /\A_[1-9]\z/
 
       def text
-        name = children.first
+        name = @node.name
         return name.to_s if @pen.local?(name) || name.match?(IMPLICIT)
         raise(Unbound, "kimera cannot write this read of #{name}: nothing binds the local there")
       end
     end
 
-    class Reference < Form
-      TYPES = %i[nth_ref back_ref].freeze
-
-      def text = type == :nth_ref ? "$#{children.first}" : children.first.to_s
-    end
-
     class Numeral < Form
-      TYPES = %i[int float rational complex].freeze
+      TYPES = %i[integer_node float_node rational_node imaginary_node].freeze
 
-      def text = Number.new(children.first).text
+      def text = Number.new(@node.value).text
     end
 
     class Atom < Form
-      TYPES = %i[sym].freeze
+      TYPES = %i[symbol_node].freeze
 
-      def text = Name.new(children.first).symbol
+      def text = Name.new(@node.unescaped.to_sym).symbol
     end
 
     class Characters < Form
-      TYPES = %i[str].freeze
+      TYPES = %i[string_node].freeze
 
-      def text = %("#{Quote.new(children.first).text}")
+      def text = %("#{Quote.new(@node.unescaped).text}")
     end
 
-    class Const < Form
-      TYPES = %i[const].freeze
+    class Command < Form
+      TYPES = %i[x_string_node].freeze
+
+      def text = "`#{Quote.new(@node.unescaped, "`").text}`"
+    end
+
+    class Path < Form
+      TYPES = %i[constant_path_node constant_path_target_node].freeze
 
       def text
-        scope, name = children
-        return name.to_s unless scope
-        scope.type == :cbase ? "::#{name}" : "#{part(0, Level::PRIMARY)}::#{name}"
+        parent = @node.parent
+        parent ? "#{receiver_part(parent)}::#{@node.name}" : "::#{@node.name}"
       end
+    end
+
+    class Implicit < Form
+      TYPES = %i[implicit_node].freeze
+
+      def text = part(@node.value)
     end
   end
 end

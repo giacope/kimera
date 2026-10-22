@@ -45,7 +45,7 @@ class Kimera::Overlay
   private
 
   def baked(map, mutant, point)
-    Kimera::Guardrail.new(map, []).bake(point.location, mutant.directive) ||
+    Kimera::Guardrail.new(map, []).bake(point, mutant.directive) ||
       raise(Unbakeable, Kimera::Overlay::FileWeave::UNMATCHED)
   end
 

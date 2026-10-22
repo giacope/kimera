@@ -6,7 +6,6 @@ require_relative "../scope/file_set"
 require_relative "checklist"
 require_relative "coverage_minimum"
 require_relative "flag"
-require_relative "prism_check"
 require_relative "rails_layout"
 require_relative "test_command"
 
@@ -52,7 +51,7 @@ class Kimera::CLI::Doctor
   end
 
   def checks(config, options)
-    [configuration(config), framework(config), sources(config), tests(config), git, rails, Kimera::CLI::PrismCheck.new.check]
+    [configuration(config), framework(config), sources(config), tests(config), git, rails]
       .concat(floor).each { |check| shown(check) } + suite(config, options)
   end
 

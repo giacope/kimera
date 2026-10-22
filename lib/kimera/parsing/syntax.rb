@@ -24,7 +24,8 @@ module Kimera
       SymbolNode TrueNode UnlessNode
     ].each { |name| const_set(name, Prism.const_get(name)) }
 
-    Translation = Prism::Translation
+    CallNodeFlags = Prism::CallNodeFlags
+    RangeFlags = Prism::RangeFlags
 
     OPERATOR_WRITES = [
       CallOperatorWriteNode, ClassVariableOperatorWriteNode, ConstantOperatorWriteNode,
@@ -73,5 +74,8 @@ module Kimera
     FORWARDING = Prism.scope(forwarding: %i[* ** & ...])
 
     BRANCHES = ->(conditional) { Kimera::Branches.new(conditional).bodies }
+
+    # A rescue clause and every one after it.
+    RESCUES = ->(clause) { clause ? [clause, *RESCUES.call(clause.subsequent)] : [] }
   end
 end

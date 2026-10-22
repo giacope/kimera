@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "../../support/warnings"
+
 class Kimera::Overlay::Source
   def initialize(text)
     @text = text

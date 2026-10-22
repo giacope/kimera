@@ -3,12 +3,12 @@
 module Kimera
   class Scribe
     class Selection < Form
-      TYPES = %i[case case_match].freeze
+      TYPES = %i[case_node case_match_node].freeze
 
       def text
-        subject = children.first
-        arms = (1...(children.size - 1)).sum("") { |index| part(index) }
-        "#{subject ? "case #{part(0, Level::EXPRESSION)}" : "case"}#{arms}#{otherwise}#{closing}"
+        subject = @node.predicate
+        arms = @node.conditions.sum("") { |arm| part(arm) }
+        "#{subject ? "case #{part(subject, Level::EXPRESSION)}" : "case"}#{arms}#{otherwise}#{closing}"
       end
 
       def level = Level::KEYWORD
@@ -16,110 +16,117 @@ module Kimera
       private
 
       def otherwise
-        fallback = children.last
-        return "" unless fallback
-        "\n#{margin}else#{lines(fallback.type == :empty_else ? nil : fallback, pens.last)}"
+        fallback = @node.else_clause
+        fallback ? "\n#{margin}else#{lines(fallback.statements, pen_of(fallback))}" : ""
       end
     end
 
     class Arm < Form
-      TYPES = %i[when in_pattern].freeze
-      GUARDS = { if_guard: "if", unless_guard: "unless" }.freeze
+      TYPES = %i[when_node in_node].freeze
+      GUARDS = { if_node: "if", unless_node: "unless" }.freeze
 
-      def text = "\n#{margin}#{head}#{lines(children.last, pens.last)}"
+      def text = "\n#{margin}#{head}#{lines(@node.statements, pen_of(@node.statements))}"
 
       private
 
-      def head = type == :when ? "when #{parts(0...(children.size - 1))}" : "in #{part(0)}#{guard}"
+      def head = type == :when_node ? "when #{listed(@node.conditions)}" : "in #{pattern}"
 
-      def guard
-        clause = children[1]
-        clause ? " #{GUARDS.fetch(clause.type)} #{pens[1].write(clause.children.first, Level::EXPRESSION)}" : ""
+      def pattern
+        tested = @node.pattern
+        word = GUARDS[tested.type]
+        return part(tested) unless word
+        inner = tested.statements.body.first
+        pen = pen_of(tested)
+        "#{pen.write(inner)} #{word} #{pen.with([inner]).write(tested.predicate, Level::EXPRESSION)}"
       end
     end
 
     class Loop < Form
-      TYPES = %i[while until while_post until_post].freeze
+      TYPES = %i[while_node until_node].freeze
 
       def text
-        return "#{part(1, Level::KEYWORD)} #{keyword} #{after(children[1])}" if post?
-        modifier? ? Postfix.new(keyword, *children, @pen).text : block
+        return "#{Body.new(@node.statements, @pen).text} #{keyword} #{after}" if @node.begin_modifier?
+        return Postfix.new(keyword, @node.predicate, @node.statements, @pen).text if modifier?
+        "#{keyword} #{guard}#{body}#{closing}"
       end
 
-      def level = post? || modifier? ? Level::STATEMENT : Level::KEYWORD
+      def level = @node.begin_modifier? || modifier? ? Level::STATEMENT : Level::KEYWORD
 
       private
 
-      def keyword = type.to_s.delete_suffix("_post")
+      def keyword = type == :while_node ? "while" : "until"
 
-      def block = "#{keyword} #{part(0, Level::EXPRESSION)}#{lines(children[1], pens[1])}#{closing}"
+      def guard = part(@node.predicate, Level::EXPRESSION)
 
-      def after(body) = @pen.with([body]).write(children[0], Level::EXPRESSION)
+      def body = lines(@node.statements, pen_of(@node.statements))
 
-      def post? = type.end_with?("_post")
+      def after = @pen.with([@node.statements]).write(@node.predicate, Level::EXPRESSION)
 
-      def modifier? = children[1] && Postcondition.new(*children, @pen).needed?
+      def modifier? = @node.statements && Postcondition.new(@node.predicate, @node.statements, @pen).needed?
     end
 
     class Iteration < Form
-      TYPES = %i[for].freeze
+      TYPES = %i[for_node].freeze
 
       def text
-        "for #{Target.new(
-          children.first,
-          @pen
-        ).text} in #{part(1, Level::EXPRESSION)}#{lines(children[2], pens[2])}#{closing}"
+        body = @node.statements
+        "for #{part(@node.index)} in #{part(@node.collection, Level::EXPRESSION)}#{lines(body, pen_of(body))}#{closing}"
       end
 
       def level = Level::KEYWORD
     end
 
     class Jump < Form
-      TYPES = %i[return next break].freeze
-      WRAPPED = %i[while until].freeze
+      TYPES = %i[return_node next_node break_node].freeze
+      WORDS = { return_node: "return", next_node: "next", break_node: "break" }.freeze
+      WRAPPED = %i[while_node until_node].freeze
 
-      def text = children.empty? ? type.to_s : "#{type} #{arguments}"
+      def text
+        appended(WORDS.fetch(type), arguments(@node.arguments&.arguments || []), " ")
+      end
 
       def level = Level::EXPRESSION
 
       private
 
-      def arguments
-        only = children.first
-        return Condition.new(only, @pen).ternary if children.one? && only.type == :if
-        children.each_index.map { |index| argument(index) }.join(", ")
-      end
-
-      def argument(index)
-        WRAPPED.include?(children.fetch(index).type) ? "(#{part(index)})" : part(index, Level::ASSIGNMENT)
+      def arguments(values)
+        pen = pen_of(@node.arguments)
+        only = values.first
+        return pen.form(only).ternary if values.one? && %i[if_node unless_node].include?(only.type)
+        values.map do |value|
+          WRAPPED.include?(value.type) ? "(#{pen.write(value)})" : pen.write(value, Level::ASSIGNMENT)
+        end.join(", ")
       end
     end
 
     class Connective < Form
-      TYPES = %i[and or].freeze
-      FLOWS = %i[return next break].freeze
-      SYMBOLS = { and: "&&", or: "||" }.freeze
+      TYPES = %i[and_node or_node].freeze
+      FLOWS = %i[return_node next_node break_node].freeze
+      SYMBOLS = { and_node: "&&", or_node: "||" }.freeze
+      WORDS = { and_node: "and", or_node: "or" }.freeze
 
       def text
-        return "#{leading(0, Level::EXPRESSION)} #{type} #{right(Level::ASSIGNMENT)}" if keyword?
-        "#{leading(0, level)} #{SYMBOLS.fetch(type)} #{right(level + 1)}"
+        return "#{leading(@node.left, Level::EXPRESSION)} #{WORDS.fetch(type)} #{right(Level::ASSIGNMENT)}" if keyword?
+        "#{leading(@node.left, level)} #{SYMBOLS.fetch(type)} #{right(level + 1)}"
       end
 
       def level
         return Level::EXPRESSION if keyword?
-        type == :and ? Level::AND : Level::OR
+        type == :and_node ? Level::AND : Level::OR
       end
 
       private
 
-      def keyword? = Shape.new(@node).spelled?(type.to_s) || children.any? { |child| carrying?(child) }
+      def keyword?
+        Shape.new(@node).spelled?(WORDS.fetch(type)) || [@node.left, @node.right].any? { |child| carrying?(child) }
+      end
 
-      def carrying?(child) = FLOWS.include?(child.type) && child.children.any?
+      def carrying?(child) = FLOWS.include?(child.type) && child.arguments
 
       def right(floor)
-        node = children[1]
+        node = @node.right
         bare = FLOWS.include?(node.type) || (keyword? && Shape.new(node).spelled?("not"))
-        bare ? part(1) : trailing(1, floor)
+        bare ? part(node) : trailing(node, floor)
       end
     end
   end

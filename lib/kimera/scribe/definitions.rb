@@ -3,40 +3,44 @@
 module Kimera
   class Scribe
     class Definition < Form
-      TYPES = %i[def defs].freeze
-      SIMPLE = %i[self lvar ivar gvar cvar const].freeze
+      TYPES = %i[def_node].freeze
+      SIMPLE = %i[self_node local_variable_read_node instance_variable_read_node global_variable_read_node
+        class_variable_read_node constant_read_node constant_path_node parentheses_node].freeze
 
       def text
-        *owner, name, parameters, body = children
-        "def #{receiver(owner)}#{name}#{signature(parameters)}#{clauses(body, @pen.scoped([parameters]))}#{closing}"
+        parameters = @node.parameters
+        signature = parameters ? "(#{part(parameters)})" : ""
+        "def #{receiver}#{@node.name}#{signature}#{clauses(@node.body, @pen.scoped([parameters]))}#{closing}"
       end
 
       def level = Level::KEYWORD
 
       private
 
-      def receiver(owner)
-        return "" if owner.empty?
-        definer = owner.first
-        bare = SIMPLE.include?(definer.type) || definer == @node.updated(:send, [nil, definer.children[1]])
-        bare ? "#{part(0, Level::PRIMARY)}." : "(#{part(0)})."
+      def receiver
+        owner = @node.receiver
+        return "" unless owner
+        bare = SIMPLE.include?(owner.type) || (owner.type == :call_node && owner.variable_call?)
+        bare ? "#{part(owner, Level::PRIMARY)}." : "(#{part(owner)})."
       end
-
-      def signature(parameters) = parameters.children.empty? ? "" : "(#{Parameters.new(parameters, @pen.scoped).text})"
     end
 
     class Namespace < Form
-      TYPES = %i[class sclass module].freeze
+      TYPES = %i[class_node module_node singleton_class_node].freeze
+      WORDS = { class_node: "class", module_node: "module", singleton_class_node: "class <<" }.freeze
 
-      def text = "#{opening}#{parent}#{clauses(children.last, @pen.scoped)}#{closing}"
+      def text = "#{WORDS.fetch(type)} #{subject}#{parent}#{clauses(@node.body, @pen.scoped)}#{closing}"
 
       def level = Level::KEYWORD
 
       private
 
-      def opening = type == :sclass ? "class << #{part(0, Level::PRIMARY)}" : "#{type} #{part(0, Level::PRIMARY)}"
+      def subject = part(type == :singleton_class_node ? @node.expression : @node.constant_path, Level::PRIMARY)
 
-      def parent = type == :class && children[1] ? " < #{part(1, Level::PRIMARY)}" : ""
+      def parent
+        superclass = @node.superclass if type == :class_node
+        superclass ? " < #{part(superclass, Level::PRIMARY)}" : ""
+      end
     end
   end
 end

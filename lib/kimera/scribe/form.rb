@@ -12,46 +12,51 @@ module Kimera
 
       private
 
-      def children = @node.children
-
       def type = @node.type
 
-      def pens = @_pens ||= Pens.new(@pen, children).list
+      def pens = @_pens ||= Pens.new(@pen, @node.compact_child_nodes).index
 
-      def part(index, floor = Level::STATEMENT) = pens.fetch(index).write(children.fetch(index), floor)
+      def pen_of(child) = pens.fetch(child, @pen)
 
-      def leading(index, floor)
-        pen = pens.fetch(index).closed
-        child = children.fetch(index)
-        pen.write(child, pen.level(child) == Level::KEYWORD ? [floor, Level::KEYWORD].min : floor)
-      end
+      def part(child, floor = Level::STATEMENT) = pen_of(child).write(child, floor)
 
-      def trailing(index, floor)
-        pen = pens.fetch(index)
-        child = children.fetch(index)
+      def leading(child, floor) = pen_of(child).closed.lead(child, floor)
+
+      def trailing(child, floor)
+        pen = pen_of(child)
         bound = pen.level(child) == Level::KEYWORD ? Level::KEYWORD : floor
         bound = Level::ASSIGNMENT if @pen.open? && Shape.new(child).assignment?
         pen.write(child, [floor, bound].min)
       end
 
-      def operand(index, floor)
-        child = children.fetch(index)
-        Shape.new(child).prefix? && !Shape.new(child).spelled?("not") ? part(index) : trailing(index, floor)
+      def operand(child, floor)
+        shape = Shape.new(child)
+        shape.prefix? && !shape.spelled?("not") ? part(child) : trailing(child, floor)
       end
 
-      def receiver_part(index)
-        pen = pens.fetch(index).closed
-        child = children.fetch(index)
-        pen.write(child, pen.level(child) == Level::KEYWORD ? Level::KEYWORD : Level::PRIMARY)
+      def receiver_part(child) = pen_of(child).closed.head(child)
+
+      def listed(nodes, floor = Level::ASSIGNMENT)
+        nodes.map { |node| pen_of(node).opened.write(node, floor) }.join(", ")
       end
 
-      def parts(indices, floor = Level::ASSIGNMENT)
-        indices.map { |index| pens.fetch(index).opened.write(children.fetch(index), floor) }.join(", ")
+      def trailed(items)
+        written = items.reject { |item| item.type == :implicit_rest_node }.map { |item| part(item) }.join(", ")
+        items.any? { |item| item.type == :implicit_rest_node } ? "#{written}," : written
       end
 
-      def rest(from, floor = Level::ASSIGNMENT) = parts(from...children.size, floor)
+      def appended(head, tail, separator) = tail.empty? ? head : "#{head}#{separator}#{tail}"
 
-      def value_floor(node) = node.type == :rescue ? Level::STATEMENT : Level::ASSIGNMENT
+      def braced(body, pen, lead = "")
+        opening, ending = Clauses.new(body, @pen).structured? ? [" do", "end"] : [" {", "}"]
+        "#{opening}#{lead}#{clauses(body, pen)}#{closing(ending)}"
+      end
+
+      def block_argument = (@node.block if @node.block&.type == :block_argument_node)
+
+      def literal_block = (@node.block if @node.block&.type == :block_node)
+
+      def value_floor(node) = node.type == :rescue_modifier_node ? Level::STATEMENT : Level::ASSIGNMENT
 
       def enclosed(kind) = "(#{kind.new(@node, @pen).text})"
 

@@ -536,21 +536,22 @@ RSpec.describe(Kimera::Overlay) do
     end
   end
 
-  # Prism sees a literal -1 inside `--1`; the parser folds both minuses into
-  # one literal, so that point has no node to guard.
-  describe "a point the parser folds away" do
+  # Prism sees a literal -1 inside `--1`. The parser gem folded both minuses
+  # into one literal, so that point had no node to guard; kimera now guards
+  # the tree it scans, so the point is live like any other.
+  describe "a literal inside `--1`" do
     let(:source) { "def m(a)\n  a > 0 && --1\nend\n" }
     let(:registry) do
       Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: %w[numeric_literal comparison]))
         .source(source, file: "x.rb")
     end
 
-    it "is reported unmutatable, not left live and uncovered", :aggregate_failures do
+    it "is guarded, not reported unmutatable", :aggregate_failures do
       result = described_class.new(registry).synthesize("x.rb", source)
-      folded = registry.points.find { |point| point.original_source == "-1" }
-      expect(result.skipped_unsafe).to(eq(folded.ids))
-      expect(result.mutant_ids).to(match_array(registry.points.reject { |point| point.equal?(folded) }.flat_map(&:ids)))
-      expect(folded.unsafe_reason).to(eq("unmutatable: #{Kimera::Overlay::FileWeave::UNMATCHED}"))
+      inner = registry.points.find { |point| point.original_source == "-1" }
+      expect(result.skipped_unsafe).to(be_empty)
+      expect(result.mutant_ids).to(match_array(registry.points.flat_map(&:ids)))
+      expect(inner).to(be_safe)
     end
   end
 
@@ -730,7 +731,7 @@ RSpec.describe(Kimera::Overlay) do
       # Whole-file emission fails; individual methods are fine.
       def unwritable!
         allow(Kimera::Scribe).to(receive(:new).and_wrap_original) do |original, node|
-          unless %i[def defs].include?(node.type)
+          unless node.type == :def_node
             raise(RuntimeError, "Could not find a round tripping solution for regexp")
           end
           original.call(node)
@@ -757,8 +758,8 @@ RSpec.describe(Kimera::Overlay) do
       # Kimera writes no tree but a method, and not the method named compare.
       def unparsing_methods
         allow(Kimera::Scribe).to(receive(:new).and_wrap_original) do |original, node|
-          raise(RuntimeError, "boom") unless %i[def defs].include?(node.type)
-          raise(RuntimeError, "boom") if node.children.first == :compare
+          raise(RuntimeError, "boom") unless node.type == :def_node
+          raise(RuntimeError, "boom") if node.name == :compare
           original.call(node)
         end
       end
@@ -791,7 +792,7 @@ RSpec.describe(Kimera::Overlay) do
         allow(Kimera::Guardrail).to(receive(:new)) do |*arguments|
           build.call(*arguments).tap do |guardrail|
             allow(guardrail).to(receive(:reopen).and_wrap_original) do |original, node|
-              raise(NoMethodError, "undefined method 'children' for nil") if node.type == :casgn
+              raise(NoMethodError, "undefined method 'children' for nil") if node.type == :constant_write_node
               original.call(node)
             end
           end
@@ -807,7 +808,7 @@ RSpec.describe(Kimera::Overlay) do
 
       def invalid!
         allow(Kimera::Scribe).to(receive(:new).and_wrap_original) do |_original, node|
-          unless %i[def defs].include?(node.type)
+          unless node.type == :def_node
             raise(RuntimeError, "Could not find a round tripping solution for regexp")
           end
           "def broken(" # syntactically impossible splice

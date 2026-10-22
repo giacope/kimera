@@ -4,26 +4,34 @@ require_relative "../rewrite/ast_walk"
 require_relative "guardrail_factories"
 
 class Kimera::SpliceReopening
-  FACTORIES = Kimera::GuardrailFactories::FACTORIES
-  LEXICAL = "(is_a?(::Module) ? self : ::Object)"
+  include Kimera::GuardrailFactories
 
   Assignment =
-    Data.define(:scope, :name, :value, :location) do
-      def edit = [location.expression.begin_pos, value.location.begin.begin_pos, header, []]
+    Data.define(:node) do
+      def edit = [node.location.start_offset, value.block.location.start_offset, header]
 
       def header
         owner = base
         "#{constant} = (#{owner}.const_defined?(:#{name}, false) ? #{owner}.const_get(:#{name}) : " \
           "#{factory}); #{constant}.class_eval "
       end
+      private
+      def value = node.value
 
-      def constant = location.expression.begin.join(location.name).source
+      def path? = node.type == :constant_path_write_node
 
-      def factory = value.children.first.location.expression.source
+      def name = path? ? node.target.name : node.name
+
+      def constant = path? ? node.target.slice : node.name_loc.slice
+
+      def factory
+        start = value.location.start_offset
+        value.location.slice.byteslice(0, value.block.location.start_offset - start).rstrip
+      end
 
       def base
-        return LEXICAL unless scope
-        scope.type == :cbase ? "::Object" : scope.location.expression.source
+        return LEXICAL unless path?
+        node.target.parent&.slice || "::Object"
       end
     end
 
@@ -37,21 +45,7 @@ class Kimera::SpliceReopening
 
   def constants
     found = []
-    Kimera::Rewrite::AstWalk.new(@map.ast).visit { |node| found << assignment(node) if reopenable?(node) }
+    Kimera::Rewrite::AstWalk.new(@map.ast).visit { |node| found << Assignment.new(node) if reopenable?(node) }
     found
-  end
-
-  def assignment(node) = Assignment.new(*node, node.location)
-
-  def reopenable?(node)
-    return false unless node.type == :casgn
-    value = node.children.last
-    value.is_a?(Parser::AST::Node) && value.type == :block && factory?(value.children.first)
-  end
-
-  def factory?(call)
-    receiver, selector = call.children
-    call.type == :send && receiver.is_a?(Parser::AST::Node) && receiver.type == :const &&
-      FACTORIES.include?([receiver.children.last, selector])
   end
 end

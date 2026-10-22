@@ -3,80 +3,84 @@
 module Kimera
   class Scribe
     class Bracketed < Form
-      TYPES = %i[kwbegin].freeze
+      TYPES = %i[begin_node].freeze
 
-      def text = "begin#{children.size > 1 ? lines(@node.updated(:begin), @pen) : clauses(children.first)}#{closing}"
+      def text = "begin#{Clauses.new(@node, @pen).structure}#{closing}"
 
       def level = Level::KEYWORD
     end
 
     class Rescued < Form
-      TYPES = %i[rescue].freeze
+      TYPES = %i[rescue_modifier_node].freeze
 
       def text
-        return "begin#{clauses(@node)}#{closing}" unless modifier?
-        fallback = children[1].children.last || @node.updated(:nil, [])
-        "#{body} rescue #{@pen.with([children.first]).write(fallback, Level::EXPRESSION)}"
+        body = @node.expression
+        written = Jump::TYPES.include?(body.type) ? part(body) : leading(body, Level::TERNARY)
+        "#{written} rescue #{part(@node.rescue_expression, Level::EXPRESSION)}"
       end
 
-      def level = modifier? ? Level::STATEMENT : Level::KEYWORD
-
-      private
-
-      def body = Jump::TYPES.include?(children.first.type) ? part(0) : leading(0, Level::TERNARY)
-
-      def modifier?
-        guarded, handler, *rest = children
-        guarded && rest == [nil] && handler.children.first(2).none?
-      end
-    end
-
-    class Ensured < Form
-      TYPES = %i[ensure].freeze
-
-      def text = "begin#{clauses(@node)}#{closing}"
-
-      def level = Level::KEYWORD
+      def level = Level::STATEMENT
     end
 
     class Exceptions < Form
-      def text = children.zip(pens).map { |child, pen| exception(child, pen) }.join(", ")
+      def text = @node.exceptions.map { |exception| item(exception) }.join(", ")
 
       private
 
-      def exception(child, pen)
-        child.type == :if ? Condition.new(child, pen).ternary : pen.write(child, Level::ASSIGNMENT)
+      def item(exception)
+        return pen_of(exception).form(exception).ternary if %i[if_node unless_node].include?(exception.type)
+        part(exception, Level::ASSIGNMENT)
       end
     end
 
-    class Exchange < Form
-      TYPES = %i[alias undef].freeze
+    class Rescue < Form
+      def text = "\n#{margin}#{head}#{body}"
 
-      def text = "#{type} #{children.each_index.map { |index| part(index) }.join(type == :alias ? " " : ", ")}"
+      private
+
+      def head
+        exceptions = @node.exceptions
+        target = @node.reference
+        written = exceptions.any? ? "rescue #{Exceptions.new(@node, @pen).text}" : "rescue"
+        target ? "#{written} => #{@pen.with(exceptions).write(target)}" : written
+      end
+
+      def body = Lines.new(@node.statements, @pen.with([*@node.exceptions, @node.reference]).deeper).text
+    end
+
+    class Exchange < Form
+      TYPES = %i[alias_method_node alias_global_variable_node undef_node].freeze
+
+      def text
+        return "undef #{@node.names.map { |name| part(name) }.join(", ")}" if type == :undef_node
+        "alias #{part(@node.new_name)} #{part(@node.old_name)}"
+      end
 
       def level = Level::STATEMENT
     end
 
     class Hook < Form
-      TYPES = %i[preexe postexe].freeze
+      TYPES = %i[pre_execution_node post_execution_node].freeze
 
-      def text = "#{type == :preexe ? "BEGIN" : "END"} {#{lines(children.first)}#{closing("}")}"
+      def text = "#{type == :pre_execution_node ? "BEGIN" : "END"} {#{lines(@node.statements)}#{closing("}")}"
 
       def level = Level::STATEMENT
     end
 
     class Capture < Form
-      TYPES = %i[match_with_lvasgn].freeze
+      TYPES = %i[match_write_node].freeze
 
-      def text = "#{leading(0, Level::PRIMARY)} =~ #{trailing(1, Level::EQUALITY + 1)}"
+      def text = part(@node.call)
 
       def level = Level::EQUALITY
     end
 
-    class Bare < Form
-      TYPES = %i[match_current_line].freeze
+    class Shareable < Form
+      TYPES = %i[shareable_constant_node].freeze
 
-      def text = part(0)
+      def text = part(@node.write)
+
+      def level = Level::ASSIGNMENT
     end
   end
 end

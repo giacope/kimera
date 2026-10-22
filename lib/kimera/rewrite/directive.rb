@@ -82,7 +82,7 @@ module Kimera
       end
 
       def attempt(source)
-        Kimera::Scribe.new(apply(NumberedParams.new(Kimera::Scribe.parse(source)).normalize)).source
+        Kimera::Scribe.new(apply(NumberedParams.new(Kimera::Scribe.parse(source)).normalize.statements.body.first)).source
       rescue StandardError
         nil
       end
