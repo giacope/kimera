@@ -31,13 +31,12 @@ RSpec.describe(Kimera::Operators) do
     end
 
     it "skips what only looks like one: classes, escapes, group openers, literal braces", :aggregate_failures do
-      expect(tokens('[]^$+*?]x\+\$\\\\')).to(eq([]))
-      expect(tokens("[a[^b]]+")).to(eq([[:quantifier, "+"]]))
-      expect(tokens("(?<name>a)(?:b)(?=c)(?<!d)(?i)(?#e+)f")).to(eq([]))
-      expect(tokens('\p{Alpha}\k<name>\u{41}x{a}y{')).to(eq([]))
-      expect(tokens("+a")).to(eq([]))
-      expect(tokens("(?:ab)?")).to(eq([[:quantifier, "?"]]))
-      expect(tokens("(a)+")).to(eq([[:quantifier, "+"]]))
+      sources = [
+        '[]^$+*?]x\+\$\\\\', "[a[^b]]+", "(?<name>a)(?:b)(?=c)(?<!d)(?i)(?#e+)f", '\p{Alpha}\k<name>\u{41}x{a}y{',
+        "+a", "(?:ab)?", "(a)+"
+      ]
+      expect(sources.map { |source| tokens(source) })
+        .to(eq([[], [[:quantifier, "+"]], [], [], [], [[:quantifier, "?"]], [[:quantifier, "+"]]]))
     end
 
     it "takes a quantifier only after something it can repeat", :aggregate_failures do
@@ -84,18 +83,25 @@ RSpec.describe(Kimera::Operators) do
     expect(patterns('def m(s) = s.match?(/\A\/x/)', "regexp_anchor")).to(eq(["%r{/x}"]))
   end
 
-  it "matches as the mutant does once flipped", :aggregate_failures do
+  def overlaid(catalog, code)
+    Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("r.rb", code).source).evaluate("r.rb")
+  end
+
+  # Whether the overlaid RegexpOps#code? accepts the text, with the labelled
+  # mutant active, or none.
+  def accepts?(text, label = nil)
     stub_const("RegexpOps", Class.new)
     code = "class RegexpOps\n  def code?(s) = s.match?(/\\A[A-Z]{3}\\z/)\nend\n"
     catalog = scan(code, "regexp_anchor", "regexp_quantifier")
-    Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("r.rb", code).source).evaluate("r.rb")
-    ids = catalog.each.to_h { |m, _p| [m.label, m.id] }
-    expect(RegexpOps.new.code?("xABC")).to(be(false))
-    Kimera::RUNTIME.active = ids.fetch('regexp: drop `\A`')
-    expect(RegexpOps.new.code?("xABC")).to(be(true))
-    Kimera::RUNTIME.active = ids.fetch("regexp: `{3}` => `{2}`")
-    expect(RegexpOps.new.code?("AB")).to(be(true))
+    overlaid(catalog, code)
+    Kimera::RUNTIME.active = label && catalog.each.find { |m, _p| m.label == label }.first.id
+    RegexpOps.new.code?(text)
   ensure
     Kimera::RUNTIME.reset!
+  end
+
+  it "matches as the mutant does once flipped" do
+    verdicts = [accepts?("xABC"), accepts?("xABC", 'regexp: drop `\A`'), accepts?("AB", "regexp: `{3}` => `{2}`")]
+    expect(verdicts).to(eq([false, true, true]))
   end
 end

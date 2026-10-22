@@ -85,11 +85,15 @@ RSpec.describe(Kimera::TestExit) do
 
     it "fails the example that exits, after its after hooks ran", :aggregate_failures do
       id, outcome = run(adapter, "exits")
-      expect(outcome).to(be_a(Kimera::Frameworks::RunOutcome))
-      expect(outcome.failed_ids).to(eq([id]))
-      lines = outcome.failures[id].lines(chomp: true)
-      expect(lines.first).to(eq("SystemExit: exit(4) called from #{dir}/exits_spec.rb:4:in 'Kernel#exit'"))
-      expect(lines[1]).to(match(/\A    \S*exits_spec\.rb:4:in /))
+      expect(outcome).to(be_a(Kimera::Frameworks::RunOutcome).and(have_attributes(failed_ids: [id])))
+      expect(outcome.failures[id].lines(chomp: true).first(2)).to(
+        match(
+          [
+            eq("SystemExit: exit(4) called from #{dir}/exits_spec.rb:4:in 'Kernel#exit'"),
+            match(/\A    \S*exits_spec\.rb:4:in /)
+          ]
+        )
+      )
       expect(probed).to(eq([:after]))
     end
 
@@ -134,8 +138,7 @@ RSpec.describe(Kimera::TestExit) do
     it "fails the test that aborts, after its teardown ran", :aggregate_failures do
       id = "KimeraExitsTest#test_aborts"
       outcome = run(id)
-      expect(outcome).to(be_a(Kimera::Frameworks::RunOutcome))
-      expect(outcome.failed_ids).to(eq([id]))
+      expect(outcome).to(be_a(Kimera::Frameworks::RunOutcome).and(have_attributes(failed_ids: [id])))
       expect(outcome.failures[id].lines(chomp: true).first(2)).to(
         eq(
           [

@@ -21,8 +21,7 @@ RSpec.describe(Kimera::MutantKeys, :aggregate_failures) do
   end
 
   it "names a mutant the same whether its file was scanned alone or with others" do
-    pricing = File.join(sample, "app/services/pricing.rb")
-    alone = Kimera::RegistryScan.new(root: sample).build([pricing])
+    alone = Kimera::RegistryScan.new(root: sample).build([File.join(sample, "app/services/pricing.rb")])
     full = Kimera::RegistryScan.new(root: sample).build(Dir[File.join(sample, "app/**/*.rb")])
     ids = full.at("app/services/pricing.rb").flat_map(&:ids)
     expect(ids.map { |id| full.keys[id] }).to(eq(keys(alone)))
@@ -45,9 +44,8 @@ RSpec.describe(Kimera::MutantKeys, :aggregate_failures) do
   end
 
   it "keeps a mutant's digest when lines shift or an identical method is added above it" do
-    method = "def b(x)\n  x > 1\nend\n"
-    alone = scan(method)
-    moved = scan("def a(x)\n  x > 1\nend\n\n#{method}")
+    alone = scan("def b(x)\n  x > 1\nend\n")
+    moved = scan("def a(x)\n  x > 1\nend\n\ndef b(x)\n  x > 1\nend\n")
     expect(digests(moved).last(alone.count)).to(eq(digests(alone)))
     expect(digests(moved).first(alone.count)).not_to(eq(digests(alone)))
     expect(keys(moved).last).to(start_with("a.rb:6:"))

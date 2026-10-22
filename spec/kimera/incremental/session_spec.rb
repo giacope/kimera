@@ -49,8 +49,8 @@ RSpec.describe(Kimera::Incremental::Session) do
     id = registry.each.first.first.id
     path = File.join(dir, "session.json")
     described_class.new.stamped("one").merged(report([result(id, :killed)])).save(path, registry: registry)
-    expect(described_class.from(path, registry: registry, stamp: "two").done?(id)).to(be(false))
-    expect(described_class.from(path, registry: registry, stamp: "one").done?(id)).to(be(true))
+    expect(%w[two one].map { |stamp| described_class.from(path, registry: registry, stamp: stamp).done?(id) })
+      .to(eq([false, true]))
   end
 
   it "drops leaks saved under another stamp with the verdicts they explain", :aggregate_failures do
@@ -98,10 +98,9 @@ RSpec.describe(Kimera::Incremental::Session) do
       first, second = ids
       path = seed(dir, report([result(first, :killed)]), registry: registry)
       rows = waived(described_class.from(path, registry: registry))
-      expect(rows.map { |row| [row.status, row.verdict, row.detail] }).to(
-        eq([[:ignored, :killed, "ignored (killed)"], [:ignored, nil, "marked equivalent (ignored)"]])
+      expect(rows.map { |row| [row.status, row.verdict, row.detail, row.file] }).to(
+        eq([[:ignored, :killed, "ignored (killed)", "x.rb"], [:ignored, nil, "marked equivalent (ignored)", "calc.rb"]])
       )
-      expect(rows.map(&:file)).to(eq(["x.rb", "calc.rb"]))
       expect(rows.last.mutant_id).to(eq(second))
     end
   end
