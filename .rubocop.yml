@@ -18,18 +18,3 @@ AllCops:
     - eval/tmp/**/*
     # CI installs the bundle here; replacing Exclude drops RuboCop's default.
     - vendor/**/*
-
-# --------------------------------------------------------------------------
-# Until kata reads RSpec as one word (issues.md, OPEN; K10 covers the path).
-# --------------------------------------------------------------------------
-
-Kata/GoodClassName:
-  inherit_mode:
-    merge:
-      - Terms
-  Terms:
-    - RSpecSuite
-
-RSpec/SpecFilePathFormat:
-  CustomTransform:
-    RSpecSuite: rspec_suite # the cop wants r_spec_suite
