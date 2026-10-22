@@ -32,21 +32,25 @@ RSpec.describe(Kimera::CLI::TestCommand) do
 
   # The load path run uses: each file's nearest test/ or spec/, the
   # project's own, and load_path: from the configuration.
+  # Doctor's load check of a nested test file, with a configured load path; the file.
+  def loaded_in(root)
+    FileUtils.mkdir_p([File.join(root, "test"), File.join(root, "lib", "x", "test")])
+    allow(Kimera::Execution::SUITE).to(receive(:call).and_return(["", status(true)]))
+    stub_const("ENV", ENV.to_h.merge("KIMERA_LOAD_PATH" => "support"))
+    File.join(root, "lib", "x", "test", "a_test.rb").tap do |file|
+      described_class.new("minitest", [file], root: root).loading
+    end
+  end
+
   it "puts the same folders on doctor's load path as kimera run does" do
     Dir.mktmpdir do |root|
-      FileUtils.mkdir_p([File.join(root, "test"), File.join(root, "lib", "x", "test")])
-      file = File.join(root, "lib", "x", "test", "a_test.rb")
-      allow(Kimera::Execution::SUITE).to(receive(:call).and_return(["", status(true)]))
-      stub_const("ENV", ENV.to_h.merge("KIMERA_LOAD_PATH" => "support"))
-      described_class.new("minitest", [file], root: root).loading
-      flags = ["-I", "support", "-I", "lib/x/test", "-I", "test"]
-      command = ["bundle", "exec", "ruby", *flags, "-e", described_class::DRY_RUN, file]
-      expect(Kimera::Execution::SUITE).to(
-        have_received(:call).with(
-          { "KIMERA" => "1" }, *command, chdir: root,
-          limit: watched
-        )
-      )
+      file = loaded_in(root)
+      command = [
+        "bundle", "exec", "ruby", "-I", "support", "-I", "lib/x/test", "-I", "test",
+        "-e", described_class::DRY_RUN, file
+      ]
+      expect(Kimera::Execution::SUITE)
+        .to(have_received(:call).with({ "KIMERA" => "1" }, *command, chdir: root, limit: watched))
     end
   end
 

@@ -14,17 +14,20 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     [code, errors.string]
   end
 
-  it "fails a run that changed the project's files, naming them" do
+  # The guarded run's code, and what it said, for a run that deletes a tracked file.
+  def deleting(root)
+    File.write(File.join(root, "fixture.rb"), "1\n")
+    guarded(root) do
+      File.delete(File.join(root, "fixture.rb"))
+      2
+    end
+  end
+
+  it "fails a run that changed the project's files, naming them", :aggregate_failures do
     Dir.mktmpdir do |root|
-      File.write(File.join(root, "fixture.rb"), "1\n")
-      code, said =
-        guarded(root) do
-        File.delete(File.join(root, "fixture.rb"))
-        2
-      end
+      code, said = deleting(root)
       expect(code).to(eq(1))
-      expect(said).to(start_with("kimera: the run changed 1 tracked file(s)"))
-      expect(said).to(include("\n  fixture.rb\n"))
+      expect(said).to(start_with("kimera: the run changed 1 tracked file(s)").and(include("\n  fixture.rb\n")))
     end
   end
 

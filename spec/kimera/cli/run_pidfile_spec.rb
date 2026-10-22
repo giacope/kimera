@@ -22,16 +22,19 @@ RSpec.describe(Kimera::CLI::Run) do
     described_class.new(io: StringIO.new, errors: StringIO.new).run(["calc.rb", *argv])
   end
 
-  it "holds the run's pid in the file while it runs, then removes it", :aggregate_failures do
+  # The pidfile as the run saw it, and the run's status.
+  def held_pid
     held = nil
     status =
       run("--pidfile", "kimera.pid") do
         held = File.read("kimera.pid")
         Kimera::RunReport.new(results: [])
       end
-    expect(held).to(eq("#{Process.pid}\n"))
-    expect(status).to(eq(0))
-    expect(File).not_to(exist("kimera.pid"))
+    [held, status]
+  end
+
+  it "holds the run's pid in the file while it runs, then removes it" do
+    expect([*held_pid, File.exist?("kimera.pid")]).to(eq(["#{Process.pid}\n", 0, false]))
   end
 
   it "removes the file when the run stops on an error", :aggregate_failures do

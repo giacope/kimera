@@ -32,10 +32,9 @@ RSpec.describe(Kimera::CLI::Run::Emission, :aggregate_failures) do
   it "appends a Markdown summary to the file --summary names, creating its directory" do
     Dir.mktmpdir do |dir|
       path = File.join(dir, "steps/summary.md")
-      emit(summary: path)
-      emit(summary: path)
-      text = File.read(path, encoding: Encoding::UTF_8)
-      expect(text.scan("### Kimera: 1 surviving of 1 mutants (score 0.0%)").size).to(eq(2))
+      2.times { emit(summary: path) }
+      expect(File.read(path, encoding: Encoding::UTF_8).scan("### Kimera: 1 surviving of 1 mutants (score 0.0%)").size)
+        .to(eq(2))
     end
   end
 end
