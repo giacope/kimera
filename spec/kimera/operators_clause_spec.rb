@@ -59,14 +59,18 @@ RSpec.describe(Kimera::Operators) do
       stub_const("ClauseChild", Class.new(ClauseParent))
     end
 
-    it "deletes zsuper and super(...) alike, as a statement or a value", :aggregate_failures do
+    it "deletes zsuper and super(...) alike" do
       expect(labels(code, "super_call")).to(contain_exactly("delete `super`", "delete `super(word.strip)`"))
+    end
+
+    it "deletes super as a statement or a value", :aggregate_failures do
       live(code, "super_call") do |ids|
-        child = ClauseChild.new
-        expect(child.tag("b")).to(eq("<B>"))
-        active(ids.fetch("delete `super`")) { expect { child.tag("b") }.to(raise_error(NoMethodError)) }
-        active(ids.fetch("delete `super(word.strip)`")) { expect(ClauseChild.new.note(" x ")).to(eq(0)) }
-        expect(ClauseChild.new.note(" x ")).to(eq(1))
+        expect { active(ids.fetch("delete `super`")) { ClauseChild.new.tag("b") } }.to(raise_error(NoMethodError))
+        answers = [
+          ClauseChild.new.tag("b"), active(ids.fetch("delete `super(word.strip)`")) { ClauseChild.new.note(" x ") },
+          ClauseChild.new.note(" x ")
+        ]
+        expect(answers).to(eq(["<B>", 0, 1]))
       end
     end
 
@@ -123,17 +127,22 @@ RSpec.describe(Kimera::Operators) do
       expect(labels(code, "ensure_clause")).to(eq(["drop `ensure`"]))
     end
 
-    it "rescues nothing more once its clause is gone", :aggregate_failures do
+    it "rescues while its clause stands, and still answers when nothing is raised", :aggregate_failures do
       live(code, "rescue_clause") do |ids|
         risky = ClauseRisky.new
-        expect(risky.read("x")).to(eq("ArgumentError"))
-        active(ids.fetch("drop `rescue ArgumentError, TypeError => error`")) do
-          expect { risky.read("x") }.to(raise_error(ArgumentError))
-          expect(risky.read("1")).to(eq(:parsed))
-        end
-        active(ids.fetch("drop `rescue ArgumentError`")) { expect { risky.inner("x") }.to(raise_error(ArgumentError)) }
-        active(ids.fetch("drop `rescue` modifier")) { expect { risky.quiet("x") }.to(raise_error(ArgumentError)) }
-        expect(risky.quiet("x")).to(eq(-1))
+        expect([risky.read("x"), risky.quiet("x")]).to(eq(["ArgumentError", -1]))
+        expect(active(ids.fetch("drop `rescue ArgumentError, TypeError => error`")) { risky.read("1") }).to(eq(:parsed))
+      end
+    end
+
+    it "rescues nothing more once its clause is gone", :aggregate_failures do
+      live(code, "rescue_clause") do |ids|
+        expect { active(ids.fetch("drop `rescue ArgumentError, TypeError => error`")) { ClauseRisky.new.read("x") } }
+          .to(raise_error(ArgumentError))
+        expect { active(ids.fetch("drop `rescue ArgumentError`")) { ClauseRisky.new.inner("x") } }
+          .to(raise_error(ArgumentError))
+        expect { active(ids.fetch("drop `rescue` modifier")) { ClauseRisky.new.quiet("x") } }
+          .to(raise_error(ArgumentError))
       end
     end
 
@@ -145,8 +154,7 @@ RSpec.describe(Kimera::Operators) do
     it "guards a method's own clause inside its body, wrapping only a body that keeps a clause", :aggregate_failures do
       code = "class Plain\n  def m(v)\n    Integer(v)\n  rescue ArgumentError\n    0\n  end\nend\n"
       source = Kimera::Overlay.new(scan(code, "rescue_clause")).synthesize("c.rb", code).source
-      guarded = /^  def m\(v\)\n\s+if ::Kimera::RUNTIME\.active\?\(\d+\)\n\s+Integer\(v\)\n\s+else\n\s+begin\n/
-      expect(source).to(match(guarded))
+      expect(source).to(match(/^  def m\(v\)\n\s+if ::Kimera::RUNTIME\.active\?\(\d+\)\n\s+Integer\(v\)\n\s+else\n\s+begin\n/))
       location = scan(code, "rescue_clause").each.first.last.location
       expect(Kimera::BodyTrim.new(code, [location]).trimmed).to(include("def m(v)"))
     end
@@ -155,8 +163,8 @@ RSpec.describe(Kimera::Operators) do
       stub_const("EmptyEnsure", Class.new)
       code = "class EmptyEnsure\n  attr_reader :done\n\n  def m\n  ensure\n    @done = true\n  end\nend\n"
       live(code, "ensure_clause") do |ids|
-        active(ids.fetch("drop `ensure`")) { expect(EmptyEnsure.new.tap(&:m).done).to(be_nil) }
-        expect(EmptyEnsure.new.tap(&:m).done).to(be(true))
+        expect([active(ids.fetch("drop `ensure`")) { EmptyEnsure.new.tap(&:m).done }, EmptyEnsure.new.tap(&:m).done])
+          .to(eq([nil, true]))
       end
     end
 
