@@ -61,8 +61,15 @@ module Kimera
 
       def text
         receiver = @node.receiver
-        written = trailing(receiver, Level::ASSIGNMENT)
+        written = unbraced(receiver)
         receiver.type != :parentheses_node && written.start_with?("(") ? "not#{written}" : "not #{written}"
+      end
+
+      private
+
+      def unbraced(receiver)
+        keyword = pen_of(receiver).level(receiver) == Level::KEYWORD
+        keyword ? part(receiver, Level::TERNARY) : trailing(receiver, Level::ASSIGNMENT)
       end
     end
 
@@ -106,13 +113,11 @@ module Kimera
 
       def head
         receiver = @node.receiver
-        name = @node.message_loc ? @node.name : :call
-        if receiver
-          "#{receiver_part(receiver)}#{@node.safe_navigation? ? "&." : "."}#{name}"
-        else
-          name.to_s
-        end
+        name = @node.name
+        receiver ? "#{receiver_part(receiver)}#{dot}#{name}" : name.to_s
       end
+
+      def dot = @node.safe_navigation? ? "&." : "."
 
       def arguments
         listing = [@node.arguments, block_argument].compact

@@ -48,7 +48,6 @@ module Kimera
       TYPES = %i[interpolated_string_node].freeze
 
       def text
-        return '""' if @node.parts.empty?
         return %("#{inner('"')}") unless juxtaposed?
         @node.parts.map { |piece| literal(piece) }.join(" ")
       end

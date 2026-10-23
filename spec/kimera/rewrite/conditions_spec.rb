@@ -13,7 +13,9 @@ RSpec.describe(Kimera::Rewrite::Conditions) do
       "r.!", "!!r", "if x && r then 1 end", "if r || x then 1 end", "x and r ? 1 : 2", "!(x or r)",
       "if ((r)) then 1 end", "if begin; r; end then 1 end", "x && r", "if (x; r) then 1 end", "if (y = r) then 1 end",
       "if (x ? r : 1) then 1 end", "if (if x then r end) then 1 end", "if r.itself then 1 end", "f(!x, r)",
-      "case when r then 1 end", "[1].select { r }"
+      "case when r then 1 end", "[1].select { r }", "if begin; r; rescue; end then 1 end",
+      "if begin; r; ensure; x; end then 1 end", "if begin; x; rescue; r; end then 1 end",
+      "if begin; x; rescue; else; r; end then 1 end", "if begin; x; ensure; r; end then 1 end"
     ]
   end
 

@@ -9,7 +9,11 @@
   the parser gem folded into its parent (the literal in `--1`) is guarded
   like any other instead of reported unmutatable, and a file holding
   `/\xff/`, which the parser gem rejected, renders its variants and compares
-  them. `Kimera::GuardrailInterpolation` is gone: a guard on a string part is
+  them. A def at the tail of a method is guarded where it stands, so its
+  `tail => nil` mutant makes the method return nil instead of emptying the
+  def, and a range or regexp a mutation leaves as the body of a tested
+  `begin ... rescue` is caught as the flip-flop or `$_` match Ruby reads it
+  as. `Kimera::GuardrailInterpolation` is gone: a guard on a string part is
   written as an interpolation (`"a#{if ... end}"`), so string parts are no
   longer spliced or coalesced around it. Custom operators need no change:
   directives are the same data. `kimera doctor` no longer checks the prism

@@ -21,6 +21,28 @@ RSpec.describe(Kimera::Rewrite::Directive) do
       expect(out).to(eq('(a || b) && "c"'))
     end
 
+    it "keeps the keyword spelling of a connective it swaps" do
+      out = described_class.new({ "type" => "boolean_connective", "to" => "or" }).render("a and b")
+      expect(out).to(eq("a or b"))
+    end
+
+    it "drops one clause of a method and keeps the other", :aggregate_failures do
+      both = "def x\n  a\nrescue\n  b\nensure\n  c\nend"
+      render = ->(directive, source) { described_class.new(directive).render(source) }
+      expect(render.call({ "type" => "drop_ensure" }, both)).to(eq("def x\n  a\nrescue\n  b\nend"))
+      expect(render.call({ "type" => "drop_rescue", "index" => 0 }, both)).to(eq("def x\n  a\nensure\n  c\nend"))
+      expect(render.call({ "type" => "drop_ensure" }, "def x\n  a\nensure\n  c\nend")).to(eq("def x\n  a\nend"))
+    end
+
+    it "drops a keyword beside a double splat" do
+      out = described_class.new({ "type" => "kwarg_pair_drop", "key" => "a" }).render("f(a: 1, **o)")
+      expect(out).to(eq("f(**o)"))
+    end
+
+    it "keeps an attribute write a safe navigation drops to a plain call" do
+      expect(described_class.new({ "type" => "csend_to_send" }).render("a&.b = 1")).to(eq("a.b = 1"))
+    end
+
     it "renders a boolean literal variant" do
       out = described_class.new({ "type" => "boolean_literal", "to" => "false" }).render("true")
       expect(out).to(eq("false"))

@@ -35,13 +35,10 @@ module Kimera
 
           def folded(begun)
             body = [*begun.statements&.body, *begun.else_clause&.statements&.body]
-            settled(begun.copy(rescue_clause: nil, else_clause: nil, statements: body.empty? ? nil : statements(body)))
+            settled(begun.copy(rescue_clause: nil, else_clause: nil, statements: statements(body)))
           end
 
-          def settled(begun)
-            return begun if begun.begin_keyword_loc || begun.rescue_clause || begun.ensure_clause
-            begun.statements
-          end
+          def settled(begun) = begun.rescue_clause || begun.ensure_clause ? begun : begun.statements
         end
     end
   end

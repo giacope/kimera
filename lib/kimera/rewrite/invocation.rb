@@ -12,7 +12,7 @@ module Kimera
       def listed
         given = @node.arguments
         arguments = yield(given&.arguments || [])
-        @node.copy(arguments: arguments.empty? ? nil : given.copy(arguments: arguments))
+        @node.copy(arguments: given&.copy(arguments: arguments))
       end
 
       def rewrite(key, &)

@@ -971,4 +971,51 @@ RSpec.describe(Kimera::Overlay) do
       expect { described_class.new(registry).synthesize("clean.rb", code) }.not_to(output.to_stderr)
     end
   end
+
+  describe "trees kimera writes from the scan" do
+    def woven(source, keys)
+      registry = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(source, file: "x.rb")
+      [Kimera::Overlay.new(registry).synthesize("x.rb", source), registry]
+    end
+
+    # `alias` takes a bare name, so a guard where one stood would not parse:
+    # those two points drop, the literal beside them stays live.
+    it "drops the points whose guard Ruby would reject, and keeps the rest", :aggregate_failures do
+      source = "class AliasProbe\n  def m\n    alias c d\n    1\n  end\nend\n"
+      result = nil
+      expect { result, = woven(source, %w[symbol_literal numeric_literal]) }
+        .to(output(/2 mutation point\(s\) at line 3 are unguardable/).to_stderr)
+      expect([result.skipped_unsafe.size, result.source]).to(match([2, include("alias :c :d")]))
+      expect(Prism.parse(result.source)).to(be_success)
+    end
+
+    # Only `::Kimera::RUNTIME.active?` is a guard; a lookalike is the project's own call.
+    it "reports the guards it wrote, not calls that look like them" do
+      source = "class Lookalike\n  def m(a)\n    ::Kimera::Flags.active?(9)\n    Foo::Bar.active?(8)\n    " \
+        "a > 1\n  end\nend\n"
+      result, registry = woven(source, %w[comparison])
+      expect(result.mutant_ids).to(eq(registry.points.flat_map(&:ids)))
+    end
+
+    def paths
+      "module ReopenPath\nend\nReopenPath::Point = Struct.new(:x) do\n  def big?(y) = x > y\nend\n" \
+        "::ReopenTop = Struct.new(:x) do\n  def big?(y) = x > y\nend\n"
+    end
+
+    it "reopens a value object named by a path with the path's own scope", :aggregate_failures do
+      written = woven(paths, %w[comparison]).first.source
+      expect(written).to(include("ReopenPath::Point = if (ReopenPath).const_defined?(:Point, false)\n"))
+      expect(written).to(include("  (ReopenPath).const_get(:Point)\n", "ReopenPath::Point.class_eval {"))
+      expect(written).to(include("::ReopenTop = if (::Object).const_defined?(:ReopenTop, false)"))
+    end
+
+    # A def is a value too: its tail mutant guards the def, so the method that
+    # holds it returns nil with the mutant on and defines the method without.
+    it "guards a def at a method's tail where it stands" do
+      source = "class NestedTail\n  def outer\n    def inner\n    end\n  end\nend\n"
+      result, registry = woven(source, %w[return_value])
+      held = Module.new.tap { |mod| mod.module_eval(result.source) }::NestedTail.new
+      expect([held.outer, Kimera::RUNTIME.during(registry.points.first.ids.first) { held.outer }]).to(eq([:inner, nil]))
+    end
+  end
 end

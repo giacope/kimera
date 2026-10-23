@@ -17,8 +17,6 @@ module Kimera
         "#{leading(@node.predicate, Level::RANGE)} ? #{branch(middle, Level::RANGE)} : #{branch(last, Level::RANGE)}"
       end
 
-      def chained? = !postcondition?
-
       private
 
       def keyword = "if"
@@ -47,9 +45,8 @@ module Kimera
         subsequent = following
         return "" unless subsequent
         pen = pen_of(subsequent)
-        form = pen.form(subsequent) if subsequent.type == :if_node
-        return "\n#{margin}els#{form.text.delete_suffix(closing)}" if form&.chained?
-        "\n#{margin}else#{lines(subsequent.type == :else_node ? subsequent.statements : subsequent, pen)}"
+        return "\n#{margin}else#{lines(subsequent.statements, pen)}" if subsequent.type == :else_node
+        "\n#{margin}els#{pen.write(subsequent).delete_suffix(closing)}"
       end
 
       def postcondition?
@@ -60,8 +57,6 @@ module Kimera
 
     class Unless < Condition
       TYPES = %i[unless_node].freeze
-
-      def chained? = false
 
       private
 
@@ -92,7 +87,7 @@ module Kimera
       end
 
       def text
-        body = @node.type == :statements_node ? @node.body : [@node]
+        body = @node.body
         body.one? ? @pen.write(body.first, Level::EXPRESSION) : "(#{Sequence.new(@node, @pen.opened).text})"
       end
     end

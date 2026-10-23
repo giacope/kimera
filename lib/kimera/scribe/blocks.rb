@@ -3,10 +3,6 @@
 module Kimera
   class Scribe
     class Block < Form
-      TYPES = %i[block_node].freeze
-
-      def text = suffix.delete_prefix(" ")
-
       def suffix = braced(@node.body, @pen.with([@node.parameters]), bars)
 
       private

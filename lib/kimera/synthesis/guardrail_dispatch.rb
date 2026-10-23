@@ -16,32 +16,16 @@ module Kimera
 
     def dispatch(rebuilt, bare, points)
       mutants = points.flat_map(&:mutants).reverse
-      type = rebuilt.type
       return rebuilt if mutants.empty?
-      return parameter(rebuilt, mutants) if PARAMETERS.key?(type)
-      return definition(rebuilt, bare, mutants) if type == :def_node
-      guarded = guard(mutants, rebuilt) { |mutant| variant(bare, mutant) }
-      clausal?(rebuilt) ? guarded : grouped([guarded])
+      return parameter(rebuilt, mutants) if PARAMETERS.key?(rebuilt.type)
+      hidden, shown = mutants.partition { |mutant| mutant.directive[Kimera::Rewrite::TYPE] == PRIVATIZE }
+      guard(shown, hidden.empty? ? rebuilt : privatized(rebuilt, hidden)) { |mutant| variant(bare, mutant) }
     end
 
-    def clausal?(node) = node.type == :begin_node && !node.begin_keyword_loc
-
-    def definition(rebuilt, bare, mutants)
-      hidden, reshaped = mutants.partition { |mutant| mutant.directive[Kimera::Rewrite::TYPE] == PRIVATIZE }
-      defined = rebuilt.copy(body: probed(reshape(rebuilt.body, bare, reshaped), hidden))
-      hidden.empty? ? defined : statements([defined, *registrations(rebuilt.name, hidden)])
+    def privatized(rebuilt, hidden)
+      defined = rebuilt.copy(body: statements([probe(hidden), *[rebuilt.body].compact]))
+      statements([defined, *registrations(rebuilt.name, hidden)])
     end
-
-    def reshape(body, bare, mutants)
-      return body if mutants.empty?
-      guard(mutants, body) do |mutant|
-        variant(bare, mutant).then do |mutated|
-          mutated.body if mutated.type == :def_node
-        end
-      end
-    end
-
-    def probed(body, hidden) = hidden.empty? ? body : statements([probe(hidden), *[body].compact])
 
     def probe(mutants) = guard(mutants, snippet("nil")) { snippet("nil") }
 
@@ -56,7 +40,7 @@ module Kimera
     def parameter(original, mutants)
       kind = PARAMETERS.fetch(original.type)
       failure = %(raise(ArgumentError, "missing #{kind}: #{original.name}"))
-      original.copy(value: grouped([guard(mutants, original.value) { snippet(failure) }]))
+      original.copy(value: guard(mutants, original.value) { snippet(failure) })
     end
 
     def guard(mutants, seed)

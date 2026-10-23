@@ -26,7 +26,7 @@ module Kimera
         [[node, tested]] + node.compact_child_nodes.flat_map { |child| marks(child, carried(node, child, tested)) }
       end
 
-      def carried(node, child, tested) = tests?(node, child) || (tested && passes?(node))
+      def carried(node, child, tested) = tests?(node, child) || (tested && passes?(node, child))
 
       def tests?(node, child)
         type = node.type
@@ -34,11 +34,11 @@ module Kimera
         type == :call_node && node.name == :! && !node.arguments && node.receiver.equal?(child)
       end
 
-      def passes?(node)
+      def passes?(node, child)
         case node.type
         when *PASSAGES then true
         when :statements_node then node.body.one?
-        when :begin_node then !(node.rescue_clause || node.else_clause || node.ensure_clause)
+        when :begin_node then child.equal?(node.statements)
         else false
         end
       end

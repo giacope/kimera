@@ -178,6 +178,16 @@ RSpec.describe(Kimera::Overlay) do
       expect(Object.new.extend(Module.new.tap { |mod| mod.module_eval(baked) }).m).to(eq(-mutant.directive["value"]))
     end
 
+    it "raises Unbakeable for a point with no node of its kind where it was scanned" do
+      program = "def m\n  1\nend\n"
+      catalog = selected(%w[numeric_literal], program)
+      point = catalog.points.first
+      allow(point).to(receive(:node_type).and_return("float_node"))
+      expect { described_class.new(catalog).bake("x.rb", program, point.ids.first) }.to(
+        raise_error(described_class::Unbakeable, Kimera::Overlay::FileWeave::UNMATCHED)
+      )
+    end
+
     it "bakes a file with a string escape that is invalid UTF-8" do
       program = "def scaled(size, data) = data.start_with?(\"\\xFF\\xD8\".b) ? size * 2 : size\n"
       catalog = selected(%w[arithmetic], program)

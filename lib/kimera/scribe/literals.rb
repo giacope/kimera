@@ -74,11 +74,5 @@ module Kimera
         parent ? "#{receiver_part(parent)}::#{@node.name}" : "::#{@node.name}"
       end
     end
-
-    class Implicit < Form
-      TYPES = %i[implicit_node].freeze
-
-      def text = part(@node.value)
-    end
   end
 end

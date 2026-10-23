@@ -33,10 +33,7 @@ module Kimera
       def numbered(count) = (1..count).to_h { |n| [:"_#{n}", :"#{PREFIX}#{n}"] }
 
       def named(node, renames)
-        node.copy(
-          locals: renames.values | node.locals.map { |name| renames.fetch(name, name) },
-          parameters: parameters(renames.values), body: node.body && rename(node.body, renames)
-        )
+        node.copy(parameters: parameters(renames.values), body: node.body && rename(node.body, renames))
       end
 
       def parameters(names)
@@ -52,7 +49,7 @@ module Kimera
       def renamed(node, renames)
         case node.type
         when :local_variable_read_node then renames.key?(node.name) ? node.copy(name: renames.fetch(node.name)) : node
-        when :it_local_variable_read_node then renames.key?(:it) ? local(renames.fetch(:it)) : node
+        when :it_local_variable_read_node then local(renames.fetch(:it))
         else node
         end
       end

@@ -731,7 +731,23 @@ RSpec.describe(Kimera::Scribe) do
       "%r{a/b}" =>
         "%r{a/b}",
       "\"\#{}\"\n" =>
-        "\"\#{}\""
+        "\"\#{}\"",
+      "a = [a]; b ||= [b]" =>
+        "a = [a]\nb ||= [b]\n",
+      "class A < (b = B); end; b" =>
+        "class A < (b = B)\nend\nb\n",
+      "x { |; a| }" =>
+        "x { |; a|\n}",
+      "a[1] { }" =>
+        "a[1] {\n}",
+      "begin; rescue => a&.b; end" =>
+        "begin\nrescue => a&.b\nend",
+      "x = ()" =>
+        "x = ()",
+      "if (def m(d) = d); d = 1; end" =>
+        "if (def m(d)\n  d\nend)\n  d = 1\nend",
+      "case v; in (B => _x) | A then 1; end" =>
+        "case v\nin (B => _x) | A\n  1\nend"
     }.each do |source, written|
       it "writes `#{source}` as `#{written}`", :aggregate_failures do
         expect(reemit(source)).to(eq(written))
@@ -748,6 +764,12 @@ RSpec.describe(Kimera::Scribe) do
     def self.clause(body) = statement("def m\n#{body}\nend").body
 
     def self.assigned(value) = statement("x = a").copy(value: value)
+
+    def self.argued(node)
+      statement("f(a)").then { |call| call.copy(arguments: call.arguments.copy(arguments: [node])) }
+    end
+
+    def self.followed(modifier, node) = modifier.copy(statements: statements([*modifier.statements.body, node]))
 
     def self.infinite(literal) = literal.copy(value: literal.value.positive? ? Float::INFINITY : -Float::INFINITY)
 
@@ -831,17 +853,39 @@ RSpec.describe(Kimera::Scribe) do
         "f(begin\n  a\nrescue A\n  b\nend)"
       ],
       "an ensure, as a value" => [assigned(clause("a\nensure\n  b")), "x = begin\n  a\nensure\n  b\nend"],
-      "a sequence as an argument" => [
-        statement("f(a)").then do |call|
-          call.copy(arguments: call.arguments.copy(arguments: [statements([named(:a), named(:b)])]))
-        end,
-        "f((a; b))"
+      "a sequence as an argument" => [argued(statements([named(:a), named(:b)])), "f((a; b))"],
+      "a sequence inside a sequence" => [statements([named(:a), statements([named(:b), named(:c)])]), "a\nb\nc\n"],
+      "an elsif as a ternary branch" => [
+        unparenthesized("return (if a then b elsif c then d else e end)"),
+        "return a ? b : (if c\n  d\nelse\n  e\nend)"
       ],
-      "a sequence inside a sequence" => [statements([named(:a), statements([named(:b), named(:c)])]), "a\nb\nc\n"]
+      "statements as a ternary branch" => [
+        unparenthesized("return (if a then b; c else d end)"),
+        "return a ? (b; c) : d"
+      ],
+      "a lone statement as an argument" => [argued(statements([named(:a)])), "f(a)"],
+      "a modifier over statements" => [followed(statement("d = 1 if d"), named(:e)), "(d = 1; e) if d"],
+      "a singleton method on a call" => [
+        statement("def a.m; end").copy(receiver: statement("a.b")),
+        "def (a.b).m\nend"
+      ],
+      "not over a condition" => [
+        statement("not x").copy(receiver: branched(named(:a), named(:b), named(:c))), "not(if a\n  b\nelse\n  c\nend)"
+      ]
     }.each do |shape, (tree, written)|
       it "writes #{shape}" do
         expect(write(tree)).to(eq(written))
       end
+    end
+
+    # Only a modifier reads what its body binds, and a modifier takes no else.
+    it "refuses a condition reading what its body binds once an else follows" do
+      tree = statement("d = 1 if d").copy(subsequent: statement("if a then b else c end").subsequent)
+      expect { write(tree) }.to(raise_error(described_class::Unbound, /read of d/))
+    end
+
+    it "writes a shareable constant as its assignment" do
+      expect(reemit("# shareable_constant_value: literal\nA = [1]")).to(eq("A = [1]"))
     end
 
     it "writes a complex number with a real part as its constructor" do

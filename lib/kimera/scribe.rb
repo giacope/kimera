@@ -28,10 +28,10 @@ module Kimera
   # reads source into such a tree.
   class Scribe
     FORMS = [
-      Keyword, Variable, Reference, Local, Numeral, Atom, Characters, Command, Path, Implicit, Embedded,
+      Keyword, Variable, Reference, Local, Numeral, Atom, Characters, Command, Path, Embedded,
       InterpolatedString, InterpolatedSymbol, InterpolatedCommand, Pattern, Sequence, Parentheses, Elements,
       Arguments, Pairs, Pair, Splat, Span, Assignment, Compound, Targets, Multiple, Attribute, Call, Invocation,
-      Block, Lambda, BlockParameters, Parameters, Parameter, Definition, Namespace, Condition, Unless, Selection,
+      Lambda, BlockParameters, Parameters, Parameter, Definition, Namespace, Condition, Unless, Selection,
       Arm, Loop, Iteration,
       Jump, Connective, Bracketed, Rescued, Exchange, Hook, Capture, Shareable, Matching, Alternatives,
       ArrayPattern, HashPattern, Pin
