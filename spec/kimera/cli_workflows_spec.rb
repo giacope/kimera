@@ -146,7 +146,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
   end
 
   it "reports actionable doctor failures and successes" do
-    project("app/thing.rb" => "class Thing; end\n", "spec/thing_spec.rb" => "# spec\n")
+    project("app/thing.rb" => "class Thing; end\n", "spec/thing_spec.rb" => "RSpec.describe(\"thing\") { it { } }\n")
     project(".kimera.yml" => "paths: [app/**/*.rb]\ntests: [spec/**/*_spec.rb]\n")
     expect(doctor).to(eq(0))
     expect(out.string).to(include("✓ Source scope: 1 Ruby files", "✓ Test discovery: 1 files"))
@@ -366,6 +366,18 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     expect(test_initialized(helper.merge("test/test_task.rb" => ""))).to(include("tests" => ["test/**/test_*.rb"]))
   end
 
+  # R4-KL3: zeitwerk's support class test/support/loader_test.rb and its tests test/**/test_*.rb.
+  def zeitwerk_like
+    { "test/helper.rb" => "require 'minitest/autorun'\n", "test/support/loader_test.rb" => "", "test/b_test.rb" => "" }
+  end
+
+  it "picks the minitest glob whose files define the most tests", :aggregate_failures do
+    tests = zeitwerk_like.merge("test/lib/test_calc.rb" => "class CalcTest < LoaderTest\n  def test_one; end\nend\n")
+    expect(test_initialized(tests)).to(include("tests" => ["test/**/test_*.rb"]))
+    expect(test_initialized(zeitwerk_like)).to(include("tests" => ["test/**/*_test.rb"]))
+    expect(test_initialized(zeitwerk_like.slice("test/helper.rb"))).to(include("tests" => ["test/**/*_test.rb"]))
+  end
+
   def test_doctor_in(dir, *argv)
     out, error = captured
     [Kimera::CLI::Doctor.new(io: out, errors: error, root: dir).run(argv), out.string]
@@ -397,8 +409,16 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     end
   end
 
+  it "fails discovery when the test files define no test" do
+    project("test/support/loader_test.rb" => "class LoaderTest < Minitest::Test\nend\n")
+    project(".kimera.yml" => "framework: minitest\ntests: [test/**/*_test.rb]\n")
+    green_suite && expect(test_doctor_in(dir)).to(
+      match([1, include("✗ Test discovery: 1 files match tests:, but none defines a test")])
+    )
+  end
+
   it "leaves the configured exclude_tests out of discovery", :aggregate_failures do
-    project("test/a_test.rb" => "", "test/system/b_test.rb" => "")
+    project("test/a_test.rb" => "def test_a; end\n", "test/system/b_test.rb" => "def test_b; end\n")
     project(".kimera.yml" => "tests: [test/**/*_test.rb]\nexclude_tests: [test/system/**/*_test.rb]\n")
     green_suite && expect(test_doctor_in(dir).last).to(include("✓ Test discovery: 1 files"))
     green = "✓ Baseline: configured test suite is green\n"
@@ -411,7 +431,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     let(:out) { Class.new(StringIO) { define_method(:flushed) { @_flushed ||= [] } }.new }
 
     it "prints each check before the suite runs", :aggregate_failures do
-      project("spec/a_spec.rb" => "")
+      project("spec/a_spec.rb" => "it { }\n")
       seen = green_suite
       doctor("--check-baseline")
       expect(seen.first.last).to(include("✓ Test discovery: 1 files", "Git:"))

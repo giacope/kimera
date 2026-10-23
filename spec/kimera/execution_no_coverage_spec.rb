@@ -199,6 +199,30 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     it "builds a shift for the duty" do
       expect(runner.__send__(:build, duty)).to(be_a(Kimera::Execution::Shift))
     end
+
+    # R4-KR1: a parallelize_setup hook raised before the worker could say a word.
+    def unprepared
+      allow(database).to(receive(:after_fork).and_raise(RuntimeError, "search index unavailable"))
+      retired = []
+      allow(duty).to(receive(:retire)) { |_database, error| retired << error }
+      booted
+    rescue Kimera::Execution::Pool::Unprepared => error
+      [error, *retired]
+    end
+
+    it "retires a worker whose after-fork setup raised with what it raised", :aggregate_failures do
+      raised, retired = unprepared
+      expect([raised, retired.class]).to(eq([retired, Kimera::Execution::Pool::Unprepared]))
+      expect(retired.headline).to(eq("worker 5's after-fork setup raised RuntimeError: search index unavailable"))
+      expect(duty).not_to(have_received(:run))
+    end
+
+    it "keeps the setup error's backtrace" do
+      allow(database).to(receive(:after_fork)) { raise(ScriptError, "x") }
+      booted
+    rescue Kimera::Execution::Pool::Unprepared => error
+      expect(error.backtrace.first).to(include(__FILE__))
+    end
   end
 
   # The hard watchdog renews on each test's beat, so a slow test's raised soft

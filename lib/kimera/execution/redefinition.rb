@@ -1,10 +1,14 @@
 # frozen_string_literal: true
 
+require_relative "../support/warnings"
+
 module Kimera
   module Execution
   end
 end
 
+# Putting a method back warns "method redefined" under $VERBOSE, and a suite
+# may turn warnings into errors: kimera's own redefinitions say nothing.
 class Kimera::Execution::Redefinition
   def initialize(holder, name)
     @holder = holder
@@ -12,7 +16,7 @@ class Kimera::Execution::Redefinition
   end
 
   def redefine(method, visibility = self.visibility)
-    @holder.define_method(@name, method)
+    Kimera::Warnings::SILENCED.during { @holder.define_method(@name, method) }
     @holder.__send__(visibility, @name)
   end
 

@@ -5,17 +5,24 @@ require "rspec/core"
 require "stringio"
 require "zlib"
 require_relative "../exits/test_exit"
+require_relative "../support/warnings"
 require_relative "mirror_database"
 
+output = StringIO.new
+streams = { output_stream: output, error_stream: StringIO.new, deprecation_stream: StringIO.new }
+redirect =
+  lambda do
+    streams.each do |name, stream|
+      RSpec.configuration.public_send(:"#{name}=", stream) unless RSpec.configuration.public_send(name).equal?(stream)
+    end
+  end
+redirect.call
 begin
   RSpec::Core::ConfigurationOptions.new([]).configure(RSpec.configuration)
 rescue StandardError, ScriptError
   nil
 end
-output = StringIO.new
-RSpec.configuration.output_stream = output
-RSpec.configuration.error_stream = StringIO.new
-RSpec.configuration.deprecation_stream = StringIO.new
+Kimera::Warnings::SILENCED.during(&redirect)
 
 RSpec.configuration.before(:suite) do
   RSpec.world.all_examples.each { |example| example.extend(Kimera::TestExit::Example) }

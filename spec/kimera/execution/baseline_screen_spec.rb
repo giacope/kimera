@@ -57,6 +57,13 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
     expect(message).to(include("\n  plain run: rspec t1 t2 --order defined\n"))
   end
 
+  # R4-KL9: dry-types holds `Coercions::Params.method(:to_int)` from load.
+  it "names a method the suite took at load before any other cause" do
+    captured = instance_double(Kimera::Execution::CapturedMethods, cause: "kimera redefined Coerce.to_int")
+    allow(Kimera::Execution::CapturedMethods).to(receive(:new).with("/project").and_return(captured))
+    expect(harness_error(jobs: 2)).to(end_with("\n  likely cause: kimera redefined Coerce.to_int"))
+  end
+
   it "blames the forked workers when there were several, else what kimera changes", :aggregate_failures do
     expect(harness_error(jobs: 2)).to(end_with(described_class::CAUSES.fetch(:parallel)))
     expect(harness_error(jobs: 1)).to(end_with(described_class::CAUSES.fetch(:serial)))

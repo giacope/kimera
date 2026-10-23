@@ -3,6 +3,8 @@
 require "tempfile"
 require_relative "child_process"
 
+# Runs the suite in its own process group, which a terminal's Ctrl-C does not
+# reach: when kimera is interrupted or terminated, it stops the whole group.
 class Kimera::Execution::SuiteCapture
   include Kimera::Execution::ChildProcess
 
@@ -20,12 +22,19 @@ class Kimera::Execution::SuiteCapture
   def call(env, *command, chdir:, limit: nil)
     Tempfile.create("kimera-suite") do |log|
       pid = Process.spawn(env, *command, chdir: chdir, in: File::NULL, out: log, err: log, pgroup: true)
-      status = limit ? waited(pid, limit, log) : Process.wait2(pid).last.tap { signal(-pid) }
+      status = stopping(pid) { limit ? waited(pid, limit, log) : Process.wait2(pid).last.tap { signal(-pid) } }
       [File.read(log.path, encoding: Encoding::UTF_8).scrub, status]
     end
   end
 
   private
+
+  def stopping(pid)
+    yield
+  rescue SignalException
+    stop(pid)
+    raise
+  end
 
   def waited(pid, limit, log)
     started = now

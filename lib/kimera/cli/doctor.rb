@@ -8,6 +8,7 @@ require_relative "coverage_minimum"
 require_relative "flag"
 require_relative "rails_layout"
 require_relative "test_command"
+require_relative "test_definitions"
 
 class Kimera::CLI::Doctor
   OPTIONS = Kimera::FlagTable.new(
@@ -51,7 +52,8 @@ class Kimera::CLI::Doctor
   end
 
   def checks(config, options)
-    [configuration(config), framework(config), sources(config), tests(config), git, rails]
+    discovery = Kimera::CLI::TestDefinitions.new(test_files(config)).discovery
+    [configuration(config), framework(config), sources(config), discovery, git, rails]
       .concat(floor).each { |check| shown(check) } + suite(config, options)
   end
 
@@ -80,15 +82,9 @@ class Kimera::CLI::Doctor
 
   def sources(config)
     count = glob(config.fetch(:paths, Kimera::FileSet::DEFAULT_GLOBS)).size
-    found(count, "Source scope: #{count} Ruby files", "Source scope: no Ruby files found; fix paths: in .kimera.yml")
+    return ["✗", "Source scope: no Ruby files found; fix paths: in .kimera.yml"] if count.zero?
+    ["✓", "Source scope: #{count} Ruby files"]
   end
-
-  def tests(config)
-    count = test_files(config).size
-    found(count, "Test discovery: #{count} files", "Test discovery: no test files found; fix tests: in .kimera.yml")
-  end
-
-  def found(count, present, absent) = count.zero? ? ["✗", absent] : ["✓", present]
 
   def git
     return ["✓", "Git: incremental runs are available"] if File.exist?(File.join(@root, ".git"))

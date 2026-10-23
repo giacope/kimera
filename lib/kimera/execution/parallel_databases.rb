@@ -9,7 +9,9 @@ end
 # ActiveSupport.parallelize_test_databases; before it, the after-fork hook
 # active_record/test_databases registers gave each parallel worker its own
 # database whenever it was registered. TEST_ENV_NUMBER follows parallel_tests:
-# the first process keeps the plain name, the nth appends n.
+# the first process keeps the plain name, the nth appends n. A schema path
+# Active Record cannot work out (a suite without Rails has no db_dir) is no
+# schema to load: the worker copies the database instead.
 class Kimera::Execution::ParallelDatabases
   VARIABLE = "TEST_ENV_NUMBER"
 
@@ -28,10 +30,11 @@ class Kimera::Execution::ParallelDatabases
   end
 
   def loadable?
+    return true unless @record
     configs = @record.configurations.configs_for(env_name: ActiveRecord::ConnectionHandling::DEFAULT_ENV.call)
     configs.all? { |config| File.exist?(ActiveRecord::Tasks::DatabaseTasks.schema_dump_path(config)) }
   rescue StandardError
-    true
+    false
   end
 
   def numbered(index) = { VARIABLE => number(index) }

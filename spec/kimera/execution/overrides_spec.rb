@@ -65,6 +65,16 @@ RSpec.describe(Kimera::Execution::Overrides) do
     end
   end
 
+  # R4-KL7: dry-types raises on every warning; putting a later file's method back warned "method redefined".
+  it "puts a method back without a warning under $VERBOSE" do
+    boot
+    overrides = described_class.new(own, source)
+    quietly = -> { Kimera::Warnings.new(true).during { overrides.keep { silently { evaluate(Object, source, own) } } } }
+    expect(&quietly).not_to(output.to_stderr)
+  end
+
+  def silently(&) = Kimera::Warnings::SILENCED.during(&)
+
   it "lets the overlay redefine what only its own file defined" do
     boot
     overlay(described_class.new(own, source))

@@ -3,6 +3,7 @@
 require "tmpdir"
 require_relative "baseline_failure"
 require_relative "baseline_exclusions"
+require_relative "captured_methods"
 require_relative "failure_listing"
 require_relative "suite_capture"
 require_relative "suite_env"
@@ -61,7 +62,9 @@ class Kimera::Execution::BaselineScreen
         "rather than guess what they cover:",
       *Kimera::Execution::FailureListing.new(failures.slice(*passed)).lines,
       "  plain run: #{command}",
-      "  likely cause: #{CAUSES.fetch(@jobs > 1 ? :parallel : :serial)}"
+      "  likely cause: #{cause}"
     ].join("\n")
   end
+
+  def cause = Kimera::Execution::CapturedMethods.new(@root).cause || CAUSES.fetch(@jobs > 1 ? :parallel : :serial)
 end
