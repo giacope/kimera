@@ -11,8 +11,7 @@ require_relative "splice_reopening"
 # its data, and every line outside the span stay as they were. A shorter
 # rewrite is padded inside parentheses to the span's lines. Each attempt must
 # read back as the whole mutated tree, or the next one out is tried: the
-# smallest node the rewrite changed, each node around it up to the point's,
-# then each statement holding it.
+# smallest node the rewrite changed, then each node around it.
 class Kimera::BakeSplice
   Attempt =
     Data.define(:from, :to, :text, :grouping) do
@@ -27,19 +26,11 @@ class Kimera::BakeSplice
     end
 
   # Where a bake may be written, smallest first: the nodes inside the point's
-  # that the rewrite changed, the point's own, each expression around it up
-  # to its statement, then each statement holding it.
+  # that the rewrite changed, the point's own, then each node around it up to
+  # the program's statements.
   Candidates =
     Data.define(:changed) do
-      def to_a = [*expressions(inner), changed.first, *around]
-      private
-      def inner = Kimera::SpliceDiff.new(*changed.first).path.drop(1).reverse
-
-      def around = changed.each_cons(2).filter_map { |pair, (parent, _)| pair if kept?(pair.first, parent) }
-
-      def kept?(node, parent) = parent.type == :statements_node || !Kimera::SpliceDiff::HELD.include?(node.type)
-
-      def expressions(pairs) = pairs.reject { |node, _| Kimera::SpliceDiff::HELD.include?(node.type) }
+      def to_a = [*Kimera::SpliceDiff.new(*changed.first).path.drop(1).reverse, *changed[0...-1]]
     end
 
   def initialize(map, changed, expected)

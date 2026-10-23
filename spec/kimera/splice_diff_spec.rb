@@ -29,6 +29,13 @@ RSpec.describe(Kimera::SpliceDiff) do
     expect(described_class.new(read("'q'"), read("'q'").copy(unescaped: "")).path.size).to(eq(1))
   end
 
+  # Two kinds of node that hold the same one changed child: the change is the
+  # kind, not the child.
+  it "stops at a change of type even when only a child differs" do
+    held = { a: Struct.new(:child) { def type = :a_node }, b: Struct.new(:child) { def type = :b_node } }
+    expect(described_class.new(held[:a].new(read("x")), held[:b].new(read("y"))).path.size).to(eq(1))
+  end
+
   it "never replaces a self receiver alone", :aggregate_failures do
     call = read("self.class.new")
     expect(described_class.new(call, call.copy(receiver: call.receiver.receiver)).path.size).to(eq(1))

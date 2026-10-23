@@ -91,6 +91,27 @@ RSpec.describe(Kimera::Overlay) do
     end
   end
 
+  describe Kimera::Overlay::Stitch do
+    def stitched(edits)
+      weave = instance_double(Kimera::GuardSplice, rest: [], edits: edits, applied: [7])
+      allow(Kimera::GuardSplice).to(receive(:new).and_return(weave))
+      described_class.new("x.rb", Kimera::SourceMap.new("a = 1\n"), [], []).result
+    end
+
+    it "writes the edits of the guards it was given", :aggregate_failures do
+      result = stitched([[4, 5, "2"]])
+      expect([result.source, result.mutant_ids]).to(eq(["a = 2\n", [7]]))
+    end
+
+    it "writes nothing for edits that overlap, even ones whose text would parse" do
+      expect(stitched([[4, 5, "2"], [4, 5, "3"]])).to(be_nil)
+    end
+
+    it "writes nothing whose text does not parse" do
+      expect(stitched([[4, 5, "("]])).to(be_nil)
+    end
+  end
+
   describe "#bake" do
     {
       ["def m(v)\n  foo(\n    \"Ruby/\#{v}\",\n    2)\nend\n", %w[string_literal], "\"Ruby/\" => \"\""] =>
@@ -101,7 +122,11 @@ RSpec.describe(Kimera::Overlay) do
       ] =>
         "def m(list)\n  (nil\n\n)\nend\n",
       ["def m(a)\n  puts(<<~T, a > 1)\n    body\n  T\nend\n", %w[argument_drop], "drop arg `a > 1`"] =>
-        "(def m(a)\n  puts(\"body\\n\")\nend\n\n)\n"
+        "(def m(a)\n  puts(\"body\\n\")\nend\n\n)\n",
+      ["def m(a)\n  puts(<<~T, a > 1)\n    body\n  T\n  a\nend\n", %w[argument_drop], "drop arg `a > 1`"] =>
+        "def m(a)\n  puts(\"body\\n\"); a\nend\n",
+      ["def m(a)\n  if a # why\n    1\n  end\nend\n", %w[conditional], "condition => true"] =>
+        "def m(a)\n  if true # why\n    1\n  end\nend\n"
     }.each do |(source, keys, label), baked|
       it "bakes #{label} as #{baked.inspect}" do
         expect(bake(source, keys, label)).to(eq(baked))
