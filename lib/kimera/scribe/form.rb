@@ -52,6 +52,8 @@ module Kimera
         "#{opening}#{lead}#{clauses(body, pen)}#{closing(ending)}"
       end
 
+      def present(nodes) = nodes.compact.reject { |node| node.type == :arguments_node && node.arguments.empty? }
+
       def block_argument = (@node.block if @node.block&.type == :block_argument_node)
 
       def literal_block = (@node.block if @node.block&.type == :block_node)

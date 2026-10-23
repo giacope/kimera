@@ -90,7 +90,12 @@ module Kimera
 
       def segments = PLAIN.include?(type) ? [@node.content] : super
 
-      def content(part) = part.content
+      def content(part)
+        read = read_parts[@node.parts.index { |each| each.equal?(part) }]
+        read&.type == :string_node && read.unescaped.b == part.unescaped.b ? part.content : "\#{#{part(part)}}"
+      end
+
+      def read_parts = @_read_parts ||= Kimera::Syntax.parse(@node.slice).value.statements.body.first.parts
 
       def escaped(piece, _delimiter) = piece
     end

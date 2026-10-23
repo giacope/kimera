@@ -105,6 +105,21 @@ RSpec.describe(Kimera::BodyTrim) do
     expect(kept(source, "@error.headline")).to(eq(lines(source) - ["track :name"]))
   end
 
+  # The condition may hold now when it did not at load (`require "x/railtie"
+  # if defined?(Rails)`), so a conditional require is never replayed.
+  it "keeps a bare require but not one under a modifier condition" do
+    source = "require \"a\"\nrequire_relative \"b\" if defined?(Host)\nrequire \"c\" unless ready\n" \
+      "loaded = 1 if ready\ndef m = 1\n"
+    expect(kept(source, "m = 1")).to(eq(["require \"a\"", "loaded = 1 if ready", "def m = 1"]))
+  end
+
+  # A factory kimera does not know is reopened like Struct.new when its block
+  # defines methods, so the rest of its block is blanked like a class body.
+  it "trims inside the block of an unknown factory that defines methods" do
+    source = "Opts = Options.new(:a) do\n  attr_writer :x\n  def big? = a > 1\nend\n"
+    expect(kept(source, "a > 1")).to(eq(["Opts = Options.new(:a) do", "def big? = a > 1", "end"]))
+  end
+
   describe "aliases" do
     let(:source) do
       <<~RUBY
@@ -276,9 +291,10 @@ RSpec.describe(Kimera::BodyTrim) do
       RUBY
     end
 
-    it "descends into Struct, Data, Class and Module blocks assigned to a constant" do
+    # Any factory's block that defines methods is reopened, never run again.
+    it "descends into Struct, Data, Class, Module and other method-defining blocks assigned to a constant" do
       live = ["x > 10", "w > 2", "n > 1", "n < 1", "n >= 1", "n <= 1"]
-      dropped = ["include Comparable", 'self.table_name = "anons"', "extend self"]
+      dropped = ["include Comparable", 'self.table_name = "anons"', "extend self", "setting :x"]
       expect(kept(source, *live)).to(eq(lines(source) - dropped))
     end
   end

@@ -25,6 +25,8 @@ class Kimera::Overlay
 
   class Unbakeable < Kimera::Error; end
 
+  UNWRITTEN = "kimera could not write it"
+
   def initialize(registry)
     @registry = registry
   end
@@ -39,10 +41,29 @@ class Kimera::Overlay
     pair = @registry.point(id)
     return source unless pair
     map = Kimera::SourceMap.new(source)
-    write(map, baked(map, *pair), pair.last)
+    checked(spliced(map, *pair) || write(map, baked(map, *pair), pair.last))
   end
 
   private
+
+  def spliced(map, mutant, point)
+    changed = Kimera::Guardrail.new(map, []).changes(point, mutant.directive)
+    expected, original = changed && expectation(changed.last&.last || map.ast, map.ast)
+    return unless expected
+    raise(Unbakeable, "#{UNWRITTEN} (the mutant reads as the original)") if expected == original
+    Kimera::BakeSplice.new(map, changed, expected).source
+  end
+
+  def expectation(*trees)
+    trees.map { |tree| Kimera::Scribe.new(tree).source }
+  rescue StandardError
+    nil
+  end
+
+  def checked(text)
+    return text if Kimera::Syntax.parse(text).success?
+    raise(Unbakeable, "#{UNWRITTEN} (what it wrote does not parse)")
+  end
 
   def baked(map, mutant, point)
     Kimera::Guardrail.new(map, []).bake(point, mutant.directive) ||
@@ -62,5 +83,6 @@ class Kimera::Overlay
 end
 
 require_relative "file_weave"
+require_relative "bake_splice"
 require_relative "method_bake"
 require_relative "overlay/source"

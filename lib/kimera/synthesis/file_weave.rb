@@ -2,6 +2,7 @@
 
 require_relative "../scribe"
 require_relative "overlay_splice"
+require_relative "overlay_stitch"
 
 class Kimera::Overlay::FileWeave
   include Kimera::OverlaySplice
@@ -17,7 +18,7 @@ class Kimera::Overlay::FileWeave
   end
 
   def result
-    (attempt(@safe) || fallback).tap { |result| result.settle!(@safe, UNMATCHED) }
+    (Kimera::Overlay::Stitch.new(@file, @map, @safe, @unsafe).result || attempt(@safe) || fallback).tap { |result| result.settle!(@safe, UNMATCHED) }
   end
 
   private
@@ -60,11 +61,7 @@ class Kimera::Overlay::FileWeave
     )
   end
 
-  def recover
-    spliced = splice
-    return spliced if spliced
-    @map.restore(Kimera::Scribe.new(Kimera::Guardrail.new(@map, @safe).tree).source)
-  end
+  def recover = splice || raise(Kimera::Scribe::Unreadable, UNGUARDABLE)
 
   def bisect(points)
     return points if attempt(points)

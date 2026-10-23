@@ -1,6 +1,16 @@
 # frozen_string_literal: true
 
 module Kimera
+  # A block handed to a factory kimera does not know is a class body when it
+  # takes no parameters and defines methods (`Options.new(:a) do def a? end end`).
+  FactoryBlock =
+    Data.define(:block) do
+      def defining?
+        body = block.body if block&.type == :block_node && block.parameters.nil?
+        body&.type == :statements_node && body.body.any? { |statement| statement.type == :def_node }
+      end
+    end
+
   module GuardrailFactories
     FACTORIES = [%i[Struct new], %i[Data define], %i[Class new], %i[Module new]].freeze
     WRITES = %i[constant_write_node constant_path_write_node].freeze
@@ -19,7 +29,8 @@ module Kimera
 
     def factory?(call)
       receiver = call.receiver
-      CONSTANTS.include?(receiver&.type) && !call.safe_navigation? && FACTORIES.include?([receiver.name, call.name])
+      return false unless CONSTANTS.include?(receiver&.type) && !call.safe_navigation?
+      FACTORIES.include?([receiver.name, call.name]) || Kimera::FactoryBlock.new(call.block).defining?
     end
 
     def reopened(node, value)

@@ -3,7 +3,10 @@
 module Kimera
   class Scribe
     class Block < Form
-      def suffix = braced(@node.body, @pen.with([@node.parameters]), bars)
+      def suffix
+        kept = @pen.slice(@node)
+        kept ? " #{kept}" : braced(@node.body, @pen.with([@node.parameters]), bars)
+      end
 
       private
 

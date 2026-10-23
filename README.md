@@ -953,8 +953,10 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
 1. **Registry.** Walk the Prism AST and record every mutation point: operator,
    byte/line span, original node, and variant directives. Each gets a globally
    unique integer id. The JSON registry is the single source of truth.
-2. **Synthesis.** Replace each schema-safe point with a nested guarded dispatch
-   (`if ::Kimera::RUNTIME.active?(102) … else …end`) and unparse. Memoized
+2. **Synthesis.** Splice a guard into the original source where each
+   schema-safe point stands, around the untouched original slice
+   (`(!(::Kimera::RUNTIME.active?(102)) ? (a > b) : (a >= b))`), so every
+   other line, comment and magic comment stays where it was. Memoized
    expressions (`@x ||= …`) go to a reload fallback that bakes the mutant into
    a fresh process; code that only runs while the suite loads goes to the
    isolated tier.
@@ -1006,9 +1008,31 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   the parentheses of `|(name)|`. It tracks locals as Ruby binds them
   (patterns, captures, rescue, block and method parameters), so a method a
   local shadows is written `name()`, and a read of a local nothing binds where
-  it sits (a guard that replaced the regexp of `/(?<n>.)/ =~ s`) is refused
-  rather than written as a method call. `spec/kimera/scribe_spec.rb` holds it
-  to reading Kimera's own sources back as the same trees.
+  it sits is refused rather than written as a method call.
+  `spec/kimera/scribe_spec.rb` holds it to reading Kimera's own sources back
+  as the same trees.
+- **Kimera writes only what changes.** A warm overlay and a bake splice their
+  rewritten text into the original source; everything outside the rewritten
+  spans is byte for byte the file you wrote: comments, every magic comment in
+  any spelling and on any line of the leading comment block
+  (`# frozen-string-literal: true` after a license header included),
+  `__END__` and its data, the encoding, and every line's number, so
+  `__LINE__`, backtraces and `source_location` read as without Kimera.
+  - A mutant is guarded at the smallest expression its rewrite changes: the
+    original slice first and untouched, then each mutant's alternative on the
+    same line. A bake writes the rewritten node alone, padded inside
+    parentheses when it is shorter, parenthesised when Ruby would read it
+    with its neighbour, and each bake must read back as the mutated tree.
+    Unchanged subtrees keep their text, comments and line breaks.
+  - A named-capture match (`/(?<n>\d+)/ =~ s`) is guarded whole, so its
+    capture still binds; a visibility mutant's probe and registration go on
+    the method's own lines.
+  - A point no expression can hold (a dropped `rescue` clause) has its
+    method written whole, and a file only when such a point stands outside
+    every method. An alternative longer than a line moves the lines after it.
+  - Every bake and every woven file is parse-checked. A mutant whose bake
+    does not parse, or reads as the original, is reported unmutatable
+    (Kimera could not write it), never killed or survived.
 - **What is not mutated is listed.** The scan mutates method bodies, and the
   bodies of blocks that run on each call: `define_method`,
   `define_singleton_method`, `lambda`, `proc`, `Proc.new` and `->`. Any other
@@ -1026,12 +1050,17 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   `class_attribute`, `pre_check`, registrations and other DSL calls keep the
   state the real load left. What runs again: the methods and lambdas that
   carry mutants (and the class, module or `included do` blocks around them),
-  visibility calls, `require`s, local variables, and an `alias` of a mutated
+  visibility calls, `require`s (not one under a modifier condition: `require
+  "x/railtie" if defined?(Rails)` may hold now when it did not at load),
+  local variables, and an `alias` of a mutated
   method. A concern's trimmed `included` block runs on the classes that
   already include it; a class that includes the concern later gets the full
   block, then the mutated statements. A class keeps its superclass even if the
   constant naming it was reassigned, and a `Struct.new`, `Data.define`,
-  `Class.new` or `Module.new` constant is reopened, not replaced. A file
+  `Class.new` or `Module.new` constant is reopened, not replaced, as is a
+  constant any other factory builds from a block that defines methods
+  (faraday's `RequestOptions = Options.new(...) do ... end`), so references
+  taken at load keep the instrumented class. A file
   nothing required before the overlay is evaluated whole. A method a file
   loaded later redefined (a wrapper around an `alias_method` chain) keeps
   that definition; the alias then calls the overlaid original, so its

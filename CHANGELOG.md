@@ -54,6 +54,54 @@
     named unparser now name Kimera (`kimera could not write its guard`).
   `prism` is now required at 1.5.1 or later (unparser 0.9 already did).
 
+Follow-ups to field test round 4, how Kimera writes mutants:
+
+- **Overlays and bakes are spliced into your source, not rewritten whole.**
+  Everything outside a rewritten span is the file as written: comments,
+  every magic comment, `__END__` and its data, and every line's number. A
+  warm overlay guards each mutant at the smallest expression its rewrite
+  changes, `(!(::Kimera::RUNTIME.active?(7)) ? (a > b) : (a >= b))`, the
+  original slice first and untouched; a bake writes the rewritten node alone,
+  padded to the span's lines, and must read back as the mutated tree, or the
+  next node out is tried. Before, both rendered the whole file, so a file whose
+  `# frozen-string-literal: true` (hyphenated, or after a header or another
+  magic comment) Kimera dropped ran with mutable literals, and its baseline
+  could go red ("not green" for a green suite); a Sinatra app lost its
+  `__END__` templates in every isolated mutant; and `__LINE__`, backtraces and
+  `source_location` changed in every mutated file (roda's exception_page specs
+  went red). On 147 corpus files (12,220 mutants, every operator) no bake
+  fails to parse (was 6) or reads as the original (was 4), every bake keeps the
+  leading comment block and `__END__` (was 51%), the lines after its span keep
+  their numbers in 99.9% (was 0.6%), and 57% of overlays keep every line
+  number (was 3%): an alternative longer than a line, or a dropped `rescue`
+  clause, which writes its method whole, moves the lines after it. With the
+  default operators, 92% of overlays keep every line number (was 0%).
+- **No mutant Kimera could not write is judged.** Every bake and woven file is
+  parse-checked; a bake that does not parse or reads as the original is
+  `unmutatable: kimera could not write it`. Dropping the last argument before
+  a block argument wrote `f(, &blk)`: the warm tier lost the mutant
+  ("unguardable") and the isolated tier scored the SyntaxError as a kill
+  (dry-types' `try(input, &)`, pundit's `cached_find(record, &:policy)`). It
+  now writes `f(&blk)`. A `string_literal` mutant of a part of an interpolated
+  regexp (`/\A#{prefix}_id\z/`) baked to the unchanged regexp, a certain
+  survivor in every isolated run; the part is now written from its value.
+- **A named-capture match is never broken by a guard.** A regexp mutant of
+  `/(?<num>\d+)/ =~ s` is guarded with the whole match, so `num` still binds
+  with no mutant on (it read `nil`, and the baseline went red under
+  `--operators all`).
+- **What loading already did is not run again.** A top-level `require` under
+  a modifier condition is not replayed by the overlay (pundit's
+  `require "pundit/railtie" if defined?(Rails)` failed once a spec had
+  defined `Rails`, and every mutant of `lib/pundit.rb` was lost). A constant
+  built by a factory Kimera does not know, from a block that defines methods
+  (faraday's `RequestOptions = Options.new(...) do ... end`), is reopened like
+  a `Struct.new`, not re-bound, so objects made at load are of the
+  instrumented class: faraday's baseline is green and its options' methods are
+  no longer falsely `no_coverage`.
+- A property spec writes every mutant of a seeded sample of Kimera's own
+  sources and example apps (every operator) and checks that each parses,
+  differs from the original and reads back as the mutated tree.
+
 Follow-ups to field test round 3:
 
 - **`--reuse-coverage` (`reuse_coverage`).** A full run keeps its baseline's

@@ -4,6 +4,7 @@ require_relative "parsing/syntax"
 require_relative "scribe/level"
 require_relative "scribe/shape"
 require_relative "scribe/binders"
+require_relative "scribe/place"
 require_relative "scribe/pen"
 require_relative "scribe/quote"
 require_relative "scribe/number"
@@ -49,14 +50,26 @@ module Kimera
       result.success? ? result.value : raise(Unreadable, result.errors.first.message)
     end
 
-    def initialize(node)
+    def initialize(node, place = Place.top)
       @node = node
+      @place = place
     end
 
     def source
-      statements = body
-      text = Lines.new(statements, Pen.new(Binders.new)).text.delete_prefix("\n")
-      closed?(statements) ? "#{text}\n" : text
+      closed?(body) ? "#{text}\n" : text
+    end
+
+    # Writes the node to stand where `original` stands in `root`.
+    def at(root, original) = Scribe.new(@node, Place.of(root, original))
+
+    def joined = Scribe.new(@node, @place.joined)
+
+    def after(node) = Scribe.new(@node, @place.after(node))
+
+    def text
+      depth = @place.depth
+      pen = Pen.new(Binders.new(@place.slices), depth, @place.locals)
+      Lines.new(body, pen, @place.joint).text.delete_prefix("\n#{Pen::INDENT * depth}")
     end
 
     private

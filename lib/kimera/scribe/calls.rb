@@ -120,7 +120,7 @@ module Kimera
       def dot = @node.safe_navigation? ? "&." : "."
 
       def arguments
-        listing = [@node.arguments, block_argument].compact
+        listing = present([@node.arguments, block_argument])
         return "(#{listing.map { |node| part(node) }.join(", ")})" if listing.any?
         bare? ? "" : "()"
       end
@@ -145,7 +145,7 @@ module Kimera
 
       private
 
-      def listing = [@node.arguments, (@node.block if block_argument?)].compact
+      def listing = present([@node.arguments, (@node.block if block_argument?)])
 
       def listed_parts = listing.map { |node| part(node) }.join(", ")
 
