@@ -8,13 +8,20 @@ RSpec.describe(Kimera::Execution::MirrorDatabase, :aggregate_failures) do
   # rails: which of ActiveRecord and Rails' parallel testing are loaded, and
   # whether ActiveSupport answers parallelize_test_databases.
   def test_rails(rails, parallel, answers, calls)
-    stub_const("ActiveRecord::Base", Class.new) if rails.include?(:record)
+    record(configurations: double(configs_for: [])) if rails.include?(:record)
     stub_const("ActiveSupport", Module.new) unless defined?(ActiveSupport)
     ActiveSupport.define_singleton_method(:parallelize_test_databases) { parallel } if answers
     return unless rails.include?(:testing)
     hooks = [->(worker) { calls << worker }]
     stub_const("ActiveSupport::Testing::Parallelization", Module.new)
     ActiveSupport::Testing::Parallelization.define_singleton_method(:after_fork_hooks) { hooks }
+  end
+
+  # An Active Record whose test databases have no schema dump left to load.
+  def record(**answers)
+    base = Class.new { answers.each { |name, value| define_singleton_method(name) { value } } }
+    stub_const("ActiveRecord::ConnectionHandling::DEFAULT_ENV", -> { "test" })
+    stub_const("ActiveRecord::Base", base)
   end
 
   def test_adopted(slot, parallel: true, rails: %i[record testing], answers: true)

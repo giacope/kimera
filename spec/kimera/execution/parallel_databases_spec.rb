@@ -24,10 +24,14 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
 
   def config(adapter, database) = Struct.new(:adapter, :database).new(adapter, database)
 
+  # A test database with no other config to load a schema dump for.
   def record(database, adapter: "sqlite3")
     base = Class.new
     current = config(adapter, database)
+    configurations = double(configs_for: [])
     base.define_singleton_method(:connection_db_config) { current }
+    base.define_singleton_method(:configurations) { configurations }
+    stub_const("ActiveRecord::ConnectionHandling::DEFAULT_ENV", -> { "test" })
     stub_const("ActiveRecord::Base", base)
   end
 
@@ -164,6 +168,14 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       expect(configured(true)).to(be(true))
       expect(configured(false)).to(be(false))
       expect(described_class.new(record: nil).loadable?).to(be(true))
+    end
+
+    # R4-KR1 (K3-5): a plain Active Record suite has no Rails for db_dir.
+    it "is not there when Active Record cannot work out the schema path" do
+      schema_at("db/schema.rb")
+      allow(ActiveRecord::Tasks::DatabaseTasks).to(receive(:schema_dump_path).and_raise(NameError, "primary::Rails"))
+      record = double(configurations: double(configs_for: [:primary]))
+      expect(described_class.new(record: record).loadable?).to(be(false))
     end
   end
 

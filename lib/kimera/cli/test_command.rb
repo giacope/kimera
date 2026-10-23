@@ -23,6 +23,11 @@ class Kimera::CLI::TestCommand
   SHARED = "red split across %d processes (jobs: %d), green in one: the suite shares state " \
     "between workers (a directory, file or port), which can turn `kimera run`'s baseline red; " \
     "use jobs: 1 until each test has its own"
+  FLOOR = "split across %d processes (jobs: %d), each part exits non-zero with no failing test: a coverage " \
+    "floor such as SimpleCov's minimum_coverage fails a part of the suite, not shared state; skip it when " \
+    "ENV[\"KIMERA\"] is set"
+  FAILED = "test command failed"
+  QUOTED = 3
 
   ALLOWANCE = 120
   PER_FILE = 5
@@ -52,9 +57,10 @@ class Kimera::CLI::TestCommand
   end
 
   def parallel(jobs)
-    red = shards(jobs).reject { |_output, status| status.success? }
+    red = shards(jobs).reject { |_output, status| status.success? }.map(&:first)
     return ["✓", "Parallel baseline: green split across #{jobs} processes too (jobs: #{jobs}; #{SAMPLE})"] if red.empty?
-    ["!", "Parallel baseline: #{format(SHARED, jobs, jobs)}#{failing(red.map(&:first).join)}"]
+    return ["!", "Parallel baseline: #{format(FLOOR, jobs, jobs)}"] if red.all? { |output| quiet?(output) }
+    ["!", "Parallel baseline: #{format(SHARED, jobs, jobs)}#{failing(red.join)}"]
   end
 
   private
@@ -98,10 +104,16 @@ class Kimera::CLI::TestCommand
 
   def summary(output) = headline(output).then { |line| "#{line}#{reason(output, line)}" }
 
+  def quiet?(output) = headline(output).match?(NO_FAILURES)
+
   def headline(output)
     lines = output.lines.reverse
-    SUMMARIES.lazy.filter_map { |pattern| lines.find { |line| line.match?(pattern) } }.first&.strip ||
-      "test command failed"
+    SUMMARIES.lazy.filter_map { |pattern| lines.find { |line| line.match?(pattern) } }.first&.strip || said(output)
+  end
+
+  def said(output)
+    words = output.lines.map(&:strip).reject(&:empty?).first(QUOTED)
+    words.empty? ? FAILED : "#{FAILED}: #{words.join(" ")}"
   end
 
   def reason(output, line)

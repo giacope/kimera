@@ -14,6 +14,9 @@ module Kimera
     INDEX = OperatorProtocol::INDEX
     STATEMENT_DELETION = OperatorProtocol::STATEMENT_DELETION
 
+    # Renders a mutant for reports from the point's source alone, parsed as a
+    # fragment of a method or block, where `next if x`, `break if x` and
+    # `redo if x` are valid.
     class Directive
       TABLE = ->(*entries) { entries.each_slice(2).to_h.freeze }
 
@@ -55,8 +58,10 @@ module Kimera
         @directive["to"] if @directive[TYPE] == "condition"
       end
 
+      def parsed(source, **) = Kimera::Syntax.parse(source, partial_script: true, **)
+
       def forced(source, value)
-        tree = Kimera::Syntax.parse(source, scopes: [Kimera::Syntax::FORWARDING])
+        tree = parsed(source, scopes: [Kimera::Syntax::FORWARDING])
         pinned(source, tree.value.statements.body.first.predicate, value) if value && tree.success?
       rescue NoMethodError
         nil
@@ -82,7 +87,9 @@ module Kimera
       end
 
       def attempt(source)
-        Kimera::Scribe.new(apply(NumberedParams.new(Kimera::Scribe.parse(source)).normalize.statements.body.first)).source
+        tree = parsed(source)
+        return unless tree.success?
+        Kimera::Scribe.new(apply(NumberedParams.new(tree.value).normalize.statements.body.first)).source
       rescue StandardError
         nil
       end

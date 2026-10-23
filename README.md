@@ -81,8 +81,9 @@ bundle install
 
 **2. Generate a config.** `init` detects RSpec or Minitest (from `.rspec`, a
 test helper, or which one `Gemfile.lock` installs), your source roots
-(`app/`, `lib/`), and your test glob; on a Rails app it adds the `rails`
-operators. It writes a commented `.kimera.yml`
+(`app/`, `lib/`), and your test glob (the one whose files define the most
+tests: `test/**/test_*.rb` over a `test/**/*_test.rb` that matches only a
+support class); on a Rails app it adds the `rails` operators. It writes a commented `.kimera.yml`
 whose first line names its [JSON schema](schema/kimera.schema.json), so
 editors with a YAML language server complete and check the keys.
 
@@ -94,12 +95,17 @@ and works with any agent that can run a shell command.
 bundle exec kimera init
 ```
 
-**3. Check the setup.** `doctor` confirms source and test discovery, Git, and
-Rails parallel-safety. `--check-baseline` also runs your suite once to confirm
-it is green. With `jobs:` over 1 it then runs it again, split across that many
-processes as `kimera run` splits it across its workers, and warns, naming the
-tests, when it is red there: the suite shares a directory, file or port
-between tests. `--jobs N` checks another width; `--jobs 1` skips it.
+**3. Check the setup.** `doctor` confirms source and test discovery (it fails
+a `tests:` glob whose files define no test), Git, and Rails parallel-safety.
+`--check-baseline` also runs your suite once to confirm it is green, and when
+the suite aborts it quotes the reason (Rails' pending migrations). With `jobs:`
+over 1 it then runs it again, split across that many processes as `kimera run`
+splits it across its workers, and warns, naming the tests, when it is red
+there: the suite shares a directory, file or port between tests. A split whose
+parts fail with no failing test is a coverage floor (SimpleCov's
+`minimum_coverage`), and doctor says that instead. `--jobs N` checks another
+width; `--jobs 1` skips it. Ctrl-C or SIGTERM stops the suite's whole process
+group, and kimera says it was interrupted.
 
 ```sh
 bundle exec kimera doctor --check-baseline
@@ -1171,6 +1177,18 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   the load path when the suite loads, and the same `-I` flags go into
   `kimera doctor`'s commands, the isolated tier's children and every printed
   "reproduce without kimera" command.
+- **Methods a block defines.** A `def` inside a block a DSL runs
+  (`RSpec.shared_examples_for`, `shared_context`, `Module.new`) lives on each
+  module that ran the block, which the source cannot name. Before the warm
+  overlay runs, Kimera notes every module whose method came from such a def,
+  then defines the instrumented def on each, in the def's lexical scope and
+  with its visibility, so the examples that run it cover it.
+- **A Method taken at load stays as loaded.** `REGISTERED = method(:to_int)`
+  holds the definition it was taken from. Once the warm overlay redefines
+  `to_int`, the two are not `==` (Ruby compares definitions) and the one
+  taken still runs the unmutated code. A test comparing them fails under
+  Kimera only; the harness error names each such method and the
+  `--exclude` that leaves its file out.
 - **Minitest class hooks.** Each test runs inside its class's
   `with_info_handler`, as a plain run does, so minitest-hooks'
   `before(:all)`/`around(:all)` run around it, and a failing class hook

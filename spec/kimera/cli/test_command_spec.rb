@@ -87,6 +87,21 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     expect(result).to(eq(["✗", "Test loading: t.rb:1: boom (RuntimeError)"]))
   end
 
+  # R4-KR6: maintenance_tasks' dummy app aborts with Rails' pending-migrations message.
+  it "quotes the first lines of a suite that aborts with a plain message", :aggregate_failures do
+    said = "\nMigrations are pending. To resolve this issue, run:\n\n        bin/rails db:migrate\n\n" \
+      "You have 9 pending migrations:\n\n20201211151756_create_runs.rb\n"
+    expect(loading("minitest", output: said, success: false)).to(
+      eq(
+        [
+          "✗", "Test loading: test command failed: Migrations are pending. To resolve this issue, run: " \
+            "bin/rails db:migrate You have 9 pending migrations:"
+        ]
+      )
+    )
+    expect(loading("minitest", output: "\n  \n", success: false)).to(eq(["✗", "Test loading: test command failed"]))
+  end
+
   it "warns without failing when Bundler is missing" do
     command = described_class.new("rspec", [], root: "/app")
     allow(Kimera::Execution::SUITE).to(receive(:call).and_raise(Errno::ENOENT))
@@ -251,6 +266,19 @@ RSpec.describe(Kimera::CLI::TestCommand) do
       )
     )
     expect(text).to(start_with("Parallel baseline: red split across 3 processes (jobs: 3), green in one: "))
+  end
+
+  # R4-KR4: stringer's SimpleCov minimum_coverage(100) fails each half of the suite.
+  it "tells a coverage floor apart from shared state", :aggregate_failures do
+    floor = "Parallel baseline: #{format(described_class::FLOOR, 2, 2)}"
+    expect(parallel("rspec", ["10 examples, 0 failures\n", "12 examples, 0 failures\n"])).to(eq(["!", floor]))
+    expect(parallel("rspec", ["10 examples, 0 failures\n", ""]).last).to(eq(floor))
+    expect(floor).to(start_with("Parallel baseline: split across 2 processes (jobs: 2), each part exits non-zero"))
+  end
+
+  it "blames shared state when any red part has a failing test" do
+    mixed = ["10 examples, 0 failures\n", "rspec ./spec/b_spec.rb:9 # B\n3 examples, 1 failure\n"]
+    expect(parallel("rspec", mixed).last).to(start_with("Parallel baseline: #{format(described_class::SHARED, 2, 2)}"))
   end
 
   # K3-2: a suite that never exits hung doctor for 25 minutes, silently.

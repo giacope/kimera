@@ -2,6 +2,58 @@
 
 ## Unreleased
 
+- **A `def` inside a block a DSL runs is covered by the tests that run it.**
+  `RSpec.shared_examples_for "x" do def be_boolean ... end end` (dry-types'
+  `lib/dry/types/spec/types.rb`), `shared_context` and `Module.new` blocks
+  define their methods on modules the source cannot name, so the overlay's
+  copy reached none of them and every mutant there read "no test executed this
+  line". `Kimera::Execution::BlockMethods` notes, before the overlay, each
+  module whose method was loaded from such a def, and defines the woven def on
+  it afterwards, in the def's lexical scope and with its visibility. On the
+  round-4 repro the three `no_coverage` rows are now two kills and the
+  `>= => >` survivor the plain suite also lets through.
+- **Putting a method back says nothing.** Restoring a method another file had
+  wrapped (dry-core's `deprecate_class_method`), or repointing an alias, ran
+  `define_method` under the suite's `$VERBOSE`, so a suite that raises on
+  warnings (dry-types) lost the file and went red. `Redefinition#redefine`
+  now runs silenced.
+- **A Method taken at load is named when it turns the baseline red.** Ruby
+  cannot keep `method(:to_int)` taken at load `==` to the method once the
+  overlay redefines it. When tests fail under Kimera only, the harness error's
+  "likely cause" now names each such method (`Coerce.to_int at
+  lib/coerce.rb:4`) and the `--exclude` that leaves its file out.
+- **`kimera init` picks the test glob whose files define the most tests**, not
+  the first with any match: zeitwerk's `test/**/*_test.rb` matched one support
+  class and none of its 50 `test/**/test_*.rb` tests. `kimera doctor` fails
+  "Test discovery" when the matched files define no test (`def test_…`,
+  `test "…"`, `it`, `specify`, `it_behaves_like`).
+- **A worker's after-fork setup error is confessed.** An exception in Rails'
+  `parallelize_setup` hooks or a worker's schema load left the worker dead with
+  stderr discarded, and the advice blamed shared state. The baseline failure
+  now reads "worker 1's after-fork setup raised RuntimeError: …" with its first
+  frames. A schema path Active Record cannot work out (a suite without Rails
+  has no `db_dir`) is no longer "loadable": the worker copies the database.
+- **Ctrl-C or SIGTERM stops the suite's process group.** `kimera doctor
+  --check-baseline` left its suite running, orphaned and holding every
+  inherited descriptor (a shared `flock`). The suite's group is now stopped,
+  and the command prints `kimera: interrupted (SIGINT); …` and exits 128 + N
+  instead of a backtrace.
+- **`next if`, `break if` and `redo if` mutants show their code again.** The
+  report, `kimera mutant` and annotations parsed a point's source alone, where
+  Prism rejects `next`/`break`/`redo`, and showed no `+` line. They are parsed
+  as a fragment of a method now (`next if x.nil?` → `next if false`).
+- **doctor tells a coverage floor from shared state.** A split run whose parts
+  each exit non-zero with no failing test (SimpleCov's `minimum_coverage` on
+  half the suite) was called "shared state between workers"; it is called a
+  coverage floor now.
+- **The isolated RSpec child sets its streams before the suite's setup runs.**
+  Under `$VERBOSE`, `.rspec`'s `--require spec_helper` builds RSpec's reporter,
+  and the child's later `output_stream=` warned, so a suite that raises on
+  warnings (maintenance_tasks) lost every isolated and mirror verdict.
+- **doctor quotes why a suite aborted.** "test command failed" alone now
+  carries the output's first lines when no failure or error line explains it
+  (Rails' "Migrations are pending … You have 9 pending migrations").
+
 - **Kimera mutates Prism's own tree; the parser gem is gone.** Every rewrite,
   guard and bake is now made on the Prism tree the registry scanned, found by
   the span and node type each point records, so `prism` is Kimera's one

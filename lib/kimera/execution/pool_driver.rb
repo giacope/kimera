@@ -9,6 +9,8 @@ require_relative "shift"
 require_relative "stack_dump"
 require_relative "worker_pool"
 
+# Forks the warm workers. A worker whose after-fork setup raises (Rails'
+# parallelize_setup hooks, its schema load) confesses it with its crash.
 class Kimera::Execution::Pool
   include Kimera::Execution::ChildProcess
 
@@ -27,6 +29,10 @@ class Kimera::Execution::Pool
     end
 
   Armed = Struct.new(:coverage, :budget, :timings, :stacks)
+
+  class Unprepared < StandardError
+    def headline = message
+  end
 
   def initialize(adapter:, registry:, isolation:, **options)
     @adapter = adapter
@@ -94,15 +100,21 @@ class Kimera::Execution::Pool
   def boot(duty)
     duty.pipes.child!
     silence!
-    database.after_fork(duty.index)
     serve(duty)
     exit!(0)
   end
 
   def serve(duty)
+    prepare(duty.index)
     duty.run(build(duty))
   ensure
     duty.retire(database, $ERROR_INFO)
+  end
+
+  def prepare(index)
+    database.after_fork(index)
+  rescue StandardError, ScriptError => error
+    raise(Unprepared, "worker #{index}'s after-fork setup raised #{error.class}: #{error.message}", error.backtrace)
   end
 
   def build(duty)

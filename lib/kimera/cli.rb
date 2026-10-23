@@ -3,6 +3,7 @@
 require "optparse"
 require_relative "cli/flag"
 require_relative "cli/help_text"
+require_relative "cli/interruption"
 require_relative "cli/suggestion"
 require_relative "operators"
 require_relative "registry/builder"
@@ -40,7 +41,7 @@ class Kimera::CLI
   end
 
   def run(argv)
-    dispatch(argv.dup)
+    Kimera::CLI::Interruption.new(@errors).guard { dispatch(argv.dup) }
   rescue Kimera::UsageError => error
     @errors.puts("kimera: #{error.message}")
     1

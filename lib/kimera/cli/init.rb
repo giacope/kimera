@@ -8,6 +8,7 @@ require_relative "../scope/file_set"
 require_relative "config_template"
 require_relative "flag"
 require_relative "rails_layout"
+require_relative "test_definitions"
 
 class Kimera::CLI::Init
   OPTIONS = Kimera::FlagTable.new(
@@ -130,6 +131,8 @@ class Kimera::CLI::Init
 
   def tests
     globs = framework == "minitest" ? MINITEST_GLOBS : %w[spec/**/*_spec.rb]
-    [globs.find { |glob| Dir.glob(File.join(@root, glob)).any? } || globs.first]
+    [globs.each_with_index.max_by { |glob, index| [*reach(glob), -index] }.first]
   end
+
+  def reach(glob) = Kimera::CLI::TestDefinitions.within(@root, glob).reach
 end

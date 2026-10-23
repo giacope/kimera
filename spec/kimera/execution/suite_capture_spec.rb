@@ -51,4 +51,34 @@ RSpec.describe(Kimera::Execution::SuiteCapture, :aggregate_failures) do
     expect(orphan(nil)).to(eq(:gone))
     expect(orphan(10)).to(eq(:gone))
   end
+
+  # R4-KR2: Ctrl-C on doctor left the suite running, holding every inherited descriptor.
+  def interrupted(limit)
+    Dir.mktmpdir do |root|
+      pidfile = File.join(root, "pid")
+      waiter = Thread.current
+      Thread.new do
+        sleep(0.05) until File.size?(pidfile)
+        waiter.raise(Interrupt)
+      end
+      begin
+        script = "sleep 30 & echo $! > #{pidfile}; wait"
+        described_class.new(said).call({}, "sh", "-c", script, chdir: root, limit: limit)
+      rescue Interrupt
+        return gone?(Integer(File.read(pidfile))) ? :stopped : :running
+      end
+    end
+  end
+
+  def gone?(pid)
+    sleep(0.2)
+    File.read("/proc/#{pid}/stat").split[2] == "Z"
+  rescue Errno::ENOENT
+    true
+  end
+
+  it "stops the suite's process group when it is interrupted, and lets the interrupt through", :aggregate_failures do
+    expect(interrupted(nil)).to(eq(:stopped))
+    expect(interrupted(10)).to(eq(:stopped))
+  end
 end

@@ -890,9 +890,16 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(drain).to(eq([0]))
     end
 
+    # An Active Record whose one connection answers, with a schema dump to load.
+    def answering(connection)
+      stub_const("ActiveRecord::Base", Class.new { define_singleton_method(:connection) { connection } })
+      parallel = instance_double(Kimera::Execution::ParallelDatabases, enabled?: true, loadable?: true, assign: nil)
+      allow(Kimera::Execution::ParallelDatabases).to(receive(:new).and_return(parallel))
+    end
+
     it "empties the worker's database as it drains" do
       connection = double(tables: %w[users posts], adapter_name: "SQLite", truncate_tables: nil)
-      stub_const("ActiveRecord::Base", Class.new { define_singleton_method(:connection) { connection } })
+      answering(connection)
       drain
       expect(connection).to(have_received(:truncate_tables).with("users", "posts"))
     end

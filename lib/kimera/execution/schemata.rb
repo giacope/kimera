@@ -5,6 +5,7 @@ require_relative "../self_protection"
 require_relative "../synthesis/body_trim"
 require_relative "../synthesis/overlay"
 require_relative "aliases"
+require_relative "block_methods"
 require_relative "definitions"
 require_relative "overrides"
 require_relative "overlay_guards"
@@ -65,22 +66,26 @@ class Kimera::Execution::Schemata
   end
 
   def overlay(path, file)
-    result = synthesize(path, file)
+    loaded = trimmed(path, file)
+    result = synth.synthesize(path, loaded)
     return [] if result.mutant_ids.empty?
-    apply(result, file).tap { preempt(file) }
+    blocks = Kimera::Execution::BlockMethods.new(file, loaded, result.source, locations(path))
+    apply(result, file, blocks).tap { preempt(file) }
   rescue StandardError, ScriptError, SystemExit => error
     skip(path, "#{error.class}: #{error.message}")
   end
 
   def preempt(file) = $LOADED_FEATURES.concat([file, File.realpath(file)].uniq - $LOADED_FEATURES)
 
-  def synthesize(path, file)
-    source = File.read(file, encoding: Encoding::UTF_8)
-    synth.synthesize(path, Kimera::BodyTrim.new(source, @registry.at(path).select(&:safe?).map(&:location)).trim(file))
+  def trimmed(path, file)
+    Kimera::BodyTrim.new(File.read(file, encoding: Encoding::UTF_8), locations(path)).trim(file)
   end
 
-  def apply(result, file)
-    installed, displaced = silence { Kimera::Execution::Overrides.new(file, result.source).keep { result.install(file) } }
+  def locations(path) = @registry.at(path).select(&:safe?).map(&:location)
+
+  def apply(result, file, blocks)
+    overrides = Kimera::Execution::Overrides.new(file, result.source)
+    installed, displaced = silence { overrides.keep { blocks.adopt { result.install(file) } } }
     aliases.witness(displaced)
     installed
   end

@@ -432,7 +432,10 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
     it "reports healthy doctor checks" do
       directories(".git")
-      project("app/x.rb" => "class X; end\n", "spec/x_spec.rb" => "# spec\n", "config/application.rb" => "# rails\n")
+      project(
+        "app/x.rb" => "class X; end\n", "spec/x_spec.rb" => "RSpec.describe(\"x\") { it { } }\n",
+        "config/application.rb" => "# rails\n"
+      )
       project(".kimera.yml" => "framework: rspec\npaths: [app/**/*.rb]\ntests: [spec/**/*_spec.rb]\n")
       expect(doctored).to(eq(0))
       expect(out.string)
