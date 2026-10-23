@@ -744,6 +744,8 @@ RSpec.describe(Kimera::Scribe) do
         "begin\nrescue => a&.b\nend",
       "x = ()" =>
         "x = ()",
+      "not a = 1" =>
+        "not a = 1",
       "if (def m(d) = d); d = 1; end" =>
         "if (def m(d)\n  d\nend)\n  d = 1\nend",
       "case v; in (B => _x) | A then 1; end" =>
@@ -767,6 +769,12 @@ RSpec.describe(Kimera::Scribe) do
 
     def self.argued(node)
       statement("f(a)").then { |call| call.copy(arguments: call.arguments.copy(arguments: [node])) }
+    end
+
+    def self.alternative
+      arm = statement("case v; in B | A then 1; end").then { |match| [match, match.conditions.first] }
+      capture = statement("case v; in B => _x then 1; end").conditions.first.pattern
+      arm.first.copy(conditions: [arm.last.copy(pattern: arm.last.pattern.copy(left: capture))])
     end
 
     def self.followed(modifier, node) = modifier.copy(statements: statements([*modifier.statements.body, node]))
@@ -865,6 +873,7 @@ RSpec.describe(Kimera::Scribe) do
       ],
       "a lone statement as an argument" => [argued(statements([named(:a)])), "f(a)"],
       "a modifier over statements" => [followed(statement("d = 1 if d"), named(:e)), "(d = 1; e) if d"],
+      "a capture on the left of an alternative" => [alternative, "case v\nin (B => _x) | A\n  1\nend"],
       "a singleton method on a call" => [
         statement("def a.m; end").copy(receiver: statement("a.b")),
         "def (a.b).m\nend"

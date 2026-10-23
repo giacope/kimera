@@ -16,7 +16,6 @@ module Kimera
 
     def dispatch(rebuilt, bare, points)
       mutants = points.flat_map(&:mutants).reverse
-      return rebuilt if mutants.empty?
       return parameter(rebuilt, mutants) if PARAMETERS.key?(rebuilt.type)
       hidden, shown = mutants.partition { |mutant| mutant.directive[Kimera::Rewrite::TYPE] == PRIVATIZE }
       guard(shown, hidden.empty? ? rebuilt : privatized(rebuilt, hidden)) { |mutant| variant(bare, mutant) }
