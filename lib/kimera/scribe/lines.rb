@@ -5,9 +5,10 @@ module Kimera
     class Lines
       SPACED = %i[def_node class_node module_node singleton_class_node].freeze
 
-      def initialize(node, pen)
+      def initialize(node, pen, joint = nil)
         @node = node
         @pen = pen
+        @joint = joint
       end
 
       def text
@@ -26,8 +27,9 @@ module Kimera
 
       def line(statement, index, pen)
         written = pen.write(statement, Level::STATEMENT)
-        gap = index.positive? && spaced?(statement) ? "\n" : ""
         terminator = index < statements.size - 1 && written.end_with?("..") ? ";" : ""
+        return "#{@joint if index.positive?}#{written}#{terminator}" if @joint
+        gap = index.positive? && spaced?(statement) ? "\n" : ""
         "#{gap}\n#{@pen.margin}#{written}#{terminator}"
       end
 

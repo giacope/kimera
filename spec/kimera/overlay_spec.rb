@@ -22,6 +22,12 @@ RSpec.describe(Kimera::Overlay) do
     Object.new.extend(mod)
   end
 
+  # The whole-file weave and its fallbacks: what kimera writes for a file
+  # whose guards it can't splice into the source.
+  def unspliced
+    allow(Kimera::Overlay::Stitch).to(receive(:new).and_return(instance_double(Kimera::Overlay::Stitch, result: nil)))
+  end
+
   # What the block answers with the mutant of that label on.
   def flipped(registry, label, &) = Kimera::RUNTIME.during(registry.each.find { |m, _p| m.label == label }.first.id, &)
 
@@ -418,14 +424,14 @@ RSpec.describe(Kimera::Overlay) do
 
     it "leaves factory lookalikes that are not casgn+block+factory untouched", :aggregate_failures do
       # One lookalike per detection guard: non-block value (Alpha), csend (Beta),
-      # non-factory (Gamma), dynamic receiver (Delta), receiverless (Epsilon),
+      # a block taking parameters (Gamma), dynamic receiver (Delta), receiverless (Epsilon),
       # non-casgn (take).
       source = <<~RUBY
         Alpha = [Struct.new(:x)]
         Beta = Struct&.new(:x) do
           def cmp(a, b); a > b; end
         end
-        Gamma = Foo.new(:x) do
+        Gamma = Foo.new(:x) do |c|
           def cmp(a, b); a > b; end
         end
         Delta = Struct().new(:x) do
@@ -506,10 +512,12 @@ RSpec.describe(Kimera::Overlay) do
     let(:overlay) { described_class.new(registry) }
     let(:result) { overlay.synthesize("x.rb", source) }
 
-    it "emits each mutant's guard exactly once, however deep its point sits", :aggregate_failures do
+    # A spliced guard names each mutant in its test and, but for the last,
+    # once more in its chain of alternatives.
+    it "emits each mutant's guard once, however deep its point sits", :aggregate_failures do
       guards = result.source.scan(/active\?\((\d+)\)/).flatten.map { |id| Integer(id) }
       expect(result.mutant_ids.size).to(be > 10)
-      expect(guards).to(match_array(result.mutant_ids))
+      expect([guards.uniq, guards.tally.values.max]).to(match([match_array(result.mutant_ids), 2]))
     end
 
     def loaded(text) = Object.new.extend(Module.new.tap { |mod| mod.module_eval(text) })
@@ -605,27 +613,17 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   describe "write fallback" do
-    # A named capture binds its local only when the regexp is a literal, so a
-    # regexp guarded in place leaves the body's read of it unbound: kimera
-    # won't write that read as a method call. Only that point should drop, not
-    # the file.
-    let(:source) do
-      <<~'RUBY'
-        class MatchRepro
-          def extract(text, limit)
-            if /(?<count>\d+)/ =~ text
-              "#{count}" if count.to_i > limit
-            end
-          end
-        end
-      RUBY
-    end
+    # `alias` takes a bare name, so the tree weave's guard where one stood
+    # does not parse. Only those points should drop, not the file.
+    before { unspliced }
+
+    let(:source) { "class MatchRepro\n  def extract(limit)\n    alias c d\n    limit > 1\n  end\nend\n" }
     let(:unguardable) do
-      /match_repro\.rb: 1 mutation point\(s\) at line 3 are unguardable \(kimera could not write them\)/
+      /match_repro\.rb: 2 mutation point\(s\) at line 3 are unguardable \(kimera could not write them\)/
     end
 
     def scan
-      Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: %w[regexp comparison]))
+      Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: %w[symbol_literal comparison]))
         .source(source, file: "match_repro.rb")
     end
 
@@ -661,10 +659,10 @@ RSpec.describe(Kimera::Overlay) do
       end
     end
 
-    it "re-raises the original error when no point is guardable" do
+    it "raises when no point is guardable and the whole file would not parse" do
       unweavable
       expect { described_class.new(scan).synthesize("match_repro.rb", source) }
-        .to(raise_error(Kimera::Scribe::Unbound, /cannot write this read of count/))
+        .to(raise_error(Kimera::Scribe::Unreadable, Kimera::Overlay::FileWeave::UNGUARDABLE))
     end
 
     # A failure outside any method can't be fixed by dropping points. Splicing
@@ -803,7 +801,8 @@ RSpec.describe(Kimera::Overlay) do
         registry = Kimera::RegistryScan.new.source(splice_source, file: "spliced.rb")
         synth = described_class.new(registry)
         broken
-        expect { synth.synthesize("spliced.rb", splice_source) }.to(raise_error(NoMethodError))
+        expect { synth.synthesize("spliced.rb", splice_source) }
+          .to(raise_error(Kimera::Scribe::Unreadable, Kimera::Overlay::FileWeave::UNGUARDABLE))
       end
 
       def invalid!
@@ -819,7 +818,7 @@ RSpec.describe(Kimera::Overlay) do
         registry = Kimera::RegistryScan.new.source(splice_source, file: "spliced.rb")
         invalid!
         expect { described_class.new(registry).synthesize("spliced.rb", splice_source) }
-          .to(raise_error(StandardError, /round tripping/))
+          .to(raise_error(Kimera::Scribe::Unreadable, Kimera::Overlay::FileWeave::UNGUARDABLE))
       end
 
       def nested
@@ -924,7 +923,7 @@ RSpec.describe(Kimera::Overlay) do
         registry = Kimera::RegistryScan.new.source(code, file: "p.rb")
         allow(Kimera::Scribe).to(receive(:new).and_raise(RuntimeError, "Could not find a round tripping solution"))
         expect { described_class.new(registry).synthesize("p.rb", code) }
-          .to(raise_error(RuntimeError, /round tripping/))
+          .to(raise_error(Kimera::Scribe::Unreadable, Kimera::Overlay::FileWeave::UNGUARDABLE))
       end
     end
 
@@ -978,12 +977,21 @@ RSpec.describe(Kimera::Overlay) do
       [Kimera::Overlay.new(registry).synthesize("x.rb", source), registry]
     end
 
-    # `alias` takes a bare name, so a guard where one stood would not parse:
-    # those two points drop, the literal beside them stays live.
-    it "drops the points whose guard Ruby would reject, and keeps the rest", :aggregate_failures do
+    let(:alias_probe) { "class AliasProbe\n  def m\n    alias c d\n    1\n  end\nend\n" }
+
+    # `alias` takes a bare name, so a mutant of one is guarded at the alias
+    # statement; the tree weave's guard where the name stood would not parse.
+    it "guards a bare name at the statement that holds it", :aggregate_failures do
       source = "class AliasProbe\n  def m\n    alias c d\n    1\n  end\nend\n"
+      result, registry = woven(source, %w[symbol_literal numeric_literal])
+      expect([result.skipped_unsafe, result.mutant_ids]).to(eq([[], registry.points.flat_map(&:ids)]))
+      expect(result.source).to(include("? (alias c d) : "))
+    end
+
+    it "drops the points whose tree-weave guard Ruby would reject, and keeps the rest", :aggregate_failures do
+      unspliced
       result = nil
-      expect { result, = woven(source, %w[symbol_literal numeric_literal]) }
+      expect { result, = woven(alias_probe, %w[symbol_literal numeric_literal]) }
         .to(output(/2 mutation point\(s\) at line 3 are unguardable/).to_stderr)
       expect([result.skipped_unsafe.size, result.source]).to(match([2, include("alias :c :d")]))
       expect(Prism.parse(result.source)).to(be_success)
@@ -1002,7 +1010,14 @@ RSpec.describe(Kimera::Overlay) do
         "::ReopenTop = Struct.new(:x) do\n  def big?(y) = x > y\nend\n"
     end
 
-    it "reopens a value object named by a path with the path's own scope", :aggregate_failures do
+    it "reopens a value object named by a path with the path's own scope in the source", :aggregate_failures do
+      written = woven(paths, %w[comparison]).first.source
+      expect(written).to(include("ReopenPath::Point = (ReopenPath.const_defined?(:Point, false) ? ReopenPath"))
+      expect(written).to(include("::ReopenTop = (::Object.const_defined?(:ReopenTop, false) ? "))
+    end
+
+    it "reopens a value object named by a path with the path's own scope in the tree", :aggregate_failures do
+      unspliced
       written = woven(paths, %w[comparison]).first.source
       expect(written).to(include("ReopenPath::Point = if (ReopenPath).const_defined?(:Point, false)\n"))
       expect(written).to(include("  (ReopenPath).const_get(:Point)\n", "ReopenPath::Point.class_eval {"))

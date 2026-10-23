@@ -118,7 +118,8 @@ RSpec.describe(Kimera::Operators::Visibility) do
     # ledger, so the probe is checked in the source rather than by a call.
     it "records a covering call through a probe that changes nothing" do
       id = ids.fetch("part")
-      probe = /def part\n\s+if ::Kimera::RUNTIME\.active\?\(#{id}\)\n\s+nil\n\s+else\n\s+nil\n\s+end\n\s+1\n/
+      runtime = "::Kimera::RUNTIME"
+      probe = /def part = \(#{runtime}\.active\?\(#{id}\); 1\); #{runtime}\.privatize\(#{id}, self, :part\)$/
       expect(Kimera::Overlay.new(catalog).synthesize("vis.rb", code).source).to(match(probe))
     end
   end

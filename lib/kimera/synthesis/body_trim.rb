@@ -62,7 +62,9 @@ module Kimera
       end
     end
 
-    def unguarded(node) = CONDITIONS.include?(node.class) && modifier?(node) ? node.statements.body.first : node
+    def unguarded(node) = CONDITIONS.include?(node.class) && modifier?(node) ? bare(node) : node
+
+    def bare(node) = node.statements.body[0].then { (it in Prism::CallNode(name: /\Arequire/)) ? node : it }
 
     def modifier?(node) = node.location.end_offset == node.predicate.location.end_offset
 
@@ -100,7 +102,7 @@ module Kimera
 
     def declaration?(call)
       name = call.name
-      DECLARATIONS.include?(name) || factory?(call.receiver, name)
+      DECLARATIONS.include?(name) || factory?(call.receiver, name) || Kimera::FactoryBlock.new(call.block).defining?
     end
 
     def factory?(receiver, name) = receiver.is_a?(Prism::ConstantReadNode) && FACTORIES.include?([receiver.name, name])
@@ -118,9 +120,7 @@ module Kimera
       [[location.start_offset, location.end_offset], *heredocs(node).map { |doc| body(doc) }]
     end
 
-    def body(heredoc)
-      [@source.byteindex("\n", heredoc.opening_loc.end_offset) + 1, heredoc.closing_loc.end_offset]
-    end
+    def body(heredoc) = [@source.byteindex("\n", heredoc.opening_loc.end_offset) + 1, heredoc.closing_loc.end_offset]
 
     def heredocs(node)
       (STRINGS.include?(node.class) && node.heredoc? ? [node] : []) +

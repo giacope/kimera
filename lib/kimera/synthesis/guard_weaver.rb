@@ -46,12 +46,29 @@ class Kimera::Guardrail
   def transform(node) = weave(node).first
 
   def bake(point, directive)
-    location = point.location
-    target = [location.start_offset, location.finish, point.node_type]
+    target = target(point)
     overlay(target, directive) if anchors.include?(target)
   end
 
+  # The nodes a bake rewrites, each with its rewritten copy: the point's node
+  # first, then every node around it up to the program.
+  def changes(point, directive)
+    target = target(point)
+    return unless anchors.include?(target)
+    patch = Patch.new(target, directive)
+    changed = []
+    Kimera::Rewrite::AstWalk.new(@map.ast).rebuild do |rebuilt, original|
+      patch.apply(rebuilt, original).tap { |node| changed << [original, node] unless node.equal?(original) }
+    end
+    changed
+  end
+
   private
+
+  def target(point)
+    location = point.location
+    [location.start_offset, location.finish, point.node_type]
+  end
 
   def activation(node)
     return unless node.type == :call_node && node.name == :active? && runtime?(node.receiver)
@@ -90,5 +107,15 @@ class Kimera::Guardrail
     end
   end
 
-  def points(node) = (@_anchored ||= group(@points)).fetch(ANCHOR.call(node), [])
+  def points(node)
+    return [] if captures.include?(node)
+    (@_anchored ||= group(@points)).fetch(ANCHOR.call(node), [])
+  end
+
+  def captures
+    @_captures ||=
+      Set.new.compare_by_identity.tap do |found|
+        Kimera::Rewrite::AstWalk.new(@map.ast).visit { |node| found << node.call.receiver if node.type == :match_write_node }
+      end
+  end
 end

@@ -19,9 +19,19 @@ require "kimera/synthesis/overlay"
 # - a `nil` statement that is not a sequence's last is no statement (a
 #   visibility mutant's coverage probe reduces to one);
 # - a method's parameters are one list, whatever kind each is;
+# - a block's `it` or numbered parameters are named ones, as kimera reads
+#   them (a bake that drops the last read of `it` names the parameter);
+# - where a token was spelled is not compared, only the tree: `then`, `do`
+#   or braces, the parentheses of a call (a splice keeps the source's, a
+#   whole-file write chooses its own);
 # - `begin ... end` is its body, and holding a rescue or ensure clause it is
 #   the method body that holds that clause (a guarded method body needs the
 #   begin; Ruby reads both alike).
+#
+# A spliced guard reads `(!(active?(1) || active?(2)) ? (original) : active?(1)
+# ? (first) : (second))`: with none of its mutants active it is the original,
+# otherwise the chain after it. A bare `active?(k)` statement is a visibility
+# mutant's coverage probe, so it reduces to `nil`.
 #
 # A visibility mutant is not a guard: `::Kimera::RUNTIME.privatize(k, self,
 # :m)` registers a flip the runtime makes when k turns active, so it reduces
@@ -58,7 +68,6 @@ module SchemataProjection
   NUMERIC = %i[integer_node float_node rational_node imaginary_node].freeze
   DEFAULTS = { optional_parameter_node: ["argument", "%s"], optional_keyword_parameter_node: ["keyword", "%s:"] }.freeze
   PARAMETERS = %i[requireds optionals rest posts keywords keyword_rest block].freeze
-  KEYWORDS = %i[begin_keyword_loc end_keyword_loc].freeze
   FORMS = { statements_node: :sequence, string_node: :text, parameters_node: :parameters }
     .merge(CHAINS.to_h { |type| [type, :chain] }, INTERPOLATED.to_h { |type| [type, :interpolation] })
     .merge(DEFAULTS.keys.to_h { |type| [type, :required] }).freeze
@@ -76,7 +85,7 @@ module SchemataProjection
 
   Case =
     Struct.new(:source, :registry, :overlay, :result) do
-      def schemata = @_schemata ||= Kimera::Scribe.parse(result.source)
+      def schemata = @_schemata ||= SchemataProjection.read(result.source)
 
       def original
         map = Kimera::SourceMap.new(source)
@@ -99,7 +108,10 @@ module SchemataProjection
       def guards = SchemataProjection.guards(schemata)
     end
 
-  def canon(source) = normal(Kimera::Scribe.parse(source))
+  def canon(source) = normal(read(source))
+
+  # Numbered and `it` parameters as named ones, as kimera reads every file.
+  def read(source) = Kimera::Rewrite::NumberedParams.new(Kimera::Scribe.parse(source)).normalize
 
   def runtime?(node) = node&.type == :constant_path_node && node.name == :RUNTIME
 
@@ -110,10 +122,34 @@ module SchemataProjection
 
   def guard(node) = (called(node.predicate, :active?) if node.type == :if_node)
 
+  # The branch a guard takes with `active` on: a tree guard's, or a spliced one's.
+  def taken(node, active)
+    id = guard(node)
+    return [id == active ? node.statements : node.subsequent&.statements] if id
+    ids = spliced(node)
+    [ids.include?(active) ? node.subsequent&.statements : node.statements] if ids
+  end
+
+  # The mutants a spliced guard tests: `!(active?(1) || active?(2))`.
+  def spliced(node)
+    test = node.predicate if node.type == :if_node
+    return unless test&.type == :call_node && test.name == :! && test.receiver
+    tested(lone(test.receiver))
+  end
+
+  def tested(node)
+    return [*tested(node.left), *tested(node.right)] if node.type == :or_node
+    id = called(node, :active?)
+    id ? [id] : (raise ArgumentError, "not a guard: #{node.slice}")
+  rescue ArgumentError
+    nil
+  end
+
   def project(node, active)
     return node unless node.is_a?(Prism::Node)
-    id = guard(node)
-    return project(id == active ? node.statements : node.subsequent&.statements, active) if id
+    branch = taken(node, active)
+    return project(branch.first, active) if branch
+    return statement("nil") if called(node, :active?)
     hidden = called(node, :privatize)
     return revealed(node, hidden == active) if hidden
     rebuilt(node) { |child| project(child, active) }
@@ -138,8 +174,7 @@ module SchemataProjection
 
   def guards(node, found = [])
     return found unless node.is_a?(Prism::Node)
-    id = guard(node)
-    found << id if id
+    found.concat([guard(node), *spliced(node)].compact)
     node.compact_child_nodes.each { |child| guards(child, found) }
     found
   end
@@ -195,7 +230,10 @@ module SchemataProjection
 
   def tree(node)
     flags = node.class.instance_methods(false).grep(FLAG).sort.map { |flag| [flag, node.public_send(flag)] }
-    fields = node.deconstruct_keys(nil).except(:node_id, :location, :locals, *(KEYWORDS if node.type == :begin_node))
+    fields =
+      node.deconstruct_keys(nil).except(:node_id, :location, :locals).reject do |field, _|
+        field.end_with?("_loc")
+      end
     [node.type, *flags, *fields.map { |field, value| [field, part(value)] }]
   end
 
