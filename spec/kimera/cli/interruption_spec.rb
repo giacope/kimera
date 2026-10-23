@@ -7,13 +7,21 @@ require "stringio"
 RSpec.describe(Kimera::CLI::Interruption) do
   let(:errors) { StringIO.new }
 
+  # What the guard answers, or the signal it let through: one that escaped
+  # would stop this very run, so it is caught here and compared.
+  def answer(leader = Process.pid, &)
+    described_class.new(errors, leader).guard(&)
+  rescue SignalException => error
+    error
+  end
+
   it "answers what the command answers" do
-    expect(described_class.new(errors).guard { 2 }).to(eq(2))
+    expect(answer { 2 }).to(eq(2))
   end
 
   it "says it was interrupted, and exits as the shell would", :aggregate_failures do
-    expect(described_class.new(errors).guard { raise(Interrupt) }).to(eq(130))
-    expect(described_class.new(errors).guard { raise(SignalException, "TERM") }).to(eq(143))
+    expect(answer { raise(Interrupt) }).to(eq(130))
+    expect(answer { raise(SignalException, "TERM") }).to(eq(143))
     expect(errors.string).to(
       eq(
         "kimera: interrupted (SIGINT); the test processes it started are stopped\n" \
@@ -23,6 +31,6 @@ RSpec.describe(Kimera::CLI::Interruption) do
   end
 
   it "lets the signal through in a process kimera forked" do
-    expect { described_class.new(errors, Process.pid + 1).guard { raise(Interrupt) } }.to(raise_error(Interrupt))
+    expect(answer(Process.pid + 1) { raise(Interrupt) }).to(be_a(Interrupt))
   end
 end
