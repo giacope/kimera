@@ -161,8 +161,9 @@ RSpec.describe(Kimera::Operators) do
       posts = catalog.each.find { |_m, p| p.original_source.include?(":posts") }.first.id
       baked = Kimera::Overlay.new(catalog).bake("app.rb", assoc_src, posts)
       expect(baked).not_to(include("dependent: :destroy"))
-      # No trailing empty hash, and the other one untouched.
-      expect(baked).to(match(/has_many\(?:posts\)?\s*$/m).and(include("dependent: :nullify")))
+      # No trailing empty hash or comma, and the other one untouched. A splice
+      # keeps the call's own spelling, with or without parentheses.
+      expect(baked).to(match(/has_many[( ]:posts\)?\s*$/m).and(include("dependent: :nullify")))
     end
 
     it "keeps sibling options when dropping dependent: from a fuller hash", :aggregate_failures do
