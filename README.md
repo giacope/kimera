@@ -37,10 +37,9 @@ and flips them at runtime, so your app boots once, not once per mutant.
   can't judge is reported separately, never scored, and code it doesn't
   mutate is listed with the reason. `--isolated` re-checks any mutant in a
   fresh process.
-- **Small.** Ruby >= 3.4 (CI covers 3.4 and 4.0), RSpec or Minitest, and two
-  direct dependencies: [Prism](https://github.com/ruby/prism) and
-  [parser](https://github.com/whitequark/parser), which brings ast and racc.
-  Kimera writes Ruby back from a tree itself (`Kimera::Scribe`).
+- **Small.** Ruby >= 3.4 (CI covers 3.4 and 4.0), RSpec or Minitest, and one
+  dependency: [Prism](https://github.com/ruby/prism). Kimera mutates Prism's
+  tree and writes it back as Ruby itself (`Kimera::Scribe`).
 
 ```sh
 $ bundle exec kimera run app --since origin/main
@@ -998,9 +997,9 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   directory's Gemfile before booting Kimera. `--isolated` mirrors run under
   the project's own Gemfile and lockfile, so a gem named by a relative
   `path:` (a monorepo's engines) resolves there too.
-- **Kimera writes its own Ruby.** `Kimera::Scribe` reads source with Prism's
-  parser-gem translation and writes a mutated tree back as source that reads
-  as the very same tree: it groups operators, signs and powers by precedence
+- **Kimera writes its own Ruby.** Every rewrite and guard is made on Prism's
+  own tree, the one the registry scanned, and `Kimera::Scribe` writes it back
+  as source that reads as the very same tree: it groups operators, signs and powers by precedence
   rather than by the parentheses a mutated tree lacks, writes any string,
   symbol, regexp or backtick shape (heredocs come back as quoted strings,
   bytes that are not UTF-8 and non-ASCII characters as escapes), and keeps
@@ -1163,10 +1162,10 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
 - **No constant outside `Kimera`.** Every synthesized guard dispatches through
   `::Kimera::RUNTIME`, the process's one `Kimera::Runtime`, bound once: a
   second copy of `kimera/runtime.rb` keeps the runtime it finds. Kimera's
-  dependencies do define top-level constants in the process that loads your
-  suite (`Parser`, `AST`, `Racc`, `Prism`), so a project
-  with its own top-level class of one of those names cannot load beside them;
-  the load error names the constant and the gem, and the fix is a namespace.
+  dependency does define a top-level constant in the process that loads your
+  suite (`Prism`), so a project with its own top-level `Prism` cannot load
+  beside it; the load error names the constant and the gem, and the fix is a
+  namespace.
 - **One load path.** Each test file's nearest `test/` or `spec/` folder, the
   project's own `test/` and `spec/`, and the folders `load_path:` names go on
   the load path when the suite loads, and the same `-I` flags go into

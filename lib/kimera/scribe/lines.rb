@@ -3,7 +3,7 @@
 module Kimera
   class Scribe
     class Lines
-      SPACED = %i[kwbegin def defs module class sclass].freeze
+      SPACED = %i[def_node class_node module_node singleton_class_node].freeze
 
       def initialize(node, pen)
         @node = node
@@ -17,16 +17,22 @@ module Kimera
 
       private
 
-      def statements
-        return [] unless @node
-        @node.type == :begin && @node.children.size > 1 ? @node.children : [@node]
+      def statements = @_statements ||= flat(@node)
+
+      def flat(node)
+        return [] unless node
+        node.type == :statements_node ? node.body.flat_map { |statement| flat(statement) } : [node]
       end
 
       def line(statement, index, pen)
         written = pen.write(statement, Level::STATEMENT)
-        gap = index.positive? && SPACED.include?(statement.type) ? "\n" : ""
+        gap = index.positive? && spaced?(statement) ? "\n" : ""
         terminator = index < statements.size - 1 && written.end_with?("..") ? ";" : ""
         "#{gap}\n#{@pen.margin}#{written}#{terminator}"
+      end
+
+      def spaced?(statement)
+        SPACED.include?(statement.type) || (statement.type == :begin_node && statement.begin_keyword_loc)
       end
     end
   end

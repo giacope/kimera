@@ -3,44 +3,36 @@
 module Kimera
   module Rewrite
     class Invocation
+      HASHES = %i[keyword_hash_node hash_node].freeze
+
       def initialize(node)
         @node = node
       end
 
-      def select(to)
-        receiver, _selector, *arguments = @node.children
-        @node.updated(nil, [receiver, to, *arguments])
-      end
-
-      def block
-        return yield(@node) unless %i[block numblock].include?(@node.type)
-        call, *rest = @node.children
-        @node.updated(nil, [yield(call), *rest])
+      def listed
+        given = @node.arguments
+        arguments = yield(given&.arguments || [])
+        @node.copy(arguments: given&.copy(arguments: arguments))
       end
 
       def rewrite(key, &)
-        receiver, selector, *arguments = @node.children
-        position = index(arguments)
-        return @node unless position
-        @node.updated(nil, [receiver, selector, *apply(arguments, position, key, &)])
+        listed do |arguments|
+          position = arguments.rindex { |argument| HASHES.include?(argument.type) }
+          position ? apply(arguments, position, key, &) : arguments
+        end
       end
 
       private
 
-      def index(arguments)
-        arguments.rindex { |a| a.is_a?(Parser::AST::Node) && %i[kwargs hash].include?(a.type) }
-      end
-
       def apply(arguments, position, key)
         hash = arguments[position]
-        pairs = hash.children.filter_map { |pair| matches?(pair, key) ? yield(pair) : pair }
-        arguments[0...position] + (pairs.empty? ? [] : [hash.updated(nil, pairs)]) + arguments[(position + 1)..]
+        pairs = hash.elements.filter_map { |pair| matches?(pair, key) ? yield(pair) : pair }
+        arguments[0...position] + (pairs.empty? ? [] : [hash.copy(elements: pairs)]) + arguments[(position + 1)..]
       end
 
       def matches?(pair, key)
-        symbol = pair.children.first
-        pair.type == :pair && symbol.type == :sym &&
-          symbol.children.first.to_s == key
+        symbol = pair.key if pair.type == :assoc_node
+        symbol&.type == :symbol_node && symbol.unescaped == key
       end
     end
   end

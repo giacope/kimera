@@ -65,5 +65,3 @@ BUNDLE_GEMFILE=<kimera repo>/Gemfile bundle exec kimera run app --tests '...'
   there; copy it out and `git init`.
 - In zsh, `time cmd | head` mangles `$?`/pipestatus; capture exit codes
   without `time` or pipes.
-- The `parser` gem prints a Ruby 4.0 frozen-string deprecation warning on
-  minitest runs; harmless.

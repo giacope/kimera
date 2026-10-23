@@ -3,8 +3,16 @@
 module Kimera
   class Scribe
     class Binders
-      NAMED = %i[lvasgn arg optarg restarg kwarg kwoptarg kwrestarg blockarg shadowarg match_var].freeze
-      OPENING = { block: 1, numblock: 1, itblock: 1, def: 0, defs: 1, class: 2, module: 1, sclass: 1 }.freeze
+      NAMED = %i[
+        local_variable_write_node local_variable_target_node local_variable_operator_write_node
+        local_variable_or_write_node local_variable_and_write_node required_parameter_node optional_parameter_node
+        rest_parameter_node required_keyword_parameter_node optional_keyword_parameter_node
+        keyword_rest_parameter_node block_parameter_node block_local_variable_node
+      ].freeze
+      OPENING = {
+        def_node: %i[receiver], class_node: %i[constant_path superclass], module_node: %i[constant_path],
+        singleton_class_node: %i[expression], block_node: [], lambda_node: []
+      }.freeze
       NONE = Set.new.freeze
 
       def initialize
@@ -12,37 +20,22 @@ module Kimera
       end
 
       def of(node)
-        return NONE unless node.is_a?(Parser::AST::Node)
+        return NONE unless node
         @memo[node] ||= declared(node).freeze
       end
 
       private
 
       def declared(node)
-        name, value = node.children
-        return Set.new([name].compact).merge(of(value)) if NAMED.include?(node.type)
-        return Captures.new(name).names.merge(of(value)) if node.type == :match_with_lvasgn
-        outer(node)
+        type = node.type
+        own = NAMED.include?(type) ? Set.new([node.name].compact) : Set.new
+        outer(node, type).reduce(own) { |names, child| names | of(child) }
       end
 
-      def outer(node)
-        open = node.children.first(OPENING.fetch(node.type, node.children.size))
-        open.reduce(Set.new) { |names, child| names.merge(of(child)) }
-      end
-    end
-
-    class Captures
-      def initialize(regexp)
-        @regexp = regexp
-      end
-
-      def names
-        *parts, options = @regexp.children
-        return Set.new unless parts.all? { |part| part.type == :str }
-        flags = options.children.include?(:x) ? Regexp::EXTENDED : 0
-        Set.new(Regexp.new(parts.sum("") { |part| part.children.first }, flags).names.map(&:to_sym))
-      rescue RegexpError
-        Set.new
+      def outer(node, type)
+        return [node.call] if type == :match_write_node && node.call.receiver&.type != :regular_expression_node
+        fields = OPENING[type]
+        fields ? fields.filter_map { |field| node.public_send(field) } : node.compact_child_nodes
       end
     end
   end

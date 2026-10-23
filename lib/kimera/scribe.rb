@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "scribe/reading"
+require_relative "parsing/syntax"
 require_relative "scribe/level"
 require_relative "scribe/shape"
 require_relative "scribe/binders"
@@ -24,36 +24,49 @@ require_relative "scribe/rescues"
 require_relative "scribe/patterns"
 
 module Kimera
-  # Writes a parser-gem tree back as Ruby source that reads as the same tree,
-  # and reads source into such a tree.
+  # Writes a Prism tree back as Ruby source that reads as the same tree, and
+  # reads source into such a tree.
   class Scribe
-    CLOSED = %i[class sclass module begin].freeze
     FORMS = [
-      Keyword, Variable, Local, Reference, Numeral, Atom, Characters, Const, Dstr, Dsym, Xstr, RegularExpression,
-      Sequence, Parentheses, Elements, Pairs, Pair, Arguments, Splat, Span, Assignment, Compound, Multiple,
-      Call, Index, Invocation, Block, Parameters, Parameter, Nesting, Destructuring, Definition, Namespace, Condition,
-      Selection, Arm, Loop, Iteration, Jump, Connective, Bracketed, Rescued, Ensured, Exchange, Hook, Capture, Bare,
-      Matching, Alternatives, ArrayPattern, HashPattern, ConstPattern, Rest, Pin
+      Keyword, Variable, Reference, Local, Numeral, Atom, Characters, Command, Path, Embedded,
+      InterpolatedString, InterpolatedSymbol, InterpolatedCommand, Pattern, Sequence, Parentheses, Elements,
+      Arguments, Pairs, Pair, Splat, Span, Assignment, Compound, Targets, Multiple, Attribute, Call, Invocation,
+      Lambda, BlockParameters, Parameters, Parameter, Definition, Namespace, Condition, Unless, Selection,
+      Arm, Loop, Iteration,
+      Jump, Connective, Bracketed, Rescued, Exchange, Hook, Capture, Shareable, Matching, Alternatives,
+      ArrayPattern, HashPattern, Pin
     ].flat_map { |form| form::TYPES.map { |type| [type, form] } }.to_h.freeze
-
-    SHAPES = {
-      casgn: Const, send: Attribute, csend: Attribute, mlhs: Group, splat: Spread, index: Index, indexasgn: Index,
-      restarg: Parameter
-    }.freeze
+    ROOTED = %i[class_node module_node singleton_class_node parentheses_node].freeze
 
     class Unbound < StandardError
     end
 
-    def self.parse(source) = Reading.new(source).tree
+    class Unreadable < StandardError
+    end
+
+    def self.parse(source)
+      result = Kimera::Syntax.parse(source)
+      result.success? ? result.value : raise(Unreadable, result.errors.first.message)
+    end
 
     def initialize(node)
       @node = node
     end
 
     def source
-      return "" unless @node
-      text = Lines.new(@node, Pen.new(Binders.new)).text.delete_prefix("\n")
-      CLOSED.include?(@node.type) ? "#{text}\n" : text
+      statements = body
+      text = Lines.new(statements, Pen.new(Binders.new)).text.delete_prefix("\n")
+      closed?(statements) ? "#{text}\n" : text
+    end
+
+    private
+
+    def body = @node&.type == :program_node ? @node.statements : @node
+
+    def closed?(statements)
+      return false unless statements
+      list = statements.type == :statements_node ? statements.body : [statements]
+      list.size > 1 || (list.one? && ROOTED.include?(list.first.type))
     end
   end
 end

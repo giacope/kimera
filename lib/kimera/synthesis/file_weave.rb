@@ -7,7 +7,7 @@ class Kimera::Overlay::FileWeave
   include Kimera::OverlaySplice
 
   UNGUARDABLE = "kimera could not write its guard"
-  UNMATCHED = "no node to guard: the parser folds it into its parent (as in `--1`)"
+  UNMATCHED = "no node to guard: kimera found nothing of its kind where the point was scanned"
 
   def initialize(file, map, safe, unsafe)
     @file = file
@@ -31,8 +31,10 @@ class Kimera::Overlay::FileWeave
   end
 
   def render(weaver)
+    source = @map.restore(Kimera::Scribe.new(weaver.tree).source)
+    raise(Kimera::Scribe::Unreadable, UNGUARDABLE) unless Kimera::Syntax.parse(source).success?
     Kimera::Overlay::Result.new(
-      file: @file, source: @map.restore(Kimera::Scribe.new(weaver.tree).source), mutant_ids: weaver.applied,
+      file: @file, source: source, mutant_ids: weaver.applied,
       skipped_unsafe: @unsafe.flat_map(&:ids)
     )
   end

@@ -7,20 +7,17 @@ module Kimera
     class PinnedPredicate
       include Kimera::Scribe::Nodes
 
-      BINDINGS = %i[lvasgn match_with_lvasgn].freeze
+      BINDINGS = /\A(?:local_variable_(?:operator_|or_|and_)?write|local_variable_target|match_write)_node\z/
 
       def initialize(predicate)
         @predicate = predicate
       end
 
-      def to(literal) = binds?(@predicate) ? ast(:begin, @predicate, literal) : literal
+      def to(literal) = binds?(@predicate) ? grouped([@predicate, literal]) : literal
 
       private
 
-      def binds?(tree)
-        return false unless tree.is_a?(Parser::AST::Node)
-        BINDINGS.include?(tree.type) || tree.children.any? { |child| binds?(child) }
-      end
+      def binds?(tree) = tree.type.match?(BINDINGS) || tree.compact_child_nodes.any? { |child| binds?(child) }
     end
   end
 end

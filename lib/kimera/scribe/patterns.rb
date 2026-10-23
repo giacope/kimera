@@ -3,70 +3,64 @@
 module Kimera
   class Scribe
     class Matching < Form
-      TYPES = %i[match_pattern match_pattern_p].freeze
+      TYPES = %i[match_predicate_node match_required_node].freeze
 
-      def text = "#{leading(0, Level::KEYWORD + 1)} #{type == :match_pattern ? "=>" : "in"} #{part(1)}"
+      def text
+        "#{leading(
+          @node.value,
+          Level::KEYWORD + 1
+        )} #{type == :match_required_node ? "=>" : "in"} #{part(@node.pattern)}"
+      end
 
       def level = Level::EXPRESSION
     end
 
     class Alternatives < Form
-      TYPES = %i[match_alt match_as].freeze
+      TYPES = %i[alternation_pattern_node capture_pattern_node].freeze
 
-      def text = "#{part(0, 1)} #{type == :match_alt ? "|" : "=>"} #{part(1, 2)}"
+      def text
+        return "#{part(@node.left, 1)} | #{part(@node.right, 2)}" if type == :alternation_pattern_node
+        "#{part(@node.value, 1)} => #{part(@node.target, 2)}"
+      end
 
-      def level = type == :match_alt ? 1 : 0
+      def level = type == :alternation_pattern_node ? 1 : 0
     end
 
     class ArrayPattern < Form
-      TYPES = %i[array_pattern array_pattern_with_tail find_pattern].freeze
+      TYPES = %i[array_pattern_node find_pattern_node].freeze
 
-      def text = "[#{items}]"
-
-      def items = "#{rest(0, Level::STATEMENT)}#{"," if type == :array_pattern_with_tail}"
-    end
-
-    class HashPattern < Form
-      TYPES = %i[hash_pattern].freeze
-
-      def text = children.empty? ? "{}" : "{ #{items} }"
-
-      def items = children.zip(pens).each_with_index.map { |_, index| entry(index) }.join(", ")
+      def text
+        constant = @node.constant
+        constant ? "#{part(constant, Level::PRIMARY)}(#{items})" : "[#{items}]"
+      end
 
       private
 
-      def entry(index)
-        child = children.fetch(index)
-        key, value = child.children
-        case child.type
-        when :match_var then "#{key}:"
-        when :match_rest then "**#{key&.children&.first}"
-        when :pair then "#{Name.new(key.children.first).label} #{pens.fetch(index).write(value)}"
-        else part(index)
-        end
+      def items
+        trailed(type == :find_pattern_node ? [@node.left, *@node.requireds, @node.right] : elements)
       end
+
+      def elements = [*@node.requireds, *@node.rest, *@node.posts]
     end
 
-    class ConstPattern < Form
-      TYPES = %i[const_pattern].freeze
+    class HashPattern < Form
+      TYPES = %i[hash_pattern_node].freeze
 
       def text
-        pattern = children[1]
-        inner = (pattern.type == :hash_pattern ? HashPattern : ArrayPattern).new(pattern, pens[1]).items
-        "#{part(0, Level::PRIMARY)}(#{inner})"
+        constant = @node.constant
+        return "#{part(constant, Level::PRIMARY)}(#{items})" if constant
+        items.empty? ? "{}" : "{ #{items} }"
       end
-    end
 
-    class Rest < Form
-      TYPES = %i[match_rest].freeze
+      private
 
-      def text = "*#{part(0) if children.first}"
+      def items = [*@node.elements, *@node.rest].map { |item| part(item) }.join(", ")
     end
 
     class Pin < Form
-      TYPES = %i[pin].freeze
+      TYPES = %i[pinned_variable_node pinned_expression_node].freeze
 
-      def text = "^#{part(0, Level::PRIMARY)}"
+      def text = type == :pinned_variable_node ? "^#{part(@node.variable)}" : "^(#{part(@node.expression)})"
     end
   end
 end

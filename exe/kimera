@@ -4,7 +4,7 @@
 begin
   if File.file?(File.join(Dir.pwd, "Gemfile")) && !defined?(Bundler)
     require "bundler/setup"
-    raise(LoadError, "kimera is not in this project's Gemfile") if Gem.find_files("parser.rb").empty?
+    raise(LoadError, "kimera is not in this project's Gemfile") unless Gem.loaded_specs.key?("kimera")
   end
   $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
   require "kimera"
@@ -23,11 +23,5 @@ rescue LoadError, StandardError => error
   exit(1)
 end
 
-begin
-  status = Kimera::CLI.new.run(ARGV)
-rescue LoadError => error
-  raise unless error.message.include?("bundle update --conservative prism")
-  warn("kimera: #{error.message}")
-  exit(1)
-end
+status = Kimera::CLI.new.run(ARGV)
 exit(status.is_a?(Integer) ? status : 0)

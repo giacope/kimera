@@ -5,59 +5,40 @@ require_relative "../scribe/nodes"
 module Kimera
   module Rewrite
     module ClauseHandlers
-      DEFINITIONS = %i[def defs].freeze
-
       Operation =
         Data.define(:node, :directive) do
           include Kimera::Scribe::Nodes
-          def rescued = rebody { |body| unrescued(body) }
+          def rescued = node.type == :rescue_modifier_node ? node.expression : rebegun { |begun| unrescued(begun) }
 
-          def ensured = rebody { |body| body.children[0] }
+          def ensured = rebegun { |begun| settled(begun.copy(ensure_clause: nil)) }
 
-          def privatize
-            ast(:begin, node, ast(:send, nil, :private, ast(:sym, node.children[0])))
-          end
+          def privatize = statements([node, snippet("private(:#{node.name})")])
 
-          def value = node.children.last
+          def value = node.value
 
           def object
-            built = ast(:send, ast(:const, ast(:cbase), :Object), :new)
-            node.type == :nil ? built : node.updated(nil, [built])
+            return snippet("::Object.new") if node.type == :nil_node
+            node.copy(arguments: snippet("return ::Object.new").arguments)
           end
 
-          def pattern
-            source = directive["source"].to_s
-            text = source.empty? ? [] : [ast(:str, source)]
-            node.updated(nil, [*text, node.children.last])
-          end
+          def pattern = ExtraHandlers::Operation.new(node, directive).regexp
           private
-          def rebody(&)
-            type = node.type
-            return redefined(&) if DEFINITIONS.include?(type)
-            return node.updated(nil, node.children.filter_map(&)) if type == :kwbegin
-            yield(node)
-          end
+          def rebegun = node.type == :def_node ? node.copy(body: yield(node.body)) : yield(node)
 
-          def redefined
-            *head, body = node.children
-            node.updated(nil, [*head, yield(body)])
-          end
-
-          def unrescued(body)
-            case body&.type
-            when :ensure then body.updated(nil, [unrescued(body.children[0]), body.children[1]])
-            when :rescue then dropped(body)
-            else body
-            end
-          end
-
-          def dropped(handler)
-            guarded, *clauses, otherwise = handler.children
+          def unrescued(begun)
+            clauses = Kimera::Syntax::RESCUES.call(begun.rescue_clause)
             clauses.delete_at(Integer(directive[INDEX]))
-            return handler.updated(nil, [guarded, *clauses, otherwise]) unless clauses.empty?
-            parts = [guarded, otherwise].compact
-            parts.one? ? parts.first : ast(:begin, *parts)
+            clauses.empty? ? folded(begun) : begun.copy(rescue_clause: linked(clauses))
           end
+
+          def linked(clauses) = clauses.reverse.reduce(nil) { |rest, clause| clause.copy(subsequent: rest) }
+
+          def folded(begun)
+            body = [*begun.statements&.body, *begun.else_clause&.statements&.body]
+            settled(begun.copy(rescue_clause: nil, else_clause: nil, statements: statements(body)))
+          end
+
+          def settled(begun) = begun.rescue_clause || begun.ensure_clause ? begun : begun.statements
         end
     end
   end

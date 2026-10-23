@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "prism"
+require "kimera/rewrite/ast_walk"
 require "kimera/rewrite/conditions"
 require "kimera/scribe"
 
@@ -12,7 +13,9 @@ RSpec.describe(Kimera::Rewrite::Conditions) do
       "r.!", "!!r", "if x && r then 1 end", "if r || x then 1 end", "x and r ? 1 : 2", "!(x or r)",
       "if ((r)) then 1 end", "if begin; r; end then 1 end", "x && r", "if (x; r) then 1 end", "if (y = r) then 1 end",
       "if (x ? r : 1) then 1 end", "if (if x then r end) then 1 end", "if r.itself then 1 end", "f(!x, r)",
-      "case when r then 1 end", "[1].select { r }"
+      "case when r then 1 end", "[1].select { r }", "if begin; r; rescue; end then 1 end",
+      "if begin; r; ensure; x; end then 1 end", "if begin; x; rescue; r; end then 1 end",
+      "if begin; x; rescue; else; r; end then 1 end", "if begin; x; ensure; r; end then 1 end"
     ]
   end
 
@@ -21,14 +24,11 @@ RSpec.describe(Kimera::Rewrite::Conditions) do
   # `r` stands for the literal a mutation leaves: parsed in place, the parser
   # would already read it as a condition.
   def placed(form, literal)
-    swap(Kimera::Scribe.parse(form), Kimera::Scribe.parse(literal))
+    written = Kimera::Scribe.parse(literal).statements.body.first
+    Kimera::Rewrite::AstWalk.new(Kimera::Scribe.parse(form)).rebuild { |node| r?(node) ? written : node }
   end
 
-  def swap(node, literal)
-    return node unless node.is_a?(Parser::AST::Node)
-    return literal if node == Parser::AST::Node.new(:send, [nil, :r])
-    node.updated(nil, node.children.map { swap(it, literal) })
-  end
+  def r?(node) = node.type == :call_node && node.name == :r && node.variable_call?
 
   # What Ruby runs when the tree is written out.
   def rereads?(tree)

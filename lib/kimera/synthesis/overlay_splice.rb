@@ -15,7 +15,7 @@ module Kimera
       return unless ready?
       edits, dropped = gather
       return if edits.empty?
-      source = apply(edits + reopenings)
+      source = @map.splice(edits + reopenings)
       [edits, dropped, source] if Kimera::Syntax.parse(source).success?
     end
 
@@ -64,32 +64,23 @@ module Kimera
     end
 
     def points(definition, claimed)
-      from, to = @map.span(definition.location.expression)
+      from, to = span(definition)
       @safe.select { |point| !claimed.include?(point) && point.location.inside?(from, to) }
     end
 
     def definitions(root)
       nodes = []
-      Kimera::Rewrite::AstWalk.new(root).visit { |node| nodes << node if %i[def defs].include?(node.type) }
+      Kimera::Rewrite::AstWalk.new(root).visit { |node| nodes << node if node.type == :def_node }
       nodes
     end
+
+    def span(node) = [node.location.start_offset, node.location.end_offset]
 
     def rewrite(definition, points)
       text, applied = Kimera::Guardrail.new(@map, points).rewrite(definition)
       span(definition) + [text, applied]
     rescue StandardError
       nil
-    end
-
-    def span(definition)
-      expression = definition.location.expression
-      [expression.begin_pos, expression.end_pos]
-    end
-
-    def apply(edits)
-      edits.sort_by(&:first).reverse_each.with_object(@map.source.dup) do |(from, to, replacement, _ids), text|
-        text[from...to] = replacement
-      end
     end
   end
 end

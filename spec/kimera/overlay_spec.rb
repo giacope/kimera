@@ -536,21 +536,22 @@ RSpec.describe(Kimera::Overlay) do
     end
   end
 
-  # Prism sees a literal -1 inside `--1`; the parser folds both minuses into
-  # one literal, so that point has no node to guard.
-  describe "a point the parser folds away" do
+  # Prism sees a literal -1 inside `--1`. The parser gem folded both minuses
+  # into one literal, so that point had no node to guard; kimera now guards
+  # the tree it scans, so the point is live like any other.
+  describe "a literal inside `--1`" do
     let(:source) { "def m(a)\n  a > 0 && --1\nend\n" }
     let(:registry) do
       Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: %w[numeric_literal comparison]))
         .source(source, file: "x.rb")
     end
 
-    it "is reported unmutatable, not left live and uncovered", :aggregate_failures do
+    it "is guarded, not reported unmutatable", :aggregate_failures do
       result = described_class.new(registry).synthesize("x.rb", source)
-      folded = registry.points.find { |point| point.original_source == "-1" }
-      expect(result.skipped_unsafe).to(eq(folded.ids))
-      expect(result.mutant_ids).to(match_array(registry.points.reject { |point| point.equal?(folded) }.flat_map(&:ids)))
-      expect(folded.unsafe_reason).to(eq("unmutatable: #{Kimera::Overlay::FileWeave::UNMATCHED}"))
+      inner = registry.points.find { |point| point.original_source == "-1" }
+      expect(result.skipped_unsafe).to(be_empty)
+      expect(result.mutant_ids).to(match_array(registry.points.flat_map(&:ids)))
+      expect(inner).to(be_safe)
     end
   end
 
@@ -730,7 +731,7 @@ RSpec.describe(Kimera::Overlay) do
       # Whole-file emission fails; individual methods are fine.
       def unwritable!
         allow(Kimera::Scribe).to(receive(:new).and_wrap_original) do |original, node|
-          unless %i[def defs].include?(node.type)
+          unless node.type == :def_node
             raise(RuntimeError, "Could not find a round tripping solution for regexp")
           end
           original.call(node)
@@ -757,8 +758,8 @@ RSpec.describe(Kimera::Overlay) do
       # Kimera writes no tree but a method, and not the method named compare.
       def unparsing_methods
         allow(Kimera::Scribe).to(receive(:new).and_wrap_original) do |original, node|
-          raise(RuntimeError, "boom") unless %i[def defs].include?(node.type)
-          raise(RuntimeError, "boom") if node.children.first == :compare
+          raise(RuntimeError, "boom") unless node.type == :def_node
+          raise(RuntimeError, "boom") if node.name == :compare
           original.call(node)
         end
       end
@@ -791,7 +792,7 @@ RSpec.describe(Kimera::Overlay) do
         allow(Kimera::Guardrail).to(receive(:new)) do |*arguments|
           build.call(*arguments).tap do |guardrail|
             allow(guardrail).to(receive(:reopen).and_wrap_original) do |original, node|
-              raise(NoMethodError, "undefined method 'children' for nil") if node.type == :casgn
+              raise(NoMethodError, "undefined method 'children' for nil") if node.type == :constant_write_node
               original.call(node)
             end
           end
@@ -807,7 +808,7 @@ RSpec.describe(Kimera::Overlay) do
 
       def invalid!
         allow(Kimera::Scribe).to(receive(:new).and_wrap_original) do |_original, node|
-          unless %i[def defs].include?(node.type)
+          unless node.type == :def_node
             raise(RuntimeError, "Could not find a round tripping solution for regexp")
           end
           "def broken(" # syntactically impossible splice
@@ -968,6 +969,53 @@ RSpec.describe(Kimera::Overlay) do
       code = "def m(a, b)\n  a > b\nend\n"
       registry = Kimera::RegistryScan.new.source(code, file: "clean.rb")
       expect { described_class.new(registry).synthesize("clean.rb", code) }.not_to(output.to_stderr)
+    end
+  end
+
+  describe "trees kimera writes from the scan" do
+    def woven(source, keys)
+      registry = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(source, file: "x.rb")
+      [Kimera::Overlay.new(registry).synthesize("x.rb", source), registry]
+    end
+
+    # `alias` takes a bare name, so a guard where one stood would not parse:
+    # those two points drop, the literal beside them stays live.
+    it "drops the points whose guard Ruby would reject, and keeps the rest", :aggregate_failures do
+      source = "class AliasProbe\n  def m\n    alias c d\n    1\n  end\nend\n"
+      result = nil
+      expect { result, = woven(source, %w[symbol_literal numeric_literal]) }
+        .to(output(/2 mutation point\(s\) at line 3 are unguardable/).to_stderr)
+      expect([result.skipped_unsafe.size, result.source]).to(match([2, include("alias :c :d")]))
+      expect(Prism.parse(result.source)).to(be_success)
+    end
+
+    # Only `::Kimera::RUNTIME.active?` is a guard; a lookalike is the project's own call.
+    it "reports the guards it wrote, not calls that look like them" do
+      source = "class Lookalike\n  def m(a)\n    ::Kimera::Flags.active?(9)\n    Foo::Bar.active?(8)\n    " \
+        "a > 1\n  end\nend\n"
+      result, registry = woven(source, %w[comparison])
+      expect(result.mutant_ids).to(eq(registry.points.flat_map(&:ids)))
+    end
+
+    def paths
+      "module ReopenPath\nend\nReopenPath::Point = Struct.new(:x) do\n  def big?(y) = x > y\nend\n" \
+        "::ReopenTop = Struct.new(:x) do\n  def big?(y) = x > y\nend\n"
+    end
+
+    it "reopens a value object named by a path with the path's own scope", :aggregate_failures do
+      written = woven(paths, %w[comparison]).first.source
+      expect(written).to(include("ReopenPath::Point = if (ReopenPath).const_defined?(:Point, false)\n"))
+      expect(written).to(include("  (ReopenPath).const_get(:Point)\n", "ReopenPath::Point.class_eval {"))
+      expect(written).to(include("::ReopenTop = if (::Object).const_defined?(:ReopenTop, false)"))
+    end
+
+    # A def is a value too: its tail mutant guards the def, so the method that
+    # holds it returns nil with the mutant on and defines the method without.
+    it "guards a def at a method's tail where it stands" do
+      source = "class NestedTail\n  def outer\n    def inner\n    end\n  end\nend\n"
+      result, registry = woven(source, %w[return_value])
+      held = Module.new.tap { |mod| mod.module_eval(result.source) }::NestedTail.new
+      expect([held.outer, Kimera::RUNTIME.during(registry.points.first.ids.first) { held.outer }]).to(eq([:inner, nil]))
     end
   end
 end

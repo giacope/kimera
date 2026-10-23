@@ -168,14 +168,22 @@ RSpec.describe(Kimera::Overlay) do
       end
     end
 
-    # Prism sees a literal -1 inside `--1`; the parser folds both minuses into
-    # one literal. The bake returned the file unchanged, a survivor with
-    # --isolated where the warm run reports the point unmutatable.
-    it "raises Unbakeable for a point the parser folds away, as the warm run reports it" do
+    # Prism sees a literal -1 inside `--1`, and kimera bakes the tree it
+    # scans, so the bake reaches that literal (the parser gem folded it away).
+    it "bakes the literal inside `--1`" do
       program = "def m\n  --1\nend\n"
       catalog = selected(%w[numeric_literal], program)
       mutant = catalog.points.find { |p| p.original_source == "-1" }.mutants.first
-      expect { described_class.new(catalog).bake("x.rb", program, mutant.id) }.to(
+      baked = described_class.new(catalog).bake("x.rb", program, mutant.id)
+      expect(Object.new.extend(Module.new.tap { |mod| mod.module_eval(baked) }).m).to(eq(-mutant.directive["value"]))
+    end
+
+    it "raises Unbakeable for a point with no node of its kind where it was scanned" do
+      program = "def m\n  1\nend\n"
+      catalog = selected(%w[numeric_literal], program)
+      point = catalog.points.first
+      allow(point).to(receive(:node_type).and_return("float_node"))
+      expect { described_class.new(catalog).bake("x.rb", program, point.ids.first) }.to(
         raise_error(described_class::Unbakeable, Kimera::Overlay::FileWeave::UNMATCHED)
       )
     end
@@ -216,7 +224,7 @@ RSpec.describe(Kimera::Overlay) do
       # Kimera writes no tree but a method, and not the method named banner.
       def unwritable(method = nil)
         allow(Kimera::Scribe).to(receive(:new).and_wrap_original) do |original, node|
-          raise(RuntimeError, "unwritable") unless %i[def defs].include?(node.type) && !node.children.include?(:banner)
+          raise(RuntimeError, "unwritable") unless node.type == :def_node && node.name != :banner
           method ? instance_double(Kimera::Scribe, source: method) : original.call(node)
         end
       end

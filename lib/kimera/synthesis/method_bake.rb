@@ -11,7 +11,7 @@ class Kimera::Overlay::MethodBake
   end
 
   def source(location)
-    definition = definitions(@map.ast).find { |node| location.inside?(*@map.span(node.location.expression)) }
+    definition = definitions(@map.ast).find { |node| location.inside?(*span(node)) }
     text = definition && written(counterpart(definition))
     text && graft(definition, text)
   end
@@ -25,12 +25,12 @@ class Kimera::Overlay::MethodBake
   end
 
   def graft(definition, text)
-    spliced = apply([span(definition) + [text]] + reopenings)
+    spliced = @map.splice([span(definition) + [text]] + reopenings)
     spliced if Kimera::Syntax.parse(spliced).success?
   end
 
   def counterpart(definition)
-    expression = definition.location.expression
-    definitions(@tree).find { |node| node.location.expression == expression }
+    span = span(definition)
+    definitions(@tree).find { |node| span(node) == span }
   end
 end

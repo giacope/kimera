@@ -4,10 +4,20 @@ require "prism"
 require "kimera/rewrite/outcomes"
 
 RSpec.describe(Kimera::Rewrite::Outcomes) do
+  def wrapper?(node) = %i[program_node statements_node arguments_node].include?(node.type)
+
+  def nodes(node) = [node, *node.compact_child_nodes.flat_map { |child| nodes(child) }]
+
+  # The outermost node written as snippet, or a spot no node fills.
   def at(source, snippet)
     start = source.byteindex(snippet)
-    Prism::Location.new(Prism.parse(source).source, start, snippet.bytesize)
+    found = nodes(Prism.parse(source).value).find { |node| written?(node, start, snippet) && !wrapper?(node) }
+    found || spot(Prism::Location.new(Prism.parse(source).source, start, snippet.bytesize))
   end
+
+  def spot(location) = Data.define(:location, :type).new(location, :none)
+
+  def written?(node, start, snippet) = node.location.start_offset == start && node.location.length == snippet.bytesize
 
   def distinct(source, snippet, directives)
     described_class.new(source).distinct(at(source, snippet), directives.each_index.to_a) { directives[it] }
@@ -43,7 +53,11 @@ RSpec.describe(Kimera::Rewrite::Outcomes) do
     unknown = { "type" => "unknown" }
     expect(distinct("f(1)\n", "f(1)", [unknown, unknown.merge("to" => 1), unknown])).to(eq([0, 1]))
     expect(distinct("f(1, 1)\n", "1, 1", drops(2))).to(eq([0, 1]))
-    expect(distinct("f(1, 1)\n/\\xff/\n", "f(1, 1)", drops(2))).to(eq([0, 1]))
+  end
+
+  # The parser gem rejected /\xff/ in a UTF-8 file; Prism reads it, so the file renders.
+  it "renders a file with a regexp escape that is invalid UTF-8" do
+    expect(distinct("f(1, 1)\n/\\xff/\n", "f(1, 1)", drops(2))).to(eq([0]))
   end
 
   it "reads a file with a string escape that is invalid UTF-8" do
@@ -61,6 +75,7 @@ RSpec.describe(Kimera::Rewrite::Outcomes) do
       expect(writable("if (a...b).to_a then 1 end\n", "(a...b).to_a", unwrap)).to(eq([1]))
       expect(writable("x && (a...b).to_a ? 1 : 2\n", "(a...b).to_a", unwrap)).to(eq([1]))
       expect(writable("x = (a...b).to_a\n", "(a...b).to_a", unwrap)).to(eq([0, 1]))
+      expect(writable("if (a...b).to_a then 1 end\n/\\xff/\n", "(a...b).to_a", unwrap)).to(eq([1]))
     end
 
     it "drops a variant that leaves a range literal tested inside it" do
@@ -71,7 +86,6 @@ RSpec.describe(Kimera::Rewrite::Outcomes) do
     it "keeps what it can't render", :aggregate_failures do
       expect(writable("if (a...b).to_a then 1 end\n", "(a...b).to_a", [{ "type" => "unknown" }])).to(eq([0]))
       expect(writable("if (a...b).to_a then 1 end\n", "(a...b).to_a then", unwrap)).to(eq([0, 1]))
-      expect(writable("if (a...b).to_a then 1 end\n/\\xff/\n", "(a...b).to_a", unwrap)).to(eq([0, 1]))
     end
   end
 end

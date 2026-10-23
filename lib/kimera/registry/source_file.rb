@@ -71,7 +71,7 @@ class Kimera::RegistryScan::SourceFile
 
   def bank(node, cursor)
     pairs = harvest(applicable(cursor), node, cursor.position).reject { |key, _| guarded?(node, key) }
-    pairs = writable(node.location, pairs)
+    pairs = writable(node, pairs)
     return if pairs.empty?
     classed(assemble(node, pairs, cursor.defname), cursor, pairs).taint!(tainted)
   end
@@ -95,7 +95,7 @@ class Kimera::RegistryScan::SourceFile
     operators.flat_map { |operator| operator.pairs(node, position: position) }
   end
 
-  def assemble(node, pairs, name) = Kimera::MutationPoint.new(**attributes(node, distinct(node.location, pairs), name))
+  def assemble(node, pairs, name) = Kimera::MutationPoint.new(**attributes(node, distinct(node, pairs), name))
 
   def classed(point, cursor, pairs)
     point.unsafe!(Kimera::MutationPoint::CLASS_BODY_REASON) unless cursor.inside_def || toggled?(pairs)
@@ -104,9 +104,9 @@ class Kimera::RegistryScan::SourceFile
 
   def toggled?(pairs) = pairs.all? { |key, _| @operators.any? { it.toggles? && it.key == key } }
 
-  def writable(location, pairs) = outcomes.writable(location, pairs, &DIRECTIVE)
+  def writable(node, pairs) = outcomes.writable(node, pairs, &DIRECTIVE)
 
-  def distinct(location, pairs) = outcomes.distinct(location, pairs, &DIRECTIVE)
+  def distinct(node, pairs) = outcomes.distinct(node, pairs, &DIRECTIVE)
 
   def outcomes = @_outcomes ||= Kimera::Rewrite::Outcomes.new(@source)
 

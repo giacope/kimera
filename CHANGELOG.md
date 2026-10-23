@@ -2,15 +2,29 @@
 
 ## Unreleased
 
+- **Kimera mutates Prism's own tree; the parser gem is gone.** Every rewrite,
+  guard and bake is now made on the Prism tree the registry scanned, found by
+  the span and node type each point records, so `prism` is Kimera's one
+  runtime dependency: parser, ast and racc are no longer pulled in. A point
+  the parser gem folded into its parent (the literal in `--1`) is guarded
+  like any other instead of reported unmutatable, and a file holding
+  `/\xff/`, which the parser gem rejected, renders its variants and compares
+  them. A def at the tail of a method is guarded where it stands, so its
+  `tail => nil` mutant makes the method return nil instead of emptying the
+  def, and a range or regexp a mutation leaves as the body of a tested
+  `begin ... rescue` is caught as the flip-flop or `$_` match Ruby reads it
+  as. `Kimera::GuardrailInterpolation` is gone: a guard on a string part is
+  written as an interpolation (`"a#{if ... end}"`), so string parts are no
+  longer spliced or coalesced around it. Custom operators need no change:
+  directives are the same data. `kimera doctor` no longer checks the prism
+  version, which only the parser-gem translation needed.
 - **Kimera writes Ruby itself; the unparser gem is gone.** `Kimera::Scribe`
-  reads source with Prism's parser-gem translation and writes a tree back as
-  source that reads as the very same tree: across Kimera's own sources, Ruby's
-  standard library and every gem a Rails 8.1 app installs (7,135 files),
-  7,133 come back identical, and the other two differ only by parentheses. The runtime
-  dependencies are now Prism and parser (with ast and racc); unparser and
-  diff-lcs are no longer pulled in, and the four patches on unparser's
-  internals, the spec that guarded them and CI's per-release unparser job are
-  gone. What unparser got wrong, and Kimera worked around, Scribe does not:
+  writes a Prism tree back as source that reads as the very same tree: across
+  Kimera's own sources, Ruby's standard library and every gem a Rails 8.1 app
+  installs (7,136 files), 7,132 come back identical, and the other four differ
+  only by parentheses. unparser and diff-lcs are no longer pulled in, and the
+  four patches on unparser's internals, the spec that guarded them and CI's
+  per-release unparser job are gone. What unparser got wrong, and Kimera worked around, Scribe does not:
   - Grouping comes from precedence, not from the parentheses a mutated tree
     lacks: `x = a && b && c` with the inner `&&` swapped reads
     `x = (a || b) && c`, a sign stays outside a call on a numeric literal
@@ -22,8 +36,8 @@
     strings that read as the same parts, bytes that are not UTF-8 as `\x`
     escapes in every literal (a backtick command came back with the raw byte),
     and non-ASCII characters as `\u` escapes, so a file with a non-UTF-8
-    magic comment stays loadable. A regexp takes the first delimiter its
-    pattern does not use.
+    magic comment stays loadable. A regexp keeps the delimiters it was written
+    with, and one a mutation rewrites takes the first its pattern does not use.
   - An array range endpoint is an array literal, not `%w`/`%i`, and
     `|(name)|` keeps its parentheses.
   - Locals are bound as Ruby binds them: patterns, named captures, rescue,

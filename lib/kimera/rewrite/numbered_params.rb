@@ -9,6 +9,7 @@ module Kimera
       include Kimera::Scribe::Nodes
 
       PREFIX = "__kimera_"
+      SCOPES = %i[block_node lambda_node].freeze
 
       def initialize(tree)
         @tree = tree
@@ -21,35 +22,35 @@ module Kimera
       private
 
       def dispatch(node)
-        case node.type
-        when :numblock then numbered(node)
-        when :itblock then implicit(node)
+        return node unless SCOPES.include?(node.type)
+        case node.parameters&.type
+        when :numbered_parameters_node then named(node, numbered(node.parameters.maximum))
+        when :it_parameters_node then named(node, { it: :"#{PREFIX}it" })
         else node
         end
       end
 
-      def numbered(node)
-        call, count, body = node.children
-        renames = (1..count).to_h { |n| [:"_#{n}", :"#{PREFIX}#{n}"] }
-        node.updated(:block, [call, arguments(renames.values), rename(body, renames)])
+      def numbered(count) = (1..count).to_h { |n| [:"_#{n}", :"#{PREFIX}#{n}"] }
+
+      def named(node, renames)
+        node.copy(parameters: parameters(renames.values), body: node.body && rename(node.body, renames))
       end
 
-      def implicit(node)
-        call, _name, body = node.children
-        name = :"#{PREFIX}it"
-        node.updated(:block, [call, arguments([name]), rename(body, { it: name })])
-      end
-
-      def arguments(names)
-        parameters = names.map { ast(:arg, it) }
-        parameters = [ast(:procarg0, *parameters)] if parameters.one?
-        ast(:args, *parameters)
+      def parameters(names)
+        listed = snippet("kimera { |kimera| }").block.parameters
+        required = listed.parameters.requireds.first
+        listed.copy(parameters: listed.parameters.copy(requireds: names.map { |name| required.copy(name: name) }))
       end
 
       def rename(node, renames)
-        AstWalk.new(node).rebuild do |rebuilt, _original|
-          name = rebuilt.type == :lvar ? rebuilt.children.first : nil
-          renames.key?(name) ? rebuilt.updated(nil, [renames.fetch(name)]) : rebuilt
+        AstWalk.new(node).rebuild { |rebuilt, _original| renamed(rebuilt, renames) }
+      end
+
+      def renamed(node, renames)
+        case node.type
+        when :local_variable_read_node then renames.key?(node.name) ? node.copy(name: renames.fetch(node.name)) : node
+        when :it_local_variable_read_node then local(renames.fetch(:it))
+        else node
         end
       end
     end

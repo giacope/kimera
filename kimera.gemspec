@@ -31,6 +31,5 @@ Gem::Specification.new do |spec|
   spec.bindir = "exe"
   spec.executables = ["kimera"]
   spec.require_paths = ["lib"]
-  spec.add_dependency("parser", ">= 3.3.0", "< 4")
   spec.add_dependency("prism", ">= 1.5.1", "< 2")
 end
