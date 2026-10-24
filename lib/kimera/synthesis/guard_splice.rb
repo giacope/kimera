@@ -60,7 +60,7 @@ class Kimera::GuardSplice
     nil
   end
 
-  def written(site, mutated) = Kimera::Scribe.new(mutated).at(@map.ast, site).after(site).inline
+  def written(site, mutated) = Kimera::Scribe.new(mutated).at(@map.ast, site).after(site).unbroken.text
 
   def fits?(text) = !text.match?(NUMBERED) && !text.include?("\n")
 

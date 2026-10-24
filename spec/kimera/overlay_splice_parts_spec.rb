@@ -117,6 +117,10 @@ RSpec.describe(Kimera::Overlay) do
     it "writes nothing whose text does not parse" do
       expect(stitched([[4, 5, "("]])).to(be_nil)
     end
+
+    it "writes nothing whose edits move the lines after them" do
+      expect(stitched([[4, 5, "(2\n)"]])).to(be_nil)
+    end
   end
 
   describe "#bake" do

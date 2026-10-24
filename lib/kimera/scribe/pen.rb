@@ -27,7 +27,7 @@ module Kimera
           def gap = flat ? "" : "\n"
         end
 
-      def initialize(binders, margin = Margin.new(depth: 0, flat: false), locals = Binders::NONE, open: true)
+      def initialize(binders, margin, locals = Binders::NONE, open: true)
         @binders = binders
         @margin = margin
         @locals = locals

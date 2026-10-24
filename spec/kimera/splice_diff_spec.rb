@@ -81,7 +81,7 @@ RSpec.describe(Kimera::SpliceDiff) do
 
     it "lays a text out to the span's lines, after it or before its closing", :aggregate_failures do
       expect(texts("a(1,\n  2)", "a(1)")).to(eq(["a(1)\n", "a(1\n)"]))
-      expect(texts("x = [1,\n 2]", "x = 1")).to(eq(["x = 1\n"]))
+      expect([texts("x = [1,\n 2]", "x = 1"), texts("a(1,\n 2) + b", "a(1) + b")]).to(eq([["x = 1\n"], ["a(1) + b\n"]]))
       expect(texts("def m\n  1\nend", "def m; 1; end")).to(eq(["def m; 1; end\n\n", "def m; 1; \n\nend"]))
       expect(texts("{ a: 1,\n b: 2 }", "{ a: 1 }")).to(eq(["{ a: 1 }\n", "{ a: 1 \n}"]))
       expect([texts("[1,\n 2]", "[1]"), texts("backend", "backend")]).to(eq([["[1]\n", "[1\n]"], ["backend"]]))

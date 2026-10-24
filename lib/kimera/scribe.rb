@@ -66,12 +66,6 @@ module Kimera
 
     def unbroken = Scribe.new(@node, @place.unbroken)
 
-    # The text on one line where kept texts allow: joined, else unbroken.
-    def inline
-      text = joined.text
-      text.include?("\n") ? unbroken.text : text
-    end
-
     def after(node) = Scribe.new(@node, @place.after(node))
 
     def text

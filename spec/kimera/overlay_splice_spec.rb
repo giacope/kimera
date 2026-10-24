@@ -208,6 +208,14 @@ RSpec.describe(Kimera::Overlay) do
       ).to(match([4, start_with("def m(s); if ::Kimera::RUNTIME.active?(1); ")]))
     end
 
+    it "leaves a point unguarded whose definition can't be written on its lines", :aggregate_failures do
+      program = "def m(s) = s.match?(/a\n   b/x) && s.size > 1\ndef n(a) = a > 1\n"
+      result = nil
+      expect { result, = woven(program, %w[boolean_connective comparison]) }
+        .to(output(/1 mutation point\(s\) at line 1 are unguardable/).to_stderr)
+      expect([changed(result.source, program), result.mutant_ids.size]).to(eq([[2, 3], 4]))
+    end
+
     it "guards a call across a heredoc's lines in place, its alternatives on one line", :aggregate_failures do
       program = "def m(a)\n  a.push([1,\n    2], <<~TEXT)\n    body\n  TEXT\nend\n"
       result, registry = woven(program, %w[argument_drop])
