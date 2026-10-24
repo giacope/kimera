@@ -1163,7 +1163,9 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   baseline, and `after(:suite)` at the end; workers forked from it never run
   them again. The Minitest adapter runs `Minitest.after_run` hooks the same
   way, once, in that process, when the run ends (resque stops the Redis its
-  helper started). Libraries install global
+  helper started); a hook that raises or exits is reported and the run goes
+  on, and SimpleCov's own hook is left out, since it would write the coverage
+  of kimera's process over the project's report. Libraries install global
   switches there: `webmock/rspec` calls `WebMock.enable!` only in that hook.
   Without it, every stubbed HTTP request would reach the real network.
 - **Parallel runs need parallel state.** With `--jobs N` on a Rails app, Kimera

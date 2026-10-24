@@ -2,6 +2,7 @@
 
 require_relative "suite"
 require_relative "load_path"
+require_relative "after_run"
 require_relative "class_hooks"
 require_relative "../exits/test_exit"
 
@@ -47,7 +48,7 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
   # Minitest.after_run hooks, once, in the process that loaded it.
   def finish
     return unless @loaders.delete?(Process.pid)
-    Minitest.class_variable_get(:@@after_run).reverse_each(&:call)
+    Kimera::Frameworks::AfterRun.new(Minitest.class_variable_get(:@@after_run)).call
   end
 
   def test_ids

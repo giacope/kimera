@@ -42,7 +42,11 @@ Field test round 5, harness: what kimera loads, runs and says.
   raised `AdapterNotSpecified` in each of them.
 - **`Minitest.after_run` hooks run.** Once, in the process that loaded the
   suite, when the run ends; workers do not run them. resque's helper stops
-  the Redis it started there, which outlived every run.
+  the Redis it started there, which outlived every run. A hook that raises
+  or exits is reported and cannot end the run, and SimpleCov's own hook is
+  left out: it would write the coverage of kimera's process over the
+  project's report, and it exits 1 when it sees an error in flight, so on
+  CodeTriage a red baseline ended the run with no message at all.
 - **Messages.** A mirror whose `spec_helper` raises while `.rspec` loads it
   reports the error, class and message, not "a coverage floor or exit
   hook?". `kimera doctor --check-baseline` says first when the suite was

@@ -62,6 +62,42 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
       expect(ran).to(eq(%i[second first]))
     end
 
+    # Hooks that, run last registered first, raise, exit and record.
+    def troubled(ran)
+      Minitest.after_run { ran << :last }
+      Minitest.after_run { exit(1) }
+      Minitest.after_run { raise(ArgumentError, "no redis") }
+    end
+
+    def told
+      here = Regexp.escape(__FILE__.delete_prefix("#{Dir.pwd}/"))
+      /hook at #{here}:\d+ raised ArgumentError: no redis; kimera went on\n.+ called exit\(1\); kimera went on/
+    end
+
+    # CodeTriage: SimpleCov's hook saw kimera's error in flight and exited 1, so the run ended without a word.
+    it "goes on past a hook that exits or raises, and says which", :aggregate_failures do
+      ran = []
+      troubled(ran)
+      expect { adapter.finish }.to(output(told).to_stderr)
+      expect(ran).to(eq([:last]))
+    end
+
+    # A hook registered from a file under a simplecov gem's lib/.
+    def coverage_hook
+      hook = File.join(dir, "simplecov-1.3.2", "lib", "simplecov.rb")
+      FileUtils.mkdir_p(File.dirname(hook))
+      File.write(hook, "Minitest.after_run { KimeraCoverageProbe << :coverage }\n")
+      load(hook)
+    end
+
+    it "leaves out SimpleCov's own hook, which would write the coverage of kimera's process" do
+      probe = stub_const("KimeraCoverageProbe", [])
+      coverage_hook
+      Minitest.after_run { probe << :suite }
+      adapter.finish
+      expect(probe).to(eq([:suite]))
+    end
+
     it "leaves them to that process: a worker forked from it does not run them" do
       ran = []
       Minitest.after_run { ran << :ran }
