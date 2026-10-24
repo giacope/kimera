@@ -224,9 +224,9 @@ RSpec.describe(Kimera::Overlay) do
 
       # Kimera writes no tree but a method, and not the method named banner.
       def unwritable(method = nil)
-        allow(Kimera::Scribe).to(receive(:new).and_wrap_original) do |original, node|
+        allow(Kimera::Scribe).to(receive(:new).and_wrap_original) do |original, node, *place|
           raise(RuntimeError, "unwritable") unless node.type == :def_node && node.name != :banner
-          method ? instance_double(Kimera::Scribe, source: method) : original.call(node)
+          method ? instance_double(Kimera::Scribe, text: method, joined: nil) : original.call(node, *place)
         end
       end
 
@@ -239,7 +239,7 @@ RSpec.describe(Kimera::Overlay) do
 
       it "writes the method that holds the point and keeps the rest verbatim", :aggregate_failures do
         baked = bake("size * LIMIT")
-        expect(baked).to(end_with(program.lines.drop(4).join.sub(" = size * LIMIT", "\n  size / LIMIT\nend")))
+        expect(baked).to(end_with(program.lines.drop(4).join.sub(" = size * LIMIT", "; size / LIMIT; end")))
         expect(Prism.parse(baked)).to(be_success)
       end
 
@@ -247,7 +247,7 @@ RSpec.describe(Kimera::Overlay) do
       it "reopens a value object around the method it writes", :aggregate_failures do
         baked = bake("x > LIMIT")
         expect(baked).to(include("Size = ((is_a?(::Module) ? self : ::Object).const_defined?(:Size, false)"))
-        expect(baked).to(include("def big?\n  x >= LIMIT\nend", "    \\xFF\n"))
+        expect(baked).to(include("def big?; x >= LIMIT; end", "    \\xFF\n"))
       end
 
       it "raises Unbakeable for a point in the method it can't write, or in none", :aggregate_failures do

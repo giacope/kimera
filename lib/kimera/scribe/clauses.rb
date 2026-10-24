@@ -38,7 +38,7 @@ module Kimera
 
       def after(nodes) = @pen.with([@node.statements, *nodes.compact])
 
-      def keyword(word) = "\n#{@pen.margin}#{word}"
+      def keyword(word) = "#{@pen.newline}#{word}"
     end
   end
 end

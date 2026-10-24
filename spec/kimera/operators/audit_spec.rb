@@ -48,9 +48,15 @@ RSpec.describe(Kimera::Operators::Audit) do
       expect(faults.map(&:verdict)).to(eq([Kimera::Operators::Audit::UNRENDERABLE]))
     end
 
-    it "flags a directive that rebuilds the original source" do
+    it "flags a directive that rebuilds the original source as written" do
       operator = proposing("no_change", :select, "select => select", "selector_swap", to: "select")
       faults = described_class.new([operator]).faults("def kept = xs.select { |x| x }")
+      expect(faults.map(&:verdict)).to(eq([Kimera::Operators::Audit::IDENTICAL]))
+    end
+
+    it "flags a directive that rebuilds the original source as Kimera writes it" do
+      operator = proposing("no_change", :select, "select => select", "selector_swap", to: "select")
+      faults = described_class.new([operator]).faults("def kept\n  xs.select x\nend")
       expect(faults.map(&:verdict)).to(eq([Kimera::Operators::Audit::IDENTICAL]))
     end
   end

@@ -2,6 +2,7 @@
 
 require_relative "../scribe"
 require_relative "../rewrite/numbered_params"
+require_relative "line_pad"
 
 class Kimera::SourceMap
   attr_reader :source
@@ -21,6 +22,12 @@ class Kimera::SourceMap
     data = parsed.data_loc
     ending = data ? "#{"\n" unless text.end_with?("\n") || text.empty?}#{data.slice}" : ""
     "#{leading}#{text}#{ending}"
+  end
+
+  # Whether every edit breaks as many lines as the span it replaces, so every
+  # line outside the spans keeps its number.
+  def lines_kept?(edits)
+    edits.all? { |from, to, text| Kimera::LinePad.new(@source.byteslice(from, to - from)).kept?(text) }
   end
 
   def splice(edits)

@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "line_pad"
 require_relative "overlay_splice"
 
 class Kimera::Overlay::MethodBake
@@ -12,14 +13,14 @@ class Kimera::Overlay::MethodBake
 
   def source(location)
     definition = definitions(@map.ast).find { |node| location.inside?(*span(node)) }
-    text = definition && written(counterpart(definition))
+    text = definition && written(definition, counterpart(definition))
     text && graft(definition, text)
   end
 
   private
 
-  def written(node)
-    Kimera::Scribe.new(node).source
+  def written(definition, node)
+    Kimera::LinePad.new(definition.slice).fitted(Kimera::Scribe.new(node))
   rescue StandardError
     nil
   end

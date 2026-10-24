@@ -50,6 +50,13 @@ RSpec.describe(Kimera::Overlay) do
       expect([baked.lines.size, baked.lines.last(2)]).to(eq([6, ["  :done\n", "end\n"]]))
     end
 
+    it "writes a deleted statement as `()`, which Ruby reads without a warning", :aggregate_failures do
+      program = "def greet(log, name)\n  log.push(name)\n  name\nend\n"
+      baked = bake(program, %w[statement_deletion], "delete `log.push(name)`")
+      expect(baked).to(eq("def greet(log, name)\n  ()\n  name\nend\n"))
+      expect(Prism.parse(baked).warnings).to(be_empty)
+    end
+
     it "groups a rewrite Ruby would otherwise read as part of its neighbour" do
       program = "def m(a)\n  a * 2 + 1\nend\n"
       expect(loaded(bake(program, %w[arithmetic], "+ => -")).m(3)).to(eq(5))
@@ -102,6 +109,19 @@ RSpec.describe(Kimera::Overlay) do
       allow(Kimera::Guardrail).to(receive(:new).and_wrap_original) { |build, *arguments| build.call(*arguments).tap { |rail| allow(rail).to(receive(:changes).and_return([])) } }
       expect { described_class.new(catalog).bake("x.rb", source, mutant.id) }
         .to(raise_error(described_class::Unbakeable, "kimera could not write it (the mutant reads as the original)"))
+    end
+
+    it "reports a bake that would move the lines after it as unmutatable" do
+      program = "def one = 1\n# two\ndef big?(x) = x > 1\n"
+      catalog = scan(program, %w[comparison])
+      allow(Kimera::BakeSplice).to(receive(:new).and_return(instance_double(Kimera::BakeSplice, source: nil)))
+      expect { described_class.new(catalog).bake("x.rb", program, catalog.each.first.first.id) }
+        .to(
+          raise_error(
+            described_class::Unbakeable,
+            "kimera could not write it (what it wrote moves the lines after it)"
+          )
+        )
     end
 
     it "reports a bake that does not parse as unmutatable" do
@@ -161,17 +181,53 @@ RSpec.describe(Kimera::Overlay) do
       )
     end
 
-    it "writes the whole file when such a point stands outside every definition" do
-      program = "CHECK = ->(x) do\n  begin\n    x.call\n  rescue ArgumentError\n    x > 1\n  end\nend\n"
+    it "writes the statement that holds such a point outside every definition on its lines", :aggregate_failures do
+      program = "CHECK = ->(x) do\n  begin\n    x.call\n  rescue ArgumentError\n    x > 1\n  end\nend\nX = __LINE__\n"
       result, registry = woven(program, %w[rescue_clause comparison])
-      expect([result.mutant_ids.size, result.source]).to(match([registry.count, include("if ::Kimera::RUNTIME.active?(1)\n")]))
+      expect([result.mutant_ids.size, result.source.lines.size]).to(eq([registry.count, 8]))
+      expect(result.source).to(start_with("CHECK = ->(x) {; if ::Kimera::RUNTIME.active?(1); x.call; else; begin; "))
+      expect(result.source).to(end_with("\n}\nX = __LINE__\n"))
     end
 
-    it "writes a definition whole when an alternative would cross a heredoc's lines", :aggregate_failures do
+    it "writes the statement of the file that holds such a point, in a class or not", :aggregate_failures do
+      program = "class Held\n  CHECK = ->(x) do\n    begin\n      x.call\n    rescue ArgumentError\n      0\n    " \
+        "end\n  end\nend\nX = __LINE__\n"
+      result, = woven(program, %w[rescue_clause])
+      expect(changed(result.source, program)).to(eq((1..8).to_a))
+      expect(result.source).to(start_with("class Held; CHECK = ->(x) {; if ::Kimera::RUNTIME.active?(1); x.call;"))
+    end
+
+    it "writes a definition whole, on its lines, when an alternative must break a line", :aggregate_failures do
+      program = "def m(s)\n  s.match?(/a\n   b/x) && s.size > 1\nend\n"
+      result = nil
+      expect { result, = woven(program, %w[boolean_connective]) }.not_to(output.to_stderr)
+      expect(
+        [
+          result.source.lines.size,
+          result.source
+        ]
+      ).to(match([4, start_with("def m(s); if ::Kimera::RUNTIME.active?(1); ")]))
+    end
+
+    it "leaves a point unguarded whose definition can't be written on its lines", :aggregate_failures do
+      program = "def m(s) = s.match?(/a\n   b/x) && s.size > 1\ndef n(a) = a > 1\n"
+      result = nil
+      expect { result, = woven(program, %w[boolean_connective comparison]) }
+        .to(output(/1 mutation point\(s\) at line 1 are unguardable/).to_stderr)
+      expect([changed(result.source, program), result.mutant_ids.size]).to(eq([[2, 3], 4]))
+    end
+
+    it "guards a call across a heredoc's lines in place, its alternatives on one line", :aggregate_failures do
       program = "def m(a)\n  a.push([1,\n    2], <<~TEXT)\n    body\n  TEXT\nend\n"
-      result, = woven(program, %w[argument_drop])
-      expect(result.source).to(start_with("def m(a)\n  if ::Kimera::RUNTIME.active?(1)\n"))
-      expect(loaded(result.source).m([])).to(eq([[1, 2], "body\n"]))
+      result, registry = woven(program, %w[argument_drop])
+      expect([changed(result.source, program), loaded(result.source).m([])]).to(eq([[2, 3], [[1, 2], "body\n"]]))
+      expect(flip(registry, registry.each.first.first.label) { loaded(result.source).m([]) }).to(eq(["body\n"]))
+    end
+
+    it "writes an alternative whose kept text breaks a line afresh, on one line" do
+      program = "def open?(a, b, c)\n  a.positive? &&\n    b.positive? && c.positive?\nend\n\ndef here = __LINE__\n"
+      result, = woven(program, %w[boolean_connective])
+      expect([result.source.lines.size, loaded(result.source).here]).to(eq([6, 6]))
     end
   end
 end

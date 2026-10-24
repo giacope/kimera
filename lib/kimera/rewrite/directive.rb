@@ -89,7 +89,9 @@ module Kimera
       def attempt(source)
         tree = parsed(source)
         return unless tree.success?
-        Kimera::Scribe.new(apply(NumberedParams.new(tree.value).normalize.statements.body.first)).source
+        program = NumberedParams.new(tree.value).normalize
+        node = program.statements.body.first
+        Kimera::Scribe.new(apply(node)).at(program, node).source
       rescue StandardError
         nil
       end

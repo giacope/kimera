@@ -28,6 +28,15 @@ RSpec.describe(Kimera::Overlay) do
     allow(Kimera::Overlay::Stitch).to(receive(:new).and_return(instance_double(Kimera::Overlay::Stitch, result: nil)))
   end
 
+  # Every splice of a set of points that holds one on `line` fails.
+  def unspliced_at(line)
+    allow(Kimera::Overlay::Stitch).to(receive(:new).and_wrap_original) do |build, file, map, points, unsafe|
+      build.call(file, map, points, unsafe).tap do |stitch|
+        allow(stitch).to(receive(:result)) if points.any? { |point| point.location.start_line == line }
+      end
+    end
+  end
+
   # What the block answers with the mutant of that label on.
   def flipped(registry, label, &) = Kimera::RUNTIME.during(registry.each.find { |m, _p| m.label == label }.first.id, &)
 
@@ -561,6 +570,14 @@ RSpec.describe(Kimera::Overlay) do
       expect(result.mutant_ids).to(match_array(registry.points.flat_map(&:ids)))
       expect(inner).to(be_safe)
     end
+
+    # `-0` reads as a literal, not as `-` on `0`, so the literal's zero mutant
+    # is spliced in parentheses, on the line it was written on.
+    it "bakes the literal's zero mutant as `-` on `0`, on the file's own lines" do
+      overlay = described_class.new(registry)
+      zero = registry.each.find { |mutant, point| point.original_source == "-1" && mutant.directive["value"].zero? }
+      expect(overlay.bake("x.rb", source, zero.first.id)).to(eq("def m(a)\n  a > 0 && -(0)\nend\n"))
+    end
   end
 
   # From Lobsters: Ruby reads "\xFF" in a UTF-8 file as that byte, but the
@@ -613,8 +630,8 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   describe "write fallback" do
-    # `alias` takes a bare name, so the tree weave's guard where one stood
-    # does not parse. Only those points should drop, not the file.
+    # When the points on one line can't be spliced, only those points drop,
+    # not the file.
     before { unspliced }
 
     let(:source) { "class MatchRepro\n  def extract(limit)\n    alias c d\n    limit > 1\n  end\nend\n" }
@@ -630,6 +647,7 @@ RSpec.describe(Kimera::Overlay) do
     # Count, line and reason are all triage signal, so pin the exact message.
     def fallback
       registry = scan
+      unspliced_at(3)
       result = nil
       expect { result = described_class.new(registry).synthesize("match_repro.rb", source) }
         .to(output(unguardable).to_stderr)
@@ -728,11 +746,11 @@ RSpec.describe(Kimera::Overlay) do
 
       # Whole-file emission fails; individual methods are fine.
       def unwritable!
-        allow(Kimera::Scribe).to(receive(:new).and_wrap_original) do |original, node|
+        allow(Kimera::Scribe).to(receive(:new).and_wrap_original) do |original, node, *place|
           unless node.type == :def_node
             raise(RuntimeError, "Could not find a round tripping solution for regexp")
           end
-          original.call(node)
+          original.call(node, *place)
         end
       end
 
@@ -755,10 +773,10 @@ RSpec.describe(Kimera::Overlay) do
 
       # Kimera writes no tree but a method, and not the method named compare.
       def unparsing_methods
-        allow(Kimera::Scribe).to(receive(:new).and_wrap_original) do |original, node|
+        allow(Kimera::Scribe).to(receive(:new).and_wrap_original) do |original, node, *place|
           raise(RuntimeError, "boom") unless node.type == :def_node
           raise(RuntimeError, "boom") if node.name == :compare
-          original.call(node)
+          original.call(node, *place)
         end
       end
 
@@ -946,13 +964,14 @@ RSpec.describe(Kimera::Overlay) do
 
       # The registry and the overlay, woven without a warning.
       def woven
+        allow(Kimera::Overlay::Stitch).to(receive(:new).and_call_original)
         registry = Kimera::RegistryScan.new.source(code, file: "bid.rb")
         result = nil
         expect { result = described_class.new(registry).synthesize("bid.rb", code) }.not_to(output.to_stderr)
         [registry, result]
       end
 
-      it "is woven whole, quietly" do
+      it "is woven, quietly" do
         registry, result = woven
         expect(result.mutant_ids.size).to(eq(registry.count))
       end
@@ -965,6 +984,7 @@ RSpec.describe(Kimera::Overlay) do
     end
 
     it "does not warn when every point is guardable" do
+      allow(Kimera::Overlay::Stitch).to(receive(:new).and_call_original)
       code = "def m(a, b)\n  a > b\nend\n"
       registry = Kimera::RegistryScan.new.source(code, file: "clean.rb")
       expect { described_class.new(registry).synthesize("clean.rb", code) }.not_to(output.to_stderr)
@@ -977,8 +997,6 @@ RSpec.describe(Kimera::Overlay) do
       [Kimera::Overlay.new(registry).synthesize("x.rb", source), registry]
     end
 
-    let(:alias_probe) { "class AliasProbe\n  def m\n    alias c d\n    1\n  end\nend\n" }
-
     # `alias` takes a bare name, so a mutant of one is guarded at the alias
     # statement; the tree weave's guard where the name stood would not parse.
     it "guards a bare name at the statement that holds it", :aggregate_failures do
@@ -986,15 +1004,6 @@ RSpec.describe(Kimera::Overlay) do
       result, registry = woven(source, %w[symbol_literal numeric_literal])
       expect([result.skipped_unsafe, result.mutant_ids]).to(eq([[], registry.points.flat_map(&:ids)]))
       expect(result.source).to(include("? (alias c d) : "))
-    end
-
-    it "drops the points whose tree-weave guard Ruby would reject, and keeps the rest", :aggregate_failures do
-      unspliced
-      result = nil
-      expect { result, = woven(alias_probe, %w[symbol_literal numeric_literal]) }
-        .to(output(/2 mutation point\(s\) at line 3 are unguardable/).to_stderr)
-      expect([result.skipped_unsafe.size, result.source]).to(match([2, include("alias :c :d")]))
-      expect(Prism.parse(result.source)).to(be_success)
     end
 
     # Only `::Kimera::RUNTIME.active?` is a guard; a lookalike is the project's own call.
@@ -1017,8 +1026,11 @@ RSpec.describe(Kimera::Overlay) do
     end
 
     it "reopens a value object named by a path with the path's own scope in the tree", :aggregate_failures do
-      unspliced
-      written = woven(paths, %w[comparison]).first.source
+      registry = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: %w[comparison])).source(
+        paths,
+        file: "x.rb"
+      )
+      written = Kimera::Scribe.new(Kimera::Guardrail.new(Kimera::SourceMap.new(paths), registry.points).tree).source
       expect(written).to(include("ReopenPath::Point = if (ReopenPath).const_defined?(:Point, false)\n"))
       expect(written).to(include("  (ReopenPath).const_get(:Point)\n", "ReopenPath::Point.class_eval {"))
       expect(written).to(include("::ReopenTop = if (::Object).const_defined?(:ReopenTop, false)"))

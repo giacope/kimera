@@ -29,7 +29,7 @@ module Kimera
 
           def literal = snippet(target.to_s)
 
-          def clear = snippet("nil")
+          def clear = snippet("()")
 
           def receiver = node.receiver
 

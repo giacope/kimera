@@ -34,7 +34,7 @@ module Kimera
     end
 
     class Rescue < Form
-      def text = "\n#{margin}#{head}#{body}"
+      def text = "#{newline}#{head}#{body}"
 
       private
 

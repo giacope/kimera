@@ -61,7 +61,7 @@ RSpec.describe(Kimera::Scribe) do
   describe "text kept as written" do
     let(:source) do
       "def m(a)\n  call(a, # why\n       2)\n  a.map { |x|\n    x }\n  a ? f(1) : 'q'\n  f a, 1\n  return a if a\n  " \
-        "x = %w[p q]\n  y = <<~T\n    t\n  T\n  defined? a\n  yield a\n  super a\nend\n"
+        "x = %w[p q]\n  y = <<~T\n    t\n  T\n  defined? a\n  yield a\n  super a\n  z = 2, a\nend\n"
     end
 
     it "keeps an untouched subtree's text, comments and line breaks included", :aggregate_failures do
@@ -78,10 +78,29 @@ RSpec.describe(Kimera::Scribe) do
       expect(written(source, "y = <<~T") { |write| write.copy(name: :z) }).to(eq('z = "t\n"'))
     end
 
+    it "writes a list without brackets afresh, in brackets" do
+      expect(written(source, "2, a") { |node| listed(node) }).to(eq("[[2, a]]"))
+    end
+
     it "writes statements on one line when joined" do
       root = tree(source)
       scribe = described_class.new(tree("a = 1\nb = a").statements).at(root, find(root, "a"))
       expect(scribe.joined.text).to(eq("a = 1; b = a"))
+    end
+
+    it "writes every clause and block of a joined node on its one line", :aggregate_failures do
+      nested = "case a\nwhen 1\n  b\nelse\n  [1].each do |x|\n    x\n  rescue E => e\n    e\n  end\nend"
+      expect(described_class.new(read(nested)).joined.text)
+        .to(eq("case a; when 1; b; else; [1].each do |x|; x; rescue E => e; e; end; end"))
+      expect(described_class.new(read("class A\n  def a = 1\n\n  def b = 2\nend")).joined.text)
+        .to(eq("class A; def a; 1; end; def b; 2; end; end"))
+    end
+
+    it "writes afresh each kept text that breaks a line when unbroken", :aggregate_failures do
+      root = tree(source)
+      kept = ->(slice) { described_class.new(listed(find(root, slice))).at(root, find(root, slice)) }
+      expect(kept.call("call(a, # why\n       2)").unbroken.text).to(eq("[call(a, 2)]"))
+      expect(kept.call("a ? f(1) : 'q'").unbroken.text).to(eq("[a ? f(1) : 'q']"))
     end
 
     it "indents a written node to its line" do

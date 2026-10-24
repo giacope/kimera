@@ -2,6 +2,7 @@
 
 require_relative "../rewrite/ast_walk"
 require_relative "guardrail_factories"
+require_relative "line_pad"
 
 class Kimera::SpliceReopening
   include Kimera::GuardrailFactories
@@ -10,13 +11,18 @@ class Kimera::SpliceReopening
     Data.define(:node) do
       def edit = [node.location.start_offset, value.block.location.start_offset, header]
 
+      # Breaks as many lines as the text it replaces, so later lines keep their numbers.
       def header
         owner = base
-        "#{constant} = (#{owner}.const_defined?(:#{name}, false) ? #{owner}.const_get(:#{name}) : " \
+        "#{constant} = (#{"\n" * lost}#{owner}.const_defined?(:#{name}, false) ? #{owner}.const_get(:#{name}) : " \
           "#{factory}); #{constant}.class_eval "
       end
       private
       def value = node.value
+
+      def lost = Kimera::LinePad.new(replaced).short(factory)
+
+      def replaced = node.slice.byteslice(0, value.block.location.start_offset - node.location.start_offset)
 
       def path? = node.type == :constant_path_write_node
 

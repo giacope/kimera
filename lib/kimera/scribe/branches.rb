@@ -17,7 +17,7 @@ module Kimera
 
       def otherwise
         fallback = @node.else_clause
-        fallback ? "\n#{margin}else#{lines(fallback.statements, pen_of(fallback))}" : ""
+        fallback ? "#{newline}else#{lines(fallback.statements, pen_of(fallback))}" : ""
       end
     end
 
@@ -25,7 +25,7 @@ module Kimera
       TYPES = %i[when_node in_node].freeze
       GUARDS = { if_node: "if", unless_node: "unless" }.freeze
 
-      def text = "\n#{margin}#{head}#{lines(@node.statements, pen_of(@node.statements))}"
+      def text = "#{newline}#{head}#{lines(@node.statements, pen_of(@node.statements))}"
 
       private
 

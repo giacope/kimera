@@ -5,16 +5,18 @@ module Kimera
     class Place
       # The source text of each subtree under a node that reads the same
       # wherever an expression may stand: no heredoc, whose body lies outside
-      # it, no command call or modifier, whose reading depends on what is
-      # around it, nothing that is only a piece of a larger construct, and
-      # nothing a rewrite built from text of its own.
+      # it, no command call, modifier or list without brackets, whose reading
+      # depends on what is around it, nothing that is only a piece of a larger
+      # construct, and nothing a rewrite built from text of its own.
       class Kept
         LOOSE = %i[
           statements_node arguments_node parameters_node block_parameters_node embedded_statements_node
           embedded_variable_node else_node when_node in_node rescue_node ensure_node implicit_node implicit_rest_node
           keyword_hash_node multi_target_node numbered_parameters_node it_parameters_node
         ].freeze
-        OPENED = %i[string_node symbol_node x_string_node interpolated_string_node interpolated_symbol_node].freeze
+        OPENED = %i[
+          string_node symbol_node x_string_node interpolated_string_node interpolated_symbol_node array_node
+        ].freeze
         CLOSED = {
           unless_node: :end_keyword_loc, while_node: :closing_loc, until_node: :closing_loc,
           defined_node: :lparen_loc

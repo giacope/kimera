@@ -3,15 +3,18 @@
 require_relative "../scribe"
 require_relative "../rewrite/ast_walk"
 require_relative "../rewrite/numbered_params"
+require_relative "line_pad"
 require_relative "splice_diff"
 require_relative "splice_reopening"
 
 # One baked mutant written into its original source: the rewritten node's
 # text replaces the node's span, so comments, magic comments, `__END__` and
-# its data, and every line outside the span stay as they were. A shorter
-# rewrite is padded inside parentheses to the span's lines. Each attempt must
-# read back as the whole mutated tree, or the next one out is tried: the
-# smallest node the rewrite changed, then each node around it.
+# its data, and every line outside the span stay as they were. The text is
+# written to the span's lines (Kimera::LinePad), in parentheses when nothing
+# else reads right; one that would break more lines than the span is not
+# written there. Each attempt must read back as the whole mutated tree, or
+# the next one out is tried: the smallest node the rewrite changed, then
+# each node around it.
 class Kimera::BakeSplice
   Attempt =
     Data.define(:from, :to, :text, :grouping) do
@@ -48,7 +51,7 @@ class Kimera::BakeSplice
 
   def placed(node, rebuilt)
     scribe = Kimera::Scribe.new(rebuilt).at(@map.ast, node)
-    texts = [scribe.joined, scribe].map(&:text).uniq
+    texts = [scribe, scribe.joined].map(&:text).uniq
     texts.lazy.flat_map { |text| attempts(node, text) }.filter_map { |attempt| read(attempt) }.first
   rescue StandardError
     nil
@@ -57,9 +60,9 @@ class Kimera::BakeSplice
   def attempts(node, text)
     from = node.location.start_offset
     to = node.location.end_offset
-    short = node.slice.count("\n") - text.count("\n")
-    padded = Attempt.grouped(from, to, "(#{text}#{"\n" * short})") if short.positive?
-    [padded, Attempt.plain(from, to, text), Attempt.grouped(from, to, "(#{text})")].compact
+    pad = Kimera::LinePad.new(node.slice)
+    laid = pad.texts(text).map { |each| Attempt.plain(from, to, each) }
+    laid.empty? ? laid : [*laid, Attempt.grouped(from, to, "(#{pad.padded(text)})")]
   end
 
   def read(attempt)
@@ -72,9 +75,11 @@ class Kimera::BakeSplice
 
   def ungrouped(tree, attempt)
     Kimera::Rewrite::AstWalk.new(tree).rebuild do |rebuilt, original|
-      attempt.grouped?(original) ? rebuilt.body.body.first : rebuilt
+      attempt.grouped?(original) ? lone(rebuilt.body) : rebuilt
     end
   end
+
+  def lone(body) = body.type == :statements_node && body.body.one? ? body.body.first : body
 
   def reopened(spliced)
     map = Kimera::SourceMap.new(spliced)
