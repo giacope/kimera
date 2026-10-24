@@ -76,6 +76,15 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
     expect(message).not_to(include("\n  t2"))
   end
 
+  # R4-KR1: a lost test's worker left its after-fork hook's error and frame.
+  it "lists what a lost test's worker left under its message", :aggregate_failures do
+    left = "exited 1\nworker 0's after-fork setup raised RuntimeError: no index\n  test/test_helper.rb:9\n  a\n  b"
+    listed = "\n  t1: its worker died before reporting a result\n    exited 1\n    worker 0's after-fork setup " \
+      "raised RuntimeError: no index\n      test/test_helper.rb:9\n      a\n  plain run:"
+    expect { screen.call("t1" => ["its worker died before reporting a result", left]) }
+      .to(raise_error(Kimera::Execution::BaselineFailure) { |error| expect(error.message).to(include(listed)) })
+  end
+
   it "folds the passing tests past the limit into a count" do
     screen.call((1..7).to_h { |n| ["t#{n}", "boom"] })
   rescue Kimera::Execution::BaselineFailure => error

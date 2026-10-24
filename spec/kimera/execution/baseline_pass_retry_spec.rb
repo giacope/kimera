@@ -62,6 +62,7 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     when :stray then resolve.call(failed(id, []))
     when :timeout then lost.call(id, :timeout, "stacks of #{id}")
     when :crash then lost.call(id, :crash, nil)
+    when :died then lost.call(id, :crash, "exited 1\nworker 0's after-fork setup raised RuntimeError: no index")
     end
   end
 
@@ -192,6 +193,14 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     expect { screened(screen, { "t1" => :fail, "t3" => :crash }) }
       .to(raise_error(Kimera::Execution::BaselineFailure, "harness error: t1 t3"))
     expect(screen.screened).to(eq([{ "t1" => "boom in t1", "t3" => "its worker died before reporting a result" }]))
+  end
+
+  # R4-KR1: the harness error kept only "its worker died", not the after-fork hook's error.
+  it "hands the screen what a lost test's worker left", :aggregate_failures do
+    screen = screening(true)
+    expect { screened(screen, { "t2" => :died }) }.to(raise_error(Kimera::Execution::BaselineFailure))
+    left = "exited 1\nworker 0's after-fork setup raised RuntimeError: no index"
+    expect(screen.screened).to(eq([{ "t2" => ["its worker died before reporting a result", left] }]))
   end
 
   it "calls the baseline not green when the red tests fail plainly too", :aggregate_failures do

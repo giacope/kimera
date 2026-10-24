@@ -1078,7 +1078,8 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   taken at load keep the instrumented class. A constant holding a lambda or
   proc (`BY_SYMBOL = ->(record) { ... }`) stays bound to the one made at load,
   since a registry built from it (`self.chain = [BY_SYMBOL]`) keeps that
-  object: its body is `isolated_only`, judged in the isolated tier. A file an
+  object: its body and its parameters' defaults are `isolated_only`, judged
+  in the isolated tier. A file an
   autoload names is loaded by that autoload first, as the suite would load it,
   then trimmed. Of the files nothing required before the overlay, one whose
   classes and modules hold only methods, constants and `require`s is

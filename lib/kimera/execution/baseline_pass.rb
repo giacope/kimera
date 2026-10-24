@@ -113,7 +113,7 @@ class Kimera::Execution::BaselinePass
   end
 
   def red!(failed, jobs, messages = tally.messages)
-    screen(jobs).plainly!(failed.to_h { |id| [id, messages[id]] }) if root
+    screen(jobs).plainly!(failed.to_h { |id| [id, losses.told(id, messages[id])] }) if root
     failure!(failed, jobs, yield, messages: messages)
   end
 

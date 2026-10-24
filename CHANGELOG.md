@@ -8,7 +8,9 @@ Field test round 5, harness: what kimera loads, runs and says.
   reached.** A red baseline test that touched an in-scope mutant is rerun
   plainly too before kimera calls the suite "not green": one that passes
   there stops the run with "harness error: N test(s) fail under kimera but
-  pass in a plain run", the tests and the likely cause, as round 3 promised.
+  pass in a plain run", the tests (with what a lost test's worker left, such
+  as its after-fork hook's error and frame) and the likely cause, as round 3
+  promised.
   Seven of ten libraries in round 5 met "baseline suite is not green" with a
   reproduce command that passed.
 - **Kimera loads only what the suite loads.** A file the suite never
@@ -28,8 +30,11 @@ Field test round 5, harness: what kimera loads, runs and says.
 - **A lambda a constant holds stays bound.** `BY_SYMBOL = ->(record) { ... }`
   collected into `self.chain = [BY_SYMBOL]` at load kept the original; the
   overlay bound a guarded copy nothing called, so its mutants read
-  `no_coverage` or survived (action_policy's LookupChain). Its body is now
-  `isolated_only`, judged in the isolated tier, like other load-time code.
+  `no_coverage` or survived (action_policy's LookupChain). Its body and its
+  parameters' defaults are now `isolated_only`, judged in the isolated tier,
+  like other load-time code: a default such as `strict_namespace: false`
+  went to the reload tier, whose fresh lambda the chain never called either,
+  so `false => true` survived though the plain suite fails with it.
 - **A library suite with no database configuration runs on several
   workers.** Active Record loaded without a test database configured (a
   suite that connects to `:memory:` in a `before`, cancancan) has no schema
