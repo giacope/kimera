@@ -30,6 +30,7 @@ class Kimera::Execution::CapturedMethods
   def excludes(found) = found.map(&:last).uniq.map { |file| "--exclude #{file}" }.join(" ")
 
   def stale
+    GC.start
     home = "#{canonical(File.expand_path(@root))}/"
     KINDS.flat_map { |kind| ObjectSpace.each_object(kind).filter_map { |taken| described(taken, home) } }.uniq
   end

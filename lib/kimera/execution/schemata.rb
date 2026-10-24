@@ -6,9 +6,11 @@ require_relative "../synthesis/body_trim"
 require_relative "../synthesis/overlay"
 require_relative "aliases"
 require_relative "block_methods"
+require_relative "bound_lambdas"
 require_relative "definitions"
 require_relative "overrides"
 require_relative "overlay_guards"
+require_relative "pending_autoload"
 
 class Kimera::Execution::Schemata
   Woven = Struct.new(:skipped)
@@ -34,16 +36,32 @@ class Kimera::Execution::Schemata
   def woven = @_woven ||= Woven.new({})
 
   def reachable
-    shut, open = @registry.files.partition { |path| shut?(path) }
-    shut.each { |path| @registry.at(path).select(&:safe?).each(&:unloaded!) }
-    open
+    unasked = @registry.files.reject { |path| asked?(path) }
+    failures = unasked.to_h { |path| [path, fire(path)] }
+    shut = unasked.reject { |path| required?(path) || definitions?(path) }
+    shut.each { |path| unload(path, failures[path]) }
+    @registry.files - shut
   end
 
-  def shut?(path)
-    return false if @loaded.call(path)
-    file = File.join(root, path)
-    File.file?(file) && !Kimera::Execution::Definitions.new(File.read(file, encoding: Encoding::UTF_8)).only?
+  def asked?(path) = @loaded.call(path) || !File.file?(File.join(root, path))
+
+  def fire(path)
+    Kimera::Execution::PendingAutoload.new(File.join(root, path)).fire!
+    nil
+  rescue StandardError, ScriptError => error
+    "#{error.class}: #{error.message}"
   end
+
+  def required?(path)
+    file = File.join(root, path)
+    $LOADED_FEATURES.include?(file) || $LOADED_FEATURES.include?(File.realpath(file))
+  end
+
+  def definitions?(path)
+    Kimera::Execution::Definitions.new(File.read(File.join(root, path), encoding: Encoding::UTF_8)).only?
+  end
+
+  def unload(path, failure) = @registry.at(path).select(&:safe?).each { |point| point.unloaded!(failure) }
 
   def weave(paths) = paths.flat_map { |path| load(path) }
 
@@ -53,6 +71,7 @@ class Kimera::Execution::Schemata
 
   def announce
     skipped.each do |path, reason|
+      next unload(path, reason) unless @loaded.call(path)
       notice(path, reason)
       @registry.at(path).select(&:safe?).each { |point| point.unmutatable!("schemata setup failed (#{reason})") }
     end
@@ -62,6 +81,7 @@ class Kimera::Execution::Schemata
     file = File.join(root, path)
     return [] unless File.file?(file)
     return [] if Kimera::SelfProtection.new(file).protected?
+    Kimera::Execution::BoundLambdas.new(@registry, root).hold!(path)
     overlay(path, file)
   end
 

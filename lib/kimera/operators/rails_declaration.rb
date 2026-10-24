@@ -11,4 +11,8 @@ class Kimera::Operators::RailsDeclaration < Kimera::Operators::Base
     return unless call(node).bare?(self.class::NAMES)
     declaration(node)
   end
+
+  private
+
+  def declaration(node) = deletion(node) + narrowed(node)
 end

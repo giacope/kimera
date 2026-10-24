@@ -22,6 +22,11 @@ module Kimera
           end
 
           def pattern = ExtraHandlers::Operation.new(node, directive).regexp
+
+          def unbranched
+            dropped = Integer(directive[INDEX])
+            node.copy(conditions: node.conditions.reject.with_index { |_clause, at| at == dropped })
+          end
           private
           def rebegun = node.type == :def_node ? node.copy(body: yield(node.body)) : yield(node)
 

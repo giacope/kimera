@@ -62,6 +62,7 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     when :stray then resolve.call(failed(id, []))
     when :timeout then lost.call(id, :timeout, "stacks of #{id}")
     when :crash then lost.call(id, :crash, nil)
+    when :died then lost.call(id, :crash, "exited 1\nworker 0's after-fork setup raised RuntimeError: no index")
     end
   end
 
@@ -161,6 +162,71 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
         "baseline suite is not green: t1\n  t1:\n    boom\n  reproduce without kimera: rspec t1"
       )
     )
+  end
+
+  # R5-KW4: a red test that reached a mutant was "not green" though it passes plainly.
+  def screening(passing)
+    Class.new do
+      attr_reader :screened
+
+      define_method(:plainly!) do |failures|
+        (@screened ||= []) << failures
+        raise(Kimera::Execution::BaselineFailure, "harness error: #{failures.keys.join(" ")}") if passing
+      end
+    end.new
+  end
+
+  def screened(screen, first, check: false)
+    allow(Kimera::Execution::BaselineScreen).to(
+      receive(:new).with(
+        adapter: adapter, root: "/app",
+        jobs: 1
+      ).and_return(screen)
+    )
+    pass = described_class.new(adapter: adapter, registry: registry, root: "/app")
+    return pass.check!(InlineZygote.new) if check
+    pass.parallel!(1) { |queue, _jobs, listeners| round(queue, nil, listeners, [first], []) }
+  end
+
+  it "stops with the harness error when the red tests pass plainly", :aggregate_failures do
+    screen = screening(true)
+    expect { screened(screen, { "t1" => :fail, "t3" => :crash }) }
+      .to(raise_error(Kimera::Execution::BaselineFailure, "harness error: t1 t3"))
+    expect(screen.screened).to(eq([{ "t1" => "boom in t1", "t3" => "its worker died before reporting a result" }]))
+  end
+
+  # R4-KR1: the harness error kept only "its worker died", not the after-fork hook's error.
+  it "hands the screen what a lost test's worker left", :aggregate_failures do
+    screen = screening(true)
+    expect { screened(screen, { "t2" => :died }) }.to(raise_error(Kimera::Execution::BaselineFailure))
+    left = "exited 1\nworker 0's after-fork setup raised RuntimeError: no index"
+    expect(screen.screened).to(eq([{ "t2" => ["its worker died before reporting a result", left] }]))
+  end
+
+  it "calls the baseline not green when the red tests fail plainly too", :aggregate_failures do
+    screen = screening(false)
+    expect { screened(screen, { "t2" => :fail }) }
+      .to(raise_error(Kimera::Execution::BaselineFailure, /\Abaseline suite is not green: t2/))
+    expect(screen.screened).to(eq([{ "t2" => "boom in t2" }]))
+  end
+
+  it "screens the baseline it checks in one process too" do
+    outcome = Struct.new(:passed?, :failures, :failed_ids).new(false, { "t1" => "boom" }, ["t1"])
+    adapter.define_singleton_method(:run) { |_ids| outcome }
+    expect { screened(screening(true), {}, check: true) }
+      .to(raise_error(Kimera::Execution::BaselineFailure, "harness error: t1"))
+  end
+
+  it "screens nothing when it has no project root to rerun the tests in", :aggregate_failures do
+    allow(Kimera::Execution::BaselineScreen).to(receive(:new))
+    expect { measure({ "t1" => :fail }) }.to(raise_error(Kimera::Execution::BaselineFailure))
+    expect(Kimera::Execution::BaselineScreen).not_to(have_received(:new))
+  end
+
+  it "screens nothing when the baseline is green" do
+    screen = screening(true)
+    screened(screen, {})
+    expect(screen.screened).to(be_nil)
   end
 
   describe "the whole suite, run once in order" do

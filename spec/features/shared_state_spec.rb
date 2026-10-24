@@ -86,18 +86,17 @@ RSpec.describe("a suite that shares a path between tests (end-to-end)") do
     end
   end
 
-  def parallel_hint
-    "\n  ran on 2 workers: if the reproduce command above fails too, the tests are red on their own; " \
-      "if it passes and --jobs 1 is green, the suite shares state between workers"
-  end
-
   let(:red) { "! Parallel baseline: red split across 2 processes (jobs: 2), green in one: " }
+
+  # R5-KW4: green when rerun plainly, so a harness error, not "not green".
+  def forked_hint = "likely cause: they ran in workers forked from the one process that loaded the suite"
 
   it "names --jobs 1 as the check when the baseline is red on two workers", :aggregate_failures do
     run = shared_run("--jobs", "2")
     expect(run.status).to(eq(1))
     expect(run.output).to(
-      match(%r{not green: \d+ tests failed:\n    \./spec/[ab]_spec\.rb\[1:\d\]\n}).and(include(parallel_hint))
+      match(%r{fail under kimera but pass in a plain run[^\n]*:\n  \./spec/[ab]_spec\.rb\[1:\d\]: })
+        .and(include(forked_hint, "compare with --jobs 1"))
     )
   end
 
@@ -109,9 +108,7 @@ RSpec.describe("a suite that shares a path between tests (end-to-end)") do
 
   it "names --jobs 1 when the coverage pass of an --isolated run is red on two workers" do
     run = shared_run("--isolated", "--jobs", "2")
-    expect([run.status, run.output]).to(
-      match([1, a_string_including("ran on 2 workers: if the reproduce command above fails too")])
-    )
+    expect([run.status, run.output]).to(match([1, a_string_including(forked_hint, "compare with --jobs 1")]))
   end
 
   it "has doctor warn that the suite is red split across the configured jobs (RSpec)", :aggregate_failures do

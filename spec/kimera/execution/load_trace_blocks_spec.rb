@@ -112,6 +112,24 @@ RSpec.describe(Kimera::Execution::LoadTrace, :aggregate_failures) do
       expect(only?("")).to(be(true))
     end
 
+    # R5-KL4: a class body runs as it loads (`@limit = 100`, `after Parser`).
+    it "holds a class or module body only of definitions, constants, requires and declarations" do
+      nested = "module A\n  require \"x\"\n  B = 1\n  class C < A::D\n    def c = 1\n    def self.d = 2\n  end\n  " \
+        "class << self\n    def e = 3\n  end\nend\n"
+      declared = "class P\n  attr_reader :a\n  alias b a\n  alias_method :c, :a\n  private\n  private def d = 1\nend\n"
+      expect([only?(nested), only?(declared)]).to(eq([true, true]))
+    end
+
+    it "rejects a class or module body that runs code as it loads" do
+      running = [
+        "class Q\n  include Comparable\nend\n", "class Q\n  private(*NAMES)\nend\n",
+        "module Core\n  @limit = 100\n  def self.plugin? = true\nend\n",
+        "class E\n  class I\n    after Parser\n  end\nend\n",
+        "module I18n\n  begin\n    require \"oj\"\n  rescue LoadError\n    nil\n  end\nend\n"
+      ]
+      expect(running.map { |source| only?(source) }.uniq).to(eq([false]))
+    end
+
     it "rejects a file that assigns or calls at its top level" do
       expect(only?("SETTINGS[:greet] = -> { 1 }\n")).to(be(false))
       expect(only?("Thredded.user_path = 1\n")).to(be(false))

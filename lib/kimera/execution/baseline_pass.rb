@@ -6,6 +6,7 @@ require_relative "../runtime"
 require_relative "baseline_failure"
 require_relative "baseline_losses"
 require_relative "baseline_order"
+require_relative "baseline_screen"
 require_relative "baseline_tally"
 require_relative "worker_pool"
 require_relative "null_progress"
@@ -14,22 +15,21 @@ require_relative "zygote"
 class Kimera::Execution::BaselinePass
   EVERY = :itself.to_proc
 
-  def initialize(adapter:, registry:, progress: Kimera::Execution::NullProgress::NONE, measured: EVERY)
+  def initialize(adapter:, registry:, **options)
     @adapter = adapter
     @registry = registry
-    @progress = progress
-    @measured = measured
+    @options = options
   end
 
   def parallel!(jobs, &)
-    @progress.start(tests.size, "baseline")
+    progress.start(tests.size, "baseline")
     settle(jobs) { dispatch(&) }
   end
 
   def check!(zygote = Kimera::Execution::Zygote.new)
     outcome = sequence(zygote)
     return if outcome["passed"]
-    failure!(outcome["failed_ids"], 1, messages: outcome["failures"])
+    red!(outcome["failed_ids"], 1, outcome["failures"]) { [] }
   end
 
   def sequence(zygote = Kimera::Execution::Zygote.new) = zygote.call { whole }
@@ -41,16 +41,20 @@ class Kimera::Execution::BaselinePass
 
   private
 
+  def progress = @options.fetch(:progress, Kimera::Execution::NullProgress::NONE)
+
+  def root = @options[:root]
+
   def settle(jobs)
     yield
     failures = tally.failures
-    failure!(failures, jobs, Kimera::Execution::BaselineOrder.new(self).of(failures)) unless failures.empty?
+    red!(failures, jobs) { Kimera::Execution::BaselineOrder.new(self).of(failures) } unless failures.empty?
     tally.measured(losses.recovered(tally.messages))
   ensure
-    @progress.finish
+    progress.finish
   end
 
-  def tests = @_tests ||= @measured.call(@adapter.test_ids)
+  def tests = @_tests ||= @options.fetch(:measured, EVERY).call(@adapter.test_ids)
 
   def tally = @_tally ||= Kimera::Execution::BaselineTally.new(Hash.new { |h, k| h[k] = [] }, [], [], {}, {})
 
@@ -85,7 +89,7 @@ class Kimera::Execution::BaselinePass
     test_id = message["id"]
     tally.cover(test_id, touched, message["took"])
     bank(test_id, touched, message: message["failure"]) unless message["passed"]
-    @progress.tick
+    progress.tick
   end
 
   def lost(test_id, reason, stacks = nil)
@@ -96,7 +100,7 @@ class Kimera::Execution::BaselinePass
   def relapse(test_id, reason, stacks = nil)
     tally.messages[test_id] = losses.charge(test_id, reason, stacks)
     tally.failures << test_id
-    @progress.tick
+    progress.tick
   end
 
   def bank(test_id, touched, message: nil)
@@ -107,6 +111,13 @@ class Kimera::Execution::BaselinePass
   def bucket(touched)
     Array(touched).any? { |id| @registry.index.key?(id) } ? tally.failures : tally.irrelevant
   end
+
+  def red!(failed, jobs, messages = tally.messages)
+    screen(jobs).plainly!(failed.to_h { |id| [id, losses.told(id, messages[id])] }) if root
+    failure!(failed, jobs, yield, messages: messages)
+  end
+
+  def screen(jobs) = Kimera::Execution::BaselineScreen.new(adapter: @adapter, root: root, jobs: jobs)
 
   def quietly
     swap = [$stdout, $stderr]

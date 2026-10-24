@@ -2,6 +2,7 @@
 
 require "forwardable"
 require_relative "error"
+require_relative "operators/append_deletion"
 require_relative "operators/argument_drop"
 require_relative "operators/arithmetic"
 require_relative "operators/assignment_deletion"
@@ -42,6 +43,7 @@ require_relative "operators/string_literal"
 require_relative "operators/super_call"
 require_relative "operators/symbol_literal"
 require_relative "operators/visibility"
+require_relative "operators/when_clause"
 
 module Kimera
   module Operators
@@ -51,13 +53,18 @@ module Kimera
       SelectorSwap, RegexpLiteral, RailsPermit, RailsValidation, RailsCallback, RailsAssociation, ElementDrop,
       ArgumentDrop, OpAssign, IndexFetch, KernelCoercion, ProbeGuard, SymbolLiteral, DefaultArgument,
       LinkDeletion, SuperCall, RescueClause, EnsureClause, AssignmentDeletion, NilLiteral, RegexpAnchor,
-      RegexpQuantifier, KeywordDrop, Visibility
+      RegexpQuantifier, KeywordDrop, Visibility, WhenClause, AppendDeletion
     ].freeze
 
     DEFAULT_KEYS = [
       Comparison, BooleanConnective, BooleanLiteral,
       StatementDeletion, Negation, Conditional
     ].map { it.new.key }.freeze
+
+    # What `kimera init` writes for a new project: the core, plus a `case`'s
+    # `when` branches and `<<` statements, which the core never mutates.
+    # A configuration without `operators:` keeps DEFAULT_KEYS.
+    INIT_KEYS = [*DEFAULT_KEYS, *[WhenClause, AppendDeletion].map { it.new.key }].freeze
 
     RAILS_KEYS = [RailsPermit, RailsValidation, RailsCallback, RailsAssociation].map { it.new.key }.freeze
 

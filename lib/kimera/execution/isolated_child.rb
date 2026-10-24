@@ -22,6 +22,7 @@ begin
 rescue StandardError, ScriptError
   nil
 end
+aborted = RSpec.world.wants_to_quit || RSpec.world.rspec_is_quitting
 Kimera::Warnings::SILENCED.during(&redirect)
 
 RSpec.configuration.before(:suite) do
@@ -48,7 +49,7 @@ end
 code = RSpec::Core::Runner.run(request.fetch("tests"))
 
 failed = RSpec.world.all_examples.select { |example| example.execution_result.status == :failed }
-outside = RSpec.world.non_example_failure ? 1 : 0
+outside = RSpec.world.non_example_failure || aborted ? 1 : 0
 report = { failures: failed.size + outside, failing: failed.map(&:id) }
 first = failed.first&.execution_result&.exception
 report[:message] = "#{first.class}: #{first.message}"[0, 2000] if first

@@ -80,7 +80,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
 
     it "keeps every line within 120 columns and loads back to what it detected" do
       expect(text.lines.map(&:chomp)).to(all(satisfy { |line| line.size <= 120 }))
-      keys = %w[framework paths tests jobs max_survivors max_errors count_no_coverage]
+      keys = %w[framework paths tests operators jobs max_survivors max_errors count_no_coverage]
       expect(YAML.safe_load(text).keys).to(eq(keys))
     end
   end
@@ -250,7 +250,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
       "spec/dummy/config/application.rb" => "", ".rspec" => "", "spec/models/a_spec.rb" => ""
     }
     expect(test_initialized(engine)["operators"]).to(include("rails"))
-    expect(test_initialized(engine.except("spec/dummy/config/application.rb"))).not_to(have_key("operators"))
+    expect(test_initialized(engine.except("spec/dummy/config/application.rb"))["operators"]).not_to(include("rails"))
   end
 
   # R3K4: jekyll's helper requires minitest/autorun and rspec/mocks.
@@ -327,8 +327,16 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
   # declarations; the rails operators mutate them.
   it "turns on the rails operators in a Rails app, and only there", :aggregate_failures do
     rails = test_initialized("config/application.rb" => "", "spec/a_spec.rb" => "")
-    expect(rails["operators"]).to(eq([*Kimera::Operators::DEFAULT_KEYS, "rails"]))
-    expect(test_initialized("spec/a_spec.rb" => "")).not_to(have_key("operators"))
+    expect(rails["operators"]).to(eq([*Kimera::Operators::INIT_KEYS, "rails"]))
+    expect(test_initialized("spec/a_spec.rb" => "")["operators"]).not_to(include("rails"))
+  end
+
+  # R5 (CodeTriage): the core never mutates a `when` branch or a `<<` statement.
+  it "writes the core, `when` branches and `<<` statements into a new project's operators" do
+    expected = %w[
+      comparison boolean_connective boolean_literal statement_deletion negation conditional when_clause append_deletion
+    ]
+    expect(test_initialized("spec/a_spec.rb" => "")["operators"]).to(eq(expected))
   end
 
   # camaleon-cms: an engine with a dummy app has no config/application.rb at
@@ -338,16 +346,16 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
 
     it "turns on the rails operators", :aggregate_failures do
       dummy = engine.merge("spec/dummy/config/application.rb" => "", "spec/a_spec.rb" => "")
-      expect(test_initialized(dummy)["operators"]).to(eq([*Kimera::Operators::DEFAULT_KEYS, "rails"]))
+      expect(test_initialized(dummy)["operators"]).to(eq([*Kimera::Operators::INIT_KEYS, "rails"]))
       isolated = { "lib/cms/engine.rb" => "module Cms\n  class Engine\n    isolate_namespace Cms\n  end\nend\n" }
       minitest = isolated.merge("test/dummy/config/application.rb" => "", "test/test_helper.rb" => "require 'minitest'")
       expect(test_initialized(minitest)["operators"]).to(include("rails"))
     end
 
     it "needs both the engine and the dummy app", :aggregate_failures do
-      expect(test_initialized(engine.merge("spec/a_spec.rb" => ""))).not_to(have_key("operators"))
+      expect(test_initialized(engine.merge("spec/a_spec.rb" => ""))["operators"]).not_to(include("rails"))
       other = { "lib/cms/engine.rb" => "class Engine; end\n", "spec/dummy/config/application.rb" => "" }
-      expect(test_initialized(other)).not_to(have_key("operators"))
+      expect(test_initialized(other)["operators"]).not_to(include("rails"))
     end
   end
 

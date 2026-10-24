@@ -2,6 +2,7 @@
 
 require_relative "suite"
 require_relative "load_path"
+require_relative "after_run"
 require_relative "class_hooks"
 require_relative "../exits/test_exit"
 
@@ -23,6 +24,11 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
     end
   end
 
+  def initialize
+    super
+    @loaders = Set.new
+  end
+
   def disarmed
     Minitest.seed ||= 1
     disarm
@@ -34,7 +40,15 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
     paths(files)
     each_test_file(files) { |file| require(file) }
     indexed
+    @loaders.add?(Process.pid)
     self
+  end
+
+  # What autorun does at exit, which kimera disarmed: the suite's
+  # Minitest.after_run hooks, once, in the process that loaded it.
+  def finish
+    return unless @loaders.delete?(Process.pid)
+    Kimera::Frameworks::AfterRun.new(Minitest.class_variable_get(:@@after_run)).call
   end
 
   def test_ids
