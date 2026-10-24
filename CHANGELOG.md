@@ -22,11 +22,15 @@ Field test round 5, harness: what kimera loads, runs and says.
   `active_support/json`, action_policy's ruby-lsp addon) reports its mutants
   `no_coverage`, with the error, never `unmutatable`: 45 and 50 mutants had
   gone unscored.
-- **An autoloaded file's class body runs once.** A file an autoload names is
-  loaded through that autoload before the overlay, as the suite would load
-  it, and the overlay is then trimmed to its methods. Evaluated whole, the
-  overlay fired the autoload and then ran the class body again: kramdown's
-  `@@parsers = {}` emptied the parser registry and 1753 tests went red.
+- **An autoloaded file's class body runs once.** Every pending autoload
+  along the constants an unloaded file opens is resolved before the overlay,
+  as the suite would resolve it, and a file that is then loaded (the one the
+  autoload names, or one it requires) is trimmed to its methods. Evaluated
+  whole, the overlay fired the autoload and then ran the class body again:
+  kramdown's `@@parsers = {}` emptied the parser registry and 1753 tests
+  went red, and `parser/kramdown/list.rb`'s `define_parser(:list, ...)`, run
+  twice, would raise; left out, its 173 mutants read "never loads this
+  file", alone or beside its parser.
 - **A lambda a constant holds stays bound.** `BY_SYMBOL = ->(record) { ... }`
   collected into `self.chain = [BY_SYMBOL]` at load kept the original; the
   overlay bound a guarded copy nothing called, so its mutants read

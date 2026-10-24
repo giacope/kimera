@@ -36,23 +36,29 @@ class Kimera::Execution::Schemata
   def woven = @_woven ||= Woven.new({})
 
   def reachable
-    shut, open = @registry.files.partition { |path| shut?(path) }
-    shut.each { |path| unload(path, skipped.delete(path)) }
-    open
+    unasked = @registry.files.reject { |path| asked?(path) }
+    failures = unasked.to_h { |path| [path, fire(path)] }
+    shut = unasked.reject { |path| required?(path) || definitions?(path) }
+    shut.each { |path| unload(path, failures[path]) }
+    @registry.files - shut
   end
 
-  def shut?(path)
-    return false if @loaded.call(path)
-    file = File.join(root, path)
-    return false unless File.file?(file)
-    !autoloaded?(path, file) && !Kimera::Execution::Definitions.new(File.read(file, encoding: Encoding::UTF_8)).only?
-  end
+  def asked?(path) = @loaded.call(path) || !File.file?(File.join(root, path))
 
-  def autoloaded?(path, file)
-    Kimera::Execution::PendingAutoload.new(file).fire!
+  def fire(path)
+    Kimera::Execution::PendingAutoload.new(File.join(root, path)).fire!
+    nil
   rescue StandardError, ScriptError => error
-    skip(path, "#{error.class}: #{error.message}")
-    false
+    "#{error.class}: #{error.message}"
+  end
+
+  def required?(path)
+    file = File.join(root, path)
+    $LOADED_FEATURES.include?(file) || $LOADED_FEATURES.include?(File.realpath(file))
+  end
+
+  def definitions?(path)
+    Kimera::Execution::Definitions.new(File.read(File.join(root, path), encoding: Encoding::UTF_8)).only?
   end
 
   def unload(path, failure) = @registry.at(path).select(&:safe?).each { |point| point.unloaded!(failure) }

@@ -92,6 +92,36 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
       .to(match([include(*point(registry, "reach_table.rb").ids), { a: 1 }]))
   end
 
+  # kramdown's parser/kramdown/list.rb (`define_parser(:list, ...)` in its class body) is required by the
+  # autoloaded parser/kramdown.rb: 1157 mutants read "never loads this file". The file the autoload names is out
+  # of scope here, as under --since.
+  def chained
+    stub_const("ReachChain", Module.new)
+    ReachChain.autoload(:Table, write("reach_table.rb", <<~RUBY))
+      module ReachChain
+        class Table
+          ROWS = {}
+          def self.define(name) = ROWS[name] = ROWS.fetch(name, 0) + 1
+        end
+      end
+      require_relative "reach_rows"
+    RUBY
+    unasked("reach_rows.rb", <<~RUBY)
+      module ReachChain
+        class Table
+          define(:b)
+          def self.small?(n) = n < 3
+        end
+      end
+    RUBY
+  end
+
+  it "evaluates, trimmed, a file the suite loads through an autoload of a constant it opens" do
+    registry, loader = chained
+    rows = point(registry, "reach_rows.rb").ids
+    expect([loader.overlay!, ReachChain::Table::ROWS]).to(match([include(*rows), { b: 1 }]))
+  end
+
   it "still evaluates a definitions-only file the suite did not load", :aggregate_failures do
     registry, live = overlaid(proc { |path| path != "reach_defined.rb" })
     expect(live).to(include(*point(registry, "reach_defined.rb").ids))
