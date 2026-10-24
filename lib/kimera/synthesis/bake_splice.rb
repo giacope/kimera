@@ -75,9 +75,7 @@ class Kimera::BakeSplice
 
   def ungrouped(tree, attempt)
     Kimera::Rewrite::AstWalk.new(tree).rebuild do |rebuilt, original|
-      next rebuilt unless attempt.grouped?(original)
-      statements = rebuilt.body
-      statements.body.one? ? statements.body.first : statements
+      attempt.grouped?(original) ? rebuilt.body : rebuilt
     end
   end
 
