@@ -31,8 +31,6 @@ class Kimera::Guardrail
 
   def tree = @_tree ||= transform(@map.ast)
 
-  def applied = activated(tree)
-
   # The node's guarded rewrite laid out to its lines (Kimera::LinePad), on
   # one line when written out it breaks more; no text when neither fits.
   def rewrite(node)
