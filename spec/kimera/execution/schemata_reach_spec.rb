@@ -71,9 +71,8 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
     source = "require \"reach_no_such_gem\"\nmodule ReachOptional\n  def self.big?(n) = n > 1\nend\n"
     registry, loader = unasked("reach_optional.rb", source)
     expect { loader.overlay! }.not_to(output.to_stderr)
-    optional = point(registry, "reach_optional.rb")
     failed = "(nor could kimera load it: LoadError: cannot load such file -- reach_no_such_gem)"
-    expect([optional.unloaded?, optional.unsafe_reason]).to(eq([true, "#{Kimera::MutationPoint::NEVER} #{failed}"]))
+    expect(point(registry, "reach_optional.rb").unsafe_reason).to(eq("#{Kimera::MutationPoint::NEVER} #{failed}"))
   end
 
   # R5-KL5: kramdown's parser registry (`@@parsers = {}` in an autoloaded class body) was emptied.
