@@ -6,6 +6,7 @@ require_relative "../rewrite/ast_walk"
 require_relative "../rewrite/directive"
 require_relative "guardrail_dispatch"
 require_relative "guardrail_factories"
+require_relative "line_pad"
 require_relative "source_map"
 
 class Kimera::Guardrail
@@ -32,9 +33,11 @@ class Kimera::Guardrail
 
   def applied = activated(tree)
 
+  # The node's guarded rewrite laid out to its lines (Kimera::LinePad), on
+  # one line when written out it breaks more; no text when neither fits.
   def rewrite(node)
     woven = transform(node)
-    [Kimera::Scribe.new(woven).source, activated(woven)]
+    [Kimera::LinePad.new(node.slice).fitted(Kimera::Scribe.new(woven)), activated(woven)]
   end
 
   def activated(node)

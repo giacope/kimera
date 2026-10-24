@@ -78,7 +78,7 @@ module Kimera
 
     def rewrite(definition, points)
       text, applied = Kimera::Guardrail.new(@map, points).rewrite(definition)
-      span(definition) + [text, applied]
+      span(definition) + [text, applied] if text
     rescue StandardError
       nil
     end

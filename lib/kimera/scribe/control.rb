@@ -45,8 +45,8 @@ module Kimera
         subsequent = following
         return "" unless subsequent
         pen = pen_of(subsequent)
-        return "\n#{margin}else#{lines(subsequent.statements, pen)}" if subsequent.type == :else_node
-        "\n#{margin}els#{pen.write(subsequent).delete_suffix(closing)}"
+        return "#{newline}else#{lines(subsequent.statements, pen)}" if subsequent.type == :else_node
+        "#{newline}els#{pen.write(subsequent).delete_suffix(closing)}"
       end
 
       def postcondition?

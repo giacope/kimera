@@ -18,27 +18,14 @@ class Kimera::Overlay::FileWeave
   end
 
   def result
-    (Kimera::Overlay::Stitch.new(@file, @map, @safe, @unsafe).result || attempt(@safe) || fallback).tap { |result| result.settle!(@safe, UNMATCHED) }
+    (attempt(@safe) || fallback).tap { |result| result.settle!(@safe, UNMATCHED) }
   end
 
   private
 
   def io = @_io ||= $stderr
 
-  def attempt(points)
-    render(Kimera::Guardrail.new(@map, points))
-  rescue StandardError
-    nil
-  end
-
-  def render(weaver)
-    source = @map.restore(Kimera::Scribe.new(weaver.tree).source)
-    raise(Kimera::Scribe::Unreadable, UNGUARDABLE) unless Kimera::Syntax.parse(source).success?
-    Kimera::Overlay::Result.new(
-      file: @file, source: source, mutant_ids: weaver.applied,
-      skipped_unsafe: @unsafe.flat_map(&:ids)
-    )
-  end
+  def attempt(points) = Kimera::Overlay::Stitch.new(@file, @map, points, @unsafe).result
 
   def fallback
     viable = bisect(@safe)

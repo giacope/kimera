@@ -62,9 +62,9 @@ module Kimera
 
       def enclosed(kind) = "(#{kind.new(@node, @pen).text})"
 
-      def margin = @pen.margin
+      def newline = @pen.newline
 
-      def closing(keyword = "end") = "\n#{margin}#{keyword}"
+      def closing(keyword = "end") = "#{newline}#{keyword}"
 
       def lines(node, pen = @pen) = Lines.new(node, pen.deeper).text
 

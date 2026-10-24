@@ -218,19 +218,20 @@ RSpec.describe(Kimera::Operators) do
       expect(indexes("def m\n  f(-(1), -1)\nend\n", "argument_drop")).to(eq([0]))
     end
 
+    # An empty group is nil, the way kimera writes a deleted statement.
     it "counts elements equal up to parentheses and negation as equal" do
       lists = [
         "(a), a, ((a))", "-(-1), 1, (1)",
-        "-(1.5), -1.5, -(1r), -1r, -(2i), -2i", "[-(1)].first, [-1].first, -a, -(a), a.-@"
+        "-(1.5), -1.5, -(1r), -1r, -(2i), -2i", "[-(1)].first, [-1].first, -a, -(a), a.-@", "(), nil, (())"
       ]
-      expect(lists.map { |elements| kept(elements) }).to(eq([[0], [0], [0, 2, 4], [0, 2]]))
+      expect(lists.map { |elements| kept(elements) }).to(eq([[0], [0], [0, 2, 4], [0, 2], [0]]))
     end
 
     it "still tells apart neighbors that differ", :aggregate_failures do
       expect(kept("-(1), 1, 0.0, -(0.0), 1.0")).to(eq([0, 1, 2, 3, 4]))
       expect(kept("(1; 2), 1, 1.-@(2), -1, 1.-@ { }, -1")).to(eq([0, 1, 2, 3, 4, 5]))
       expect(kept("a&.b, a.b, a.+(1), a.-(1), a.-@(1), -a")).to(eq([0, 1, 2, 3, 4, 5]))
-      expect(kept("+(1), -1, (), nil, [1], [2]")).to(eq([0, 1, 2, 3, 4, 5]))
+      expect(kept("+(1), -1, nil, [1], [2]")).to(eq([0, 1, 2, 3, 4]))
     end
 
     it "tells heredocs with the same opener apart by their bodies" do

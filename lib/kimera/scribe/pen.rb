@@ -16,9 +16,20 @@ module Kimera
     class Pen
       INDENT = "  "
 
-      def initialize(binders, depth = 0, locals = Binders::NONE, open: true)
+      # Where a statement or clause starts: its own line, indented to its
+      # depth, or, written flat, after a `; ` on the same one.
+      Margin =
+        Data.define(:depth, :flat) do
+          def deeper = with(depth: depth + 1)
+
+          def newline = flat ? "; " : "\n#{INDENT * depth}"
+
+          def gap = flat ? "" : "\n"
+        end
+
+      def initialize(binders, margin = Margin.new(depth: 0, flat: false), locals = Binders::NONE, open: true)
         @binders = binders
-        @depth = depth
+        @margin = margin
         @locals = locals
         @open = open
       end
@@ -41,23 +52,25 @@ module Kimera
 
       def head(node) = write(node, level(node) == Level::KEYWORD ? Level::KEYWORD : Level::PRIMARY)
 
-      def deeper = Pen.new(@binders, @depth + 1, @locals)
+      def deeper = Pen.new(@binders, @margin.deeper, @locals)
 
-      def closed = Pen.new(@binders, @depth, @locals, open: false)
+      def closed = Pen.new(@binders, @margin, @locals, open: false)
 
-      def opened = Pen.new(@binders, @depth, @locals)
+      def opened = Pen.new(@binders, @margin, @locals)
 
       def open? = @open
 
       def with(nodes) = bound(nodes.reduce(Binders::NONE) { |names, node| names | @binders.of(node) })
 
-      def bound(names) = Pen.new(@binders, @depth, (@locals | names).freeze, open: @open)
+      def bound(names) = Pen.new(@binders, @margin, (@locals | names).freeze, open: @open)
 
-      def scoped(nodes = []) = Pen.new(@binders, @depth, Binders::NONE, open: @open).with(nodes)
+      def scoped(nodes = []) = Pen.new(@binders, @margin, Binders::NONE, open: @open).with(nodes)
 
       def local?(name) = @locals.include?(name)
 
-      def margin = INDENT * @depth
+      def newline = @margin.newline
+
+      def gap = @margin.gap
     end
   end
 end

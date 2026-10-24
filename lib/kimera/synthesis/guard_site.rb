@@ -6,11 +6,13 @@ require_relative "splice_diff"
 # path that an expression may replace, or, when the rewrite changed no such
 # node, the nearest one around it (a regexp whose named captures bind is
 # guarded with its whole `=~`; a bare name with the statement that holds it;
-# a part of a string with the string). The registry makes no point inside a
-# pattern, so a pattern is never lifted through.
+# a part of a string with the string; a list without brackets, `a, b` on the
+# right of an assignment, with the assignment; a quoted label with its hash).
+# The registry makes no point inside a pattern, so a pattern is never lifted
+# through.
 class Kimera::GuardSite
   STOPS = %i[statements_node def_node class_node module_node singleton_class_node block_node lambda_node].freeze
-  OPENED = %i[string_node symbol_node x_string_node interpolated_string_node interpolated_symbol_node].freeze
+  OPENED = %i[string_node symbol_node x_string_node interpolated_string_node interpolated_symbol_node array_node].freeze
   ENCLOSING = %i[defined_node match_write_node alias_method_node alias_global_variable_node undef_node].freeze
   NESTED = %w[_target_node _parameter_node _pattern_node].freeze
 
@@ -52,7 +54,11 @@ class Kimera::GuardSite
     !ENCLOSING.include?(parent.type) && !parent.type.start_with?("interpolated_") && !captured?(node, parent)
   end
 
-  def opened?(node) = node.opening_loc || (node.type == :interpolated_string_node && node.parts.all? { opened?(it) })
+  def opened?(node)
+    (node.opening_loc && !label?(node)) || (node.type == :interpolated_string_node && node.parts.all? { opened?(it) })
+  end
+
+  def label?(node) = node.closing_loc&.slice&.end_with?(":")
 
   def captured?(node, parent)
     parent.type == :call_node && @index.parent(parent).type == :match_write_node && node.equal?(parent.receiver)

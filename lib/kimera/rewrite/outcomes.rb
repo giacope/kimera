@@ -10,6 +10,7 @@ class Kimera::Rewrite::Outcomes
   NUMERIC = Kimera::Scribe::Numeral::TYPES
   FLAG = /\A(?!forced_).*\?\z/
   INCIDENTAL = %i[node_id location locals].freeze
+  NOTHING = Kimera::Syntax.parse("nil").value.statements.body.first
 
   def initialize(source)
     @source = source
@@ -99,7 +100,7 @@ class Kimera::Rewrite::Outcomes
   def contents(node)
     case node.type
     when :statements_node then node.body
-    when :parentheses_node then node.body && contents(node.body)
+    when :parentheses_node then node.body ? contents(node.body) : [NOTHING]
     end
   end
 end

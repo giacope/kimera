@@ -5,9 +5,11 @@ require_relative "overlay_splice"
 
 # A warm overlay spliced into the original source: every guard the source can
 # hold where its point stands, and each definition holding a point no
-# expression can guard written whole. Nothing, when such a point stands
-# outside every definition or the spliced text does not parse; the caller
-# then writes the file whole.
+# expression can guard written whole on its own lines (outside every
+# definition, the statement of the file that holds it), so every line
+# outside them keeps its number. Nothing, when such a statement
+# cannot be written so or the spliced text does not parse; the caller then
+# weaves fewer points.
 class Kimera::Overlay::Stitch
   include Kimera::OverlaySplice
 
@@ -37,13 +39,14 @@ class Kimera::Overlay::Stitch
   def spliced(whole, rewritten)
     kept = weave.edits.reject { |edit| whole.any? { |definition, _| covers?(definition, edit) } }
     edits = (kept + rewritten.map { |edit| edit.first(3) } + reopenings).sort_by { |from, to, _| [from, to] }
-    @map.splice(edits) if disjoint?(edits)
+    @map.splice(edits) if disjoint?(edits) && @map.lines_kept?(edits)
   end
 
   def disjoint?(edits) = edits.each_cons(2).all? { |left, right| left[1] <= right.first }
 
   def enclosing(points)
-    owners = points.map { |point| definitions(@map.ast).find { |definition| holds?(definition, point.location) } }
+    holders = [*definitions(@map.ast), *@map.ast.statements.body]
+    owners = points.map { |point| holders.find { |holder| holds?(holder, point.location) } }
     owners.uniq.map { |owner| [owner, @safe.select { |point| holds?(owner, point.location) }] } if owners.all?
   end
 

@@ -147,7 +147,7 @@ RSpec.describe(Kimera::Operators) do
     it "guards a method's own clause inside its body, wrapping only a body that keeps a clause", :aggregate_failures do
       code = "class Plain\n  def m(v)\n    Integer(v)\n  rescue ArgumentError\n    0\n  end\nend\n"
       source = Kimera::Overlay.new(scan(code, "rescue_clause")).synthesize("c.rb", code).source
-      expect(source).to(match(/^  def m\(v\)\n\s+if ::Kimera::RUNTIME\.active\?\(\d+\)\n\s+Integer\(v\)\n\s+else\n\s+begin\n/))
+      expect(source).to(match(/^  def m\(v\); if ::Kimera::RUNTIME\.active\?\(\d+\); Integer\(v\); else; begin; /))
       location = scan(code, "rescue_clause").each.first.last.location
       expect(Kimera::BodyTrim.new(code, [location]).trimmed).to(include("def m(v)"))
     end

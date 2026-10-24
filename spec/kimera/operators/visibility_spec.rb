@@ -69,7 +69,7 @@ RSpec.describe(Kimera::Operators::Visibility) do
   it "renders the method followed by its private call" do
     mutant, point = scan("class A\n  def shown\n    1\n  end\nend\n").each.first
     expect(Kimera::Rewrite::Directive.new(mutant.directive).render(point.original_source))
-      .to(eq("def shown\n  1\nend\nprivate(:shown)\n"))
+      .to(eq("def shown\n    1\n  end\nprivate(:shown)\n"))
   end
 
   describe "the woven method" do

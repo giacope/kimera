@@ -51,8 +51,7 @@ RSpec.describe(Kimera::SpliceDiff) do
       root.statements.body.flat_map { |node| [node, *node.arguments.arguments] }.find { |n| n.slice == slice }
     end
 
-    it "knows the lines a heredoc opens on", :aggregate_failures do
-      expect([index.heredoc?(find("'b'")), index.heredoc?(find("'d'"))]).to(eq([true, false]))
+    it "knows each node's parent" do
       expect(index.parent(find("'d'")).type).to(eq(:arguments_node))
     end
   end
@@ -67,6 +66,51 @@ RSpec.describe(Kimera::SpliceDiff) do
       it "restores #{text.inspect} written for #{source.inspect} as #{restored.inspect}" do
         expect(described_class.new(source).restore(text)).to(eq(restored))
       end
+    end
+
+    it "keeps the lines when every edit breaks as many lines as its span, whatever its bytes", :aggregate_failures do
+      map = described_class.new("a(1,\n  2)\nb = \"\xFF\"\n")
+      expect(map.lines_kept?([[2, 9, "1, 2\n"], [15, 16, "\xFE"]])).to(be(true))
+      expect(map.lines_kept?([[2, 9, "1, 2\n"], [10, 11, "c\n"]])).to(be(false))
+      expect(map.lines_kept?([[2, 9, "1, 2"]])).to(be(false))
+    end
+  end
+
+  describe Kimera::LinePad do
+    def texts(span, text) = described_class.new(span).texts(text)
+
+    it "lays a text out to the span's lines, after it or before its closing", :aggregate_failures do
+      expect(texts("a(1,\n  2)", "a(1)")).to(eq(["a(1)\n", "a(1\n)"]))
+      expect(texts("x = [1,\n 2]", "x = 1")).to(eq(["x = 1\n"]))
+      expect(texts("def m\n  1\nend", "def m; 1; end")).to(eq(["def m; 1; end\n\n", "def m; 1; \n\nend"]))
+      expect(texts("{ a: 1,\n b: 2 }", "{ a: 1 }")).to(eq(["{ a: 1 }\n", "{ a: 1 \n}"]))
+      expect([texts("[1,\n 2]", "[1]"), texts("backend", "backend")]).to(eq([["[1]\n", "[1\n]"], ["backend"]]))
+    end
+
+    it "writes nothing over a span with fewer lines" do
+      expect([texts("a(1)", "a(1,\n2)"), described_class.new("a(1)").closed("a(1,\n2)")]).to(eq([[], nil]))
+    end
+
+    it "counts the line breaks of a text that is not valid in its encoding", :aggregate_failures do
+      pad = described_class.new("\xFF\n\n".dup.force_encoding(Encoding::UTF_8))
+      expect([pad.short("a"), pad.kept?("\xFE\n\n".dup.force_encoding(Encoding::UTF_8)), pad.kept?("\n")])
+        .to(eq([2, true, false]))
+    end
+
+    it "fits a node's writing as Scribe lays it out, else on one line", :aggregate_failures do
+      node = Kimera::Scribe.parse("if a\n  b\nend").statements.body.first
+      expect(described_class.new("if a\n  b\nend").fitted(Kimera::Scribe.new(node))).to(eq("if a\n  b\nend"))
+      expect(described_class.new("if a then b end").fitted(Kimera::Scribe.new(node))).to(eq("if a; b; end"))
+      extended = Kimera::Scribe.parse("/a\nb/x").statements.body.first
+      expect(described_class.new("/ab/x").fitted(Kimera::Scribe.new(extended))).to(be_nil)
+    end
+  end
+
+  describe Kimera::SpliceReopening do
+    it "writes a reopening's header on the lines of what it replaces" do
+      source = "Point =\n  Struct.new(:x) do\n    def big? = x > 1\n  end\n"
+      map = Kimera::SourceMap.new(source)
+      expect(map.lines_kept?(described_class.new(map).edits)).to(be(true))
     end
   end
 
