@@ -15,7 +15,10 @@ end
 # object. Kimera cannot weave guards into it, and binding the constant to a
 # guarded copy would leave the registry calling the original, so the copy's
 # coverage read "no test executed this line". The constant stays bound; its
-# body is judged in the isolated tier, like other code that ran at load.
+# body is judged in the isolated tier, like other code that ran at load. So
+# are its parameters' defaults (`strict: false`), which a constant's value
+# taints for the reload tier: reloading the file binds a new lambda the
+# registry never calls either, so their mutants survived.
 class Kimera::Execution::BoundLambdas
   REASON = Kimera::MutationPoint::BOUND_REASON
   WRITES = [
@@ -29,7 +32,7 @@ class Kimera::Execution::BoundLambdas
 
   def hold!(file)
     ranges = held(Kimera::Syntax::Document.new(@root, file).result.value)
-    @registry.at(file).each { |point| point.unsafe!(REASON) if point.safe? && point.inside?(ranges) }
+    @registry.at(file).each { |point| point.unsafe!(REASON) if point.reloadable? && point.inside?(ranges) }
   end
 
   private

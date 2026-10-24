@@ -37,6 +37,25 @@ RSpec.describe(Kimera::Execution::BoundLambdas, :aggregate_failures) do
     expect(registry.points.find { |point| point.location.start_line == 2 }.reloadable?).to(be(false))
   end
 
+  # action_policy's INFER_FROM_CLASS: `strict_namespace: false => true` was judged by reloading the file, which
+  # bound a new lambda the chain never called, so it survived though the plain suite fails with it.
+  it "holds the parameter defaults of a constant's lambda too, which would otherwise go to the reload tier" do
+    registry = scanned(<<~RUBY)
+      module BoundLookup
+        INFER = ->(record, strict: false) {
+          strict && record
+        }
+        def self.find(record, strict: false) = strict && record
+      end
+    RUBY
+    before = reasons(registry)
+    described_class.new(registry, dir).hold!("bound_lookup.rb")
+    expect(before.values_at(2, 3)).to(eq(["constant assignment (computed once)", nil]))
+    expect(reasons(registry)).to(eq(2 => held, 3 => held, 5 => nil))
+  end
+
+  def held = Kimera::MutationPoint::BOUND_REASON
+
   # The registry of a chain built at load, after the overlay: the lambda the chain took, and its first mutant.
   def chained
     stub_const("BoundChain", Module.new)
