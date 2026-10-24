@@ -75,9 +75,11 @@ class Kimera::BakeSplice
 
   def ungrouped(tree, attempt)
     Kimera::Rewrite::AstWalk.new(tree).rebuild do |rebuilt, original|
-      attempt.grouped?(original) ? rebuilt.body : rebuilt
+      attempt.grouped?(original) ? lone(rebuilt.body) : rebuilt
     end
   end
+
+  def lone(body) = body.type == :statements_node && body.body.one? ? body.body.first : body
 
   def reopened(spliced)
     map = Kimera::SourceMap.new(spliced)

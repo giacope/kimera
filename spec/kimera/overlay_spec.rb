@@ -570,6 +570,14 @@ RSpec.describe(Kimera::Overlay) do
       expect(result.mutant_ids).to(match_array(registry.points.flat_map(&:ids)))
       expect(inner).to(be_safe)
     end
+
+    # `-0` reads as a literal, not as `-` on `0`, so the literal's zero mutant
+    # is spliced in parentheses, on the line it was written on.
+    it "bakes the literal's zero mutant as `-` on `0`, on the file's own lines" do
+      overlay = described_class.new(registry)
+      zero = registry.each.find { |mutant, point| point.original_source == "-1" && mutant.directive["value"].zero? }
+      expect(overlay.bake("x.rb", source, zero.first.id)).to(eq("def m(a)\n  a > 0 && -(0)\nend\n"))
+    end
   end
 
   # From Lobsters: Ruby reads "\xFF" in a UTF-8 file as that byte, but the
