@@ -11,7 +11,9 @@ end
 # database whenever it was registered. TEST_ENV_NUMBER follows parallel_tests:
 # the first process keeps the plain name, the nth appends n. A schema path
 # Active Record cannot work out (a suite without Rails has no db_dir) is no
-# schema to load: the worker copies the database instead.
+# schema to load: the worker copies the database instead. Nor is a suite with
+# no test database configured (a library that connects in a `before`): its
+# workers connect as it does.
 class Kimera::Execution::ParallelDatabases
   VARIABLE = "TEST_ENV_NUMBER"
 
@@ -32,7 +34,7 @@ class Kimera::Execution::ParallelDatabases
   def loadable?
     return true unless @record
     configs = @record.configurations.configs_for(env_name: ActiveRecord::ConnectionHandling::DEFAULT_ENV.call)
-    configs.all? { |config| File.exist?(ActiveRecord::Tasks::DatabaseTasks.schema_dump_path(config)) }
+    configs.any? && configs.all? { |config| File.exist?(ActiveRecord::Tasks::DatabaseTasks.schema_dump_path(config)) }
   rescue StandardError
     false
   end

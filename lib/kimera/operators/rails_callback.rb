@@ -15,11 +15,7 @@ class Kimera::Operators::RailsCallback < Kimera::Operators::RailsDeclaration
 
   private
 
-  def declaration(node)
-    deletion(node) + scopes(node)
-  end
-
-  def scopes(node)
+  def narrowed(node)
     keywords(node)&.elements.to_a.flat_map { |assoc| scope(node, assoc) }
   end
 

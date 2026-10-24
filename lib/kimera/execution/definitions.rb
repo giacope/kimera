@@ -8,31 +8,42 @@ module Kimera
   end
 end
 
-# Whether a file's top level only defines (classes, modules, constants,
-# requires), so evaluating it before the suite asks for it changes nothing
-# but which definitions exist. A generator template or a script assigns or
-# calls at the top level instead, and must not run inside the test process.
+# Whether a file only defines (classes and modules whose bodies hold only
+# methods, their visibility and accessors, constants, requires and further
+# such classes), so evaluating it
+# before the suite asks for it changes nothing but which definitions exist. A
+# generator template or a script assigns or calls at the top level, and a
+# class body that sets `@limit = 100` or calls `after Parser` runs code as it
+# loads; neither may run inside the test process unasked.
 class Kimera::Execution::Definitions
-  DEFINING = [
-    Prism::ClassNode, Prism::ModuleNode, Prism::ConstantWriteNode, Prism::ConstantPathWriteNode,
-    Prism::ConstantOrWriteNode, Prism::ConstantPathOrWriteNode, Prism::SingletonClassNode
+  CONSTANTS = [
+    Prism::ConstantWriteNode, Prism::ConstantPathWriteNode, Prism::ConstantOrWriteNode, Prism::ConstantPathOrWriteNode
   ].freeze
+  BODIES = [Prism::ClassNode, Prism::ModuleNode, Prism::SingletonClassNode].freeze
   LOADING = %i[require require_relative autoload].freeze
+  DECLARING = %i[
+    private protected public module_function private_constant public_constant private_class_method
+    public_class_method attr_reader attr_writer attr_accessor alias_method
+  ].freeze
+  NAMES = [Prism::SymbolNode, Prism::StringNode, Prism::DefNode].freeze
 
   def initialize(source)
     @source = source
   end
 
-  def only?
-    program = Kimera::Syntax.parse(@source).value
-    Array(program.statements&.body).all? { |node| defining?(node) }
-  end
+  def only? = defining?(Kimera::Syntax.parse(@source).value.statements)
 
   private
 
-  def defining?(node)
-    DEFINING.any? do |kind|
-      node.is_a?(kind)
-    end || (node.is_a?(Prism::CallNode) && node.receiver.nil? && LOADING.include?(node.name))
+  def defining?(body) = body.nil? || (body.is_a?(Prism::StatementsNode) && body.body.all? { |node| definition?(node) })
+
+  def definition?(node)
+    return defining?(node.body) if BODIES.any? { |kind| node.is_a?(kind) }
+    [Prism::DefNode, Prism::AliasMethodNode, *CONSTANTS].any? { |kind| node.is_a?(kind) } ||
+      (node.is_a?(Prism::CallNode) && node.receiver.nil? && declaring?(node))
   end
+
+  def declaring?(call) = LOADING.include?(call.name) || (DECLARING.include?(call.name) && named?(call))
+
+  def named?(call) = Array(call.arguments&.arguments).all? { |name| NAMES.any? { |kind| name.is_a?(kind) } }
 end

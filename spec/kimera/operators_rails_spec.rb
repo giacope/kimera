@@ -110,6 +110,40 @@ RSpec.describe(Kimera::Operators) do
     end
   end
 
+  # R5 (CodeTriage): a PR added `length:` to a validation; deleting the whole call was killed by an old
+  # presence test, so the new constraint read as judged while no test exercised it.
+  describe "rails_validation option drops" do
+    let(:validated_src) { <<~RUBY }
+      class Repo
+        validates :name, :user_name, presence: true, length: { maximum: 100 }, if: :named?
+        validates :email, presence: true
+        validates :login, uniqueness: true, allow_nil: true
+        validate :sane
+      end
+    RUBY
+
+    it "drops each option a validates call keeps a validator without", :aggregate_failures do
+      labels = registry(validated_src, ["rails_validation"]).each.map { |m, _p| m.label }
+      expect(labels).to(
+        contain_exactly(
+          "delete `validates :name, :user_name, presence: true, length: { maximum: 100 }, if: :named?`",
+          "validates: drop presence:", "validates: drop length:", "validates: drop if:",
+          "delete `validates :email, presence: true`",
+          "delete `validates :login, uniqueness: true, allow_nil: true`", "validates: drop allow_nil:",
+          "delete `validate :sane`"
+        )
+      )
+    end
+
+    it "bakes the call without that option for the oracle", :aggregate_failures do
+      catalog = registry(validated_src, ["rails_validation"])
+      id = catalog.each.find { |m, _p| m.label == "validates: drop length:" }.first.id
+      baked = Kimera::Overlay.new(catalog).bake("app.rb", validated_src, id)
+      expect(baked).to(include("validates :name, :user_name, presence: true, if: :named?", "validates :email"))
+      expect(baked).not_to(include("length:"))
+    end
+  end
+
   describe "callback action-scope precision (only:/except:)" do
     let(:scoped_src) { <<~RUBY }
       class PostsController

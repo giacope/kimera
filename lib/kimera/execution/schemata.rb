@@ -6,9 +6,11 @@ require_relative "../synthesis/body_trim"
 require_relative "../synthesis/overlay"
 require_relative "aliases"
 require_relative "block_methods"
+require_relative "bound_lambdas"
 require_relative "definitions"
 require_relative "overrides"
 require_relative "overlay_guards"
+require_relative "pending_autoload"
 
 class Kimera::Execution::Schemata
   Woven = Struct.new(:skipped)
@@ -35,15 +37,25 @@ class Kimera::Execution::Schemata
 
   def reachable
     shut, open = @registry.files.partition { |path| shut?(path) }
-    shut.each { |path| @registry.at(path).select(&:safe?).each(&:unloaded!) }
+    shut.each { |path| unload(path, skipped.delete(path)) }
     open
   end
 
   def shut?(path)
     return false if @loaded.call(path)
     file = File.join(root, path)
-    File.file?(file) && !Kimera::Execution::Definitions.new(File.read(file, encoding: Encoding::UTF_8)).only?
+    return false unless File.file?(file)
+    !autoloaded?(path, file) && !Kimera::Execution::Definitions.new(File.read(file, encoding: Encoding::UTF_8)).only?
   end
+
+  def autoloaded?(path, file)
+    Kimera::Execution::PendingAutoload.new(file).fire!
+  rescue StandardError, ScriptError => error
+    skip(path, "#{error.class}: #{error.message}")
+    false
+  end
+
+  def unload(path, failure) = @registry.at(path).select(&:safe?).each { |point| point.unloaded!(failure) }
 
   def weave(paths) = paths.flat_map { |path| load(path) }
 
@@ -53,6 +65,7 @@ class Kimera::Execution::Schemata
 
   def announce
     skipped.each do |path, reason|
+      next unload(path, reason) unless @loaded.call(path)
       notice(path, reason)
       @registry.at(path).select(&:safe?).each { |point| point.unmutatable!("schemata setup failed (#{reason})") }
     end
@@ -62,6 +75,7 @@ class Kimera::Execution::Schemata
     file = File.join(root, path)
     return [] unless File.file?(file)
     return [] if Kimera::SelfProtection.new(file).protected?
+    Kimera::Execution::BoundLambdas.new(@registry, root).hold!(path)
     overlay(path, file)
   end
 

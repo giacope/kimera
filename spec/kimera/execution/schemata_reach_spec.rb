@@ -50,6 +50,49 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
     expect(point(registry, "reach_template.rb").unloaded?).to(be(false))
   end
 
+  # A registry of the one file, overlaid as if the suite had loaded nothing.
+  def unasked(name, body)
+    path = write(name, body)
+    registry = Kimera::RegistryScan.new(root: dir).build([path])
+    [registry, described_class.new(registry, root: dir, loaded: proc { false })]
+  end
+
+  # R5-KL4: slim's include.rb (`after Parser, Include` in its class body) ran in every worker.
+  it "never evaluates a file the suite did not load when a class body in it runs code", :aggregate_failures do
+    stub_const("ReachCore", Module.new)
+    registry, loader = unasked("reach_plugin.rb", "module ReachCore\n  @limit = 100\n  def self.big?(n) = n > 1\nend\n")
+    loader.overlay!
+    expect(ReachCore.instance_variable_get(:@limit)).to(be_nil)
+    expect(point(registry, "reach_plugin.rb").unloaded?).to(be(true))
+  end
+
+  # R5-KL4: i18n's key_value.rb needs a gem the suite never loads: 45 mutants were unmutatable, unscored.
+  it "reports a file the suite did not load, and kimera could not, uncovered with the error", :aggregate_failures do
+    source = "require \"reach_no_such_gem\"\nmodule ReachOptional\n  def self.big?(n) = n > 1\nend\n"
+    registry, loader = unasked("reach_optional.rb", source)
+    expect { loader.overlay! }.not_to(output.to_stderr)
+    optional = point(registry, "reach_optional.rb")
+    failed = "(nor could kimera load it: LoadError: cannot load such file -- reach_no_such_gem)"
+    expect([optional.unloaded?, optional.unsafe_reason]).to(eq([true, "#{Kimera::MutationPoint::NEVER} #{failed}"]))
+  end
+
+  # R5-KL5: kramdown's parser registry (`@@parsers = {}` in an autoloaded class body) was emptied.
+  it "loads an autoloaded file as the suite would, then trims it, so its class body runs once", :aggregate_failures do
+    stub_const("ReachReg", Module.new)
+    ReachReg.autoload(:Table, File.join(dir, "reach_table.rb"))
+    registry, loader = unasked("reach_table.rb", <<~RUBY)
+      module ReachReg
+        class Table
+          @@rows = ROWS = {}
+          def self.big?(n) = n > 10
+        end
+      end
+      ReachReg::Table::ROWS[:a] = 1
+    RUBY
+    expect([loader.overlay!, ReachReg::Table.class_variable_get(:@@rows)])
+      .to(match([include(*point(registry, "reach_table.rb").ids), { a: 1 }]))
+  end
+
   it "still evaluates a definitions-only file the suite did not load", :aggregate_failures do
     registry, live = overlaid(proc { |path| path != "reach_defined.rb" })
     expect(live).to(include(*point(registry, "reach_defined.rb").ids))

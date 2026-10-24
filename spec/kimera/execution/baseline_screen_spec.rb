@@ -82,6 +82,13 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
     expect(error.message).to(include("\n  t5: boom\n  … and 2 more\n"))
   end
 
+  # R5-KW4: the red tests that reached a mutant are screened the same way.
+  it "stops on the red tests that pass plainly, and lets the run go on when they fail plainly too",
+    :aggregate_failures do
+    expect { screen.plainly!(failures) }.to(raise_error(Kimera::Execution::BaselineFailure, /\Aharness error: 2 test/))
+    expect(screen(red: %w[t1 t2]).plainly!(failures)).to(be_nil)
+  end
+
   it "excludes them, coverage unknown, when they fail plainly too", :aggregate_failures do
     notice = screen(red: %w[t1 t2]).call(failures)
     expect(notice).to(include("2 test(s) fail in the baseline, in a plain run too"))

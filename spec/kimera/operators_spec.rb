@@ -14,7 +14,7 @@ RSpec.describe(Kimera::Operators) do
       index_fetch kernel_coercion respond_to_guard symbol_literal
       default_argument chain_link_deletion super_call rescue_clause
       ensure_clause assignment_deletion nil_literal regexp_anchor
-      regexp_quantifier keyword_drop visibility
+      regexp_quantifier keyword_drop visibility when_clause append_deletion
     ]
   end
   let(:default_keys) do

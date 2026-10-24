@@ -2,6 +2,59 @@
 
 ## Unreleased
 
+Field test round 5, harness: what kimera loads, runs and says.
+
+- **A test that fails only under kimera is a harness error, whatever it
+  reached.** A red baseline test that touched an in-scope mutant is rerun
+  plainly too before kimera calls the suite "not green": one that passes
+  there stops the run with "harness error: N test(s) fail under kimera but
+  pass in a plain run", the tests and the likely cause, as round 3 promised.
+  Seven of ten libraries in round 5 met "baseline suite is not green" with a
+  reproduce command that passed.
+- **Kimera loads only what the suite loads.** A file the suite never
+  requires is evaluated early only when it defines and nothing else: every
+  class and module body in it holds methods, constants and `require`s alone.
+  slim's `include.rb` (`after Parser, Include` in a class body) and a module
+  body that sets `@limit = 100` ran inside the suite and turned it red. A
+  never-loaded file Kimera could not load either (i18n's `key_value.rb` needs
+  `active_support/json`, action_policy's ruby-lsp addon) reports its mutants
+  `no_coverage`, with the error, never `unmutatable`: 45 and 50 mutants had
+  gone unscored.
+- **An autoloaded file's class body runs once.** A file an autoload names is
+  loaded through that autoload before the overlay, as the suite would load
+  it, and the overlay is then trimmed to its methods. Evaluated whole, the
+  overlay fired the autoload and then ran the class body again: kramdown's
+  `@@parsers = {}` emptied the parser registry and 1753 tests went red.
+- **A lambda a constant holds stays bound.** `BY_SYMBOL = ->(record) { ... }`
+  collected into `self.chain = [BY_SYMBOL]` at load kept the original; the
+  overlay bound a guarded copy nothing called, so its mutants read
+  `no_coverage` or survived (action_policy's LookupChain). Its body is now
+  `isolated_only`, judged in the isolated tier, like other load-time code.
+- **A library suite with no database configuration runs on several
+  workers.** Active Record loaded without a test database configured (a
+  suite that connects to `:memory:` in a `before`, cancancan) has no schema
+  to load, so the workers no longer fire Rails' per-worker schema hook, which
+  raised `AdapterNotSpecified` in each of them.
+- **`Minitest.after_run` hooks run.** Once, in the process that loaded the
+  suite, when the run ends; workers do not run them. resque's helper stops
+  the Redis it started there, which outlived every run.
+- **Messages.** A mirror whose `spec_helper` raises while `.rspec` loads it
+  reports the error, class and message, not "a coverage floor or exit
+  hook?". `kimera doctor --check-baseline` says first when the suite was
+  killed by a signal ("killed by SIGKILL before it printed a summary — out
+  of memory?") instead of naming a passing example whose title held "error".
+- **Validations are judged option by option.** `rails_validation` also drops
+  each option of a `validates` call that keeps a validator without it
+  (`length:` beside `presence:`, `if:`), so a pull request that adds a
+  constraint gets a mutant for it; deleting the whole call was killed by an
+  old presence test (CodeTriage).
+- **Two new operators, and `kimera init` writes them.** `when_clause` drops
+  one `when` of a `case` that has another, and `append_deletion` deletes a
+  `<<` statement (`@log << name`), which `statement_deletion` leaves alone.
+  `kimera init` now writes `operators:` for every new project: the core, these
+  two, and `rails` on a Rails app. Existing configurations are unchanged: one
+  without `operators:` keeps the core alone.
+
 - **A `def` inside a block a DSL runs is covered by the tests that run it.**
   `RSpec.shared_examples_for "x" do def be_boolean ... end end` (dry-types'
   `lib/dry/types/spec/types.rb`), `shared_context` and `Module.new` blocks

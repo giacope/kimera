@@ -44,6 +44,32 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     FileUtils.remove_entry(dir)
   end
 
+  # R5-KL6: resque's helper stops the Redis it started in Minitest.after_run.
+  describe "the suite's after_run hooks" do
+    around do |example|
+      kept = Minitest.class_variable_get(:@@after_run)
+      Minitest.class_variable_set(:@@after_run, [])
+      example.run
+    ensure
+      Minitest.class_variable_set(:@@after_run, kept)
+    end
+
+    it "runs them once, last registered first, in the process that loaded the suite" do
+      ran = []
+      Minitest.after_run { ran << :first }
+      Minitest.after_run { ran << :second }
+      2.times { adapter.finish }
+      expect(ran).to(eq(%i[second first]))
+    end
+
+    it "leaves them to that process: a worker forked from it does not run them" do
+      ran = []
+      Minitest.after_run { ran << :ran }
+      adapter.tap { allow(Process).to(receive(:pid).and_return(-1)) }.finish
+      expect(ran).to(be_empty)
+    end
+  end
+
   it "enumerates Class#method test ids" do
     ids = ["DemoKimeraTest#test_passes", "DemoKimeraTest#test_conditional", "DemoKimeraTest#test_skipped"]
     expect(adapter.test_ids).to(include(*ids))
