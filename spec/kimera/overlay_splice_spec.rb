@@ -199,7 +199,8 @@ RSpec.describe(Kimera::Overlay) do
 
     it "writes a definition whole, on its lines, when an alternative must break a line", :aggregate_failures do
       program = "def m(s)\n  s.match?(/a\n   b/x) && s.size > 1\nend\n"
-      result, = woven(program, %w[boolean_connective])
+      result = nil
+      expect { result, = woven(program, %w[boolean_connective]) }.not_to(output.to_stderr)
       expect(
         [
           result.source.lines.size,
