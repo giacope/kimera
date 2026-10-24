@@ -38,7 +38,6 @@ class Kimera::Execution::BoundLambdas
   private
 
   def held(node)
-    return [] if node.is_a?(Prism::DefNode)
     return [node.value.location] if bound?(node)
     node.compact_child_nodes.flat_map { |child| held(child) }
   end

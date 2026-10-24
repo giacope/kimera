@@ -217,6 +217,12 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
       .to(raise_error(Kimera::Execution::BaselineFailure, "harness error: t1"))
   end
 
+  it "screens nothing when it has no project root to rerun the tests in", :aggregate_failures do
+    allow(Kimera::Execution::BaselineScreen).to(receive(:new))
+    expect { measure({ "t1" => :fail }) }.to(raise_error(Kimera::Execution::BaselineFailure))
+    expect(Kimera::Execution::BaselineScreen).not_to(have_received(:new))
+  end
+
   it "screens nothing when the baseline is green" do
     screen = screening(true)
     screened(screen, {})

@@ -30,7 +30,6 @@ class Kimera::Execution::PendingAutoload
   private
 
   def opened(node, outer)
-    return [] if node.is_a?(Prism::DefNode)
     inside = ->(path) { node.compact_child_nodes.flat_map { |child| opened(child, path) } }
     return inside.call(outer) unless OPENED.any? { |kind| node.is_a?(kind) }
     path = [*outer, *node.constant_path.full_name_parts.reject(&:empty?)]
@@ -40,7 +39,7 @@ class Kimera::Execution::PendingAutoload
   def resolve(path)
     path.reduce(Object) do |namespace, part|
       break unless namespace.is_a?(Module) && namespace.const_defined?(part, false)
-      namespace.const_get(part, false)
+      namespace.const_get(part)
     end
   end
 end

@@ -63,7 +63,7 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
     registry, loader = unasked("reach_plugin.rb", "module ReachCore\n  @limit = 100\n  def self.big?(n) = n > 1\nend\n")
     loader.overlay!
     expect(ReachCore.instance_variable_get(:@limit)).to(be_nil)
-    expect(point(registry, "reach_plugin.rb").unloaded?).to(be(true))
+    expect(point(registry, "reach_plugin.rb").unsafe_reason).to(eq(Kimera::MutationPoint::NEVER_LOADED))
   end
 
   # R5-KL4: i18n's key_value.rb needs a gem the suite never loads: 45 mutants were unmutatable, unscored.
@@ -120,6 +120,29 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
     registry, loader = chained
     rows = point(registry, "reach_rows.rb").ids
     expect([loader.overlay!, ReachChain::Table::ROWS]).to(match([include(*rows), { b: 1 }]))
+  end
+
+  # A file the suite never loads opens a class that shares a name with a constant its superclass would
+  # autoload: that file is not one the suite would load.
+  def stray
+    stub_const("ReachBase", Class.new)
+    stub_const("ReachKid", Class.new(ReachBase))
+    ReachBase.autoload(:Stray, write("reach_stray.rb", "ReachSettings[:stray] = true\nclass ReachBase::Stray; end\n"))
+    source = "class ReachKid\n  @limit = 1\n  class Stray\n    def self.big?(n) = n > 1\n  end\nend\n"
+    unasked("reach_kid.rb", source).last
+  end
+
+  it "fires no autoload an ancestor holds for a constant of the same name" do
+    stray.overlay!
+    expect(ReachSettings).not_to(have_key(:stray))
+  end
+
+  # The project reached through a symlink: Ruby records the file the autoload loaded by its real path.
+  it "knows such a file loaded by its real path too", :aggregate_failures do
+    registry, = chained
+    File.symlink(dir, link = File.join(dir, "linked"))
+    expect(described_class.new(registry, root: link, loaded: proc { false }).overlay!).not_to(be_empty)
+    expect(point(registry, "reach_rows.rb").unloaded?).to(be(false))
   end
 
   it "still evaluates a definitions-only file the suite did not load", :aggregate_failures do
