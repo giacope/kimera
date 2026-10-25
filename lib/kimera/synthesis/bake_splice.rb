@@ -22,9 +22,10 @@ class Kimera::BakeSplice
 
       def self.grouped(from, to, text) = new(from, to, text, from + text.bytesize)
 
+      # The parentheses this attempt added: a parentheses node spanning them.
       def grouped?(node)
         location = node.location
-        node.type == :parentheses_node && location.start_offset == from && location.end_offset == grouping
+        node.type == :parentheses_node && [location.start_offset, location.end_offset] == [from, grouping]
       end
     end
 

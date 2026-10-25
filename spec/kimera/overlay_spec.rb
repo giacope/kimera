@@ -578,6 +578,17 @@ RSpec.describe(Kimera::Overlay) do
       zero = registry.each.find { |mutant, point| point.original_source == "-1" && mutant.directive["value"].zero? }
       expect(overlay.bake("x.rb", source, zero.first.id)).to(eq("def m(a)\n  a > 0 && -(0)\nend\n"))
     end
+
+    # Only the parentheses the attempt added are read back as its expression;
+    # the file's own stay.
+    it "bakes it so beside parentheses the file wrote itself" do
+      program = "def m(a)\n  (a > 0) && --1\nend\n"
+      catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: %w[numeric_literal]))
+        .source(program, file: "x.rb")
+      zero = catalog.each.find { |mutant, point| point.original_source == "-1" && mutant.directive["value"].zero? }
+      expect(described_class.new(catalog).bake("x.rb", program, zero.first.id))
+        .to(eq("def m(a)\n  (a > 0) && -(0)\nend\n"))
+    end
   end
 
   # From Lobsters: Ruby reads "\xFF" in a UTF-8 file as that byte, but the
@@ -1006,12 +1017,14 @@ RSpec.describe(Kimera::Overlay) do
       expect(result.source).to(include("? (alias c d) : "))
     end
 
-    # Only `::Kimera::RUNTIME.active?` is a guard; a lookalike is the project's own call.
+    # Only `::Kimera::RUNTIME.active?` is a guard; a lookalike is the project's
+    # own call. The rescue clause's mutant has the method written whole, where
+    # the guards written are read back from the tree.
     it "reports the guards it wrote, not calls that look like them" do
       source = "class Lookalike\n  def m(a)\n    ::Kimera::Flags.active?(9)\n    Foo::Bar.active?(8)\n    " \
-        "a > 1\n  end\nend\n"
-      result, registry = woven(source, %w[comparison])
-      expect(result.mutant_ids).to(eq(registry.points.flat_map(&:ids)))
+        "a.active?(7)\n    a > 1\n  rescue TypeError\n    0\n  end\nend\n"
+      result, registry = woven(source, %w[comparison rescue_clause])
+      expect(result.mutant_ids).to(match_array(registry.points.flat_map(&:ids)))
     end
 
     def paths
@@ -1034,6 +1047,17 @@ RSpec.describe(Kimera::Overlay) do
       expect(written).to(include("ReopenPath::Point = if (ReopenPath).const_defined?(:Point, false)\n"))
       expect(written).to(include("  (ReopenPath).const_get(:Point)\n", "ReopenPath::Point.class_eval {"))
       expect(written).to(include("::ReopenTop = if (::Object).const_defined?(:ReopenTop, false)"))
+    end
+
+    it "reopens a value object named by a constant in the tree, in its lexical scope" do
+      source = "module ReopenPlain\n  Point = Data.define(:x) do\n    def big?(y) = x > y\n  end\nend\n"
+      registry = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: %w[comparison])).source(
+        source,
+        file: "x.rb"
+      )
+      written = Kimera::Scribe.new(Kimera::Guardrail.new(Kimera::SourceMap.new(source), registry.points).tree).source
+      plain = Module.new.tap { |mod| mod.module_eval(written) }::ReopenPlain
+      expect([plain::Point.new(x: 2).big?(1), plain.method_defined?(:big?)]).to(eq([true, false]))
     end
 
     # A def is a value too: its tail mutant guards the def, so the method that
