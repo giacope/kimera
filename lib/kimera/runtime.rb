@@ -5,13 +5,6 @@ require "tmpdir"
 module Kimera
 end
 
-# A Module, so the runtime is Ractor-shareable: mutated code that runs in a
-# non-main Ractor reads the active mutant (an Integer or nil) like any other
-# code, and records what it reaches in the open ledgers' spill files, whose
-# paths it can read.
-#
-# It holds all of kimera's process-wide state, and so is the one object that
-# reassigns its own fields at run time.
 # rubocop:disable-next Kata/FrozenState, Kata/NoSetter -- the process-wide mutation switch every thread and Ractor reads
 class Kimera::Runtime < Module
   SOURCE_PATH = File.expand_path(__FILE__)
@@ -87,9 +80,6 @@ class Kimera::Runtime < Module
 
   def reset! = self.active = nil
 
-  # Switches a mutant on for the block, then back to the one on before, so code
-  # that borrows the switch (kimera's specs, while kimera runs on itself) hands
-  # the run's mutant back instead of turning it off.
   def during(id)
     previous = @active
     self.active = id
@@ -98,8 +88,6 @@ class Kimera::Runtime < Module
     self.active = previous
   end
 
-  # Whether an overlay is re-running class bodies, so the guards it installs
-  # in Rails skip declarations those bodies already made.
   def overlaying? = @overlaying
 
   def overlay
@@ -141,7 +129,6 @@ class Kimera::Runtime < Module
   def hidden = @_hidden ||= {}
 end
 
-# A visibility mutant: while it is active, the method's public names are private.
 Kimera::Runtime::Flip =
   Struct.new(:owner, :definition, :names) do
     def conceal
@@ -160,7 +147,6 @@ Kimera::Runtime::Flip =
     end
   end
 
-# A forked child keeps recording what it reaches into the parent's open ledgers.
 module Kimera::Runtime::Forks
   def _fork
     leaks = Kimera::RUNTIME.leaks

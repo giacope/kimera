@@ -1,10 +1,6 @@
 # frozen_string_literal: true
 
 module KimeraEval
-  # S1: wall time on real suites, and (dry-inflector) verdicts against the
-  # oracle: examples/sample_app at --jobs 1 and 4, dry-inflector's lib with
-  # --operators all at --jobs 4, and kimera's own operators/ and rewrite/
-  # mutated by itself at --jobs 4 (its own .kimera.yml).
   class SpeedCase < Case
     ID = "S1"
     TITLE = "Speed on real suites (sample_app, dry-inflector, kimera self-host subset)"

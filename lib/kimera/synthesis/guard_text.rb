@@ -1,10 +1,5 @@
 # frozen_string_literal: true
 
-# The guard spliced where one expression stood: the original slice first,
-# with the guards of the expressions inside it, then each mutant's
-# alternative, tested in order.
-#   (!(::Kimera::RUNTIME.active?(1) || ::Kimera::RUNTIME.active?(2)) ? (a > b)
-#     : ::Kimera::RUNTIME.active?(1) ? (a >= b) : (a < b))
 Kimera::GuardText =
   Data.define(:node, :entries) do
     def from = node.location.start_offset

@@ -5,11 +5,6 @@ module Kimera
   end
 end
 
-# The suite's Minitest.after_run hooks, last registered first, as autorun
-# runs them at exit. None can end kimera's run: one that exits or raises is
-# reported and the next one runs. SimpleCov's own hook is left out: it would
-# write the coverage of kimera's process over the project's report, and it
-# exits 1 when it sees kimera's error in flight, so the run ended unexplained.
 class Kimera::Frameworks::AfterRun
   COVERAGE = %r{/simplecov[^/]*/lib/}
 

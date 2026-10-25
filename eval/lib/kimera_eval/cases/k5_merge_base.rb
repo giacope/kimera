@@ -1,9 +1,6 @@
 # frozen_string_literal: true
 
 module KimeraEval
-  # K5: `--since main` on a feature branch. The branch changed alpha
-  # (committed) and gamma (uncommitted); main moved on and changed beta after
-  # the branch point. Only alpha's and gamma's mutants belong to the change.
   class AncestryCase < Case
     ID = "K5"
     TITLE = "--since diffs against the merge-base, keeping uncommitted work"

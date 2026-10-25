@@ -3,11 +3,6 @@
 module Kimera
   class Scribe
     class Place
-      # The source text of each subtree under a node that reads the same
-      # wherever an expression may stand: no heredoc, whose body lies outside
-      # it, no command call, modifier or list without brackets, whose reading
-      # depends on what is around it, nothing that is only a piece of a larger
-      # construct, and nothing a rewrite built from text of its own.
       class Kept
         LOOSE = %i[
           statements_node arguments_node parameters_node block_parameters_node embedded_statements_node

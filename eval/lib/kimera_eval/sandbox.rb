@@ -4,7 +4,6 @@ require "fileutils"
 require "tmpdir"
 
 module KimeraEval
-  # Disposable copies of fixtures, all under one workspace removed at exit.
   class Sandbox
     IDENTITY = %w[AUTHOR COMMITTER]
       .flat_map { |role| [["GIT_#{role}_NAME", "eval"], ["GIT_#{role}_EMAIL", "eval@example.com"]] }.to_h.freeze

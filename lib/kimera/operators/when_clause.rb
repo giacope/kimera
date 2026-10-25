@@ -2,9 +2,6 @@
 
 require_relative "base"
 
-# Drops one `when` of a `case` that has another, so a branch no test takes
-# shows up (`when 3000..Float::INFINITY then "critical"`); the value it would
-# have chosen falls through to the next `when` or the `else`.
 class Kimera::Operators::WhenClause < Kimera::Operators::Base
   def key = "when_clause"
 

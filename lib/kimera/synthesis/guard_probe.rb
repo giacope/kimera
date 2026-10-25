@@ -1,9 +1,5 @@
 # frozen_string_literal: true
 
-# A visibility mutant, spliced: a probe at the head of the method's body
-# records which tests reach it, and a registration after the definition hides
-# the method while the mutant is on. Only a definition that stands as a
-# statement can be followed by one.
 class Kimera::GuardProbe
   def initialize(node, ids)
     @node = node

@@ -1,9 +1,6 @@
 # frozen_string_literal: true
 
 module KimeraEval
-  # K8: the TLA+ checks from a clean checkout: the pinned tla2tools.jar
-  # downloads and verifies, the worker pool's traces validate against the
-  # model, and (unless --quick) the model checks CI runs pass.
   class FormalCase < Case
     ID = "K8"
     TITLE = "TLA+ model and trace checks run reproducibly"

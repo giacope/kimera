@@ -5,10 +5,6 @@ module Kimera
   end
 end
 
-# The globs a test suite reads: its test patterns, and everything under each
-# pattern's fixed top folder (spec/, test/), where its helpers, support files
-# and fixtures live. An absolute pattern or one that starts with a glob has no
-# such folder.
 class Kimera::Incremental::SuiteFiles
   FOLDER = %r{\A([^/*?\[\{]+)/}
 

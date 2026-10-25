@@ -10,15 +10,6 @@ module Kimera
   end
 end
 
-# A lambda or proc a constant holds was made once, at load, and whatever the
-# suite took from the constant then (`self.chain = [BY_SYMBOL]`) keeps that
-# object. Kimera cannot weave guards into it, and binding the constant to a
-# guarded copy would leave the registry calling the original, so the copy's
-# coverage read "no test executed this line". The constant stays bound; its
-# body is judged in the isolated tier, like other code that ran at load. So
-# are its parameters' defaults (`strict: false`), which a constant's value
-# taints for the reload tier: reloading the file binds a new lambda the
-# registry never calls either, so their mutants survived.
 class Kimera::Execution::BoundLambdas
   REASON = Kimera::MutationPoint::BOUND_REASON
   WRITES = [

@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-# A source's tree as a splice reads it: each node by its span and type, and
-# each node's parent.
 class Kimera::SpliceIndex
   def initialize(root)
     @root = root

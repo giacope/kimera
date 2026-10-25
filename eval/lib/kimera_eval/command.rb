@@ -5,12 +5,6 @@ require "optparse"
 module KimeraEval
   Settings = Struct.new(:kimera, :out, :only, :quick, :keep, :baseline, keyword_init: true)
 
-  # eval/run --kimera PATH [--only K1,K4] [--out FILE] [--quick] [--keep]
-  #   [--baseline FILE]
-  # With --baseline, exits 1 if a case fails that FILE does not record as
-  # failing: a regression from the recorded scoreboard, or a new case that
-  # does not pass. FILE is read before --out is written, so both can name
-  # the same file.
   class Command
     FLAGS = [
       ["--kimera PATH", "kimera checkout to evaluate", ->(settings, path) { settings.kimera = path }],

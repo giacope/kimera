@@ -7,8 +7,6 @@ module Kimera
   end
 end
 
-# Putting a method back warns "method redefined" under $VERBOSE, and a suite
-# may turn warnings into errors: kimera's own redefinitions say nothing.
 class Kimera::Execution::Redefinition
   def initialize(holder, name)
     @holder = holder

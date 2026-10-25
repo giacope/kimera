@@ -1,10 +1,6 @@
 # frozen_string_literal: true
 
 module Kimera
-  # Code the project's authors did not write by hand, left out of a glob's
-  # default scope: vendored copies, generator templates (copied into a host
-  # app, never loaded here), and files a parser generator wrote. Naming the
-  # file itself still mutates it.
   class ForeignFile
     PLACES = ["vendor/**/*", "**/vendor/**/*", "**/generators/**/templates/**/*"].freeze
     GRAMMARS = %w[.rl .y .racc .treetop .rex].freeze

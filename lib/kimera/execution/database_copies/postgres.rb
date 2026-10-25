@@ -7,11 +7,6 @@ end
 
 class Kimera::Execution::DatabaseCopies; end
 
-# Copies a PostgreSQL database with CREATE DATABASE ... TEMPLATE, which needs
-# no other session on the template: the parent has disconnected, and no
-# worker or mirror runs yet. Active Record's own database tasks connect to the
-# server's maintenance database to create and drop; the parent's connection
-# settings are restored after, unconnected.
 class Kimera::Execution::DatabaseCopies::Postgres
   EXISTS = "SELECT 1 FROM pg_database WHERE datname = %s"
 

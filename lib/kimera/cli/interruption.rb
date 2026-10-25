@@ -5,9 +5,6 @@ module Kimera
   end
 end
 
-# Ctrl-C or SIGTERM: what kimera started is stopped on the way out (each
-# child's process group), so one line says so, not a backtrace, and the exit
-# status is the shell's 128 + N. A forked worker re-raises: it is not the CLI.
 class Kimera::CLI::Interruption
   def initialize(errors, leader = Process.pid)
     @errors = errors

@@ -24,8 +24,6 @@ module Kimera
   end
 end
 
-# A test framework's suite as kimera drives it: it loads the test files, names
-# each test by id, and runs the tests a mutant needs.
 class Kimera::Frameworks::Suite
   def source(files)
     raise(NotImplementedError)

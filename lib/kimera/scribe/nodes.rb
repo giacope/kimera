@@ -4,8 +4,6 @@ require_relative "../parsing/syntax"
 
 module Kimera
   class Scribe
-    # Builds the Prism nodes a rewrite adds to a tree: each one is read out of a
-    # parsed snippet and copied, so no rewrite depends on a node's constructor.
     module Nodes
       SLASH = %r{(?<!\\)((?:\\\\)*)/}
       DELIMITERS = [%w[/ /], %w[{ }], %w[[ ]], %w[( )], %w[< >], %w[| |], %w[! !]].freeze

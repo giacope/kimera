@@ -7,14 +7,6 @@ require_relative "line_pad"
 require_relative "splice_diff"
 require_relative "splice_reopening"
 
-# One baked mutant written into its original source: the rewritten node's
-# text replaces the node's span, so comments, magic comments, `__END__` and
-# its data, and every line outside the span stay as they were. The text is
-# written to the span's lines (Kimera::LinePad), in parentheses when nothing
-# else reads right; one that would break more lines than the span is not
-# written there. Each attempt must read back as the whole mutated tree, or
-# the next one out is tried: the smallest node the rewrite changed, then
-# each node around it.
 class Kimera::BakeSplice
   Attempt =
     Data.define(:from, :to, :text, :grouping) do
@@ -22,16 +14,12 @@ class Kimera::BakeSplice
 
       def self.grouped(from, to, text) = new(from, to, text, from + text.bytesize)
 
-      # The parentheses this attempt added: a parentheses node spanning them.
       def grouped?(node)
         location = node.location
         node.type == :parentheses_node && [location.start_offset, location.end_offset] == [from, grouping]
       end
     end
 
-  # Where a bake may be written, smallest first: the nodes inside the point's
-  # that the rewrite changed, the point's own, then each node around it up to
-  # the program's statements.
   Candidates =
     Data.define(:changed) do
       def to_a = [*Kimera::SpliceDiff.new(*changed.first).path.drop(1).reverse, *changed[0...-1]]

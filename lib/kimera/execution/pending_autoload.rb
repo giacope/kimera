@@ -8,16 +8,6 @@ module Kimera
   end
 end
 
-# A file an autoload names (`autoload :Table, "reg/table"`), or one such a
-# file requires, loads when the suite first refers to the constant, often
-# after the overlay is in place. Had the overlay been evaluated whole, opening
-# the class would fire the autoload, and the overlay's own class body would
-# then run a second time over the one the file just ran (kramdown's
-# `@@parsers = {}` emptied its parser registry; parser/kramdown/list.rb's
-# `define_parser(:list, ...)` raised). Resolving, first, every pending
-# autoload along the constants the file opens loads what the suite would
-# load, once, as written; a file that is then loaded is trimmed to the
-# methods its overlay guards.
 class Kimera::Execution::PendingAutoload
   OPENED = [Prism::ClassNode, Prism::ModuleNode].freeze
 

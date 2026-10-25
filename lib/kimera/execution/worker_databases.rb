@@ -6,9 +6,6 @@ require_relative "numbered_databases"
 require_relative "parallel_databases"
 require_relative "parent_connections"
 
-# Gives each warm worker its own test database. The parent loaded the suite
-# and ran its suite hooks once; a worker runs Rails' parallel after-fork hooks
-# only, as Rails' own parallel workers do, never the suite's hooks again.
 class Kimera::Execution::WorkerDatabases
   LOCK_WAITS = { /postg/i => "SET lock_timeout = '5s'", /mysql|trilogy/i => "SET SESSION lock_wait_timeout = 5" }.freeze
   SHARED = "kimera: the %d workers share one test database (%s): Active Record is loaded, but neither Rails' " \

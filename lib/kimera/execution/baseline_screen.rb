@@ -8,12 +8,6 @@ require_relative "failure_listing"
 require_relative "suite_capture"
 require_relative "suite_env"
 
-# A test that fails in kimera's baseline has no trustworthy coverage, so
-# kimera cannot say it covers no in-scope mutant. It reruns those tests in a
-# plain process: one that passes there failed only under kimera, a harness
-# error that stops the run; only tests that fail plainly too are excluded.
-# A red test that reached a mutant is screened the same way before kimera
-# calls the baseline not green.
 class Kimera::Execution::BaselineScreen
   CAUSES = {
     parallel: "they ran in workers forked from the one process that loaded the suite: state the suite sets up " \

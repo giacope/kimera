@@ -5,9 +5,6 @@ module Kimera
   end
 end
 
-# Whether a project is a Rails application, or a Rails engine with a dummy
-# app: an engine is any lib/**/*.rb (a bounded scan) that subclasses
-# Rails::Engine or calls isolate_namespace, not only lib/**/engine.rb.
 class Kimera::CLI::RailsLayout
   DUMMIES = %w[spec/dummy test/dummy].freeze
   ENGINE = /<\s*(?:::)?Rails::Engine\b|^\s*isolate_namespace\b/

@@ -9,11 +9,6 @@ module Kimera
   end
 end
 
-# What a coverage map was measured against: the commit, Ruby, the settings
-# that decide what runs, the sources it covers, and every other file the
-# suite reads (its tests, their helpers and fixtures, .rspec, the lockfile, a
-# Rails app's config and schema). Files git ignores are left out: a suite
-# rewrites some of them (RSpec's examples.txt) on every run.
 class Kimera::Incremental::Fingerprint
   CONFIG = %w[.rspec .rspec-local Gemfile.lock config/**/* db/schema.rb db/structure.sql].freeze
   SETTINGS = %i[

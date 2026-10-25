@@ -1,10 +1,6 @@
 # frozen_string_literal: true
 
 module KimeraEval
-  # K7: kimera and its suite with LANG unset and with LANG=C. A project with
-  # UTF-8 comments, strings, method names and test descriptions goes through
-  # run, report, mutant and doctor; the suite's locale-sensitive specs run
-  # under both locales.
   class LocaleCase < Case
     ID = "K7"
     TITLE = "Locale-independent: LANG unset and LANG=C"

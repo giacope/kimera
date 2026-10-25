@@ -5,8 +5,6 @@ module Kimera
   end
 end
 
-# The first line of each failure, and, for a failure given as [message,
-# detail], the first lines of its detail: what a lost test's worker left.
 Kimera::Execution::FailureListing =
   Data.define(:failures) do
     limit = 5

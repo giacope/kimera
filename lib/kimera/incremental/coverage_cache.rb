@@ -8,12 +8,6 @@ module Kimera
   end
 end
 
-# --reuse-coverage. A full run stores its baseline's coverage map. A --since
-# run whose Ruby, settings, tests, support and config files match the stored
-# map's runs only the baseline tests that reached a source file changed since
-# the map was built or one in scope, and tests the map does not know: every
-# test that can cover an in-scope mutant gets a fresh baseline. Otherwise it
-# runs the full baseline and says why.
 class Kimera::Incremental::CoverageCache
   PATH = "tmp/kimera/coverage.json"
   MISSING = "none is stored at #{PATH}; a full run with --reuse-coverage stores one".freeze

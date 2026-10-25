@@ -3,8 +3,6 @@
 require "bundler"
 
 module KimeraEval
-  # K10: the README names every gem kimera installs at runtime: the closure
-  # of the gemspec's runtime dependencies, as Bundler resolves it.
   class DependenciesCase < Case
     ID = "K10"
     TITLE = "README names the whole runtime dependency closure"

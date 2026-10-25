@@ -1,13 +1,6 @@
 # frozen_string_literal: true
 
 module KimeraEval
-  # H1: an external holdout. Twelve projects that leak state between tests
-  # in different ways, written by another agent blind to kimera's sources,
-  # tests and this eval, with that agent's own oracle (eval/holdout/README.md).
-  # Each runs under `kimera run --operators all --jobs 2`; the holdout oracle
-  # bakes every reported mutant into a copy and runs plain rspec in a new
-  # process. A false no_coverage is a mutant kimera calls uncovered that the
-  # plain suite kills.
   class HoldoutCase < Case
     ID = "H1"
     TITLE = "External holdout: 12 state-leak projects and an oracle written blind to kimera"

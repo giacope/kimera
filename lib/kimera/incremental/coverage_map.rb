@@ -8,8 +8,6 @@ module Kimera
   end
 end
 
-# A full baseline's coverage, by source file: which tests reached it, beside
-# the fingerprint it was measured against and every test the suite held.
 class Kimera::Incremental::CoverageMap
   FORMAT = 1
 

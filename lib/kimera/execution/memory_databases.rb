@@ -5,12 +5,6 @@ module Kimera
   end
 end
 
-# An in-memory SQLite database lives only in the process that opened it: a
-# fork inherits a private copy holding the schema the suite loaded, while a
-# new connection (or a renamed one) starts empty. sqlite3 2.x closes every
-# writable handle a fork inherits, and Active Record discards inherited pools;
-# an in-memory database is no file two processes could corrupt, so kimera's
-# forks keep it (SPARED, INHERITED).
 class Kimera::Execution::MemoryDatabases
   NAMES = /\A(?::memory:|file::memory:)|[?&]mode=memory\b/
   NAMED = ->(config) { config.adapter.to_s.start_with?("sqlite") && config.database.to_s.match?(NAMES) }

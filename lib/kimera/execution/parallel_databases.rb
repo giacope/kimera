@@ -5,15 +5,6 @@ module Kimera
   end
 end
 
-# Which database each warm worker and isolated mirror gets. Rails 8.1 added
-# ActiveSupport.parallelize_test_databases; before it, the after-fork hook
-# active_record/test_databases registers gave each parallel worker its own
-# database whenever it was registered. TEST_ENV_NUMBER follows parallel_tests:
-# the first process keeps the plain name, the nth appends n. A schema path
-# Active Record cannot work out (a suite without Rails has no db_dir) is no
-# schema to load: the worker copies the database instead. Nor is a suite with
-# no test database configured (a library that connects in a `before`): its
-# workers connect as it does.
 class Kimera::Execution::ParallelDatabases
   VARIABLE = "TEST_ENV_NUMBER"
 

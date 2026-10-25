@@ -25,8 +25,6 @@ require_relative "scribe/rescues"
 require_relative "scribe/patterns"
 
 module Kimera
-  # Writes a Prism tree back as Ruby source that reads as the same tree, and
-  # reads source into such a tree.
   class Scribe
     FORMS = [
       Keyword, Variable, Reference, Local, Numeral, Atom, Characters, Command, Path, Embedded,
@@ -59,7 +57,6 @@ module Kimera
       closed?(body) ? "#{text}\n" : text
     end
 
-    # Writes the node to stand where `original` stands in `root`.
     def at(root, original) = Scribe.new(@node, Place.of(root, original))
 
     def joined = Scribe.new(@node, @place.joined)

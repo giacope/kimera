@@ -69,13 +69,10 @@ module Kimera
 
     def self.parse(source, **) = Prism.parse(source, **)
 
-    # The scope a directive's snippet parses in: a method body that may forward
-    # its arguments (`*`, `**`, `&`, `...`).
     FORWARDING = Prism.scope(forwarding: %i[* ** & ...])
 
     BRANCHES = ->(conditional) { Kimera::Branches.new(conditional).bodies }
 
-    # A rescue clause and every one after it.
     RESCUES = ->(clause) { clause ? [clause, *RESCUES.call(clause.subsequent)] : [] }
   end
 end

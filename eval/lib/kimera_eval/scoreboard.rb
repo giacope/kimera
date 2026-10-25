@@ -4,7 +4,6 @@ require "json"
 require "time"
 
 module KimeraEval
-  # Collects case results, writes them as JSON and prints a Markdown table.
   class Scoreboard
     HEADER = ["| Gap | Case | Pass | Headline |", "| --- | --- | --- | --- |"].freeze
 
@@ -28,7 +27,6 @@ module KimeraEval
       File.write(path, "#{JSON.pretty_generate(to_h)}\n")
     end
 
-    # The ids of the cases that did not pass, here or in a written scoreboard's.
     def failing(cases = @cases) = cases.reject { |_id, result| result["pass"] }.keys
 
     def markdown = [*HEADER, *@cases.map { |id, result| line(id, result) }].join("\n")

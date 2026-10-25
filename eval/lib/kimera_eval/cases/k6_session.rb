@@ -1,9 +1,6 @@
 # frozen_string_literal: true
 
 module KimeraEval
-  # K6: a session saved before the tests changed. Two tests are deleted
-  # between runs; a resumed run must not keep the kills they made. Each
-  # resumed verdict is compared with a fresh run's on the same tree.
   class SessionCase < Case
     ID = "K6"
     TITLE = "--session drops verdicts once the tests change"

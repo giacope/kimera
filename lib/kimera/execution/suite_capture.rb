@@ -3,8 +3,6 @@
 require "tempfile"
 require_relative "child_process"
 
-# Runs the suite in its own process group, which a terminal's Ctrl-C does not
-# reach: when kimera is interrupted or terminated, it stops the whole group.
 class Kimera::Execution::SuiteCapture
   include Kimera::Execution::ChildProcess
 

@@ -8,11 +8,6 @@ require "kimera/cli/run"
 module KimeraEval
 end
 
-# One mutant's file, baked. This script runs under the kimera checkout being
-# evaluated, in the project directory: it builds the registry `kimera run ARGV`
-# would build and prints, for each mutant id read from stdin, the whole source
-# of its file with that one mutant applied (what --isolated would run), or why
-# it can't be baked.
 class KimeraEval::Bake
   def initialize(registry)
     @registry = registry
