@@ -27,6 +27,71 @@ RSpec.describe(Kimera::Operators) do
 
   def active(id, &) = Kimera::RUNTIME.during(id, &)
 
+  # R5 (CodeTriage): `Repo#color`'s seven branches had no mutant with init's operators.
+  describe "when_clause" do
+    let(:code) { <<~RUBY }
+      class ClauseTier
+        def color(count)
+          case count
+          when 0..999 then "low"
+          when 1000..2999
+            "high"
+          else "critical"
+          end
+        end
+
+        def only(x)
+          case x
+          when 1 then :one
+          end
+        end
+      end
+    RUBY
+
+    before { stub_const("ClauseTier", Class.new) }
+
+    it "drops each `when` of a case that has another, and none of a case with one" do
+      expect(labels(code, "when_clause")).to(eq(["drop `when 0..999 then \"low\"`", "drop `when 1000..2999`"]))
+    end
+
+    it "falls through to the next branch when flipped", :aggregate_failures do
+      live(code, "when_clause") do |ids|
+        expect(ClauseTier.new.color(5)).to(eq("low"))
+        expect(active(ids.fetch("drop `when 0..999 then \"low\"`")) { ClauseTier.new.color(5) }).to(eq("critical"))
+        expect(active(ids.fetch("drop `when 1000..2999`")) { ClauseTier.new.color(1500) }).to(eq("critical"))
+      end
+    end
+  end
+
+  # R5 (Rails apps): 205 non-tail `<<` statements were never mutated by any operator.
+  describe "append_deletion" do
+    let(:code) { <<~RUBY }
+      class ClauseLog
+        def note(log, name)
+          log << name
+          name.size
+        end
+
+        def joined(a, b) = a << b
+        def shifted(n) = [1 << n]
+      end
+    RUBY
+
+    before { stub_const("ClauseLog", Class.new) }
+
+    it "deletes a statement that appends with <<, not an operand" do
+      expect(labels(code, "append_deletion")).to(eq(["delete `log << name`", "delete `a << b`"]))
+    end
+
+    it "leaves the appended value out when flipped" do
+      live(code, "append_deletion") do |ids|
+        log = []
+        active(ids.fetch("delete `log << name`")) { ClauseLog.new.note(log, "x") }
+        expect(log).to(be_empty)
+      end
+    end
+  end
+
   describe "super_call" do
     let(:code) { <<~RUBY }
       class ClauseParent

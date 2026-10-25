@@ -50,6 +50,101 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
     expect(point(registry, "reach_template.rb").unloaded?).to(be(false))
   end
 
+  # A registry of the one file, overlaid as if the suite had loaded nothing.
+  def unasked(name, body)
+    path = write(name, body)
+    registry = Kimera::RegistryScan.new(root: dir).build([path])
+    [registry, described_class.new(registry, root: dir, loaded: proc { false })]
+  end
+
+  # R5-KL4: slim's include.rb (`after Parser, Include` in its class body) ran in every worker.
+  it "never evaluates a file the suite did not load when a class body in it runs code", :aggregate_failures do
+    stub_const("ReachCore", Module.new)
+    registry, loader = unasked("reach_plugin.rb", "module ReachCore\n  @limit = 100\n  def self.big?(n) = n > 1\nend\n")
+    loader.overlay!
+    expect(ReachCore.instance_variable_get(:@limit)).to(be_nil)
+    expect(point(registry, "reach_plugin.rb").unsafe_reason).to(eq(Kimera::MutationPoint::NEVER_LOADED))
+  end
+
+  # R5-KL4: i18n's key_value.rb needs a gem the suite never loads: 45 mutants were unmutatable, unscored.
+  it "reports a file the suite did not load, and kimera could not, uncovered with the error", :aggregate_failures do
+    source = "require \"reach_no_such_gem\"\nmodule ReachOptional\n  def self.big?(n) = n > 1\nend\n"
+    registry, loader = unasked("reach_optional.rb", source)
+    expect { loader.overlay! }.not_to(output.to_stderr)
+    failed = "(nor could kimera load it: LoadError: cannot load such file -- reach_no_such_gem)"
+    expect(point(registry, "reach_optional.rb").unsafe_reason).to(eq("#{Kimera::MutationPoint::NEVER} #{failed}"))
+  end
+
+  # R5-KL5: kramdown's parser registry (`@@parsers = {}` in an autoloaded class body) was emptied.
+  it "loads an autoloaded file as the suite would, then trims it, so its class body runs once", :aggregate_failures do
+    stub_const("ReachReg", Module.new)
+    ReachReg.autoload(:Table, File.join(dir, "reach_table.rb"))
+    registry, loader = unasked("reach_table.rb", <<~RUBY)
+      module ReachReg
+        class Table
+          @@rows = ROWS = {}
+          def self.big?(n) = n > 10
+        end
+      end
+      ReachReg::Table::ROWS[:a] = 1
+    RUBY
+    expect([loader.overlay!, ReachReg::Table.class_variable_get(:@@rows)])
+      .to(match([include(*point(registry, "reach_table.rb").ids), { a: 1 }]))
+  end
+
+  # kramdown's parser/kramdown/list.rb (`define_parser(:list, ...)` in its class body) is required by the
+  # autoloaded parser/kramdown.rb: 1157 mutants read "never loads this file". The file the autoload names is out
+  # of scope here, as under --since.
+  def chained
+    stub_const("ReachChain", Module.new)
+    ReachChain.autoload(:Table, write("reach_table.rb", <<~RUBY))
+      module ReachChain
+        class Table
+          ROWS = {}
+          def self.define(name) = ROWS[name] = ROWS.fetch(name, 0) + 1
+        end
+      end
+      require_relative "reach_rows"
+    RUBY
+    unasked("reach_rows.rb", <<~RUBY)
+      module ReachChain
+        class Table
+          define(:b)
+          def self.small?(n) = n < 3
+        end
+      end
+    RUBY
+  end
+
+  it "evaluates, trimmed, a file the suite loads through an autoload of a constant it opens" do
+    registry, loader = chained
+    rows = point(registry, "reach_rows.rb").ids
+    expect([loader.overlay!, ReachChain::Table::ROWS]).to(match([include(*rows), { b: 1 }]))
+  end
+
+  # A file the suite never loads opens a class that shares a name with a constant its superclass would
+  # autoload: that file is not one the suite would load.
+  def stray
+    stub_const("ReachBase", Class.new)
+    stub_const("ReachKid", Class.new(ReachBase))
+    ReachBase.autoload(:Stray, write("reach_stray.rb", "ReachSettings[:stray] = true\nclass ReachBase::Stray; end\n"))
+    source = "class ReachKid\n  @limit = 1\n  class Stray\n    def self.big?(n) = n > 1\n  end\nend\n"
+    unasked("reach_kid.rb", source).last
+  end
+
+  it "fires no autoload an ancestor holds for a constant of the same name" do
+    stray.overlay!
+    expect(ReachSettings).not_to(have_key(:stray))
+  end
+
+  # The project reached through a symlink: Ruby records the file the autoload loaded by its real path.
+  it "knows such a file loaded by its real path too", :aggregate_failures do
+    registry, = chained
+    File.symlink(dir, link = File.join(dir, "linked"))
+    expect(described_class.new(registry, root: link, loaded: proc { false }).overlay!).not_to(be_empty)
+    expect(point(registry, "reach_rows.rb").unloaded?).to(be(false))
+  end
+
   it "still evaluates a definitions-only file the suite did not load", :aggregate_failures do
     registry, live = overlaid(proc { |path| path != "reach_defined.rb" })
     expect(live).to(include(*point(registry, "reach_defined.rb").ids))

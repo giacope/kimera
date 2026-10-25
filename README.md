@@ -29,7 +29,7 @@ and flips them at runtime, so your app boots once, not once per mutant.
   with Minitest and RSpec, in every mode.
 - **Built for CI.** `kimera changed` mutates only the lines a PR touched.
   `kimera ci` fails the build on any survivor or untested change.
-- **Low noise.** A small default operator set. 28 extended families are one
+- **Low noise.** A small default operator set. 30 extended families are one
   flag away, and you can write your own.
 - **Honest verdicts.** Your suite boots once, but every test and every
   mutant runs in a process forked from one no test has run in, so no cache,
@@ -83,7 +83,10 @@ bundle install
 test helper, or which one `Gemfile.lock` installs), your source roots
 (`app/`, `lib/`), and your test glob (the one whose files define the most
 tests: `test/**/test_*.rb` over a `test/**/*_test.rb` that matches only a
-support class); on a Rails app it adds the `rails` operators. It writes a commented `.kimera.yml`
+support class), and its operators: the conservative core plus `when_clause`
+and `append_deletion` (a `case`'s branches and `<<` statements, which the
+core never mutates), and on a Rails app the `rails` operators. A
+configuration without `operators:` keeps the core alone. It writes a commented `.kimera.yml`
 whose first line names its [JSON schema](schema/kimera.schema.json), so
 editors with a YAML language server complete and check the keys.
 
@@ -103,7 +106,9 @@ over 1 it then runs it again, split across that many processes as `kimera run`
 splits it across its workers, and warns, naming the tests, when it is red
 there: the suite shares a directory, file or port between tests. A split whose
 parts fail with no failing test is a coverage floor (SimpleCov's
-`minimum_coverage`), and doctor says that instead. `--jobs N` checks another
+`minimum_coverage`), and doctor says that instead. A suite killed by a
+signal is named first ("the suite was killed by SIGKILL before it printed a
+summary — out of memory?"). `--jobs N` checks another
 width; `--jobs 1` skips it. Ctrl-C or SIGTERM stops the suite's whole process
 group, and kimera says it was interrupted.
 
@@ -319,8 +324,9 @@ Exit codes:
   exceed the threshold (default: any survivor), or a mutant in scope has no covering test under
   `--fail-on-no-coverage` or `--count-no-coverage`, ignored mutants exceed `max_ignored`, or more
   mutants than `--max-errors` (default 0) could not be judged.
-- **`1`**: the baseline is not green, the pool cannot keep a worker alive, or
-  the invocation is invalid. Paths that match no source files, `--tests` that
+- **`1`**: the baseline is not green, a test fails under Kimera but passes
+  when rerun plainly (a harness error that names the tests and the likely
+  cause), the pool cannot keep a worker alive, or the invocation is invalid. Paths that match no source files, `--tests` that
   matches no test files, and an unknown `--since` ref all count. An empty or
   broken scope fails loudly instead of scoring perfectly over nothing.
 
@@ -372,7 +378,8 @@ A mirror is as safe as a warm worker:
   project's objects, so a suite's `git ls-files` works and nothing the suite
   does writes the project's `.git`.
 - A run that fails with an error outside every test (a load error, a suite
-  hook) names no test, so it is not a kill on sight. The mutant runs once
+  hook, a `spec_helper` that `.rspec` requires and that raises) names no test,
+  and is quoted with its class and message; it is not a kill on sight. The mutant runs once
   more; if the error recurs, a fresh mirror runs the same tests without the
   mutant. Clean there, the mutant broke loading and is killed, the detail
   saying so; failing there too, it is the environment and the mutant stays
@@ -780,6 +787,8 @@ The extended families are one flag away. Use `--operators all`, or pick from:
 | `regexp_quantifier` | `+ <=> *`, drop `?`, `{n,m} => {n-1,m}` / `{n,m+1}`, `{n} => {n-1}` / `{n+1}` |
 | `keyword_drop` | `pay(amount, currency: "EUR") => pay(amount)`: drop one keyword argument at a call |
 | `visibility` | a public instance method => private |
+| `when_clause` | drop one `when` of a `case` that has another: the value falls through to the next branch or the `else` |
+| `append_deletion` | delete a statement that appends with `<<` (`@log << name`), which `statement_deletion` leaves alone |
 
 Turning them all on typically triples the mutant count. Adopt them through the
 baseline burn-down workflow, not by flipping them on in a mature gate.
@@ -846,7 +855,7 @@ comparison,rails` composes, and `all` includes them.
 | family | mutation | what a survivor means |
 |---|---|---|
 | `rails_permit` | `permit(:name, :admin)` => drop one key | over-permissive strong params no test notices |
-| `rails_validation` | delete `validates ...` | a validation no test ever violates |
+| `rails_validation` | delete `validates ...`; drop one option of a `validates` that keeps a validator (`length:` beside `presence:`, `if:`) | a validation, or one constraint of it, no test ever violates |
 | `rails_callback` | delete `before_action :authenticate_user!` etc.; drop one action from an `only:`/`except:` list | an unguarded path (or a guarded action) no test exercises |
 | `rails_association` | `has_many :posts, dependent: :destroy` => drop `dependent:` | orphaned-record cleanup no test observes |
 
@@ -1076,8 +1085,18 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   `Class.new` or `Module.new` constant is reopened, not replaced, as is a
   constant any other factory builds from a block that defines methods
   (faraday's `RequestOptions = Options.new(...) do ... end`), so references
-  taken at load keep the instrumented class. A file
-  nothing required before the overlay is evaluated whole. A method a file
+  taken at load keep the instrumented class. A constant holding a lambda or
+  proc (`BY_SYMBOL = ->(record) { ... }`) stays bound to the one made at load,
+  since a registry built from it (`self.chain = [BY_SYMBOL]`) keeps that
+  object: its body and its parameters' defaults are `isolated_only`, judged
+  in the isolated tier. Pending autoloads along the constants a file opens
+  are resolved first, as the suite would resolve them, and a file they load
+  (the one an autoload names, or one it requires) is then trimmed. Of the files nothing required before the overlay, one whose
+  classes and modules hold only methods, constants and `require`s is
+  evaluated whole; any other (a class body that sets `@limit = 100` or calls
+  `after Parser`) is never evaluated, and its mutants are `no_coverage`, as
+  are those of a file Kimera could not load either (a gem the suite never
+  requires), with the error in the detail. A method a file
   loaded later redefined (a wrapper around an `alias_method` chain) keeps
   that definition; the alias then calls the overlaid original, so its
   mutants are covered.
@@ -1152,7 +1171,11 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   test files, so code they run while loading is traced. It fires
   `config.before(:suite)` once, in the process that loads the suite, before the
   baseline, and `after(:suite)` at the end; workers forked from it never run
-  them again. Libraries install global
+  them again. The Minitest adapter runs `Minitest.after_run` hooks the same
+  way, once, in that process, when the run ends (resque stops the Redis its
+  helper started); a hook that raises or exits is reported and the run goes
+  on, and SimpleCov's own hook is left out, since it would write the coverage
+  of kimera's process over the project's report. Libraries install global
   switches there: `webmock/rspec` calls `WebMock.enable!` only in that hook.
   Without it, every stubbed HTTP request would reach the real network.
 - **Parallel runs need parallel state.** With `--jobs N` on a Rails app, Kimera
@@ -1166,7 +1189,10 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   each worker and mirror past the first, after the parent disconnects
   (`CREATE DATABASE app_test_1 TEMPLATE app_test` on PostgreSQL, a copy of the
   file on SQLite), and drops the copies when the run ends. An in-memory SQLite
-  database is never renamed; each fork keeps its own copy of the schema.
+  database is never renamed; each fork keeps its own copy of the schema. A
+  library suite that configures no test database and connects in a `before`
+  (`establish_connection(adapter: "sqlite3", database: ":memory:")`) has no
+  schema to load either: its workers connect as it does.
   When workers would share one database (another adapter), kimera says so.
   Anything *else* your suite shares
   (Redis, Elasticsearch, a temp directory) needs the same treatment. Register

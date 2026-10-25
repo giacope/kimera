@@ -12,6 +12,8 @@ require_relative "suite_env"
 # kimera cannot say it covers no in-scope mutant. It reruns those tests in a
 # plain process: one that passes there failed only under kimera, a harness
 # error that stops the run; only tests that fail plainly too are excluded.
+# A red test that reached a mutant is screened the same way before kimera
+# calls the baseline not green.
 class Kimera::Execution::BaselineScreen
   CAUSES = {
     parallel: "they ran in workers forked from the one process that loaded the suite: state the suite sets up " \
@@ -30,11 +32,14 @@ class Kimera::Execution::BaselineScreen
 
   def call(failures)
     return if failures.empty?
+    plainly!(failures)
+    Kimera::Execution::BaselineExclusions.new(failures, @adapter.reproduce(failures.keys)).to_s
+  end
+
+  def plainly!(failures)
     ids = failures.keys
     passed = ids - rerun(ids)
-    command = @adapter.reproduce(ids)
-    raise(Kimera::Execution::BaselineFailure, harness(passed, failures, command)) unless passed.empty?
-    Kimera::Execution::BaselineExclusions.new(failures, command).to_s
+    raise(Kimera::Execution::BaselineFailure, harness(passed, failures, @adapter.reproduce(ids))) unless passed.empty?
   end
 
   private

@@ -86,9 +86,11 @@ class Kimera::MutationPoint
     "a lambda handed to a class-body macro (a callback, a default:) that no test reached warm: the warm " \
       "overlay re-declares the macro, which can leave the original lambda registered in front of the " \
       "mutated one, so warm coverage cannot see it; evaluate with --isolated"
+  BOUND_REASON = "a lambda a constant holds stays bound, since a registry may keep it; evaluate with --isolated"
+  NEVER = "never executed: the suite never loads this file, so no test can run it"
   NEVER_LOADED =
-    "never executed: the suite never loads this file, so no test can run it (kimera did not evaluate it, " \
-      "since loading it would run its top-level code inside the test process)"
+    "#{NEVER} (kimera did not evaluate it, since loading it would run its top-level code inside the test " \
+      "process)".freeze
   UNEXECUTED = "no test executed this line; its file was loaded at boot"
   UNMUTATABLE = "unmutatable: "
   SAFE = true
@@ -118,12 +120,12 @@ class Kimera::MutationPoint
   end
 
   def reloadable?
-    !body? && ![LOAD_REASON, MACRO_REASON, NEVER_LOADED].include?(unsafe_reason) && !unmutatable?
+    !body? && ![LOAD_REASON, MACRO_REASON, BOUND_REASON].include?(unsafe_reason) && !unloaded? && !unmutatable?
   end
 
-  def unloaded? = unsafe_reason == NEVER_LOADED
+  def unloaded? = unsafe_reason.to_s.start_with?(NEVER)
 
-  def unloaded! = unsafe!(NEVER_LOADED)
+  def unloaded!(failure = nil) = unsafe!(failure ? "#{NEVER} (nor could kimera load it: #{failure})" : NEVER_LOADED)
 
   def unmutatable?
     unsafe_reason.to_s.start_with?(UNMUTATABLE)

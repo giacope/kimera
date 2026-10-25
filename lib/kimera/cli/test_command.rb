@@ -4,6 +4,7 @@ require_relative "../execution/suite_capture"
 require_relative "../execution/suite_env"
 require_relative "../listing"
 require_relative "../frameworks/load_path"
+require_relative "suite_signal"
 require_relative "test_shard"
 
 class Kimera::CLI::TestCommand
@@ -72,7 +73,7 @@ class Kimera::CLI::TestCommand
 
   def check(command, passed)
     output, status = capture(command)
-    status.success? ? ["✓", passed] : yield(summary(output), output)
+    status.success? ? ["✓", passed] : yield(Kimera::CLI::SuiteSignal.new(status).diagnosis || summary(output), output)
   rescue Errno::ENOENT
     yield(nil)
   end
@@ -103,7 +104,6 @@ class Kimera::CLI::TestCommand
   def culprits(output) = CULPRITS.flat_map { |pattern| output.scan(pattern).flatten }.uniq
 
   def summary(output) = headline(output).then { |line| "#{line}#{reason(output, line)}" }
-
   def quiet?(output) = headline(output).match?(NO_FAILURES)
 
   def headline(output)

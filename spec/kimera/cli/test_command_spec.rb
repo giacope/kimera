@@ -9,8 +9,8 @@ require "stringio"
 RSpec.describe(Kimera::CLI::TestCommand) do
   def watched = 125
 
-  def status(success)
-    instance_double(Process::Status, success?: success)
+  def status(success, signal = nil)
+    instance_double(Process::Status, success?: success, termsig: signal)
   end
 
   def loading(framework, output: "", success: true)
@@ -108,10 +108,27 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     expect(command.loading).to(eq(["!", "Test loading: Bundler is unavailable; not checked"]))
   end
 
-  def baseline(framework, output)
+  def baseline(framework, output, signal = nil)
     command = described_class.new(framework, ["t.rb"], root: "/app")
-    allow(Kimera::Execution::SUITE).to(receive(:call).and_return([output, status(false)]))
+    allow(Kimera::Execution::SUITE).to(receive(:call).and_return([output, status(false, signal)]))
     command.baseline.last
+  end
+
+  # R5-KR4: rubytoolbox under the OOM killer; doctor headlined an example's name that held "error".
+  it "says first that the suite was killed by a signal, never naming a passing example", :aggregate_failures do
+    output = "Catalog import\n  raises an error when fetching fails\n"
+    expect(
+      baseline(
+        "rspec", output,
+        9
+      )
+    ).to(start_with("Baseline: the suite was killed by SIGKILL before it printed a summary — out of memory?"))
+    expect(
+      baseline(
+        "rspec", output,
+        11
+      )
+    ).to(start_with("Baseline: the suite was killed by SIGSEGV before it printed a summary ("))
   end
 
   it "names the failing RSpec examples in a red baseline" do

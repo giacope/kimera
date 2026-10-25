@@ -44,6 +44,68 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     FileUtils.remove_entry(dir)
   end
 
+  # R5-KL6: resque's helper stops the Redis it started in Minitest.after_run.
+  describe "the suite's after_run hooks" do
+    around do |example|
+      kept = Minitest.class_variable_get(:@@after_run)
+      Minitest.class_variable_set(:@@after_run, [])
+      example.run
+    ensure
+      Minitest.class_variable_set(:@@after_run, kept)
+    end
+
+    it "runs them once, last registered first, in the process that loaded the suite" do
+      ran = []
+      Minitest.after_run { ran << :first }
+      Minitest.after_run { ran << :second }
+      2.times { adapter.finish }
+      expect(ran).to(eq(%i[second first]))
+    end
+
+    # Hooks that, run last registered first, raise, exit and record.
+    def troubled(ran)
+      Minitest.after_run { ran << :last }
+      Minitest.after_run { exit(1) }
+      Minitest.after_run { raise(ArgumentError, "no redis") }
+    end
+
+    def told
+      here = Regexp.escape(__FILE__.delete_prefix("#{Dir.pwd}/"))
+      /hook at #{here}:\d+ raised ArgumentError: no redis; kimera went on\n.+ called exit\(1\); kimera went on/
+    end
+
+    # CodeTriage: SimpleCov's hook saw kimera's error in flight and exited 1, so the run ended without a word.
+    it "goes on past a hook that exits or raises, and says which", :aggregate_failures do
+      ran = []
+      troubled(ran)
+      expect { adapter.finish }.to(output(told).to_stderr)
+      expect(ran).to(eq([:last]))
+    end
+
+    # A hook registered from a file under a simplecov gem's lib/.
+    def coverage_hook
+      hook = File.join(dir, "simplecov-1.3.2", "lib", "simplecov.rb")
+      FileUtils.mkdir_p(File.dirname(hook))
+      File.write(hook, "Minitest.after_run { KimeraCoverageProbe << :coverage }\n")
+      load(hook)
+    end
+
+    it "leaves out SimpleCov's own hook, which would write the coverage of kimera's process" do
+      probe = stub_const("KimeraCoverageProbe", [])
+      coverage_hook
+      Minitest.after_run { probe << :suite }
+      adapter.finish
+      expect(probe).to(eq([:suite]))
+    end
+
+    it "leaves them to that process: a worker forked from it does not run them" do
+      ran = []
+      Minitest.after_run { ran << :ran }
+      adapter.tap { allow(Process).to(receive(:pid).and_return(-1)) }.finish
+      expect(ran).to(be_empty)
+    end
+  end
+
   it "enumerates Class#method test ids" do
     ids = ["DemoKimeraTest#test_passes", "DemoKimeraTest#test_conditional", "DemoKimeraTest#test_skipped"]
     expect(adapter.test_ids).to(include(*ids))

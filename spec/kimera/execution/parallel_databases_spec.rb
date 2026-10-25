@@ -24,11 +24,12 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
 
   def config(adapter, database) = Struct.new(:adapter, :database).new(adapter, database)
 
-  # A test database with no other config to load a schema dump for.
+  # A test database whose schema dump is there to load.
   def record(database, adapter: "sqlite3")
     base = Class.new
     current = config(adapter, database)
-    configurations = double(configs_for: [])
+    configurations = double(configs_for: [current])
+    stub_const("ActiveRecord::Tasks::DatabaseTasks", double(schema_dump_path: __FILE__))
     base.define_singleton_method(:connection_db_config) { current }
     base.define_singleton_method(:configurations) { configurations }
     stub_const("ActiveRecord::ConnectionHandling::DEFAULT_ENV", -> { "test" })
@@ -168,6 +169,12 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       expect(configured(true)).to(be(true))
       expect(configured(false)).to(be(false))
       expect(described_class.new(record: nil).loadable?).to(be(true))
+    end
+
+    # R5-KL3: cancancan connects to `:memory:` in a `before`, with no configuration to load.
+    it "is not there when the suite configures no test database" do
+      record = double(configurations: double(configs_for: []))
+      expect(described_class.new(record: record).loadable?).to(be(false))
     end
 
     # R4-KR1 (K3-5): a plain Active Record suite has no Rails for db_dir.

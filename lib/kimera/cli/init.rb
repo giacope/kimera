@@ -74,7 +74,7 @@ class Kimera::CLI::Init
 
   def detected
     DOCUMENT.call(
-      framework: framework, paths: sources, tests: tests, **browserless, **rails_operators,
+      framework: framework, paths: sources, tests: tests, **browserless, operators: operators,
       jobs: [Etc.nprocessors, JOBS].min, max_survivors: 0, max_errors: 0, count_no_coverage: true
     )
   end
@@ -86,7 +86,7 @@ class Kimera::CLI::Init
 
   def rails_app? = Kimera::CLI::RailsLayout.new(@root).rails?
 
-  def rails_operators = rails_app? ? { operators: [*Kimera::Operators::DEFAULT_KEYS, "rails"] } : {}
+  def operators = [*Kimera::Operators::INIT_KEYS, *("rails" if rails_app?)]
 
   def framework = @_framework ||= declared || bundled || layout
 

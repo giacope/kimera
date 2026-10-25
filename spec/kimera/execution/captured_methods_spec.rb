@@ -24,6 +24,17 @@ RSpec.describe(Kimera::Execution::CapturedMethods) do
 
   def taken(*names) = names.map { |name| CapturedCoerce.method(name) }
 
+  # R5-KW4: the screen now runs for red tests that reached a mutant; Method objects kimera
+  # made and dropped while weaving were named as the suite's.
+  def dropped = taken(:to_int).clear
+
+  it "says nothing of a Method object nothing holds any more" do
+    load("def self.to_int(v) = Integer(v)\n")
+    100.times { dropped }
+    load("\ndef self.to_int(v) = Integer(v) + 0\n")
+    expect(cause).to(be_nil)
+  end
+
   it "names a method taken at load that the same file redefined, and the file to leave out" do
     load("def self.to_int(v) = Integer(v)\n")
     held = taken(:to_int)

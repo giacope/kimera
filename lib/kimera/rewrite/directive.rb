@@ -37,7 +37,7 @@ module Kimera
       BINDINGS = [Prism::LocalVariableWriteNode, Prism::MatchWriteNode].freeze
       CLAUSE_HANDLERS = TABLE.call(
         "drop_rescue", :rescued, "drop_ensure", :ensured, "privatize", :privatize,
-        "assigned_value", :value, "nil_object", :object, "regexp_source", :pattern
+        "assigned_value", :value, "nil_object", :object, "regexp_source", :pattern, "drop_when", :unbranched
       )
 
       def initialize(directive)
