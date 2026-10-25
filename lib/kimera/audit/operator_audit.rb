@@ -20,7 +20,7 @@ class Kimera::Operators::Audit
     Data.define(:original, :rendered) do
       def verdict
         return UNRENDERABLE unless rendered
-        rendered == reprinted ? IDENTICAL : OK
+        [original, reprinted].include?(rendered) ? IDENTICAL : OK
       end
       private
       def reprinted

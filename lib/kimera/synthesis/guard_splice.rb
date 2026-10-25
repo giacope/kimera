@@ -10,11 +10,12 @@ require_relative "guard_text"
 require_relative "splice_index"
 
 # Warm schemata written into the original source. Each mutant is guarded at
-# the smallest expression its rewrite changes (Kimera::GuardText), so every
-# line keeps its number while each alternative fits on one line. A point no
-# expression can hold (a rescue clause, a definition that is not a statement,
-# an alternative across a heredoc's lines) is left in `rest`, for the caller
-# to write its definition whole.
+# the smallest expression its rewrite changes (Kimera::GuardText), its
+# alternative written on one line (a kept text that breaks a line written
+# afresh), so every line keeps its number. A point no expression can hold (a
+# rescue clause, a definition that is not a statement, an alternative Scribe
+# cannot write on one line) is left in `rest`, for the caller to write its
+# definition whole.
 class Kimera::GuardSplice
   NUMBERED = /\b#{Kimera::Rewrite::NumberedParams::PREFIX}(?:[1-9]|it)\b/
 
@@ -54,14 +55,14 @@ class Kimera::GuardSplice
     return [node.value, mutant.id, %(raise(ArgumentError, "missing #{kind}: #{node.name}"))] if kind
     site, mutated = sites.of(node, Kimera::Rewrite::Directive.new(mutant.directive).apply(node))
     text = written(site, mutated)
-    [site, mutant.id, text] if fits?(site, text)
+    [site, mutant.id, text] if fits?(text)
   rescue StandardError
     nil
   end
 
-  def written(site, mutated) = Kimera::Scribe.new(mutated).at(@map.ast, site).joined.after(site).text
+  def written(site, mutated) = Kimera::Scribe.new(mutated).at(@map.ast, site).after(site).unbroken.text
 
-  def fits?(site, text) = !text.match?(NUMBERED) && (!text.include?("\n") || !index.heredoc?(site))
+  def fits?(text) = !text.match?(NUMBERED) && !text.include?("\n")
 
   def index = @_index ||= Kimera::SpliceIndex.new(@map.ast)
 

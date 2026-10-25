@@ -106,6 +106,50 @@
     named unparser now name Kimera (`kimera could not write its guard`).
   `prism` is now required at 1.5.1 or later (unparser 0.9 already did).
 
+Follow-ups to field test round 5, how Kimera writes mutants:
+
+- **Every bake, and the overlay with every mutant off, keeps your file's
+  lines.** As many lines, and every line outside a rewritten span at its
+  number, so `__LINE__`, backtraces and `source_location` in the rest of the
+  file read as without Kimera in both tiers. A bake shorter than its span is
+  padded with the line breaks it lacks, after it or before its closing `)`,
+  `]`, `}` or `end`: a dropped keyword of a multi-line call, a `permit(` list
+  one key per line, a deleted heredoc statement or a dropped `rescue` no
+  longer move the code below them (the isolated tier scored such moves as
+  kills). A guard's alternative is written on its line, an untouched part
+  that spans lines written afresh there, so `a &&\n  b && c` no longer adds
+  a line to the baseline ("not green" for a green suite that checks a line).
+  A method written whole (a dropped `rescue` clause) is laid out to its own
+  lines, on one line when written out it would take more, and a point
+  outside every method has the file's statement that holds it written so,
+  not the whole file; lines inside such a rewrite may read as its first.
+  Kimera checks the layout after weaving each file and writing each bake: a
+  guard that would move a line is unguardable, a bake that would is
+  `unmutatable: kimera could not write it (what it wrote moves the lines
+  after it)`, and no file is written whole any more. On the round-5 corpus,
+  bakes that change the line count went from 3,848 of 179,695 to 0 of
+  185,600 (every operator, source directories) and from 286 to 0 elsewhere;
+  4 bakes in one file are now unmutatable instead; overlays that keep every
+  line went from 95.1% to 100% with the default operators and from 60.0% to
+  100% with every operator (73 written whole before, none now).
+- **A deleted statement is `()`, not `nil`.** Same value, same line, but
+  `ruby -w` stays silent: a suite that raises on its own files' warnings
+  (view_component's and maintenance_tasks' helpers) scored every isolated
+  deletion killed by "possibly useless use of nil in void context" (1,863
+  of 36,750 Rails bakes; 0 now). `()` and `nil` count as one value when
+  Kimera drops duplicate mutants.
+- **A bare list or a quoted label no longer costs the file its overlay.**
+  `@a, @b = left, right`, `x = *list, 1` and `{ "#{name}_attributes": 1 }`
+  were guarded where they stand, which does not parse, so the whole file was
+  written again (comments dropped, every line moved). They are guarded with
+  the assignment or the hash that holds them.
+- **`it` blocks are guarded in place and shown as written.** A mutant inside
+  `list.select { it > 10 }` was written `__kimera_it >= 10`, refused, and
+  its method written whole; the report and `kimera mutant` showed
+  `list.first { |__kimera_it| … }` over three lines. Both now read
+  `list.first { it > 10 }`: a mutant is shown with the point's untouched
+  text as you wrote it.
+
 Follow-ups to field test round 4, how Kimera writes mutants:
 
 - **Overlays and bakes are spliced into your source, not rewritten whole.**

@@ -64,11 +64,13 @@ module Kimera
 
     def joined = Scribe.new(@node, @place.joined)
 
+    def unbroken = Scribe.new(@node, @place.unbroken)
+
     def after(node) = Scribe.new(@node, @place.after(node))
 
     def text
       depth = @place.depth
-      pen = Pen.new(Binders.new(@place.slices), depth, @place.locals)
+      pen = Pen.new(Binders.new(@place.slices), Pen::Margin.new(depth: depth, flat: @place.flat?), @place.locals)
       Lines.new(body, pen, @place.joint).text.delete_prefix("\n#{Pen::INDENT * depth}")
     end
 

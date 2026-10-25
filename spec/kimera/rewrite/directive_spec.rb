@@ -48,6 +48,12 @@ RSpec.describe(Kimera::Rewrite::Directive) do
       expect(out).to(eq("false"))
     end
 
+    it "writes a block's `it` and `_1` as written, not as kimera's names for them", :aggregate_failures do
+      render = ->(source) { described_class.new({ "type" => "selector_swap", "to" => "first" }).render(source) }
+      expect(render.call("list.find { it > 10 }")).to(eq("list.first { it > 10 }"))
+      expect(render.call("list.find do\n  _1 > 10\nend")).to(eq("list.first do\n  _1 > 10\nend"))
+    end
+
     it "labels statement deletion specially without parsing" do
       out = described_class.new({ "type" => "statement_deletion" }).render("do_thing(x)")
       expect(out).to(eq("(statement deleted)"))
@@ -116,13 +122,13 @@ RSpec.describe(Kimera::Rewrite::Directive) do
     it "drops a kwarg pair from a call that carries a block" do
       out = described_class.new({ "type" => "kwarg_pair_drop", "key" => "expires_in" })
         .render("Rails.cache.fetch(key, expires_in: 5) { total }")
-      expect(out).to(eq("Rails.cache.fetch(key) {\n  total\n}"))
+      expect(out).to(eq("Rails.cache.fetch(key) { total }"))
     end
 
     it "drops a kwarg array element from a call that carries a block" do
       out = described_class.new({ "type" => "kwarg_element_drop", "key" => "on", "index" => 0 })
         .render("after_commit on: [:create, :update] do\n  sync\nend")
-      expect(out).to(eq("after_commit(on: [:update]) {\n  sync\n}"))
+      expect(out).to(eq("after_commit(on: [:update]) do\n  sync\nend"))
     end
   end
 

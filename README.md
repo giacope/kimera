@@ -1026,16 +1026,26 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   `__LINE__`, backtraces and `source_location` read as without Kimera.
   - A mutant is guarded at the smallest expression its rewrite changes: the
     original slice first and untouched, then each mutant's alternative on the
-    same line. A bake writes the rewritten node alone, padded inside
-    parentheses when it is shorter, parenthesised when Ruby would read it
-    with its neighbour, and each bake must read back as the mutated tree.
-    Unchanged subtrees keep their text, comments and line breaks.
+    same line, written on that one line (an untouched part that spans lines
+    is written afresh there). A bake writes the rewritten node alone, padded
+    with the line breaks it lacks after it or before its closing `)`, `]`,
+    `}` or `end`, parenthesised when Ruby would read it with its neighbour,
+    and each bake must read back as the mutated tree. Unchanged subtrees keep
+    their text, comments and line breaks. A deleted statement is written
+    `()`, which reads as `nil` without `ruby -w`'s "useless use of nil".
   - A named-capture match (`/(?<n>\d+)/ =~ s`) is guarded whole, so its
     capture still binds; a visibility mutant's probe and registration go on
     the method's own lines.
   - A point no expression can hold (a dropped `rescue` clause) has its
-    method written whole, and a file only when such a point stands outside
-    every method. An alternative longer than a line moves the lines after it.
+    method written whole on the method's own lines (on one line when written
+    out it would take more), or, outside every method, the statement of the
+    file that holds it. Lines inside such a rewrite may read as its first.
+  - The file Kimera runs with every mutant off, and every bake, keeps the
+    file's line layout: as many lines, every line outside a rewritten span
+    at its number. A guard or rewrite that would move a line is not written:
+    its point is unguardable (`kimera: x.rb: 1 mutation point(s) at line 3
+    are unguardable`) and the bake unmutatable ("what it wrote moves the
+    lines after it"); the file itself is never written whole.
   - Every bake and every woven file is parse-checked. A mutant whose bake
     does not parse, or reads as the original, is reported unmutatable
     (Kimera could not write it), never killed or survived.

@@ -41,7 +41,7 @@ class Kimera::Overlay
     pair = @registry.point(id)
     return source unless pair
     map = Kimera::SourceMap.new(source)
-    checked(spliced(map, *pair) || write(map, baked(map, *pair), pair.last))
+    checked(source, spliced(map, *pair) || write(map, baked(map, *pair), pair.last))
   end
 
   private
@@ -60,9 +60,10 @@ class Kimera::Overlay
     nil
   end
 
-  def checked(text)
-    return text if Kimera::Syntax.parse(text).success?
-    raise(Unbakeable, "#{UNWRITTEN} (what it wrote does not parse)")
+  def checked(source, text)
+    raise(Unbakeable, "#{UNWRITTEN} (what it wrote does not parse)") unless Kimera::Syntax.parse(text).success?
+    return text if Kimera::LinePad.new(source).kept?(text)
+    raise(Unbakeable, "#{UNWRITTEN} (what it wrote moves the lines after it)")
   end
 
   def baked(map, mutant, point)
