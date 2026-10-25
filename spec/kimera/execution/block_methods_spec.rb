@@ -191,6 +191,37 @@ RSpec.describe(Kimera::Execution::BlockMethods) do
     end
   end
 
+  # Holdout q03: `refine String do def truncate_words ... squish ... end`. The
+  # overlay's run of `refine` reaches the refinement itself; a def defined on
+  # it again on its own could not call its neighbour `squish`.
+  describe "in a refine block, which the overlay's run of the file reaches" do
+    let(:source) do
+      <<~RUBY
+        module BlockMethodsScope
+          module Words
+            refine(String) do
+              def shout = size > 2 ? "\#{loud}!" : self
+
+              def loud = upcase
+            end
+          end
+        end
+
+        using BlockMethodsScope::Words
+
+        module BlockMethodsScope
+          def self.said(word) = word.shout
+        end
+      RUBY
+    end
+
+    it "keeps the overlay's def, which calls its neighbours through the refinement", :aggregate_failures do
+      overlay!
+      expect(BlockMethodsScope.said("abc")).to(eq("ABC!"))
+      expect(flipped("> => <", 4) { BlockMethodsScope.said("abc") }).to(eq("abc"))
+    end
+  end
+
   def searched(*texts)
     allow(ObjectSpace).to(receive(:each_object).and_call_original)
     texts.each do |text|
