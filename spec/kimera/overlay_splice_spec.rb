@@ -98,6 +98,14 @@ RSpec.describe(Kimera::Overlay) do
       ).to(start_with("Pair = ((is_a?(::Module) ? self : ::Object).const_defined?"))
     end
 
+    # Dropping the only use of `_1` leaves a block that would take no
+    # parameter, so the block's parameter is written out.
+    it "names a numbered block's parameter when the bake drops its only use" do
+      program = "def m(list) = list.map { foo(_1) > 2 }\n"
+      expect(bake(program, %w[argument_drop], "drop arg `_1`"))
+        .to(eq("def m(list) = list.map { |__kimera_1|; foo() > 2; }\n"))
+    end
+
     it "reports a mutant that reads as the original as unmutatable" do
       catalog = scan(source, %w[comparison])
       mutant = catalog.each.first.first
@@ -179,6 +187,54 @@ RSpec.describe(Kimera::Overlay) do
             "::Kimera::RUNTIME.active?(4) ? (y >= 2) : (y < 2))\n"
         )
       )
+    end
+
+    # The rescue clause's mutant has the method written whole, with every
+    # guard in it: a default argument's raise, a visibility mutant's probe and
+    # registration.
+    describe "a definition written whole" do
+      let(:written) do
+        woven(
+          "class Whole\n  def gated(flag, limit = 1)\n    flag.call(limit)\n  rescue TypeError\n    0\n  end\nend\n",
+          %w[rescue_clause default_argument visibility]
+        )
+      end
+
+      def whole = Module.new.tap { |mod| mod.module_eval(written.first.source) }::Whole
+
+      def id(label) = written.last.each.find { |mutant, _| mutant.label == label }.first.id
+
+      it "keeps every mutant in it live" do
+        expect(written.first.mutant_ids).to(match_array(written.last.points.flat_map(&:ids)))
+      end
+
+      it "raises for its default argument's mutant" do
+        expect { Kimera::RUNTIME.during(id("default => required (limit)")) { whole.new.gated(nil) } }
+          .to(raise_error(ArgumentError, "missing argument: limit"))
+      end
+
+      it "probes its visibility mutant and turns it private with it on", :aggregate_failures do
+        hidden = id("public => private (gated)")
+        held = whole
+        expect(Kimera::RUNTIME.during(hidden) { held.private_method_defined?(:gated) }).to(be(true))
+        expect(written.first.source).to(include("#{runtime}.active?(#{hidden}); nil; else; nil; end"))
+      end
+    end
+
+    it "leaves a file with no point to guard as written" do
+      program = "module Kept\n  Point = Data.define(:x) do\n    def big? = x.positive?\n  end\nend\n"
+      result, = woven(program, %w[comparison])
+      expect([result.source, result.mutant_ids]).to(eq([program, []]))
+    end
+
+    # A registry scanned before the file changed: its first point now lies in
+    # a comment, outside every statement, and is dropped alone.
+    it "drops a point the file no longer holds where it was scanned, and keeps the rest", :aggregate_failures do
+      registry = scan("def a(x) = x > 1\ndef b(y) = y > 2\n", %w[comparison])
+      result = nil
+      expect { result = described_class.new(registry).synthesize("x.rb", "#ef a(x) = x > 1\ndef b(y) = y > 2\n") }
+        .to(output(/x\.rb: 1 mutation point\(s\) at line 1 are unguardable/).to_stderr)
+      expect([result.mutant_ids, result.skipped_unsafe]).to(eq([registry.points.last.ids, registry.points.first.ids]))
     end
 
     it "writes the statement that holds such a point outside every definition on its lines", :aggregate_failures do

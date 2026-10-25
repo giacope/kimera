@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+Self-host gate: what kept the `selfhost` job red on main.
+
+- **A `def` inside a block calls refined methods as the plain suite does.**
+  Kimera defines the woven copy of a def in a block a DSL runs on each module
+  the block ran on. It did so on every such module, compiling the def on its
+  own, which dropped the `using` the file or a class around it had called and
+  the file's `# frozen_string_literal: true`, and, on a refinement, the
+  refinement its `refine` block activates. A def calling a refined method
+  raised NoMethodError or NameError under Kimera only, and the run stopped at
+  "harness error: N test(s) fail under kimera but pass in a plain run":
+  Kimera's own `Pool::Duty#words` (`Struct.new do`, `error.last_words`) and
+  `Shift::Subject#crashed` (`Data.define do`, `error.headline`) kept the
+  self-host job red, and holdout q03 (`refine String do`, `truncate_words`
+  calling `squish`) never got past its baseline. A module the overlay's own
+  run of the file reached (the class of a `Struct.new` block, which the
+  overlay reopens, or the refinement `refine` hands back) now keeps the
+  overlay's def. On the others (shared example groups, `Module.new`) the def
+  is compiled after the comments above the file's first line of code and the
+  `using` calls made before it in each scope around it, on its own lines.
+
 Field test round 5, harness: what kimera loads, runs and says.
 
 - **A test that fails only under kimera is a harness error, whatever it

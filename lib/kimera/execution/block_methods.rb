@@ -13,17 +13,34 @@ end
 # `shared_context`, `Module.new`) defines its method on whatever module runs
 # the block, which the source cannot name: re-running the file defines nothing
 # there. So before the overlay runs, every module whose method was loaded from
-# such a def is noted, and afterwards the woven def is defined on each one,
-# inside the def's own lexical scope, with the visibility it had. Only a file
-# with such a def has the heap searched for them.
+# such a def is noted, and afterwards the woven def is defined on each one the
+# overlay left as it was, with the visibility it had. Only a file with such a
+# def has the heap searched for them. One the overlay did reach keeps the
+# overlay's def: the class of a `Struct.new` block, which the overlay reopens,
+# or the refinement `refine` hands back, where a def defined on its own would
+# lose the refinement its block activates.
+#
+# The woven def is compiled on its own, inside its lexical scope written out:
+# the comments above the file's first line of code (its magic comments), then
+# the file and each class or module around the def, each with the `using`
+# calls made there before it, so its refined calls and frozen literals are the
+# file's.
 class Kimera::Execution::BlockMethods
   Site =
-    Data.define(:name, :line, :span, :nesting, :text) do
-      def code = "#{nesting.map { |opener| "#{opener}; " }.join}proc do\n#{text}\nend#{"; end" * nesting.size}"
-
-      def compiled(path) = RubyVM::InstructionSequence.compile(code, path, path, line - 1).eval
+    Data.define(:name, :line, :span, :preamble, :nesting, :text) do
+      def code = "#{head}#{text}\nend#{"; end" * nesting.size}"
+      def compiled(path) = RubyVM::InstructionSequence.compile(code, path, path, line - head.count("\n")).eval
+      private
+      def head = "#{preamble}#{nesting.join}proc do\n"
     end
-  Held = Data.define(:holder, :site, :visibility)
+  Scope =
+    Data.define(:opening, :usings) do
+      def to_s = "#{opening}#{usings.join}"
+    end
+  Held =
+    Data.define(:holder, :site, :visibility, :definition) do
+      def missed? = LOOKUP.bind_call(holder, site.name) == definition
+    end
   OPENERS = { Prism::ClassNode => "class", Prism::ModuleNode => "module" }.freeze
   BLOCKS = [Prism::BlockNode, Prism::LambdaNode].freeze
   LOOKUP = Module.instance_method(:instance_method)
@@ -70,14 +87,22 @@ class Kimera::Execution::BlockMethods
 
   def collect(source)
     root = Kimera::Syntax.parse(source).value
-    walk(root, [], root)
+    walk(root, [Scope.new(source.byteslice(0, root.location.start_offset), [])], root)
   end
 
   def walk(node, nesting, scope)
     return defined(node, nesting, scope) if node.is_a?(Prism::DefNode)
+    return refined(node, nesting.last) if using?(node)
     keyword = OPENERS[node.class]
-    return opened(node, [*nesting, "#{keyword} #{node.constant_path.slice}"]) if keyword
+    return opened(node, [*nesting, Scope.new("#{keyword} #{node.constant_path.slice}; ", [])]) if keyword
     node.compact_child_nodes.flat_map { |child| walk(child, nesting, BLOCKS.include?(node.class) ? node : scope) }
+  end
+
+  def using?(node) = node.is_a?(Prism::CallNode) && node.name == :using && node.receiver.nil?
+
+  def refined(node, scope)
+    scope.usings << "#{node.slice}; "
+    []
   end
 
   def defined(node, nesting, scope) = BLOCKS.include?(scope.class) && node.receiver.nil? ? [site(node, nesting)] : []
@@ -89,14 +114,16 @@ class Kimera::Execution::BlockMethods
 
   def site(node, nesting)
     location = node.location
-    Site.new(node.name, location.start_line, [location.start_offset, location.end_offset], nesting, node.slice)
+    file, *openers = nesting.map(&:to_s)
+    Site.new(node.name, location.start_line, [location.start_offset, location.end_offset], file, openers, node.slice)
   end
 
   def held(holder, site)
     name = site.name
     return unless PUBLIC.bind_call(holder, name, INHERITED) || HIDDEN.bind_call(holder, name, INHERITED)
-    return unless from?(LOOKUP.bind_call(holder, name), site)
-    Held.new(holder, site, Kimera::Execution::Redefinition.new(holder, name).visibility)
+    definition = LOOKUP.bind_call(holder, name)
+    return unless from?(definition, site)
+    Held.new(holder, site, Kimera::Execution::Redefinition.new(holder, name).visibility, definition)
   end
 
   def from?(method, site)
@@ -105,6 +132,7 @@ class Kimera::Execution::BlockMethods
   end
 
   def install(entry)
+    return unless entry.missed?
     holder, site, visibility = entry.deconstruct
     Kimera::Warnings::SILENCED.during { holder.class_exec(&compiled(site)) }
     holder.__send__(visibility, site.name)

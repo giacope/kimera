@@ -19,8 +19,12 @@ RSpec.describe(Kimera::Execution::BlockMethods) do
     Module.new do
       def self.made = @_made ||= []
       def self.shared(&) = made << Class.new { class_exec(&) }
+      def self.used = @_used ||= []
+      def self.using(name) = used << name
     end
   end
+
+  let(:refinements) { {} }
 
   let(:source) do
     <<~RUBY
@@ -52,6 +56,7 @@ RSpec.describe(Kimera::Execution::BlockMethods) do
   end
 
   before do
+    refinements.each { |name, refinement| stub_const(name, refinement) }
     stub_const("BlockMethodsDsl", dsl)
     stub_const("BlockMethodsScope", Module.new)
     File.write(file, source)
@@ -102,6 +107,12 @@ RSpec.describe(Kimera::Execution::BlockMethods) do
     expect(made.singleton_class.instance_method(:made)).to(eq(singleton))
   end
 
+  it "leaves a def with no mutant in it as loaded when it is handed the file untrimmed" do
+    plain = made.instance_method(:plain)
+    blocks.adopt { :installed }
+    expect(made.instance_method(:plain)).to(eq(plain))
+  end
+
   it "defines nothing on a subclass of a module the block ran on" do
     heir = Class.new(made)
     overlay!
@@ -124,6 +135,91 @@ RSpec.describe(Kimera::Execution::BlockMethods) do
 
   it "answers what the overlay answers" do
     expect(blocks.adopt { :installed }).to(eq(:installed))
+  end
+
+  # R5 self-host: pool_duty.rb's `using Kimera::Execution::Fault` above a
+  # `Struct.new do def words(error) = error.last_words`: the def compiled on
+  # its own lost the refinement, and the suite's specs of it raised
+  # NoMethodError under kimera only.
+  describe "in a file that refines what its block's defs call" do
+    let(:refinements) do
+      {
+        "BlockMethodsLoud" => Module.new { refine(String) { def loud = "#{upcase}!" } },
+        "BlockMethodsSoft" => Module.new { refine(String) { def soft = downcase } },
+        "BlockMethodsLate" => Module.new { refine(String) { def loud = "late" } }
+      }
+    end
+
+    let(:source) do
+      <<~RUBY
+        # frozen_string_literal: true
+
+        using BlockMethodsLoud
+
+        module BlockMethodsScope
+          class Refined
+            using BlockMethodsSoft
+            BlockMethodsDsl.using(:early)
+
+            BlockMethodsDsl.shared do
+              def said(word) = word.size > 2 ? word.loud : word.soft
+
+              def measure(word) = word.size > 2 ? "long" : "short"
+            end
+
+            using BlockMethodsLate
+          end
+        end
+      RUBY
+    end
+
+    it "keeps the refinements the file and its class had activated by the def", :aggregate_failures do
+      overlay!
+      expect([made.new.said("abc"), made.new.said("AB")]).to(eq(["ABC!", "ab"]))
+      expect(flipped("> => <", 11) { made.new.said("abc") }).to(eq("abc"))
+    end
+
+    it "compiles the def under the file's magic comments, on its own line", :aggregate_failures do
+      overlay!
+      expect(made.new.measure("abc")).to(be_frozen)
+      expect(made.instance_method(:measure).source_location).to(eq([file, 13]))
+    end
+
+    it "runs no call named using that has a receiver again" do
+      blocks.adopt { :installed }
+      expect(BlockMethodsDsl.used).to(eq([:early]))
+    end
+  end
+
+  # Holdout q03: `refine String do def truncate_words ... squish ... end`. The
+  # overlay's run of `refine` reaches the refinement itself; a def defined on
+  # it again on its own could not call its neighbour `squish`.
+  describe "in a refine block, which the overlay's run of the file reaches" do
+    let(:source) do
+      <<~RUBY
+        module BlockMethodsScope
+          module Words
+            refine(String) do
+              def shout = size > 2 ? "\#{loud}!" : self
+
+              def loud = upcase
+            end
+          end
+        end
+
+        using BlockMethodsScope::Words
+
+        module BlockMethodsScope
+          def self.said(word) = word.shout
+        end
+      RUBY
+    end
+
+    it "keeps the overlay's def, which calls its neighbours through the refinement", :aggregate_failures do
+      overlay!
+      expect(BlockMethodsScope.said("abc")).to(eq("ABC!"))
+      expect(flipped("> => <", 4) { BlockMethodsScope.said("abc") }).to(eq("abc"))
+    end
   end
 
   def searched(*texts)
