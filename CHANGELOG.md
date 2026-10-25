@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+Self-host gate: what kept the `selfhost` job red on main.
+
+- **A `def` inside a block keeps its file's refinements and magic
+  comments.** The woven copy of a def in a block a DSL runs (`Struct.new do`,
+  `Data.define do`, `shared_examples_for`) is compiled on its own, and it
+  dropped the `using` that the file, or a class around it, had called above
+  it, and the file's `# frozen_string_literal: true`. A def calling a refined
+  method then raised NoMethodError under Kimera only, and the run stopped at
+  "harness error: N test(s) fail under kimera but pass in a plain run":
+  Kimera's own `Pool::Duty#words` (`error.last_words`) and
+  `Shift::Subject#crashed` (`error.headline`). The copy is now compiled after
+  the comments above the file's first line of code and, in each scope around
+  it, the `using` calls made there before the def, on the def's own lines.
+
 Field test round 5, harness: what kimera loads, runs and says.
 
 - **A test that fails only under kimera is a harness error, whatever it
