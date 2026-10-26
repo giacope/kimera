@@ -24,6 +24,13 @@ Field test round 6, batch 1: what kimera wrote, judged and said.
   the mutant: its covering tests are the tests that called that method, and
   a mutant none of them called reads `no_coverage`, "no test called the
   method that holds it".
+- **An uncovered mutant no longer says its line never ran.** Kimera
+  measures coverage per mutated expression, but an uncovered mutant read "no
+  test executed this line" while another mutant on the same line was covered
+  (statesman's `raise ArgumentError, ... if from.nil? && to.nil?`: the
+  condition covered by 7 tests, the `raise` "no test executed this line"); 9
+  of 15 uncovered rows in two runs sat on such a line. It now reads "no test
+  reached the code it mutates (other code on its line may have run)".
 
 Self-host gate: what kept the `selfhost` job red on main.
 
