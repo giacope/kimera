@@ -29,4 +29,13 @@ RSpec.configure do |config|
   # When kimera runs on itself, the run's mutant is on while these examples
   # run; an example that drives the switch hands it back to the next one.
   config.around { |example| Kimera::RUNTIME.during(Kimera::RUNTIME.active) { example.run } }
+  config.around do |example|
+    world = RSpec.world
+    quitting = world.wants_to_quit
+    failed = world.non_example_failure
+    example.run
+  ensure
+    world.wants_to_quit = quitting
+    world.non_example_failure = failed
+  end
 end
