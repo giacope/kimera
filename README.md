@@ -973,7 +973,9 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
    (`(!(::Kimera::RUNTIME.active?(102)) ? (a > b) : (a >= b))`), so every
    other line, comment and magic comment stays where it was. Memoized
    expressions (`@x ||= …`) go to a reload fallback that bakes the mutant into
-   a fresh process; code that only runs while the suite loads goes to the
+   a fresh process and watches the method that holds it: the tests that call
+   that method are its covering tests, and a mutant no test calls is
+   `no_coverage`. Code that only runs while the suite loads goes to the
    isolated tier.
 3. **Execution.** Load the suite once and overlay the schemata. From then on
    the parent runs no test: it stays in the post-boot, pre-test state, and

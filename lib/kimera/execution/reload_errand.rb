@@ -24,6 +24,10 @@ Kimera::Execution::Reload::Errand =
     end
     def ran = @_ran ||= []
 
+    def reached = @_reached ||= []
+
+    def reach(test) = reached << test
+
     def emit(payload)
       writer.puts(payload)
       writer.close

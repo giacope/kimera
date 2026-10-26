@@ -14,6 +14,16 @@ Field test round 6, batch 1: what kimera wrote, judged and said.
   'titleize' for nil`, seven of them false kills (`--isolated` judged them
   right). A kept text that calls a bare method named like a local bound
   where it now stands is written afresh, the call as `brand()`.
+- **A memoized mutant no test calls is `no_coverage`.** A mutant inside
+  `@x ||= …` is judged in a reload child, which ran the suite and reported
+  every test it ran as covering, so it could never be `no_coverage`: a
+  survivor in a method no test called read "covered by 438 test(s)"
+  (content-tagger's `Linkables#taxons`), the first of them a spec that never
+  calls it, and those tests fed `kimera mutant`, `--test-quality` and
+  `attribution: unit`. The reload child now watches the method that holds
+  the mutant: its covering tests are the tests that called that method, and
+  a mutant none of them called reads `no_coverage`, "no test called the
+  method that holds it".
 
 Self-host gate: what kept the `selfhost` job red on main.
 

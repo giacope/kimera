@@ -1746,12 +1746,16 @@ RSpec.describe(Kimera::Execution::Harness) do
       [registry, registry.each.map { |m, _p| m.id }.find { |id| !registry.index[id].safe? }]
     end
 
-    def plain(passed:)
+    # A test of +name+ that calls its memoized method, as one that reaches the mutant does.
+    def calling(name) = -> { Object.const_get(name).new.memo(1, 2) }
+
+    def plain(passed:, reach: -> {})
       Class.new(Kimera::Frameworks::Suite) do
         define_method(:initialize) { @passed = passed }
         def source(_files) = self
         def test_ids = ["t1"]
         define_method(:run) do |_ids|
+          reach.call
           Kimera::Frameworks::RunOutcome.new(passed: @passed, failed_ids: @passed ? [] : ["t1"])
         end
       end.new
@@ -1759,16 +1763,27 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "classifies a green re-selecting suite as survived" do
       registry, unsafe = reload("HarnessReselGreen")
-      runner = reloader(plain(passed: true), catalog: registry, root: dir, isolation: reselection)
+      suite = plain(passed: true, reach: calling("HarnessReselGreen"))
+      runner = reloader(suite, catalog: registry, root: dir, isolation: reselection)
       expect(runner.__send__(:evaluate, errand(unsafe))).to(eq([:survived, []]))
     end
 
-    def counting(tests, failing, calls)
+    # The reload child watches the method that holds the mutant: a green suite
+    # none of whose tests calls it never ran the mutant (R6B1-M4).
+    it "classifies a green suite that never calls the mutant's method as uncovered" do
+      registry, unsafe = reload("HarnessReloadUncalled")
+      runner = reloader(plain(passed: true), catalog: registry, root: dir, isolation: reselection)
+      uncalled = Kimera::Execution::Reload::UNCALLED
+      expect(runner.__send__(:evaluate, errand(unsafe))).to(eq([:no_coverage, [], uncalled]))
+    end
+
+    def counting(tests, failing, calls, reach: {})
       Class.new(Kimera::Frameworks::Suite) do
         define_method(:source) { |_files| self }
         define_method(:test_ids) { tests }
         define_method(:run) do |ids|
           calls << ids
+          ids.each { |id| reach[id]&.call }
           failed = ids & failing
           Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed)
         end
@@ -1783,20 +1798,20 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(calls).to(eq([["t1"], ["t2"]]))
     end
 
-    # A reload-tier row shows what judged it: the tests the child ran, up to
-    # the first that failed, and its time.
-    it "reports the tests it ran and how long it took", :aggregate_failures do
+    # A reload-tier row shows what judged it: of the tests the child ran, up
+    # to the first that failed, those that called the mutant's method, and
+    # its time.
+    it "reports the tests that called its method and how long it took" do
       registry, unsafe = reload("HarnessReloadReport")
-      runner = reloader(counting(%w[t1 t2 t3], ["t2"], []), catalog: registry, root: dir, isolation: reselection)
-      report = JSON.parse(runner.__send__(:report, errand(unsafe, %w[t1 t2 t3])))
-      expect(report.slice("status", "fails", "cover"))
-        .to(eq("status" => "killed", "fails" => ["t2"], "cover" => %w[t1 t2]))
-      expect(report["ms"]).to(be_a(Float).and(be >= 0))
+      suite = counting(%w[t1 t2 t3 t4], ["t3"], [], reach: { "t2" => calling("HarnessReloadReport") })
+      runner = reloader(suite, catalog: registry, root: dir, isolation: reselection)
+      report = JSON.parse(runner.__send__(:report, errand(unsafe, %w[t1 t2 t3 t4])))
+      expect(report.values_at("status", "fails", "cover", "ms")).to(match(["killed", ["t3"], ["t2"], be >= 0]))
     end
 
     it "ticks the errand before every test it runs" do
       registry, unsafe = reload("HarnessReloadTick")
-      spy = instance_spy(Kimera::Execution::Reload::Errand, id: unsafe, tests: %w[t1 t2 t3])
+      spy = instance_spy(Kimera::Execution::Reload::Errand, id: unsafe, tests: %w[t1 t2 t3], reached: [])
       runner = reloader(counting(%w[t1 t2 t3], [], []), catalog: registry, root: dir, isolation: reselection)
       runner.__send__(:evaluate, spy)
       expect(spy).to(have_received(:tick).exactly(3).times)
@@ -1827,7 +1842,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       progress = journal
       [
         described_class.build(
-          registry: registry, adapter: plain(passed: true),
+          registry: registry, adapter: plain(passed: true, reach: calling("HarnessReloadCold")),
           source_root: dir, soft_timeout: nil, progress: progress
         ).run(ids: [unsafe]),
         progress
@@ -1838,8 +1853,8 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry, unsafe = reload(name)
       filter = Kimera::Execution::TestFilter.new(registry: registry, flaky: flaky)
       settings = { source_root: dir, soft_timeout: nil, coverage: {}, filter: filter }
-      described_class.build(registry: registry, adapter: counting(%w[t1 t2], ["t1"], []), **settings)
-        .run(ids: [unsafe]).results.first
+      suite = counting(%w[t1 t2], ["t1"], [], reach: %w[t1 t2].to_h { |test| [test, calling(name)] })
+      described_class.build(registry: registry, adapter: suite, **settings).run(ids: [unsafe]).results.first
     end
 
     it "runs a reloaded mutant against the tests the screen keeps, or settles it when it keeps none",
@@ -1944,12 +1959,13 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(elapsed).to(be < 5)
     end
 
-    def sluggish(tests, pause)
+    def sluggish(tests, pause, name)
       Class.new(Kimera::Frameworks::Suite) do
         define_method(:source) { |_files| self }
         define_method(:test_ids) { tests }
         define_method(:run) do |_ids|
           sleep(pause)
+          Object.const_get(name).new.memo(1, 2)
           Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
         end
       end.new
@@ -1957,7 +1973,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     # The deadline bounds one test: a suite longer than it is still judged.
     it "restarts the deadline for every test the reload child runs", :aggregate_failures do
-      result, elapsed = timing("HarnessSlow", sluggish(%w[t1 t2 t3 t4], 0.2), deadline: 0.5)
+      result, elapsed = timing("HarnessSlow", sluggish(%w[t1 t2 t3 t4], 0.2, "HarnessSlow"), deadline: 0.5)
       expect(result.status).to(eq(:survived))
       expect(elapsed).to(be > 0.5)
     end
