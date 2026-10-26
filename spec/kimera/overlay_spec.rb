@@ -553,6 +553,59 @@ RSpec.describe(Kimera::Overlay) do
     end
   end
 
+  # The point's own text comes first in its guard, so a local it binds
+  # (`brand ||= "PayPal"`) is bound in every alternative after it, where a
+  # kept `brand.upcase` would read that nil local, not the method (R6B1-M1).
+  describe "a call named like a local its point binds" do
+    let(:source) do
+      <<~RUBY
+        class Shadowed
+          def initialize(type, brand)
+            @type = type
+            @brand = brand
+          end
+
+          def label
+            case @type
+            when "card"
+              "\#{brand.upcase} card"
+            when "paypal"
+              brand ||= "PayPal"
+              brand
+            when "venmo"
+              "Venmo"
+            else
+              @type
+            end
+          end
+
+          private
+
+          def brand = @brand
+        end
+      RUBY
+    end
+    let(:registry) do
+      Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: %w[when_clause])).source(source, file: "x.rb")
+    end
+    let(:overlay) { described_class.new(registry) }
+
+    def labels(text)
+      shadowed = Module.new.tap { |mod| mod.module_eval(text) }.const_get(:Shadowed)
+      [%w[card visa], ["paypal", nil], %w[venmo x]].map do |type, brand|
+        shadowed.new(type, brand).label
+      rescue StandardError => error
+        error.class
+      end
+    end
+
+    it "behaves like each mutant's bake when that mutant is active" do
+      result = overlay.synthesize("x.rb", source)
+      baked = result.mutant_ids.to_h { |id| [id, labels(overlay.bake("x.rb", source, id))] }
+      expect(baked.keys.to_h { |id| [id, Kimera::RUNTIME.during(id) { labels(result.source) }] }).to(eq(baked))
+    end
+  end
+
   # Prism sees a literal -1 inside `--1`. The parser gem folded both minuses
   # into one literal, so that point had no node to guard; kimera now guards
   # the tree it scans, so the point is live like any other.

@@ -4,6 +4,7 @@ require_relative "parsing/syntax"
 require_relative "scribe/level"
 require_relative "scribe/shape"
 require_relative "scribe/binders"
+require_relative "scribe/texts"
 require_relative "scribe/place"
 require_relative "scribe/pen"
 require_relative "scribe/quote"
@@ -67,11 +68,13 @@ module Kimera
 
     def text
       depth = @place.depth
-      pen = Pen.new(Binders.new(@place.slices), Pen::Margin.new(depth: depth, flat: @place.flat?), @place.locals)
+      pen = Pen.new(binders, Pen::Margin.new(depth: depth, flat: @place.flat?), @place.locals)
       Lines.new(body, pen, @place.joint).text.delete_prefix("\n#{Pen::INDENT * depth}")
     end
 
     private
+
+    def binders = Binders.new(Texts.new(@place.slices))
 
     def body = @node&.type == :program_node ? @node.statements : @node
 

@@ -64,6 +64,16 @@ RSpec.describe(Kimera::Scribe) do
         "x = %w[p q]\n  y = <<~T\n    t\n  T\n  defined? a\n  yield a\n  super a\n  z = 2, a\nend\n"
     end
 
+    let(:shadowing) do
+      <<~RUBY
+        def m
+          [brand.size, [1].map { brand }, @x .brand, (brand ||= 1), def n
+            brand # own
+          end]
+        end
+      RUBY
+    end
+
     it "keeps an untouched subtree's text, comments and line breaks included", :aggregate_failures do
       expect(written(source, "call(a, # why\n       2)") { |call| call.copy(name: :other) }).to(eq("other(a, 2)"))
       expect(written(source, "a.map { |x|\n    x }") { |call| call.copy(name: :each) }).to(eq("a.each { |x|\n    x }"))
@@ -76,6 +86,23 @@ RSpec.describe(Kimera::Scribe) do
       end
       expect(written(source, "%w[p q]") { |words| words.copy(elements: words.elements.reverse) }).to(eq('["q", "p"]'))
       expect(written(source, "y = <<~T") { |write| write.copy(name: :z) }).to(eq('z = "t\n"'))
+    end
+
+    # A guard's alternatives follow the point's own text, so a local the point
+    # binds is bound where they stand: kept, `brand` would read that local.
+    def shadowed(slice)
+      root = tree(shadowing)
+      original = find(root, slice)
+      described_class.new(listed(original)).at(root, original).after(find(root, "(brand ||= 1)")).text
+    end
+
+    it "writes afresh a kept text whose bare call reads as a local where it stands", :aggregate_failures do
+      expect(shadowed("brand.size")).to(eq("[brand().size]"))
+      expect(shadowed("[1].map { brand }")).to(eq("[[1].map {\n    brand()\n  }]"))
+      expect(shadowed("def n\n    brand # own\n  end")).to(eq("[def n\n    brand # own\n  end]"))
+      expect(shadowed("@x .brand")).to(eq("[@x .brand]"))
+      expect(written("def m\n  [brand.size, (brand ||= 1)]\nend\n", "brand.size") { |node| listed(node) })
+        .to(eq("[brand.size]"))
     end
 
     it "writes a list without brackets afresh, in brackets" do

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+Field test round 6, batch 1: what kimera wrote, judged and said.
+
+- **A mutant's copy calls the method its point's own text shadows.** The
+  warm overlay writes a point as its original text followed by one copy per
+  mutant, in one method. A local the original binds (`brand ||= "PayPal"`
+  in one `when` branch) is then bound in every copy after it, and a bare
+  call to the method of that name (`"#{brand.upcase} card"` in another
+  branch), kept as written, read that nil local instead: pay's `charged_to`
+  had all eight `when` drops killed by `NoMethodError: undefined method
+  'titleize' for nil`, seven of them false kills (`--isolated` judged them
+  right). A kept text that calls a bare method named like a local bound
+  where it now stands is written afresh, the call as `brand()`.
+
 Self-host gate: what kept the `selfhost` job red on main.
 
 - **A `def` inside a block calls refined methods as the plain suite does.**
