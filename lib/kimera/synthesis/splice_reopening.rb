@@ -11,7 +11,6 @@ class Kimera::SpliceReopening
     Data.define(:node) do
       def edit = [node.location.start_offset, value.block.location.start_offset, header]
 
-      # Breaks as many lines as the text it replaces, so later lines keep their numbers.
       def header
         owner = base
         "#{constant} = (#{"\n" * lost}#{owner}.const_defined?(:#{name}, false) ? #{owner}.const_get(:#{name}) : " \

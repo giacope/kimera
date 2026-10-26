@@ -4,10 +4,6 @@ require "digest"
 require "json"
 
 module KimeraEval
-  # Ground truth for one mutant: its source baked into a copy of the project,
-  # the whole suite run by the plain test command in a fresh process. Killed
-  # when the command fails (or hangs); survived when it passes. Verdicts are
-  # cached by project contents, command, file and baked source.
   class Oracle
     CACHE = File.join(ROOT, "eval", "tmp", "oracle-cache.json")
     LIMIT = 120

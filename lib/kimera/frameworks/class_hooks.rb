@@ -7,9 +7,6 @@ module Kimera
   end
 end
 
-# Runs one Minitest test inside its class's info handler, as Minitest's own
-# runner does, so class-level hooks (minitest-hooks' before_all/after_all)
-# run around it; a hook's failure, reported to the handler, is the result.
 class Kimera::Frameworks::ClassHooks
   Reporter =
     Struct.new(:failures) do

@@ -1,10 +1,6 @@
 # frozen_string_literal: true
 
 module KimeraEval
-  # K13: the cost and side effects of walking every module at overlay time,
-  # on examples/rails_app booted and eager-loaded: how long the alias scan
-  # takes, and how many deprecation warnings it triggers by calling methods
-  # on Rails' deprecated-constant proxies.
   class ScansCase < Case
     ID = "K13"
     TITLE = "Overlay-time ObjectSpace scans: cost and side effects on a Rails app"

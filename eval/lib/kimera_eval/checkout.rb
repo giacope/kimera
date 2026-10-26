@@ -3,7 +3,6 @@
 module KimeraEval
   class SetupError < StandardError; end
 
-  # The kimera checkout under evaluation, run from its own bundle.
   class Checkout
     LIMIT = 900
 

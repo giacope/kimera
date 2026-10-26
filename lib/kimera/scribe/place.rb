@@ -2,11 +2,6 @@
 
 module Kimera
   class Scribe
-    # Where a node is written back into its source: the locals Ruby has bound
-    # there (earlier writes and parameters of its scope, and of every block
-    # around it), the text of every subtree a rewrite left alone, kept as it
-    # was written, and the indentation of its line. Statements may be joined
-    # on one line.
     class Place
       SCOPES = %i[program_node def_node class_node module_node singleton_class_node].freeze
 
@@ -28,16 +23,12 @@ module Kimera
 
       def after(node) = Place.new(@locals | Binders.new.of(node), @slices, @depth, @joint)
 
-      # Written on one line: statements joined with `; `, and every clause and
-      # block on the line too. Unbroken also writes afresh each kept text that
-      # breaks a line.
       def joined = Place.new(@locals, @slices, @depth, "; ")
 
       def unbroken = Place.new(@locals, @slices.reject { |_, text| text.include?("\n") }, @depth, "; ")
 
       def flat? = !@joint.nil?
 
-      # The locals bound where a node stands.
       class Seen
         def initialize(node)
           @node = node

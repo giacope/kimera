@@ -1,11 +1,6 @@
 # frozen_string_literal: true
 
 module KimeraEval
-  # K3: examples/rails_app (Rails 8.1, sqlite) end to end, Minitest and
-  # RSpec, against an oracle that bakes each mutant and runs `bin/rails test`
-  # (or `rspec`) fresh. Modes: serial, 4 workers with per-worker databases,
-  # --isolate-db with both, and --isolated, also with the app placed so its
-  # Gemfile's relative path to kimera resolves (as a monorepo's engines do).
   class RailsCase < Case
     ID = "K3"
     TITLE = "Real Rails app end to end (validations, callbacks, transactions, per-worker DBs)"

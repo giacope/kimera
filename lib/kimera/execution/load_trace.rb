@@ -10,10 +10,6 @@ module Kimera
   end
 end
 
-# Watches the suite load: which in-scope files it loads, and which of their
-# methods and blocks run while it does. Warm coverage starts after loading,
-# so code that ran only then (a class-body macro, a lambda a class body calls
-# to build a constant) is judged in the isolated tier, never called uncovered.
 class Kimera::Execution::LoadTrace
   LOADED = Kimera::MutationPoint::LOAD_REASON
   BOOTED = Kimera::MutationPoint::BOOT_REASON

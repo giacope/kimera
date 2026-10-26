@@ -2,14 +2,6 @@
 
 require_relative "splice_diff"
 
-# The expression a guard stands in for: the deepest node on the rewrite's
-# path that an expression may replace, or, when the rewrite changed no such
-# node, the nearest one around it (a regexp whose named captures bind is
-# guarded with its whole `=~`; a bare name with the statement that holds it;
-# a part of a string with the string; a list without brackets, `a, b` on the
-# right of an assignment, with the assignment; a quoted label with its hash).
-# The registry makes no point inside a pattern, so a pattern is never lifted
-# through.
 class Kimera::GuardSite
   STOPS = %i[statements_node def_node class_node module_node singleton_class_node block_node lambda_node].freeze
   OPENED = %i[string_node symbol_node x_string_node interpolated_string_node interpolated_symbol_node array_node].freeze

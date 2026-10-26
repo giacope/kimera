@@ -3,8 +3,6 @@
 require "open3"
 
 module KimeraEval
-  # Runs one command, capturing its output, wall time and the peak resident
-  # memory of every process it starts (sampled from /proc).
   class Shell
     Result =
       Data.define(:status, :stdout, :stderr, :wall, :rss, :late) do
@@ -70,8 +68,6 @@ module KimeraEval
 
     def clock(now = Process.clock_gettime(Process::CLOCK_MONOTONIC)) = now
 
-    # Peak RSS across a process tree: the largest single process, and the
-    # largest sum at any one sample.
     class Peak
       def initialize(root)
         @root = root

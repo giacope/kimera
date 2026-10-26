@@ -8,13 +8,6 @@ module Kimera
   end
 end
 
-# Whether a file only defines (classes and modules whose bodies hold only
-# methods, their visibility and accessors, constants, requires and further
-# such classes), so evaluating it
-# before the suite asks for it changes nothing but which definitions exist. A
-# generator template or a script assigns or calls at the top level, and a
-# class body that sets `@limit = 100` or calls `after Parser` runs code as it
-# loads; neither may run inside the test process unasked.
 class Kimera::Execution::Definitions
   CONSTANTS = [
     Prism::ConstantWriteNode, Prism::ConstantPathWriteNode, Prism::ConstantOrWriteNode, Prism::ConstantPathOrWriteNode

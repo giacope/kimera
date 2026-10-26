@@ -15,17 +15,12 @@ class Kimera::SourceMap
     @_ast ||= Kimera::Rewrite::NumberedParams.new(Kimera::Scribe.parse(@source)).normalize
   end
 
-  # A whole-file rewrite keeps what the tree does not carry: the leading
-  # comment section (every magic comment, in any spelling) and `__END__` with
-  # its data.
   def restore(text)
     data = parsed.data_loc
     ending = data ? "#{"\n" unless text.end_with?("\n") || text.empty?}#{data.slice}" : ""
     "#{leading}#{text}#{ending}"
   end
 
-  # Whether every edit breaks as many lines as the span it replaces, so every
-  # line outside the spans keeps its number.
   def lines_kept?(edits)
     edits.all? { |from, to, text| Kimera::LinePad.new(@source.byteslice(from, to - from)).kept?(text) }
   end

@@ -2,10 +2,6 @@
 
 require_relative "parallel_databases"
 
-# A database.yml that interpolates TEST_ENV_NUMBER (parallel_tests'
-# convention) names a database per process. The suite read it once, in the
-# parent, so each worker re-reads it under its own number; the parent creates
-# and loads each numbered database before the workers need it.
 class Kimera::Execution::NumberedDatabases
   def initialize(errors: $stderr, env: ENV)
     @errors = errors

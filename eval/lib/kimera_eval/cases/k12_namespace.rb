@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
 module KimeraEval
-  # K12: top-level constants `require "kimera"` adds, and a project that
-  # defines its own top-level MutantRuntime class.
   class NamespaceCase < Case
     ID = "K12"
     TITLE = "Kimera adds no top-level constant but Kimera"

@@ -44,8 +44,6 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
     self
   end
 
-  # What autorun does at exit, which kimera disarmed: the suite's
-  # Minitest.after_run hooks, once, in the process that loaded it.
   def finish
     return unless @loaders.delete?(Process.pid)
     Kimera::Frameworks::AfterRun.new(Minitest.class_variable_get(:@@after_run)).call

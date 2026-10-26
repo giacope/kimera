@@ -2,12 +2,6 @@
 
 require_relative "redefinition"
 
-# A Method or UnboundMethod the suite took at load (`REGISTERED =
-# method(:to_int)`) keeps the definition it was taken from. Once kimera's
-# overlay redefines that method, the two are no longer ==, and calling the
-# captured one runs the code as it was loaded, so a test comparing them fails
-# under kimera only. Ruby cannot make them equal; this names them, and the
-# files to leave out, for the message that stops the run.
 class Kimera::Execution::CapturedMethods
   LOOKUP = Module.instance_method(:instance_method)
   KINDS = [Method, UnboundMethod].freeze

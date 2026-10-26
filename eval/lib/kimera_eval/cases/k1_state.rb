@@ -1,12 +1,6 @@
 # frozen_string_literal: true
 
 module KimeraEval
-  # K1: verdicts against the oracle on suites whose state outlives a test:
-  # memo caches in another file, caches that hide callers from coverage,
-  # globals/class variables/module ivars, an ENV flag a mutant leaks, a
-  # registry and a constant later tests change, a table built at load.
-  # Warm runs at --jobs 1 and 4. The two example apps are a stateless
-  # control.
   class StateCase < Case
     ID = "K1"
     TITLE = "Verdicts agree with a fresh-process oracle on stateful suites"

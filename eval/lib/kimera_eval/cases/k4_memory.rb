@@ -1,9 +1,6 @@
 # frozen_string_literal: true
 
 module KimeraEval
-  # K4: peak memory while coverage records a hot loop. Each loop iteration
-  # evaluates several guards; a ledger that keeps every evaluation grows with
-  # the iteration count, one that keeps each id once does not.
   class MemoryCase < Case
     ID = "K4"
     TITLE = "Coverage memory stays bounded in a hot loop"

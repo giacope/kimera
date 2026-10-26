@@ -3,13 +3,6 @@
 require "json"
 
 module KimeraEval
-  # Runs kimera on a project and compares each verdict with the oracle's.
-  #
-  # Agreement: killed/timeout/error vs killed; survived or no_coverage vs
-  # survived. A survived or no_coverage verdict the oracle kills is a false
-  # survivor; a kill the oracle doesn't confirm is a false kill. Statuses
-  # that judge nothing (harness_error, isolated_only, unmutatable, ignored)
-  # are abstentions, counted apart.
   class Differential
     KILLS = %w[killed timeout error].freeze
     SURVIVALS = %w[survived no_coverage].freeze
@@ -78,7 +71,6 @@ module KimeraEval
     end
   end
 
-  # Agreement over the mutants both sides judged.
   class Agreement
     def initialize(tally)
       @tally = tally

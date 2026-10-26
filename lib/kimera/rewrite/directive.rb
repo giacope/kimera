@@ -14,9 +14,6 @@ module Kimera
     INDEX = OperatorProtocol::INDEX
     STATEMENT_DELETION = OperatorProtocol::STATEMENT_DELETION
 
-    # Renders a mutant for reports from the point's source alone, parsed as a
-    # fragment of a method or block, where `next if x`, `break if x` and
-    # `redo if x` are valid.
     class Directive
       TABLE = ->(*entries) { entries.each_slice(2).to_h.freeze }
 

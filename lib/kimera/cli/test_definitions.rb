@@ -5,11 +5,6 @@ module Kimera
   end
 end
 
-# The files a test glob matches that define a test: a Minitest `def test_…`,
-# `define_method("test_…")` or `test "…"`, or a spec example (`it`, `specify`, `it_behaves_like`). A
-# glob that matches only a support file (zeitwerk's LoaderTest base class)
-# finds no test to run: `init` picks the glob whose files define the most
-# tests, and doctor fails one whose files define none.
 class Kimera::CLI::TestDefinitions
   DEFINES = /
     (?:^|[{;])\s*(?:(?:def\s+|define_method\(?\s*[:"'])test_|test\s*\(?\s*["']|

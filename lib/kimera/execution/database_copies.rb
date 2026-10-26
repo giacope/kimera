@@ -9,13 +9,6 @@ module Kimera
   end
 end
 
-# A suite that prepares its test database as it loads (thredded migrates it)
-# leaves no schema file for Rails' per-worker hook to load. Each warm worker
-# and isolated mirror past the first then gets a copy of the database the
-# parent prepared, made after the parent disconnected and named
-# <database>_<n>: PostgreSQL copies it with CREATE DATABASE ... TEMPLATE, and
-# an SQLite file is copied. A process takes its copy only when it exists, and
-# the copies are dropped when the run ends. Other adapters cannot copy.
 class Kimera::Execution::DatabaseCopies
   ENGINES = {
     /postg/i => Kimera::Execution::DatabaseCopies::Postgres, /sqlite/i => Kimera::Execution::DatabaseCopies::Sqlite

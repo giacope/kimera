@@ -7,9 +7,6 @@ module Kimera
   end
 end
 
-# The project's .rspec, applied in two steps: its options when the adapter is
-# built, its --require files with the test files, so kimera's load trace sees
-# what spec_helper runs while the suite loads.
 class Kimera::Frameworks::DotRspec
   def configure(config)
     requires

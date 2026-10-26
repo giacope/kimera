@@ -5,9 +5,6 @@ module Kimera
   end
 end
 
-# A suite the kernel killed (the OOM killer's SIGKILL, a segfault) printed no
-# summary, so the last line that looks like one names whatever example ran
-# last. The signal is the news.
 Kimera::CLI::SuiteSignal =
   Data.define(:status) do
     killed = "the suite was killed by SIG%s before it printed a summary%s"

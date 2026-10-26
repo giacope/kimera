@@ -9,11 +9,6 @@ end
 
 class Kimera::Execution::DatabaseCopies; end
 
-# Copies an SQLite database file, with its write-ahead log when one holds
-# pages not yet written back. A copy goes with its log, shared-memory index
-# and journal: a stale log beside a fresh copy would be replayed into it.
-# Active Record reads a relative path from the Rails root, or from the working
-# directory without Rails.
 class Kimera::Execution::DatabaseCopies::Sqlite
   SIDECARS = %w[-wal -shm -journal].freeze
 

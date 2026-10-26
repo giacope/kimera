@@ -16,8 +16,6 @@ module Kimera
     class Pen
       INDENT = "  "
 
-      # Where a statement or clause starts: its own line, indented to its
-      # depth, or, written flat, after a `; ` on the same one.
       Margin =
         Data.define(:depth, :flat) do
           def deeper = with(depth: depth + 1)

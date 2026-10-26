@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
 module KimeraEval
-  # X1: `--session tmp/kimera.json` (as the README shows it) in a project
-  # without tmp/: the run must save its session, not crash after the work.
   class FolderCase < Case
     ID = "X1"
     TITLE = "--session into a missing directory saves instead of crashing"

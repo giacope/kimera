@@ -20,8 +20,5 @@ Kimera::Execution::BaselineTally =
     end
   end
 
-# What the baseline measured: the tests covering each mutant, the failing
-# tests that cover none (with their messages), the tests a rerun recovered,
-# and how long each test took.
 Kimera::Execution::BaselineTally::Measured =
   Struct.new(:coverage, :irrelevant, :recovered, :timings, keyword_init: true)

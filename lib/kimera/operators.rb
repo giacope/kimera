@@ -61,9 +61,6 @@ module Kimera
       StatementDeletion, Negation, Conditional
     ].map { it.new.key }.freeze
 
-    # What `kimera init` writes for a new project: the core, plus a `case`'s
-    # `when` branches and `<<` statements, which the core never mutates.
-    # A configuration without `operators:` keeps DEFAULT_KEYS.
     INIT_KEYS = [*DEFAULT_KEYS, *[WhenClause, AppendDeletion].map { it.new.key }].freeze
 
     RAILS_KEYS = [RailsPermit, RailsValidation, RailsCallback, RailsAssociation].map { it.new.key }.freeze

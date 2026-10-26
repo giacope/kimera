@@ -7,8 +7,6 @@ module Kimera
   end
 end
 
-# Leaves out single tests by name, where --exclude-test can only leave out
-# whole files: rack's one root-only Directory test, without the other 26.
 class Kimera::Frameworks::NameExclusion < SimpleDelegator
   def initialize(adapter, patterns)
     super(adapter)

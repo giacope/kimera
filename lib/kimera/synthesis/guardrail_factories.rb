@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
 module Kimera
-  # A block handed to a factory kimera does not know is a class body when it
-  # takes no parameters and defines methods (`Options.new(:a) do def a? end end`).
   FactoryBlock =
     Data.define(:block) do
       def defining?

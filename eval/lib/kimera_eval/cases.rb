@@ -9,7 +9,6 @@ module KimeraEval
   RSPEC = %w[bundle exec rspec].freeze
   COUNTS = /(\d+) examples?, (\d+) failures?/
 
-  # What bin/spec reported.
   Specs =
     Data.define(:ok, :examples, :failures, :wall_s) do
       def self.of(result)
@@ -20,11 +19,8 @@ module KimeraEval
       def to_h = super.transform_keys(&:to_s)
     end
 
-  # What every case gets: the checkout under evaluation, a sandbox for
-  # copies, and the run's settings.
   Context = Data.define(:checkout, :sandbox, :settings)
 
-  # A case measures one gap. #call returns a metrics hash with "pass".
   class Case
     TOTALS = %w[mutants agree false_survived false_killed abstained unbakeable].freeze
 

@@ -9,22 +9,6 @@ module Kimera
   end
 end
 
-# A `def` inside a block handed to a DSL (`RSpec.shared_examples_for`,
-# `shared_context`, `Module.new`) defines its method on whatever module runs
-# the block, which the source cannot name: re-running the file defines nothing
-# there. So before the overlay runs, every module whose method was loaded from
-# such a def is noted, and afterwards the woven def is defined on each one the
-# overlay left as it was, with the visibility it had. Only a file with such a
-# def has the heap searched for them. One the overlay did reach keeps the
-# overlay's def: the class of a `Struct.new` block, which the overlay reopens,
-# or the refinement `refine` hands back, where a def defined on its own would
-# lose the refinement its block activates.
-#
-# The woven def is compiled on its own, inside its lexical scope written out:
-# the comments above the file's first line of code (its magic comments), then
-# the file and each class or module around the def, each with the `using`
-# calls made there before it, so its refined calls and frozen literals are the
-# file's.
 class Kimera::Execution::BlockMethods
   Site =
     Data.define(:name, :line, :span, :preamble, :nesting, :text) do

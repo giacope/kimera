@@ -3,13 +3,6 @@
 require_relative "guard_splice"
 require_relative "overlay_splice"
 
-# A warm overlay spliced into the original source: every guard the source can
-# hold where its point stands, and each definition holding a point no
-# expression can guard written whole on its own lines (outside every
-# definition, the statement of the file that holds it), so every line
-# outside them keeps its number. Nothing, when such a statement cannot be
-# written so or the spliced text does not parse; the caller then weaves
-# fewer points.
 class Kimera::Overlay::Stitch
   include Kimera::OverlaySplice
 

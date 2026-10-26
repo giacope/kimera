@@ -3,12 +3,6 @@
 require "prism"
 
 module KimeraEval
-  # K2: code kimera scans but neither mutates nor reports. A candidate line
-  # is one inside a method, block or lambda body holding a node the default
-  # operators mutate (a comparison, &&, ||, !, a condition, a boolean). It
-  # is silent when no mutant starts on it and no reported region covers it.
-  # A scanned file that does not parse must be reported too. The verdicts on
-  # the new mutants are checked against the oracle.
   class SilentCase < Case
     ID = "K2"
     TITLE = "No silently unmutated code (define_method, blocks, unparseable files)"
@@ -46,7 +40,6 @@ module KimeraEval
         .merge("mutants" => metrics["differential"]["mutants"])
     end
 
-    # The candidate lines of each scanned file, against what the report says.
     class Coverage
       COMPARISONS = %i[> < >= <= == != !].freeze
       BODIES = [Prism::DefNode, Prism::BlockNode, Prism::LambdaNode].freeze

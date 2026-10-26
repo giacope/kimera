@@ -31,8 +31,6 @@ class Kimera::Guardrail
 
   def tree = @_tree ||= transform(@map.ast)
 
-  # The node's guarded rewrite laid out to its lines (Kimera::LinePad), on
-  # one line when written out it breaks more; no text when neither fits.
   def rewrite(node)
     woven = transform(node)
     [Kimera::LinePad.new(node.slice).fitted(Kimera::Scribe.new(woven)), activated(woven)]
@@ -51,8 +49,6 @@ class Kimera::Guardrail
     overlay(target, directive) if anchors.include?(target)
   end
 
-  # The nodes a bake rewrites, each with its rewritten copy: the point's node
-  # first, then every node around it up to the program.
   def changes(point, directive)
     target = target(point)
     return unless anchors.include?(target)

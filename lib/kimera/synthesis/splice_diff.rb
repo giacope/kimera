@@ -2,11 +2,6 @@
 
 require_relative "../parsing/syntax"
 
-# Where a rewrite changed a node: from the node and its rewritten copy down
-# through the one field that differs at each level, to the smallest pair that
-# holds the whole change. A call on `self` may reach a private method and a
-# call on any other expression may not, so a `self` receiver is never
-# replaced alone.
 class Kimera::SpliceDiff
   HELD = %i[
     statements_node arguments_node parameters_node block_parameters_node block_node embedded_statements_node

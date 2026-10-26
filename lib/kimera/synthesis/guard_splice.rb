@@ -9,13 +9,6 @@ require_relative "guard_site"
 require_relative "guard_text"
 require_relative "splice_index"
 
-# Warm schemata written into the original source. Each mutant is guarded at
-# the smallest expression its rewrite changes (Kimera::GuardText), its
-# alternative written on one line (a kept text that breaks a line written
-# afresh), so every line keeps its number. A point no expression can hold (a
-# rescue clause, a definition that is not a statement, an alternative Scribe
-# cannot write on one line) is left in `rest`, for the caller to write its
-# definition whole.
 class Kimera::GuardSplice
   NUMBERED = /\b#{Kimera::Rewrite::NumberedParams::PREFIX}(?:[1-9]|it)\b/
 

@@ -9,8 +9,6 @@ require_relative "shift"
 require_relative "stack_dump"
 require_relative "worker_pool"
 
-# Forks the warm workers. A worker whose after-fork setup raises (Rails'
-# parallelize_setup hooks, its schema load) confesses it with its crash.
 class Kimera::Execution::Pool
   include Kimera::Execution::ChildProcess
 
