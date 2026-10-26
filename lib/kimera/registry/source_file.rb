@@ -45,20 +45,27 @@ class Kimera::RegistryScan::SourceFile
     Kimera::Unmutated.new(@file, 1, [@source.lines.size, 1].max, "#{Kimera::Unmutated::UNPARSED}#{error}")
   end
 
-  def region(block)
-    Kimera::Unmutated.new(@file, *Kimera::Location.parse(block.location).range.minmax, Kimera::Unmutated::BLOCK)
+  def unmutated(held)
+    held.group_by { |block, _| block.location.start_offset }.values.flat_map { |pairs| runs(pairs.map(&:last)) }
+  end
+
+  def runs(nodes)
+    lines = nodes.flat_map { |node| Kimera::Location.parse(node.location).range.to_a }.sort
+    lines.slice_when { |line, following| following > line + 1 }.map do |run|
+      Kimera::Unmutated.new(@file, run.first, run.last, Kimera::Unmutated::BLOCK)
+    end
   end
 
   protected
 
   def mined(root)
     found = []
-    held = {}.compare_by_identity
+    held = []
     walk(root, origin) do |node, cursor|
       point = bank(node, cursor)
-      point ? found << point : held.update(hold(node, cursor))
+      point ? found << point : held.concat(hold(node, cursor))
     end
-    [found, held.values]
+    [found, unmutated(held)]
   end
 
   private
@@ -78,8 +85,8 @@ class Kimera::RegistryScan::SourceFile
 
   def hold(node, cursor)
     block = cursor.block
-    return {} unless block && !cursor.inside_def && harvest(skipped, node, cursor.position).any?
-    { block => region(block) }
+    return [] unless block && !cursor.inside_def && harvest(skipped, node, cursor.position).any?
+    [[block, node]]
   end
 
   def skipped = @operators.reject(&:body?).reject(&:statement?)

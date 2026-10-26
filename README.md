@@ -1062,11 +1062,11 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     (Kimera could not write it), never killed or survived.
 - **What is not mutated is listed.** The scan mutates method bodies, and the
   bodies of blocks that run on each call: `define_method`,
-  `define_singleton_method`, `lambda`, `proc`, `Proc.new` and `->`. Any other
-  block outside a method that holds code it would mutate (a class-level
-  `map`, a DSL callback block), and any scanned file that does not parse, is
-  listed under "Not mutated" in the text report and `unmutated` in the JSON
-  report and the registry, with the reason.
+  `define_singleton_method`, `lambda`, `proc`, `Proc.new` and `->`. The code
+  it would mutate in any other block outside a method (a class-level `map`,
+  a DSL callback block), by its own lines, and any scanned file that does
+  not parse, are listed under "Not mutated" in the text report and
+  `unmutated` in the JSON report and the registry, with the reason.
 - **Schema-unsafe mutants.** Code that runs once at load (class/module bodies,
   constants) or is memoized can't be toggled in a warm process. Kimera mutates
   only inside method bodies and routes memoized points to a fork-per-mutant

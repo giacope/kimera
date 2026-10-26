@@ -31,6 +31,12 @@ Field test round 6, batch 1: what kimera wrote, judged and said.
   condition covered by 7 tests, the `raise` "no test executed this line"); 9
   of 15 uncovered rows in two runs sat on such a line. It now reads "no test
   reached the code it mutates (other code on its line may have run)".
+- **"Not mutated" names the lines kimera skipped, not their whole block.**
+  A class-level block holding one skipped node was listed whole, "so the
+  code in it is not mutated", while kimera mutated and judged other code in
+  it: pay's `included do ... end` (lines 10-21) beside three judged mutants
+  on lines 16 and 18, where only line 20 was skipped. Each block now lists
+  the lines of the code it skipped, as runs of lines.
 
 Self-host gate: what kept the `selfhost` job red on main.
 

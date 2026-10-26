@@ -38,7 +38,7 @@ RSpec.describe(Kimera::RegistryScan) do
   it "leaves a block given to another call alone, reporting where it is and why", :aggregate_failures do
     registry = scan("class W\n  LIMITS = [5].map { _1 > 1 ? 2 : 1 }\n  rule(:sane) do |size|\n    size > 0\n  end\nend")
     expect(registry.points.select(&:safe?)).to(be_empty)
-    expect(registry.unmutated.map { |region| [region.start_line, region.end_line] }).to(eq([[2, 2], [3, 5]]))
+    expect(registry.unmutated.map { |region| [region.start_line, region.end_line] }).to(eq([[2, 2], [4, 4]]))
     expect(registry.unmutated.map(&:reason).uniq).to(eq([Kimera::Unmutated::BLOCK]))
   end
 
@@ -64,9 +64,22 @@ RSpec.describe(Kimera::RegistryScan) do
     expect(registry.narrowed("widget.rb" => Set[3]).unmutated.map(&:start_line)).to(eq([3]))
   end
 
-  it "reports a block inside a class-level block as part of the outer one" do
+  it "reports the code of a block inside a class-level block once" do
     registry = scan("class W\n  setup do\n    [1].each do |n|\n      n > 0\n    end\n  end\nend\n")
-    expect(registry.unmutated.map { |region| [region.start_line, region.end_line] }).to(eq([[2, 6]]))
+    expect(registry.unmutated.map { |region| [region.start_line, region.end_line] }).to(eq([[4, 4]]))
+  end
+
+  it "reports every line of a skipped node in a class-level block as one run" do
+    registry = scan("class W\n  setup do\n    @mode = @size > 1 ?\n      1 : 2\n  end\nend")
+    expect(registry.unmutated.map { |region| [region.start_line, region.end_line] }).to(eq([[3, 4]]))
+  end
+
+  # A lambda in the block is mutated; what is not mutated is the line beside
+  # it, not the block that holds both (R6B1-M3).
+  it "reports the lines it skips in a class-level block, not the lines it mutates there", :aggregate_failures do
+    registry = scan("class W\n  configure do\n    @limit = -> { 10 > 5 }\n    @mode = @limit.call ? 1 : 2\n  end\nend")
+    expect(lines(registry)).to(eq([3]))
+    expect(registry.unmutated.map { |region| [region.start_line, region.end_line] }).to(eq([[4, 4]]))
   end
 
   it "takes a method defined from a block argument as no block body" do
