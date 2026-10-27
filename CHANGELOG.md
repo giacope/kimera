@@ -101,6 +101,14 @@ Field test round 6, batch 3: where a bake leaves your lines, and how the suite r
   one that would is unmutatable, "what it wrote changes or moves a line
   outside the mutation" (a heredoc's last line break, which no heredoc can
   drop).
+- **`defined?(super)` is no use of the block.** Ruby compiles
+  `defined?(super)` as a look-up of the super method, so a method left with
+  `return super if defined?(super)` minus its `super` ignores the block it is
+  given and warns under `strict_unused_block`; kimera counted the guard as a
+  use, did not judge the mutant again in a mirror, and it survived warm while
+  its bake died (ancestry's `acts_as_tree`). Inside `defined?` only what Ruby
+  evaluates or checks for a block counts: a `yield`, in an argument or an
+  element too, and a receiver.
 
 Self-host gate: what kept the `selfhost` job red on main.
 

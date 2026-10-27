@@ -131,6 +131,30 @@ RSpec.describe(Kimera::Execution::BlockUse) do
     expect(%w[@x !false @x&&true true&&@x false||@x @x||false /x/ [] ()].flat_map { either(it) }.uniq).to(eq([[]]))
   end
 
+  # R6B3-M2: Ruby compiles `defined?(super)` as a check that a super method
+  # exists, no use of the block; what `defined?` evaluates (a receiver) or
+  # checks for a block (`yield`, in an argument or an element) is one.
+  it "counts what defined? evaluates or checks for a block, not a super it only looks up", :aggregate_failures do
+    looked = [
+      "defined?(super)", "defined?(super())", "defined?(x(super))", "defined?(super(yield))",
+      "defined?((yield; 1))", "defined?(@a = yield)", "defined?(super && 1)"
+    ]
+    used = [
+      "defined?(yield)", "defined?(super.x)", "defined?(yield.x)", "defined?(foo(yield))", "defined?([yield])",
+      "defined?(super[1])", "defined?((yield))"
+    ]
+    expect(looked.map { guarded(it) }.uniq).to(eq([[[4, "statement_deletion"]]]))
+    expect(used.map { guarded(it) }.uniq).to(eq([[]]))
+  end
+
+  it "judges again the mutant that drops the only super a defined?(super) guards" do
+    code = "class BlockUseAudit < Object\n  def notify(event)\n    return super if defined?(super)\n    " \
+      "nil\n  end\nend\n"
+    scan = Kimera::RegistryScan.new(root: dir, operators: Kimera::Operators.build(keys: %w[super_call]))
+    points = revisited(scan.build([File.join(dir, "audit.rb").tap { |path| File.write(path, code) }]))
+    expect(points).to(eq([[3, "super_call"]]))
+  end
+
   it "takes a mutant it cannot apply as leaving the method no yield" do
     join = registry.points.find { |point| point.location.start_line == 3 }
     odd = join.to_h.merge("mutants" => [{ "id" => 1, "label" => "odd", "directive" => { "type" => "odd" } }])

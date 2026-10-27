@@ -16,6 +16,7 @@ class Kimera::Execution::BlockUse::Source
   ].freeze
   SUPERS = %i[super_node forwarding_super_node].freeze
   BRANCHES = %i[if_node unless_node].freeze
+  LOOKED = %i[call_node array_node parentheses_node].freeze
   NONE = {}.compare_by_identity.freeze
 
   def initialize(tree)
@@ -53,7 +54,24 @@ class Kimera::Execution::BlockUse::Source
   def live(node, swap)
     node = swap.fetch(node, node)
     return 0 if node.nil? || node.type == :def_node
+    return checked(node.value, swap) if node.type == :defined_node
     (use?(node) ? 1 : 0) + reached(node, swap).sum { |child| live(child, swap) }
+  end
+
+  def checked(node, swap)
+    node = swap.fetch(node, node)
+    return node.type == :yield_node ? 1 : 0 unless LOOKED.include?(node.type)
+    evaluated(node, swap) + looked(node).sum { |each| checked(each, swap) }
+  end
+
+  def evaluated(node, swap) = node.type == :call_node ? live(node.receiver, swap) : 0
+
+  def looked(node)
+    case node.type
+    when :call_node then [*node.arguments&.arguments]
+    when :array_node then node.elements
+    else node.body&.body&.one? ? node.body.body : []
+    end
   end
 
   def use?(node) = node.type == :yield_node || (SUPERS.include?(node.type) && node.block.nil?)
