@@ -38,6 +38,19 @@ Field test round 6, batch 1: what kimera wrote, judged and said.
   on lines 16 and 18, where only line 20 was skipped. Each block now lists
   the lines of the code it skipped, as runs of lines.
 
+Field test round 6, batch 2: what kimera judged under a strict suite and said.
+
+- **Kimera's own calls pass no block a method ignores.** A suite may turn on
+  `Warning[:strict_unused_block]` and raise every warning (dry-rb's
+  spec_helper does), and kimera judges mutants in that suite's process. Its
+  test filter passed a block to the open attribution's `admits?` and its
+  shift a block to a kill's or a timeout's `conclude`, which ignore it: on
+  dry-monads the first memoized mutant ended the run with "the block passed
+  to 'Kimera::Execution::OpenAttribution#admits?' ... may be ignored
+  (RuntimeError)" and no report, and the first warm kill of each worker read
+  `error`. Those methods now take the block, and kimera's own suite runs with
+  the warning on and raised for its lib, so a new site fails CI.
+
 Self-host gate: what kept the `selfhost` job red on main.
 
 - **A `def` inside a block calls refined methods as the plain suite does.**
