@@ -109,6 +109,12 @@ Field test round 6, batch 3: where a bake leaves your lines, and how the suite r
   its bake died (ancestry's `acts_as_tree`). Inside `defined?` only what Ruby
   evaluates or checks for a block counts: a `yield`, in an argument or an
   element too, and a receiver.
+- **A re-judged mutant keeps the tests that covered it.** A warm survivor
+  sent to a mirror for a block it leaves unused, or a lambda a macro keeps,
+  reported every test the mirror ran, "the tests near its file", as covering
+  it (mechanize's `Download#initialize`: 154 tests, against 18 warm). It now
+  keeps its warm coverage, plus the test that killed it; one no test reached
+  warm stays uncovered unless the mirror kills it.
 
 Self-host gate: what kept the `selfhost` job red on main.
 
