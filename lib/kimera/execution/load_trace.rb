@@ -35,7 +35,7 @@ class Kimera::Execution::LoadTrace
 
   def quarantine!(coverage)
     runs.each do |file, lines|
-      loaded(file, lines).each { |point| point.uncovered?(coverage) ? point.unsafe!(LOADED) : point.revisit!(BOOTED) }
+      loaded(file, lines).each { |point| point.defer!(coverage, LOADED, BOOTED) }
     end
     Kimera::Execution::MacroLambdas.new(@registry, root).quarantine!(coverage)
     Kimera::Execution::BlockUse.new(@registry, root).revisit!

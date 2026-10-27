@@ -24,7 +24,7 @@ class Kimera::Execution::MacroLambdas
   def quarantine!(coverage)
     @registry.files.each do |file|
       ranges = handed(file)
-      @registry.at(file).each { |point| sort(point, coverage) if open?(point, ranges) }
+      @registry.at(file).each { |point| point.defer!(coverage, REASON, KEPT) if open?(point, ranges) }
     end
   end
 
@@ -33,8 +33,6 @@ class Kimera::Execution::MacroLambdas
   def root = @_root ||= File.expand_path(@given)
 
   def open?(point, ranges) = point.safe? && !point.revisit && point.inside?(ranges)
-
-  def sort(point, coverage) = point.uncovered?(coverage) ? point.unsafe!(REASON) : point.revisit!(KEPT)
 
   def handed(file) = lambdas(Kimera::Syntax::Document.new(root, file).result.value, argument: false)
 

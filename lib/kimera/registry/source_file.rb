@@ -51,8 +51,7 @@ class Kimera::RegistryScan::SourceFile
   end
 
   def runs(nodes)
-    lines = nodes.flat_map { |node| Kimera::RegistryScan::Skipped.new(node).lines }.sort
-    lines.slice_when { |line, following| following > line + 1 }.map do |run|
+    Kimera::RegistryScan::Skipped.new(nodes).lines.slice_when { |line, following| following > line + 1 }.map do |run|
       Kimera::Unmutated.new(@file, run.first, run.last, Kimera::Unmutated::BLOCK)
     end
   end

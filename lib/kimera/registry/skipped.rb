@@ -5,22 +5,24 @@ require_relative "walking"
 class Kimera::RegistryScan::Skipped
   include Kimera::RegistryWalking
 
-  def initialize(node)
-    @node = node
+  def initialize(nodes)
+    @nodes = nodes
   end
 
-  def lines
-    location = @node.location
-    blanked(location).lines.each_with_index.filter_map do |line, index|
+  def lines = @nodes.flat_map { |node| own(node) }.sort
+
+  private
+
+  def own(node)
+    location = node.location
+    blanked(node, location).lines.each_with_index.filter_map do |line, index|
       location.start_line + index unless line.strip.empty?
     end
   end
 
-  private
-
-  def blanked(location)
+  def blanked(node, location)
     from = location.start_offset
-    nested(@node).each_with_object(location.slice.b) do |inner, text|
+    nested(node).each_with_object(location.slice.b) do |inner, text|
       start = inner.start_offset - from
       text[start, inner.length] = text.byteslice(start, inner.length).tr("^\n", " ")
     end
