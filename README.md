@@ -402,12 +402,17 @@ also fails without the mutant after the covering tests run before it: that
 mutant would be `harness_error`. Nor can it change what a method computed
 while the suite loaded (a constant table built from it): the guards are
 installed after boot. So a warm survivor whose method the suite also ran
-while it loaded is judged again too.
+while it loaded is judged again too. Nor can it see what Ruby settles as it
+compiles a method, such as whether the method uses the block passed to it:
+the overlay compiles every mutant of a method into one, so a mutant that
+leaves the method no `yield` still reads as taking its block. Under a suite
+that reports an ignored block (`Warning[:strict_unused_block]`, or
+`$VERBOSE`), and may raise it, such a mutant's warm survivor is judged again.
 
 After the warm pass, Kimera judges each such mutant again in the isolated
 tier, in a fresh mirror of its own, against its covering tests only (every
-test under `--no-coverage`; for a method that ran at load, the tests near its
-file, as above). A kill (or
+test under `--no-coverage`; for a method that ran at load, and for a mutant
+that leaves its method no `yield`, the tests near its file, as above). A kill (or
 timeout) stands only if those tests then pass in another fresh mirror
 without the mutant. The report carries the fresh
 verdict, and the row's `note` keeps what the warm pass said. The text report

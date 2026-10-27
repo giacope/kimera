@@ -64,6 +64,15 @@ Field test round 6, batch 2: what kimera judged under a strict suite and said.
   as not mutated beside the two judged mutants on line 6. A def, lambda or
   `define_method` body inside a skipped node no longer counts as its lines
   (here: lines 5 and 7).
+- **A mutant that leaves its method no `yield` is judged as baked.** Ruby
+  settles whether a method uses the block passed to it as it compiles the
+  method, and the warm overlay compiles every mutant of a method into one, so
+  the method kept its `yield` for every mutant. Under a suite that raises the
+  warning for an ignored block (dry-monads: `Warning[:strict_unused_block]`),
+  `if block_given?` => `if false` in `Right#and` survived warm and failed the
+  suite baked. Under a suite that reports ignored blocks (strict, or
+  `$VERBOSE`), a warm survivor whose mutant leaves its method no live
+  `yield` (or `super` passing the block) is judged again in a fresh mirror.
 
 Self-host gate: what kept the `selfhost` job red on main.
 
