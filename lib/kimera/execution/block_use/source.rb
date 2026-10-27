@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "../../rewrite/ast_walk"
 require_relative "../../rewrite/directive"
 
 module Kimera
@@ -24,31 +23,19 @@ class Kimera::Execution::BlockUse::Source
   end
 
   def drops?(point)
-    node = nodes[[point.location.start_offset, point.location.finish, point.node_type.to_sym]]
-    holder = node && holder(node)
+    node, holder = nodes[[point.location.start_offset, point.location.finish, point.node_type.to_sym]]
     return false unless holder && taker?(holder)
     point.mutants.any? { |mutant| dropped?(holder, node, mutant.directive) }
   end
 
   private
 
-  def nodes = @_nodes ||= index
+  def nodes = @_nodes ||= entries(@tree, nil).to_h
 
-  def index
-    {}.tap { |found| Kimera::Rewrite::AstWalk.new(@tree).visit { |node| found[[*span(node), node.type]] ||= node } }
-  end
-
-  def span(node) = [node.location.start_offset, node.location.end_offset]
-
-  def holder(node)
-    from, to = span(node)
-    held = nodes.values.select { |found| found.type == :def_node && !found.equal?(node) && within?(found, from, to) }
-    held.max_by { |found| found.location.start_offset }
-  end
-
-  def within?(found, from, to)
-    start, finish = span(found)
-    start <= from && to <= finish
+  def entries(node, holder)
+    inner = node.type == :def_node ? node : holder
+    place = [node.location.start_offset, node.location.end_offset, node.type]
+    [[place, [node, holder]], *node.compact_child_nodes.flat_map { |child| entries(child, inner) }]
   end
 
   def taker?(holder) = !declared?(holder.parameters) && live(holder.body, NONE).positive?
@@ -92,7 +79,7 @@ class Kimera::Execution::BlockUse::Source
     end
   end
 
-  def last(body, swap) = fixed(body.type == :statements_node ? body.body.last : body, swap)
+  def last(body, swap) = body && fixed(body.body.last, swap)
 
   def both(left, right) = [left, right].include?(false) ? false : left && right
 

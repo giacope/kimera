@@ -34,6 +34,8 @@ RSpec.describe(Kimera::Execution::BlockUse) do
 
         def given(&block) = block ? block.call : nil
 
+        define_method(:above) { |v| v > 1 }
+
         def tally(list)
           list.map { |item| item > 1 }
           yield 2
@@ -90,6 +92,7 @@ RSpec.describe(Kimera::Execution::BlockUse) do
 
   it "counts a yield in a nested def as that def's, and a zsuper without a block as a use", :aggregate_failures do
     expect(guarded("def b = yield")).to(eq([[4, "statement_deletion"]]))
+    expect(guarded("def b(v) = v > 1 ? yield(v) : v")).to(eq([[3, "conditional"], [4, "statement_deletion"]]))
     expect(guarded("super")).to(eq([]))
     expect(guarded("super { 1 }")).to(eq([[4, "statement_deletion"]]))
   end
@@ -111,14 +114,27 @@ RSpec.describe(Kimera::Execution::BlockUse) do
   end
 
   it "counts no yield in the else of a truthy literal condition" do
-    truthy = ["true", "1", "1.5", "1r", "1i", '"s"', ":a", "->{}", "__LINE__", "@x||true", "yield unless true"]
-    expect(truthy.map { |literal| guarded(literal.start_with?("yield") ? literal : "#{literal} ? 1 : yield") }.uniq).to(
+    truthy = ["true", "1", "1.5", "1r", "1i", '"s"', ":a", "->{}", "__LINE__", "@x||true", "true&&1"]
+    expect([*truthy.map { |literal| guarded("#{literal} ? 1 : yield") }, guarded("yield unless true")].uniq).to(
       eq([[[4, "statement_deletion"]]])
     )
   end
 
-  it "counts the yield of a branch a condition may take" do
-    live = %w[@x !false @x&&true true&&@x false||@x /x/ []].map { |literal| guarded("#{literal} ? 1 : yield") }
-    expect(live.uniq).to(eq([[]]))
+  it "counts the yield of the branch a literal condition takes", :aggregate_failures do
+    expect(%w[true 1 :a].map { |literal| guarded("yield if #{literal}") }.uniq).to(eq([[]]))
+    expect([guarded("false ? 1 : yield"), guarded("nil ? 1 : yield"), guarded("yield unless false")].uniq).to(eq([[]]))
+  end
+
+  def either(literal) = [guarded("#{literal} ? 1 : yield"), guarded("yield if #{literal}")]
+
+  it "counts the yield of either branch a condition may take" do
+    expect(%w[@x !false @x&&true true&&@x false||@x @x||false /x/ [] ()].flat_map { either(it) }.uniq).to(eq([[]]))
+  end
+
+  it "takes a mutant it cannot apply as leaving the method no yield" do
+    join = registry.points.find { |point| point.location.start_line == 3 }
+    odd = join.to_h.merge("mutants" => [{ "id" => 1, "label" => "odd", "directive" => { "type" => "odd" } }])
+    tree = Kimera::Execution::BlockUse::Source.new(Kimera::Syntax.parse(source).value)
+    expect(tree.drops?(Kimera::MutationPoint.from_h(odd))).to(be(true))
   end
 end
