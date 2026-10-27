@@ -29,16 +29,18 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
   def command(mirror, request, ledger:, paths:)
     File.write(request_path(ledger), JSON.generate(request))
     includes = paths.flat_map { |path| ["-I", path] }
-    bundled(mirror, environment(request["slot"]), ["ruby", *includes, *helpers(mirror), *argv(ledger)])
+    ruby = ["ruby", *request["warnings"], *includes, *helpers(mirror), *argv(ledger)]
+    bundled(mirror, environment(request["slot"]), ruby)
   end
 
   def argv(ledger)
     [minitest? ? MINITEST_CHILD : CHILD, ledger, request_path(ledger), "#{ledger}#{PULSE}"]
   end
 
-  def request(locations, first: false, slot: nil)
+  def request(locations, first: false, slot: nil, warnings: [])
     { "tests" => locations, "files" => @test_files, "first_failure" => first }
       .merge(@seed ? { "seed" => @seed } : {}, slot ? { "slot" => slot } : {})
+      .merge(warnings.empty? ? {} : { "warnings" => warnings })
   end
 
   def helpers(mirror) = Kimera::Frameworks::LoadPath.new(@test_files, root: mirror).flags

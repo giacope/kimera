@@ -1265,6 +1265,13 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   the load path when the suite loads, and the same `-I` flags go into
   `kimera doctor`'s commands, the isolated tier's children and every printed
   "reproduce without kimera" command.
+- **Warnings as the test task sets them.** `Rake::TestTask` and
+  `Minitest::TestTask` run the suite with `ruby -w` unless the task sets
+  `warning = false`. For a Minitest suite Kimera reads the Rakefile's test
+  task (the one named `test`, or the first) and does the same: the suite loads
+  with `$VERBOSE` on, and `-w` goes into `kimera doctor`'s commands, the
+  isolated tier's children and every printed reproduce command. When a red
+  baseline is green with warnings the other way, doctor says so.
 - **Methods a block defines.** A `def` inside a block a DSL runs
   (`RSpec.shared_examples_for`, `shared_context`, `Module.new`) lives on each
   module that ran the block, which the source cannot name. Before the warm

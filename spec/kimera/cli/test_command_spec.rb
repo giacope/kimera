@@ -108,6 +108,49 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     expect(command.loading).to(eq(["!", "Test loading: Bundler is unavailable; not checked"]))
   end
 
+  # R6B3-M1: doctor runs the baseline as the Rakefile's test task does, and
+  # says so when a red suite is green with warnings the other way.
+  def warned(rakefile, outcomes)
+    Dir.mktmpdir do |root|
+      File.write(File.join(root, "Rakefile"), rakefile)
+      calls = []
+      allow(Kimera::Execution::SUITE).to(receive(:call)) { |_env, *command, **| (calls << command) && outcomes.shift }
+      [described_class.new("minitest", ["t.rb"], root: root).baseline, calls.map { it[3] }]
+    end
+  end
+
+  it "runs a minitest baseline with ruby -w when the Rakefile's test task does" do
+    result, flags = warned("Rake::TestTask.new\n", [["1 runs, 0 failures", status(true)]])
+    expect([result, flags]).to(eq([["✓", "Baseline: configured test suite is green"], ["-w"]]))
+  end
+
+  def red = ["1 runs, 1 failures", status(false)]
+
+  it "names warnings as the difference when a red baseline is green the other way", :aggregate_failures do
+    quiet = warned("Rake::TestTask.new { |t| t.warning = false }\n", [red, ["", status(true)]])
+    expect([quiet.first.last, quiet.last]).to(match([include(Kimera::Frameworks::TestTask::UNWARNED), ["-e", "-w"]]))
+    loud = warned("Rake::TestTask.new\n", [red, ["", status(true)]])
+    expect([loud.first.last, loud.last]).to(match([include(Kimera::Frameworks::TestTask::WARNED), ["-w", "-e"]]))
+  end
+
+  def split(framework)
+    Dir.mktmpdir do |root|
+      File.write(File.join(root, "Rakefile"), "Rake::TestTask.new\n")
+      calls = []
+      allow(Kimera::Execution::SUITE).to(receive(:call)) { |_env, *command, **| (calls << command) && ["", status(true)] }
+      described_class.new(framework, ["t.rb"], root: root, jobs: 2).baselines
+      calls.map { it[3] }
+    end
+  end
+
+  it "splits an RSpec baseline without the -w a Rakefile's test task would give Minitest" do
+    expect([split("rspec").include?("-w"), split("minitest").uniq]).to(eq([false, ["-w"]]))
+  end
+
+  it "says nothing of warnings when the suite is red either way" do
+    expect(warned("Rake::TestTask.new\n", [red, red]).first.last).not_to(include("ruby -w"))
+  end
+
   def baseline(framework, output, signal = nil)
     command = described_class.new(framework, ["t.rb"], root: "/app")
     allow(Kimera::Execution::SUITE).to(receive(:call).and_return([output, status(false, signal)]))

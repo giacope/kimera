@@ -41,7 +41,8 @@ class Kimera::Execution::IsolatedPlan
   def settled(id, point) = @options[:filter]&.settle(id, Array(candidates(id, point)))
 
   def command(mirror, locations, ledger, **)
-    child.command(mirror, child.request(locations, **), ledger: ledger, paths: mutables)
+    request = child.request(locations, warnings: @options.fetch(:warnings, []), **)
+    child.command(mirror, request, ledger: ledger, paths: mutables)
   end
 
   def suite = selection.all

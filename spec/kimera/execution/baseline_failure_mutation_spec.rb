@@ -256,9 +256,23 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
         match(
           registry: registry, root: "/root", tests: %w[t1 t2], coverage: { 1 => ["t1"] }, timings: { "t1" => 0.5 },
           progress: pass.__send__(:progress), jobs: 3, framework: "rspec", test_files: ["a_spec.rb"],
-          filter: pass.__send__(:filter), test_paths: an_instance_of(Proc)
+          filter: pass.__send__(:filter), test_paths: an_instance_of(Proc), warnings: []
         )
       )
+    end
+
+    # R6B3-M1: a Minitest suite's mirrors run with the warnings its Rakefile's test task sets.
+    def warnings(framework)
+      Dir.mktmpdir do |root|
+        File.write(File.join(root, "Rakefile"), "Rake::TestTask.new\n")
+        options = { source_root: root, framework: framework, progress: false, tests: [], exclude_tests: [] }
+        Kimera::CLI::Run::Pass.new(registry, options, adapter).__send__(:warnings)
+      end
+    end
+
+    it "hands a Minitest run the ruby -w its Rakefile's test task sets, an RSpec run none", :aggregate_failures do
+      expect(warnings("minitest")).to(eq(["-w"]))
+      expect(warnings("rspec")).to(eq([]))
     end
 
     it "finds each test's file through the suite" do

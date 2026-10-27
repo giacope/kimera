@@ -106,6 +106,22 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     end
   end
 
+  # R6B3-M1: the suite loads with the warnings the Rakefile's test task runs it with.
+  def warned(rakefile)
+    before = [$VERBOSE, Warning[:deprecated]]
+    File.write(File.join(dir, "Rakefile"), rakefile)
+    File.write(File.join(dir, "blank_test.rb"), "")
+    Dir.chdir(dir) { described_class.build.source(["blank_test.rb"]) }
+    [$VERBOSE, Warning[:deprecated]]
+  ensure
+    $VERBOSE, Warning[:deprecated] = before
+  end
+
+  it "loads the suite with warnings on when the Rakefile's test task runs ruby -w", :aggregate_failures do
+    expect(warned("Rake::TestTask.new\n")).to(eq([true, true]))
+    expect(warned("Rake::TestTask.new { |t| t.warning = false }\n")).to(eq([$VERBOSE, Warning[:deprecated]]))
+  end
+
   it "enumerates Class#method test ids" do
     ids = ["DemoKimeraTest#test_passes", "DemoKimeraTest#test_conditional", "DemoKimeraTest#test_skipped"]
     expect(adapter.test_ids).to(include(*ids))

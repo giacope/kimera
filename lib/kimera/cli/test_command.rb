@@ -4,6 +4,7 @@ require_relative "../execution/suite_capture"
 require_relative "../execution/suite_env"
 require_relative "../listing"
 require_relative "../frameworks/load_path"
+require_relative "../frameworks/test_task"
 require_relative "suite_signal"
 require_relative "test_shard"
 
@@ -42,7 +43,7 @@ class Kimera::CLI::TestCommand
 
   def baseline
     check(run, "Baseline: configured test suite is green") do |failure, output|
-      ["✗", "Baseline: #{advice(failure)}#{failing(output)}"]
+      ["✗", "Baseline: #{advice(failure)}#{warned(failure)}#{failing(output)}"]
     end
   end
 
@@ -71,6 +72,8 @@ class Kimera::CLI::TestCommand
     "#{failure} (fix it, then rerun `kimera doctor --check-baseline`)"
   end
 
+  def warned(failure) = failure && minitest? && capture(ruby(LOADER, task.flipped)).last.success? ? task.contrast : ""
+
   def check(command, passed)
     output, status = capture(command)
     status.success? ? ["✓", passed] : yield(Kimera::CLI::SuiteSignal.new(status).diagnosis || summary(output), output)
@@ -88,7 +91,7 @@ class Kimera::CLI::TestCommand
   def shards(jobs) = Array.new(jobs) { |index| Thread.new { capture(shard(index, jobs)) } }.map(&:value)
 
   def shard(index, count)
-    ["bundle", "exec", "ruby", *Kimera::CLI::TestShard.new(index, count).argv(@framework, includes), *@files]
+    ["bundle", "exec", "ruby", *warnings, *Kimera::CLI::TestShard.new(index, count).argv(@framework, includes), *@files]
   end
 
   def run = minitest? ? ruby(LOADER) : rspec
@@ -122,7 +125,11 @@ class Kimera::CLI::TestCommand
     cause ? " (#{cause.captures.join(": ")})" : ""
   end
 
-  def ruby(script) = ["bundle", "exec", "ruby", *includes, "-e", script, *@files]
+  def ruby(script, flags = warnings) = ["bundle", "exec", "ruby", *flags, *includes, "-e", script, *@files]
+
+  def warnings = minitest? ? task.flags : []
+
+  def task = Kimera::Frameworks::TestTask.new(@root)
 
   def includes = Kimera::Frameworks::LoadPath.new(@files, root: @root).flags
 

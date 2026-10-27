@@ -115,6 +115,15 @@ Field test round 6, batch 3: where a bake leaves your lines, and how the suite r
   it (mechanize's `Download#initialize`: 154 tests, against 18 warm). It now
   keeps its warm coverage, plus the test that killed it; one no test reached
   warm stays uncovered unless the mirror kills it.
+- **A Minitest suite runs with the warnings its test task sets.**
+  `Rake::TestTask` runs `ruby -w` unless told otherwise, and kimera ran the
+  suite without it: mechanize's suite, green under `rake test`, failed 19
+  cookie tests that assert on a deprecation printed only `if $VERBOSE`, and
+  `kimera run` stopped at a red baseline. Kimera now reads the Rakefile's test
+  task, loads the suite with `$VERBOSE` on unless it sets `warning = false`,
+  and runs doctor, the isolated tier's children and the printed reproduce
+  commands with `-w`; doctor names warnings when a red baseline is green the
+  other way.
 
 Self-host gate: what kept the `selfhost` job red on main.
 
