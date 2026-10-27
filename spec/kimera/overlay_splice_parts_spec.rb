@@ -124,6 +124,14 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   describe "#bake" do
+    heredoc = "def m(mod)\n  mod.class_eval <<~RUBY, __FILE__, __LINE__ + 1\n    def a = 1\n  RUBY\n  __LINE__\nend\n"
+    reader = "def r(n)\n  code = <<~RUBY\n    def \#{n}\n    end\n  RUBY\n  [code, __LINE__]\nend\n"
+    nested = "def m(mod, c)\n  mod.class_eval <<~RUBY, __FILE__, __LINE__ + 1\n    \#{if c\n      <<~INNER\n        " \
+      "def a = 1\n      INNER\n    end}\n  RUBY\n  __LINE__\nend\n"
+    later = "def m(a)\n  x = a > 1\n  <<~T\n    b\n  T\nend\n"
+    guarded = "def m(a)\n  if a\n    log <<~T\n      b\n    T\n  end\n  __LINE__\nend\n"
+    sql = "def u(t)\n  run %{\n    UPDATE \#{t}\n    SET a = 1\n  }\n  __LINE__\nend\n"
+    # R6B3-M4: a heredoc stays a heredoc, and every line after the mutation where it was.
     {
       ["def m(v)\n  foo(\n    \"Ruby/\#{v}\",\n    2)\nend\n", %w[string_literal], "\"Ruby/\" => \"\""] =>
         "def m(v)\n  foo(\n    \"\#{v}\",\n    2)\nend\n",
@@ -133,19 +141,45 @@ RSpec.describe(Kimera::Overlay) do
       ] =>
         "def m(list)\n  ()\n\n\nend\n",
       ["def m(a)\n  puts(<<~T, a > 1)\n    body\n  T\nend\n", %w[argument_drop], "drop arg `a > 1`"] =>
-        "def m(a)\n  puts(\"body\\n\")\nend\n\n\n",
+        "def m(a)\n  puts(<<~T)\n    body\n  T\nend\n",
       ["def m(a)\n  puts(<<~T, a > 1)\n    body\n  T\n  a\nend\n", %w[argument_drop], "drop arg `a > 1`"] =>
-        "def m(a)\n  puts(\"body\\n\")\n  a\n\n\nend\n",
+        "def m(a)\n  puts(<<~T)\n    body\n  T\n  a\nend\n",
       [
         "def m(a)\n  x = begin\n    a.call\n    a.size\n  rescue ArgumentError\n    0\n  end\n  x\nend\n",
         %w[rescue_clause], "drop `rescue ArgumentError`"
       ] => "def m(a)\n  x = (a.call\n  a.size\n\n\n\n)\n  x\nend\n",
       ["def m(a)\n  if a # why\n    1\n  end\nend\n", %w[conditional], "condition => true"] =>
-        "def m(a)\n  if true # why\n    1\n  end\nend\n"
+        "def m(a)\n  if true # why\n    1\n  end\nend\n",
+      [heredoc, %w[statement_deletion], "delete `mod.class_eval <<~RUBY, __FILE__, __LINE__ + 1`"] =>
+        "def m(mod)\n  ()\n\n\n  __LINE__\nend\n",
+      [heredoc, %w[argument_drop], "drop arg `<<~RUBY`"] =>
+        "def m(mod)\n  mod.class_eval __FILE__, __LINE__ + 1\n\n\n  __LINE__\nend\n",
+      [nested, %w[argument_drop], "drop arg `__FILE__`"] => nested.sub(", __FILE__", ""),
+      [heredoc, %w[argument_drop], "drop arg `__FILE__`"] =>
+        "def m(mod)\n  mod.class_eval <<~RUBY, __LINE__ + 1\n    def a = 1\n  RUBY\n  __LINE__\nend\n",
+      [reader, %w[string_literal], "\"end\\n\" => \"\""] =>
+        "def r(n)\n  code = <<~RUBY\n    def \#{n}\\\n\n  RUBY\n  [code, __LINE__]\nend\n",
+      ["def v\n  x = <<~'T'\n    a\n    b\n  T\n  [x, __LINE__]\nend\n", %w[string_literal], "\"a\\n\" => \"\""] =>
+        "def v\n  x = \"b\\n\"\n\n\n\n  [x, __LINE__]\nend\n",
+      ["def m\n  foo(\n    \"abc\",\n    2)\nend\n", %w[string_literal], "\"abc\" => \"\""] =>
+        "def m\n  foo(\n    \"\",\n    2)\nend\n",
+      [later, %w[comparison], "> => >="] => "def m(a)\n  x = a >= 1\n  <<~T\n    b\n  T\nend\n",
+      ["def m(a)\n  log(a > 1,  <<~T)\n    b\n  T\nend\n", %w[comparison], "> => >="] =>
+        "def m(a)\n  log(a >= 1,  <<~T)\n    b\n  T\nend\n",
+      [guarded, %w[statement_deletion], "delete `log <<~T`"] =>
+        "def m(a)\n  if a\n    ()\n\n\n  end\n  __LINE__\nend\n",
+      [sql, %w[string_literal], "\"\\n    SET a = 1\\n  \" => \"\""] =>
+        "def u(t)\n  run %{\n    UPDATE \#{t}\\\n\\\n}\n  __LINE__\nend\n"
     }.each do |(source, keys, label), baked|
       it "bakes #{label} as #{baked.inspect}" do
         expect(bake(source, keys, label)).to(eq(baked))
       end
+    end
+
+    it "refuses the mutant that drops the line break a heredoc's text ends with" do
+      unended = "def q(t)\n  <<-SQL\n    DELETE \#{t} = 1\n  SQL\nend\n"
+      expect { bake(unended, %w[string_literal], "\" = 1\\n\" => \"\"") }
+        .to(raise_error(described_class::Unbakeable, /changes or moves a line outside the mutation/))
     end
   end
 end

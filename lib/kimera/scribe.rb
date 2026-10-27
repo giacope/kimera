@@ -60,6 +60,8 @@ module Kimera
 
     def at(root, original) = Scribe.new(@node, Place.of(root, original))
 
+    def over(root, original) = Scribe.new(@node, Place.of(root, original, original.location.end_line))
+
     def joined = Scribe.new(@node, @place.joined)
 
     def unbroken = Scribe.new(@node, @place.unbroken)

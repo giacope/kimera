@@ -83,6 +83,25 @@ Field test round 6, batch 2: what kimera judged under a strict suite and said.
   handed to a class-body macro is now judged again in a fresh mirror against
   the tests near its file (one no test reached stays `isolated_only`).
 
+Field test round 6, batch 3: where a bake leaves your lines, and how the suite runs.
+
+- **A bake moves no line outside its mutation.** A mutant inside a heredoc
+  (a `string_literal` part, `"end\n" => ""`) could not be written in place,
+  so the bake wrote the method around it afresh, the heredoc as one quoted
+  string, and padded the lost lines at its end: every statement after the
+  heredoc moved up. `__LINE__`, backtraces and `class_eval <<~RUBY,
+  __FILE__, __LINE__ + 1` changed in the isolated tier and in every mirror
+  re-judge, which killed mutants for the bake (a spec reading `__LINE__`
+  died on all five string mutants of the heredoc before it); in ancestry 481
+  bakes moved a `__LINE__`. A changed part is now written in its literal's
+  own text, a dropped line break as a `\` continuation, and an argument or
+  statement dropped beside a heredoc leaves its body in place (or blank
+  lines); ancestry: 0 bakes move a `__LINE__`. Every bake is checked to
+  change no line outside the point's lines and the heredoc bodies it holds;
+  one that would is unmutatable, "what it wrote changes or moves a line
+  outside the mutation" (a heredoc's last line break, which no heredoc can
+  drop).
+
 Self-host gate: what kept the `selfhost` job red on main.
 
 - **A `def` inside a block calls refined methods as the plain suite does.**

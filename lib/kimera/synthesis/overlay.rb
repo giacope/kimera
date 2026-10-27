@@ -7,6 +7,7 @@ require_relative "../scribe"
 require_relative "../error"
 require_relative "../registry/registry"
 require_relative "guard_weaver"
+require_relative "point_lines"
 require_relative "source_map"
 require_relative "superclass_pin"
 
@@ -41,7 +42,7 @@ class Kimera::Overlay
     pair = @registry.point(id)
     return source unless pair
     map = Kimera::SourceMap.new(source)
-    checked(source, spliced(map, *pair) || write(map, baked(map, *pair), pair.last))
+    checked(map, pair.last, spliced(map, *pair) || write(map, baked(map, *pair), pair.last))
   end
 
   private
@@ -60,10 +61,10 @@ class Kimera::Overlay
     nil
   end
 
-  def checked(source, text)
+  def checked(map, point, text)
     raise(Unbakeable, "#{UNWRITTEN} (what it wrote does not parse)") unless Kimera::Syntax.parse(text).success?
-    return text if Kimera::LinePad.new(source).kept?(text)
-    raise(Unbakeable, "#{UNWRITTEN} (what it wrote moves the lines after it)")
+    return text if Kimera::PointLines.new(map, point.location).kept?(text)
+    raise(Unbakeable, "#{UNWRITTEN} (what it wrote changes or moves a line outside the mutation)")
   end
 
   def baked(map, mutant, point)

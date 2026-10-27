@@ -119,7 +119,7 @@ RSpec.describe(Kimera::Overlay) do
         .to(raise_error(described_class::Unbakeable, "kimera could not write it (the mutant reads as the original)"))
     end
 
-    it "reports a bake that would move the lines after it as unmutatable" do
+    it "reports a bake that would change a line outside the mutation as unmutatable" do
       program = "def one = 1\n# two\ndef big?(x) = x > 1\n"
       catalog = scan(program, %w[comparison])
       allow(Kimera::BakeSplice).to(receive(:new).and_return(instance_double(Kimera::BakeSplice, source: nil)))
@@ -127,7 +127,7 @@ RSpec.describe(Kimera::Overlay) do
         .to(
           raise_error(
             described_class::Unbakeable,
-            "kimera could not write it (what it wrote moves the lines after it)"
+            "kimera could not write it (what it wrote changes or moves a line outside the mutation)"
           )
         )
     end

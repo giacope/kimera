@@ -13,8 +13,12 @@ require "kimera/synthesis/overlay"
 # heredoc or a call one way) and compared as TreeShape, a lone expression in
 # parentheses being that expression. A factory-built constant is reopened on
 # both sides alike. Every bake, and the warm overlay with every mutant off,
-# keeps the file's line layout: as many lines, each definition on its line. A
-# bake kimera refuses names an unbound local, the one mutant it cannot write.
+# keeps the file's line layout: as many lines, each definition on its line,
+# and every line after the mutation (the point, and the bodies of the heredocs
+# it holds) as it was, so no node after the mutation point moves: not
+# `__LINE__`, a backtrace line, nor the `__LINE__ + 1` a `class_eval` heredoc
+# hands down. A bake kimera refuses names an unbound local, or drops the
+# newline a heredoc's text ends with: the mutants it cannot write.
 # A seeded sample of files keeps it fast; `PBT_SCALE` widens it and
 # `PBT_SEED` picks another.
 RSpec.describe(Kimera::Overlay) do
@@ -74,6 +78,68 @@ RSpec.describe(Kimera::Overlay) do
           rescue ArgumentError
             x.size > 1
           end
+        end
+      end
+    RUBY
+    "heredocs the bake writes in place (R6B3-M4)" => <<~'RUBY',
+      module Gen
+        def self.reader(name, fallback)
+          code = <<~CODE
+            def #{name}
+              @#{name} || #{
+                fallback.inspect
+              }
+            end
+          CODE
+          [code, __LINE__]
+        end
+
+        def self.build(mod, column, cache)
+          mod.class_eval <<~CODE, __FILE__, __LINE__ + 1
+            def ancestors?
+              read(:#{column}) != nil
+            end
+            #{if cache
+              <<~INNER
+                def cached
+                  :#{cache}
+                end
+              INNER
+            else
+              <<-INNER
+                def cached = nil
+              INNER
+            end}
+            def depth
+              #{column}.size
+            end
+          CODE
+          mod.class_eval <<~'CODE', __FILE__, __LINE__ + 1
+            def plain = "raw \#{text}"
+          CODE
+          [mod, __LINE__]
+        end
+      end
+    RUBY
+    "multi-line strings the bake writes in place" => <<~'RUBY',
+      module Sql
+        def self.count(tbl, pk, column)
+          execute %{
+            UPDATE #{tbl} AS dest
+            SET dest.#{column} = (
+              SELECT COUNT(*) FROM #{tbl} WHERE #{pk} = 1
+            )
+          }
+          raise <<~EOS if pk.nil?
+            Create the #{column} index:
+
+              add_index :visits, [:token]
+          EOS
+          warn <<-EOS
+            DELETE #{tbl}
+            WHERE #{pk} = 1
+          EOS
+          [tbl, __LINE__]
         end
       end
     RUBY
@@ -143,13 +209,41 @@ RSpec.describe(Kimera::Overlay) do
   def baked(overlay, source, mutant, point)
     written(overlay.bake("x.rb", source, mutant.id), source, mutant, point)
   rescue Kimera::Overlay::Unbakeable => error
-    "unbakeable: #{error.message}" unless error.message.include?("Kimera::Scribe::Unbound")
+    "unbakeable: #{error.message}" unless error.message.include?("Kimera::Scribe::Unbound") || ended?(source, point)
+  end
+
+  # A heredoc's text ends with a newline, so the mutant that drops the newline
+  # of its last line has no heredoc to be written as, and kimera refuses it.
+  def ended?(source, point)
+    finish = point.location.finish
+    found = []
+    Kimera::Rewrite::AstWalk.new(Prism.parse(source).value).visit { |node| found << node if node.respond_to?(:heredoc?) && node.heredoc? }
+    found.any? { |heredoc| heredoc.closing_loc.start_offset == finish }
   end
 
   def written(baked, source, mutant, point)
     return "does not parse" unless Prism.parse(baked).success?
     return "reads as the original" if baked == source
-    laid(baked, source) || ("misread" unless shape(baked) == expected(Kimera::SourceMap.new(source), mutant, point))
+    map = Kimera::SourceMap.new(source)
+    misread = -> { "misread" unless shape(baked) == expected(map, mutant, point) }
+    laid(baked, source) || following(baked, map, point) || misread.call
+  end
+
+  # The first line after the mutation that the bake changes, if one is: the
+  # mutation owns the point's lines and the bodies of the heredocs it holds;
+  # the original is compared with a factory-built constant reopened, as the
+  # bake writes it.
+  def following(baked, map, point)
+    original = map.splice(Kimera::SpliceReopening.new(map).edits).lines
+    last = [point.location.end_line, *held(map.ast, point.location)].max
+    moved = (last...original.size).find { |index| original[index] != baked.lines[index] }
+    "changes line #{moved + 1}, after the mutation" if moved
+  end
+
+  def held(node, location)
+    opening = node.location.start_offset
+    own = node.respond_to?(:heredoc?) && node.heredoc? && opening.between?(location.start_offset, location.finish - 1)
+    [*(node.closing_loc.start_line if own), *node.compact_child_nodes.flat_map { |child| held(child, location) }]
   end
 
   # How a written file moves the original's lines, if it does: a different
