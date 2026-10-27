@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require_relative "../parsing/syntax"
-require_relative "../registry/mutation_point"
 require_relative "../rewrite/ast_walk"
 require_relative "../synthesis/guard_probe"
 require_relative "../synthesis/source_map"
@@ -12,9 +11,9 @@ module Kimera
 end
 
 class Kimera::Execution::CallWatch
-  def initialize(source, line, id)
+  def initialize(source, offset, id)
     @source = source
-    @line = line
+    @offset = offset
     @id = id
   end
 
@@ -41,5 +40,7 @@ class Kimera::Execution::CallWatch
     found.max_by { |node| node.location.start_offset }
   end
 
-  def holds?(node) = node.type == :def_node && Kimera::Location.parse(node.location).range.cover?(@line)
+  def holds?(node) = node.type == :def_node && span(node.location).cover?(@offset)
+
+  def span(place) = place.start_offset...place.end_offset
 end

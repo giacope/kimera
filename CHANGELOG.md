@@ -50,6 +50,13 @@ Field test round 6, batch 2: what kimera judged under a strict suite and said.
   (RuntimeError)" and no report, and the first warm kill of each worker read
   `error`. Those methods now take the block, and kimera's own suite runs with
   the warning on and raised for its lib, so a new site fails CI.
+- **A memoized mutant's method is watched, not a one-line def beside it.**
+  The reload child watches the method that holds the mutant, and found it by
+  line: a one-line def that starts later on that line (`@reading ||=
+  Struct.new(:value) { def high? = value > 5 }.new(@level * 2 > 0 ? ...)`)
+  was watched instead, so `reading`'s mutant read "no test called the method
+  that holds it" while its test called `reading`, and its kill named no
+  covering test. It is now found by the mutant's place in the source.
 
 Self-host gate: what kept the `selfhost` job red on main.
 
