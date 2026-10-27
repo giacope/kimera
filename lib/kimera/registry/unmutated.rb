@@ -16,7 +16,7 @@ module Kimera
     def from_h(hash) = new(**hash.transform_keys(&:to_sym))
   end
 
-  Unmutated::BLOCK = "a block outside any method runs at load or as a DSL callback " \
-    "kimera can't swap, so the code in it is not mutated"
+  Unmutated::BLOCK = "code in a block outside any method runs at load or as a DSL callback " \
+    "kimera can't swap, so it is not mutated"
   Unmutated::UNPARSED = "does not parse, so nothing in it is mutated: "
 end

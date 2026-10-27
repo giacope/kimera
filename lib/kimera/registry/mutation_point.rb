@@ -91,7 +91,7 @@ class Kimera::MutationPoint
   NEVER_LOADED =
     "#{NEVER} (kimera did not evaluate it, since loading it would run its top-level code inside the test " \
       "process)".freeze
-  UNEXECUTED = "no test executed this line; its file was loaded at boot"
+  UNEXECUTED = "no test reached the code it mutates (other code on its line may have run); its file was loaded at boot"
   UNMUTATABLE = "unmutatable: "
   SAFE = true
 

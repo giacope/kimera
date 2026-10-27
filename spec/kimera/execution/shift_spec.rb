@@ -153,6 +153,13 @@ RSpec.describe(Kimera::Execution::Shift) do
       expect(result.duration).to(eq(0.0))
     end
 
+    # Coverage is per mutated expression, not per line: another mutant on the
+    # same line may well be covered (R6B1-M2).
+    it "says no test reached the code it mutates, not that none ran its line" do
+      detail = evaluate(ids.first, coverage: { ids.first => [] }).detail
+      expect(detail).to(start_with("no test reached the code it mutates (other code on its line may have run)"))
+    end
+
     it "uses the whole suite when coverage is nil" do
       result = evaluate(ids.first, coverage: nil, catches: { "t1" => [ids.first] })
       expect(result.status).to(eq(:killed))

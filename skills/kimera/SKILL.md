@@ -158,9 +158,9 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
 - `unjudged` in the text report and gate is the JSON status `harness_error`;
   `kimera report --status unjudged` lists them.
 - "Not mutated" (`unmutated` in the JSON report) lists code the scan holds
-  no mutant for, with the reason: a block outside any method that isn't
-  `define_method`/`lambda`/`proc`, or a file that does not parse. It is not a
-  survivor; it's a place no verdict covers.
+  no mutant for, with the reason: the lines of code in a block outside any
+  method that isn't `define_method`/`lambda`/`proc`, or a file that does not
+  parse. It is not a survivor; it's a place no verdict covers.
 - On a Rails app that uses `parallelize`, `--jobs > 1` gives each worker its
   own database, so there's no shared-DB fixture/RLS deadlock. With no schema
   file to load (a suite that migrates as it loads), each worker and mirror

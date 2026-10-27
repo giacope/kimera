@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+Field test round 6, batch 1: what kimera wrote, judged and said.
+
+- **A mutant's copy calls the method its point's own text shadows.** The
+  warm overlay writes a point as its original text followed by one copy per
+  mutant, in one method. A local the original binds (`brand ||= "PayPal"`
+  in one `when` branch) is then bound in every copy after it, and a bare
+  call to the method of that name (`"#{brand.upcase} card"` in another
+  branch), kept as written, read that nil local instead: pay's `charged_to`
+  had all eight `when` drops killed by `NoMethodError: undefined method
+  'titleize' for nil`, seven of them false kills (`--isolated` judged them
+  right). A kept text that calls a bare method named like a local bound
+  where it now stands is written afresh, the call as `brand()`.
+- **A memoized mutant no test calls is `no_coverage`.** A mutant inside
+  `@x ||= …` is judged in a reload child, which ran the suite and reported
+  every test it ran as covering, so it could never be `no_coverage`: a
+  survivor in a method no test called read "covered by 438 test(s)"
+  (content-tagger's `Linkables#taxons`), the first of them a spec that never
+  calls it, and those tests fed `kimera mutant`, `--test-quality` and
+  `attribution: unit`. The reload child now watches the method that holds
+  the mutant: its covering tests are the tests that called that method, and
+  a mutant none of them called reads `no_coverage`, "no test called the
+  method that holds it".
+- **An uncovered mutant no longer says its line never ran.** Kimera
+  measures coverage per mutated expression, but an uncovered mutant read "no
+  test executed this line" while another mutant on the same line was covered
+  (statesman's `raise ArgumentError, ... if from.nil? && to.nil?`: the
+  condition covered by 7 tests, the `raise` "no test executed this line"); 9
+  of 15 uncovered rows in two runs sat on such a line. It now reads "no test
+  reached the code it mutates (other code on its line may have run)".
+- **"Not mutated" names the lines kimera skipped, not their whole block.**
+  A class-level block holding one skipped node was listed whole, "so the
+  code in it is not mutated", while kimera mutated and judged other code in
+  it: pay's `included do ... end` (lines 10-21) beside three judged mutants
+  on lines 16 and 18, where only line 20 was skipped. Each block now lists
+  the lines of the code it skipped, as runs of lines.
+
 Self-host gate: what kept the `selfhost` job red on main.
 
 - **A `def` inside a block calls refined methods as the plain suite does.**

@@ -15,12 +15,12 @@ module Kimera
       }.freeze
       NONE = Set.new.freeze
 
-      def initialize(slices = {}.compare_by_identity)
+      def initialize(texts = Texts.new)
         @memo = {}.compare_by_identity
-        @slices = slices
+        @texts = texts
       end
 
-      def slice(node) = @slices[node]
+      def slice(node, locals) = @texts.of(node, locals)
 
       def of(node)
         return NONE unless node

@@ -6,14 +6,18 @@ class Kimera::GuardProbe
     @ids = ids
   end
 
-  def edits
-    finish = @node.location.end_offset
-    return [[finish, finish, registered], [head, head, "; #{probe.join("; ")}"]] unless @node.equal_loc
-    start = @node.body.location.start_offset
-    [[start, start, "(#{probe.join("; ")}; "], [finish, finish, ")#{registered}"]]
-  end
+  def edits = placed(registered)
+
+  def watch = placed("")
 
   private
+
+  def placed(tail)
+    finish = @node.location.end_offset
+    return [[finish, finish, tail], [head, head, "; #{probe.join("; ")}"]] unless @node.equal_loc
+    start = @node.body.location.start_offset
+    [[start, start, "(#{probe.join("; ")}; "], [finish, finish, ")#{tail}"]]
+  end
 
   def head = (@node.rparen_loc || @node.parameters&.location || @node.name_loc).end_offset
 
