@@ -57,6 +57,13 @@ Field test round 6, batch 2: what kimera judged under a strict suite and said.
   was watched instead, so `reading`'s mutant read "no test called the method
   that holds it" while its test called `reading`, and its kill named no
   covering test. It is now found by the mutant's place in the source.
+- **"Not mutated" leaves out the methods a skipped node defines.** A
+  skipped node in a class-level block was listed by all its lines, and an
+  `if` around a def spans the def, whose body kimera mutates: `configure do;
+  if ENV.key?("FLAGS"); def strict? = ... > 3; end; end` listed lines 5-7
+  as not mutated beside the two judged mutants on line 6. A def, lambda or
+  `define_method` body inside a skipped node no longer counts as its lines
+  (here: lines 5 and 7).
 
 Self-host gate: what kept the `selfhost` job red on main.
 

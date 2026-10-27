@@ -82,6 +82,43 @@ RSpec.describe(Kimera::RegistryScan) do
     expect(registry.unmutated.map { |region| [region.start_line, region.end_line] }).to(eq([[4, 4]]))
   end
 
+  # A skipped node that holds a method holds code kimera mutates (R6B2-M4): the
+  # `if` around a def is skipped, the def's body is not.
+  it "leaves out of a skipped node's lines the method it defines", :aggregate_failures do
+    registry = scan(<<~RUBY)
+      class Flags
+        def self.configure(&block) = class_eval(&block)
+
+        configure do
+          if ENV.key?("FLAGS")
+            def strict? = ENV.fetch("FLAGS").size > 3
+          end
+        end
+      end
+    RUBY
+    expect(lines(registry)).to(include(6))
+    expect(registry.unmutated.map { |region| [region.start_line, region.end_line] }).to(eq([[5, 5], [7, 7]]))
+  end
+
+  it "leaves out of a skipped node's lines each def, lambda and define_method body in it, and no more" do
+    registry = scan(<<~RUBY)
+      class W
+        setup do
+          if ready?
+            define_method(:a) do |v|
+              v > 1
+            end
+            -> { 10 > 5 }
+            def b(v)
+              v > 2
+            end
+          end
+        end
+      end
+    RUBY
+    expect(registry.unmutated.map { |region| [region.start_line, region.end_line] }).to(eq([[3, 4], [11, 11]]))
+  end
+
   it "takes a method defined from a block argument as no block body" do
     call = Prism.parse("define_method(:x, &handler)").value.statements.body.first
     expect(Kimera::Deferral.new(call).block).to(be_nil)

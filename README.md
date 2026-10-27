@@ -1064,7 +1064,8 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   bodies of blocks that run on each call: `define_method`,
   `define_singleton_method`, `lambda`, `proc`, `Proc.new` and `->`. The code
   it would mutate in any other block outside a method (a class-level `map`,
-  a DSL callback block), by its own lines, and any scanned file that does
+  a DSL callback block), by its own lines (not those of a method it
+  defines, which is mutated), and any scanned file that does
   not parse, are listed under "Not mutated" in the text report and
   `unmutated` in the JSON report and the registry, with the reason.
 - **Schema-unsafe mutants.** Code that runs once at load (class/module bodies,

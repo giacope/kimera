@@ -6,6 +6,7 @@ require_relative "memo_guard"
 require_relative "memoization"
 require_relative "../rewrite/outcomes"
 require_relative "mutation_point"
+require_relative "skipped"
 require_relative "walking"
 
 class Kimera::RegistryScan::SourceFile
@@ -50,7 +51,7 @@ class Kimera::RegistryScan::SourceFile
   end
 
   def runs(nodes)
-    lines = nodes.flat_map { |node| Kimera::Location.parse(node.location).range.to_a }.sort
+    lines = nodes.flat_map { |node| Kimera::RegistryScan::Skipped.new(node).lines }.sort
     lines.slice_when { |line, following| following > line + 1 }.map do |run|
       Kimera::Unmutated.new(@file, run.first, run.last, Kimera::Unmutated::BLOCK)
     end
