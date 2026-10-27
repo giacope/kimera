@@ -874,6 +874,10 @@ comparison,rails` composes, and `all` includes them.
   never runs: such a lambda that no test reached warm reports `isolated_only`,
   not `no_coverage`, and `--isolated` judges it against the tests in the
   files that cover its source file (the whole suite where coverage names none).
+  One that adds to a list (`default_scope -> { order(:name) }`, a callback)
+  keeps the original beside the mutated one, which a test then reaches while
+  the original masks the mutant: a warm survivor of a lambda handed to a
+  class-body macro is judged again in a fresh mirror, against those tests.
 - **`rails_permit`** runs on the normal warm path.
 - **Validations and callbacks** are class-body DSL. They execute once at load,
   so no in-process scheme can judge them. The warm run marks them

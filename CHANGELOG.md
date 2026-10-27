@@ -73,6 +73,15 @@ Field test round 6, batch 2: what kimera judged under a strict suite and said.
   suite baked. Under a suite that reports ignored blocks (strict, or
   `$VERBOSE`), a warm survivor whose mutant leaves its method no live
   `yield` (or `super` passing the block) is judged again in a fresh mirror.
+- **A lambda a class-body macro adds to a list is judged again.** To install
+  its guards the warm worker evaluates a mutated file again, so a macro that
+  adds its lambda to a list (`default_scope`, a callback) holds the original
+  beside the woven one. A test reached the woven one, so the point counted as
+  covered and was judged warm, while the original masked the mutant:
+  places-manager's `default_scope -> { order(name: :asc) }` survived warm,
+  deleted, and failed three examples baked. A warm survivor of a lambda
+  handed to a class-body macro is now judged again in a fresh mirror against
+  the tests near its file (one no test reached stays `isolated_only`).
 
 Self-host gate: what kept the `selfhost` job red on main.
 
