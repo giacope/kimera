@@ -3,12 +3,12 @@
 require_relative "guard_span"
 
 Kimera::GuardText =
-  Data.define(:node, :entries) do
+  Data.define(:span, :entries) do
+    def self.of(node, entries) = new(Kimera::GuardSpan.of(node), entries)
+
     def from = span.from
 
     def to = span.to
-
-    def span = Kimera::GuardSpan.of(node)
 
     def inside?(other) = !equal?(other) && other.from <= from && to <= other.to
 

@@ -32,7 +32,7 @@ class Kimera::GuardSplice
   def placed = placements.compact
 
   def guards
-    placed.flat_map(&:first).group_by(&:first).map { |node, found| Kimera::GuardText.new(node, found.map { it.drop(1) }) }
+    placed.flat_map(&:first).group_by(&:first).map { |node, found| Kimera::GuardText.of(node, found.map { it.drop(1) }) }
   end
 
   def probes = placed.flat_map(&:last)

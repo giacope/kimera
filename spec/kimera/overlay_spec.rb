@@ -1171,7 +1171,7 @@ RSpec.describe(Kimera::Overlay) do
     def nesting
       call = Kimera::Syntax.parse("outer(inner(x))").value.statements.body.first
       inner = call.arguments.arguments.first
-      sites = [Kimera::GuardText.new(call, [[1, "nil"]]), Kimera::GuardText.new(inner, [[2, "nil"]])]
+      sites = [Kimera::GuardText.of(call, [[1, "nil"]]), Kimera::GuardText.of(inner, [[2, "nil"]])]
       [sites, inner.location.start_offset + 6]
     end
 
