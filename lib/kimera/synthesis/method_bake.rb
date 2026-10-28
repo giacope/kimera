@@ -26,10 +26,7 @@ class Kimera::Overlay::MethodBake
     nil
   end
 
-  def graft(definition, text)
-    spliced = @map.splice([span(definition) + [text]] + reopenings)
-    spliced if Kimera::Syntax.parse(spliced).success?
-  end
+  def graft(definition, text) = @map.splice([span(definition) + [text]] + reopenings)
 
   def counterpart(definition)
     span = span(definition)

@@ -105,15 +105,5 @@ class Kimera::Guardrail
     end
   end
 
-  def points(node)
-    return [] if captures.include?(node)
-    (@_anchored ||= group(@points)).fetch(ANCHOR.call(node), [])
-  end
-
-  def captures
-    @_captures ||=
-      Set.new.compare_by_identity.tap do |found|
-        Kimera::Rewrite::AstWalk.new(@map.ast).visit { |node| found << node.call.receiver if node.type == :match_write_node }
-      end
-  end
+  def points(node) = (@_anchored ||= group(@points)).fetch(ANCHOR.call(node), [])
 end

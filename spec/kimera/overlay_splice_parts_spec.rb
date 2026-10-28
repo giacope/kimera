@@ -114,11 +114,23 @@ RSpec.describe(Kimera::Overlay) do
     ).to(include("const_defined?(:Opts, false)"))
   end
 
-  it "leaves a named capture's regexp unguarded when its definition is written whole", :aggregate_failures do
+  # Guarded, the regexp would bind no local: the definition then reads as
+  # another method, so the regexp's point is left out and reported.
+  def named_capture
     whole!
     source = "def number(s); if /(?<num>\\d+)/ =~ s then num.to_i end; rescue ArgumentError; 0; end\n"
-    written = woven(source, %w[regexp_quantifier rescue_clause])
-    expect([written, Object.new.extend(Module.new.tap { |mod| mod.module_eval(written) }).number("x21")])
+    catalog = scan(source, %w[regexp_quantifier rescue_clause])
+    result = nil
+    expect { result = described_class.new(catalog).synthesize("x.rb", source) }
+      .to(output(/1 mutation point\(s\) at line 1 are unguardable/).to_stderr)
+    [result, *catalog.points.partition { |point| point.node_type == "regular_expression_node" }.map(&:first)]
+  end
+
+  it "leaves a named capture's regexp unguarded when its definition is written whole", :aggregate_failures do
+    result, regexp, clause = named_capture
+    expect([result.mutant_ids, regexp.unsafe_reason])
+      .to(eq([clause.ids, "unmutatable: #{Kimera::Overlay::FileWeave::UNGUARDABLE}"]))
+    expect([result.source, Object.new.extend(Module.new.tap { |mod| mod.module_eval(result.source) }).number("x21")])
       .to(match([start_with("def number(s); if ::Kimera::RUNTIME.active?("), 21]))
   end
 

@@ -334,6 +334,18 @@ Field test round 6, batch 6: what the scan survives, where a dropped clause runs
   `retry`) is written in its file's own tree. One Kimera still cannot write
   says so on its `+` line.
 
+Follow-ups to field test round 6, from main's full self-run:
+
+- **A named capture's regexp in a method written whole says why it is not
+  mutated.** When a method's points could not all be guarded in place and
+  the method was written whole, a mutant of a regexp that binds named
+  captures (`/(?<num>\d+)/ =~ s`) was reported "no node to guard: kimera
+  found nothing of its kind where the point was scanned", though the regexp
+  was there. Guarding it would leave `num` unbound, so the method written
+  with it reads as another method and is refused, as any such rewrite is;
+  the point is then reported "kimera could not write its guard" with the
+  other unguardable points, and the rest of the method is written as before.
+
 Field test round 5, harness: what kimera loads, runs and says.
 
 - **A test that fails only under kimera is a harness error, whatever it
