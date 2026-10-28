@@ -152,10 +152,12 @@ RSpec.describe(Kimera::Overlay) do
     # `(-0).succ`, and `(-1) ** 2` as `-1 ** 2`, which is `-(1 ** 2)`. Inside a
     # string the parentheses must be in the tree, or the interpolation is
     # unwritable. A bake splices the literal alone, parenthesised where Ruby
-    # would otherwise read it as part of the minus.
+    # would otherwise read it as part of the minus; across lines nothing else
+    # keeps the lines after it.
     {
       "a minus over a chain rooted at the literal" => ["--1.succ", "-1", "-1 => 0", "-(0).succ", -1],
       "a literal raised to a power" => ["0 ** 2", "0", "0 => -1", "(-1) ** 2", 1],
+      "a power across lines" => ["0 **\n    2", "0", "0 => -1", "(-1) **\n    2", 1],
       "a minus over a chain in an interpolation" => ["\"x\#{--1.succ}\"", "-1", "-1 => 0", "\"x\#{-(0).succ}\"", "x-1"],
       "a power in an interpolation" => ["\"x\#{0 ** 2}\"", "0", "0 => -1", "\"x\#{(-1) ** 2}\"", "x1"]
     }.each do |shape, (body, needle, label, written, value)|
