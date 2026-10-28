@@ -6,6 +6,7 @@ require_relative "../parsing/unescaped"
 class Kimera::Outline
   LOOSE = %i[forced_utf8_encoding? binary? decimal? octal? hexadecimal? symbol_keys?].freeze
   SKIPPED = %i[node_id location locals].freeze
+  LITERALS = { string_node: :string, symbol_node: :symbol }.freeze
 
   def initialize(node)
     @node = node
@@ -24,15 +25,19 @@ class Kimera::Outline
 
   def node(node)
     type = node.type
-    return [:string, Kimera::Unescaped.new(node).text] if type == :string_node
+    literal = LITERALS[type]
+    return [literal, Kimera::Unescaped.new(node).text] if literal
     parts = joined(node.parts) if type == :interpolated_string_node
     return parts.first if parts&.one? && text?(parts.first)
     [type, *flags(node), *fields(node)]
   end
 
-  def lone(node) = single(node.type == :statements_node ? node : inner(node))
+  def lone(node)
+    body = node.type == :statements_node ? node : inner(node)
+    body&.type == :statements_node ? single(body) : body
+  end
 
-  def single(body) = (body.body.first if body&.type == :statements_node && body.body.one?)
+  def single(body) = (body.body.first if body.body.one?)
 
   def inner(node)
     return node.body if node.type == :parentheses_node

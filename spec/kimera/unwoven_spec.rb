@@ -44,6 +44,14 @@ RSpec.describe(Kimera::Unwoven) do
     expect(woven.map { |text| keeps?(text, glyph(%("\\u{3042}"))) }).to(eq([false, true]))
   end
 
+  it "keeps a rewrite that groups a pattern or spells a string by its escapes (R6B5-M1)", :aggregate_failures do
+    original = "def status(r)\n  case r\n  in {code: 200 | 201} then :ok\n  end\nend\n"
+    woven = "def status(r)\n  case r\n  in { code: (200 | 201) } then #{guard(1, ":x", ":ok")}\n  end\nend\n"
+    expect(keeps?(woven, original)).to(be(true))
+    greeting = "def text = [#{guard(1, %(""), %("Gr\\u{FC}\\u{DF}e"))}, :de]\n"
+    expect(keeps?(greeting, "def text = [\"Grüße\", :de]\n")).to(be(true))
+  end
+
   it "reads a visibility probe and its registrations as nothing", :aggregate_failures do
     probe = "if ::Kimera::RUNTIME.active?(2) then nil else #{guard(3, "nil", "nil")} end"
     woven = "def x\n  #{probe}\n  1\nend\n::Kimera::RUNTIME.privatize(2, self, :x)\n"

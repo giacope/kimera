@@ -24,7 +24,11 @@ RSpec.describe(Kimera::Outline) do
     "a heredoc" => ["<<~X\n  a\n  b\nX", '"a\nb\n"'], "an escaped character" => ['"\u{e9}"', '"é"'],
     "a symbol escaped" => [':"\u{e9}"', ":é"], "a hexadecimal integer" => %w[0x1F 31],
     "a binary integer" => %w[0b1 1], "an octal integer" => %w[0o7 7],
-    "strings beside an interpolation" => ["\"a\" \"b\#{c}\"", "\"ab\#{c}\""]
+    "strings beside an interpolation" => ["\"a\" \"b\#{c}\"", "\"ab\#{c}\""],
+    "a pattern in parentheses (R6B5-M1)" => ["r in {code: (200 | 201)}", "r in {code: 200 | 201}"],
+    "a capture in parentheses (R6B5-M1)" => ["r in {name: (String => n)}", "r in {name: String => n}"],
+    "a symbol after an escaped character (R6B5-M1)" => ['["Gr\u{FC}\u{DF}e", :de]', '["Grüße", :de]'],
+    "a symbol escaped to ASCII" => [':"\u0041"', ":A"]
   }.each do |kind, (one, other)|
     it "reads #{kind} as the same program" do
       expect(outline(tree(one))).to(eq(outline(tree(other))))
@@ -39,7 +43,11 @@ RSpec.describe(Kimera::Outline) do
     "another string" => ['"a"', '"b"'], "a call interpolated" => ["\"\#{a}\"", '"a"'], "another integer" => %w[0x1F 30],
     "a string in another encoding" => ["# encoding: binary\n\"\\u{3042}\"", "# encoding: binary\n\"\\xE3\\x81\\x82\""],
     "a safe call" => %w[a&.b a.b], "an exclusive range" => %w[a...b a..b], "another statement" => ["a; b", "a; c"],
-    "another interpolation" => ["\"a\#{b}c\"", "\"a\#{d}c\""], "other text beside it" => ["\"a\#{b}c\"", "\"a\#{b}d\""]
+    "another interpolation" => ["\"a\#{b}c\"", "\"a\#{d}c\""], "other text beside it" => ["\"a\#{b}c\"", "\"a\#{b}d\""],
+    "another symbol" => [":a", ":b"], "a symbol for a string" => [":a", '"a"'],
+    "a symbol in another encoding" => ["# encoding: binary\n:\"\\u{e9}\"", "# encoding: binary\n:\"\\xC3\\xA9\""],
+    "a capture grouped otherwise" => ["r in 1 | (2 => n)", "r in (1 | 2) => n"],
+    "another pattern in parentheses" => ["r in {code: (200 | 201)}", "r in {code: (200 | 202)}"]
   }.each do |kind, (one, other)|
     it "tells #{kind} apart" do
       expect(outline(tree(one))).not_to(eq(outline(tree(other))))

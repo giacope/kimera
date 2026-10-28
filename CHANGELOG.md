@@ -232,6 +232,20 @@ Self-host gate: what kept the `selfhost` job red on main.
   is compiled after the comments above the file's first line of code and the
   `using` calls made before it in each scope around it, on its own lines.
 
+Field test round 6, batch 5: where a rewrite leaves your lines, and what runs the suite.
+
+- **The read-back check accepts a rewrite that reads as the original.**
+  Batch 4's check compares a method the warm overlay rewrote whole with the
+  original as trees, and two spellings the writer uses read as different:
+  a pattern it parenthesizes inside a hash pattern (`in {code: 200 | 201}`
+  written `in { code: (200 | 201) }`), and every symbol after a string it
+  escapes (`"Grüße"` written `"Gr\u{FC}\u{DF}e"`, after which the parser
+  flags `:de` as forced to UTF-8 instead of US-ASCII). The method's
+  `rescue` and `ensure` mutants were reported unmutatable warm. A pattern in
+  parentheses now reads as the pattern, and a symbol by its value in the
+  encoding Ruby gives it, so one in another encoding still reads as
+  another.
+
 Field test round 5, harness: what kimera loads, runs and says.
 
 - **A test that fails only under kimera is a harness error, whatever it
