@@ -8,7 +8,7 @@ end
 # rubocop:disable-next Kata/FrozenState, Kata/NoSetter -- the process-wide mutation switch every thread and Ractor reads
 class Kimera::Runtime < Module
   SOURCE_PATH = File.expand_path(__FILE__)
-  ANCESTRY = Module.instance_method(:ancestors)
+  BELOW = Module.instance_method(:<)
 
   Ledger =
     Struct.new(:ids, :spill) do
@@ -156,13 +156,14 @@ Kimera::Runtime::Survey =
     end
 
     def below
-      found = flips.to_h { |flip| [flip.owner, [flip.owner]] }.compare_by_identity
-      ObjectSpace.each_object(Module) { |each| place(found, each) }
+      owners = flips.map(&:owner).uniq
+      found = owners.to_h { |owner| [owner, [owner]] }.compare_by_identity
+      ObjectSpace.each_object(Module) { |each| place(owners, found, each) }
       found
     end
 
-    def place(found, each)
-      Kimera::Runtime::ANCESTRY.bind_call(each).each { |above| found[above]&.push(each) unless above.equal?(each) }
+    def place(owners, found, each)
+      owners.each { |owner| found[owner] << each if Kimera::Runtime::BELOW.bind_call(each, owner) }
     end
   end
 

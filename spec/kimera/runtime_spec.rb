@@ -362,13 +362,15 @@ RSpec.describe(Kimera::Runtime) do
     end
 
     # Every fork first finds the holders of the flips registered since the last
-    # one (Forks#_fork): the workers and each test's child inherit them, and a
-    # child switching a mutant on walks nothing. In kimera's own suite process
-    # one walk took 0.5 s.
-    it "finds the holders before a fork, so switching a mutant on in the child walks nothing" do
+    # one (Forks#_fork): one walk serves the workers and every test's child
+    # forked after it, and a child switching a mutant on walks nothing. In
+    # kimera's own suite process one walk took 0.5 s.
+    it "walks once for the flips registered before many forks, and never in a child" do
       holders = [Class.new.include(mixin).tap { it.alias_method(:size, :sized) }]
       Kimera::RUNTIME.privatize(990_001, mixin, :sized)
-      expect(Kimera::Execution::Zygote.new.call { switched(holders) }).to(eq([0, [false]]))
+      children = nil
+      parent = walks { children = Array.new(5) { Kimera::Execution::Zygote.new.call { switched(holders) } } }
+      expect([parent, children.uniq]).to(eq([1, [[0, [false]]]]))
     end
 
     it "leaves an includer's own method of that name alone" do
