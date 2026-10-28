@@ -8,6 +8,7 @@ end
 # rubocop:disable-next Kata/FrozenState, Kata/NoSetter -- the process-wide mutation switch every thread and Ractor reads
 class Kimera::Runtime < Module
   SOURCE_PATH = File.expand_path(__FILE__)
+  ANCESTRY = Module.instance_method(:ancestors)
 
   Ledger =
     Struct.new(:ids, :spill) do
@@ -101,6 +102,8 @@ class Kimera::Runtime < Module
     self
   end
 
+  def survey! = hidden.survey
+
   def leaks = @ledgers.map(&:leak)
 
   def forked!(paths)
@@ -140,13 +143,39 @@ Kimera::Runtime::Hidden =
       flips[id] = flip
       concealed << flip.tap { it.conceal([flip.owner]) } if active == id
     end
+
+    def survey = Kimera::Runtime::Survey.new(flips.values.reject(&:holders)).run
+  end
+
+Kimera::Runtime::Survey =
+  Data.define(:flips) do
+    def run
+      return if flips.empty?
+      found = below
+      flips.each { |flip| flip.holders = found.fetch(flip.owner) }
+    end
+
+    def below
+      found = flips.to_h { |flip| [flip.owner, [flip.owner]] }.compare_by_identity
+      ObjectSpace.each_object(Module) { |each| place(found, each) }
+      found
+    end
+
+    def place(found, each)
+      Kimera::Runtime::ANCESTRY.bind_call(each).each { |above| found[above]&.push(each) unless above.equal?(each) }
+    end
   end
 
 Kimera::Runtime::Flip =
-  Struct.new(:owner, :definition, :names) do
-    def conceal(holders = [owner, *ObjectSpace.each_object(Module).select { |each| each < owner }])
-      self.names = holders.flat_map { |holder| held(holder).map { |name| [holder, name] } }
+  Struct.new(:owner, :definition, :names, :holders) do
+    def conceal(within = surveyed)
+      self.names = within.flat_map { |holder| held(holder).map { |name| [holder, name] } }
       expose(:private)
+    end
+
+    def surveyed
+      Kimera::Runtime::Survey.new([self]).run unless holders
+      holders
     end
 
     def reveal
@@ -173,6 +202,7 @@ Kimera::Runtime::Flip =
 
 module Kimera::Runtime::Forks
   def _fork
+    Kimera::RUNTIME.survey!
     leaks = Kimera::RUNTIME.leaks
     super.tap { |pid| Kimera::RUNTIME.forked!(leaks) if pid.zero? && leaks.any? }
   end

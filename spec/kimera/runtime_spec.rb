@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "kimera/execution/zygote"
+
 RSpec.describe(Kimera::Runtime) do
   let(:runtime) { described_class.new }
 
@@ -336,6 +338,37 @@ RSpec.describe(Kimera::Runtime) do
       owner.__send__(:public, :shown)
       runtime.active = 3
       expect(owner.public_method_defined?(:shown)).to(be(true))
+    end
+
+    # Counts the walks of the object space in the block.
+    def walks
+      count = 0
+      counted = ->(walk, *kinds, &each) { (count += 1) && walk.call(*kinds, &each) }
+      allow(ObjectSpace).to(receive(:each_object).and_wrap_original(&counted))
+      yield
+      count
+    end
+
+    it "finds the holders of a flip no fork has surveyed on its first switch, and keeps them" do
+      holders = aliased
+      walked = walks { [7, nil, 7].each { runtime.active = it } }
+      expect([walked, visible(holders, :size)]).to(eq([1, [false, false]]))
+    end
+
+    # In a child: the walks switching mutant 990_001 on makes, and what it hides.
+    def switched(holders)
+      hidden = nil
+      [walks { hidden = Kimera::RUNTIME.during(990_001) { visible(holders, :size) } }, hidden]
+    end
+
+    # Every fork first finds the holders of the flips registered since the last
+    # one (Forks#_fork): the workers and each test's child inherit them, and a
+    # child switching a mutant on walks nothing. In kimera's own suite process
+    # one walk took 0.5 s.
+    it "finds the holders before a fork, so switching a mutant on in the child walks nothing" do
+      holders = [Class.new.include(mixin).tap { it.alias_method(:size, :sized) }]
+      Kimera::RUNTIME.privatize(990_001, mixin, :sized)
+      expect(Kimera::Execution::Zygote.new.call { switched(holders) }).to(eq([0, [false]]))
     end
 
     it "leaves an includer's own method of that name alone" do
