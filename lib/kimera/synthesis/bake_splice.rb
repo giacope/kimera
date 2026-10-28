@@ -36,7 +36,7 @@ class Kimera::BakeSplice
   end
 
   def cut(node, rebuilt)
-    attempts = Kimera::ClauseCut.new(@map.source, node, rebuilt).attempts
+    attempts = Kimera::ClauseCut.new(@map, node, rebuilt).attempts
     attempts.lazy.flat_map { |head, rest| read(Attempt.new(*head), rest) }.first(1)
   end
 
@@ -76,7 +76,7 @@ class Kimera::BakeSplice
   def blank(doc)
     start = Kimera::PartSplice.new(doc).body.start_offset
     finish = doc.closing_loc.end_offset
-    [start, finish, "\n" * @map.source.byteslice(start, finish - start).count("\n")]
+    [start, finish, "\n" * @map.slice(start, finish).count("\n")]
   end
 
   def heredocs = @_heredocs ||= literals.select(&:heredoc?)
@@ -97,9 +97,9 @@ class Kimera::BakeSplice
   def attempts(node, text)
     from = node.location.start_offset
     to = node.location.end_offset
-    pad = Kimera::LinePad.new(node.slice)
-    laid = pad.texts(text).map { |each| Attempt.plain(from, to, each) }
-    laid.empty? ? laid : [*laid, Attempt.grouped(from, to, "(#{pad.padded(text)})")]
+    *laid, grouped = Kimera::LinePad.new(node.slice).layouts(text)
+    return [] unless grouped
+    [*laid.map { |each| Attempt.plain(from, to, each) }, Attempt.grouped(from, to, grouped)]
   end
 
   def read(attempt, cleared)

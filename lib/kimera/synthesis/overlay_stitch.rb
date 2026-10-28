@@ -32,8 +32,10 @@ class Kimera::Overlay::Stitch
   def spliced(whole, rewritten)
     kept = weave.edits.reject { |edit| whole.any? { |definition, _| covers?(definition, edit) } }
     edits = (kept + rewritten.map { |edit| edit.first(3) } + reopenings).sort_by { |from, to, _| [from, to] }
-    @map.splice(edits) if disjoint?(edits) && @map.lines_kept?(edits)
+    @map.splice(edits) if disjoint?(edits) && kept?(edits)
   end
+
+  def kept?(edits) = edits.all? { |from, to, text| Kimera::LinePad.new(@map.slice(from, to)).kept?(text) }
 
   def disjoint?(edits) = edits.each_cons(2).all? { |left, right| left[1] <= right.first }
 

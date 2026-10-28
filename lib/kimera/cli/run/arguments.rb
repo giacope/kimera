@@ -65,7 +65,7 @@ class Kimera::CLI::Run::Arguments
   def scoped(options, rest)
     targets = Kimera::CLI::Run::Targets.new(rest)
     { tests: tests(options[:cli_tests], options), configured_tests: tests([], options) }
-      .merge(paths: Kimera::FileSet.from_options(targets.paths, options).patterns)
+      .merge(paths: Kimera::FileSet.from_options(targets.paths, options).to_a)
       .merge(lines: targets.lines).merge(arrays(options))
   end
 

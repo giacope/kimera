@@ -5,8 +5,6 @@ require_relative "../rewrite/numbered_params"
 require_relative "line_pad"
 
 class Kimera::SourceMap
-  attr_reader :source
-
   def initialize(source)
     @source = source
   end
@@ -21,9 +19,7 @@ class Kimera::SourceMap
     "#{leading}#{text}#{ending}"
   end
 
-  def lines_kept?(edits)
-    edits.all? { |from, to, text| Kimera::LinePad.new(@source.byteslice(from, to - from)).kept?(text) }
-  end
+  def slice(from, to) = @source.byteslice(from, to - from)
 
   def splice(edits)
     text =

@@ -82,7 +82,7 @@ class Kimera::CLI::Doctor
   end
 
   def sources(config)
-    count = glob(config.fetch(:paths) { Kimera::FileSet.default.patterns }).size
+    count = glob(config.fetch(:paths) { Kimera::FileSet.default.to_a }).size
     return ["✗", "Source scope: no Ruby files found; fix paths: in .kimera.yml"] if count.zero?
     ["✓", "Source scope: #{count} Ruby files"]
   end
@@ -130,7 +130,7 @@ class Kimera::CLI::Doctor
 
   def test_files(config)
     excluded = Array(config[:exclude_tests]).map { |pattern| File.join(@root, pattern) }
-    Kimera::FileSet.new([], exclude: excluded).without(glob(config.fetch(:tests, tests_for(config))))
+    Kimera::FileSet::Exclusion.new(excluded).without(glob(config.fetch(:tests, tests_for(config))))
   end
 
   def tests_for(config) = minitest?(config) ? ["test/**/*_test.rb"] : ["spec/**/*_spec.rb"]

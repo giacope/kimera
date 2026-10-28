@@ -124,7 +124,7 @@ class Kimera::CLI::Init
 
   def sources
     paths = %w[app/**/*.rb lib/**/*.rb].select { |glob| Dir.glob(File.join(@root, glob)).any? }
-    paths.empty? ? Kimera::FileSet.default.patterns : paths
+    paths.empty? ? Kimera::FileSet.default.to_a : paths
   end
 
   def tests

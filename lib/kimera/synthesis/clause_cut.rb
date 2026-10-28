@@ -5,8 +5,8 @@ require_relative "../parsing/syntax"
 class Kimera::ClauseCut
   BODIES = %i[begin_node statements_node].freeze
 
-  def initialize(source, node, rebuilt)
-    @source = source
+  def initialize(map, node, rebuilt)
+    @map = map
     @node = node
     @rebuilt = rebuilt
   end
@@ -58,7 +58,7 @@ class Kimera::ClauseCut
   def word(keyword, text) = [keyword.start_offset, keyword.end_offset, text]
 
   def blank(from, to)
-    text = @source.byteslice(from, to - from)
+    text = @map.slice(from, to)
     [from, to, ";#{"\n" * text.count("\n")}#{text[/[ \t]*\z/]}"]
   end
 end

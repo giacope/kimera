@@ -68,16 +68,22 @@ RSpec.describe(Kimera::SpliceDiff) do
       end
     end
 
+    def kept?(map, edits) = edits.all? { |from, to, text| Kimera::LinePad.new(map.slice(from, to)).kept?(text) }
+
     it "keeps the lines when every edit breaks as many lines as its span, whatever its bytes", :aggregate_failures do
       map = described_class.new("a(1,\n  2)\nb = \"\xFF\"\n")
-      expect(map.lines_kept?([[2, 9, "1, 2\n"], [15, 16, "\xFE"]])).to(be(true))
-      expect(map.lines_kept?([[2, 9, "1, 2\n"], [10, 11, "c\n"]])).to(be(false))
-      expect(map.lines_kept?([[2, 9, "1, 2"]])).to(be(false))
+      expect(kept?(map, [[2, 9, "1, 2\n"], [15, 16, "\xFE"]])).to(be(true))
+      expect(kept?(map, [[2, 9, "1, 2\n"], [10, 11, "c\n"]])).to(be(false))
+      expect(kept?(map, [[2, 9, "1, 2"]])).to(be(false))
+    end
+
+    it "slices its source by byte offsets" do
+      expect(described_class.new("é = 1\n").slice(3, 6)).to(eq("= 1"))
     end
   end
 
   describe Kimera::LinePad do
-    def texts(span, text) = described_class.new(span).texts(text)
+    def texts(span, text) = described_class.new(span).layouts(text)[...-1]
 
     it "lays a text out to the span's lines, after it or before its closing", :aggregate_failures do
       expect(texts("a(1,\n  2)", "a(1)")).to(eq(["a(1)\n", "a(1\n)"]))
@@ -87,8 +93,12 @@ RSpec.describe(Kimera::SpliceDiff) do
       expect([texts("[1,\n 2]", "[1]"), texts("backend", "backend")]).to(eq([["[1]\n", "[1\n]"], ["backend"]]))
     end
 
+    it "lays a text out last in parentheses, padded to the span's lines" do
+      expect(described_class.new("a(1,\n  2)").layouts("a(1)").last).to(eq("(a(1)\n)"))
+    end
+
     it "writes nothing over a span with fewer lines" do
-      expect([texts("a(1)", "a(1,\n2)"), described_class.new("a(1)").closed("a(1,\n2)")]).to(eq([[], nil]))
+      expect(described_class.new("a(1)").layouts("a(1,\n2)")).to(eq([]))
     end
 
     it "counts the line breaks of a text that is not valid in its encoding", :aggregate_failures do
@@ -120,7 +130,8 @@ RSpec.describe(Kimera::SpliceDiff) do
     it "writes a reopening's header on the lines of what it replaces" do
       source = "Point =\n  Struct.new(:x) do\n    def big? = x > 1\n  end\n"
       map = Kimera::SourceMap.new(source)
-      expect(map.lines_kept?(described_class.new(map).edits)).to(be(true))
+      kept = described_class.new(map).edits.all? { |from, to, text| Kimera::LinePad.new(map.slice(from, to)).kept?(text) }
+      expect(kept).to(be(true))
     end
   end
 
