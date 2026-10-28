@@ -9,7 +9,17 @@ module Kimera
 end
 
 class Kimera::Execution::Overrides
-  Held = Data.define(:holder, :name, :definition, :visibility)
+  Held =
+    Data.define(:holder, :name, :definition, :visibility, :span) do
+      def revisit!(points)
+        lines = span.start_line..span.end_line
+        points.each { |point| point.revisit!(WRAPPED) if point.safe? && lines.cover?(point.location.start_line) }
+      end
+    end
+  WRAPPED =
+    "another file redefined its method around the one it replaced (a memoizer that holds that method), and the " \
+      "warm overlay keeps that definition, which never calls the mutated one; so a mutant no test reached warm is " \
+      "judged again in a fresh mirror against the tests near its file"
   LOOKUP = Module.instance_method(:instance_method)
   SINGLETON = Kernel.instance_method(:singleton_class)
   VISITS = {
@@ -23,7 +33,7 @@ class Kimera::Execution::Overrides
   end
 
   def keep
-    held = defined.filter_map { |holder, name| elsewhere(holder, name) }
+    held = defined.filter_map { |holder, name, span| elsewhere(holder, name, span) }
     [yield, held.filter_map { |entry| restore(entry) }]
   end
 
@@ -55,7 +65,8 @@ class Kimera::Execution::Overrides
     holder = resolve(scope)
     receiver = node.receiver
     return [] unless holder && (receiver.nil? || receiver.is_a?(Prism::SelfNode))
-    [[side == :singleton || receiver ? SINGLETON.bind_call(holder) : holder, node.name]]
+    owner = side == :singleton || receiver ? SINGLETON.bind_call(holder) : holder
+    [[owner, node.name, node.location]]
   end
 
   def resolve(scope)
@@ -64,14 +75,14 @@ class Kimera::Execution::Overrides
     nil
   end
 
-  def elsewhere(holder, name)
+  def elsewhere(holder, name, span)
     found = lookup(holder, name)
     return unless found && found.owner == holder && !here?(found)
-    Held.new(holder, name, found, Kimera::Execution::Redefinition.new(holder, name).visibility)
+    Held.new(holder, name, found, Kimera::Execution::Redefinition.new(holder, name).visibility, span)
   end
 
   def restore(entry)
-    holder, name, kept, visibility = entry.deconstruct
+    holder, name, kept, visibility = entry.deconstruct.first(4)
     fresh = lookup(holder, name)
     return unless fresh && here?(fresh)
     Kimera::Execution::Redefinition.new(holder, name).redefine(kept, visibility)

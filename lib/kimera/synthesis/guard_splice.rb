@@ -18,8 +18,9 @@ class Kimera::GuardSplice
   end
 
   def edits
-    sites = placed.flat_map(&:first).group_by(&:first).map { |node, found| Kimera::GuardText.new(node, found.map { it.drop(1) }) }
-    sites.select { |site| site.outer?(sites) }.map { |site| site.edit(sites) } + placed.flat_map(&:last)
+    sites = guards
+    outer = sites.select { |site| site.outer?(sites) }
+    outer.map { |site| site.edit(sites, probes) } + probes.reject { |probe| outer.any? { |site| site.holds?(probe) } }
   end
 
   def applied = @points.zip(placements).select(&:last).flat_map { |point, _| point.ids }
@@ -29,6 +30,12 @@ class Kimera::GuardSplice
   private
 
   def placed = placements.compact
+
+  def guards
+    placed.flat_map(&:first).group_by(&:first).map { |node, found| Kimera::GuardText.of(node, found.map { it.drop(1) }) }
+  end
+
+  def probes = placed.flat_map(&:last)
 
   def placements = @_placements ||= @points.map { |point| placement(point, index.node(point)) }
 

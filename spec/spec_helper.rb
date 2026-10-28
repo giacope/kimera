@@ -29,6 +29,19 @@ RSpec.configure do |config|
   # When kimera runs on itself, the run's mutant is on while these examples
   # run; an example that drives the switch hands it back to the next one.
   config.around { |example| Kimera::RUNTIME.during(Kimera::RUNTIME.active) { example.run } }
+  # Woven code an example evaluates registers its visibility flips with the
+  # process-wide runtime, under ids 1, 2, ... that later examples use too:
+  # they leave with the example. Kept, each later switch to such an id walked
+  # the object space for aliases of a class nothing holds (0.5 s by
+  # spec/property), and the Shift children of worker_pool_spec missed its
+  # watchdog.
+  config.around do |example|
+    flips = Kimera::RUNTIME.__send__(:hidden).flips
+    kept = flips.dup
+    example.run
+  ensure
+    flips.replace(kept)
+  end
   config.around do |example|
     world = RSpec.world
     quitting = world.wants_to_quit

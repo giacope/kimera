@@ -17,7 +17,7 @@ module Kimera
         runs.map { |run| run.first.type == :string_node ? run.sum("") { |part| content(part) } : run.first }
       end
 
-      def content(part) = part.unescaped
+      def content(part) = Kimera::Unescaped.new(part).text
 
       def piece_text(piece, following, delimiter)
         piece.is_a?(::String) ? escaped(piece, delimiter) : embedded(piece, following)

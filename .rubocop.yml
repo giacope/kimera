@@ -16,5 +16,7 @@ AllCops:
     - eval/holdout/**/*
     - eval/holdout2/**/*
     - eval/tmp/**/*
+    # unparser's round-trip corpus, kept as its authors wrote it (three files do not parse).
+    - spec/property/corpus/**/*
     # CI installs the bundle here; replacing Exclude drops RuboCop's default.
     - vendor/**/*

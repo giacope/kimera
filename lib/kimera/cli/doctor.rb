@@ -7,6 +7,7 @@ require_relative "checklist"
 require_relative "coverage_minimum"
 require_relative "flag"
 require_relative "rails_layout"
+require_relative "rspec_options"
 require_relative "test_command"
 require_relative "test_definitions"
 
@@ -54,7 +55,7 @@ class Kimera::CLI::Doctor
   def checks(config, options)
     discovery = Kimera::CLI::TestDefinitions.new(test_files(config)).discovery
     [configuration(config), framework(config), sources(config), discovery, git, rails]
-      .concat(floor).each { |check| shown(check) } + suite(config, options)
+      .concat(notes(config)).each { |check| shown(check) } + suite(config, options)
   end
 
   def suite(config, options)
@@ -98,9 +99,10 @@ class Kimera::CLI::Doctor
 
   def rails? = Kimera::CLI::RailsLayout.new(@root).rails?
 
-  def floor
+  def notes(config)
     helper = glob(HELPERS).find { |path| floor?(path) }
-    helper ? [["!", floored(helper.delete_prefix("#{@root}/"))]] : []
+    dotted = Kimera::CLI::RspecOptions.new(@root).loaded(test_files(config))
+    helper ? [["!", floored(helper.delete_prefix("#{@root}/"))], *dotted] : dotted
   end
 
   def floored(helper)
@@ -112,13 +114,14 @@ class Kimera::CLI::Doctor
 
   def text(path) = File.read(path, encoding: Encoding::UTF_8).scrub
 
-  def baselines(config) = test_command(config).baselines
+  def baselines(config) = test_command(config).baselines(jobs(config))
 
   def loading(config) = test_command(config).loading
 
   def test_command(config)
     framework = config.fetch(:framework, "rspec").to_s
-    Kimera::CLI::TestCommand.new(framework, test_files(config), root: @root, jobs: jobs(config))
+    names = Array(config[:exclude_test_names])
+    Kimera::CLI::TestCommand.new(framework, test_files(config), root: @root, names: names)
   end
 
   def jobs(config) = Integer(config.fetch(:jobs, 1), exception: false).to_i

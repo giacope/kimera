@@ -19,9 +19,10 @@ module Kimera
         BARE = %i[yield_node super_node call_node].freeze
         COMMAND = /\A[a-z_]/i
 
-        def initialize(node, root)
+        def initialize(node, root, ends)
           @node = node
           @root = root
+          @ends = ends
         end
 
         def slices = visited(@node).last.to_h.compare_by_identity
@@ -30,7 +31,7 @@ module Kimera
 
         def visited(node)
           inner = node.compact_child_nodes.map { |child| visited(child) }
-          heredoc = inner.any?(&:first) || heredoc?(node)
+          heredoc = inner.any?(&:first) || laid?(node)
           kept = inner.flat_map(&:last)
           [heredoc, heredoc || !standalone?(node) ? kept : [[node, node.slice], *kept]]
         end
@@ -40,7 +41,7 @@ module Kimera
           !start.negative? && @root.slice.byteslice(start, node.location.length) == node.slice
         end
 
-        def heredoc?(node) = node.respond_to?(:heredoc?) && node.heredoc?
+        def laid?(node) = node.respond_to?(:heredoc?) && node.heredoc? && node.location.start_line < @ends
 
         def standalone?(node)
           type = node.type

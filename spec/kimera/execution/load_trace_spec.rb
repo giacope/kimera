@@ -111,4 +111,11 @@ RSpec.describe(Kimera::Execution::LoadTrace) do
     described_class.new(registry, dir).quarantine!({})
     expect(point("Current.user").unsafe_reason).to(eq(Kimera::MutationPoint::MACRO_REASON))
   end
+
+  # R6B2-M3: kimera's suite turns on Warning[:strict_unused_block] (spec/support/strict_blocks.rb).
+  it "also sends a warm survivor whose mutant leaves its method no yield to a fresh mirror" do
+    File.write(file, "class LoadTraceJoin\n  def join(list)\n    list.each { |x| yield x }\n  end\nend\n")
+    described_class.new(registry, dir).quarantine!({})
+    expect(point("list.each { |x| yield x }").revisit).to(eq(Kimera::Execution::BlockUse::REASON))
+  end
 end

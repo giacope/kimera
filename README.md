@@ -83,7 +83,8 @@ bundle install
 test helper, or which one `Gemfile.lock` installs), your source roots
 (`app/`, `lib/`), and your test glob (the one whose files define the most
 tests: `test/**/test_*.rb` over a `test/**/*_test.rb` that matches only a
-support class), and its operators: the conservative core plus `when_clause`
+support class, or the pattern `.rspec` names; the files `.rspec` leaves out go to
+`exclude_tests`), and its operators: the conservative core plus `when_clause`
 and `append_deletion` (a `case`'s branches and `<<` statements, which the
 core never mutates), and on a Rails app the `rails` operators. A
 configuration without `operators:` keeps the core alone. It writes a commented `.kimera.yml`
@@ -100,7 +101,8 @@ bundle exec kimera init
 
 **3. Check the setup.** `doctor` confirms source and test discovery (it fails
 a `tests:` glob whose files define no test), Git, and Rails parallel-safety.
-`--check-baseline` also runs your suite once to confirm it is green, and when
+`--check-baseline` also runs your suite once to confirm it is green (leaving out
+the tests `exclude_test_names` names, as `kimera run` does), and when
 the suite aborts it quotes the reason (Rails' pending migrations). With `jobs:`
 over 1 it then runs it again, split across that many processes as `kimera run`
 splits it across its workers, and warns, naming the tests, when it is red
@@ -402,12 +404,17 @@ also fails without the mutant after the covering tests run before it: that
 mutant would be `harness_error`. Nor can it change what a method computed
 while the suite loaded (a constant table built from it): the guards are
 installed after boot. So a warm survivor whose method the suite also ran
-while it loaded is judged again too.
+while it loaded is judged again too. Nor can it see what Ruby settles as it
+compiles a method, such as whether the method uses the block passed to it:
+the overlay compiles every mutant of a method into one, so a mutant that
+leaves the method no `yield` still reads as taking its block. Under a suite
+that reports an ignored block (`Warning[:strict_unused_block]`, or
+`$VERBOSE`), and may raise it, such a mutant's warm survivor is judged again.
 
 After the warm pass, Kimera judges each such mutant again in the isolated
 tier, in a fresh mirror of its own, against its covering tests only (every
-test under `--no-coverage`; for a method that ran at load, the tests near its
-file, as above). A kill (or
+test under `--no-coverage`; for a method that ran at load, and for a mutant
+that leaves its method no `yield`, the tests near its file, as above). A kill (or
 timeout) stands only if those tests then pass in another fresh mirror
 without the mutant. The report carries the fresh
 verdict, and the row's `note` keeps what the warm pass said. The text report
@@ -815,8 +822,10 @@ name's first write would turn its later reads into method calls, a
 survivor means no test calls it from outside its object: it is untested API,
 or it should be private. The schemata keeps the method public and registers
 it with `::Kimera::RUNTIME`; activating the mutant makes it private (every
-name holding that definition, so an alias another file took of it too, and
-not a later redefinition), and deactivating it makes it public again. So the
+name holding that definition, so an alias another file took of it too, or
+one a class or object that includes or extends its module took, and not a
+later redefinition; a method defined while the mutant is active is private
+as defined), and deactivating it makes it public again. So the
 mutant is a real private method: `respond_to?` says false, an outside call
 reaches `method_missing`, `public_send` raises, `send` still works (a method
 only ever called through `send` survives, as it should), and a Rails
@@ -869,6 +878,10 @@ comparison,rails` composes, and `all` includes them.
   never runs: such a lambda that no test reached warm reports `isolated_only`,
   not `no_coverage`, and `--isolated` judges it against the tests in the
   files that cover its source file (the whole suite where coverage names none).
+  One that adds to a list (`default_scope -> { order(:name) }`, a callback)
+  keeps the original beside the mutated one, which a test then reaches while
+  the original masks the mutant: a warm survivor of a lambda handed to a
+  class-body macro is judged again in a fresh mirror, against those tests.
 - **`rails_permit`** runs on the normal warm path.
 - **Validations and callbacks** are class-body DSL. They execute once at load,
   so no in-process scheme can judge them. The warm run marks them
@@ -1013,9 +1026,12 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   `run_all_when_everything_filtered`; a baseline whose test files load but
   select no test fails with exit 1 instead of scoring every mutant uncovered.
 - **Runs under your bundle.** Use `bundle exec`. A source checkout's `exe/kimera` activates the current
-  directory's Gemfile before booting Kimera. `--isolated` mirrors run under
-  the project's own Gemfile and lockfile, so a gem named by a relative
-  `path:` (a monorepo's engines) resolves there too.
+  directory's Gemfile before booting Kimera. `--isolated` mirrors and the
+  mirrors that judge a mutant again run under the Gemfile Kimera runs under
+  (`BUNDLE_GEMFILE=Gemfile.rails-8.1 bundle exec kimera run` runs them under
+  the mirror's `Gemfile.rails-8.1`), and under the project's own one when
+  its lockfile resolved a gem by a relative `path:` out of the project (a
+  monorepo's engines), so that gem resolves there too.
 - **Kimera writes its own Ruby.** Every rewrite and guard is made on Prism's
   own tree, the one the registry scanned, and `Kimera::Scribe` writes it back
   as source that reads as the very same tree: it groups operators, signs and powers by precedence
@@ -1044,19 +1060,37 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     and each bake must read back as the mutated tree. Unchanged subtrees keep
     their text, comments and line breaks. A deleted statement is written
     `()`, which reads as `nil` without `ruby -w`'s "useless use of nil".
+  - A changed part of a heredoc, or of a string that spans lines (`%{...}`),
+    is written in the literal's own text, a line break it drops as a `\`
+    line continuation, so the heredoc stays a heredoc and no node after it
+    moves (`class_eval <<~RUBY, __FILE__, __LINE__ + 1` hands down the same
+    line). An argument or statement dropped beside a heredoc leaves its body
+    where it was, or blank lines when the heredoc goes with it. A heredoc's
+    text ends with a line break, so the mutant that drops its last one has
+    no heredoc to be written as and is unmutatable.
   - A named-capture match (`/(?<n>\d+)/ =~ s`) is guarded whole, so its
     capture still binds; a visibility mutant's probe and registration go on
     the method's own lines.
-  - A point no expression can hold (a dropped `rescue` clause) has its
-    method written whole on the method's own lines (on one line when written
-    out it would take more), or, outside every method, the statement of the
-    file that holds it. Lines inside such a rewrite may read as its first.
-  - The file Kimera runs with every mutant off, and every bake, keeps the
-    file's line layout: as many lines, every line outside a rewritten span
-    at its number. A guard or rewrite that would move a line is not written:
-    its point is unguardable (`kimera: x.rb: 1 mutation point(s) at line 3
-    are unguardable`) and the bake unmutatable ("what it wrote moves the
-    lines after it"); the file itself is never written whole.
+  - A dropped `rescue` or `ensure` clause is guarded where it stands: a
+    `begin`'s at the `begin`, a method's own clauses around the method's body
+    in a `begin` on the body's own lines. A point no expression can hold (a
+    mutant that must break a line) has its method written whole, or, outside
+    every method, the statement of the file that holds it, only where that
+    keeps every line: read back with every mutant off, the rewrite must be
+    the original, each node on its line, so `__LINE__`, a backtrace and a
+    coverage line inside it stay put. One that would move a line (written
+    whole, most methods sit on their first line) is not written, and its
+    point is unguardable. A `begin ... end while` keeps its clauses unguarded:
+    guarded, it would test before its first pass.
+  - The file Kimera runs with every mutant off keeps the file's line layout:
+    as many lines, every node on its line. Every
+    bake changes no line outside its mutation (the point's lines, and the
+    bodies of the heredocs it holds or sits in), so no node before or after
+    the mutation point moves. A guard or rewrite that would move a line is not
+    written: its point is unguardable (`kimera: x.rb: 1 mutation point(s) at
+    line 3 are unguardable`) and the bake unmutatable ("what it wrote changes
+    or moves a line outside the mutation"); the file itself is never written
+    whole.
   - Every bake and every woven file is parse-checked. A mutant whose bake
     does not parse, or reads as the original, is reported unmutatable
     (Kimera could not write it), never killed or survived.
@@ -1064,7 +1098,8 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   bodies of blocks that run on each call: `define_method`,
   `define_singleton_method`, `lambda`, `proc`, `Proc.new` and `->`. The code
   it would mutate in any other block outside a method (a class-level `map`,
-  a DSL callback block), by its own lines, and any scanned file that does
+  a DSL callback block), by its own lines (not those of a method it
+  defines, which is mutated), and any scanned file that does
   not parse, are listed under "Not mutated" in the text report and
   `unmutated` in the JSON report and the registry, with the reason.
 - **Schema-unsafe mutants.** Code that runs once at load (class/module bodies,
@@ -1101,7 +1136,9 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   requires), with the error in the detail. A method a file
   loaded later redefined (a wrapper around an `alias_method` chain) keeps
   that definition; the alias then calls the overlaid original, so its
-  mutants are covered.
+  mutants are covered. A wrapper that holds the method it replaced (a
+  memoizer such as Adamantium's `memoize`) never calls the overlay: its
+  method's mutants are judged again in a fresh mirror.
 - **An unwritable tree costs one method, not a file.** When a guard leaves a
   tree Kimera can't write faithfully (a local read it unbinds), only those
   points are dropped; when the whole file still won't write, Kimera guards and
@@ -1244,6 +1281,13 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   the load path when the suite loads, and the same `-I` flags go into
   `kimera doctor`'s commands, the isolated tier's children and every printed
   "reproduce without kimera" command.
+- **Warnings as the test task sets them.** `Rake::TestTask` and
+  `Minitest::TestTask` run the suite with `ruby -w` unless the task sets
+  `warning = false`. For a Minitest suite Kimera reads the Rakefile's test
+  task (the one named `test`, or the first) and does the same: the suite loads
+  with `$VERBOSE` on, and `-w` goes into `kimera doctor`'s commands, the
+  isolated tier's children and every printed reproduce command. When a red
+  baseline is green with warnings the other way, doctor says so.
 - **Methods a block defines.** A `def` inside a block a DSL runs
   (`RSpec.shared_examples_for`, `shared_context`, `Module.new`) lives on each
   module that ran the block, which the source cannot name. Before the warm
@@ -1256,10 +1300,12 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   taken still runs the unmutated code. A test comparing them fails under
   Kimera only; the harness error names each such method and the
   `--exclude` that leaves its file out.
-- **Minitest class hooks.** Each test runs inside its class's
-  `with_info_handler`, as a plain run does, so minitest-hooks'
+- **Minitest class hooks.** Each test runs through its class's suite
+  runner (Minitest 6's `run_suite`, Minitest 5's `run`) and its per-test
+  runner, as a plain run does, so a fixture the class sets up there (excon
+  starts its test servers in `run_suite`) and minitest-hooks'
   `before(:all)`/`around(:all)` run around it, and a failing class hook
-  fails the test.
+  fails the test. A class Minitest runs in parallel runs its test in place.
 - **Locale.** Kimera reads its files, reports and pipes as UTF-8 whatever
   `LANG` says, so it runs with `LANG` unset or `LANG=C`.
 

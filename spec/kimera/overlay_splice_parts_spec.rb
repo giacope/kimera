@@ -57,16 +57,50 @@ RSpec.describe(Kimera::Overlay) do
     end
   end
 
-  describe "writes a definition whole, on its own lines, when a guard can't stand in place" do
-    {
-      ["def m(a)\n  a.call\nrescue ArgumentError\n  0\nend\n# kept\nLINE = __LINE__\n", %w[rescue_clause]] =>
-        "def m(a); if ::Kimera::RUNTIME.active?(1); a.call; else; begin; a.call; rescue ArgumentError; 0; end; " \
-        "end; \n\n\n\nend\n"
-    }.each do |(source, keys), written|
-      it "writes #{source.lines.first.strip} whole and keeps the rest", :aggregate_failures do
-        expect(woven(source, keys)).to(start_with(written))
-        expect(woven(source, keys)).to(end_with("# kept\nLINE = __LINE__\n"))
-      end
+  # R6B5-M2: a method's own `rescue` is guarded where it stands, its body in a
+  # `begin` on the body's own lines, so no line of the method moves.
+  it "guards a method's own clause where it stands, on the method's lines" do
+    source = "def m(a)\n  a.call\nrescue ArgumentError\n  0\nend\n# kept\nLINE = __LINE__\n"
+    guarded = "  (!(#{runtime}(1)) ? (begin; a.call\nrescue ArgumentError\n  0\nend) : (a.call))end\n"
+    expect(woven(source, %w[rescue_clause]).lines).to(eq([source.lines.first, *guarded.lines, *source.lines.last(2)]))
+  end
+
+  # Guarded in place, `begin ... end while` would test before its first pass.
+  it "leaves the clause of a loop's `begin` unguarded, its lines as they were", :aggregate_failures do
+    source = "def m(n)\n  i = 0\n  begin\n    i += 1\n  rescue IndexError\n    nil\n  end while i < n\n  i\nend\n"
+    expect { expect(woven(source, %w[rescue_clause comparison]).lines.first(6)).to(eq(source.lines.first(6))) }
+      .to(output(/1 mutation point\(s\) at line 3 are unguardable/).to_stderr)
+  end
+
+  # A point no guard can hold in place has its definition written whole.
+  def whole!
+    allow(Kimera::GuardSplice).to(receive(:new)) do |_map, points|
+      instance_double(Kimera::GuardSplice, rest: points, edits: [], applied: [])
+    end
+  end
+
+  def trace
+    "class Trace\n  def mark(l)\n    l.fetch(0)\n  rescue IndexError\n    [:seen, __LINE__]\n  end\n\n  " \
+      "def one(l); l.fetch(0); rescue IndexError; :none; end\nend\n"
+  end
+
+  describe "writes a definition whole when a guard can't stand in place" do
+    it "on the definition's own line, keeping the rest", :aggregate_failures do
+      whole!
+      written = woven("def m(a); a.call; rescue ArgumentError; 0; end\n# kept\nLINE = __LINE__\n", %w[rescue_clause])
+      expect(written).to(start_with("def m(a); if #{runtime}(1); a.call; else; begin; a.call; rescue ArgumentError; "))
+      expect(written).to(end_with("end\n# kept\nLINE = __LINE__\n"))
+    end
+
+    # R6B5-M2: written whole, the method sat on its first line, `__LINE__`
+    # read that line, and the lines it lost were padded before its `end`.
+    it "nowhere when it would move a line of the definition", :aggregate_failures do
+      whole!
+      catalog = scan(trace, %w[rescue_clause])
+      result = nil
+      expect { result = described_class.new(catalog).synthesize("x.rb", trace) }
+        .to(output(/1 mutation point\(s\) at line 2 are unguardable/).to_stderr)
+      expect([result.source.lines.first(7), result.mutant_ids]).to(eq([trace.lines.first(7), catalog.points.last.ids]))
     end
   end
 
@@ -80,7 +114,8 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   it "leaves a named capture's regexp unguarded when its definition is written whole", :aggregate_failures do
-    source = "def number(s)\n  if /(?<num>\\d+)/ =~ s then num.to_i end\nrescue ArgumentError\n  0\nend\n"
+    whole!
+    source = "def number(s); if /(?<num>\\d+)/ =~ s then num.to_i end; rescue ArgumentError; 0; end\n"
     written = woven(source, %w[regexp_quantifier rescue_clause])
     expect([written, Object.new.extend(Module.new.tap { |mod| mod.module_eval(written) }).number("x21")])
       .to(match([start_with("def number(s); if ::Kimera::RUNTIME.active?("), 21]))
@@ -124,6 +159,14 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   describe "#bake" do
+    heredoc = "def m(mod)\n  mod.class_eval <<~RUBY, __FILE__, __LINE__ + 1\n    def a = 1\n  RUBY\n  __LINE__\nend\n"
+    reader = "def r(n)\n  code = <<~RUBY\n    def \#{n}\n    end\n  RUBY\n  [code, __LINE__]\nend\n"
+    nested = "def m(mod, c)\n  mod.class_eval <<~RUBY, __FILE__, __LINE__ + 1\n    \#{if c\n      <<~INNER\n        " \
+      "def a = 1\n      INNER\n    end}\n  RUBY\n  __LINE__\nend\n"
+    later = "def m(a)\n  x = a > 1\n  <<~T\n    b\n  T\nend\n"
+    guarded = "def m(a)\n  if a\n    log <<~T\n      b\n    T\n  end\n  __LINE__\nend\n"
+    sql = "def u(t)\n  run %{\n    UPDATE \#{t}\n    SET a = 1\n  }\n  __LINE__\nend\n"
+    # R6B3-M4: a heredoc stays a heredoc, and every line after the mutation where it was.
     {
       ["def m(v)\n  foo(\n    \"Ruby/\#{v}\",\n    2)\nend\n", %w[string_literal], "\"Ruby/\" => \"\""] =>
         "def m(v)\n  foo(\n    \"\#{v}\",\n    2)\nend\n",
@@ -133,19 +176,45 @@ RSpec.describe(Kimera::Overlay) do
       ] =>
         "def m(list)\n  ()\n\n\nend\n",
       ["def m(a)\n  puts(<<~T, a > 1)\n    body\n  T\nend\n", %w[argument_drop], "drop arg `a > 1`"] =>
-        "def m(a)\n  puts(\"body\\n\")\nend\n\n\n",
+        "def m(a)\n  puts(<<~T)\n    body\n  T\nend\n",
       ["def m(a)\n  puts(<<~T, a > 1)\n    body\n  T\n  a\nend\n", %w[argument_drop], "drop arg `a > 1`"] =>
-        "def m(a)\n  puts(\"body\\n\")\n  a\n\n\nend\n",
+        "def m(a)\n  puts(<<~T)\n    body\n  T\n  a\nend\n",
       [
         "def m(a)\n  x = begin\n    a.call\n    a.size\n  rescue ArgumentError\n    0\n  end\n  x\nend\n",
         %w[rescue_clause], "drop `rescue ArgumentError`"
       ] => "def m(a)\n  x = (a.call\n  a.size\n\n\n\n)\n  x\nend\n",
       ["def m(a)\n  if a # why\n    1\n  end\nend\n", %w[conditional], "condition => true"] =>
-        "def m(a)\n  if true # why\n    1\n  end\nend\n"
+        "def m(a)\n  if true # why\n    1\n  end\nend\n",
+      [heredoc, %w[statement_deletion], "delete `mod.class_eval <<~RUBY, __FILE__, __LINE__ + 1`"] =>
+        "def m(mod)\n  ()\n\n\n  __LINE__\nend\n",
+      [heredoc, %w[argument_drop], "drop arg `<<~RUBY`"] =>
+        "def m(mod)\n  mod.class_eval __FILE__, __LINE__ + 1\n\n\n  __LINE__\nend\n",
+      [nested, %w[argument_drop], "drop arg `__FILE__`"] => nested.sub(", __FILE__", ""),
+      [heredoc, %w[argument_drop], "drop arg `__FILE__`"] =>
+        "def m(mod)\n  mod.class_eval <<~RUBY, __LINE__ + 1\n    def a = 1\n  RUBY\n  __LINE__\nend\n",
+      [reader, %w[string_literal], "\"end\\n\" => \"\""] =>
+        "def r(n)\n  code = <<~RUBY\n    def \#{n}\\\n\n  RUBY\n  [code, __LINE__]\nend\n",
+      ["def v\n  x = <<~'T'\n    a\n    b\n  T\n  [x, __LINE__]\nend\n", %w[string_literal], "\"a\\n\" => \"\""] =>
+        "def v\n  x = \"b\\n\"\n\n\n\n  [x, __LINE__]\nend\n",
+      ["def m\n  foo(\n    \"abc\",\n    2)\nend\n", %w[string_literal], "\"abc\" => \"\""] =>
+        "def m\n  foo(\n    \"\",\n    2)\nend\n",
+      [later, %w[comparison], "> => >="] => "def m(a)\n  x = a >= 1\n  <<~T\n    b\n  T\nend\n",
+      ["def m(a)\n  log(a > 1,  <<~T)\n    b\n  T\nend\n", %w[comparison], "> => >="] =>
+        "def m(a)\n  log(a >= 1,  <<~T)\n    b\n  T\nend\n",
+      [guarded, %w[statement_deletion], "delete `log <<~T`"] =>
+        "def m(a)\n  if a\n    ()\n\n\n  end\n  __LINE__\nend\n",
+      [sql, %w[string_literal], "\"\\n    SET a = 1\\n  \" => \"\""] =>
+        "def u(t)\n  run %{\n    UPDATE \#{t}\\\n\\\n}\n  __LINE__\nend\n"
     }.each do |(source, keys, label), baked|
       it "bakes #{label} as #{baked.inspect}" do
         expect(bake(source, keys, label)).to(eq(baked))
       end
+    end
+
+    it "refuses the mutant that drops the line break a heredoc's text ends with" do
+      unended = "def q(t)\n  <<-SQL\n    DELETE \#{t} = 1\n  SQL\nend\n"
+      expect { bake(unended, %w[string_literal], "\" = 1\\n\" => \"\"") }
+        .to(raise_error(described_class::Unbakeable, /changes or moves a line outside the mutation/))
     end
   end
 end

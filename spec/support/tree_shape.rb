@@ -4,9 +4,12 @@ require "prism"
 
 # A Prism tree up to how its source spelled it: no locations, a string however
 # its parts were split, a number in any base. Two trees of one shape are the
-# same program.
+# same program. A string is its value as Ruby makes it: Prism reads the bytes
+# in the file's encoding and flags the one an escape forces (`"\u{3042}"` is
+# UTF-8 in a binary file, `"\xE3\x81\x82"` is not), so the flag is no spelling.
 module TreeShape
   SPELLING = /\A(?:forced_\w+_encoding|frozen|mutable|binary|decimal|octal|hexadecimal)\?\z/
+  FORCED = { forced_utf8_encoding?: Encoding::UTF_8, forced_binary_encoding?: Encoding::BINARY }.freeze
 
   module_function
 
@@ -24,11 +27,18 @@ module TreeShape
 
   def fields(node)
     kept = node.deconstruct_keys(nil).except(:node_id, :location).reject { |field, _| field.end_with?("_loc") }
-    kept.map { |field, value| [field, field == :parts ? parts(value) : of(value)] }
+    kept.map { |field, value| [field, field == :parts ? parts(value) : field(node, field, value)] }
+  end
+
+  def field(node, name, value) = of(name == :unescaped ? value(node) : value)
+
+  def value(node)
+    forced = FORCED.find { |flag, _| node.public_send(flag) }
+    forced ? node.unescaped.dup.force_encoding(forced.last) : node.unescaped
   end
 
   def string(node)
-    return [:string, node.unescaped] if node.type == :string_node
+    return [:string, value(node)] if node.type == :string_node
     merged = parts(node.parts) if node.type == :interpolated_string_node
     merged.first if merged&.one? && text?(merged.first)
   end
@@ -41,7 +51,7 @@ module TreeShape
     )
   end
 
-  def piece(part) = part.type == :string_node ? [:string, part.unescaped] : of(part)
+  def piece(part) = part.type == :string_node ? [:string, value(part)] : of(part)
 
   def joined(pieces)
     runs = pieces.chunk_while { |left, right| text?(left) && text?(right) }

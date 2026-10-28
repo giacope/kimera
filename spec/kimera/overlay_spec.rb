@@ -755,29 +755,20 @@ RSpec.describe(Kimera::Overlay) do
           class Spliced
             ODDITY = :unemittable
 
-            def compare(a, b)
-              a > b
-            end
+            def compare(a, b) = a > b
 
-            def also(a, b)
-              a < b
-            end
+            def also(a, b) = a < b
           end
         RUBY
       end
 
       # Nested points belong to the outer method. Claiming them twice would
-      # splice overlapping edits.
+      # splice overlapping edits. A method written whole keeps its lines only
+      # on one line (R6B5-M2).
       let(:nested_source) do
         <<~RUBY
           class Nested
-            def outer
-              Class.new do
-                def inner(a, b)
-                  a > b
-                end
-              end
-            end
+            def outer = Class.new { def inner(a, b) = a > b }
 
             def  untouched_by_points
               :ok
@@ -825,6 +816,27 @@ RSpec.describe(Kimera::Overlay) do
         expect { result = described_class.new(registry).synthesize("spliced.rb", splice_source) }
           .to(output(/spliced\.rb: could not write the whole file; 4 mutant\(s\) spliced per method/).to_stderr)
         [registry, result]
+      end
+
+      # R6B4-M1..M3: a method written so it reads as another method is refused.
+      it "refuses a per-method splice whose methods read as other methods" do
+        registry = Kimera::RegistryScan.new.source(splice_source, file: "spliced.rb")
+        unwritable!
+        allow(Kimera::Unwoven).to(receive(:new).and_return(instance_double(Kimera::Unwoven, keeps?: false)))
+        expect { described_class.new(registry).synthesize("spliced.rb", splice_source) }
+          .to(raise_error(Kimera::Scribe::Unreadable, /could not write its guard/))
+      end
+
+      def checking(checked)
+        allow(Kimera::Unwoven).to(receive(:new).and_wrap_original) do |build, tree|
+          build.call(tree).tap { |found| allow(found).to(receive(:keeps?)) { |defs| checked.push(defs.map(&:name)) } }
+        end
+      end
+
+      it "reads back the methods it rewrote, and only those" do
+        checked = []
+        checking(checked) && unspliced && nested
+        expect(checked).to(eq([%i[outer]]))
       end
 
       it "keeps every method's mutants and the untouched source verbatim", :aggregate_failures do
@@ -1116,10 +1128,65 @@ RSpec.describe(Kimera::Overlay) do
     # A def is a value too: its tail mutant guards the def, so the method that
     # holds it returns nil with the mutant on and defines the method without.
     it "guards a def at a method's tail where it stands" do
-      source = "class NestedTail\n  def outer\n    def inner\n    end\n  end\nend\n"
+      source = "class NestedTail\n  def outer; def inner; end; end\nend\n"
       result, registry = woven(source, %w[return_value])
       held = Module.new.tap { |mod| mod.module_eval(result.source) }::NestedTail.new
       expect([held.outer, Kimera::RUNTIME.during(registry.points.first.ids.first) { held.outer }]).to(eq([:inner, nil]))
+    end
+  end
+
+  # R6B4-M4: hashie's IndifferentAccess.included, a privatize probe inside a
+  # guarded `base.class_eval do ... end`: the probe overlapped the guard, the
+  # file would not weave, and kimera dropped points it could write.
+  describe "a visibility probe inside a guarded statement" do
+    let(:source) do
+      <<~RUBY
+        module Box
+          def self.included(base)
+            base.class_eval do
+              class << self
+                def build(n)
+                  new if n > 0
+                end
+              end
+            end
+          end
+
+          def big?(n) = n > 3
+        end
+      RUBY
+    end
+    let(:registry) do
+      keys = %w[statement_deletion visibility comparison]
+      Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(source, file: "x.rb")
+    end
+
+    it "writes the probe inside the statement's guard and weaves every mutant", :aggregate_failures do
+      result = described_class.new(registry).synthesize("x.rb", source)
+      expect(result.mutant_ids).to(eq(registry.each.map { |mutant, _| mutant.id }))
+      expect(registry.points.select(&:unmutatable?)).to(be_empty)
+      expect(result.source.lines.size).to(eq(source.lines.size))
+    end
+
+    def nesting
+      call = Kimera::Syntax.parse("outer(inner(x))").value.statements.body.first
+      inner = call.arguments.arguments.first
+      sites = [Kimera::GuardText.of(call, [[1, "nil"]]), Kimera::GuardText.of(inner, [[2, "nil"]])]
+      [sites, inner.location.start_offset + 6]
+    end
+
+    it "writes a probe inside a guard inside a guard into the inner one only" do
+      sites, at = nesting
+      probe = [at, at, "PROBE; "]
+      guards = ["(!(::Kimera::RUNTIME.active?(1)) ? (outer(", "(!(::Kimera::RUNTIME.active?(2)) ? (inner(PROBE; x))"]
+      expect(sites.first.text(sites, [probe])).to(eq("#{guards.join} : (nil)))) : (nil))"))
+    end
+
+    it "makes the class the hook builds answer as the original, and each mutant as itself", :aggregate_failures do
+      mod = Module.new.tap { it.module_eval(described_class.new(registry).synthesize("x.rb", source).source) }
+      built = Class.new.include(mod::Box)
+      expect([built.build(1).class, built.build(0), built.new.big?(4)]).to(eq([built, nil, true]))
+      expect(flipped(registry, "> => >=") { Class.new.include(mod::Box).build(0) }).not_to(be_nil)
     end
   end
 end

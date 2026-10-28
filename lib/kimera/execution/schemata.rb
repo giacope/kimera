@@ -107,6 +107,7 @@ class Kimera::Execution::Schemata
     overrides = Kimera::Execution::Overrides.new(file, result.source)
     installed, displaced = silence { overrides.keep { blocks.adopt { result.install(file) } } }
     aliases.witness(displaced)
+    displaced.reject { |held| aliases.reaches?(held.definition) }.each { it.revisit!(@registry.at(result.file)) }
     installed
   end
 

@@ -108,7 +108,7 @@ class Kimera::Execution::Reload
   def watched(file, path, id)
     location = verdicts.point(id).location
     source = Kimera::BodyTrim.new(File.read(path, encoding: Encoding::UTF_8), [location]).trim(path)
-    Kimera::Execution::CallWatch.new(Kimera::Overlay.new(@registry).bake(file, source, id), location.start_line, id)
+    Kimera::Execution::CallWatch.new(Kimera::Overlay.new(@registry).bake(file, source, id), location.start_offset, id)
   end
 
   def install(source, path)

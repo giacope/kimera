@@ -30,7 +30,7 @@ module Kimera
         subsequent&.type == :else_node ? subsequent.statements : subsequent
       end
 
-      def guard = part(@node.predicate, Level::EXPRESSION)
+      def guard = ended(part(@node.predicate, Level::EXPRESSION))
 
       def branch(node, floor)
         return "nil" unless node

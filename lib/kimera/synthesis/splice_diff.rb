@@ -27,11 +27,13 @@ class Kimera::SpliceDiff
   private
 
   def differing(original, mutated)
-    return unless original.type == mutated.type
+    return unless alike?(original, mutated)
     pairs = fields(original).zip(fields(mutated)).reject { |left, right| left == right }
     pair = pairs.first if pairs.one? && pairs.first.all?(Kimera::Syntax::Node)
     pair unless pair && receiving?(original, pair)
   end
+
+  def alike?(original, mutated) = original.type == mutated&.type
 
   def receiving?(node, pair)
     node.type == :call_node && pair.first.equal?(node.receiver) && pair.any? { |each| each.type == :self_node }

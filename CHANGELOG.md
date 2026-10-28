@@ -38,6 +38,180 @@ Field test round 6, batch 1: what kimera wrote, judged and said.
   on lines 16 and 18, where only line 20 was skipped. Each block now lists
   the lines of the code it skipped, as runs of lines.
 
+Field test round 6, batch 2: what kimera judged under a strict suite and said.
+
+- **Kimera's own calls pass no block a method ignores.** A suite may turn on
+  `Warning[:strict_unused_block]` and raise every warning (dry-rb's
+  spec_helper does), and kimera judges mutants in that suite's process. Its
+  test filter passed a block to the open attribution's `admits?` and its
+  shift a block to a kill's or a timeout's `conclude`, which ignore it: on
+  dry-monads the first memoized mutant ended the run with "the block passed
+  to 'Kimera::Execution::OpenAttribution#admits?' ... may be ignored
+  (RuntimeError)" and no report, and the first warm kill of each worker read
+  `error`. Those methods now take the block, and kimera's own suite runs with
+  the warning on and raised for its lib, so a new site fails CI.
+- **A memoized mutant's method is watched, not a one-line def beside it.**
+  The reload child watches the method that holds the mutant, and found it by
+  line: a one-line def that starts later on that line (`@reading ||=
+  Struct.new(:value) { def high? = value > 5 }.new(@level * 2 > 0 ? ...)`)
+  was watched instead, so `reading`'s mutant read "no test called the method
+  that holds it" while its test called `reading`, and its kill named no
+  covering test. It is now found by the mutant's place in the source.
+- **"Not mutated" leaves out the methods a skipped node defines.** A
+  skipped node in a class-level block was listed by all its lines, and an
+  `if` around a def spans the def, whose body kimera mutates: `configure do;
+  if ENV.key?("FLAGS"); def strict? = ... > 3; end; end` listed lines 5-7
+  as not mutated beside the two judged mutants on line 6. A def, lambda or
+  `define_method` body inside a skipped node no longer counts as its lines
+  (here: lines 5 and 7).
+- **A mutant that leaves its method no `yield` is judged as baked.** Ruby
+  settles whether a method uses the block passed to it as it compiles the
+  method, and the warm overlay compiles every mutant of a method into one, so
+  the method kept its `yield` for every mutant. Under a suite that raises the
+  warning for an ignored block (dry-monads: `Warning[:strict_unused_block]`),
+  `if block_given?` => `if false` in `Right#and` survived warm and failed the
+  suite baked. Under a suite that reports ignored blocks (strict, or
+  `$VERBOSE`), a warm survivor whose mutant leaves its method no live
+  `yield` (or `super` passing the block) is judged again in a fresh mirror.
+- **A lambda a class-body macro adds to a list is judged again.** To install
+  its guards the warm worker evaluates a mutated file again, so a macro that
+  adds its lambda to a list (`default_scope`, a callback) holds the original
+  beside the woven one. A test reached the woven one, so the point counted as
+  covered and was judged warm, while the original masked the mutant:
+  places-manager's `default_scope -> { order(name: :asc) }` survived warm,
+  deleted, and failed three examples baked. A warm survivor of a lambda
+  handed to a class-body macro is now judged again in a fresh mirror against
+  the tests near its file (one no test reached stays `isolated_only`).
+
+Field test round 6, batch 3: where a bake leaves your lines, and how the suite runs.
+
+- **A bake moves no line outside its mutation.** A mutant inside a heredoc
+  (a `string_literal` part, `"end\n" => ""`) could not be written in place,
+  so the bake wrote the method around it afresh, the heredoc as one quoted
+  string, and padded the lost lines at its end: every statement after the
+  heredoc moved up. `__LINE__`, backtraces and `class_eval <<~RUBY,
+  __FILE__, __LINE__ + 1` changed in the isolated tier and in every mirror
+  re-judge, which killed mutants for the bake (a spec reading `__LINE__`
+  died on all five string mutants of the heredoc before it); in ancestry 481
+  bakes moved a `__LINE__`. A changed part is now written in its literal's
+  own text, a dropped line break as a `\` continuation, and an argument or
+  statement dropped beside a heredoc leaves its body in place (or blank
+  lines); ancestry: 0 bakes move a `__LINE__`. Every bake is checked to
+  change no line outside the point's lines and the heredoc bodies it holds;
+  one that would is unmutatable, "what it wrote changes or moves a line
+  outside the mutation" (a heredoc's last line break, which no heredoc can
+  drop).
+- **`defined?(super)` is no use of the block.** Ruby compiles
+  `defined?(super)` as a look-up of the super method, so a method left with
+  `return super if defined?(super)` minus its `super` ignores the block it is
+  given and warns under `strict_unused_block`; kimera counted the guard as a
+  use, did not judge the mutant again in a mirror, and it survived warm while
+  its bake died (ancestry's `acts_as_tree`). Inside `defined?` only what Ruby
+  evaluates or checks for a block counts: a `yield`, in an argument or an
+  element too, and a receiver.
+- **A re-judged mutant keeps the tests that covered it.** A warm survivor
+  sent to a mirror for a block it leaves unused, or a lambda a macro keeps,
+  reported every test the mirror ran, "the tests near its file", as covering
+  it (mechanize's `Download#initialize`: 154 tests, against 18 warm). It now
+  keeps its warm coverage, plus the test that killed it; one no test reached
+  warm stays uncovered unless the mirror kills it.
+- **A Minitest suite runs with the warnings its test task sets.**
+  `Rake::TestTask` runs `ruby -w` unless told otherwise, and kimera ran the
+  suite without it: mechanize's suite, green under `rake test`, failed 19
+  cookie tests that assert on a deprecation printed only `if $VERBOSE`, and
+  `kimera run` stopped at a red baseline. Kimera now reads the Rakefile's test
+  task, loads the suite with `$VERBOSE` on unless it sets `warning = false`,
+  and runs doctor, the isolated tier's children and the printed reproduce
+  commands with `-w`; doctor names warnings when a red baseline is green the
+  other way.
+
+Field test round 6, batch 4: what the writer wrote, and what a test run reached.
+
+- **A condition ending in an endless range ends before its line break.**
+  When the warm overlay rewrote a whole method (a point it cannot guard in
+  place, a dropped `rescue` clause), Scribe wrote `when 90.. then "A"` as
+  `when 90..` / `"A"`, which Ruby reads as `when 90.."A"` (ArgumentError, a
+  bad value for range), and `if x..; y; end` as `if x..` / `y`, which reads
+  `if x..y`: the woven copy was another program, and kimera stopped the run
+  with a harness error that blamed the worker. A `when`, `in`, `if`,
+  `elsif`, `unless`, `while`, `until` or `for` head ending in `..` is now
+  ended with `;`, as a statement was.
+- **A word list in a pattern stays a value.** `in %w[a b]` matches a value
+  equal to the list; Scribe wrote it `in ["a", "b"]`, an array pattern, which
+  a Struct of "a" and "b" matches too (unparser's pattern corpus). In a
+  pattern a `%w`/`%i`/`%W`/`%I` list is now written as one (`%W[a b]`,
+  interpolations kept), and one that no %-literal can hold (an emptied
+  element) as the pinned value `^(["", "b"])`.
+- **A string keeps the encoding its escape forces.** Prism reads a string
+  in the file's encoding and flags the one an escape forces; `"\u{3042}"` in
+  a `# encoding: binary` file is UTF-8, and Scribe wrote it `"\xE3\x81\x82"`,
+  which is binary. Strings, symbols, labels, commands and interpolated parts
+  are now written with the encoding Ruby gives them.
+- **`not (a & b).zero?` is written as it reads.** Found by the new
+  round-trip property over the field corpus: Scribe wrote mustermann's
+  `not (Regexp.new(s).options & X).zero?` as `not(...).zero?`, which Ruby
+  reads as `(not ...).zero?`. A sign over a numeral (`++1`, `- 1`) is now
+  written `+(1)`, a call, not the literal `+1`, and an infinite float literal
+  `1e999`, not `Float::INFINITY`, which a lexical `Float` constant shadows.
+- **The warm overlay runs no method that reads as another.** A method the
+  overlay rewrote whole was checked only to parse and to keep its line count,
+  so each writer slip above ran as the program under test. The rewrite must
+  now read back, with every mutant off, as the method it rewrote (guards
+  read as their original side, compared as trees: no locations, a lone
+  expression in parentheses as the expression, a string by its value); and
+  every whole-method or whole-file write must read back as the tree meant.
+  One that does not is refused: its points are unmutatable warm and judged
+  from an exact bake under `--isolated`. A property spec writes every file of
+  kimera's sources, example apps, evaluation fixtures and unparser's
+  round-trip corpus (copied, MIT) and reads it back as the same tree.
+- **A visibility mutant makes the aliases an includer took private too.**
+  hashie's `IndifferentAccess.included` aliases `update` to
+  `indifferent_update` in the class that includes it; the real `private def
+  indifferent_update` makes that alias private, but the warm mutant flipped
+  only the names in the module, so five mutants survived warm that
+  `--isolated` killed. Activating the mutant now flips every alias of the
+  definition in the classes and objects that include or extend its owner.
+  Kimera finds those classes in one walk of the object space before it
+  forks, so the workers and each test's child inherit them: switching a
+  mutant on in a child flips the known holders and walks nothing (a walk per
+  switch took 0.5 s in kimera's own suite process), and switching on the
+  mutant already on leaves its flips as they are.
+- **A visibility probe inside a guarded statement weaves.** hashie's
+  `base.class_eval do class << self; def try_convert ... end end` held a
+  statement-deletion guard around the visibility probe of a method inside
+  it; the two edits overlapped, the file would not weave, and kimera dropped
+  24 points it could write as unmutatable. The probe is now written inside
+  the statement's guard, as an inner guard is. A method defined while its
+  visibility mutant is active (a class a test builds, whose `included` hook
+  defines it) is private as defined, as the real mutant's is.
+- **An element of a multi-line `%i[]`/`%w[]` bakes again.** Batch 3's
+  line guard refused every bake that changed a line outside the mutation, and
+  the writer put the whole list on one line: no element of transition's and
+  WebsiteOne's multi-line permit lists could be baked, so `--isolated` and
+  every mirror re-judge called 114 mutants unmutatable. A word is now written
+  in place in its list, and a list that holds the point owns its lines (no
+  element carries a line number), as a heredoc owns its body.
+- **A mutant inside a memoized method is judged.** unparser's Adamantium
+  `memoize` replaces a method with one that calls the original it captured
+  at load; kimera keeps that definition over the overlay, so the woven method
+  was never reached and every mutant in it read `no_coverage` (12 of
+  unparser's 40) although its tests run and kill it. A method another file
+  redefined, that no alias links back to the overlay, now has its mutants
+  judged again in a fresh mirror, where the wrapper captures the mutant; one
+  the mirror does not kill stays as warm judged it.
+- **`kimera doctor` leaves out the tests `exclude_test_names` names.** Its
+  baseline ran them, and called strong_migrations' suite red and blocking on
+  a test the configuration leaves out, while `kimera run` with the same file
+  left it out and ran. Doctor's baseline, split run and load check now
+  filter those tests (RSpec by description or id, Minitest by
+  `Class#test_name`), as run does.
+- **`kimera init` reads `.rspec`.** hashie's `.rspec` leaves out
+  `spec/integration` (each runs under its own Gemfile); init wrote `tests:
+  spec/**/*_spec.rb`, and kimera's baseline loaded those specs and stopped
+  on a LoadError. Init now carries `.rspec`'s `--exclude-pattern` into
+  `exclude_tests` and its `--pattern` into `tests`, as rspec reads them, and
+  doctor names a test file kimera loads that `.rspec` leaves out.
+
 Self-host gate: what kept the `selfhost` job red on main.
 
 - **A `def` inside a block calls refined methods as the plain suite does.**
@@ -57,6 +231,62 @@ Self-host gate: what kept the `selfhost` job red on main.
   overlay's def. On the others (shared example groups, `Module.new`) the def
   is compiled after the comments above the file's first line of code and the
   `using` calls made before it in each scope around it, on its own lines.
+
+Field test round 6, batch 5: where a rewrite leaves your lines, and what runs the suite.
+
+- **The read-back check accepts a rewrite that reads as the original.**
+  Batch 4's check compares a method the warm overlay rewrote whole with the
+  original as trees, and two spellings the writer uses read as different:
+  a pattern it parenthesizes inside a hash pattern (`in {code: 200 | 201}`
+  written `in { code: (200 | 201) }`), and every symbol after a string it
+  escapes (`"Grüße"` written `"Gr\u{FC}\u{DF}e"`, after which the parser
+  flags `:de` as forced to UTF-8 instead of US-ASCII). The method's
+  `rescue` and `ensure` mutants were reported unmutatable warm. A pattern in
+  parentheses now reads as the pattern, and a symbol by its value in the
+  encoding Ruby gives it, so one in another encoding still reads as
+  another.
+
+- **A method the warm overlay rewrites keeps every line where it was.** A
+  point no guard could hold in place, a method's dropped `rescue` or
+  `ensure` above all, had its whole method written by Scribe on the method's
+  first line, the lines it lost padded before its `end`; a class's, for a
+  point outside every method. The method kept its line count, so every
+  check passed, but `__LINE__` in it read the first line, so a test of it
+  failed under kimera only ("harness error ... fail under kimera but pass
+  in a plain run"), and every backtrace, coverage line and `class_eval ...,
+  __LINE__ + 1` in it moved.
+  Batch 4's read-back check compared trees without locations, and only for
+  rewritten methods. A dropped clause is now guarded where it stands, the
+  method's own clauses around its body in a `begin` on the body's lines (on
+  52 MIT projects, 498 such points needed a whole rewrite, now 2). The
+  check reads every node's line, and every rewritten method or statement
+  must read back as the original with each node on its line; one that would
+  move a line is not written, and its point is unguardable. A property spec
+  holds the whole warm overlay, every mutant off, to the file it came from,
+  each node on its line.
+
+- **A Minitest 6 test runs through its class's `run_suite`.** Minitest 6
+  runs each class's tests through `run_suite`, and excon starts each test
+  class's server there; kimera ran a test as `new(name).run` inside the
+  class's info handler, so 149 of excon's 307 tests failed with "Connection
+  refused" under kimera only, and the run stopped at a harness error that
+  blamed the worker while `kimera doctor` called the baseline green. Kimera
+  now runs the one test through the class's suite runner (`run_suite`, or
+  Minitest 5's `run`) with only its name selected, so every class-level
+  extension a plain run honours runs around it; a class Minitest would run
+  in parallel runs its test in place, and `--seed` seeds each test after its
+  class drew its order.
+
+- **Isolated children run under the Gemfile kimera runs under.** bullet's
+  CI runs its suite under `BUNDLE_GEMFILE=Gemfile.rails-8.1`; its `Gemfile`
+  tracks Rails main from GitHub. The warm pass ran under the gemfile kimera
+  was started with, but every isolated child and every mirror re-judge was
+  pinned to `./Gemfile`: bullet's 9 re-judged mutants came back unjudged
+  ("The git source https://github.com/rails/rails.git is not yet checked
+  out") and `--isolated` stopped at its baseline. A child now runs under
+  the mirror's copy of `BUNDLE_GEMFILE` when it lies in the project (an
+  Appraisal `Gemfile.rails-8.1`, a `gemfiles/x.gemfile`), and a path gem
+  its lockfile resolved inside the project resolves from the mirror.
 
 Field test round 5, harness: what kimera loads, runs and says.
 

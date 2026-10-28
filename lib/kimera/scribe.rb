@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "parsing/syntax"
+require_relative "parsing/unescaped"
 require_relative "scribe/level"
 require_relative "scribe/shape"
 require_relative "scribe/binders"
@@ -59,6 +60,8 @@ module Kimera
     end
 
     def at(root, original) = Scribe.new(@node, Place.of(root, original))
+
+    def over(root, original) = Scribe.new(@node, Place.of(root, original, original.location.end_line))
 
     def joined = Scribe.new(@node, @place.joined)
 

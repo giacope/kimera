@@ -101,6 +101,18 @@ RSpec.describe(Kimera::Execution::IsolatedPlan::ChildCommand) do
     expect(described_class.new(framework: "rspec", test_files: []).request(["t"])).not_to(have_key("seed"))
   end
 
+  # R6B3-M1: a mirror runs the suite with the ruby flags the run gives, as the
+  # warm pass runs it: `-w` when the Rakefile's test task warns.
+  def ruby(**)
+    child = described_class.new(framework: "minitest", test_files: [])
+    Dir.mktmpdir { |dir| child.command(dir, child.request(["t"], **), ledger: File.join(dir, "l"), paths: []).last }
+  end
+
+  it "runs the child ruby with the warnings the run asks for, and none otherwise", :aggregate_failures do
+    expect(ruby(warnings: ["-w"]).first(2)).to(eq(["ruby", "-w"]))
+    expect(ruby.first(2)).to(eq(["ruby", described_class::MINITEST_CHILD]))
+  end
+
   it "stops only for a failure of a test it was asked to run" do
     expect(failing(nested, true).last).to(include("./a_spec.rb[1:2]"))
   end

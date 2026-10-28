@@ -340,7 +340,7 @@ RSpec.describe(Kimera::Scribe) do
         sources.map do |source|
           write(unparenthesized(source))
         end
-      ).to(eq(["~1.abs", "!1.abs", "-1", "+1", "-[1]", "1.abs&.-@"]))
+      ).to(eq(["~1.abs", "!1.abs", "-(1)", "+(1)", "-[1]", "1.abs&.-@"]))
     end
 
     it "re-emits a negated call and a parenthesized literal as written" do
@@ -829,7 +829,7 @@ RSpec.describe(Kimera::Scribe) do
       "not a number" => [statement("1.5").copy(value: Float::NAN), "Float::NAN"],
       "infinity" => [
         statement("[1.5, -1.5]").then { |list| list.copy(elements: list.elements.map { |item| infinite(item) }) },
-        "[Float::INFINITY, -Float::INFINITY]"
+        "[1e999, -1e999]"
       ],
       "a rational with no decimal" => [statement("1r").copy(numerator: 1, denominator: 3), "Rational(1, 3)"],
       "a rational with a decimal" => [statement("1r").copy(numerator: 5, denominator: 2), "2.5r"],
@@ -908,6 +908,111 @@ RSpec.describe(Kimera::Scribe) do
     it "refuses a node type it does not know" do
       unknown = Data.define(:type) { def compact_child_nodes = [] }.new(:unknown_node)
       expect { write(unknown) }.to(raise_error(ArgumentError, "kimera cannot write a unknown_node"))
+    end
+  end
+
+  # R6B4-M1: a guard ending in an endless range ran on into the next line:
+  # `when 90.. then "A"` was written `when 90..` / `"A"`, which Ruby reads as
+  # `when 90.."A"` (a bad value for range); `if x..; y; end` read `if x..y`.
+  describe "a condition ending in an endless range" do
+    {
+      "case v; when 3.. then :big; end" => "case v\nwhen 3..;\n  :big\nend",
+      "case v; when 1, 3..; :big; end" => "case v\nwhen 1, 3..;\n  :big\nend",
+      "case v; in 3.. then :big; end" => "case v\nin 3..;\n  :big\nend",
+      "case 1; in ..3 | 5..; end" => "case 1\nin ..3 | 5..;\nend",
+      "if x..; y; end" => "if x..;\n  y\nend", "if x...; end" => "if x...;\nend",
+      "if a; elsif x..; y; end" => "if a\nelsif x..;\n  y\nend", "unless x..; y; end" => "unless x..;\n  y\nend",
+      "while x..; y; end" => "while x..;\n  y\nend", "until x..; end" => "until x..;\nend",
+      "for a in 1..; b; end" => "for a in 1..;\n  b\nend", ":big if v in 3.." => "if v in 3..;\n  :big\nend"
+    }.each do |source, written|
+      it "ends `#{source}`'s guard before the line break", :aggregate_failures do
+        expect(reemit(source)).to(eq(written))
+        expect(shape(parse(written))).to(eq(shape(parse(source))))
+      end
+    end
+
+    it "writes it on one line as it reads" do
+      joined = described_class.new(parse("case v; when 3..; :big; end")).joined
+      expect(joined.text).to(eq("case v; when 3..;; :big; end"))
+    end
+  end
+
+  # R6B4-M2: a %w/%i literal in a pattern is a value (`%w[a b] === value`);
+  # written as `["a", "b"]` it read as an array pattern, which a Struct of
+  # "a" and "b" matches.
+  describe "a word list in a pattern" do
+    {
+      "case v; in %w[a b] then :pair; end" => "case v\nin %W[a b]\n  :pair\nend", "x in %i[a b]" => "x in %I[a b]",
+      "x => %w[]" => "x => %w[]", "x in [%w[a], 1]" => "x in [%W[a], 1]", "x in {k: %i[a]}" => "x in { k: %I[a] }",
+      "x in %w[a] | %i[b]" => "x in %W[a] | %I[b]", "x in %w[a] => y" => "x in %W[a] => y",
+      "x in [*, %w[a], *]" => "x in [*, %W[a], *]", "x in Foo[%w[a]]" => "x in Foo(%W[a])",
+      "x in %W[a \#{b} c\#{d}e]" => "x in %W[a \#{b} c\#{d}e]", "x in %I[a \#{b}]" => "x in %I[a \#{b}]",
+      "x in %w[a\\ b c\\]d \\[ \#{]" => "x in %W[a\\ b c\\]d \\[ \\\#{]",
+      "x in %W[\\u3042 \\n]" => "x in %W[\\u{3042} \\n]",
+      "case v; in %w[a] if [1].any?; end" => "case v\nin %W[a] if [1].any?\nend",
+      "x in ^(%w[a])" => "x in ^([\"a\"])", "x in ->(y) { y == [1] }" => "x in ->(y) {\n  y == [1]\n}",
+      "x = %w[a b]" => "x = [\"a\", \"b\"]"
+    }.each do |source, written|
+      it "writes `#{source}` as `#{written}`", :aggregate_failures do
+        expect(reemit(source)).to(eq(written))
+        expect(shape(parse(written))).to(eq(shape(parse(source))))
+      end
+    end
+
+    def self.listed(*elements) = statement("x in %w[a]").then { it.copy(pattern: it.pattern.copy(elements: elements)) }
+
+    {
+      "an empty word" => [listed(plain(""), plain("b")), "x in ^([\"\", \"b\"])"],
+      "a string beside a symbol" => [listed(plain("a"), statement(":b")), "x in ^([\"a\", :b])"],
+      "a number" => [listed(statement("1")), "x in ^([1])"]
+    }.each do |kind, (tree, written)|
+      it "pins a word list with #{kind}, which no %-literal can hold" do
+        expect(write(tree)).to(eq(written))
+      end
+    end
+  end
+
+  # R6B4-M3: Prism reads a string in the file's encoding and flags the one an
+  # escape forces; `"\u{3042}"` in a binary file is UTF-8, and was written as
+  # `"\xE3\x81\x82"`, which is binary.
+  describe "a string whose escape forces its encoding" do
+    def binary(code) = "# encoding: binary\n#{code}\n"
+
+    def read(source) = Prism.parse(source).value.statements.body.first
+
+    {
+      "a string" => '"\u{3042}"', "a symbol" => ':"\u{3042}"', "a label" => '{ "\u{3042}": 1 }',
+      "an interpolated part" => "\"\#{1}\\u{3042}\"", "a command" => '`echo \u{3042}`'
+    }.each do |kind, code|
+      it "writes #{kind} that \\u makes UTF-8 in a binary file so it stays UTF-8" do
+        written = described_class.new(read(binary(code))).source
+        expect(written).to(include("\\u{3042}"))
+      end
+    end
+
+    it "keeps a string's value and encoding as Ruby makes them", :aggregate_failures do
+      written = binary(described_class.new(read(binary('"\u{3042}"'))).source)
+      expect(TreeShape.value(read(written)).encoding).to(eq(Encoding::UTF_8))
+      expect(described_class.new(read(binary('"\xE3\x81\x82"'))).source).to(eq('"\xE3\x81\x82"'))
+      expect(described_class.new(read("# encoding: us-ascii\n\"\\xFF\"\n")).source).to(eq('"\xFF"'))
+    end
+  end
+
+  # Found by the round-trip property over the field corpus: mustermann's
+  # `not (Regexp.new(s).options & X).zero?` was written `not(...).zero?`, which
+  # Ruby reads as `(not ...).zero?`; a sign folded into a literal (`++1`,
+  # `- 1`) and an infinite literal written as `Float::INFINITY` read back as
+  # other trees.
+  describe "a prefix the writer must not fuse" do
+    {
+      "not (a & b).zero?" => "not (a & b).zero?", "not (a).zero?" => "not (a).zero?", "not(a and b)" => "not(a and b)",
+      "not (a and b)" => "not (a and b)", "++1" => "+(1)", "- 1" => "-(1)", "-+1" => "-(1)", "- 1.0" => "-(1.0)",
+      "[10e10000000000, -10e1000000]" => "[1e999, -1e999]"
+    }.each do |source, written|
+      it "writes `#{source}` as `#{written}`, the same tree", :aggregate_failures do
+        expect(reemit(source)).to(eq(written))
+        expect(shape(bare(parse(written)))).to(eq(shape(bare(parse(source)))))
+      end
     end
   end
 

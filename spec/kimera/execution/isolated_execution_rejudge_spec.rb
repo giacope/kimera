@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "kimera/execution/block_use"
 require "kimera/execution/isolated"
 require "kimera/registry/builder"
 require "kimera/report/progress"
@@ -48,7 +49,8 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
     test_meet(arrived, trial.slot)
     status, detail = isolated.fetch(trial.id)
     Kimera::MutantResult.new(
-      mutant_id: trial.id, status: status, file: "calc.rb", covering_tests: ["t#{trial.id}"], detail: detail
+      mutant_id: trial.id, status: status, file: "calc.rb", covering_tests: ["t#{trial.id}"], detail: detail,
+      failing_tests: (["k#{trial.id}"] if status == :killed)
     )
   end
 
@@ -82,6 +84,39 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
   end
 
   def test_quiet = { progress: test_bar([]) }
+
+  def test_revisited(warm, isolated)
+    registry.points.each { |point| point.revisit!(Kimera::Execution::BlockUse::REASON) }
+    Dir.mktmpdir do |root|
+      File.write(File.join(root, "calc.rb"), "def a(x, y) = x > y\n")
+      test_engine([], isolated: isolated, control: Kimera::Execution::IsolatedOutcome.new(:survived))
+        .new(registry: registry, root: root, tests: ["t1"], hard_timeout: 9, **test_quiet)
+        .rejudge(warm, label: "mutants (re-judged)")
+    end
+  end
+
+  def test_covered(id, status, tests)
+    Kimera::MutantResult.new(mutant_id: id, status: status, file: "calc.rb", covering_tests: tests, detail: "warm")
+  end
+
+  # R6B3-M3: a mutant sent to a mirror only because the warm overlay cannot
+  # settle it (a block it leaves unused, a lambda a macro keeps) was covered
+  # and judged warm; the mirror runs every test near its file, not all of which
+  # reach it, so the tests that covered it stay the warm ones.
+  it "keeps the warm coverage of a mutant re-judged for a block it leaves unused" do
+    first, second = ids
+    warm = [test_covered(first, :survived, ["w"]), test_covered(second, :survived, ["w"])]
+    results = test_revisited(warm, first => [:survived, nil], second => [:killed, nil])
+    expect(results.map { |r| [r.status, r.covering_tests, r.note] })
+      .to(eq([[:survived, ["w"], note.strip], [:killed, ["w", "k#{second}"], note.strip]]))
+  end
+
+  it "leaves a mutant no test reached warm uncovered unless its mirror kills it" do
+    first, second = ids
+    warm = [test_covered(first, :no_coverage, []), test_covered(second, :no_coverage, [])]
+    results = test_revisited(warm, first => [:survived, nil], second => [:killed, nil])
+    expect(results.map { |r| [r.status, r.covering_tests] }).to(eq([[:no_coverage, []], [:killed, ["k#{second}"]]]))
+  end
 
   it "confirms a kill against the mutant's covering tests in another fresh mirror" do
     id = ids.first

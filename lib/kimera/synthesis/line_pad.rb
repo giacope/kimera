@@ -22,5 +22,7 @@ class Kimera::LinePad
     closing ? "#{closing.pre_match}#{"\n" * missing}#{closing}" : padded(text)
   end
 
-  def fitted(scribe) = [scribe, scribe.joined].lazy.filter_map { |written| closed(written.text) }.first
+  def fitted(scribe, readback)
+    [scribe, scribe.joined].lazy.filter_map { |written| closed(written.text) }.find { |text| readback.faithful?(text) }
+  end
 end

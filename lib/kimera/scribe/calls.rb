@@ -51,7 +51,7 @@ module Kimera
 
       private
 
-      def fused?(written) = SIGNS.include?(@node.name) && written.match?(LEADING) && !Shape.new(@node.receiver).numeral?
+      def fused?(written) = SIGNS.include?(@node.name) && written.match?(LEADING)
     end
 
     class Negation < Form
@@ -62,7 +62,7 @@ module Kimera
       def text
         receiver = @node.receiver
         written = unbraced(receiver)
-        receiver.type != :parentheses_node && written.start_with?("(") ? "not#{written}" : "not #{written}"
+        written == part(receiver) ? "not #{written}" : "not#{written}"
       end
 
       private

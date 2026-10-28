@@ -108,6 +108,49 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     expect(command.loading).to(eq(["!", "Test loading: Bundler is unavailable; not checked"]))
   end
 
+  # R6B3-M1: doctor runs the baseline as the Rakefile's test task does, and
+  # says so when a red suite is green with warnings the other way.
+  def warned(rakefile, outcomes)
+    Dir.mktmpdir do |root|
+      File.write(File.join(root, "Rakefile"), rakefile)
+      calls = []
+      allow(Kimera::Execution::SUITE).to(receive(:call)) { |_env, *command, **| (calls << command) && outcomes.shift }
+      [described_class.new("minitest", ["t.rb"], root: root).baseline, calls.map { it[3] }]
+    end
+  end
+
+  it "runs a minitest baseline with ruby -w when the Rakefile's test task does" do
+    result, flags = warned("Rake::TestTask.new\n", [["1 runs, 0 failures", status(true)]])
+    expect([result, flags]).to(eq([["✓", "Baseline: configured test suite is green"], ["-w"]]))
+  end
+
+  def red = ["1 runs, 1 failures", status(false)]
+
+  it "names warnings as the difference when a red baseline is green the other way", :aggregate_failures do
+    quiet = warned("Rake::TestTask.new { |t| t.warning = false }\n", [red, ["", status(true)]])
+    expect([quiet.first.last, quiet.last]).to(match([include(Kimera::Frameworks::TestTask::UNWARNED), ["-e", "-w"]]))
+    loud = warned("Rake::TestTask.new\n", [red, ["", status(true)]])
+    expect([loud.first.last, loud.last]).to(match([include(Kimera::Frameworks::TestTask::WARNED), ["-w", "-e"]]))
+  end
+
+  def split(framework)
+    Dir.mktmpdir do |root|
+      File.write(File.join(root, "Rakefile"), "Rake::TestTask.new\n")
+      calls = []
+      allow(Kimera::Execution::SUITE).to(receive(:call)) { |_env, *command, **| (calls << command) && ["", status(true)] }
+      described_class.new(framework, ["t.rb"], root: root).baselines(2)
+      calls.map { it[3] }
+    end
+  end
+
+  it "splits an RSpec baseline without the -w a Rakefile's test task would give Minitest" do
+    expect([split("rspec").include?("-w"), split("minitest").uniq]).to(eq([false, ["-w"]]))
+  end
+
+  it "says nothing of warnings when the suite is red either way" do
+    expect(warned("Rake::TestTask.new\n", [red, red]).first.last).not_to(include("ruby -w"))
+  end
+
   def baseline(framework, output, signal = nil)
     command = described_class.new(framework, ["t.rb"], root: "/app")
     allow(Kimera::Execution::SUITE).to(receive(:call).and_return([output, status(false, signal)]))
@@ -257,10 +300,10 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     )
   end
 
-  def baselines(serial, **jobs)
-    command = described_class.new("rspec", ["t.rb"], root: "/app", **jobs)
+  def baselines(serial, jobs: nil)
+    command = described_class.new("rspec", ["t.rb"], root: "/app")
     allow(command).to(receive_messages(baseline: serial, parallel: ["✓", "split"]))
-    command.baselines
+    jobs ? command.baselines(jobs) : command.baselines
   end
 
   it "runs the suite split across processes only with several workers, once it is green in one", :aggregate_failures do
@@ -340,6 +383,49 @@ RSpec.describe(Kimera::CLI::TestCommand) do
       said = StringIO.new
       output, status = Kimera::Execution::SuiteCapture.new(said).call({}, "echo", "done", chdir: root, limit: 10)
       expect([output, status.success?, said.string]).to(eq(["done\n", true, ""]))
+    end
+  end
+
+  # R6B4-M8: `kimera run` leaves out the tests exclude_test_names names;
+  # doctor's baseline ran them, and called the suite red on one it leaves out.
+  describe "the tests exclude_test_names leaves out" do
+    def suite(root, framework)
+      spec = framework == "rspec"
+      File.join(root, spec ? "gauge_spec.rb" : "gauge_test.rb").tap do |file|
+        File.write(file, spec ? rspec_suite : minitest_suite)
+      end
+    end
+
+    def rspec_suite
+      <<~RUBY
+        RSpec.describe("Gauge") do
+          it("reads") { expect(1).to(eq(1)) }
+          it("needs a network") { raise("offline") }
+        end
+      RUBY
+    end
+
+    def minitest_suite
+      <<~RUBY
+        require "minitest/autorun"
+        class GaugeTest < Minitest::Test
+          def test_reads = assert(true)
+          def test_needs_a_network = raise("offline")
+        end
+      RUBY
+    end
+
+    def baseline(framework, names)
+      Dir.mktmpdir do |root|
+        described_class.new(framework, [suite(root, framework)], root: root, names: names).baselines(2).map(&:first)
+      end
+    end
+
+    it "leaves them out of the baseline, serial and split, as run does", :aggregate_failures do
+      expect(baseline("rspec", ["needs a network"])).to(eq(%w[✓ ✓]))
+      expect(baseline("minitest", ["GaugeTest#test_needs_a_network"])).to(eq(%w[✓ ✓]))
+      expect(baseline("rspec", ["gauge_spec.rb\\[1:2\\]"])).to(eq(%w[✓ ✓]))
+      expect(baseline("rspec", [])).to(eq(["✗"]))
     end
   end
 end

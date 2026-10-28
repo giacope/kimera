@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "../exits/test_exit"
-
 module Kimera
   module Frameworks
   end
@@ -9,24 +7,53 @@ end
 
 class Kimera::Frameworks::ClassHooks
   Reporter =
-    Struct.new(:failures) do
+    Struct.new(:results, :prepare) do
+      def prerecord(*) = prepare.call
+
       def record(result)
-        failures << result unless result.passed? || result.skipped?
+        results << result
       end
 
-      def passed? = failures.empty?
+      def passed? = results.all? { |result| result.passed? || result.skipped? }
+
+      def reporters = []
+
+      def synchronize = yield
+
+      def outcome = results.find { |result| !result.passed? && !result.skipped? } || results.last
+    end
+
+  Serial =
+    Data.define do
+      def <<(work)
+        klass, name, reporter = work
+        reporter.prerecord(klass, name)
+        reporter.record(klass.new(name).run)
+      end
     end
 
   def initialize(klass)
     @klass = klass
   end
 
-  def test(name) = run { @klass.new(name).extend(Kimera::TestExit::Test).run }
+  def test(name, &prepare)
+    reporter = Reporter.new([], prepare || proc {})
+    serially { suite(reporter, /\A#{Regexp.escape(name)}\z/) }
+    reporter.outcome
+  end
 
-  def run
-    result = nil
-    reporter = Reporter.new([])
-    @klass.with_info_handler(reporter) { result = yield }
-    reporter.failures.first || result
+  private
+
+  def suite(reporter, only)
+    options = { include: only, filter: only }
+    @klass.respond_to?(:run_suite) ? @klass.run_suite(reporter, options) : @klass.run(reporter, options)
+  end
+
+  def serially
+    executor = Minitest.parallel_executor
+    Minitest.parallel_executor = Serial.new
+    yield
+  ensure
+    Minitest.parallel_executor = executor
   end
 end

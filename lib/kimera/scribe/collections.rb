@@ -26,7 +26,41 @@ module Kimera
     class Elements < Form
       TYPES = %i[array_node].freeze
 
-      def text = "[#{listed(@node.elements)}]"
+      def text
+        listed = "[#{listed(@node.elements)}]"
+        @pen.pattern? ? Words.new(@node, @pen).text || "^(#{listed})" : listed
+      end
+    end
+
+    class Words
+      SIGILS = { "string" => "W", "symbol" => "I" }.freeze
+      KIND = /\A(?:interpolated_)?(string|symbol)_node\z/
+      BREAKS = "[] "
+
+      def initialize(node, pen)
+        @node = node
+        @pen = pen
+      end
+
+      def text
+        words = @node.elements.map { |element| word(element) }
+        "%#{sigils.first || "w"}[#{words.join(" ")}]" if sigils.size < 2 && words.all?
+      end
+
+      private
+
+      def sigils = @node.elements.map { |element| SIGILS[element.type.to_s[KIND, 1]] }.uniq
+
+      def word(element)
+        return unless element.type.match?(KIND)
+        text = (element.respond_to?(:parts) ? element.parts : [element]).sum("") { |part| piece(part) }
+        text unless text.empty?
+      end
+
+      def piece(part)
+        return "\#{#{@pen.write(part)}}" unless part.respond_to?(:unescaped)
+        Quote.new(Kimera::Unescaped.new(part).text, BREAKS).text
+      end
     end
 
     class Arguments < Form
@@ -46,7 +80,7 @@ module Kimera
 
       def text
         key = @node.key
-        return "#{Name.new(key.unescaped.to_sym).label}#{" #{value}" unless shorthand?}" if key.type == :symbol_node
+        return "#{label(key)}#{" #{value}" unless shorthand?}" if key.type == :symbol_node
         return "#{part(key).delete_prefix(":")}: #{value}" if key.type == :interpolated_symbol_node
         "#{leading(key, Level::RANGE)} => #{value}"
       end
@@ -54,6 +88,8 @@ module Kimera
       private
 
       def value = part(@node.value, Level::ASSIGNMENT)
+
+      def label(key) = Name.new(Kimera::Unescaped.new(key).text.to_sym).label
 
       def shorthand? = @node.value.nil? || @node.value.type == :implicit_node
     end

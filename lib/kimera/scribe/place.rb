@@ -9,9 +9,9 @@ module Kimera
 
       def self.top = new(Binders::NONE, {}.compare_by_identity, 0)
 
-      def self.of(root, node)
+      def self.of(root, node, ends = Float::INFINITY)
         indent = node.location.start_line_slice[/\A */].size
-        new(Seen.new(node).locals(root), Kept.new(node, root).slices, indent / Pen::INDENT.size)
+        new(Seen.new(node).locals(root), Kept.new(node, root, ends).slices, indent / Pen::INDENT.size)
       end
 
       def initialize(locals, slices, depth, joint = nil)

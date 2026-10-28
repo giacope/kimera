@@ -147,6 +147,8 @@ class Kimera::MutationPoint
 
   def revisit!(reason) = marks.revisit = reason
 
+  def defer!(coverage, unreached, reached) = uncovered?(coverage) ? unsafe!(unreached) : revisit!(reached)
+
   def uncovered?(coverage) = ids.all? { |id| coverage.fetch(id) { coverage.fetch(id.to_s, []) }.empty? }
 
   def inside?(ranges) = ranges.any? { |range| location.within?(range.start_offset, range.end_offset) }
@@ -165,9 +167,7 @@ class Kimera::MutationPoint
     self
   end
 
-  def ids
-    mutants.map(&:id)
-  end
+  def ids = mutants.map(&:id)
 
   def marks
     @_marks ||= Marks.new(@attributes.fetch(:schema_safe, SAFE), *@attributes.values_at(:unsafe_reason, :revisit))

@@ -244,6 +244,28 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       end
     end
 
+    # R6B5-M4: bullet's CI runs its suite under Gemfile.rails-8.1, and the
+    # mirror ran its children under ./Gemfile, which tracks Rails main.
+    def running(gemfile)
+      allow(ENV).to(receive(:fetch).and_call_original)
+      allow(ENV).to(receive(:fetch).with("BUNDLE_GEMFILE", "Gemfile").and_return(gemfile))
+    end
+
+    def appraised(root)
+      running(File.join(root, "Gemfile.ci"))
+      Dir.mktmpdir do |mirror|
+        %w[Gemfile Gemfile.ci].each { |name| File.write(File.join(mirror, name), "source 'https://rubygems.org'\n") }
+        return [mirror, plan(root: root).command(mirror, ["spec/a_spec.rb[1:1]"], File.join(mirror, "l.json")).first]
+      end
+    end
+
+    it "pins BUNDLE_GEMFILE to the mirror's copy of the Gemfile kimera runs under (R6B5-M4)" do
+      Dir.mktmpdir do |root|
+        mirror, env = appraised(root)
+        expect(env.fetch("BUNDLE_GEMFILE")).to(eq(File.join(mirror, "Gemfile.ci")))
+      end
+    end
+
     # The lockfile says where each path gem resolved, however the Gemfile
     # spells it (`path: ENV.fetch("KIMERA_PATH", "../..")`): only a relative
     # path out of the project needs the project's Gemfile; one inside it, or

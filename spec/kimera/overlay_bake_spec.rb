@@ -273,4 +273,61 @@ RSpec.describe(Kimera::Overlay) do
       )
     end
   end
+
+  # R6B4-M1..M3: a bake written whole, file or method, must read back as the
+  # mutant meant.
+  describe "a whole write that reads back as another program" do
+    let(:source) { "def m(a, b)\n  a > b\nend\n" }
+    let(:registry) { build(source) }
+
+    it "is refused, file and method alike" do
+      allow(Kimera::BakeSplice).to(receive(:new).and_return(instance_double(Kimera::BakeSplice, source: nil)))
+      allow(Kimera::Readback).to(receive(:new).and_return(instance_double(Kimera::Readback, faithful?: false)))
+      mutant = registry.each.find { |m, _p| m.label == "> => <" }.first
+      expect { described_class.new(registry).bake("x.rb", source, mutant.id) }
+        .to(raise_error(described_class::Unbakeable, /reads back as another program/))
+    end
+  end
+
+  # R6B4-M5: since batch 3's line guard refused every bake that changes a line
+  # outside the mutation, no element of a multi-line %i/%w literal could be
+  # baked: the writer put the whole array on one line.
+  describe "an element of a word list across lines" do
+    let(:source) do
+      <<~RUBY
+        class Fields
+          def names
+            %i[
+              type
+              path
+            ]
+          end
+
+          def labels
+            %w[
+              Type
+              Path
+            ]
+          end
+        end
+      RUBY
+    end
+    let(:registry) { selected(%w[symbol_literal string_literal], source) }
+
+    def baked(label)
+      id = registry.each.find { |mutant, _| mutant.label == label }.first.id
+      described_class.new(registry).bake("x.rb", source, id)
+    end
+
+    def changed(label) = source.lines.zip(baked(label).lines).each_with_index.reject { |(was, now), _| was == now }
+
+    it "writes a word in place, changing its own line only" do
+      expect(changed(":type => :type__kimera__")).to(eq([[["      type\n", "      type__kimera__\n"], 3]]))
+    end
+
+    it "writes an emptied word as the array, inside the literal's own lines", :aggregate_failures do
+      expect(changed('"Type" => ""').map(&:last)).to(all(be_between(9, 12)))
+      expect(Module.new.tap { it.module_eval(baked('"Type" => ""')) }::Fields.new.labels).to(eq(["", "Path"]))
+    end
+  end
 end

@@ -84,6 +84,37 @@ RSpec.describe(Kimera::Execution::Schemata) do
     expect(flipped(overlaid("sl_aliased.rb").first) { holder.new.above(2, 1) }).to(be(false))
   end
 
+  # R6B4-M7: a memoizer in another file (Adamantium's `memoize`) wraps the
+  # method in one that calls the original it captured; no test reaches the
+  # overlay warm, so its mutants are judged again in a fresh mirror.
+  def memoized
+    stub_const("SchemataMemo", Class.new)
+    loaded("sl_memo.rb", greater("SchemataMemo"))
+    memoizer = "SchemataMemo.class_eval do\n  kept = instance_method(:gt)\n  " \
+      "define_method(:gt) { |a, b| kept.bind(self).call(a, b) }\nend\n"
+    write("sl_memoizer.rb", memoizer)
+    require(File.join(dir, "sl_memoizer.rb"))
+    overlaid("sl_memo.rb").first
+  end
+
+  it "judges again the mutants of a method another file's wrapper holds", :aggregate_failures do
+    registry = memoized
+    expect(registry.points.map(&:revisit).uniq).to(eq([Kimera::Execution::Overrides::WRAPPED]))
+    expect(flipped(registry) { SchemataMemo.new.gt(2, 1) }).to(be(true))
+  end
+
+  def chained
+    stub_const("SchemataChained", Module.new)
+    loaded("sl_chained.rb", "module SchemataChained\n  def gt(a, b)\n    a > b\n  end\nend\n")
+    chain = "SchemataChained.module_eval do\n  alias_method :plain_gt, :gt\n  def gt(a, b) = plain_gt(a, b)\nend\n"
+    loaded("sl_chain.rb", chain)
+    overlaid("sl_chained.rb").first
+  end
+
+  it "leaves the mutants an alias of the wrapped method reaches as warm judges them" do
+    expect(chained.points.map(&:revisit).uniq).to(eq([nil]))
+  end
+
   # dry-validation requires its extensions on demand. Unregistered, that require
   # loaded the original file over the guarded methods, which hid their mutants.
   describe "a file the suite requires only later" do

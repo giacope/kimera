@@ -8,6 +8,7 @@ end
 # rubocop:disable-next Kata/FrozenState, Kata/NoSetter -- the process-wide mutation switch every thread and Ractor reads
 class Kimera::Runtime < Module
   SOURCE_PATH = File.expand_path(__FILE__)
+  BELOW = Module.instance_method(:<)
 
   Ledger =
     Struct.new(:ids, :spill) do
@@ -53,10 +54,9 @@ class Kimera::Runtime < Module
   end
 
   def active=(id)
-    flips = hidden
-    flips[@active]&.reveal
-    @active = id && Integer(id)
-    flips[@active]&.conceal
+    chosen = id && Integer(id)
+    hidden.switch(chosen) unless chosen == @active
+    @active = chosen
   end
 
   def active?(id)
@@ -98,9 +98,11 @@ class Kimera::Runtime < Module
   end
 
   def privatize(id, owner, name)
-    hidden[Integer(id)] = Flip.new(owner, owner.instance_method(name), [])
+    hidden.register(Integer(id), Flip.new(owner, owner.instance_method(name), []), @active)
     self
   end
+
+  def survey! = hidden.survey
 
   def leaks = @ledgers.map(&:leak)
 
@@ -126,14 +128,55 @@ class Kimera::Runtime < Module
 
   def publish = @spills = Ractor.make_shareable(leaks)
 
-  def hidden = @_hidden ||= {}
+  def hidden = @_hidden ||= Hidden.new({}, [])
 end
 
+Kimera::Runtime::Hidden =
+  Struct.new(:flips, :concealed) do
+    def switch(id)
+      concealed.each(&:reveal).clear
+      flip = flips[id]
+      concealed << flip.tap(&:conceal) if flip
+    end
+
+    def register(id, flip, active)
+      flips[id] = flip
+      concealed << flip.tap { it.conceal([flip.owner]) } if active == id
+    end
+
+    def survey = Kimera::Runtime::Survey.new(flips.values.reject(&:holders)).run
+  end
+
+Kimera::Runtime::Survey =
+  Data.define(:flips) do
+    def run
+      return if flips.empty?
+      found = below
+      flips.each { |flip| flip.holders = found.fetch(flip.owner) }
+    end
+
+    def below
+      owners = flips.map(&:owner).uniq
+      found = owners.to_h { |owner| [owner, [owner]] }.compare_by_identity
+      ObjectSpace.each_object(Module) { |each| place(owners, found, each) }
+      found
+    end
+
+    def place(owners, found, each)
+      owners.each { |owner| found[owner] << each if Kimera::Runtime::BELOW.bind_call(each, owner) }
+    end
+  end
+
 Kimera::Runtime::Flip =
-  Struct.new(:owner, :definition, :names) do
-    def conceal
-      self.names = owner.public_instance_methods(false).select { |name| owner.instance_method(name) == definition }
+  Struct.new(:owner, :definition, :names, :holders) do
+    def conceal(within = surveyed)
+      self.names = within.flat_map { |holder| held(holder).map { |name| [holder, name] } }
       expose(:private)
+    end
+
+    def surveyed
+      Kimera::Runtime::Survey.new([self]).run unless holders
+      holders
     end
 
     def reveal
@@ -142,13 +185,25 @@ Kimera::Runtime::Flip =
     end
 
     def expose(visibility)
-      names.each { |name| owner.__send__(visibility, name) }
-      owner.clear_action_methods! if owner.respond_to?(:clear_action_methods!)
+      names.each { |holder, name| holder.__send__(visibility, name) }
+      [owner, *names.map(&:first)].uniq.each { |holder| cleared(holder) }
+    end
+
+    def cleared(holder) = holder.respond_to?(:clear_action_methods!) && holder.clear_action_methods!
+
+    def held(holder)
+      holder.public_instance_methods(false).select { |name| same?(holder.instance_method(name)) }
+    end
+
+    def same?(method)
+      method == definition ||
+        (method.original_name == definition.original_name && method.source_location == definition.source_location)
     end
   end
 
 module Kimera::Runtime::Forks
   def _fork
+    Kimera::RUNTIME.survey!
     leaks = Kimera::RUNTIME.leaks
     super.tap { |pid| Kimera::RUNTIME.forked!(leaks) if pid.zero? && leaks.any? }
   end

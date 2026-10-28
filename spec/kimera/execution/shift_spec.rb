@@ -187,7 +187,7 @@ RSpec.describe(Kimera::Execution::Shift) do
 
     # The pool's worker dies the same way, so the parent sees the death.
     it "lets the death of the test process through, unjudged" do
-      dead = Class.new { def call = raise(Kimera::Execution::Zygote::Died.new("gone", code: 3)) }.new
+      dead = Class.new { def call(&) = raise(Kimera::Execution::Zygote::Died.new("gone", code: 3)) }.new
       worker = described_class.new(
         adapter: test_adapter_class.new(catches: { "t1" => [] }), registry: registry,
         coverage: { ids.first => ["t1"] }, zygote: dead

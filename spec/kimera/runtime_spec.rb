@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "kimera/execution/zygote"
+
 RSpec.describe(Kimera::Runtime) do
   let(:runtime) { described_class.new }
 
@@ -301,6 +303,97 @@ RSpec.describe(Kimera::Runtime) do
       expect([owner.private_method_defined?(:before), owner.public_method_defined?(:shown)]).to(eq([true, true]))
       runtime.active = nil
       expect(owner.public_method_defined?(:before)).to(be(true))
+    end
+
+    # R6B4-M6: an includer took an alias at load (hashie's IndifferentAccess
+    # aliases update to indifferent_update in `included`); the real mutant makes
+    # that alias private too.
+    def mixin = @_mixin ||= Module.new { def sized = 3 }
+
+    def visible(holders, name) = holders.map { it.public_method_defined?(name) }
+
+    def aliased
+      box = Class.new.include(mixin).tap { it.alias_method(:size, :sized) }
+      single = Object.new.extend(mixin).singleton_class.tap { it.alias_method(:size, :sized) }
+      runtime.privatize(7, mixin, :sized)
+      [box, single]
+    end
+
+    it "flips the aliases an includer or an extended object took of it", :aggregate_failures do
+      holders = aliased
+      runtime.active = 7
+      expect(visible(holders, :size)).to(eq([false, false]))
+      runtime.active = nil
+      expect(visible(holders, :size)).to(eq([true, true]))
+    end
+
+    # Shift switches a mutant on before each test it runs with it. Switching
+    # on the one already on leaves its flips as they are, as the real mutant
+    # leaves what a test before did to it, and does not walk the object space
+    # for aliases again for each test: in kimera's own suite process one walk
+    # took 0.5 s.
+    it "leaves the flips of the active mutant as they are when it is switched on again" do
+      runtime.privatize(3, owner, :shown)
+      runtime.active = 3
+      owner.__send__(:public, :shown)
+      runtime.active = 3
+      expect(owner.public_method_defined?(:shown)).to(be(true))
+    end
+
+    # Counts the walks of the object space in the block.
+    def walks
+      count = 0
+      counted = ->(walk, *kinds, &each) { (count += 1) && walk.call(*kinds, &each) }
+      allow(ObjectSpace).to(receive(:each_object).and_wrap_original(&counted))
+      yield
+      count
+    end
+
+    it "finds the holders of a flip no fork has surveyed on its first switch, and keeps them" do
+      holders = aliased
+      walked = walks { [7, nil, 7].each { runtime.active = it } }
+      expect([walked, visible(holders, :size)]).to(eq([1, [false, false]]))
+    end
+
+    # In a child: the walks switching mutant 990_001 on makes, and what it hides.
+    def switched(holders)
+      hidden = nil
+      [walks { hidden = Kimera::RUNTIME.during(990_001) { visible(holders, :size) } }, hidden]
+    end
+
+    # Every fork first finds the holders of the flips registered since the last
+    # one (Forks#_fork): one walk serves the workers and every test's child
+    # forked after it, and a child switching a mutant on walks nothing. In
+    # kimera's own suite process one walk took 0.5 s.
+    it "walks once for the flips registered before many forks, and never in a child" do
+      holders = [Class.new.include(mixin).tap { it.alias_method(:size, :sized) }]
+      Kimera::RUNTIME.privatize(990_001, mixin, :sized)
+      children = nil
+      parent = walks { children = Array.new(5) { Kimera::Execution::Zygote.new.call { switched(holders) } } }
+      expect([parent, children.uniq]).to(eq([1, [[0, [false]]]]))
+    end
+
+    it "leaves an includer's own method of that name alone" do
+      box = Class.new.include(mixin).tap { it.define_method(:sized) { 4 } }
+      runtime.privatize(7, mixin, :sized)
+      runtime.active = 7
+      expect(box.public_method_defined?(:sized)).to(be(true))
+    end
+
+    # R6B4-M4: a method defined while its mutant is active (a class a test
+    # builds, whose `included` hook defines it) is private as defined, as the
+    # real mutant's is, and public again after.
+    it "flips a method registered while its mutant is active, and every one of them back", :aggregate_failures do
+      holders = [Class.new { def shown = 1 }, owner].each { runtime.privatize(9, it, :shown) if (runtime.active = 9) }
+      expect(visible(holders, :shown)).to(eq([false, false]))
+      runtime.active = nil
+      expect(visible(holders, :shown)).to(eq([true, true]))
+    end
+
+    it "leaves a method registered under another active mutant public" do
+      runtime.active = 4
+      runtime.privatize(9, owner, :shown)
+      expect(owner.public_method_defined?(:shown)).to(be(true))
     end
 
     it "clears a Rails controller's cached actions with each flip" do

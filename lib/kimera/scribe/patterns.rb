@@ -9,7 +9,7 @@ module Kimera
         "#{leading(
           @node.value,
           Level::KEYWORD + 1
-        )} #{type == :match_required_node ? "=>" : "in"} #{part(@node.pattern)}"
+        )} #{type == :match_required_node ? "=>" : "in"} #{patterned(@node.pattern)}"
       end
 
       def level = Level::EXPRESSION
@@ -60,7 +60,11 @@ module Kimera
     class Pin < Form
       TYPES = %i[pinned_variable_node pinned_expression_node].freeze
 
-      def text = type == :pinned_variable_node ? "^#{part(@node.variable)}" : "^(#{part(@node.expression)})"
+      def text
+        return "^#{part(@node.variable)}" if type == :pinned_variable_node
+        expression = @node.expression
+        "^(#{pen_of(expression).opened.write(expression)})"
+      end
     end
   end
 end

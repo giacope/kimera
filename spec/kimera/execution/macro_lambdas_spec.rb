@@ -40,16 +40,21 @@ RSpec.describe(Kimera::Execution::MacroLambdas) do
     expect(point("Current.user").reloadable?).to(be(false))
   end
 
-  it "leaves a macro's lambda a test covers, by integer or string id", :aggregate_failures do
+  # R6B2-M5: a macro that adds to a list (default_scope) keeps the original
+  # lambda beside the woven one, which a test then reaches, and the original
+  # masks the mutant: places-manager's `default_scope -> { order(name: :asc) }`.
+  it "judges a macro's lambda a test covers warm, and a survivor again in a fresh mirror", :aggregate_failures do
     booster = point("Current.user")
     ordered = point("order(:created_at)")
     described_class.new(registry, dir).quarantine!({ booster.ids.first => ["t1"], ordered.ids.first.to_s => ["t1"] })
     expect([booster.safe?, ordered.safe?]).to(eq([true, true]))
+    expect([booster.revisit, ordered.revisit]).to(eq([described_class::KEPT] * 2))
   end
 
   it "leaves lambdas no class-body macro is handed: a constant's, and those in a method", :aggregate_failures do
     described_class.new(registry, dir).quarantine!({})
     expect([point("size > 10"), point("a > b"), point("a < b")].map(&:safe?)).to(eq([true, true, true]))
+    expect([point("size > 10"), point("a > b"), point("a < b")].map(&:revisit)).to(eq([nil, nil, nil]))
   end
 
   it "leaves a point sent elsewhere already, for a reason or a revisit of its own", :aggregate_failures do

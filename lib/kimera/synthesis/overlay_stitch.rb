@@ -26,7 +26,7 @@ class Kimera::Overlay::Stitch
   def stitched(whole, rewritten)
     source = spliced(whole, rewritten)
     applied = weave.applied - whole.flat_map(&:last).flat_map(&:ids) + rewritten.flat_map(&:last)
-    build(applied, [], source) if source && Kimera::Syntax.parse(source).success?
+    build(applied, [], source) if source && unwoven?(source, whole.map(&:first))
   end
 
   def spliced(whole, rewritten)

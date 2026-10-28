@@ -6,10 +6,12 @@ require_relative "../results/result"
 require_relative "../results/run_report"
 require_relative "../synthesis/overlay"
 require_relative "baseline_failure"
+require_relative "block_use"
 require_relative "isolated_plan"
 require_relative "isolated_scheduling"
 require_relative "isolated_verdict"
 require_relative "isolated_watchdog"
+require_relative "macro_lambdas"
 require_relative "mirror_database"
 require_relative "null_progress"
 require_relative "numbered_databases"
@@ -26,6 +28,7 @@ class Kimera::Execution::IsolatedExecution
   include Kimera::Execution::IsolatedWatchdog
 
   DEFAULT_HARD_TIMEOUT = 300.0
+  COVERED = [Kimera::Execution::BlockUse::REASON, Kimera::Execution::MacroLambdas::KEPT].freeze
 
   def initialize(registry:, root:, tests:, **options)
     @registry = registry
@@ -92,7 +95,7 @@ class Kimera::Execution::IsolatedExecution
       coverage: @options.fetch(:coverage, {}), timings: @options.fetch(:timings, {}),
       framework: @options.fetch(:framework, "rspec"),
       test_files: @options.fetch(:test_files, []), filter: @options[:filter], seed: @options[:seed],
-      quality: @options[:test_quality], test_paths: @options[:test_paths]
+      quality: @options[:test_quality], test_paths: @options[:test_paths], warnings: @options.fetch(:warnings, [])
     )
   end
 
@@ -102,7 +105,15 @@ class Kimera::Execution::IsolatedExecution
   end
 
   def noted(result, warm)
-    result.tap { result.note = "judged in a fresh isolated mirror; the warm pass could not: #{warm.detail}" }
+    judged = covered?(warm) ? covered(result, warm) : result
+    judged.tap { judged.note = "judged in a fresh isolated mirror; the warm pass could not: #{warm.detail}" }
+  end
+
+  def covered?(warm) = COVERED.include?(plan.registry.index.fetch(warm.mutant_id).revisit)
+
+  def covered(result, warm)
+    kept = result.killed? || warm.status == :survived ? result : warm.dup
+    kept.tap { kept.covering_tests = [*warm.covering_tests, *result.failing_tests].uniq }
   end
 
   def report(ids)

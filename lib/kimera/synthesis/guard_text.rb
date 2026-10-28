@@ -1,22 +1,36 @@
 # frozen_string_literal: true
 
-Kimera::GuardText =
-  Data.define(:node, :entries) do
-    def from = node.location.start_offset
+require_relative "guard_span"
 
-    def to = node.location.end_offset
+Kimera::GuardText =
+  Data.define(:span, :entries) do
+    def self.of(node, entries) = new(Kimera::GuardSpan.of(node), entries)
+
+    def from = span.from
+
+    def to = span.to
 
     def inside?(other) = !equal?(other) && other.from <= from && to <= other.to
 
     def outer?(sites) = sites.none? { |other| inside?(other) }
 
-    def text(sites)
+    def holds?(edit) = from < edit.first && edit[1] < to
+
+    def text(sites, probes)
       inner = sites.select { |other| other.inside?(self) }
-      edits = inner.select { |child| child.outer?(inner) }.map { |child| child.edit(inner, from) }
-      guarded(Kimera::SourceMap.new(node.slice).splice(edits))
+      children = inner.select { |child| child.outer?(inner) }
+      edits = children.map { |child| child.edit(inner, probes, from) } + own(children, probes)
+      guarded(written(edits))
     end
 
-    def edit(sites, base = 0) = [from - base, to - base, text(sites)]
+    def written(edits) = span.text(Kimera::SourceMap.new(span.slice).splice(edits))
+
+    def own(children, probes)
+      mine = probes.select { |probe| holds?(probe) && children.none? { |child| child.holds?(probe) } }
+      mine.map { |start, finish, text| [start - from, finish - from, text] }
+    end
+
+    def edit(sites, probes, base = 0) = [from - base, to - base, text(sites, probes)]
 
     def guarded(original)
       tests = entries.map { |id, _| "::Kimera::RUNTIME.active?(#{Integer(id)})" }

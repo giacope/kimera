@@ -20,6 +20,8 @@ module Kimera
 
       def part(child, floor = Level::STATEMENT) = pen_of(child).write(child, floor)
 
+      def patterned(child) = pen_of(child).patterned.write(child)
+
       def leading(child, floor) = pen_of(child).closed.lead(child, floor)
 
       def trailing(child, floor)
@@ -46,6 +48,8 @@ module Kimera
       end
 
       def appended(head, tail, separator) = tail.empty? ? head : "#{head}#{separator}#{tail}"
+
+      def ended(head) = head.end_with?("..") ? "#{head};" : head
 
       def braced(body, pen, lead = "")
         opening, ending = Clauses.new(body, @pen).structured? ? [" do", "end"] : [" {", "}"]

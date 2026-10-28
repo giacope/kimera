@@ -2,6 +2,7 @@
 
 require_relative "suite"
 require_relative "load_path"
+require_relative "test_task"
 require_relative "after_run"
 require_relative "class_hooks"
 require_relative "../exits/test_exit"
@@ -31,6 +32,7 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
 
   def disarmed
     Minitest.seed ||= 1
+    Minitest::Test.prepend(Kimera::TestExit::Test)
     disarm
     self
   end
@@ -38,6 +40,7 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
   def source(files)
     Kimera::Seed.new.value&.then { |seed| Minitest.seed = seed }
     paths(files)
+    Kimera::Frameworks::TestTask.new.install
     each_test_file(files) { |file| require(file) }
     indexed
     @loaders.add?(Process.pid)
@@ -66,7 +69,8 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
   def failed_plainly(output, _out) = output.scan(FAILED).flatten
 
   def reproduce(ids)
-    "bundle exec ruby #{includes(ids)} -rminitest/autorun -e #{quote(loads(ids))} " \
+    "bundle exec ruby #{[*Kimera::Frameworks::TestTask.new.flags, includes(ids)].join(" ")} " \
+      "-rminitest/autorun -e #{quote(loads(ids))} " \
       "-- -n #{quote("/^(?:#{ids.map { |id| Regexp.escape(id) }.join("|")})$/")} --seed #{Minitest.seed}"
   end
 
@@ -103,8 +107,7 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
   def record(id)
     klass, name = indexed[id]
     return unless klass
-    reseed(id)
-    result = Kimera::Frameworks::ClassHooks.new(klass).test(name)
+    result = Kimera::Frameworks::ClassHooks.new(klass).test(name) { reseed(id) }
     [id, message(result)] if result && killing?(result)
   end
 
@@ -120,10 +123,8 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
 
   def message(result)
     assertion = result.failures.first
-    assertion && [headline(assertion), *trace(assertion)].join("\n    ")
+    assertion && [headline(assertion), *frames(Minitest.filter_backtrace(Array(assertion.backtrace)))].join("\n    ")
   end
-
-  def trace(assertion) = frames(Minitest.filter_backtrace(Array(assertion.backtrace)))
 
   def headline(assertion)
     kind = assertion.class.name.split("::").last

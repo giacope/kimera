@@ -106,6 +106,22 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     end
   end
 
+  # R6B3-M1: the suite loads with the warnings the Rakefile's test task runs it with.
+  def warned(rakefile)
+    before = [$VERBOSE, Warning[:deprecated]]
+    File.write(File.join(dir, "Rakefile"), rakefile)
+    File.write(File.join(dir, "blank_test.rb"), "")
+    Dir.chdir(dir) { described_class.build.source(["blank_test.rb"]) }
+    [$VERBOSE, Warning[:deprecated]]
+  ensure
+    $VERBOSE, Warning[:deprecated] = before
+  end
+
+  it "loads the suite with warnings on when the Rakefile's test task runs ruby -w", :aggregate_failures do
+    expect(warned("Rake::TestTask.new\n")).to(eq([true, true]))
+    expect(warned("Rake::TestTask.new { |t| t.warning = false }\n")).to(eq([$VERBOSE, Warning[:deprecated]]))
+  end
+
   it "enumerates Class#method test ids" do
     ids = ["DemoKimeraTest#test_passes", "DemoKimeraTest#test_conditional", "DemoKimeraTest#test_skipped"]
     expect(adapter.test_ids).to(include(*ids))
@@ -152,12 +168,13 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
 
   def drawn(seed) = seeded(seed) { [adapter.run(["DemoKimeraTest#test_passes"]), rand(1_000_000)].last }
 
-  it "seeds each test's random numbers from the run's seed and its id, or leaves them alone", :aggregate_failures do
+  # Minitest seeds a class's random numbers by the run's seed as it orders
+  # the class's tests; kimera's seed for the test follows that.
+  it "seeds a test's random numbers by the run's seed and its id, or as Minitest orders it", :aggregate_failures do
     adapter
     expected = Random.new(Kimera::Seed.new("KIMERA_SEED" => "42").for("DemoKimeraTest#test_passes")).rand(1_000_000)
     expect([drawn(42), drawn(42)]).to(eq([expected, expected]))
-    srand(5)
-    expect(drawn(nil)).to(eq(Random.new(5).rand(1_000_000)))
+    expect(drawn(nil)).to(eq(DemoKimeraTest.runnable_methods.then { rand(1_000_000) }))
   end
 
   describe "once given the run's seed" do

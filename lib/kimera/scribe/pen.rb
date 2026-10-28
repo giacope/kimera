@@ -25,11 +25,14 @@ module Kimera
           def gap = flat ? "" : "\n"
         end
 
-      def initialize(binders, margin, locals = Binders::NONE, open: true)
+      Mode = Data.define(:open, :pattern)
+      OPEN = Mode.new(open: true, pattern: false)
+
+      def initialize(binders, margin, locals = Binders::NONE, mode = OPEN)
         @binders = binders
         @margin = margin
         @locals = locals
-        @open = open
+        @mode = mode
       end
 
       def write(node, floor = Level::STATEMENT)
@@ -52,17 +55,21 @@ module Kimera
 
       def deeper = Pen.new(@binders, @margin.deeper, @locals)
 
-      def closed = Pen.new(@binders, @margin, @locals, open: false)
+      def closed = Pen.new(@binders, @margin, @locals, Mode.new(open: false, pattern: false))
 
       def opened = Pen.new(@binders, @margin, @locals)
 
-      def open? = @open
+      def patterned = Pen.new(@binders, @margin, @locals, @mode.with(pattern: true))
+
+      def open? = @mode.open
+
+      def pattern? = @mode.pattern
 
       def with(nodes) = bound(nodes.reduce(Binders::NONE) { |names, node| names | @binders.of(node) })
 
-      def bound(names) = Pen.new(@binders, @margin, (@locals | names).freeze, open: @open)
+      def bound(names) = Pen.new(@binders, @margin, (@locals | names).freeze, @mode)
 
-      def scoped(nodes = []) = Pen.new(@binders, @margin, Binders::NONE, open: @open).with(nodes)
+      def scoped(nodes = []) = Pen.new(@binders, @margin, Binders::NONE, @mode).with(nodes)
 
       def local?(name) = @locals.include?(name)
 

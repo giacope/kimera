@@ -2,6 +2,7 @@
 
 require "fileutils"
 require "kimera/execution/overrides"
+require "kimera/registry/builder"
 require "tmpdir"
 
 # Overlaying a file evaluates it again; a method a later file redefined must
@@ -46,6 +47,35 @@ RSpec.describe(Kimera::Execution::Overrides) do
     expect([OverridesOrder.new.total, OverridesOrder.make, OverridesOrder.build]).to(eq([2, :later, :later]))
     expect(displaced.map { |held| [held.name, held.definition.source_location.first] })
       .to(contain_exactly([:total, own], [:make, own], [:build, own]))
+  end
+
+  # R6B4-M7: a memoizer in another file (unparser's Adamantium `memoize`)
+  # replaces the method with one that calls the original it captured at load,
+  # so the overlaid method is never reached warm.
+  describe "a kept method's revisit" do
+    def points
+      text = "class Revisited\n  def total = a > b\n\n\n\n\n\n\n\n  def kept = a > b\nend\n"
+      Kimera::RegistryScan.new.source(text, file: "x.rb").at("x.rb")
+    end
+
+    def revisits(held, found = points) = found.tap { |each| held.each { it.revisit!(each) } }.map(&:revisit)
+
+    def spanning(lines) = Data.define(:start_line, :end_line).new(lines.first, lines.last)
+
+    def kept(lines) = described_class::Held.new(nil, :total, nil, :public, spanning(lines))
+
+    it "judges again the mutants on the lines of a method another file keeps", :aggregate_failures do
+      boot
+      _, displaced = overlay(described_class.new(own, source))
+      expect(displaced.map { |held| held.span.start_line }).to(contain_exactly(2, 4, 7))
+      expect(revisits(displaced)).to(eq([described_class::WRAPPED, nil]))
+    end
+
+    it "leaves a point already set aside, and every point when nothing is kept", :aggregate_failures do
+      found = points.tap { |each| each.first.unsafe!("set aside") }
+      expect(revisits([kept(2..10)], found)).to(eq([nil, described_class::WRAPPED]))
+      expect(revisits([kept(3..9)])).to(eq([nil, nil]))
+    end
   end
 
   it "hands over only what the overlay redefined" do

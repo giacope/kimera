@@ -4,6 +4,7 @@ require_relative "../../execution/harness"
 require_relative "../../execution/isolated"
 require_relative "../../execution/test_filter"
 require_relative "../../frameworks/suite"
+require_relative "../../frameworks/test_task"
 require_relative "../../incremental/coverage_cache"
 require_relative "../../report/progress"
 require_relative "../../results/run_report"
@@ -124,10 +125,14 @@ class Kimera::CLI::Run::Pass
   def core
     { registry: @registry, root: @options[:source_root], tests: @adapter.test_ids }
       .merge(coverage: harness.coverage, timings: harness.timings, progress: progress, jobs: @options[:jobs])
-      .merge(framework: @options[:framework], test_files: files, filter: filter, test_paths: paths)
+      .merge(framework: @options[:framework], test_files: files, filter: filter, test_paths: paths, warnings: warnings)
   end
 
   def paths = ->(id) { @adapter.test_file(id).to_s }
+
+  def warnings
+    @options[:framework] == "minitest" ? Kimera::Frameworks::TestTask.new(@options[:source_root]).flags : []
+  end
 
   def limits = @options.slice(:seed, :test_quality).merge({ hard_timeout: @options[:hard_timeout] }.compact)
 end

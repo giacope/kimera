@@ -73,6 +73,8 @@ class Kimera::Execution::Aliases
     tracked.orphans.map! { |orphan| adopt(orphan, displaced) }
   end
 
+  def reaches?(definition) = tracked.orphans.any? { |orphan| orphan.fresh == definition }
+
   private
 
   def tracked = @_tracked ||= Tracked.new([], [])
