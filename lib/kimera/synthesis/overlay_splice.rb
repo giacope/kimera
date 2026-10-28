@@ -10,7 +10,7 @@ module Kimera
     def splice = prepare.map { |prepared| report(*prepared) }
 
     def prepare
-      return [] unless ready?
+      writable { return [] }
       edits, dropped = gather
       return [] if edits.empty?
       source = @map.splice(edits + reopenings)
@@ -26,7 +26,7 @@ module Kimera
 
     def gather
       claims = claimed
-      rewritten = claims.map { |definition, mine| [rewrite(definition, mine), mine] }
+      rewritten = claims.map { |definition, mine| [rewrite(definition, mine) { [] }, mine] }
       kept, lost = rewritten.partition { |edits, _| edits.any? }
       [kept.flat_map(&:first), lost.flat_map(&:last) + (@safe - claims.flat_map(&:last))]
     end
@@ -55,11 +55,10 @@ module Kimera
       )
     end
 
-    def ready?
+    def writable
       Kimera::Guardrail.new(@map, []).tree
-      true
     rescue StandardError
-      false
+      yield
     end
 
     def claimed
@@ -86,7 +85,7 @@ module Kimera
       texts, applied = Kimera::Guardrail.new(@map, points).rewrite(definition)
       texts.map { |text| span(definition) + [text, applied] }
     rescue StandardError
-      []
+      yield
     end
   end
 end

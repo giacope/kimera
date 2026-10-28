@@ -36,8 +36,9 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite, :aggregate_failures) do
       expect(reported(JSON.generate("examples" => examples))).to(eq(["a[1:1]"]))
     end
 
-    it "reads nothing when there is no report, or it does not parse" do
-      expect([reported(nil), reported("{")]).to(eq([[], []]))
+    it "fails when there is no report, or it does not parse" do
+      expect { reported(nil) }.to(raise_error(Errno::ENOENT))
+      expect { reported("{") }.to(raise_error(JSON::ParserError))
     end
   end
 end

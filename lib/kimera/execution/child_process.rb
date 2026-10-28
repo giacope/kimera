@@ -17,8 +17,8 @@ module Kimera
 
       def lead
         Process.setpgid(0, 0)
-      rescue SystemCallError
-        nil
+      rescue Errno::EPERM
+        Process.getpgrp
       end
 
       def kill(pid)
@@ -56,7 +56,7 @@ module Kimera
       def parse(line)
         JSON.parse(line.dup.force_encoding(Encoding::UTF_8).scrub)
       rescue JSON::ParserError
-        nil
+        yield
       end
 
       def now(reading = Process.clock_gettime(Process::CLOCK_MONOTONIC)) = reading

@@ -27,7 +27,7 @@ module Kimera
         def serialized?(depth = 10)
           return false unless depth.positive?
           return true if leaf?
-          AttributeType.new(unwrapped).serialized?(depth - 1)
+          wrapped.any? { |inner| AttributeType.new(inner).serialized?(depth - 1) }
         end
         private
         def leaf?
@@ -35,16 +35,9 @@ module Kimera
             type.is_a?(ActiveRecord::Type::Serialized)
         end
 
-        def unwrapped
-          type.cast_type
-        rescue NoMethodError
-          subtype
-        end
-
-        def subtype
-          type.subtype
-        rescue NoMethodError
-          nil
+        def wrapped
+          return [type.cast_type] if type.respond_to?(:cast_type)
+          type.respond_to?(:subtype) ? [type.subtype] : []
         end
       end
 

@@ -14,7 +14,7 @@ class Kimera::Overlay::MethodBake
 
   def source(location)
     definitions(@map.ast).lazy.select { |node| location.inside?(*span(node)) }.first(1).flat_map do |definition|
-      counterparts(definition).flat_map { |node| written(definition, node) }.flat_map { graft(definition, it) }
+      counterparts(definition).flat_map { |node| written(definition, node) { [] } }.flat_map { graft(definition, it) }
     end
   end
 
@@ -23,7 +23,7 @@ class Kimera::Overlay::MethodBake
   def written(definition, node)
     Kimera::LinePad.new(definition.slice).fits(Kimera::Scribe.new(node), Kimera::Readback.new(node))
   rescue StandardError
-    []
+    yield
   end
 
   def graft(definition, text)

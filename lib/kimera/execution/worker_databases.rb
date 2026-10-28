@@ -48,9 +48,8 @@ class Kimera::Execution::WorkerDatabases
   def hooks = ActiveSupport::Testing::Parallelization.after_fork_hooks
 
   def before_hooks
-    ActiveSupport::Testing::Parallelization.before_fork_hooks
-  rescue NoMethodError
-    []
+    parallelization = ActiveSupport::Testing::Parallelization
+    parallelization.respond_to?(:before_fork_hooks) ? parallelization.before_fork_hooks : []
   end
 
   def cleanup(index)
@@ -62,9 +61,8 @@ class Kimera::Execution::WorkerDatabases
 
   def identify(index)
     return unless index && @jobs > 1 && defined?(ActiveSupport::TestCase)
+    return unless ActiveSupport::TestCase.respond_to?(:parallel_worker_id=)
     ActiveSupport::TestCase.parallel_worker_id = index
-  rescue NoMethodError
-    nil
   end
 
   def numbered = @_numbered ||= Kimera::Execution::NumberedDatabases.new(tolerance: @tolerance, env: @env)
@@ -85,10 +83,12 @@ class Kimera::Execution::WorkerDatabases
 
   def separate? = @jobs > 1 && defined?(ActiveRecord::Base) && !memory?
 
-  def shared
-    @errors.puts(format(SHARED, @jobs, ActiveRecord::Base.connection_db_config.database))
+  def shared = @errors.puts(format(SHARED, @jobs, database { return }))
+
+  def database
+    ActiveRecord::Base.connection_db_config.database
   rescue StandardError
-    nil
+    yield
   end
 
   def scrub

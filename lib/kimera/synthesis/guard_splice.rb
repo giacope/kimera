@@ -43,7 +43,7 @@ class Kimera::GuardSplice
   def placement(point, node)
     hidden, shown = point.mutants.partition { |mutant| Kimera::Rewrite::Directive.new(mutant.directive).kind?("privatize") }
     clauses, sited = clauses(node, shown)
-    guards = sited.map { |mutant, _| guarded(node, mutant) }
+    guards = sited.map { |mutant, _| guarded(node, mutant) { [] } }
     guards.all?(&:any?) ? [[guards.flatten(1), probed(node, hidden) + clauses.flat_map(&:last)]] : []
   end
 
@@ -60,7 +60,7 @@ class Kimera::GuardSplice
     text = written(site, mutated)
     fits?(text) ? [[site, mutant.id, text]] : []
   rescue StandardError
-    []
+    yield
   end
 
   def written(site, mutated) = Kimera::Scribe.new(mutated).at(@map.ast, site).after(site).unbroken.text

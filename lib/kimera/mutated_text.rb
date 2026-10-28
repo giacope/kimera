@@ -7,9 +7,9 @@ class Kimera::MutatedText
   UNWRITTEN = "(kimera could not write this mutant's text; its label says what changed)"
   private_constant(:UNWRITTEN)
 
-  def initialize(text)
-    @text = text
+  def initialize(texts)
+    @texts = texts
   end
 
-  def to_s = @text || UNWRITTEN
+  def to_s = @texts.fetch(0) { UNWRITTEN }
 end

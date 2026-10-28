@@ -72,7 +72,7 @@ class Kimera::Incremental::GitDiff
 
   def failure
     Kimera::Incremental::DiffError.new(
-      "git diff against #{@since.inspect} failed (unknown ref, not a git repository, or git missing)#{shallow}"
+      "git diff against #{@since.inspect} failed (unknown ref, not a git repository, or git missing)#{shallow { "" }}"
     )
   end
 
@@ -80,7 +80,7 @@ class Kimera::Incremental::GitDiff
     out, = Open3.capture2("git", "-C", @root.to_s, "rev-parse", "--is-shallow-repository", err: File::NULL)
     out.strip == "true" ? "; this clone is shallow, so fetch the base ref (actions/checkout: fetch-depth: 0)" : ""
   rescue Errno::ENOENT
-    ""
+    yield
   end
 
   def read

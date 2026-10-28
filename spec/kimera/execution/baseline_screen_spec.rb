@@ -113,6 +113,21 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
     expect(screen(with: adapter(plain: false)).call(failures)).to(include("2 test(s) fail in the baseline"))
   end
 
+  # A plain run whose report at its out path plus this suffix does not parse, or is not there.
+  def unreadable(suffix)
+    Class.new(Kimera::Frameworks::Suite) do
+      def test_ids = %w[t1 t2 t3]
+      def plain(ids, out) = ["plain", *ids, out]
+      define_method(:failed_plainly) { |_output, out| JSON.parse(File.read("#{out}#{suffix}")) }
+    end.new
+  end
+
+  it "counts every test as failing plainly when the plain run's report cannot be read", :aggregate_failures do
+    ["", ".gone"].each do |suffix|
+      expect(screen(red: %w[t1], with: unreadable(suffix)).call(failures)).to(include("2 test(s) fail in the baseline"))
+    end
+  end
+
   it "excludes them when the plain command cannot start" do
     broken = described_class.new(adapter: adapter, root: "/project", jobs: 1, suite: ->(*, **) { raise(Errno::ENOENT) })
     expect(broken.call(failures)).to(include("2 test(s) fail in the baseline"))

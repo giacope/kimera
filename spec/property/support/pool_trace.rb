@@ -63,8 +63,8 @@ module PoolTrace
 
     def deliver(worker, line)
       trace = PoolTrace.recorder
-      message = trace && parse(line)
-      return super unless message
+      return super unless trace
+      message = parse(line) { return super }
       trace.sent = ["none"]
       super.tap { trace.log("read", worker.slot, kind: message["t"], id: message["id"], reply: trace.sent) }
     end

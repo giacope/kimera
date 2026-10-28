@@ -71,8 +71,8 @@ class Kimera::Execution::WorkerPool
   end
 
   def deliver(worker, line)
-    message = parse(line)
-    dispatch(worker.heard(message, limit), message) if message
+    message = parse(line) { return }
+    dispatch(worker.heard(message, limit), message)
   end
 
   def dispatch(worker, message)

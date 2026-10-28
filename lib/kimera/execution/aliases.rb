@@ -105,13 +105,13 @@ class Kimera::Execution::Aliases
   end
 
   def wrapped?(entry, file)
-    found = lookup(entry.holder, entry.target)
-    found && !alike?(source(found), file)
+    found = lookup(entry.holder, entry.target) { return false }
+    !alike?(source(found), file)
   end
 
   def adopt(orphan, displaced)
-    found = moved(orphan, displaced) || lookup(orphan.holder, orphan.target)
-    return orphan unless found && alike?(source(found), orphan.file) && !compiled(found).equal?(orphan.body)
+    found = moved(orphan, displaced) || lookup(orphan.holder, orphan.target) { return orphan }
+    return orphan unless alike?(source(found), orphan.file) && !compiled(found).equal?(orphan.body)
     orphan.with(fresh: found)
   end
 
@@ -123,7 +123,7 @@ class Kimera::Execution::Aliases
   def lookup(holder, name)
     LOOKUP.bind_call(holder, name)
   rescue NameError
-    nil
+    yield
   end
 
   def source(method) = method.source_location&.first

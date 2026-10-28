@@ -23,7 +23,7 @@ class Kimera::BakeSplice
 
   def source
     candidates = Candidates.new(@changed).to_a.lazy
-    candidates.flat_map { |node, rebuilt| placed(node, rebuilt) }.first(1).map { |spliced| reopened(spliced) }
+    candidates.flat_map { |node, rebuilt| placed(node, rebuilt) { [] } }.first(1).map { |spliced| reopened(spliced) }
   end
 
   private
@@ -32,7 +32,7 @@ class Kimera::BakeSplice
     ways = [-> { cut(node, rebuilt) }, -> { lined(node, rebuilt) }, -> { worded(node, rebuilt) }]
     [*ways, -> { laid(node, rebuilt) }].lazy.flat_map(&:call).first(1)
   rescue StandardError
-    []
+    yield
   end
 
   def cut(node, rebuilt)

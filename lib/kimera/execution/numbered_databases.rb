@@ -13,17 +13,17 @@ class Kimera::Execution::NumberedDatabases
     @settings = settings
   end
 
-  def numbered? = renamed(numbering(1)).any?
+  def numbered? = renamed(numbering(1)) { [] }.any?
 
   def prepare(index)
     @tolerance.attempt("could not create the database for worker #{index}") do
-      renamed(numbering(index)).each { |config| ActiveRecord::Tasks::DatabaseTasks.reconstruct_from_schema(config) }
+      renamed(numbering(index)) { [] }.each { |config| ActiveRecord::Tasks::DatabaseTasks.reconstruct_from_schema(config) }
     end
   end
 
   def adopt(index)
     numbering = numbering(index)
-    return if renamed(numbering).empty?
+    return if renamed(numbering) { [] }.empty?
     ActiveRecord::Base.configurations = numbered(numbering) { configurations }
     ActiveRecord::Base.establish_connection
   end
@@ -33,7 +33,7 @@ class Kimera::Execution::NumberedDatabases
   def renamed(numbering)
     numbered(numbering) { configurations }.configs_for(env_name: environment).reject { |config| same?(config) }
   rescue StandardError
-    []
+    yield
   end
 
   def configurations = ActiveRecord::DatabaseConfigurations.new(@settings.call.database_configuration)

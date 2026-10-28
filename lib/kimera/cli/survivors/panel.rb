@@ -93,7 +93,7 @@ class Kimera::CLI::Survivors::Panel
   def diff(row, indent)
     original = row["original"]
     source(original, "-", indent)
-    source(Kimera::MutatedText.new(row["mutated"]).to_s, "+", indent) if original
+    source(Kimera::MutatedText.new(Array(row["mutated"])).to_s, "+", indent) if original
   end
 
   def source(code, sign, indent) = @io.puts(Kimera::Readout.new(code).quoted(sign, indent))

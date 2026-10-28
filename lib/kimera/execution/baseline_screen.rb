@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "json"
 require "tmpdir"
 require_relative "baseline_failure"
 require_relative "baseline_exclusions"
@@ -45,7 +46,7 @@ class Kimera::Execution::BaselineScreen
       output, status = @suite.call(*argv, chdir: @root)
       status.success? ? [] : failing(ids, output, out)
     end
-  rescue SystemCallError
+  rescue SystemCallError, JSON::ParserError
     ids
   end
 

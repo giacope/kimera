@@ -42,7 +42,7 @@ module Kimera
       end
 
       def render(source)
-        shortcuts.fetch(0) { forced(source).fetch(0) { attempt(source) } }
+        [-> { shortcuts }, -> { forced(source) { [] } }, -> { attempt(source) { [] } }].lazy.flat_map(&:call).first(1)
       end
 
       def apply(node)
@@ -63,7 +63,7 @@ module Kimera
         tree = parsed(source)
         tree.success? ? [pinned(source, tree.value.statements.body.first.predicate, value)] : []
       rescue NoMethodError
-        []
+        yield
       end
 
       def pinned(source, predicate, value)
@@ -87,12 +87,12 @@ module Kimera
 
       def attempt(source)
         tree = parsed(source)
-        return unless tree.success?
+        return [] unless tree.success?
         program = NumberedParams.new(tree.value).normalize
         node = program.statements.body.first
-        Kimera::Scribe.new(apply(node)).at(program, node).source
+        [Kimera::Scribe.new(apply(node)).at(program, node).source]
       rescue StandardError
-        nil
+        yield
       end
 
       def operation(node)

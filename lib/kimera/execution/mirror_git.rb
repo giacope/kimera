@@ -17,7 +17,7 @@ class Kimera::Execution::MirrorGit
   end
 
   def copy(target)
-    own, shared = locations
+    own, shared = locations { return }
     return unless shared
     FileUtils.mkdir_p(File.join(target, "objects", "info"))
     OWN.each { |name| take(File.join(own, name), target) }
@@ -36,6 +36,6 @@ class Kimera::Execution::MirrorGit
     own, shared = out.lines(chomp: true)
     [own, shared && File.expand_path(shared, @root)]
   rescue SystemCallError
-    []
+    yield
   end
 end

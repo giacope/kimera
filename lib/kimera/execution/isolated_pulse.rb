@@ -27,9 +27,5 @@ class Kimera::Execution::IsolatedPulse
 
   private
 
-  def size
-    File.size(@path)
-  rescue SystemCallError
-    0
-  end
+  def size = File.size?(@path).to_i
 end

@@ -66,8 +66,6 @@ class Kimera::Frameworks::RSpecSuite < Kimera::Frameworks::Suite
   def failed_plainly(_output, out)
     examples = JSON.parse(File.read(out, encoding: Encoding::UTF_8)).fetch("examples", [])
     examples.filter_map { |example| example["id"] if example["status"] == "failed" }
-  rescue SystemCallError, JSON::ParserError
-    []
   end
 
   def run(ids)

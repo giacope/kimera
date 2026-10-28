@@ -159,6 +159,20 @@ RSpec.describe(Kimera::Overlay) do
     it "writes nothing whose edits move the lines after them" do
       expect(stitched([[4, 5, "(2\n)"]])).to(be_nil)
     end
+
+    # A guardrail that cannot write the methods holding these points.
+    def unwritable(points)
+      allow(Kimera::GuardSplice).to(receive(:new).and_return(instance_double(Kimera::GuardSplice, rest: points)))
+      allow(Kimera::Guardrail).to(receive(:new).and_return(instance_double(Kimera::Guardrail)))
+      allow(Kimera::Guardrail.new).to(receive(:rewrite).and_raise(ArgumentError))
+    end
+
+    it "writes nothing when a method it must rewrite whole cannot be written" do
+      source = "def m(a) = a > 1\n"
+      point = scan(source, %w[comparison]).points.first
+      unwritable([point])
+      expect(described_class.new("x.rb", Kimera::SourceMap.new(source), [point], []).result).to(be_nil)
+    end
   end
 
   describe "#bake" do

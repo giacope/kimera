@@ -17,7 +17,7 @@ class Kimera::RegistryScan
 
   def build(paths)
     numbering = Kimera::RegistryScan::Numbering.new(paths.any? { |path| own?(path) } ? OWN_FIRST : 1)
-    scans = paths.sort.filter_map { |path| ingest(path, numbering) }
+    scans = paths.sort.flat_map { |path| ingest(path, numbering) { [] } }
     Kimera::Registry.new(
       operators: @operators.map(&:key), root: located,
       points: scans.flat_map(&:points), unmutated: scans.flat_map(&:regions)
@@ -39,12 +39,12 @@ class Kimera::RegistryScan
   def own?(path) = Kimera::SelfProtection.new(path).own?
 
   def ingest(path, numbering)
-    return if @shielded && Kimera::SelfProtection.new(path).protected?
-    scan(File.read(path, encoding: Encoding::UTF_8), relative(path), numbering)
+    return [] if @shielded && Kimera::SelfProtection.new(path).protected?
+    [scan(File.read(path, encoding: Encoding::UTF_8), relative(path), numbering)]
   rescue Errno::ENOENT
-    nil
+    yield
   rescue SystemCallError, IOError => error
-    Kimera::RegistryScan::Unread.new(relative(path), error.message)
+    [Kimera::RegistryScan::Unread.new(relative(path), error.message)]
   end
 
   def scan(source, file, numbering)

@@ -74,7 +74,7 @@ module KimeraEval
       end
 
       def sample
-        sizes = tree.to_h { |pid| [pid, rss(pid)] }
+        sizes = tree.to_h { |pid| [pid, rss(pid) { 0 }] }
         sizes.each { |pid, bytes| seen[pid] = [seen[pid], bytes].max }
         totals << sizes.values.sum
       end
@@ -100,23 +100,23 @@ module KimeraEval
       end
 
       def table
-        Dir.glob("/proc/[0-9]*/stat").each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |path, children|
-          fields = stat(path)
-          children[Integer(fields[1])] << Integer(fields[0]) if fields
+        pairs = Dir.glob("/proc/[0-9]*/stat").flat_map { |path| stat(path) { [] } }
+        pairs.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |(pid, parent), children|
+          children[Integer(parent)] << Integer(pid)
         end
       end
 
       def stat(path)
         text = File.read(path)
-        [text[/\A\d+/], text[(text.rindex(")") + 2)..].split[1]]
+        [[text[/\A\d+/], text[(text.rindex(")") + 2)..].split[1]]]
       rescue SystemCallError, NoMethodError
-        nil
+        yield
       end
 
       def rss(pid)
         Integer(File.read("/proc/#{pid}/statm").split[1]) * PAGE
       rescue SystemCallError, ArgumentError
-        0
+        yield
       end
     end
   end

@@ -12,7 +12,7 @@ class Kimera::Rewrite::MutantText
     @root = root
   end
 
-  def text = directive.render(@point.original_source) || placed
+  def texts = [-> { directive.render(@point.original_source) }, -> { placed { [] } }].lazy.flat_map(&:call).first(1)
 
   private
 
@@ -20,16 +20,16 @@ class Kimera::Rewrite::MutantText
 
   def placed
     program = Kimera::Rewrite::NumberedParams.of(source).normalize
-    found(program)&.then { |node| Kimera::Scribe.new(directive.apply(node)).at(program, node).source }
+    found(program).map { |node| Kimera::Scribe.new(directive.apply(node)).at(program, node).source }
   rescue StandardError
-    nil
+    yield
   end
 
   def source = File.read(File.join(@root, @point.file), encoding: Encoding::UTF_8)
 
   def found(program)
     nodes = Kimera::Rewrite::AstWalk.new(program).to_enum(:visit)
-    nodes.find { |node| node.location.start_offset == @point.location.start_offset && same?(node) }
+    nodes.lazy.select { |node| node.location.start_offset == @point.location.start_offset && same?(node) }.first(1)
   end
 
   def same?(node) = node.type.to_s == @point.node_type && node.slice == @point.original_source

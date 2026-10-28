@@ -26,8 +26,8 @@ module Kimera
     end
 
     def rendered(point, mutant)
-      mutated = Kimera::Rewrite::MutantText.new(point, mutant, root: @registry.root).text
-      { "original" => point.original_source, "mutated" => mutated && parenthesised(mutant, mutated) }
+      texts = Kimera::Rewrite::MutantText.new(point, mutant, root: @registry.root).texts
+      { "original" => point.original_source, "mutated" => texts.map { |text| parenthesised(mutant, text) }.first }
     end
 
     def parenthesised(mutant, mutated) = mutant.directive["type"] == "boolean_connective" ? "(#{mutated})" : mutated

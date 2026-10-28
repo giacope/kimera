@@ -5,7 +5,7 @@ require "kimera/execution/child_process"
 RSpec.describe(Kimera::Execution::ChildProcess) do
   let(:reader) { Object.new.extend(described_class) }
 
-  def parse(line) = reader.__send__(:parse, line)
+  def parse(line, &) = reader.__send__(:parse, line, &)
 
   # A pipe read under a C locale tags the worker's UTF-8 bytes as US-ASCII.
   it "parses a worker's UTF-8 line whatever encoding the pipe tagged it with" do
@@ -34,8 +34,8 @@ RSpec.describe(Kimera::Execution::ChildProcess) do
     expect(stream).to(have_received(:reopen).with(File::NULL, "w"))
   end
 
-  it "skips a line that isn't JSON" do
-    expect(parse("!!not json!!")).to(be_nil)
+  it "hands a line that isn't JSON to its caller's block" do
+    expect(parse("!!not json!!") { :unparsed }).to(eq(:unparsed))
   end
 
   describe "process groups" do
@@ -64,7 +64,7 @@ RSpec.describe(Kimera::Execution::ChildProcess) do
     # The fork above records no coverage for `lead`; this runs it in-process.
     it "leaves a child in its parent's group when it can't lead one of its own", :aggregate_failures do
       allow(Process).to(receive(:setpgid).and_raise(Errno::EPERM))
-      expect(call(:lead)).to(be_nil)
+      expect(call(:lead)).to(eq(Process.getpgrp))
       expect(Process).to(have_received(:setpgid).with(0, 0))
     end
 

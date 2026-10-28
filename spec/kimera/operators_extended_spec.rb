@@ -302,7 +302,7 @@ RSpec.describe(Kimera::Operators) do
 
     def rendered(catalog)
       catalog.each.map do |m, p|
-        Kimera::Rewrite::Directive.new(m.directive).render(p.original_source)
+        Kimera::Rewrite::Directive.new(m.directive).render(p.original_source).first
       end
     end
 

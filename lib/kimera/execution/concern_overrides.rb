@@ -33,7 +33,7 @@ module Kimera
 
       def reapply(block)
         @klass.singleton_class.prepend(GUARD)
-        skipping(declared) { @klass.class_eval(&block) }
+        skipping(declared { [] }) { @klass.class_eval(&block) }
       end
 
       private
@@ -51,7 +51,7 @@ module Kimera
         tree = Kimera::Syntax.parse(File.read(source, encoding: Encoding::UTF_8), filepath: source)
         after(calls(tree.value), @concern.name.split("::").last)
       rescue StandardError
-        []
+        yield
       end
 
       def source = Object.const_source_location(@klass.name).first

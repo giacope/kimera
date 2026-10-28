@@ -48,7 +48,7 @@ class Kimera::Execution::BaselinePass
   def settle(jobs)
     yield
     failures = tally.failures
-    red!(failures, jobs) { Kimera::Execution::BaselineOrder.new(self).of(failures) } unless failures.empty?
+    red!(failures, jobs) { Kimera::Execution::BaselineOrder.new(self).of(failures) { [] } } unless failures.empty?
     tally.measured(losses.recovered(tally.messages))
   ensure
     progress.finish

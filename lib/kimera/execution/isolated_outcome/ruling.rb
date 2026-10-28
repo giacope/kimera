@@ -15,9 +15,7 @@ class Kimera::Execution::IsolatedOutcome::Ruling
 
   def outcome
     return OUTCOME.new(:timeout) if @exit == :timeout
-    ledger = read
-    return unreported unless ledger
-    tally(ledger)
+    tally(read { return unreported })
   end
 
   private
@@ -59,8 +57,8 @@ class Kimera::Execution::IsolatedOutcome::Ruling
 
   def read
     ledger = JSON.parse(File.read(@path, encoding: Encoding::UTF_8))
-    ledger if ledger.is_a?(Hash) && ledger["failures"].is_a?(Integer)
+    ledger.is_a?(Hash) && ledger["failures"].is_a?(Integer) ? ledger : yield
   rescue Errno::ENOENT, JSON::ParserError
-    nil
+    yield
   end
 end

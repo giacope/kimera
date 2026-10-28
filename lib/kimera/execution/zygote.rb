@@ -91,7 +91,7 @@ class Kimera::Execution::Zygote
   end
 
   def settle(text, status)
-    payload = parse(text) || { "died" => "", "signal" => status&.termsig, "code" => status&.exitstatus }
+    payload = parse(text) { { "died" => "", "signal" => status&.termsig, "code" => status&.exitstatus } }
     raise(Died.new(payload["died"], signal: payload["signal"], code: payload["code"])) if payload.key?("died")
     raise(rebuilt(payload)) if payload.key?("raised")
     payload["value"]

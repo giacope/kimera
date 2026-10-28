@@ -224,6 +224,6 @@ RSpec.describe(Kimera::Report::Text) do
 
   # R6B6-M3: a lone `-` line reads as a deleted statement.
   it "says it could not write the variant when it cannot be rendered" do
-    expect(output).to(include("- a > b\n    + #{Kimera::MutatedText.new(nil)}\n"))
+    expect(output).to(include("- a > b\n    + #{Kimera::MutatedText.new([])}\n"))
   end
 end

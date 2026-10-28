@@ -22,7 +22,7 @@ RSpec.describe(Kimera::Rewrite::Directive) do
 
   def rendered
     Kimera::RegistryScan.new.source(code, file: "walk.rb").each.map do |mutant, point|
-      [point.original_source, mutant.label, described_class.new(mutant.directive).render(point.original_source)]
+      [point.original_source, mutant.label, described_class.new(mutant.directive).render(point.original_source).first]
     end
   end
 
@@ -39,6 +39,6 @@ RSpec.describe(Kimera::Rewrite::Directive) do
   end
 
   it "renders a whole snippet that does not parse as nothing" do
-    expect(described_class.new({ "type" => "comparison", "to" => "<=" }).render("x < 9\nend")).to(be_nil)
+    expect(described_class.new({ "type" => "comparison", "to" => "<=" }).render("x < 9\nend")).to(eq([]))
   end
 end

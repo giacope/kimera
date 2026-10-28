@@ -8,9 +8,15 @@ module Kimera
 end
 
 class Kimera::Frameworks::DotRspec
+  class Unparsed
+    def configure(_config); end
+
+    def options = {}
+  end
+
   def configure(config)
     requires
-    parsed&.configure(config)
+    parsed.configure(config)
   rescue StandardError, ScriptError
     nil
   end
@@ -26,8 +32,8 @@ class Kimera::Frameworks::DotRspec
   def parsed
     @_parsed ||= RSpec::Core::ConfigurationOptions.new([])
   rescue StandardError, ScriptError
-    nil
+    Unparsed.new
   end
 
-  def requires = @_requires ||= Array(parsed&.options&.delete(:requires))
+  def requires = @_requires ||= Array(parsed.options.delete(:requires))
 end

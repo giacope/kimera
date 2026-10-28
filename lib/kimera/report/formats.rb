@@ -58,7 +58,7 @@ class Kimera::Report::Formats
   def diff(result)
     original = result["original"]
     mutated = result["mutated"]
-    original ? ["- #{original}", "+ #{Kimera::MutatedText.new(mutated)}"] : []
+    original ? ["- #{original}", "+ #{Kimera::MutatedText.new(Array(mutated))}"] : []
   end
 
   def crowded(counts)

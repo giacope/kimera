@@ -55,7 +55,7 @@ class Kimera::Operators::Audit
   end
 
   def finding(key, original, mutant)
-    rendered = Kimera::Rewrite::Directive.new(mutant.directive).render(original)
+    rendered = Kimera::Rewrite::Directive.new(mutant.directive).render(original).first
     Finding.new(
       operator: key, original: original, label: mutant.label,
       rendered: rendered, verdict: Rendering.new(original, rendered).verdict

@@ -53,7 +53,7 @@ class Kimera::Overlay
 
   def spliced(map, mutant, point)
     changed = Kimera::Guardrail.new(map, []).changes(point, mutant.directive)
-    expected, original = changed && expectation(changed.last&.last || map.ast, map.ast)
+    expected, original = changed && expectation(changed.last&.last || map.ast, map.ast) { return [] }
     return [] unless expected
     raise(Unbakeable, "#{UNWRITTEN} (the mutant reads as the original)") if expected == original
     Kimera::BakeSplice.new(map, changed, expected).source
@@ -62,7 +62,7 @@ class Kimera::Overlay
   def expectation(*trees)
     trees.map { |tree| Kimera::Scribe.new(tree).source }
   rescue StandardError
-    nil
+    yield
   end
 
   def checked(map, point, text)

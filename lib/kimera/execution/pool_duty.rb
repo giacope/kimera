@@ -37,7 +37,7 @@ Kimera::Execution::Pool::Duty =
 
     def confess(error)
       pipes.res_w.puts(JSON.generate(t: "crash", detail: words(error)))
-    rescue IOError, SystemCallError
+    rescue IOError, Errno::EPIPE, Errno::EBADF
       nil
     end
 

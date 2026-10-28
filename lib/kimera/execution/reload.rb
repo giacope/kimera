@@ -120,8 +120,7 @@ class Kimera::Execution::Reload
   def verdict(id, line, status = nil, deadline = nil)
     return verdicts.timeout(id, deadline) if line == :timeout
     return verdicts.unjudged(id, "reload worker produced no result#{exited(status)}") unless line
-    message = parse(line)
-    message ? verdicts.parse(message) : verdicts.unjudged(id, "reload worker output unparseable")
+    verdicts.parse(parse(line) { return verdicts.unjudged(id, "reload worker output unparseable") })
   end
 
   def exited(status)

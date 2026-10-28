@@ -107,9 +107,9 @@ class Kimera::Report::Text
   end
 
   def diff(point, mutant)
-    variant = Kimera::Rewrite::MutantText.new(point, mutant, root: @registry.root).text
+    variants = Kimera::Rewrite::MutantText.new(point, mutant, root: @registry.root).texts
     source(red("-"), point.original_source)
-    source(green("+"), Kimera::MutatedText.new(variant).to_s)
+    source(green("+"), Kimera::MutatedText.new(variants).to_s)
   end
 
   def source(sign, text) = @io.puts(Kimera::Readout.new(text).quoted(sign, "    "))

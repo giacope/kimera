@@ -62,9 +62,9 @@ class Kimera::Execution::Overrides
   def skipped(_node, _scope, _side) = []
 
   def owned(node, scope, side)
-    holder = resolve(scope)
+    holder = resolve(scope) { return [] }
     receiver = node.receiver
-    return [] unless holder && (receiver.nil? || receiver.is_a?(Prism::SelfNode))
+    return [] unless receiver.nil? || receiver.is_a?(Prism::SelfNode)
     owner = side == :singleton || receiver ? SINGLETON.bind_call(holder) : holder
     [[owner, node.name, node.location]]
   end
@@ -72,19 +72,19 @@ class Kimera::Execution::Overrides
   def resolve(scope)
     scope.empty? ? Object : Object.const_get(scope.join("::").delete_prefix("::"))
   rescue NameError
-    nil
+    yield
   end
 
   def elsewhere(holder, name, span)
-    found = lookup(holder, name)
-    return unless found && found.owner == holder && !here?(found)
+    found = lookup(holder, name) { return }
+    return unless found.owner == holder && !here?(found)
     Held.new(holder, name, found, Kimera::Execution::Redefinition.new(holder, name).visibility, span)
   end
 
   def restore(entry)
     holder, name, kept, visibility = entry.deconstruct.first(4)
-    fresh = lookup(holder, name)
-    return unless fresh && here?(fresh)
+    fresh = lookup(holder, name) { return }
+    return unless here?(fresh)
     Kimera::Execution::Redefinition.new(holder, name).redefine(kept, visibility)
     entry.with(definition: fresh)
   end
@@ -94,6 +94,6 @@ class Kimera::Execution::Overrides
   def lookup(holder, name)
     LOOKUP.bind_call(holder, name)
   rescue NameError
-    nil
+    yield
   end
 end

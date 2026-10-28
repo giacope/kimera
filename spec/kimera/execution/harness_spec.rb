@@ -1245,8 +1245,8 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(result.failing_tests).to(eq(["t1"]))
     end
 
-    it "returns nil from parse on malformed JSON" do
-      expect(harness(adapter).__send__(:parse, "not json")).to(be_nil)
+    it "hands malformed JSON to the block parse is given" do
+      expect(harness(adapter).__send__(:parse, "not json") { :unparsed }).to(eq(:unparsed))
     end
   end
 

@@ -23,7 +23,7 @@ class Kimera::Execution::OrderTrace
   end
 
   def mark!(baseline, coverage)
-    reached(baseline).each do |id|
+    reached(baseline) { [] }.each do |id|
       point = @registry.index[id]
       point.ordered! if point&.safe? && uncovered?(id, coverage)
     end
@@ -38,7 +38,7 @@ class Kimera::Execution::OrderTrace
   def reached(baseline)
     Array(baseline.sequence["touched"])
   rescue Kimera::Execution::Zygote::Died, Kimera::Execution::Zygote::Raised, Timeout::Error
-    []
+    yield
   end
 
   def uncovered?(id, coverage) = coverage.fetch(id) { coverage.fetch(id.to_s, []) }.empty?
