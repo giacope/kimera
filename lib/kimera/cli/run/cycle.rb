@@ -42,7 +42,7 @@ class Kimera::CLI::Run::Cycle
   def scope(selected)
     eligible = focus(Kimera::CLI::Run::Aim.new(@registry, @options).restrict(selected || @registry.index.keys))
     resolution = Kimera::IgnoreList.new(@options[:ignore] + inline).resolve(@registry)
-    ignored = resolution.ids & eligible
+    ignored = resolution.ignored(eligible)
     notify(selected, ignored, resolution)
     session(eligible - ignored, ignored)
   end

@@ -16,7 +16,7 @@ class Kimera::CLI::Baseline::Creation
       Kimera::Flag.build("--reason TEXT", :reason, "Why this existing mutation debt is being accepted"),
       Kimera::Flag.build("--output FILE", :output, "Baseline file to write (default: .kimera-baseline.yml)"),
       Kimera::Flag.build("--write", :write, "Also set baseline: FILE in .kimera.yml"),
-      Kimera::Flag.shared(:force, help: "Replace an existing baseline file")
+      Kimera::Flag.build("--force", :force, "Replace an existing baseline file")
     ]
   )
 

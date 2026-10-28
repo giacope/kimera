@@ -1,12 +1,20 @@
 # frozen_string_literal: true
 
 class Kimera::CLI::Baseline::Review
-  Group =
-    Data.define(:kind, :title) do
-      def entries(grouped) = grouped.fetch(kind, [])
-
-      def heading(count) = "#{title} (#{count}):"
+  class Group
+    def initialize(kind, title)
+      @kind = kind
+      @title = title
     end
+
+    def entries(grouped) = grouped.fetch(kind, [])
+
+    def heading(count) = "#{title} (#{count}):"
+
+    private
+
+    attr_reader :kind, :title
+  end
   GROUPS = [
     Group.new(:killed, "Killed, safe to prune"),
     Group.new(:surviving, "Still surviving"),
@@ -15,8 +23,9 @@ class Kimera::CLI::Baseline::Review
     Group.new(:out_of_scope, "Not in the report's scope")
   ].freeze
 
-  def initialize(io: $stdout)
+  def initialize(io: $stdout, listing: Kimera::CLI::Baseline::Listing.new(io))
     @io = io
+    @listing = listing
   end
 
   def show(ledger)
@@ -32,9 +41,9 @@ class Kimera::CLI::Baseline::Review
   def groups(grouped) = GROUPS.each { |group| list(group, group.entries(grouped)) }
 
   def list(group, entries)
-    return if entries.empty?
-    @io.puts("", group.heading(entries.size))
-    entries.each { |entry| @io.puts("  #{entry.place}#{verdicts(entry)} — #{entry.fields["reason"]}") }
+    @listing.show(["", group.heading(entries.size)], entries) do |entry|
+      "  #{entry.place}#{verdicts(entry)} — #{entry.fields["reason"]}"
+    end
   end
 
   def verdicts(entry)

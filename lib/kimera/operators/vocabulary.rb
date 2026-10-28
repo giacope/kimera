@@ -4,7 +4,7 @@ require_relative "../parsing/syntax"
 
 module Kimera
   module Operators
-    Kimera::SyntaxTypes::Installer.new(self).call
+    Kimera::SyntaxTypes::Import.new(self).call
     TYPE = "type"
     INDEX = "index"
     STATEMENT_DELETION = "statement_deletion"
@@ -13,17 +13,24 @@ module Kimera
 
     Variant = Struct.new(:label, :directive, keyword_init: true)
 
-    CallQuery =
-      Data.define(:node) do
-        def named?(names)
-          name = node.name
-          names.is_a?(Symbol) ? name == names : names.include?(name)
-        end
-
-        def call?(names) = node.is_a?(SyntaxTypes::CallNode) && named?(names)
-        def chained?(names) = call?(names) && !!node.receiver
-        def bare?(names) = call?(names) && !node.receiver
+    class CallQuery
+      def initialize(node)
+        @node = node
       end
+
+      def named?(names)
+        name = node.name
+        names.is_a?(Symbol) ? name == names : names.include?(name)
+      end
+
+      def call?(names) = node.is_a?(SyntaxTypes::CallNode) && named?(names)
+      def chained?(names) = call?(names) && !!node.receiver
+      def bare?(names) = call?(names) && !node.receiver
+
+      private
+
+      attr_reader :node
+    end
 
     module Vocabulary
       private

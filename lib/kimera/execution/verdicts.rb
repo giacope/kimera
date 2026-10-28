@@ -16,12 +16,9 @@ class Kimera::Execution::Verdicts
     @registry = registry
   end
 
-  def safe?(id)
-    point(id).safe?
-  end
-
-  def reloadable?(id)
-    point(id).reloadable?
+  def tiers(ids)
+    safe, unsafe = ids.partition { |id| point(id).safe? }
+    [safe, *unsafe.partition { |id| point(id).reloadable? }]
   end
 
   def reclassified(results) = results.transform_values { |result| reclassify(result) }

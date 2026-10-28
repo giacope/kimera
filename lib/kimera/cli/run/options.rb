@@ -88,6 +88,6 @@ module Kimera::CLI::RunOptions
 
     def parse(argv, defaults) = @table.parse(argv, defaults)
 
-    def help(banner) = @table.with(banner: banner).build { |_flag, _value| :ignored }.help
+    def help(banner) = @table.retitled(banner).build { |_flag, _value| :ignored }.help
   end
 end

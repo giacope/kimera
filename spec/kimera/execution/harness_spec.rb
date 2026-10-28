@@ -1176,11 +1176,10 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
   end
 
-  describe "Verdicts#safe?" do
-    it "is true for an ordinary point and for an unknown id", :aggregate_failures do
+  describe "Verdicts#tiers, the safe tier" do
+    it "holds an ordinary point and an unknown id" do
       verdicts = Kimera::Execution::Verdicts.new(registry)
-      expect(verdicts.safe?(ids.first)).to(be(true))
-      expect(verdicts.safe?(999_999)).to(be(true))
+      expect(verdicts.tiers([ids.first, 999_999]).first).to(eq([ids.first, 999_999]))
     end
 
     it "is false for a memoized (schema-unsafe) point" do
@@ -1190,7 +1189,7 @@ RSpec.describe(Kimera::Execution::Harness) do
         end
       RUBY
       unsafe = memo.each.first.first.id
-      expect(Kimera::Execution::Verdicts.new(memo).safe?(unsafe)).to(be(false))
+      expect(Kimera::Execution::Verdicts.new(memo).tiers([unsafe]).first).to(be_empty)
     end
   end
 
@@ -1311,7 +1310,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
   end
 
-  describe "Verdicts#reloadable?" do
+  describe "Verdicts#tiers, the reload tier" do
     let(:mixed_registry) do
       Kimera::RegistryScan.new(
         operators: Kimera::Operators.build(keys: %w[comparison rails_validation])
@@ -1329,12 +1328,12 @@ RSpec.describe(Kimera::Execution::Harness) do
       verdicts = Kimera::Execution::Verdicts.new(mixed_registry)
       body = mixed_registry.each.find { |_m, p| p.body? }.first.id
       method = mixed_registry.each.find { |_m, p| !p.body? }.first.id
-      expect(verdicts.reloadable?(body)).to(be(false))
-      expect(verdicts.reloadable?(method)).to(be(true))
+      mixed_registry.index.fetch(method).unsafe!("memoized")
+      expect(verdicts.tiers([body, method]).drop(1)).to(eq([[method], [body]]))
     end
 
-    it "treats an unknown id (no registry point) as reloadable" do
-      expect(Kimera::Execution::Verdicts.new(registry).reloadable?(10_000_000)).to(be(true))
+    it "puts an unknown id (no registry point) in the safe tier" do
+      expect(Kimera::Execution::Verdicts.new(registry).tiers([10_000_000])).to(eq([[10_000_000], [], []]))
     end
 
     # Reload bakes the same source the overlay could not emit.
@@ -1342,7 +1341,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       verdicts = Kimera::Execution::Verdicts.new(mixed_registry)
       mutant, point = mixed_registry.each.find { |_m, p| !p.body? }
       point.unmutatable!("kimera could not write its guard")
-      expect(verdicts.reloadable?(mutant.id)).to(be(false))
+      expect(verdicts.tiers([mutant.id]).last).to(eq([mutant.id]))
     end
   end
 

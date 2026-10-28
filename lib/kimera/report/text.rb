@@ -4,7 +4,6 @@ require_relative "../rewrite/mutant_text"
 require_relative "coloring"
 require_relative "screen"
 require_relative "sections"
-require_relative "../support/snippet"
 require_relative "test_health"
 require_relative "actions"
 require_relative "file_table"
@@ -104,5 +103,5 @@ class Kimera::Report::Text
     source(green("+"), variant || Kimera::Rewrite::MutantText::UNWRITTEN)
   end
 
-  def source(sign, text) = @io.puts(Kimera::Snippet.new(sign, text).lines("    "))
+  def source(sign, text) = @io.puts(Kimera::Readout.new(text).quoted(sign, "    "))
 end

@@ -4,16 +4,24 @@ require_relative "../parsing/syntax"
 
 module Kimera
   class SuperclassPin
-    Existing =
-      Data.define(:scope, :name) do
-        def superclass
-          owner = scope.is_a?(Module) ? scope : Object
-          inherit = false
-          return unless owner.const_defined?(name, inherit)
-          found = owner.const_get(name, inherit)
-          found.superclass if found.is_a?(Class)
-        end
+    class Existing
+      def initialize(scope, name)
+        @scope = scope
+        @name = name
       end
+
+      def superclass
+        owner = scope.is_a?(Module) ? scope : Object
+        inherit = false
+        return unless owner.const_defined?(name, inherit)
+        found = owner.const_get(name, inherit)
+        found.superclass if found.is_a?(Class)
+      end
+
+      private
+
+      attr_reader :scope, :name
+    end
 
     def initialize(source)
       @source = source

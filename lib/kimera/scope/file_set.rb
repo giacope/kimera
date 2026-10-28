@@ -8,14 +8,21 @@ module Kimera
     DEFAULT_GLOBS = ["app/**/*.rb", "lib/**/*.rb"].freeze
     private_constant(:DEFAULT_GLOBS)
 
-    Root =
-      Data.define(:path) do
-        def relative(file)
-          absolute = File.expand_path(file)
-          inside = absolute.delete_prefix("#{path}/")
-          inside == absolute ? file : inside
-        end
+    class Root
+      def initialize(path)
+        @path = path
       end
+
+      def relative(file)
+        absolute = File.expand_path(file)
+        inside = absolute.delete_prefix("#{path}/")
+        inside == absolute ? file : inside
+      end
+
+      private
+
+      attr_reader :path
+    end
 
     attr_reader :patterns
 

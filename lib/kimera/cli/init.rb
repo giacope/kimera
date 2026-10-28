@@ -15,7 +15,7 @@ class Kimera::CLI::Init
   OPTIONS = Kimera::FlagTable.new(
     banner: "Usage: kimera init [options]",
     flags: [
-      Kimera::Flag.shared(:force, help: "Replace an existing .kimera.yml"),
+      Kimera::Flag.build("--force", :force, "Replace an existing .kimera.yml"),
       Kimera::Flag.build("--dry-run", :dry_run, "Print the detected configuration without writing it")
     ]
   )

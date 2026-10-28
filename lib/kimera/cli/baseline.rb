@@ -72,7 +72,7 @@ class Kimera::CLI::Baseline
 
   def baseline(table, argv, defaults)
     (file, *rest), options = table.parse(argv, defaults)
-    raise(Kimera::UsageError, table.banner) unless file && rest.empty?
+    table.refuse unless file && rest.empty?
     [existing(file), options]
   end
 
@@ -96,5 +96,6 @@ end
 require_relative "baseline/creation"
 require_relative "baseline/ledger"
 require_relative "baseline/setting"
+require_relative "baseline/listing"
 require_relative "baseline/prune"
 require_relative "baseline/review"

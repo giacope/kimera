@@ -104,7 +104,7 @@ class Kimera::BakeSplice
   end
 
   def read(attempt, cleared)
-    spliced = @map.splice([[attempt.from, attempt.to, attempt.text], *cleared])
+    spliced = @map.splice([attempt.edit, *cleared])
     result = Kimera::Syntax.parse(spliced)
     spliced if result.success? && written(ungrouped(result.value, attempt)) == @expected
   end
@@ -125,19 +125,6 @@ class Kimera::BakeSplice
   end
 end
 
-Kimera::BakeSplice::Attempt =
-  Data.define(:from, :to, :text, :grouping) do
-    def self.plain(from, to, text) = new(from, to, text, nil)
+require_relative "bake_splice/attempt"
 
-    def self.grouped(from, to, text) = new(from, to, text, from + text.bytesize)
-
-    def grouped?(node)
-      location = node.location
-      node.type == :parentheses_node && [location.start_offset, location.end_offset] == [from, grouping]
-    end
-  end
-
-Kimera::BakeSplice::Candidates =
-  Data.define(:changed) do
-    def to_a = [*Kimera::SpliceDiff.new(*changed.first).path.drop(1).reverse, *changed[0...-1]]
-  end
+require_relative "bake_splice/candidates"

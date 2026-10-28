@@ -1,13 +1,20 @@
 # frozen_string_literal: true
 
 module Kimera
-  FactoryBlock =
-    Data.define(:block) do
-      def defining?
-        body = block.body if block&.type == :block_node && block.parameters.nil?
-        body&.type == :statements_node && body.body.any? { |statement| statement.type == :def_node }
-      end
+  class FactoryBlock
+    def initialize(block)
+      @block = block
     end
+
+    def defining?
+      body = block.body if block&.type == :block_node && block.parameters.nil?
+      body&.type == :statements_node && body.body.any? { |statement| statement.type == :def_node }
+    end
+
+    private
+
+    attr_reader :block
+  end
 
   class Factory
     PAIRS = [%i[Struct new], %i[Data define], %i[Class new], %i[Module new]].freeze

@@ -2,7 +2,6 @@
 
 require_relative "../../support/readout"
 require_relative "../../rewrite/mutant_text"
-require_relative "../../support/snippet"
 require_relative "context"
 
 class Kimera::CLI::Survivors::Panel
@@ -97,7 +96,7 @@ class Kimera::CLI::Survivors::Panel
     source(row["mutated"] || Kimera::Rewrite::MutantText::UNWRITTEN, "+", indent) if original
   end
 
-  def source(code, sign, indent) = @io.puts(Kimera::Snippet.new(sign, code).lines(indent))
+  def source(code, sign, indent) = @io.puts(Kimera::Readout.new(code).quoted(sign, indent))
 
   def tests(title, items)
     items = Array(items)

@@ -20,36 +20,48 @@ module Kimera
     SCOPE_KEYS = %i[paths operators exclude].freeze
     ATTRIBUTIONS = %w[any unit].freeze
 
-    Attribution =
-      Data.define(:options) do
-        def mode
-          mode = String(options[:attribution] || "any")
-          return mode if ATTRIBUTIONS.include?(mode)
-          raise(UsageError, "unknown attribution #{mode.inspect} (choose: #{ATTRIBUTIONS.join(", ")})")
-        end
-
-        def settings = { attribution: mode, unit_tests: rules }
-
-        def rules
-          given = Array(options[:cli_unit_tests])
-          return given.to_h { |text| pair(text) } unless given.empty?
-          Hash(options[:unit_tests]).to_h { |source, patterns| [String(source), Array(patterns).map(&:to_s)] }
-        end
-        private
-        def pair(text)
-          source, pattern = String(text).split("=", 2)
-          return [source, [pattern]] if pattern && !source.empty? && !pattern.empty?
-          raise(UsageError, "--unit-tests takes SOURCE_GLOB=TEST_PATTERN, got #{text.inspect}")
-        end
+    class Attribution
+      def initialize(options)
+        @options = options
       end
 
-    Ignores =
-      Data.define(:options) do
-        def rules
-          local = Array(options[:ignore])
-          options[:baseline] ? local + Array(options[:baseline_ignore]) : local
-        end
+      def mode
+        mode = String(options[:attribution] || "any")
+        return mode if ATTRIBUTIONS.include?(mode)
+        raise(UsageError, "unknown attribution #{mode.inspect} (choose: #{ATTRIBUTIONS.join(", ")})")
       end
+
+      def settings = { attribution: mode, unit_tests: rules }
+
+      def rules
+        given = Array(options[:cli_unit_tests])
+        return given.to_h { |text| pair(text) } unless given.empty?
+        Hash(options[:unit_tests]).to_h { |source, patterns| [String(source), Array(patterns).map(&:to_s)] }
+      end
+      private
+      def pair(text)
+        source, pattern = String(text).split("=", 2)
+        return [source, [pattern]] if pattern && !source.empty? && !pattern.empty?
+        raise(UsageError, "--unit-tests takes SOURCE_GLOB=TEST_PATTERN, got #{text.inspect}")
+      end
+
+      attr_reader :options
+    end
+
+    class Ignores
+      def initialize(options)
+        @options = options
+      end
+
+      def rules
+        local = Array(options[:ignore])
+        options[:baseline] ? local + Array(options[:baseline_ignore]) : local
+      end
+
+      private
+
+      attr_reader :options
+    end
 
     def self.parse(argv)
       index = argv.index("--config")

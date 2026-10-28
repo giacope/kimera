@@ -1,10 +1,18 @@
 # frozen_string_literal: true
 
-Kimera::Config::Precedence =
-  Data.define(:cli, :configured) do
-    def chosen(default)
-      given = Array(cli)
-      picked = given.empty? ? Array(configured) : given
-      picked.empty? ? default.dup : picked
-    end
+class Kimera::Config::Precedence
+  def initialize(cli, configured)
+    @cli = cli
+    @configured = configured
   end
+
+  def chosen(default)
+    given = Array(cli)
+    picked = given.empty? ? Array(configured) : given
+    picked.empty? ? default.dup : picked
+  end
+
+  private
+
+  attr_reader :cli, :configured
+end

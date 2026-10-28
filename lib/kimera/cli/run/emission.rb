@@ -37,7 +37,7 @@ class Kimera::CLI::Run::Emission
         File.write(file, text)
       end
     end
-  PLAIN = Settings.new(path: nil, format: "text", metadata: nil, coverage: :hint, log: nil, scope: nil, summary: nil)
+  PLAIN = { path: nil, format: "text", metadata: nil, coverage: :hint, log: nil, scope: nil, summary: nil }.freeze
 
   def initialize(io: $stdout, output: io, color: nil, quiet: false)
     @io = io
@@ -46,7 +46,7 @@ class Kimera::CLI::Run::Emission
     @quiet = quiet
   end
 
-  def emit(report, registry, **settings) = PLAIN.with(**settings).deliver(report, registry, self)
+  def emit(report, registry, **settings) = Settings.new(**PLAIN, **settings).deliver(report, registry, self)
 
   def rendered(report, registry, **)
     io = StringIO.new

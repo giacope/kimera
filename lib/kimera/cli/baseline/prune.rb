@@ -3,13 +3,23 @@
 require "yaml"
 
 class Kimera::CLI::Baseline::Prune
-  Tense = Data.define(:removed, :holds)
+  class Tense
+    def initialize(removed, holds)
+      @removed = removed
+      @holds = holds
+    end
+
+    def removal(count, path) = "#{@removed} #{count} entr(ies) from #{path}:"
+
+    def holding(path, count) = "#{path} #{@holds} #{count} accepted mutant(s) "
+  end
   DONE = Tense.new("Removed", "now holds")
   PREVIEW = Tense.new("Would remove", "would hold")
 
-  def initialize(ledger, io: $stdout)
+  def initialize(ledger, io: $stdout, listing: Kimera::CLI::Baseline::Listing.new(io))
     @ledger = ledger
     @io = io
+    @listing = listing
   end
 
   def preview
@@ -48,20 +58,18 @@ class Kimera::CLI::Baseline::Prune
   def unchanged = @io.puts("Nothing to prune: #{@ledger.path} keeps its #{entries.size} accepted mutant(s).")
 
   def removed(tense)
-    return if dropped.empty?
-    @io.puts("#{tense.removed} #{dropped.size} entr(ies) from #{@ledger.path}:")
-    dropped.each { |entry| @io.puts("  - #{entry.place} (#{entry.kind})") }
+    @listing.show(tense.removal(dropped.size, @ledger.path), dropped) { |entry| "  - #{entry.place} (#{entry.kind})" }
   end
 
   def anchored
-    return if moved.empty?
-    @io.puts("Re-anchored #{moved.size} entr(ies) to their mutant's current line:")
-    moved.each { |entry| @io.puts("  #{entry.place}") }
+    @listing.show("Re-anchored #{moved.size} entr(ies) to their mutant's current line:", moved) do |entry|
+      "  #{entry.place}"
+    end
   end
 
   def total(tense)
     @io.puts(
-      "#{@ledger.path} #{tense.holds} #{kept.size} accepted mutant(s) " \
+      "#{tense.holding(@ledger.path, kept.size)}" \
         "(was #{entries.size}); max_ignored can be lowered by #{dropped.size}."
     )
   end

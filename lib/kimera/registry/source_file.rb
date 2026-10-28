@@ -100,7 +100,7 @@ class Kimera::RegistryScan::SourceFile
     cursor.position ? chosen : chosen.reject(&:statement?)
   end
 
-  def guarded?(node, key) = guards.any? { |guard| guard.location == node.location && guard.operator == key }
+  def guarded?(node, key) = guards.any? { |guard| guard.covers?(node, key) }
 
   def harvest(operators, node, position)
     operators.flat_map { |operator| operator.pairs(node, position: position) }

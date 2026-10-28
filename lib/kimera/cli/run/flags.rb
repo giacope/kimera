@@ -11,31 +11,20 @@ end
 module Kimera::CLI::RunOptions
   SCOPE = [
     Kimera::Flag.build("--framework NAME", :framework, "Test framework (rspec)"),
-    Kimera::Flag.build(
-      "--tests GLOB", :cli_tests,
-      "Test file glob (repeatable; replaces config tests:)", collect: true
-    ),
+    Kimera::Flag.repeated("--tests GLOB", :cli_tests, "Test file glob (repeatable; replaces config tests:)"),
     Kimera::Flag.build("--source-root DIR", :source_root, "Project root for synthesis"),
     Kimera::Flag.shared(:registry),
     Kimera::Flag.shared(:operators),
     Kimera::Flag.shared(:require),
     Kimera::Flag.build("--since REF", :since, "Incremental: only mutate lines changed vs REF (git diff)"),
     Kimera::Flag.build("--session FILE", :session, "Persist/resume per-mutant results in FILE"),
-    Kimera::Flag.build(
-      "--focus ID|KEY", :focus, "Evaluate only these mutants, by ID or report key (repeatable)",
-      collect: true
-    ),
-    Kimera::Flag.build(
-      "--method NAME", :methods, "Only mutate inside methods named NAME (repeatable)", collect: true
-    ),
-    Kimera::Flag.build("--exclude GLOB", :exclude, "Exclude matching files (repeatable)", collect: true),
-    Kimera::Flag.build(
-      "--exclude-test GLOB", :exclude_tests, "Exclude matching test files (repeatable)", collect: true
-    ),
-    Kimera::Flag.build(
+    Kimera::Flag.repeated("--focus ID|KEY", :focus, "Evaluate only these mutants, by ID or report key (repeatable)"),
+    Kimera::Flag.repeated("--method NAME", :methods, "Only mutate inside methods named NAME (repeatable)"),
+    Kimera::Flag.repeated("--exclude GLOB", :exclude, "Exclude matching files (repeatable)"),
+    Kimera::Flag.repeated("--exclude-test GLOB", :exclude_tests, "Exclude matching test files (repeatable)"),
+    Kimera::Flag.repeated(
       "--exclude-test-name REGEX", :exclude_test_names,
-      "Leave out the tests whose name or id matches REGEX, keeping the rest of their file (repeatable)",
-      collect: true
+      "Leave out the tests whose name or id matches REGEX, keeping the rest of their file (repeatable)"
     ),
     Kimera::Flag.shared(:config)
   ].freeze
@@ -81,11 +70,10 @@ module Kimera::CLI::RunOptions
       "--attribution MODE", :attribution,
       "Which covering tests may kill a mutant: any (default) or unit (only its own file's tests)"
     ),
-    Kimera::Flag.build(
+    Kimera::Flag.repeated(
       "--unit-tests GLOB=PATTERN", :cli_unit_tests,
       "Strict attribution: tests matching PATTERN ({path}, {name}) are the own tests of sources " \
-        "matching GLOB, beside the usual layouts (repeatable; replaces config unit_tests:)",
-      collect: true
+        "matching GLOB, beside the usual layouts (repeatable; replaces config unit_tests:)"
     ),
     Kimera::Flag.build(
       "--seed N|random", :seed,
@@ -102,11 +90,10 @@ module Kimera::CLI::RunOptions
       "Record every test that kills each mutant, and report tests that kill nothing or only what " \
         "others kill (nightly; default: off)"
     ),
-    Kimera::Flag.build(
+    Kimera::Flag.repeated(
       "--isolate-when-covered-by SUBSTR", :isolate_when_covered_by,
       "Isolate only mutants whose covering set includes a test id matching SUBSTR " \
-        "(repeatable) — a fast, targeted alternative to --isolated for pool-unsafe specs",
-      collect: true
+        "(repeatable) — a fast, targeted alternative to --isolated for pool-unsafe specs"
     )
   ].freeze
   private_constant(:SCOPE, :EXECUTION)

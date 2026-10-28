@@ -45,8 +45,7 @@ class Kimera::Execution::Schedule
   def verdicts = @_verdicts ||= Kimera::Execution::Verdicts.new(@registry)
 
   def plan(ids, coverage)
-    safe, unsafe = ids.partition { |id| verdicts.safe?(id) }
-    reloadable, deferred = unsafe.partition { |id| verdicts.reloadable?(id) }
+    safe, reloadable, deferred = verdicts.tiers(ids)
     Batch.new(prioritized(safe, coverage), reloadable, deferred, Ledger.new({}, []), coverage)
   end
 

@@ -95,7 +95,8 @@ class UsageDrift
   def accepts?(table, flag) = flag == "--help" || (table && switches(table).include?(flag))
 
   def switches(table)
-    table.flags.flat_map { |flag| Array(flag.switch) }.map { |switch| switch.split.first }.flat_map do |switch|
+    spelled = table.to_a.flat_map { |flag| flag.to_h[:signature].grep(/\A-/) }
+    spelled.map { |switch| switch.split.first }.flat_map do |switch|
       negatable = switch.match(/\A--\[no-\](?<name>.+)\z/)
       negatable ? ["--#{negatable[:name]}", "--no-#{negatable[:name]}"] : [switch]
     end

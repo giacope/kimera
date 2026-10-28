@@ -1179,7 +1179,7 @@ RSpec.describe(Kimera::Overlay) do
       sites, at = nesting
       probe = [at, at, "PROBE; "]
       guards = ["(!(::Kimera::RUNTIME.active?(1)) ? (outer(", "(!(::Kimera::RUNTIME.active?(2)) ? (inner(PROBE; x))"]
-      expect(sites.first.text(sites, [probe])).to(eq("#{guards.join} : (nil)))) : (nil))"))
+      expect(sites.first.edit(sites, [probe]).last).to(eq("#{guards.join} : (nil)))) : (nil))"))
     end
 
     it "makes the class the hook builds answer as the original, and each mutant as itself", :aggregate_failures do

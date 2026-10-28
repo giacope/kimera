@@ -11,10 +11,11 @@ class Kimera::CLI::Run::Alerts
 
   def gate(report, options) = Kimera::CLI::Run::Gate.new(report, options).status(@errors)
 
-  def anchors(resolution)
-    resolution.stale.each { |rule| @errors.puts(anchor(rule)) }
-    resolution.moved.each { |shift| @errors.puts(format(MOVED, shift)) }
-  end
+  def anchors(resolution) = resolution.alert(self)
+
+  def stale(rule) = @errors.puts(anchor(rule))
+
+  def moved(shift) = @errors.puts(format(MOVED, shift))
 
   private
 

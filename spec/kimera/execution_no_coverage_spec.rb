@@ -344,13 +344,13 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     def node_name = Kimera::SyntaxTypes.constants.grep(/Node\z/).first
 
     it "installs each syntax node constant" do
-      target = Module.new.tap { |space| Kimera::SyntaxTypes::Installer.new(space).call }
+      target = Module.new.tap { |space| Kimera::SyntaxTypes::Import.new(space).call }
       expect(target.const_get(node_name, false)).to(equal(Kimera::SyntaxTypes.const_get(node_name)))
     end
 
     it "keeps a constant already there" do
       existing = Module.new.tap { |space| space.const_set(node_name, :sentinel) }
-      Kimera::SyntaxTypes::Installer.new(existing).call
+      Kimera::SyntaxTypes::Import.new(existing).call
       expect(existing.const_get(node_name, false)).to(eq(:sentinel))
     end
   end

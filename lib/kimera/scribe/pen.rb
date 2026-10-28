@@ -14,16 +14,35 @@ module Kimera
     end
 
     class Pen
-      Margin =
-        Data.define(:depth, :flat) do
-          def deeper = with(depth: depth + 1)
-
-          def newline = flat ? "; " : "\n#{INDENT * depth}"
-
-          def gap = flat ? "" : "\n"
+      class Margin
+        def initialize(depth:, flat:)
+          @depth = depth
+          @flat = flat
         end
 
-      Mode = Data.define(:open, :pattern)
+        def deeper = Margin.new(depth: depth + 1, flat: flat)
+
+        def newline = flat ? "; " : "\n#{INDENT * depth}"
+
+        def gap = flat ? "" : "\n"
+
+        private
+
+        attr_reader :depth, :flat
+      end
+
+      class Mode
+        def initialize(open:, pattern:)
+          @open = open
+          @pattern = pattern
+        end
+
+        def open? = @open
+
+        def pattern? = @pattern
+
+        def patterned = Mode.new(open: @open, pattern: true)
+      end
       OPEN = Mode.new(open: true, pattern: false)
 
       def initialize(binders, margin, locals = NO_NAMES, mode = OPEN)
@@ -57,11 +76,11 @@ module Kimera
 
       def opened = Pen.new(@binders, @margin, @locals)
 
-      def patterned = Pen.new(@binders, @margin, @locals, @mode.with(pattern: true))
+      def patterned = Pen.new(@binders, @margin, @locals, @mode.patterned)
 
-      def open? = @mode.open
+      def open? = @mode.open?
 
-      def pattern? = @mode.pattern
+      def pattern? = @mode.pattern?
 
       def with(nodes) = bound(nodes.reduce(NO_NAMES) { |names, node| names | @binders.of(node) })
 

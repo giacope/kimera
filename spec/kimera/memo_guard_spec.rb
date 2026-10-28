@@ -3,7 +3,7 @@
 require "kimera/registry/memo_guard"
 
 RSpec.describe(Kimera::MemoGuard) do
-  def exemptions(source) = described_class::Source.new(source).exemptions.map { [it.location.slice, it.operator] }
+  def exemptions(source) = described_class::Source.new(source).exemptions.map(&:to_a)
 
   it "exempts the condition of a value guard whose ivar the method then assigns" do
     source = "def m\n  return @x if @x\n\n  @x = compute\nend\n"
