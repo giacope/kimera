@@ -153,6 +153,17 @@ Field test round 6, batch 4: what the writer wrote, and what a test run reached.
   reads as `(not ...).zero?`. A sign over a numeral (`++1`, `- 1`) is now
   written `+(1)`, a call, not the literal `+1`, and an infinite float literal
   `1e999`, not `Float::INFINITY`, which a lexical `Float` constant shadows.
+- **The warm overlay runs no method that reads as another.** A method the
+  overlay rewrote whole was checked only to parse and to keep its line count,
+  so each writer slip above ran as the program under test. The rewrite must
+  now read back, with every mutant off, as the method it rewrote (guards
+  read as their original side, compared as trees: no locations, a lone
+  expression in parentheses as the expression, a string by its value); and
+  every whole-method or whole-file write must read back as the tree meant.
+  One that does not is refused: its points are unmutatable warm and judged
+  from an exact bake under `--isolated`. A property spec writes every file of
+  kimera's sources, example apps, evaluation fixtures and unparser's
+  round-trip corpus (copied, MIT) and reads it back as the same tree.
 
 Self-host gate: what kept the `selfhost` job red on main.
 

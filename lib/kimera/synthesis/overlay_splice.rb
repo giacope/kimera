@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "splice_reopening"
+require_relative "unwoven"
 
 module Kimera
   module OverlaySplice
@@ -16,7 +17,14 @@ module Kimera
       edits, dropped = gather
       return if edits.empty?
       source = @map.splice(edits + reopenings)
-      [edits, dropped, source] if Kimera::Syntax.parse(source).success?
+      [edits, dropped, source] if unwoven?(source, rewritten(edits))
+    end
+
+    def rewritten(edits) = definitions(@map.ast).select { |node| edits.any? { |edit| edit.first(2) == span(node) } }
+
+    def unwoven?(source, owners)
+      result = Kimera::Syntax.parse(source)
+      result.success? && Kimera::Unwoven.new(result.value).keeps?(owners.select { |owner| owner.type == :def_node })
     end
 
     def gather

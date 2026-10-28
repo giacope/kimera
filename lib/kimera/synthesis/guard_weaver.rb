@@ -7,6 +7,7 @@ require_relative "../rewrite/directive"
 require_relative "guardrail_dispatch"
 require_relative "guardrail_factories"
 require_relative "line_pad"
+require_relative "readback"
 require_relative "source_map"
 
 class Kimera::Guardrail
@@ -33,7 +34,7 @@ class Kimera::Guardrail
 
   def rewrite(node)
     woven = transform(node)
-    [Kimera::LinePad.new(node.slice).fitted(Kimera::Scribe.new(woven)), activated(woven)]
+    [Kimera::LinePad.new(node.slice).fitted(Kimera::Scribe.new(woven), Kimera::Readback.new(woven)), activated(woven)]
   end
 
   def activated(node)

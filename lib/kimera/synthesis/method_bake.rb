@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "line_pad"
+require_relative "readback"
 require_relative "overlay_splice"
 
 class Kimera::Overlay::MethodBake
@@ -20,7 +21,7 @@ class Kimera::Overlay::MethodBake
   private
 
   def written(definition, node)
-    Kimera::LinePad.new(definition.slice).fitted(Kimera::Scribe.new(node))
+    Kimera::LinePad.new(definition.slice).fitted(Kimera::Scribe.new(node), Kimera::Readback.new(node))
   rescue StandardError
     nil
   end

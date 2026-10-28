@@ -8,6 +8,7 @@ require_relative "../error"
 require_relative "../registry/registry"
 require_relative "guard_weaver"
 require_relative "point_lines"
+require_relative "readback"
 require_relative "source_map"
 require_relative "superclass_pin"
 
@@ -27,6 +28,7 @@ class Kimera::Overlay
   class Unbakeable < Kimera::Error; end
 
   UNWRITTEN = "kimera could not write it"
+  MISREAD = "what it wrote reads back as another program"
 
   def initialize(registry)
     @registry = registry
@@ -73,10 +75,15 @@ class Kimera::Overlay
   end
 
   def write(map, tree, point)
-    map.restore(Kimera::Scribe.new(tree).source)
+    text = map.restore(Kimera::Scribe.new(tree).source)
+    Kimera::Readback.new(tree).faithful?(text) ? text : grafted(map, tree, point, MISREAD)
   rescue StandardError => error
+    grafted(map, tree, point, "#{error.class}: #{error.message}")
+  end
+
+  def grafted(map, tree, point, cause)
     Kimera::Overlay::MethodBake.new(map, tree).source(point.location) ||
-      raise(Unbakeable, "kimera could not write its bake (#{error.class}: #{error.message})")
+      raise(Unbakeable, "kimera could not write its bake (#{cause})")
   end
 
   def unsafe(file, source, points)
