@@ -1071,17 +1071,25 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   - A named-capture match (`/(?<n>\d+)/ =~ s`) is guarded whole, so its
     capture still binds; a visibility mutant's probe and registration go on
     the method's own lines.
-  - A dropped `rescue` or `ensure` clause is guarded where it stands: a
-    `begin`'s at the `begin`, a method's own clauses around the method's body
-    in a `begin` on the body's own lines. A point no expression can hold (a
-    mutant that must break a line) has its method written whole, or, outside
-    every method, the statement of the file that holds it, only where that
-    keeps every line: read back with every mutant off, the rewrite must be
-    the original, each node on its line, so `__LINE__`, a backtrace and a
-    coverage line inside it stay put. One that would move a line (written
-    whole, most methods sit on their first line) is not written, and its
-    point is unguardable. A `begin ... end while` keeps its clauses unguarded:
-    guarded, it would test before its first pass.
+  - A dropped `rescue` or `ensure` clause is guarded on the clause alone:
+    its classes as a splat that rescues nothing while its mutant is on
+    (`rescue *(active ? [] : [IndexError])`, a bare `rescue` as one of
+    `::StandardError`), an `ensure` body under `if !active` on the body's
+    lines. Its bake blanks the clause's lines (an `else` it leaves runs after
+    the body). So with the mutant on, in either tier, the method runs its own
+    body on its own lines: a test that reads a line (`__LINE__`, a backtrace,
+    `caller_locations`) sees the mutation and nothing else. A rescue's
+    guard runs when an exception reaches the clause, so its covering tests
+    are the tests that raise into it: a rescue no test raises into is
+    `no_coverage` ("no test reached the code it mutates"), not a survivor
+    "covered" by tests that could never kill it. A point no
+    expression can hold (a mutant that must break a line) has its method
+    written whole, or, outside every method, the statement of the file that
+    holds it, only where that keeps every line: read back with every mutant
+    off, the rewrite must be the original, each node on its line, so
+    `__LINE__`, a backtrace and a coverage line inside it stay put. One that
+    would move a line (written whole, most methods sit on their first line)
+    is not written, and its point is unguardable.
   - The file Kimera runs with every mutant off keeps the file's line layout:
     as many lines, every node on its line. Every
     bake changes no line outside its mutation (the point's lines, and the

@@ -308,6 +308,22 @@ Field test round 6, batch 6: what the scan survives, where a dropped clause runs
   242-pair hash took 40 s to scan, prism's `serialize.rb` 80 s, parser's
   generated lexer more than 2 minutes. Each program is now compared once,
   each node read once: 1.7 s, 5 s and 17 s, the same registry.
+- **A dropped `rescue` or `ensure` runs the method's body on its own lines,
+  in both tiers.** The warm overlay wrote the mutant as a copy of the kept
+  body on the clause's `end` line, and the bake rewrote it (a modifier `if`
+  as a block one), so a test that read a line (a backtrace, `__LINE__`,
+  `caller_locations`) killed a mutant the mutation alone leaves alive:
+  "expected: 4 got: 8" warm, "got: 5" isolated. The guard now stands on the
+  clause alone, `rescue *(active ? [] : [IndexError])` (an empty splat
+  rescues nothing; a bare `rescue` is one of `::StandardError`) and an
+  `ensure` body under `if !active` on its own lines; the bake blanks the
+  clause's lines and keeps every other line's text. A `begin ... end while`
+  clause is now guarded warm too. A property spec holds every dropped
+  clause's bake, and its warm mutant, to the method's lines. The guard runs
+  when an exception reaches the clause, so a dropped `rescue` no test raises
+  into is `no_coverage` (it was a survivor "covered" by every test of the
+  method, none of which could kill it), and only the tests that raise into
+  it run for it.
 
 Field test round 5, harness: what kimera loads, runs and says.
 

@@ -26,7 +26,11 @@ require "kimera/synthesis/overlay"
 #   whole-file write chooses its own);
 # - `begin ... end` is its body, and holding a rescue or ensure clause it is
 #   the method body that holds that clause (a guarded method body needs the
-#   begin; Ruby reads both alike).
+#   begin; Ruby reads both alike);
+# - a rescue clause of `*[A, B]` is one of `A, B`, of `*::StandardError` a
+#   bare one, and of `*[]` no clause (it rescues nothing; with no clause left
+#   an `else` body runs after the body), and an ensure that runs nothing is
+#   no ensure: a dropped clause is guarded where it stands (R6B6-M2).
 #
 # A spliced guard reads `(!(active?(1) || active?(2)) ? (original) : active?(1)
 # ? (first) : (second))`: with none of its mutants active it is the original,
@@ -68,7 +72,7 @@ module SchemataProjection
   NUMERIC = %i[integer_node float_node rational_node imaginary_node].freeze
   DEFAULTS = { optional_parameter_node: ["argument", "%s"], optional_keyword_parameter_node: ["keyword", "%s:"] }.freeze
   PARAMETERS = %i[requireds optionals rest posts keywords keyword_rest block].freeze
-  FORMS = { statements_node: :sequence, string_node: :text, parameters_node: :parameters }
+  FORMS = { statements_node: :sequence, string_node: :text, parameters_node: :parameters, begin_node: :clauses }
     .merge(CHAINS.to_h { |type| [type, :chain] }, INTERPOLATED.to_h { |type| [type, :interpolation] })
     .merge(DEFAULTS.keys.to_h { |type| [type, :required] }).freeze
   VOID = Object.new.freeze
@@ -148,7 +152,7 @@ module SchemataProjection
   def project(node, active)
     return node unless node.is_a?(Prism::Node)
     branch = taken(node, active)
-    return project(branch.first, active) if branch
+    return branch.first ? project(branch.first, active) : VOID if branch
     return statement("nil") if called(node, :active?)
     hidden = called(node, :privatize)
     return revealed(node, hidden == active) if hidden
@@ -212,6 +216,39 @@ module SchemataProjection
   end
 
   def clauses?(node) = !node.statements || [node.rescue_clause, node.ensure_clause, node.else_clause].any?
+
+  def clauses(node)
+    bare = settled(node)
+    clauses?(bare) ? tree(bare) : normal(bare.statements)
+  end
+
+  def settled(node)
+    left = Kimera::Syntax::RESCUES.call(node.rescue_clause).filter_map { |clause| caught(clause) }
+    linked = left.reverse.reduce(nil) { |rest, clause| clause.copy(subsequent: rest) }
+    ensured = node.ensure_clause if ran?(node.ensure_clause)
+    return node.copy(rescue_clause: linked, ensure_clause: ensured) if linked || !node.else_clause
+    folded(node.copy(ensure_clause: ensured))
+  end
+
+  def ran?(clause) = Array(clause&.statements&.body).any?
+
+  def folded(node)
+    rest = node.else_clause.statements
+    body = node.statements ? node.statements.copy(body: [*node.statements.body, *rest&.body]) : rest
+    node.copy(rescue_clause: nil, else_clause: nil, statements: body)
+  end
+
+  # A clause's exceptions as its guard reads them, or nil for one that rescues nothing.
+  def caught(clause)
+    splat = clause.exceptions.first if clause.exceptions.one?
+    splat&.type == :splat_node ? listed(clause, lone(splat.expression)) : clause
+  end
+
+  def listed(clause, held)
+    return clause.copy(exceptions: []) if held.type == :constant_path_node && held.slice.end_with?("::StandardError")
+    return clause unless held.type == :array_node
+    clause.copy(exceptions: held.elements) if held.elements.any?
+  end
 
   def kept(body) = [*body[...-1].reject { |statement| lone(statement).type == :nil_node }, *body.last(1)]
 

@@ -57,19 +57,20 @@ RSpec.describe(Kimera::Overlay) do
     end
   end
 
-  # R6B5-M2: a method's own `rescue` is guarded where it stands, its body in a
-  # `begin` on the body's own lines, so no line of the method moves.
+  # R6B5-M2, R6B6-M2: a method's own `rescue` is guarded on the clause alone,
+  # its classes a splat that rescues nothing while its mutant is on, so no
+  # line of the method moves, with the mutant off or on.
   it "guards a method's own clause where it stands, on the method's lines" do
     source = "def m(a)\n  a.call\nrescue ArgumentError\n  0\nend\n# kept\nLINE = __LINE__\n"
-    guarded = "  (!(#{runtime}(1)) ? (begin; a.call\nrescue ArgumentError\n  0\nend) : (a.call))end\n"
-    expect(woven(source, %w[rescue_clause]).lines).to(eq([source.lines.first, *guarded.lines, *source.lines.last(2)]))
+    guarded = source.sub("rescue ArgumentError", "rescue *(#{runtime}(1) ? [] : [ArgumentError])")
+    expect(woven(source, %w[rescue_clause])).to(eq(guarded))
   end
 
-  # Guarded in place, `begin ... end while` would test before its first pass.
-  it "leaves the clause of a loop's `begin` unguarded, its lines as they were", :aggregate_failures do
+  # A guard on the clause alone leaves `begin ... end while` testing after its first pass.
+  it "guards the clause of a loop's `begin` where it stands, its lines as they were" do
     source = "def m(n)\n  i = 0\n  begin\n    i += 1\n  rescue IndexError\n    nil\n  end while i < n\n  i\nend\n"
-    expect { expect(woven(source, %w[rescue_clause comparison]).lines.first(6)).to(eq(source.lines.first(6))) }
-      .to(output(/1 mutation point\(s\) at line 3 are unguardable/).to_stderr)
+    guarded = source.sub("rescue IndexError", "rescue *(#{runtime}(1) ? [] : [IndexError])")
+    expect(woven(source, %w[rescue_clause])).to(eq(guarded))
   end
 
   # A point no guard can hold in place has its definition written whole.
@@ -182,7 +183,7 @@ RSpec.describe(Kimera::Overlay) do
       [
         "def m(a)\n  x = begin\n    a.call\n    a.size\n  rescue ArgumentError\n    0\n  end\n  x\nend\n",
         %w[rescue_clause], "drop `rescue ArgumentError`"
-      ] => "def m(a)\n  x = (a.call\n  a.size\n\n\n\n)\n  x\nend\n",
+      ] => "def m(a)\n  x = (\n    a.call\n    a.size\n  ;\n\n  )\n  x\nend\n",
       ["def m(a)\n  if a # why\n    1\n  end\nend\n", %w[conditional], "condition => true"] =>
         "def m(a)\n  if true # why\n    1\n  end\nend\n",
       [heredoc, %w[statement_deletion], "delete `mod.class_eval <<~RUBY, __FILE__, __LINE__ + 1`"] =>

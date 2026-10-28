@@ -248,7 +248,8 @@ RSpec.describe(Kimera::Overlay) do
 
       it "is guarded in place, every mutant live, on its lines", :aggregate_failures do
         expect(written.first.mutant_ids).to(eq(written.last.points.flat_map(&:ids).sort))
-        expect(written.first.source.lines.values_at(3, 6)).to(eq(["  rescue TypeError\n", "end\n"]))
+        guarded = /\A  rescue \*\(::Kimera::RUNTIME\.active\?\(\d+\) \? \[\] : \[TypeError\]\)\n\z/
+        expect(written.first.source.lines.values_at(3, 6)).to(match([guarded, "end\n"]))
       end
 
       it "answers as written, and raises once its clause is dropped", :aggregate_failures do
@@ -277,8 +278,8 @@ RSpec.describe(Kimera::Overlay) do
     it "guards a `begin`'s clause outside every definition where it stands", :aggregate_failures do
       program = "CHECK = ->(x) do\n  begin\n    x.call\n  rescue ArgumentError\n    x > 1\n  end\nend\nX = __LINE__\n"
       result, registry = woven(program, %w[rescue_clause comparison])
-      expect([result.mutant_ids.size, changed(result.source, program)]).to(eq([registry.count, [2, 5, 6]]))
-      expect(result.source.lines[1]).to(eq("  (!(::Kimera::RUNTIME.active?(1)) ? (begin\n"))
+      expect([result.mutant_ids.size, changed(result.source, program)]).to(eq([registry.count, [4, 5]]))
+      expect(result.source.lines[3]).to(eq("  rescue *(::Kimera::RUNTIME.active?(1) ? [] : [ArgumentError])\n"))
     end
 
     # R6B5-M2: written whole, a class sat on its first line and `__LINE__` in
