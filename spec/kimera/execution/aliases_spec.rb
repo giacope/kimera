@@ -176,11 +176,19 @@ RSpec.describe(Kimera::Execution::Aliases) do
       klass.instance_method(:price).tap { wrap(klass) }
     end
 
-    def held(name, method) = Kimera::Execution::Overrides::Held.new(klass, name, method, :public)
+    def held(name, method) = Kimera::Execution::Overrides::Held.new(klass, name, method, :public, 1..1)
 
     it "follows the overlaid original it is handed" do
       aliases.follow { aliases.witness([held(:price, rewrapped)]) }
       expect([klass.new.plain(1), klass.new.price(1)]).to(eq([3, 4]))
+    end
+
+    # R6B4-M7: what no alias reaches, a wrapper holding the method it replaced
+    # (a memoizer) keeps from the overlay; kimera judges those mutants again.
+    it "says which overlaid original an alias it tracks now reaches", :aggregate_failures do
+      overlaid = nil
+      aliases.follow { aliases.witness([held(:price, overlaid = rewrapped)]) }
+      expect([aliases.reaches?(overlaid), aliases.reaches?(klass.instance_method(:price))]).to(eq([true, false]))
     end
 
     it "takes the overlaid original of its own name, not another one handed over with it" do

@@ -1124,7 +1124,9 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   requires), with the error in the detail. A method a file
   loaded later redefined (a wrapper around an `alias_method` chain) keeps
   that definition; the alias then calls the overlaid original, so its
-  mutants are covered.
+  mutants are covered. A wrapper that holds the method it replaced (a
+  memoizer such as Adamantium's `memoize`) never calls the overlay: its
+  method's mutants are judged again in a fresh mirror.
 - **An unwritable tree costs one method, not a file.** When a guard leaves a
   tree Kimera can't write faithfully (a local read it unbinds), only those
   points are dropped; when the whole file still won't write, Kimera guards and

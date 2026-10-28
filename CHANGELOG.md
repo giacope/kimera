@@ -186,6 +186,14 @@ Field test round 6, batch 4: what the writer wrote, and what a test run reached.
   every mirror re-judge called 114 mutants unmutatable. A word is now written
   in place in its list, and a list that holds the point owns its lines (no
   element carries a line number), as a heredoc owns its body.
+- **A mutant inside a memoized method is judged.** unparser's Adamantium
+  `memoize` replaces a method with one that calls the original it captured
+  at load; kimera keeps that definition over the overlay, so the woven method
+  was never reached and every mutant in it read `no_coverage` (12 of
+  unparser's 40) although its tests run and kill it. A method another file
+  redefined, that no alias links back to the overlay, now has its mutants
+  judged again in a fresh mirror, where the wrapper captures the mutant; one
+  the mirror does not kill stays as warm judged it.
 
 Self-host gate: what kept the `selfhost` job red on main.
 
