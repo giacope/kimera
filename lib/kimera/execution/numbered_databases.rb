@@ -4,9 +4,12 @@ require_relative "parallel_databases"
 require_relative "tolerance"
 
 class Kimera::Execution::NumberedDatabases
-  def initialize(tolerance: Kimera::Execution::Tolerance.new($stderr), env: ENV)
+  def initialize(
+    tolerance: Kimera::Execution::Tolerance.new($stderr), env: ENV, settings: -> { Rails.application.config }
+  )
     @tolerance = tolerance
     @env = env
+    @settings = settings
   end
 
   def numbered? = renamed(number(1)).any?
@@ -32,7 +35,7 @@ class Kimera::Execution::NumberedDatabases
     []
   end
 
-  def configurations = ActiveRecord::DatabaseConfigurations.new(Rails.application.config.database_configuration)
+  def configurations = ActiveRecord::DatabaseConfigurations.new(@settings.call.database_configuration)
 
   def number(index) = Kimera::Execution::ParallelDatabases.new(env: @env).numbered(index).values.first
 

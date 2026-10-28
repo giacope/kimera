@@ -11,8 +11,9 @@ class Kimera::CLI::Run::Arguments
   SEEDS = 2**31
   DEFAULT_TESTS = ["spec/**/*_spec.rb"].freeze
 
-  def initialize(table = Kimera::CLI::RunOptions::Usage.new)
+  def initialize(table = Kimera::CLI::RunOptions::Usage.new, random: Random.new)
     @table = table
+    @random = random
   end
 
   def parse(argv)
@@ -43,7 +44,7 @@ class Kimera::CLI::Run::Arguments
   end
 
   def seed(value)
-    return Random.new_seed % SEEDS if value.to_s == "random"
+    return @random.rand(SEEDS) if value.to_s == "random"
     Integer(value.to_s, 10).tap { |seed| raise(ArgumentError) unless seed.between?(0, SEEDS - 1) }
   rescue ArgumentError
     raise(Kimera::UsageError, "--seed takes a whole number from 0 to #{SEEDS - 1}, or random; got #{value.inspect}")

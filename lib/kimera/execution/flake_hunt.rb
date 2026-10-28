@@ -36,7 +36,9 @@ class Kimera::Execution::FlakeHunt
     saved ? env.store(Kimera::Execution::SEED_ENV, saved) : env.delete(Kimera::Execution::SEED_ENV)
   end
 
-  def series(seed, runs) = Array.new(runs) { |index| seed ? (seed + index + 1) % RANGE : Random.new_seed % RANGE }
+  def series(seed, runs, random = Random.new)
+    Array.new(runs) { |index| seed ? (seed + index + 1) % RANGE : random.rand(RANGE) }
+  end
 
   def sweep(tests, seed, record, label)
     @progress.start(tests.size, "#{label} (seed #{seed})")
