@@ -171,6 +171,9 @@ Field test round 6, batch 4: what the writer wrote, and what a test run reached.
   only the names in the module, so five mutants survived warm that
   `--isolated` killed. Activating the mutant now flips every alias of the
   definition in the classes and objects that include or extend its owner.
+  Finding them walks the object space, so a warm run walks once per mutant:
+  switching on the mutant already on (as Shift does before each test it
+  runs) leaves its flips as they are.
 - **A visibility probe inside a guarded statement weaves.** hashie's
   `base.class_eval do class << self; def try_convert ... end end` held a
   statement-deletion guard around the visibility probe of a method inside

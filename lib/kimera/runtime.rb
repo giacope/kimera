@@ -53,8 +53,9 @@ class Kimera::Runtime < Module
   end
 
   def active=(id)
-    @active = id && Integer(id)
-    hidden.switch(@active)
+    chosen = id && Integer(id)
+    hidden.switch(chosen) unless chosen == @active
+    @active = chosen
   end
 
   def active?(id)

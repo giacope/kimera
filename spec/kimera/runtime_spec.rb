@@ -325,6 +325,19 @@ RSpec.describe(Kimera::Runtime) do
       expect(visible(holders, :size)).to(eq([true, true]))
     end
 
+    # Shift switches a mutant on before each test it runs with it. Switching
+    # on the one already on leaves its flips as they are, as the real mutant
+    # leaves what a test before did to it, and does not walk the object space
+    # for aliases again for each test: in kimera's own suite process one walk
+    # took 0.5 s.
+    it "leaves the flips of the active mutant as they are when it is switched on again" do
+      runtime.privatize(3, owner, :shown)
+      runtime.active = 3
+      owner.__send__(:public, :shown)
+      runtime.active = 3
+      expect(owner.public_method_defined?(:shown)).to(be(true))
+    end
+
     it "leaves an includer's own method of that name alone" do
       box = Class.new.include(mixin).tap { it.define_method(:sized) { 4 } }
       runtime.privatize(7, mixin, :sized)
