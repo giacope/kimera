@@ -55,7 +55,7 @@ module Kimera
       def word(element)
         return unless SIGILS.key?(element.type)
         return @pen.form(element).word if element.respond_to?(:parts)
-        text = element.unescaped
+        text = Unescaped.new(element).text
         Quote.new(text, BREAKS).text unless text.empty?
       end
     end
@@ -77,7 +77,7 @@ module Kimera
 
       def text
         key = @node.key
-        return "#{Name.new(key.unescaped.to_sym).label}#{" #{value}" unless shorthand?}" if key.type == :symbol_node
+        return "#{label(key)}#{" #{value}" unless shorthand?}" if key.type == :symbol_node
         return "#{part(key).delete_prefix(":")}: #{value}" if key.type == :interpolated_symbol_node
         "#{leading(key, Level::RANGE)} => #{value}"
       end
@@ -85,6 +85,8 @@ module Kimera
       private
 
       def value = part(@node.value, Level::ASSIGNMENT)
+
+      def label(key) = Name.new(Unescaped.new(key).text.to_sym).label
 
       def shorthand? = @node.value.nil? || @node.value.type == :implicit_node
     end

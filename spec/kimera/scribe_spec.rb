@@ -972,6 +972,32 @@ RSpec.describe(Kimera::Scribe) do
     end
   end
 
+  # R6B4-M3: Prism reads a string in the file's encoding and flags the one an
+  # escape forces; `"\u{3042}"` in a binary file is UTF-8, and was written as
+  # `"\xE3\x81\x82"`, which is binary.
+  describe "a string whose escape forces its encoding" do
+    def binary(code) = "# encoding: binary\n#{code}\n"
+
+    def read(source) = Prism.parse(source).value.statements.body.first
+
+    {
+      "a string" => '"\u{3042}"', "a symbol" => ':"\u{3042}"', "a label" => '{ "\u{3042}": 1 }',
+      "an interpolated part" => "\"\#{1}\\u{3042}\"", "a command" => '`echo \u{3042}`'
+    }.each do |kind, code|
+      it "writes #{kind} that \\u makes UTF-8 in a binary file so it stays UTF-8" do
+        written = described_class.new(read(binary(code))).source
+        expect(written).to(include("\\u{3042}"))
+      end
+    end
+
+    it "keeps a string's value and encoding as Ruby makes them", :aggregate_failures do
+      written = binary(described_class.new(read(binary('"\u{3042}"'))).source)
+      expect(TreeShape.value(read(written)).encoding).to(eq(Encoding::UTF_8))
+      expect(described_class.new(read(binary('"\xE3\x81\x82"'))).source).to(eq('"\xE3\x81\x82"'))
+      expect(described_class.new(read("# encoding: us-ascii\n\"\\xFF\"\n")).source).to(eq('"\xFF"'))
+    end
+  end
+
   # Every file of kimera's own reads back as the very tree it was written from.
   it "writes kimera's own sources so they read back as the same tree", :aggregate_failures do
     Dir[File.expand_path("../../lib/**/*.rb", __dir__)].each do |file|

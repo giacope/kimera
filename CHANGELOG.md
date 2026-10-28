@@ -142,6 +142,11 @@ Field test round 6, batch 4: what the writer wrote, and what a test run reached.
   pattern a `%w`/`%i`/`%W`/`%I` list is now written as one (`%W[a b]`,
   interpolations kept), and one that no %-literal can hold (an emptied
   element) as the pinned value `^(["", "b"])`.
+- **A string keeps the encoding its escape forces.** Prism reads a string
+  in the file's encoding and flags the one an escape forces; `"\u{3042}"` in
+  a `# encoding: binary` file is UTF-8, and Scribe wrote it `"\xE3\x81\x82"`,
+  which is binary. Strings, symbols, labels, commands and interpolated parts
+  are now written with the encoding Ruby gives them.
 
 Self-host gate: what kept the `selfhost` job red on main.
 
