@@ -332,6 +332,22 @@ RSpec.describe(Kimera::Runtime) do
       expect(box.public_method_defined?(:sized)).to(be(true))
     end
 
+    # R6B4-M4: a method defined while its mutant is active (a class a test
+    # builds, whose `included` hook defines it) is private as defined, as the
+    # real mutant's is, and public again after.
+    it "flips a method registered while its mutant is active, and every one of them back", :aggregate_failures do
+      holders = [Class.new { def shown = 1 }, owner].each { runtime.privatize(9, it, :shown) if (runtime.active = 9) }
+      expect(visible(holders, :shown)).to(eq([false, false]))
+      runtime.active = nil
+      expect(visible(holders, :shown)).to(eq([true, true]))
+    end
+
+    it "leaves a method registered under another active mutant public" do
+      runtime.active = 4
+      runtime.privatize(9, owner, :shown)
+      expect(owner.public_method_defined?(:shown)).to(be(true))
+    end
+
     it "clears a Rails controller's cached actions with each flip" do
       controller = Class.new(owner) { def self.clear_action_methods! = (@cleared = (@cleared || 0) + 1) }
       runtime.privatize(5, controller, :shown)

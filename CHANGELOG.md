@@ -171,6 +171,14 @@ Field test round 6, batch 4: what the writer wrote, and what a test run reached.
   only the names in the module, so five mutants survived warm that
   `--isolated` killed. Activating the mutant now flips every alias of the
   definition in the classes and objects that include or extend its owner.
+- **A visibility probe inside a guarded statement weaves.** hashie's
+  `base.class_eval do class << self; def try_convert ... end end` held a
+  statement-deletion guard around the visibility probe of a method inside
+  it; the two edits overlapped, the file would not weave, and kimera dropped
+  24 points it could write as unmutatable. The probe is now written inside
+  the statement's guard, as an inner guard is. A method defined while its
+  visibility mutant is active (a class a test builds, whose `included` hook
+  defines it) is private as defined, as the real mutant's is.
 
 Self-host gate: what kept the `selfhost` job red on main.
 

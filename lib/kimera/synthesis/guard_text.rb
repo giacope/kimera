@@ -10,13 +10,21 @@ Kimera::GuardText =
 
     def outer?(sites) = sites.none? { |other| inside?(other) }
 
-    def text(sites)
+    def holds?(edit) = from < edit.first && edit[1] < to
+
+    def text(sites, probes)
       inner = sites.select { |other| other.inside?(self) }
-      edits = inner.select { |child| child.outer?(inner) }.map { |child| child.edit(inner, from) }
+      children = inner.select { |child| child.outer?(inner) }
+      edits = children.map { |child| child.edit(inner, probes, from) } + own(children, probes)
       guarded(Kimera::SourceMap.new(node.slice).splice(edits))
     end
 
-    def edit(sites, base = 0) = [from - base, to - base, text(sites)]
+    def own(children, probes)
+      mine = probes.select { |probe| holds?(probe) && children.none? { |child| child.holds?(probe) } }
+      mine.map { |start, finish, text| [start - from, finish - from, text] }
+    end
+
+    def edit(sites, probes, base = 0) = [from - base, to - base, text(sites, probes)]
 
     def guarded(original)
       tests = entries.map { |id, _| "::Kimera::RUNTIME.active?(#{Integer(id)})" }

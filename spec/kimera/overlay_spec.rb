@@ -1122,4 +1122,45 @@ RSpec.describe(Kimera::Overlay) do
       expect([held.outer, Kimera::RUNTIME.during(registry.points.first.ids.first) { held.outer }]).to(eq([:inner, nil]))
     end
   end
+
+  # R6B4-M4: hashie's IndifferentAccess.included, a privatize probe inside a
+  # guarded `base.class_eval do ... end`: the probe overlapped the guard, the
+  # file would not weave, and kimera dropped points it could write.
+  describe "a visibility probe inside a guarded statement" do
+    let(:source) do
+      <<~RUBY
+        module Box
+          def self.included(base)
+            base.class_eval do
+              class << self
+                def build(n)
+                  new if n > 0
+                end
+              end
+            end
+          end
+
+          def big?(n) = n > 3
+        end
+      RUBY
+    end
+    let(:registry) do
+      keys = %w[statement_deletion visibility comparison]
+      Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(source, file: "x.rb")
+    end
+
+    it "writes the probe inside the statement's guard and weaves every mutant", :aggregate_failures do
+      result = described_class.new(registry).synthesize("x.rb", source)
+      expect(result.mutant_ids).to(eq(registry.each.map { |mutant, _| mutant.id }))
+      expect(registry.points.select(&:unmutatable?)).to(be_empty)
+      expect(result.source.lines.size).to(eq(source.lines.size))
+    end
+
+    it "makes the class the hook builds answer as the original, and each mutant as itself", :aggregate_failures do
+      mod = Module.new.tap { it.module_eval(described_class.new(registry).synthesize("x.rb", source).source) }
+      built = Class.new.include(mod::Box)
+      expect([built.build(1).class, built.build(0), built.new.big?(4)]).to(eq([built, nil, true]))
+      expect(flipped(registry, "> => >=") { Class.new.include(mod::Box).build(0) }).not_to(be_nil)
+    end
+  end
 end

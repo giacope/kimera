@@ -50,13 +50,14 @@ class Kimera::Runtime < Module
     @overlaying = false
     @ledgers = NONE
     @spills = NONE
+    @concealed = NONE
   end
 
   def active=(id)
-    flips = hidden
-    flips[@active]&.reveal
+    @concealed.each(&:reveal)
     @active = id && Integer(id)
-    flips[@active]&.conceal
+    flip = hidden[@active]
+    @concealed = flip ? [flip.tap(&:conceal)] : NONE
   end
 
   def active?(id)
@@ -98,7 +99,9 @@ class Kimera::Runtime < Module
   end
 
   def privatize(id, owner, name)
-    hidden[Integer(id)] = Flip.new(owner, owner.instance_method(name), [])
+    key = Integer(id)
+    flip = hidden[key] = Flip.new(owner, owner.instance_method(name), [])
+    @concealed = [*@concealed, flip.tap { it.conceal([owner]) }] if @active == key
     self
   end
 
