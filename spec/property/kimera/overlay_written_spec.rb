@@ -17,8 +17,10 @@ require "kimera/synthesis/overlay"
 # and every line after the mutation (the point, the bodies of the heredocs it
 # holds, and the %i/%w list that holds it) as it was, so no node after the
 # mutation point moves: not `__LINE__`, a backtrace line, nor the `__LINE__ + 1` a `class_eval` heredoc
-# hands down. A bake kimera refuses names an unbound local, or drops the
-# newline a heredoc's text ends with: the mutants it cannot write.
+# hands down. With every mutant off the overlay reads as the file, each node
+# on its line, the methods and classes it writes whole too. A bake kimera
+# refuses names an unbound local, or drops the newline a heredoc's text ends
+# with: the mutants it cannot write.
 # A seeded sample of files keeps it fast; `PBT_SCALE` widens it and
 # `PBT_SEED` picks another.
 RSpec.describe(Kimera::Overlay) do
@@ -214,7 +216,7 @@ RSpec.describe(Kimera::Overlay) do
   def unlike(path, source)
     catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["all"])).source(source, file: "x.rb")
     overlay = described_class.new(catalog)
-    woven = laid(overlay.synthesize("x.rb", source).source, source)
+    woven = woven(overlay.synthesize("x.rb", source).source, source)
     baked =
       catalog.each.filter_map do |mutant, point|
         problem = baked(overlay, source, mutant, point)
@@ -268,6 +270,20 @@ RSpec.describe(Kimera::Overlay) do
   def worded?(node, location)
     node.type == :array_node && node.opening_loc&.slice&.start_with?("%") &&
       location.inside?(node.location.start_offset, node.location.end_offset)
+  end
+
+  def woven(written, source) = laid(written, source) || unwoven(written, source)
+
+  # The warm overlay with every mutant off, read as each guard's original
+  # side, must be the file, every node on its line (R6B5-M2: a method or a
+  # class written whole sat on its first line, so `__LINE__` and every
+  # backtrace in it moved), against the file with its factory-built
+  # constants reopened, as the overlay writes them.
+  def unwoven(written, source)
+    map = Kimera::SourceMap.new(source)
+    original = read(map.splice(Kimera::SpliceReopening.new(map).edits))
+    "reads as another program, or moves a line, with every mutant off" unless
+      Kimera::Unwoven.new(Kimera::Scribe.parse(written)).keeps?([original])
   end
 
   # How a written file moves the original's lines, if it does: a different

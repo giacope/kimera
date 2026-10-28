@@ -54,15 +54,48 @@ RSpec.describe(Kimera::Unwoven) do
 
   it "reads a visibility probe and its registrations as nothing", :aggregate_failures do
     probe = "if ::Kimera::RUNTIME.active?(2) then nil else #{guard(3, "nil", "nil")} end"
-    woven = "def x\n  #{probe}\n  1\nend\n::Kimera::RUNTIME.privatize(2, self, :x)\n"
+    woven = "def x\n  #{probe}; 1\nend\n::Kimera::RUNTIME.privatize(2, self, :x)\n"
     expect(keeps?(woven, "def x\n  1\nend\n")).to(be(true))
     expect(keeps?("def x\n  if ::Kimera::RUNTIME.active?(2) then 1 else nil end\n  1\nend\n", "def x\n  1\nend\n"))
       .to(be(false))
   end
 
   it "reads a guard over several statements as those statements", :aggregate_failures do
-    expect(keeps?("def f\n  #{guard(1, "nil", "a; b")}\nend\n", "def f\n  a\n  b\nend\n")).to(be(true))
-    expect(keeps?("def f\n  #{guard(1, "nil", "a; b")}\n  c\nend\n", "def f\n  a\n  b\n  c\nend\n")).to(be(true))
+    expect(keeps?("def f\n  #{guard(1, "nil", "a\n  b")}\nend\n", "def f\n  a\n  b\nend\n")).to(be(true))
+    expect(keeps?("def f\n  #{guard(1, "nil", "a; b")}\n  c\nend\n", "def f\n  a; b\n  c\nend\n")).to(be(true))
+  end
+
+  # R6B5-M2: the rewrite joined the method onto its first line and padded the
+  # lines it lost before its `end`; `__LINE__` read 2 for 8, and every
+  # backtrace, coverage line and `class_eval ..., __LINE__ + 1` moved with it.
+  def trace = "def mark(l)\n  begin\n    l.fetch(0)\n  rescue IndexError\n    nil\n  end\n  [:seen, __LINE__]\nend\n"
+
+  def begun = "begin\n    l.fetch(0)\n  rescue IndexError\n    nil\n  end"
+
+  it "refuses a rewrite that moves a line of the method (R6B5-M2)", :aggregate_failures do
+    joined = "def mark(l); #{guard(1, "l.fetch(0)", begun.gsub(/\n */, "; "))}; [:seen, __LINE__]#{"\n" * 6}end\n"
+    expect(keeps?(joined, trace)).to(be(false))
+    expect(keeps?("def mark(l)\n  #{guard(1, "l.fetch(0)", begun)}\n  [:seen, __LINE__]\nend\n", trace)).to(be(true))
+  end
+
+  it "reads back a class the overlay rewrote whole, and refuses it moved (R6B5-M2)", :aggregate_failures do
+    original = "class Conf\n  define_method(:size) do\n    [:size, __LINE__]\n  end\nend\n"
+    laid = "class Conf\n  define_method(:size) do\n    [#{guard(1, ":x", ":size")}, __LINE__]\n  end\nend\n"
+    expect(keeps?(laid, original)).to(be(true))
+    expect(keeps?("class Conf; define_method(:size) { [:size, __LINE__] }\n\n\nend\n", original)).to(be(false))
+  end
+
+  # A holder is found by its kind, its line and its name, whatever else on
+  # the file shares one of them.
+  it "finds the method it rewrote among others of its name or line", :aggregate_failures do
+    twice = "def of = 1\ndef of = 2\n"
+    expect(described_class.new(tree(twice)).keeps?([tree(twice).statements.body.last])).to(be(true))
+    beside = "of = 1; def of = 2\n"
+    expect(described_class.new(tree(beside)).keeps?([tree(beside).statements.body.last])).to(be(true))
+  end
+
+  it "reads a probe before a body of statements as nothing, every statement on its line" do
+    expect(keeps?("def x; ::Kimera::RUNTIME.active?(2)\n  a\n  b\nend\n", "def x\n  a\n  b\nend\n")).to(be(true))
   end
 
   it "refuses a method the rewrite moved or lost", :aggregate_failures do
@@ -75,6 +108,27 @@ RSpec.describe(Kimera::Unwoven) do
     source = "def f(l) = l.map { _1 }.map { it }\n"
     named = Kimera::Rewrite::NumberedParams.new(tree(source)).normalize.statements.body.first
     expect(described_class.new(tree(source)).keeps?([named])).to(be(true))
+  end
+
+  def tests(*ids) = ids.map { |id| "::Kimera::RUNTIME.active?(#{id})" }.join(" || ")
+
+  # The guard a point gets in place: the original first, under the negated
+  # tests, then each mutant.
+  it "reads a guard written in place as its original", :aggregate_failures do
+    woven = "def f(a)\n  (!(#{tests(1, 2)}) ? (a > 1) : #{tests(1)} ? (a >= 1) : (a < 1))\nend\n"
+    expect(keeps?(woven, "def f(a)\n  a > 1\nend\n")).to(be(true))
+    expect(keeps?("def f(a) = (!((#{tests(3)})) ? (a) : (nil))\n", "def f(a) = a\n")).to(be(true))
+    expect(keeps?(woven, "def f(a)\n  a >= 1\nend\n")).to(be(false))
+  end
+
+  test = "::Kimera::RUNTIME.active?(1)"
+  {
+    "a call on another receiver" => "Other.active?(1)", "one beside another call" => "#{test} || Other.active?(2)",
+    "both tests at once" => "#{test} && #{test}", "nothing" => "", "two statements" => "#{test}; 2"
+  }.each do |kind, tested|
+    it "reads a negation of #{kind} as it is" do
+      expect(keeps?("def f(a) = (!(#{tested}) ? (a) : (nil))\n", "def f(a) = a\n")).to(be(false))
+    end
   end
 
   it "reads other calls on the runtime and on other receivers as they are", :aggregate_failures do

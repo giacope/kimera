@@ -246,6 +246,25 @@ Field test round 6, batch 5: where a rewrite leaves your lines, and what runs th
   encoding Ruby gives it, so one in another encoding still reads as
   another.
 
+- **A method the warm overlay rewrites keeps every line where it was.** A
+  point no guard could hold in place, a method's dropped `rescue` or
+  `ensure` above all, had its whole method written by Scribe on the method's
+  first line, the lines it lost padded before its `end`; a class's, for a
+  point outside every method. The method kept its line count, so every
+  check passed, but `__LINE__` in it read the first line, so a test of it
+  failed under kimera only ("harness error ... fail under kimera but pass
+  in a plain run"), and every backtrace, coverage line and `class_eval ...,
+  __LINE__ + 1` in it moved.
+  Batch 4's read-back check compared trees without locations, and only for
+  rewritten methods. A dropped clause is now guarded where it stands, the
+  method's own clauses around its body in a `begin` on the body's lines (on
+  52 MIT projects, 498 such points needed a whole rewrite, now 2). The
+  check reads every node's line, and every rewritten method or statement
+  must read back as the original with each node on its line; one that would
+  move a line is not written, and its point is unguardable. A property spec
+  holds the whole warm overlay, every mutant off, to the file it came from,
+  each node on its line.
+
 Field test round 5, harness: what kimera loads, runs and says.
 
 - **A test that fails only under kimera is a harness error, whatever it

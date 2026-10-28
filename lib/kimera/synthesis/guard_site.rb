@@ -7,6 +7,7 @@ class Kimera::GuardSite
   OPENED = %i[string_node symbol_node x_string_node interpolated_string_node interpolated_symbol_node array_node].freeze
   ENCLOSING = %i[defined_node match_write_node alias_method_node alias_global_variable_node undef_node].freeze
   NESTED = %w[_target_node _parameter_node _pattern_node].freeze
+  LOOPS = %i[while_node until_node].freeze
 
   def initialize(index)
     @index = index
@@ -38,13 +39,23 @@ class Kimera::GuardSite
 
   def swapped(items, child, mutated) = items.map { |item| item.equal?(child) ? mutated : item }
 
-  def site?(node)
+  def site?(node) = node.type == :begin_node ? clauses?(node) : placeable?(node)
+
+  def placeable?(node)
     type = node.type
     return false if Kimera::SpliceDiff::HELD.include?(type) || type.end_with?(*NESTED)
     return false if OPENED.include?(type) && !opened?(node)
     parent = @index.parent(node)
     !ENCLOSING.include?(parent.type) && !parent.type.start_with?("interpolated_") && !captured?(node, parent)
   end
+
+  def clauses?(node)
+    parent = @index.parent(node)
+    return parent.type == :def_node unless node.begin_keyword_loc
+    parent.type == :statements_node && !looped?(@index.parent(parent))
+  end
+
+  def looped?(node) = LOOPS.include?(node.type) && node.begin_modifier?
 
   def opened?(node)
     (node.opening_loc && !label?(node)) || (node.type == :interpolated_string_node && node.parts.all? { opened?(it) })

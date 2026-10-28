@@ -7,6 +7,8 @@ class Kimera::Outline
   LOOSE = %i[forced_utf8_encoding? binary? decimal? octal? hexadecimal? symbol_keys?].freeze
   SKIPPED = %i[node_id location locals].freeze
   LITERALS = { string_node: :string, symbol_node: :symbol }.freeze
+  LISTS = %i[statements_node arguments_node begin_node].freeze
+  PLACED = %i[location message_loc].freeze
 
   def initialize(node)
     @node = node
@@ -29,7 +31,12 @@ class Kimera::Outline
     return [literal, Kimera::Unescaped.new(node).text] if literal
     parts = joined(node.parts) if type == :interpolated_string_node
     return parts.first if parts&.one? && text?(parts.first)
-    [type, *flags(node), *fields(node)]
+    [type, *lines(node), *flags(node), *fields(node)]
+  end
+
+  def lines(node)
+    return [] if LISTS.include?(node.type)
+    [[:lines, *node.deconstruct_keys(nil).values_at(*PLACED).compact.map(&:start_line)]]
   end
 
   def lone(node)

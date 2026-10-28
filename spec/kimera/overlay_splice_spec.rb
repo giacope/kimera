@@ -189,13 +189,20 @@ RSpec.describe(Kimera::Overlay) do
       )
     end
 
-    # The rescue clause's mutant has the method written whole, with every
-    # guard in it: a default argument's raise, a visibility mutant's probe and
-    # registration.
+    # A point no guard can hold in place has its definition written whole.
+    def whole!
+      allow(Kimera::GuardSplice).to(receive(:new)) do |_map, points|
+        instance_double(Kimera::GuardSplice, rest: points, edits: [], applied: [])
+      end
+    end
+
+    # The method written whole holds every guard: a default argument's raise,
+    # a visibility mutant's probe and registration.
     describe "a definition written whole" do
       let(:written) do
+        whole!
         woven(
-          "class Whole\n  def gated(flag, limit = 1)\n    flag.call(limit)\n  rescue TypeError\n    0\n  end\nend\n",
+          "class Whole\n  def gated(flag, limit = 1); flag.call(limit); rescue TypeError; 0; end\nend\n",
           %w[rescue_clause default_argument visibility]
         )
       end
@@ -221,6 +228,36 @@ RSpec.describe(Kimera::Overlay) do
       end
     end
 
+    # R6B5-M2: the method's own `rescue` is guarded where it stands; every
+    # other guard too, and no line of the method moves.
+    describe "a definition with its own clause" do
+      let(:program) do
+        <<~RUBY
+          class Kept
+            def gated(f, n = 1)
+              f.call(n)
+            rescue TypeError
+              [0, __LINE__]
+            end
+          end
+        RUBY
+      end
+      let(:written) { woven(program, %w[rescue_clause default_argument visibility]) }
+
+      def kept = Module.new.tap { |mod| mod.module_eval(written.first.source) }::Kept
+
+      it "is guarded in place, every mutant live, on its lines", :aggregate_failures do
+        expect(written.first.mutant_ids).to(eq(written.last.points.flat_map(&:ids).sort))
+        expect(written.first.source.lines.values_at(3, 6)).to(eq(["  rescue TypeError\n", "end\n"]))
+      end
+
+      it "answers as written, and raises once its clause is dropped", :aggregate_failures do
+        expect(kept.new.gated(->(_) { raise(TypeError) })).to(eq([0, 5]))
+        expect { flip(written.last, "drop `rescue TypeError`") { kept.new.gated(->(_) { raise(TypeError) }) } }
+          .to(raise_error(TypeError))
+      end
+    end
+
     it "leaves a file with no point to guard as written" do
       program = "module Kept\n  Point = Data.define(:x) do\n    def big? = x.positive?\n  end\nend\n"
       result, = woven(program, %w[comparison])
@@ -237,19 +274,27 @@ RSpec.describe(Kimera::Overlay) do
       expect([result.mutant_ids, result.skipped_unsafe]).to(eq([registry.points.last.ids, registry.points.first.ids]))
     end
 
-    it "writes the statement that holds such a point outside every definition on its lines", :aggregate_failures do
+    it "guards a `begin`'s clause outside every definition where it stands", :aggregate_failures do
       program = "CHECK = ->(x) do\n  begin\n    x.call\n  rescue ArgumentError\n    x > 1\n  end\nend\nX = __LINE__\n"
       result, registry = woven(program, %w[rescue_clause comparison])
-      expect([result.mutant_ids.size, result.source.lines.size]).to(eq([registry.count, 8]))
-      expect(result.source).to(start_with("CHECK = ->(x) {; if ::Kimera::RUNTIME.active?(1); x.call; else; begin; "))
-      expect(result.source).to(end_with("\n}\nX = __LINE__\n"))
+      expect([result.mutant_ids.size, changed(result.source, program)]).to(eq([registry.count, [2, 5, 6]]))
+      expect(result.source.lines[1]).to(eq("  (!(::Kimera::RUNTIME.active?(1)) ? (begin\n"))
     end
 
-    it "writes the statement of the file that holds such a point, in a class or not", :aggregate_failures do
-      program = "class Held\n  CHECK = ->(x) do\n    begin\n      x.call\n    rescue ArgumentError\n      0\n    " \
-        "end\n  end\nend\nX = __LINE__\n"
-      result, = woven(program, %w[rescue_clause])
-      expect(changed(result.source, program)).to(eq((1..8).to_a))
+    # R6B5-M2: written whole, a class sat on its first line and `__LINE__` in
+    # it read 1; the statement is written whole only where that keeps every
+    # line.
+    def held
+      "class Held; CHECK = ->(x) { begin; x.call; rescue ArgumentError; 0; end }; end\nclass Laid\n  CHECK = " \
+        "->(x) do\n    begin\n      x.call\n    rescue ArgumentError\n      __LINE__\n    end\n  end\nend\n"
+    end
+
+    it "writes the statement of the file that holds such a point whole, on its own line only", :aggregate_failures do
+      whole!
+      result = nil
+      expect { result, = woven(held, %w[rescue_clause]) }
+        .to(output(/1 mutation point\(s\) at line 4 are unguardable/).to_stderr)
+      expect([changed(result.source, held), result.mutant_ids]).to(eq([[1], [1]]))
       expect(result.source).to(start_with("class Held; CHECK = ->(x) {; if ::Kimera::RUNTIME.active?(1); x.call;"))
     end
 

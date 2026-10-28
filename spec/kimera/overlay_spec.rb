@@ -755,29 +755,20 @@ RSpec.describe(Kimera::Overlay) do
           class Spliced
             ODDITY = :unemittable
 
-            def compare(a, b)
-              a > b
-            end
+            def compare(a, b) = a > b
 
-            def also(a, b)
-              a < b
-            end
+            def also(a, b) = a < b
           end
         RUBY
       end
 
       # Nested points belong to the outer method. Claiming them twice would
-      # splice overlapping edits.
+      # splice overlapping edits. A method written whole keeps its lines only
+      # on one line (R6B5-M2).
       let(:nested_source) do
         <<~RUBY
           class Nested
-            def outer
-              Class.new do
-                def inner(a, b)
-                  a > b
-                end
-              end
-            end
+            def outer = Class.new { def inner(a, b) = a > b }
 
             def  untouched_by_points
               :ok
@@ -1137,7 +1128,7 @@ RSpec.describe(Kimera::Overlay) do
     # A def is a value too: its tail mutant guards the def, so the method that
     # holds it returns nil with the mutant on and defines the method without.
     it "guards a def at a method's tail where it stands" do
-      source = "class NestedTail\n  def outer\n    def inner\n    end\n  end\nend\n"
+      source = "class NestedTail\n  def outer; def inner; end; end\nend\n"
       result, registry = woven(source, %w[return_value])
       held = Module.new.tap { |mod| mod.module_eval(result.source) }::NestedTail.new
       expect([held.outer, Kimera::RUNTIME.during(registry.points.first.ids.first) { held.outer }]).to(eq([:inner, nil]))

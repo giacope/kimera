@@ -19,7 +19,7 @@ RSpec.describe(Kimera::Outline) do
   end
 
   {
-    "a lone expression in parentheses" => ["(a)", "a"], "a lone statement list" => ["begin; a; end", "begin\na\nend"],
+    "a lone expression in parentheses" => ["(a)", "a"], "a lone statement list" => ["begin; a; end", "begin a; end"],
     "a string split into parts" => ['"a" "b"', '"ab"'], "a literal interpolated" => ["\"\#{\"a\"}b\"", '"ab"'],
     "a heredoc" => ["<<~X\n  a\n  b\nX", '"a\nb\n"'], "an escaped character" => ['"\u{e9}"', '"é"'],
     "a symbol escaped" => [':"\u{e9}"', ":é"], "a hexadecimal integer" => %w[0x1F 31],
@@ -28,7 +28,8 @@ RSpec.describe(Kimera::Outline) do
     "a pattern in parentheses (R6B5-M1)" => ["r in {code: (200 | 201)}", "r in {code: 200 | 201}"],
     "a capture in parentheses (R6B5-M1)" => ["r in {name: (String => n)}", "r in {name: String => n}"],
     "a symbol after an escaped character (R6B5-M1)" => ['["Gr\u{FC}\u{DF}e", :de]', '["Grüße", :de]'],
-    "a symbol escaped to ASCII" => [':"\u0041"', ":A"]
+    "a symbol escaped to ASCII" => [':"\u0041"', ":A"],
+    "a method's clause in a `begin`" => ["def m\n  a\nrescue\n  b\nend", "def m\n  begin; a\nrescue\n  b\nend; end"]
   }.each do |kind, (one, other)|
     it "reads #{kind} as the same program" do
       expect(outline(tree(one))).to(eq(outline(tree(other))))
@@ -46,6 +47,7 @@ RSpec.describe(Kimera::Outline) do
     "another interpolation" => ["\"a\#{b}c\"", "\"a\#{d}c\""], "other text beside it" => ["\"a\#{b}c\"", "\"a\#{b}d\""],
     "another symbol" => [":a", ":b"], "a symbol for a string" => [":a", '"a"'],
     "a symbol in another encoding" => ["# encoding: binary\n:\"\\u{e9}\"", "# encoding: binary\n:\"\\xC3\\xA9\""],
+    "a statement on another line (R6B5-M2)" => ["a; b", "a\nb"], "a message on another line" => ["a\n.b", "a.b"],
     "a capture grouped otherwise" => ["r in 1 | (2 => n)", "r in (1 | 2) => n"],
     "another pattern in parentheses" => ["r in {code: (200 | 201)}", "r in {code: (200 | 202)}"]
   }.each do |kind, (one, other)|

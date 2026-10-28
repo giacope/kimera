@@ -1,10 +1,14 @@
 # frozen_string_literal: true
 
+require_relative "guard_span"
+
 Kimera::GuardText =
   Data.define(:node, :entries) do
-    def from = node.location.start_offset
+    def from = span.from
 
-    def to = node.location.end_offset
+    def to = span.to
+
+    def span = Kimera::GuardSpan.of(node)
 
     def inside?(other) = !equal?(other) && other.from <= from && to <= other.to
 
@@ -16,8 +20,10 @@ Kimera::GuardText =
       inner = sites.select { |other| other.inside?(self) }
       children = inner.select { |child| child.outer?(inner) }
       edits = children.map { |child| child.edit(inner, probes, from) } + own(children, probes)
-      guarded(Kimera::SourceMap.new(node.slice).splice(edits))
+      guarded(written(edits))
     end
+
+    def written(edits) = span.text(Kimera::SourceMap.new(span.slice).splice(edits))
 
     def own(children, probes)
       mine = probes.select { |probe| holds?(probe) && children.none? { |child| child.holds?(probe) } }

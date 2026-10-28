@@ -24,7 +24,7 @@ module Kimera
 
     def unwoven?(source, owners)
       result = Kimera::Syntax.parse(source)
-      result.success? && Kimera::Unwoven.new(result.value).keeps?(owners.select { |owner| owner.type == :def_node })
+      result.success? && Kimera::Unwoven.new(result.value).keeps?(owners)
     end
 
     def gather

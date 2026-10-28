@@ -209,12 +209,15 @@ RSpec.describe(Kimera::Operators) do
       expect(rendered(code, "rescue_clause")).to(eq(["def m(v)\n  Integer(v)\nend"]))
     end
 
-    it "guards a method's own clause inside its body, wrapping only a body that keeps a clause", :aggregate_failures do
+    # R6B5-M2: the clause is guarded where it stands, the body in a `begin`
+    # on its own lines, so no line of the method moves.
+    it "guards a method's own clause inside its body, on the method's lines", :aggregate_failures do
       code = "class Plain\n  def m(v)\n    Integer(v)\n  rescue ArgumentError\n    0\n  end\nend\n"
       source = Kimera::Overlay.new(scan(code, "rescue_clause")).synthesize("c.rb", code).source
-      expect(source).to(match(/^  def m\(v\); if ::Kimera::RUNTIME\.active\?\(\d+\); Integer\(v\); else; begin; /))
-      location = scan(code, "rescue_clause").each.first.last.location
-      expect(Kimera::BodyTrim.new(code, [location]).trimmed).to(include("def m(v)"))
+      expect(source.lines.values_at(1, 3, 6)).to(eq(["  def m(v)\n", "  rescue ArgumentError\n", "end\n"]))
+      expect(source.lines[2]).to(match(/^    \(!\(::Kimera::RUNTIME\.active\?\(\d+\)\) \? \(begin; Integer\(v\)$/))
+      expect(Kimera::BodyTrim.new(code, [scan(code, "rescue_clause").points.first.location]).trimmed)
+        .to(include("def m(v)"))
     end
 
     it "drops the ensure of a method with no body of its own", :aggregate_failures do

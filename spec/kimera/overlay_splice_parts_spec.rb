@@ -57,16 +57,50 @@ RSpec.describe(Kimera::Overlay) do
     end
   end
 
-  describe "writes a definition whole, on its own lines, when a guard can't stand in place" do
-    {
-      ["def m(a)\n  a.call\nrescue ArgumentError\n  0\nend\n# kept\nLINE = __LINE__\n", %w[rescue_clause]] =>
-        "def m(a); if ::Kimera::RUNTIME.active?(1); a.call; else; begin; a.call; rescue ArgumentError; 0; end; " \
-        "end; \n\n\n\nend\n"
-    }.each do |(source, keys), written|
-      it "writes #{source.lines.first.strip} whole and keeps the rest", :aggregate_failures do
-        expect(woven(source, keys)).to(start_with(written))
-        expect(woven(source, keys)).to(end_with("# kept\nLINE = __LINE__\n"))
-      end
+  # R6B5-M2: a method's own `rescue` is guarded where it stands, its body in a
+  # `begin` on the body's own lines, so no line of the method moves.
+  it "guards a method's own clause where it stands, on the method's lines" do
+    source = "def m(a)\n  a.call\nrescue ArgumentError\n  0\nend\n# kept\nLINE = __LINE__\n"
+    guarded = "  (!(#{runtime}(1)) ? (begin; a.call\nrescue ArgumentError\n  0\nend) : (a.call))end\n"
+    expect(woven(source, %w[rescue_clause]).lines).to(eq([source.lines.first, *guarded.lines, *source.lines.last(2)]))
+  end
+
+  # Guarded in place, `begin ... end while` would test before its first pass.
+  it "leaves the clause of a loop's `begin` unguarded, its lines as they were", :aggregate_failures do
+    source = "def m(n)\n  i = 0\n  begin\n    i += 1\n  rescue IndexError\n    nil\n  end while i < n\n  i\nend\n"
+    expect { expect(woven(source, %w[rescue_clause comparison]).lines.first(6)).to(eq(source.lines.first(6))) }
+      .to(output(/1 mutation point\(s\) at line 3 are unguardable/).to_stderr)
+  end
+
+  # A point no guard can hold in place has its definition written whole.
+  def whole!
+    allow(Kimera::GuardSplice).to(receive(:new)) do |_map, points|
+      instance_double(Kimera::GuardSplice, rest: points, edits: [], applied: [])
+    end
+  end
+
+  def trace
+    "class Trace\n  def mark(l)\n    l.fetch(0)\n  rescue IndexError\n    [:seen, __LINE__]\n  end\n\n  " \
+      "def one(l); l.fetch(0); rescue IndexError; :none; end\nend\n"
+  end
+
+  describe "writes a definition whole when a guard can't stand in place" do
+    it "on the definition's own line, keeping the rest", :aggregate_failures do
+      whole!
+      written = woven("def m(a); a.call; rescue ArgumentError; 0; end\n# kept\nLINE = __LINE__\n", %w[rescue_clause])
+      expect(written).to(start_with("def m(a); if #{runtime}(1); a.call; else; begin; a.call; rescue ArgumentError; "))
+      expect(written).to(end_with("end\n# kept\nLINE = __LINE__\n"))
+    end
+
+    # R6B5-M2: written whole, the method sat on its first line, `__LINE__`
+    # read that line, and the lines it lost were padded before its `end`.
+    it "nowhere when it would move a line of the definition", :aggregate_failures do
+      whole!
+      catalog = scan(trace, %w[rescue_clause])
+      result = nil
+      expect { result = described_class.new(catalog).synthesize("x.rb", trace) }
+        .to(output(/1 mutation point\(s\) at line 2 are unguardable/).to_stderr)
+      expect([result.source.lines.first(7), result.mutant_ids]).to(eq([trace.lines.first(7), catalog.points.last.ids]))
     end
   end
 
@@ -80,7 +114,8 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   it "leaves a named capture's regexp unguarded when its definition is written whole", :aggregate_failures do
-    source = "def number(s)\n  if /(?<num>\\d+)/ =~ s then num.to_i end\nrescue ArgumentError\n  0\nend\n"
+    whole!
+    source = "def number(s); if /(?<num>\\d+)/ =~ s then num.to_i end; rescue ArgumentError; 0; end\n"
     written = woven(source, %w[regexp_quantifier rescue_clause])
     expect([written, Object.new.extend(Module.new.tap { |mod| mod.module_eval(written) }).number("x21")])
       .to(match([start_with("def number(s); if ::Kimera::RUNTIME.active?("), 21]))
