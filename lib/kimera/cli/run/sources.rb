@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../../error"
+require_relative "null_selection"
 require_relative "../../incremental/git_diff"
 require_relative "../../operators"
 require_relative "../../registry/builder"
@@ -12,17 +13,15 @@ class Kimera::CLI::Run::Sources
     @errors = errors
   end
 
-  def load(options, changed = nil)
+  def load(options, change = Kimera::CLI::Run::NullSelection.new)
     stored = options[:registry]
     return Kimera::Registry.from_file(stored) if stored
-    build(options, files(options, changed))
+    build(options, files(options, change))
   end
 
-  def files(options, changed)
+  def files(options, change)
     found = expand(options[:paths], options[:exclude], "source", "check paths and --exclude")
-    return found unless changed
-    root = File.expand_path(options[:source_root])
-    found.select { |file| changed.key?(Kimera::FileSet::Root.new(root).relative(file)) }
+    change.files(found) { |file| Kimera::FileSet::Root.new(File.expand_path(options[:source_root])).relative(file) }
   end
 
   def expand(patterns, exclude, kind, hint)
@@ -48,7 +47,7 @@ class Kimera::CLI::Run::Sources
   def build(options, files)
     Kimera::RegistryScan.new(
       operators: Kimera::Operators.build(keys: options[:operators]),
-      root: options[:source_root],
+      root: options[:source_root] || ".",
       shielded: !options[:isolated]
     ).build(files)
   end

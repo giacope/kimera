@@ -19,7 +19,7 @@ module KimeraEval
     PAGE = 4096
     CLEARED = %w[BUNDLE_GEMFILE RUBYOPT BUNDLER_SETUP BUNDLE_BIN_PATH].to_h { |name| [name, nil] }.freeze
 
-    def initialize(chdir:, env: {}, timeout: 600, input: nil)
+    def initialize(chdir:, env: {}, timeout: 600, input: "")
       @env = env
       @chdir = chdir
       @timeout = timeout
@@ -37,7 +37,7 @@ module KimeraEval
     private
 
     def feed(stdin)
-      stdin.write(@input) if @input
+      stdin.write(@input)
     rescue Errno::EPIPE
       nil
     ensure

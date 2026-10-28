@@ -34,6 +34,12 @@ RSpec.describe(Kimera::Report::Text) do
     io.string
   end
 
+  def saved(result, path)
+    io = StringIO.new
+    described_class.new(registry, io: io, color: false).saved(Kimera::RunReport.new(results: [result]), path)
+    io.string
+  end
+
   def killed
     Kimera::MutantResult.new(mutant_id: mutant.id, status: :killed, file: "calc.rb", duration: 0.1)
   end
@@ -192,7 +198,7 @@ RSpec.describe(Kimera::Report::Text) do
   end
 
   it "heads a narrowed run's uncovered mutants as not covered by the narrowed tests", :aggregate_failures do
-    note = "narrowed run: --tests matched 1 of 2 test files"
+    note = ["narrowed run: --tests matched 1 of 2 test files"]
     expect(
       render(
         uncovered, coverage: :list,
@@ -210,7 +216,7 @@ RSpec.describe(Kimera::Report::Text) do
 
   # Uncovered mutants are listed only under a --fail-on-no-coverage gate.
   it "points at the survivors subcommand for uncovered mutants when they are not listed", :aggregate_failures do
-    expect(render(uncovered, path: "rep.json")).to(include(listing))
+    expect(saved(uncovered, "rep.json")).to(include(listing))
     expect(render(uncovered)).to(include(instructions))
     expect(render(uncovered, coverage: :list)).not_to(include("list them with"))
     expect(render(killed)).not_to(include("no covering test"))
@@ -286,7 +292,8 @@ RSpec.describe(Kimera::Report::Text) do
     results = %i[killed survived no_coverage timeout].each_with_index.map { |status, index| waived(status, index) }
     io = StringIO.new
     report = Kimera::RunReport.new(results: results + [Kimera::MutantResult.from_waiver(200, "calc.rb")])
-    described_class.new(registry, io: io, color: false).report(report, path: path)
+    text = described_class.new(registry, io: io, color: false)
+    path ? text.saved(report, path) : text.report(report)
     io.string
   end
 

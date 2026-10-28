@@ -13,10 +13,11 @@ class Kimera::Execution::WorkerDatabases
     "database.yml give each worker its own; tests that write the same rows can fail or pass by timing " \
     "(use jobs: 1, or name the database per worker)"
 
-  def initialize(jobs:, errors: nil, env: ENV)
+  def initialize(jobs:, errors: $stderr, env: ENV, tolerance: Kimera::Execution::Tolerance.new(errors))
     @jobs = jobs
     @errors = errors
     @env = env
+    @tolerance = tolerance
   end
 
   def active? = eligible? && parallel.enabled? && hooks.any? && parallel.loadable?
@@ -39,7 +40,7 @@ class Kimera::Execution::WorkerDatabases
   end
 
   def before_exit(index)
-    attempt("parallelize_teardown failed") { Array(index).each { |worker| cleanup(worker) } }
+    @tolerance.attempt("parallelize_teardown failed") { Array(index).each { |worker| cleanup(worker) } }
   end
 
   private
@@ -55,7 +56,7 @@ class Kimera::Execution::WorkerDatabases
   def cleanup(index)
     register!
     return unless active?
-    attempt("could not empty the worker's test database") { scrub }
+    @tolerance.attempt("could not empty the worker's test database") { scrub }
     ActiveSupport::Testing::Parallelization.run_cleanup_hooks.each { |hook| hook.call(index) }
   end
 
@@ -66,7 +67,7 @@ class Kimera::Execution::WorkerDatabases
     nil
   end
 
-  def numbered = @_numbered ||= Kimera::Execution::NumberedDatabases.new(errors: errors, env: @env)
+  def numbered = @_numbered ||= Kimera::Execution::NumberedDatabases.new(tolerance: @tolerance, env: @env)
 
   def parallel = Kimera::Execution::ParallelDatabases.new(env: @env)
 
@@ -80,20 +81,14 @@ class Kimera::Execution::WorkerDatabases
     shared
   end
 
-  def copies = @_copies ||= Kimera::Execution::DatabaseCopies.new(errors: errors)
+  def copies = @_copies ||= Kimera::Execution::DatabaseCopies.new(errors: @errors)
 
   def separate? = @jobs > 1 && defined?(ActiveRecord::Base) && !memory?
 
   def shared
-    errors.puts(format(SHARED, @jobs, ActiveRecord::Base.connection_db_config.database))
+    @errors.puts(format(SHARED, @jobs, ActiveRecord::Base.connection_db_config.database))
   rescue StandardError
     nil
-  end
-
-  def attempt(failure)
-    yield
-  rescue StandardError => error
-    errors.puts("kimera: #{failure} (#{error.class}: #{error.message})")
   end
 
   def scrub
@@ -108,8 +103,6 @@ class Kimera::Execution::WorkerDatabases
     connection.execute(statement) if statement
   end
 
-  def errors = @errors || $stderr
-
   def eligible?
     return false unless @jobs > 1
     return false unless defined?(ActiveSupport::Testing::Parallelization)
@@ -120,7 +113,7 @@ class Kimera::Execution::WorkerDatabases
     return unless eligible? && defined?(ActiveRecord::Base) && parallel.enabled?
     require("active_record/test_databases")
   rescue LoadError, StandardError => error
-    errors.puts(notice(error))
+    @errors.puts(notice(error))
   end
 
   def notice(error)

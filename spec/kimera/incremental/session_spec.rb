@@ -19,22 +19,23 @@ RSpec.describe(Kimera::Incremental::Session) do
 
   def seed(dir, report, registry: nil, meta: {})
     path = File.join(dir, "session.json")
-    described_class.new.merged(report).save(path, registry: registry, meta: meta)
+    session = described_class.new.merged(report)
+    (registry ? session.fingerprinted(registry) : session).save(path, meta: meta)
     path
   end
 
   it "keeps each mutant's killing tests and the suite a test-quality run saw across a save", :aggregate_failures do
     counted = result(1, :killed).tap { |killed| killed.killing_tests = %w[t1 t2] }
     path = seed(dir, report([counted]).annotate(suite: %w[t1 t2 t3]))
-    resumed = described_class.from(path).report([1], [], nil)
+    resumed = described_class.from(path).report([1], [], Kimera::Registry.new)
     expect([resumed.results.first.killing_tests, resumed.notes.suite]).to(eq([%w[t1 t2], %w[t1 t2 t3]]))
   end
 
   it "keeps the flaky tests a run found across a save and a resume", :aggregate_failures do
     found = { "runs" => 1, "seeds" => [2], "tests" => 1, "flaky" => [] }
     path = seed(dir, report([result(1, :killed)]).annotate(flaky: found))
-    expect(described_class.from(path).report([1], [], nil).notes.flaky).to(eq(found))
-    expect(described_class.new.merged(report([])).report([], [], nil).notes.flaky).to(be_nil)
+    expect(described_class.from(path).report([1], [], Kimera::Registry.new).notes.flaky).to(eq(found))
+    expect(described_class.new.merged(report([])).report([], [], Kimera::Registry.new).notes.flaky).to(be_nil)
   end
 
   it "creates the directory it saves into" do
@@ -48,8 +49,8 @@ RSpec.describe(Kimera::Incremental::Session) do
     registry = Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n", file: "x.rb")
     id = registry.each.first.first.id
     path = File.join(dir, "session.json")
-    described_class.new.stamped("one").merged(report([result(id, :killed)])).save(path, registry: registry)
-    expect(%w[two one].map { |stamp| described_class.from(path, registry: registry, stamp: stamp).done?(id) })
+    described_class.new.stamped("one").merged(report([result(id, :killed)])).fingerprinted(registry).save(path)
+    expect(%w[two one].map { |stamp| described_class.from(path, stamp: stamp).pruned(registry).done?(id) })
       .to(eq([false, true]))
   end
 
@@ -97,7 +98,7 @@ RSpec.describe(Kimera::Incremental::Session) do
     it "reports an evaluated ignored mutant as ignored with its stored verdict", :aggregate_failures do
       first, second = ids
       path = seed(dir, report([result(first, :killed)]), registry: registry)
-      rows = waived(described_class.from(path, registry: registry))
+      rows = waived(described_class.from(path).pruned(registry))
       expect(rows.map { |row| [row.status, row.verdict, row.detail, row.file] }).to(
         eq([[:ignored, :killed, "ignored (killed)", "x.rb"], [:ignored, nil, "marked equivalent (ignored)", "calc.rb"]])
       )
@@ -120,7 +121,7 @@ RSpec.describe(Kimera::Incremental::Session) do
       registry = registry("def m(a, b)\n  a > b\nend\n")
       id = first(registry)
       path = seed(dir, report([result(id, :killed)]), registry: registry)
-      resumed = described_class.from(path, registry: registry)
+      resumed = described_class.from(path).pruned(registry)
       expect(resumed.done?(id)).to(be(true))
     end
 
@@ -128,7 +129,7 @@ RSpec.describe(Kimera::Incremental::Session) do
       origin = registry("def m(a, b)\n  a > b\nend\n")
       id = first(origin)
       path = seed(dir, report([result(id, :killed)]), registry: origin)
-      resumed = described_class.from(path, registry: registry("def m(a, b)\n  a < b\nend\n"))
+      resumed = described_class.from(path).pruned(registry("def m(a, b)\n  a < b\nend\n"))
       expect(resumed.done?(id)).to(be(false))
     end
 
@@ -136,7 +137,7 @@ RSpec.describe(Kimera::Incremental::Session) do
       id = first(registry("def m(a, b)\n  a > b\nend\n"))
       leak = Kimera::LeakReport.new(mutant_id: id, detail: "leaked")
       path = seed(dir, report([result(id, :killed)], [leak]), registry: registry("def m(a, b)\n  a > b\nend\n"))
-      resumed = described_class.from(path, registry: registry("def m(a, b)\n  a < b\nend\n"))
+      resumed = described_class.from(path).pruned(registry("def m(a, b)\n  a < b\nend\n"))
       expect([resumed.done?(id), resumed.leaks]).to(eq([false, []]))
     end
 
@@ -150,7 +151,7 @@ RSpec.describe(Kimera::Incremental::Session) do
       registry = registry("def m(a, b)\n  a > b\nend\n")
       id = first(registry)
       path = seed(dir, report([result(id, :killed)]))
-      matched = described_class.from(path, registry: registry).done?(id)
+      matched = described_class.from(path).pruned(registry).done?(id)
       expect([matched, described_class.from(path).done?(id)]).to(eq([false, true]))
     end
   end

@@ -5,29 +5,27 @@ module Kimera
     class Place
       SCOPES = %i[program_node def_node class_node module_node singleton_class_node].freeze
 
-      attr_reader :locals, :slices, :depth, :joint
+      attr_reader :locals, :slices, :margin
 
-      def self.top = new(NO_NAMES, {}.compare_by_identity, 0)
+      def self.top = new(NO_NAMES, {}.compare_by_identity, Pen::Margin.new(depth: 0, flat: false))
 
       def self.of(root, node, ends = Float::INFINITY)
         indent = node.location.start_line_slice[/\A */].size
-        new(Seen.new(node).locals(root), Kept.new(node, root, ends).slices, indent / INDENT.size)
+        margin = Pen::Margin.new(depth: indent / INDENT.size, flat: false)
+        new(Seen.new(node).locals(root), Kept.new(node, root, ends).slices, margin)
       end
 
-      def initialize(locals, slices, depth, joint = nil)
+      def initialize(locals, slices, margin)
         @locals = locals
         @slices = slices
-        @depth = depth
-        @joint = joint
+        @margin = margin
       end
 
-      def after(node) = Place.new(@locals | Binders.new.of(node), @slices, @depth, @joint)
+      def after(node) = Place.new(@locals | Binders.new.of(node), @slices, @margin)
 
-      def joined = Place.new(@locals, @slices, @depth, "; ")
+      def joined = Place.new(@locals, @slices, @margin.flattened)
 
-      def unbroken = Place.new(@locals, @slices.reject { |_, text| text.include?("\n") }, @depth, "; ")
-
-      def flat? = !@joint.nil?
+      def unbroken = Place.new(@locals, @slices.reject { |_, text| text.include?("\n") }, @margin.flattened)
 
       class Seen
         def initialize(node)

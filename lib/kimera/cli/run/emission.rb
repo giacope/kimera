@@ -15,12 +15,17 @@ class Kimera::CLI::Run::Emission
   Settings =
     Data.define(:path, :format, :metadata, :coverage, :log, :scope, :summary) do
       def deliver(report, registry, emission)
-        text = emission.rendered(report, registry, scope: scope, coverage: coverage, path: path)
+        text = written(report, registry, emission)
         document = report.document(metadata)
         emission.present(text, format, document)
         keep(text, document)
       end
       private
+      def written(report, registry, emission)
+        return emission.rendered(report, registry, scope: scope, coverage: coverage) unless path
+        emission.saved(report, registry, path, scope: scope, coverage: coverage)
+      end
+
       def keep(text, document)
         write(log, text) if log
         write(path, JSON.pretty_generate(document)) if path
@@ -37,7 +42,7 @@ class Kimera::CLI::Run::Emission
         File.write(file, text)
       end
     end
-  PLAIN = { path: nil, format: "text", metadata: nil, coverage: :hint, log: nil, scope: nil, summary: nil }.freeze
+  PLAIN = { path: nil, format: "text", metadata: nil, coverage: :hint, log: nil, scope: [], summary: nil }.freeze
 
   def initialize(io: $stdout, output: io, color: nil, quiet: false)
     @io = io
@@ -48,14 +53,20 @@ class Kimera::CLI::Run::Emission
 
   def emit(report, registry, **settings) = Settings.new(**PLAIN, **settings).deliver(report, registry, self)
 
-  def rendered(report, registry, **)
-    io = StringIO.new
-    Kimera::Report::Text.new(registry, io: io, color: color?).report(report, **)
-    io.string
-  end
+  def rendered(report, registry, **) = captured(registry) { |text| text.report(report, **) }
+
+  def saved(report, registry, path, **) = captured(registry) { |text| text.saved(report, path, **) }
 
   def present(text, format, document)
     @io.write(text) if NARRATED.include?(format) && !@quiet
     Kimera::Report::Formats.new(io: @output).render(format, document) unless format == "text"
+  end
+
+  private
+
+  def captured(registry)
+    io = StringIO.new
+    yield(Kimera::Report::Text.new(registry, io: io, color: color?))
+    io.string
   end
 end

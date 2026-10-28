@@ -117,9 +117,10 @@ class Kimera::Execution::Pool
 
   def build(duty)
     Kimera::Execution::Shift.new(
-      adapter: @adapter, registry: @registry, coverage: coverage, isolation: @isolation,
+      adapter: @adapter, registry: @registry, isolation: @isolation,
       soft_timeout: @options.fetch(:soft), pulse: pulse(duty), ceiling: soft_ceiling,
-      **@options.slice(:quality, :confirm), **{ budget: armed.budget, timings: armed.timings }.compact
+      **@options.slice(:quality, :confirm),
+      **{ coverage: coverage, budget: armed.budget, timings: armed.timings }.compact
     )
   end
 
@@ -127,6 +128,6 @@ class Kimera::Execution::Pool
 
   def soft_ceiling
     hard = @options[:hard]
-    hard && (hard - Kimera::Execution::Patience::SLACK)
+    hard ? hard - Kimera::Execution::Patience::SLACK : Float::INFINITY
   end
 end

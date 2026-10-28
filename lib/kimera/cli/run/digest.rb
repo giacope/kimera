@@ -11,8 +11,8 @@ class Kimera::CLI::Run::Digest
 
   def emit(...) = @emission.emit(...)
 
-  def announce(selected, ignored, files:, since:)
-    incremental(selected, files, since) if selected
+  def announce(change, selected, ignored, files:)
+    change.announce(@io, selected, files)
     @io.puts("Ignoring #{ignored.size} mutant(s) marked equivalent.") unless ignored.empty?
   end
 
@@ -27,11 +27,5 @@ class Kimera::CLI::Run::Digest
         "sources=#{Array(options[:paths]).join(",")} tests=#{Array(options[:tests]).join(",")} " \
         "format=#{options.fetch(:format, "text")}"
     )
-  end
-
-  private
-
-  def incremental(selected, files, since)
-    @io.puts("Incremental: #{selected.size} mutants on lines changed since #{since} (#{files} changed files).")
   end
 end

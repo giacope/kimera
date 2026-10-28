@@ -216,13 +216,14 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
       instance_double(Kimera::CLI::Run::Cycle).tap { |cycle| allow(cycle).to(receive(:call)) { |changed| changed } }
     end
 
-    it "narrows the run to the lines changed since the reference" do
-      expect(runner.__send__(:cycle, options)).to(eq(["a.rb"]))
+    it "narrows the run to the lines changed since the reference", :aggregate_failures do
+      expect(runner.__send__(:cycle, options)).to(be_a(Kimera::Incremental::Selection))
+      expect(registry).to(have_received(:narrowed).with(["a.rb"]))
       expect(runner).to(have_received(:built).with(options, registry))
     end
 
-    it "runs everything, reading no diff, without a reference" do
-      expect(runner.__send__(:cycle, options.merge(since: nil))).to(be_nil)
+    it "runs everything, reading no diff, without a reference", :aggregate_failures do
+      expect(runner.__send__(:cycle, options.merge(since: nil))).to(be_a(Kimera::CLI::Run::NullSelection))
       expect(diff).not_to(have_received(:lines))
     end
 

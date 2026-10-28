@@ -11,7 +11,7 @@ class Kimera::Execution::Patience
 
   attr_reader :seconds
 
-  def initialize(seconds, timings: {}, ceiling: nil)
+  def initialize(seconds, timings: {}, ceiling: Float::INFINITY)
     @seconds = seconds
     @timings = timings
     @ceiling = ceiling
@@ -21,7 +21,7 @@ class Kimera::Execution::Patience
     base = @seconds && @timings[test]
     return @seconds unless base
     raised = (base * FACTOR) + SLACK
-    [@seconds, @ceiling ? [raised, @ceiling].min : raised].max
+    [@seconds, raised.clamp(..@ceiling)].max
   end
 
   def longest(tests) = tests.map { |test| limit(test) }.max || @seconds

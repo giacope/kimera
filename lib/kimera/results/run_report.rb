@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "../registry/registry"
 require_relative "report_rows"
 require_relative "result"
 
@@ -25,7 +26,7 @@ class Kimera::RunReport
   LABELS = { total: "mutants", harness_error: "unjudged" }.freeze
   SCHEMA_VERSION = 1
 
-  def initialize(results:, leaks: [], registry: nil, **context)
+  def initialize(results:, leaks: [], registry: Kimera::Registry.new, **context)
     @results = results
     @leaks = leaks
     @registry = registry
@@ -64,7 +65,7 @@ class Kimera::RunReport
 
   def test(id) = tests.fetch(id, {})
 
-  def unmutated = @registry ? @registry.unmutated : []
+  def unmutated = @registry.unmutated
 
   def by_file = @results.group_by { |result| result.file.to_s }.transform_values { |part| rebuilt(results: part) }
 

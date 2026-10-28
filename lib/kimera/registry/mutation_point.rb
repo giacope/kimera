@@ -133,7 +133,9 @@ class Kimera::MutationPoint
 
   def unloaded? = unsafe_reason.to_s.start_with?(NEVER)
 
-  def unloaded!(failure = nil) = unsafe!(failure ? "#{NEVER} (nor could kimera load it: #{failure})" : NEVER_LOADED)
+  def unloaded! = unsafe!(NEVER_LOADED)
+
+  def unloadable!(failure) = unsafe!("#{NEVER} (nor could kimera load it: #{failure})")
 
   def unmutatable? = unsafe_reason.to_s.start_with?(UNMUTATABLE)
 

@@ -8,7 +8,9 @@ require_relative "test_health"
 require_relative "actions"
 require_relative "file_table"
 require_relative "../support/readout"
+require_relative "saved"
 require_relative "test_list"
+require_relative "null_saved"
 
 module Kimera
   module Report
@@ -28,27 +30,33 @@ class Kimera::Report::Text
 
   COVERAGE_SECTIONS = { hint: :hint, list: :missing }.freeze
 
-  def report(report, scope: nil, coverage: :hint, path: nil)
-    header(report, scope)
-    survivors(report, Kimera::Report::TestList.new(report, path))
-    footer(report, coverage, path, narrowed: !scope.nil?)
+  def report(report, scope: [], coverage: :hint) = written(report, scope, coverage, Kimera::Report::NullSaved.new)
+
+  def saved(report, path, scope: [], coverage: :hint)
+    written(report, scope, coverage, Kimera::Report::Saved.new(path))
   end
 
   private
 
+  def written(report, scope, coverage, saved)
+    header(report, scope)
+    survivors(report, Kimera::Report::TestList.new(report, saved))
+    footer(report, coverage, saved, narrowed: !scope.empty?)
+  end
+
   def header(report, scope)
-    @io.puts(scope) if scope
+    scope.each { |line| @io.puts(line) }
     @io.puts(summary(report))
     Kimera::Report::FileTable.new(io: @io).show(report)
   end
 
-  def footer(report, coverage, path, narrowed:)
-    __send__(COVERAGE_SECTIONS.fetch(coverage), report, path, narrowed: narrowed)
+  def footer(report, coverage, saved, narrowed:)
+    __send__(COVERAGE_SECTIONS.fetch(coverage), report, saved, narrowed: narrowed)
     regions(report.unmutated)
     leaks(report.leaks)
     flaky(report)
     quality(report)
-    Kimera::Report::Actions.new(io: @io).show(report, path: path)
+    Kimera::Report::Actions.new(io: @io).show(report, saved)
   end
 
   def survivors(report, tests)

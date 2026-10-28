@@ -2,7 +2,7 @@
 
 require_relative "../../execution/suite_env"
 require_relative "../../frameworks/load_path"
-require_relative "../../incremental/selection"
+require_relative "null_selection"
 require_relative "../../incremental/session"
 require_relative "../../incremental/stamp"
 require_relative "aim"
@@ -32,29 +32,29 @@ class Kimera::CLI::Run::Cycle
     @alerts = alerts
   end
 
-  def call(changed = nil)
+  def call(change = Kimera::CLI::Run::NullSelection.new)
     @digest.verbose(@options) if @options[:verbose]
-    scope(changed && Kimera::Incremental::Selection.new(changed).ids(@registry))
+    scope(change, change.ids(@registry))
   end
 
   private
 
-  def scope(selected)
-    eligible = focus(Kimera::CLI::Run::Aim.new(@registry, @options).restrict(selected || @registry.index.keys))
+  def scope(change, selected)
+    eligible = focus(Kimera::CLI::Run::Aim.new(@registry, @options).restrict(selected))
     resolution = Kimera::IgnoreList.new(@options[:ignore] + inline).resolve(@registry)
     ignored = resolution.ignored(eligible)
-    notify(selected, ignored, resolution)
+    notify(change, selected, ignored, resolution)
     session(eligible - ignored, ignored)
   end
 
-  def notify(selected, ignored, resolution)
+  def notify(change, selected, ignored, resolution)
     @alerts.anchors(resolution)
-    @digest.announce(selected, ignored, files: @registry.files.size, since: @options[:since])
+    @digest.announce(change, selected, ignored, files: @registry.files.size)
     @digest.evaluating(ignored) if @options[:evaluate_ignored]
   end
 
   def session(todo, ignored)
-    loaded = Kimera::Incremental::Session.from(@options[:session], registry: @registry, stamp: stamp)
+    loaded = Kimera::Incremental::Session.from(@options[:session], stamp: stamp).pruned(@registry)
     conclude(todo, ignored, perform(@options[:evaluate_ignored] ? todo + ignored : todo, loaded))
   end
 
@@ -62,7 +62,7 @@ class Kimera::CLI::Run::Cycle
     remaining = todo.reject { |id| loaded.done?(id) }
     judged = remaining.empty? ? loaded : loaded.merged(harness(remaining))
     path = @options[:session]
-    judged.save(path, registry: @registry, meta: { "since" => @options[:since] }) if path
+    judged.fingerprinted(@registry).save(path, meta: { "since" => @options[:since] }) if path
     judged
   end
 
@@ -83,7 +83,7 @@ class Kimera::CLI::Run::Cycle
 
   def emission
     { path: @options[:report], format: @options.fetch(:format, "text"), metadata: provenance }
-      .merge(coverage: coverage, log: @options[:log], scope: narrowing.note, summary: @options[:summary])
+      .merge(coverage: coverage, log: @options[:log], scope: narrowing.notes, summary: @options[:summary])
   end
 
   def stamp

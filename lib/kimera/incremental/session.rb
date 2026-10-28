@@ -23,11 +23,10 @@ class Kimera::Incremental::Session
   end
 
   class << self
-    def from(path, registry: nil, stamp: nil)
+    def from(path, stamp: nil)
       return new.stamped(stamp) unless path && File.exist?(path)
       data = JSON.parse(File.read(path, encoding: Encoding::UTF_8))
-      session = Kimera::Incremental::Session::Payload.new(data).session.stamped(stamp)
-      registry ? session.pruned(registry) : session
+      Kimera::Incremental::Session::Payload.new(data).session.stamped(stamp)
     end
   end
 
@@ -70,10 +69,13 @@ class Kimera::Incremental::Session
     )
   end
 
-  def save(path, registry: nil, meta: {})
-    stored = registry ? fingerprints(registry) : @fingerprints
+  def fingerprinted(registry)
+    self.class.new(results: @results, leaks: @leaks, meta: @meta, fingerprints: fingerprints(registry))
+  end
+
+  def save(path, meta: {})
     FileUtils.mkdir_p(File.dirname(path))
-    File.write(path, JSON.pretty_generate(payload(@meta.merge(meta), stored)))
+    File.write(path, JSON.pretty_generate(payload(@meta.merge(meta))))
     path
   end
 
@@ -88,8 +90,8 @@ class Kimera::Incremental::Session
     !stored || stored != fingerprint(registry.point(id))
   end
 
-  def payload(meta, fingerprints)
-    base(meta).merge("fingerprints" => fingerprints.transform_keys(&:to_s), "leaks" => @leaks.map(&:to_h))
+  def payload(meta)
+    base(meta).merge("fingerprints" => @fingerprints.transform_keys(&:to_s), "leaks" => @leaks.map(&:to_h))
   end
 
   def base(meta)

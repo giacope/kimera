@@ -71,19 +71,14 @@ module Kimera::Report::Sections
     "#{point.file}:#{location.start_line}:#{location.start_column + 1}#{"  in #{method}" if method}"
   end
 
-  def hint(report, path, narrowed:)
+  def hint(report, saved, narrowed:)
     count = report.uncovered.size
     return if count.zero?
     @io.puts
-    @io.puts("#{count} mutant(s) #{narrowed ? NARROWED : "have no covering test"}; #{command(path)}")
+    @io.puts("#{count} mutant(s) #{narrowed ? NARROWED : "have no covering test"}; #{saved.listing}")
   end
 
-  def command(path)
-    return "list them with: kimera report #{path} --status no_coverage" if path
-    "run without --no-report, then `kimera report --status no_coverage` to list them"
-  end
-
-  def missing(report, _path, narrowed:)
+  def missing(report, _saved, narrowed:)
     title = narrowed ? "Mutants #{NARROWED}" : "Mutants with no covering test"
     section(title, report.uncovered) { |result| uncovered(result) }
   end

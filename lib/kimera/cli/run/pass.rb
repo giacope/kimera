@@ -41,11 +41,15 @@ class Kimera::CLI::Run::Pass
   def suite = @options[:test_quality] ? @adapter.test_ids : nil
 
   def filter
-    @_filter ||= Kimera::Execution::TestFilter.build(
-      registry: @registry, rules: @options[:attribution] == "unit" ? @options[:unit_tests] : nil,
-      adapter: @adapter, root: @options[:source_root]
-    )
+    @_filter ||=
+      if @options[:attribution] == "unit"
+        Kimera::Execution::TestFilter.from_rules(@options[:unit_tests], **sourcing)
+      else
+        Kimera::Execution::TestFilter.build(**sourcing)
+      end
   end
+
+  def sourcing = { registry: @registry, adapter: @adapter, root: @options[:source_root] }
 
   def harness = @_harness ||= Kimera::Execution::Harness.build(**settings)
 
@@ -53,9 +57,7 @@ class Kimera::CLI::Run::Pass
     @_files ||= Kimera::CLI::Run::Sources.new.tests(@options[:tests], @options[:exclude_tests])
   end
 
-  def settings
-    base.merge({ hard_timeout: @options[:hard_timeout] }.compact)
-  end
+  def settings = base.merge({ hard_timeout: @options[:hard_timeout] }.compact)
 
   def base
     { registry: @registry, adapter: @adapter, source_root: @options[:source_root] }

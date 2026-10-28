@@ -9,17 +9,17 @@ module KimeraEval
     def call
       dir = sandbox.copy(fixture("session"))
       session = File.join(dir, "tmp", "session.json")
-      verdicts(dir, "first", session)
+      verdicts(dir, "first", "--session", session)
       prune(dir)
-      compare(verdicts(dir, "resumed", session), verdicts(dir, "fresh"))
+      compare(verdicts(dir, "resumed", "--session", session), verdicts(dir, "fresh"))
     end
 
     private
 
-    def verdicts(dir, name, session = nil)
+    def verdicts(dir, name, *flags)
       path = File.join(dir, "tmp", "#{name}.json")
       FileUtils.mkdir_p(File.dirname(path))
-      checkout.cli("run", *(session ? ["--session", session] : []), "--report", path, "--no-progress", chdir: dir)
+      checkout.cli("run", *flags, "--report", path, "--no-progress", chdir: dir)
       JSON.parse(File.read(path)).fetch("results").to_h { |row| [row["key"], row["status"]] }
     end
 

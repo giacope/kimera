@@ -116,7 +116,11 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     end
 
     it "report to standard error by default" do
-      expect(Kimera::Execution::WorkerDatabases.new(jobs: 2).__send__(:errors)).to(equal($stderr))
+      expect do
+        standard = Kimera::Execution::WorkerDatabases.new(jobs: 2)
+        allow(standard).to(receive(:cleanup).and_raise(RuntimeError, "teardown boom"))
+        standard.before_exit(1)
+      end.to(output("kimera: parallelize_teardown failed (RuntimeError: teardown boom)\n").to_stderr)
     end
 
     it "report unavailable per-worker database support with exception detail" do

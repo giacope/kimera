@@ -17,15 +17,19 @@ class Kimera::Execution::SuiteCapture
     @errors = errors
   end
 
-  def call(env, *command, chdir:, limit: nil)
+  def call(*spawned, chdir:) = captured(spawned, chdir) { |pid| Process.wait2(pid).last.tap { signal(-pid) } }
+
+  def timed(*spawned, chdir:, limit:) = captured(spawned, chdir) { |pid, log| waited(pid, limit, log) }
+
+  private
+
+  def captured(spawned, chdir)
     Tempfile.create("kimera-suite") do |log|
-      pid = Process.spawn(env, *command, chdir: chdir, in: File::NULL, out: log, err: log, pgroup: true)
-      status = stopping(pid) { limit ? waited(pid, limit, log) : Process.wait2(pid).last.tap { signal(-pid) } }
+      pid = Process.spawn(*spawned, chdir: chdir, in: File::NULL, out: log, err: log, pgroup: true)
+      status = stopping(pid) { yield(pid, log) }
       [File.read(log.path, encoding: Encoding::UTF_8).scrub, status]
     end
   end
-
-  private
 
   def stopping(pid)
     yield

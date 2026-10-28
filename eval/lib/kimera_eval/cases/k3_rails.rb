@@ -18,10 +18,9 @@ module KimeraEval
 
     private
 
-    def environment(app = nil)
-      { "BUNDLE_GEMFILE" => app && File.join(app, "Gemfile"), "KIMERA_PATH" => checkout.path }
-        .merge("PARALLEL_WORKERS" => "1")
-    end
+    def environment = { "BUNDLE_GEMFILE" => nil, "KIMERA_PATH" => checkout.path, "PARALLEL_WORKERS" => "1" }
+
+    def bundled(app) = environment.merge("BUNDLE_GEMFILE" => File.join(app, "Gemfile"))
 
     def prepare(app, env)
       FileUtils.rm_rf(DISPOSABLE.map { |entry| File.join(app, entry) })
@@ -34,7 +33,7 @@ module KimeraEval
     end
 
     def suite(app, arguments, command)
-      env = environment(app)
+      env = bundled(app)
       @truth ||= {}
       truth = @truth[command] ||= oracle(app, Oracle::Runner.new(command, env))
       differential(target(app, arguments: arguments, env: env.merge("BUNDLE_GEMFILE" => "Gemfile")), MODES, truth)
@@ -42,7 +41,7 @@ module KimeraEval
 
     def relative(app)
       placed = place(app)
-      local = environment(placed).merge("KIMERA_PATH" => nil)
+      local = bundled(placed).merge("KIMERA_PATH" => nil)
       prepare(placed, local)
       Differential.new(checkout, target(placed, env: local), oracle: @truth.fetch(SUITES["minitest"].last))
         .call(%w[--isolated --jobs 4])

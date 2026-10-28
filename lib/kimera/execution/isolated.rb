@@ -35,8 +35,8 @@ class Kimera::Execution::IsolatedExecution
     @options = options
   end
 
-  def verify!(ids = nil)
-    tests = ids ? needed(ids) : plan.suite
+  def verify!(ids)
+    tests = needed(ids)
     return if tests.empty?
     progress.note("isolated baseline (unmutated mirror)")
     outcome = with_mirror { |mirror| verdict(mirror, tests) }

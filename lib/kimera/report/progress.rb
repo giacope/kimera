@@ -10,11 +10,12 @@ end
 
 class Kimera::Report::Progress
   MONOTONIC = ->(reading = Process.clock_gettime(Process::CLOCK_MONOTONIC)) { reading }
+  PACED = lambda(&:cadence)
 
-  def initialize(io: $stderr, enabled: nil, interval: nil, clock: MONOTONIC)
+  def initialize(io: $stderr, enabled: nil, cadence: PACED, clock: MONOTONIC)
     @io = io
     @enabled = enabled
-    @redraw = interval
+    @cadence = cadence
     @clock = clock
   end
 
@@ -53,7 +54,7 @@ class Kimera::Report::Progress
 
   def due? = surface.due?(@clock.call, cadence)
 
-  def cadence = @redraw || surface.cadence
+  def cadence = @cadence.call(surface)
 
   def emit
     now = @clock.call

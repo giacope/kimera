@@ -149,7 +149,7 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
 
   describe "ChildCommand#argv" do
     def child(framework: "rspec", test_files: [])
-      described_class::ChildCommand.new(framework: framework, test_files: test_files)
+      described_class::ChildCommand.new(framework: framework, test_files: test_files, root: "/project")
     end
 
     let(:files) { ["ledger.json", "ledger.json.request", "ledger.json.pulse"] }

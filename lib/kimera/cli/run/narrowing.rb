@@ -22,11 +22,13 @@ class Kimera::CLI::Run::Narrowing
     narrowed? ? { "narrowed" => true, "configured_tests" => @options[:configured_tests] } : { "narrowed" => false }
   end
 
-  def note
-    return unless narrowed?
+  def notes
+    return [] unless narrowed?
     kept, total = counts
-    "narrowed run: --tests matched #{count(kept)} of #{count(total)} test files from the configured tests: " \
-      "glob; survivors may be killed by tests outside it"
+    [
+      "narrowed run: --tests matched #{count(kept)} of #{count(total)} test files from the configured tests: " \
+        "glob; survivors may be killed by tests outside it"
+    ]
   end
 
   private

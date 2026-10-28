@@ -22,6 +22,8 @@ module Kimera
 
         def deeper = Margin.new(depth: depth + 1, flat: flat)
 
+        def flattened = Margin.new(depth: depth, flat: true)
+
         def newline = flat ? "; " : "\n#{INDENT * depth}"
 
         def gap = flat ? "" : "\n"

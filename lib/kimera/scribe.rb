@@ -70,9 +70,8 @@ module Kimera
     def after(node) = Scribe.new(@node, @place.after(node))
 
     def text
-      depth = @place.depth
-      pen = Pen.new(binders, Pen::Margin.new(depth: depth, flat: @place.flat?), @place.locals)
-      Lines.new(body, pen, @place.joint).text.delete_prefix("\n#{INDENT * depth}")
+      pen = Pen.new(binders, @place.margin, @place.locals)
+      Lines.new(body, pen).text.delete_prefix(pen.newline)
     end
 
     private

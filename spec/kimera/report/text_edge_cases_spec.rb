@@ -15,7 +15,7 @@ RSpec.describe(Kimera::Report::Text) do
   end
   let(:mutant) { registry.each.find { |m, _| m.label == "<= => <" }.first }
 
-  def render(results: [], leaks: [], scope: nil, color: false)
+  def render(results: [], leaks: [], scope: [], color: false)
     io = StringIO.new
     described_class.new(registry, io: io, color: color).report(
       Kimera::RunReport.new(results: results, leaks: leaks),
@@ -32,7 +32,7 @@ RSpec.describe(Kimera::Report::Text) do
   end
 
   it "prints a scope line when given" do
-    expect(render(scope: "Incremental: 1 mutant")).to(include("Incremental: 1 mutant"))
+    expect(render(scope: ["Incremental: 1 mutant"])).to(include("Incremental: 1 mutant"))
   end
 
   it "starts with the summary line when no scope is given" do
@@ -77,7 +77,7 @@ RSpec.describe(Kimera::Report::Text) do
     tests = (1..4).map { |i| "spec[#{i}]" }
     io = StringIO.new
     described_class.new(registry, io: io, color: false)
-      .report(Kimera::RunReport.new(results: [survivor(covering: tests)]), path: "r.json")
+      .saved(Kimera::RunReport.new(results: [survivor(covering: tests)]), "r.json")
     expect(io.string).to(include("(+1 more; all of them: kimera mutant #{mutant.id} --report r.json)"))
   end
 

@@ -15,7 +15,7 @@ RSpec.describe(Kimera::CLI::TestCommand) do
 
   def loading(framework, output: "", success: true)
     command = described_class.new(framework, ["t.rb"], root: "/app")
-    allow(Kimera::Execution::SUITE).to(receive(:call).and_return([output, status(success)]))
+    allow(Kimera::Execution::SUITE).to(receive(:timed).and_return([output, status(success)]))
     command.loading
   end
 
@@ -23,7 +23,7 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     loading("minitest")
     command = ["bundle", "exec", "ruby", "-e", described_class::DRY_RUN, "t.rb"]
     expect(Kimera::Execution::SUITE).to(
-      have_received(:call).with(
+      have_received(:timed).with(
         { "KIMERA" => "1" }, *command, chdir: "/app",
         limit: watched
       )
@@ -35,7 +35,7 @@ RSpec.describe(Kimera::CLI::TestCommand) do
   # Doctor's load check of a nested test file, with a configured load path; the file.
   def loaded_in(root)
     FileUtils.mkdir_p([File.join(root, "test"), File.join(root, "lib", "x", "test")])
-    allow(Kimera::Execution::SUITE).to(receive(:call).and_return(["", status(true)]))
+    allow(Kimera::Execution::SUITE).to(receive(:timed).and_return(["", status(true)]))
     stub_const("ENV", ENV.to_h.merge("KIMERA_LOAD_PATH" => "support"))
     File.join(root, "lib", "x", "test", "a_test.rb").tap do |file|
       described_class.new("minitest", [file], root: root).loading
@@ -50,14 +50,14 @@ RSpec.describe(Kimera::CLI::TestCommand) do
         "-e", described_class::DRY_RUN, file
       ]
       expect(Kimera::Execution::SUITE)
-        .to(have_received(:call).with({ "KIMERA" => "1" }, *command, chdir: root, limit: watched))
+        .to(have_received(:timed).with({ "KIMERA" => "1" }, *command, chdir: root, limit: watched))
     end
   end
 
   it "loads rspec files with --dry-run" do
     loading("rspec")
     expect(Kimera::Execution::SUITE).to(
-      have_received(:call).with(
+      have_received(:timed).with(
         { "KIMERA" => "1" }, "bundle", "exec", "rspec", "--dry-run", "t.rb", chdir: "/app",
         limit: watched
       )
@@ -68,10 +68,10 @@ RSpec.describe(Kimera::CLI::TestCommand) do
   # which executes no code at all.
   it "runs the full baseline with KIMERA set too" do
     command = described_class.new("rspec", ["t.rb"], root: "/app")
-    allow(Kimera::Execution::SUITE).to(receive(:call).and_return(["", status(true)]))
+    allow(Kimera::Execution::SUITE).to(receive(:timed).and_return(["", status(true)]))
     command.baseline
     expect(Kimera::Execution::SUITE).to(
-      have_received(:call).with(
+      have_received(:timed).with(
         { "KIMERA" => "1" }, "bundle", "exec", "rspec", "t.rb",
         chdir: "/app", limit: watched
       )
@@ -104,7 +104,7 @@ RSpec.describe(Kimera::CLI::TestCommand) do
 
   it "warns without failing when Bundler is missing" do
     command = described_class.new("rspec", [], root: "/app")
-    allow(Kimera::Execution::SUITE).to(receive(:call).and_raise(Errno::ENOENT))
+    allow(Kimera::Execution::SUITE).to(receive(:timed).and_raise(Errno::ENOENT))
     expect(command.loading).to(eq(["!", "Test loading: Bundler is unavailable; not checked"]))
   end
 
@@ -114,7 +114,7 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     Dir.mktmpdir do |root|
       File.write(File.join(root, "Rakefile"), rakefile)
       calls = []
-      allow(Kimera::Execution::SUITE).to(receive(:call)) { |_env, *command, **| (calls << command) && outcomes.shift }
+      allow(Kimera::Execution::SUITE).to(receive(:timed)) { |_env, *command, **| (calls << command) && outcomes.shift }
       [described_class.new("minitest", ["t.rb"], root: root).baseline, calls.map { it[3] }]
     end
   end
@@ -137,7 +137,7 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     Dir.mktmpdir do |root|
       File.write(File.join(root, "Rakefile"), "Rake::TestTask.new\n")
       calls = []
-      allow(Kimera::Execution::SUITE).to(receive(:call)) { |_env, *command, **| (calls << command) && ["", status(true)] }
+      allow(Kimera::Execution::SUITE).to(receive(:timed)) { |_env, *command, **| (calls << command) && ["", status(true)] }
       described_class.new(framework, ["t.rb"], root: root).baselines(2)
       calls.map { it[3] }
     end
@@ -153,7 +153,7 @@ RSpec.describe(Kimera::CLI::TestCommand) do
 
   def baseline(framework, output, signal = nil)
     command = described_class.new(framework, ["t.rb"], root: "/app")
-    allow(Kimera::Execution::SUITE).to(receive(:call).and_return([output, status(false, signal)]))
+    allow(Kimera::Execution::SUITE).to(receive(:timed).and_return([output, status(false, signal)]))
     command.baseline.last
   end
 
@@ -264,14 +264,14 @@ RSpec.describe(Kimera::CLI::TestCommand) do
 
   it "fails the baseline when Bundler is missing" do
     command = described_class.new("rspec", [], root: "/app")
-    allow(Kimera::Execution::SUITE).to(receive(:call).and_raise(Errno::ENOENT))
+    allow(Kimera::Execution::SUITE).to(receive(:timed).and_raise(Errno::ENOENT))
     expect(command.baseline).to(eq(["✗", "Baseline: Bundler is unavailable; run your test suite, then retry"]))
   end
 
   # Each shard's command answers with its own output; an empty one passes.
   def answering(framework, outputs)
     shards = outputs.each_index.map { |index| Kimera::CLI::TestShard.new(index, outputs.size).argv(framework) }
-    allow(Kimera::Execution::SUITE).to(receive(:call)) do |_env, *argv, **|
+    allow(Kimera::Execution::SUITE).to(receive(:timed)) do |_env, *argv, **|
       output = outputs[shards.index { |shard| argv.each_cons(shard.size).include?(shard) }]
       [output, status(output.empty?)]
     end
@@ -290,10 +290,10 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     expect(parallel("rspec", ["", ""])).to(
       eq(["✓", "Parallel baseline: green split across 2 processes too (jobs: 2; #{described_class::SAMPLE})"])
     )
-    [0, 1].each { |index| expect(Kimera::Execution::SUITE).to(have_received(:call).with(*shard("rspec", index, 2), chdir: "/app", limit: watched)) }
+    [0, 1].each { |index| expect(Kimera::Execution::SUITE).to(have_received(:timed).with(*shard("rspec", index, 2), chdir: "/app", limit: watched)) }
     parallel("minitest", ["", "", ""])
     expect(Kimera::Execution::SUITE).to(
-      have_received(:call).with(
+      have_received(:timed).with(
         *shard("minitest", 2, 3), chdir: "/app",
         limit: watched
       )
@@ -345,7 +345,7 @@ RSpec.describe(Kimera::CLI::TestCommand) do
   describe "a suite that never exits" do
     def hung
       Dir.mktmpdir do |root|
-        return Kimera::Execution::SuiteCapture.new(StringIO.new).call({}, "sleep", "30", chdir: root, limit: 0.6)
+        return Kimera::Execution::SuiteCapture.new(StringIO.new).timed({}, "sleep", "30", chdir: root, limit: 0.6)
       end
     end
 
@@ -361,14 +361,14 @@ RSpec.describe(Kimera::CLI::TestCommand) do
       command = described_class.new("rspec", ["t.rb"], root: "/app")
       overdue = Kimera::Execution::SuiteCapture::Overdue.new(125)
       note = format(Kimera::Execution::SuiteCapture::OVERDUE, 125)
-      allow(Kimera::Execution::SUITE).to(receive(:call).and_return(["1 example\n#{note}\n", overdue]))
+      allow(Kimera::Execution::SUITE).to(receive(:timed).and_return(["1 example\n#{note}\n", overdue]))
       expect(command.baseline.last).to(include("the suite did not exit within 125 s"))
     end
 
     it "allows two minutes and five seconds a test file" do
-      allow(Kimera::Execution::SUITE).to(receive(:call).and_return(["", status(true)]))
+      allow(Kimera::Execution::SUITE).to(receive(:timed).and_return(["", status(true)]))
       described_class.new("rspec", %w[a.rb b.rb], root: "/app").baseline
-      expect(Kimera::Execution::SUITE).to(have_received(:call).with(any_args, chdir: "/app", limit: 130))
+      expect(Kimera::Execution::SUITE).to(have_received(:timed).with(any_args, chdir: "/app", limit: 130))
     end
 
     it "says the suite is still running every half minute" do
@@ -381,7 +381,7 @@ RSpec.describe(Kimera::CLI::TestCommand) do
   it "finishes a quick suite under a watch without ticking" do
     Dir.mktmpdir do |root|
       said = StringIO.new
-      output, status = Kimera::Execution::SuiteCapture.new(said).call({}, "echo", "done", chdir: root, limit: 10)
+      output, status = Kimera::Execution::SuiteCapture.new(said).timed({}, "echo", "done", chdir: root, limit: 10)
       expect([output, status.success?, said.string]).to(eq(["done\n", true, ""]))
     end
   end

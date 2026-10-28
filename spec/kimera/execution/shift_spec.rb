@@ -54,7 +54,7 @@ RSpec.describe(Kimera::Execution::Shift) do
   def worker(coverage: nil, catches: {}, adapter: nil, **settings)
     described_class.new(
       adapter: adapter || test_adapter_class.new(catches: catches),
-      registry: registry, coverage: coverage,
+      registry: registry, **{ coverage: coverage }.compact,
       soft_timeout: nil, zygote: InlineZygote.new, **settings
     )
   end
@@ -142,7 +142,7 @@ RSpec.describe(Kimera::Execution::Shift) do
     def evaluate(id, coverage:, **)
       described_class.new(
         adapter: test_adapter_class.new(**),
-        registry: registry, coverage: coverage,
+        registry: registry, **{ coverage: coverage }.compact,
         soft_timeout: nil, zygote: InlineZygote.new
       ).evaluate(id)
     end

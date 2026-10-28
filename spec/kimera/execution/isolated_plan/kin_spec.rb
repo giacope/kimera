@@ -16,7 +16,7 @@ RSpec.describe(Kimera::Execution::IsolatedPlan::Kin) do
   let(:users) { %w[./spec/models/user_spec.rb[1:1] ./spec/models/user_spec.rb[1:2] ./spec/requests/user_spec.rb[1:1]] }
   let(:all) { [*users, "./spec/models/order_spec.rb[1:1]", "./spec/lib/report_spec.rb[1:1]"] }
 
-  def kin(coverage) = described_class.new(all: all, coverage: coverage, registry: registry)
+  def kin(coverage) = described_class.new(all: all, coverage: coverage, registry: registry, locate: ->(_test) { "" })
 
   it "runs every test in the files that cover the source file, and its conventional spec files" do
     expect(kin({ id => ["./spec/lib/report_spec.rb[1:1]"] }).tests("app/models/user.rb"))

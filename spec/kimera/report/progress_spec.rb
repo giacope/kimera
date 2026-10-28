@@ -13,7 +13,7 @@ RSpec.describe(Kimera::Report::Progress) do
 
   # interval: 0 disables throttling.
   def progress(io: fake_tty, enabled: true, interval: 0, clock: nil)
-    options = { io: io, enabled: enabled, interval: interval }
+    options = { io: io, enabled: enabled, cadence: ->(_surface) { interval } }
     options[:clock] = clock if clock
     [described_class.new(**options), io]
   end
@@ -261,8 +261,8 @@ RSpec.describe(Kimera::Report::Progress) do
   def narrow
     io = fake_tty
     allow(io).to(receive(:winsize).and_return([24, 20]))
-    bar =
-      described_class.new(io: io, enabled: true, interval: 0).tap { |started| started.start(2, "mutants (isolated)") }
+    bar = described_class.new(io: io, enabled: true, cadence: ->(_surface) { 0 })
+    bar.start(2, "mutants (isolated)")
     [bar, io, io.string.dup]
   end
 
@@ -335,7 +335,7 @@ RSpec.describe(Kimera::Report::Progress) do
 
   it "flushes the stream after every frame it paints" do
     io = watched(tty: true)
-    bar = described_class.new(io: io, enabled: true, interval: 0)
+    bar = described_class.new(io: io, enabled: true, cadence: ->(_surface) { 0 })
     bar.start(2, "mutants")
     bar.tick(:killed)
     expect(io.flushes).to(eq(2))
@@ -343,7 +343,7 @@ RSpec.describe(Kimera::Report::Progress) do
 
   it "flushes once more when a heartbeat run finishes", :aggregate_failures do
     io = watched(tty: false)
-    bar = described_class.new(io: io, enabled: true, interval: 0).tap { |started| started.start(1, "mutants") }
+    bar = described_class.new(io: io, enabled: true, cadence: ->(_surface) { 0 }).tap { it.start(1, "mutants") }
     painted = io.flushes
     bar.finish
     expect([painted, io.flushes]).to(eq([1, 2]))

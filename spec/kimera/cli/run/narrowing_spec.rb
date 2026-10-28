@@ -28,27 +28,27 @@ RSpec.describe(Kimera::CLI::Run::Narrowing) do
 
   it "counts the configured test files the run kept", :aggregate_failures do
     narrowed = narrowing(["spec/a_spec.rb"])
-    expect(narrowed.note).to(eq(note))
+    expect(narrowed.notes).to(eq([note]))
     expect(narrowed.provenance).to(eq("narrowed" => true, "configured_tests" => ["spec/**/*_spec.rb"]))
   end
 
   it "leaves excluded test files out of both counts" do
-    expect(narrowing(["spec/a_spec.rb"], exclude: ["spec/slow/**"]).note).to(include("matched 1 of 2 test files"))
+    expect(narrowing(["spec/a_spec.rb"], exclude: ["spec/slow/**"]).notes.join).to(include("matched 1 of 2 test files"))
   end
 
   it "matches a file however its glob spells the path" do
-    expect(narrowing([File.expand_path("spec/*_spec.rb")]).note).to(include("matched 2 of 3"))
+    expect(narrowing([File.expand_path("spec/*_spec.rb")]).notes.join).to(include("matched 2 of 3"))
   end
 
   it "is silent when --tests keeps every configured test file", :aggregate_failures do
     wider = narrowing(["spec/**/*_spec.rb", "test/**/*_test.rb"])
-    expect(wider.note).to(be_nil)
+    expect(wider.notes).to(eq([]))
     expect(wider.provenance).to(eq("narrowed" => false))
   end
 
   it "doesn't expand the globs when --tests is the configured glob", :aggregate_failures do
     allow(Kimera::FileSet).to(receive(:new).and_call_original)
-    expect(narrowing(["spec/**/*_spec.rb"]).note).to(be_nil)
+    expect(narrowing(["spec/**/*_spec.rb"]).notes).to(eq([]))
     expect(Kimera::FileSet).not_to(have_received(:new))
   end
 

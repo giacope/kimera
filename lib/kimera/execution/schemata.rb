@@ -15,7 +15,7 @@ require_relative "pending_autoload"
 class Kimera::Execution::Schemata
   Woven = Struct.new(:skipped)
 
-  def initialize(registry, root: ".", errors: nil, loaded: proc { true })
+  def initialize(registry, root: ".", errors: $stderr, loaded: proc { true })
     @registry = registry
     @root = root
     @errors = errors
@@ -37,9 +37,9 @@ class Kimera::Execution::Schemata
 
   def reachable
     unasked = @registry.files.reject { |path| asked?(path) }
-    failures = unasked.to_h { |path| [path, fire(path)] }
+    marks = unasked.to_h { |path| [path, fire(path)] }
     shut = unasked.reject { |path| required?(path) || definitions?(path) }
-    shut.each { |path| unload(path, failures[path]) }
+    shut.each { |path| unload(path, &marks[path]) }
     @registry.files - shut
   end
 
@@ -47,10 +47,12 @@ class Kimera::Execution::Schemata
 
   def fire(path)
     Kimera::Execution::PendingAutoload.new(File.join(root, path)).fire!
-    nil
+    :unloaded!.to_proc
   rescue StandardError, ScriptError => error
-    "#{error.class}: #{error.message}"
+    failed("#{error.class}: #{error.message}")
   end
+
+  def failed(reason) = ->(point) { point.unloadable!(reason) }
 
   def required?(path)
     file = File.join(root, path)
@@ -61,7 +63,7 @@ class Kimera::Execution::Schemata
     Kimera::Execution::Definitions.new(File.read(File.join(root, path), encoding: Encoding::UTF_8)).only?
   end
 
-  def unload(path, failure) = @registry.at(path).select(&:safe?).each { |point| point.unloaded!(failure) }
+  def unload(path, &) = @registry.at(path).select(&:safe?).each(&)
 
   def weave(paths) = paths.flat_map { |path| load(path) }
 
@@ -71,7 +73,7 @@ class Kimera::Execution::Schemata
 
   def announce
     skipped.each do |path, reason|
-      next unload(path, reason) unless @loaded.call(path)
+      next unload(path, &failed(reason)) unless @loaded.call(path)
       notice(path, reason)
       @registry.at(path).select(&:safe?).each { |point| point.unmutatable!("schemata setup failed (#{reason})") }
     end
@@ -117,13 +119,11 @@ class Kimera::Execution::Schemata
   end
 
   def notice(path, reason)
-    errors.puts(
+    @errors.puts(
       "kimera: #{path} cannot run in warm workers — schemata setup failed " \
         "(#{reason}); its mutants are reported unmutatable"
     )
   end
-
-  def errors = @errors || $stderr
 
   def root = @_root ||= File.expand_path(@root)
 

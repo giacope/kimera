@@ -83,7 +83,7 @@ class Kimera::CLI::TestCommand
   end
 
   def capture(command)
-    output, status = Kimera::Execution::SUITE.call(
+    output, status = Kimera::Execution::SUITE.timed(
       Kimera::Execution::SUITE_ENV, *command, chdir: @root, limit: ALLOWANCE + (PER_FILE * @files.size)
     )
     [output.dup.force_encoding(Encoding::UTF_8).scrub, status]

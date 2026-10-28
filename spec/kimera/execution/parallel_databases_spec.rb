@@ -366,7 +366,7 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
   end
 
   describe Kimera::Execution::NumberedDatabases do
-    subject(:numbered) { described_class.new(errors: errors) }
+    subject(:numbered) { described_class.new(tolerance: Kimera::Execution::Tolerance.new(errors)) }
 
     let(:errors) { StringIO.new }
 
@@ -437,7 +437,7 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
     # The suite's own environment, once a worker adopted its database through it.
     def adopted(env)
       rails(->(number) { ["app_test#{number}"] }, env)
-      described_class.new(errors: errors, env: env).adopt(1)
+      described_class.new(tolerance: Kimera::Execution::Tolerance.new(errors), env: env).adopt(1)
       env
     end
 
@@ -485,8 +485,8 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
 
   # The environment an isolated child for the mirror slot starts with.
   def mirror_environment(slot)
-    child = Kimera::Execution::IsolatedPlan::ChildCommand.new(framework: "rspec", test_files: [])
     Dir.mktmpdir do |dir|
+      child = Kimera::Execution::IsolatedPlan::ChildCommand.new(framework: "rspec", test_files: [], root: dir)
       child.command(dir, child.request([], slot: slot), ledger: File.join(dir, "l"), paths: []).first
     end
   end

@@ -18,7 +18,7 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
   MINITEST_CHILD = File.expand_path("isolated_child_minitest.rb", __dir__)
   PULSE = ".pulse"
 
-  def initialize(framework:, test_files:, root: nil, seed: nil)
+  def initialize(framework:, test_files:, root:, seed: nil)
     @framework = framework
     @test_files = test_files
     @root = root
@@ -38,7 +38,7 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
 
   def request(locations, first: false, slot: nil, warnings: [])
     { "tests" => locations, "files" => @test_files, "first_failure" => first }
-      .merge(@seed ? { "seed" => @seed } : {}, slot ? { "slot" => slot } : {})
+      .merge({ "seed" => @seed, "slot" => slot }.compact)
       .merge(warnings.empty? ? {} : { "warnings" => warnings })
   end
 
@@ -54,7 +54,7 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
   end
 
   def bundled(mirror, env, argv)
-    gemfile = Kimera::Execution::Bundle.new(@root || mirror).gemfile(mirror)
+    gemfile = Kimera::Execution::Bundle.new(@root).gemfile(mirror)
     return [env, argv] unless gemfile
     env["BUNDLE_GEMFILE"] = gemfile
     [env, ["bundle", "exec", *argv]]

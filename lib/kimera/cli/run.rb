@@ -2,6 +2,7 @@
 
 require "fileutils"
 require_relative "../error"
+require_relative "../incremental/selection"
 require_relative "../plugins"
 require_relative "../work_tree"
 
@@ -17,6 +18,7 @@ end
 require_relative "run/arguments"
 require_relative "run/cycle"
 require_relative "run/digest"
+require_relative "run/null_selection"
 require_relative "run/options"
 require_relative "run/sources"
 
@@ -72,9 +74,9 @@ class Kimera::CLI::Run
 
   def cycle(options)
     Kimera::Plugins.new(options[:require], root: options[:source_root]).load!
-    changed = changes(options)
-    registry = Kimera::CLI::Run::Sources.new(errors: @errors).load(options, changed)
-    built(options, changed ? registry.narrowed(changed) : registry).call(changed)
+    change = change(options)
+    registry = Kimera::CLI::Run::Sources.new(errors: @errors).load(options, change)
+    built(options, change.narrowed(registry)).call(change)
   end
 
   def built(options, registry)
@@ -83,9 +85,10 @@ class Kimera::CLI::Run
     )
   end
 
-  def changes(options)
+  def change(options)
     since = options[:since]
-    Kimera::Incremental::Selection.from_diff(since: since, root: options[:source_root]).changes if since
+    return Kimera::CLI::Run::NullSelection.new unless since
+    Kimera::Incremental::Selection.from_diff(since: since, root: options[:source_root])
   end
 
   def digest(options = {})

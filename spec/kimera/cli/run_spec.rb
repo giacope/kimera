@@ -541,7 +541,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
     it "restricts building to changed files in incremental mode" do
       File.write(File.join(dir, "other.rb"), "def n(a, b)\n  a < b\nend\n")
-      changed = { "calc.rb" => Set[2] }
+      changed = Kimera::Incremental::Selection.new({ "calc.rb" => Set[2] }, "main")
       registry = sources.load(options(paths: ["calc.rb", "other.rb"]), changed)
       expect(registry.files).to(eq(["calc.rb"]))
     end
@@ -613,12 +613,17 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
   end
 
-  describe "#changes" do
+  describe "#change" do
     it "delegates to GitDiff with the since ref and source root" do
       diff = instance_double(Kimera::Incremental::GitDiff, lines: { "x.rb" => Set[1] })
       allow(Kimera::Incremental::GitDiff).to(receive(:new).with(since: "main", root: "/proj").and_return(diff))
-      result = described_class.new.__send__(:changes, { since: "main", source_root: "/proj" })
-      expect(result).to(eq("x.rb" => Set[1]))
+      result = described_class.new.__send__(:change, { since: "main", source_root: "/proj" })
+      expect(result.files(%w[x.rb y.rb]) { it }).to(eq(%w[x.rb]))
+    end
+
+    it "covers every file without --since" do
+      result = described_class.new.__send__(:change, { source_root: "/proj" })
+      expect(result.files(%w[x.rb y.rb]) { it }).to(eq(%w[x.rb y.rb]))
     end
   end
 
@@ -653,7 +658,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
           Kimera::MutantResult.new(mutant_id: mutant.id, status: status, file: point.file, duration: 0.0)
         end
       Kimera::Incremental::Session.new.stamped(stamp(registry))
-        .merged(Kimera::RunReport.new(results: results)).save(path, registry: registry)
+        .merged(Kimera::RunReport.new(results: results)).fingerprinted(registry).save(path)
       results
     end
 
@@ -701,7 +706,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       journal = File.join(dir, "session.json")
       saved(registry, journal)
       out, status = capture(["calc.rb", "other.rb", "--since", "main", "--session", journal])
-      [out, status, Kimera::Incremental::Selection.new("calc.rb" => Set[2]).ids(registry)]
+      [out, status, Kimera::Incremental::Selection.new({ "calc.rb" => Set[2] }, "main").ids(registry)]
     end
 
     def unmutated(*flags)
@@ -1268,25 +1273,30 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n", file: "x.rb")
     end
 
-    def announced(selected, ignored, options)
+    def announced(change, selected, ignored)
       io = StringIO.new
       original = $stdout
       $stdout = io
-      Kimera::CLI::Run::Digest.new(emission: nil)
-        .announce(selected, ignored, files: registry.files.size, since: options[:since])
+      Kimera::CLI::Run::Digest.new(emission: nil).announce(change, selected, ignored, files: registry.files.size)
       io.string
     ensure
       $stdout = original
     end
 
     it "announces incremental scope and ignored counts" do
-      out = announced([1, 2], [3], { since: "main" })
-      expect(out).to(include("Incremental: 2 mutants on lines changed since main"))
-      expect(out).to(include("Ignoring 1 mutant(s) marked equivalent"))
+      out = announced(Kimera::Incremental::Selection.new({}, "main"), [1, 2], [3])
+      expect(out.lines).to(
+        eq(
+          [
+            "Incremental: 2 mutants on lines changed since main (1 changed files).\n",
+            "Ignoring 1 mutant(s) marked equivalent.\n"
+          ]
+        )
+      )
     end
 
     it "stays silent when not incremental and nothing is ignored" do
-      expect(announced(nil, [], {})).to(eq(""))
+      expect(announced(Kimera::CLI::Run::NullSelection.new, [1, 2], [])).to(eq(""))
     end
   end
 end

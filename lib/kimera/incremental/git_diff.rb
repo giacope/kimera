@@ -57,7 +57,7 @@ class Kimera::Incremental::GitDiff
     end
   end
 
-  def initialize(since:, root: ".", paths: nil)
+  def initialize(since:, root: ".", paths: [])
     @since = since
     @root = root
     @paths = paths
@@ -97,7 +97,7 @@ class Kimera::Incremental::GitDiff
 
   def command
     invocation = ["git", "-C", @root.to_s, *BASEFLAGS, base]
-    invocation += ["--", *Array(@paths)] if @paths
+    invocation += ["--", *@paths] unless @paths.empty?
     invocation
   end
 

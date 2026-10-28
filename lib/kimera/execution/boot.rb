@@ -5,7 +5,7 @@ require_relative "isolation"
 require_relative "memory_databases"
 
 class Kimera::Execution::Boot
-  def initialize(adapter:, isolate:, errors: nil)
+  def initialize(adapter:, isolate:, errors: $stderr)
     @adapter = adapter
     @isolate = isolate
     @errors = errors
@@ -22,7 +22,7 @@ class Kimera::Execution::Boot
   def load!
     loader&.call
   rescue StandardError => error
-    (@errors || $stderr).puts(failure(error))
+    @errors.puts(failure(error))
   end
 
   def isolate(isolation)

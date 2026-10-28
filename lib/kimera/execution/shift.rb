@@ -18,7 +18,7 @@ class Kimera::Execution::Shift
       end
     end
 
-  def initialize(adapter:, registry:, coverage: nil, **options)
+  def initialize(adapter:, registry:, coverage: Unmapped.new(adapter), **options)
     @adapter = adapter
     @registry = registry
     @coverage = coverage
@@ -115,10 +115,7 @@ class Kimera::Execution::Shift
     self.class::Unmask.new(attempt, pace).run(id, tests)
   end
 
-  def available(id)
-    return @adapter.test_ids unless @coverage
-    @coverage.fetch(id) { @coverage.fetch(id.to_s, []) }
-  end
+  def available(id) = @coverage.fetch(id) { @coverage.fetch(id.to_s, []) }
 
   def emit(io, **message)
     io.puts(JSON.generate(message))
@@ -133,4 +130,5 @@ require_relative "shift/coverage_channel"
 require_relative "shift/killer_memory"
 require_relative "shift/subject"
 require_relative "shift/suspect"
+require_relative "shift/unmapped"
 require_relative "shift/unmask"

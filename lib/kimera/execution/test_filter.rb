@@ -12,12 +12,13 @@ class Kimera::Execution::TestFilter
   UNSTEADY = "covered only by flaky test(s), which never kill: "
 
   class << self
-    def build(registry:, adapter:, root: ".", rules: nil)
+    def build(registry:, adapter:, root: ".", attribution: Kimera::Execution::OpenAttribution.new)
       base = "#{File.expand_path(root)}/"
       locate = ->(test) { File.expand_path(adapter.test_file(test).to_s).delete_prefix(base) }
-      attribution = rules ? Kimera::Execution::Attribution.new(rules) : Kimera::Execution::OpenAttribution.new
       new(registry: registry, attribution: attribution, locate: locate)
     end
+
+    def from_rules(rules, **) = build(**, attribution: Kimera::Execution::Attribution.new(rules))
   end
 
   def initialize(registry:, attribution: Kimera::Execution::OpenAttribution.new, flaky: [], locate: ->(_test) { "" })

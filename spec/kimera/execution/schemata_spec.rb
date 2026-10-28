@@ -7,6 +7,8 @@ require "tmpdir"
 
 RSpec.describe(Kimera::Execution::Schemata) do
   let(:dir) { Dir.mktmpdir }
+  # What the loader tells the user: its diagnoses of the files it cannot overlay.
+  let(:notices) { StringIO.new }
 
   after do
     FileUtils.remove_entry(dir)
@@ -25,7 +27,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
 
   def scan(*names) = Kimera::RegistryScan.new(root: dir).build(names.map { |name| File.join(dir, name) })
 
-  def schemata(registry) = described_class.new(registry, root: dir)
+  def schemata(registry) = described_class.new(registry, root: dir, errors: notices)
 
   def overlaid(*names)
     registry = scan(*names)
@@ -40,11 +42,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
   # What the block returns with no mutant active, then with the labelled one.
   def outcomes(registry, label = "> => <", &) = [yield, flipped(registry, label, &)]
 
-  def noisily(loader)
-    live = nil
-    expect { live = loader.overlay! }.to(output.to_stderr)
-    live
-  end
+  def noisily(loader) = loader.overlay!.tap { expect(notices.string).not_to(be_empty) }
 
   def overlaying(&) = Kimera::Execution::OverlayGuards.new.overlay(&)
 
@@ -194,10 +192,11 @@ RSpec.describe(Kimera::Execution::Schemata) do
     end
 
     # The abort's raw stderr must not leak; the diagnosis line carries it.
-    it "is diagnosed on stderr, without its own output" do
+    it "is diagnosed on stderr, without its own output", :aggregate_failures do
       _, loader = scripted
-      expect { loader.overlay! }
-        .to(output(/\Akimera: sl_script\.rb cannot run in warm workers.*\(SystemExit: usage: nope\)/).to_stderr)
+      expect { loader.overlay! }.not_to(output.to_stderr)
+      diagnosis = /\Akimera: sl_script\.rb cannot run in warm workers.*\(SystemExit: usage: nope\)/
+      expect(notices.string).to(match(diagnosis))
     end
 
     it "does not stop the files after it" do
@@ -251,7 +250,8 @@ RSpec.describe(Kimera::Execution::Schemata) do
 
     it "is diagnosed on stderr" do
       _, loader = synthesized
-      expect { loader.overlay! }.to(output(/sl_synth_bad\.rb cannot run in warm workers.*ArgumentError/).to_stderr)
+      loader.overlay!
+      expect(notices.string).to(match(/sl_synth_bad\.rb cannot run in warm workers.*ArgumentError/))
     end
 
     it "does not stop the rest from being overlaid", :aggregate_failures do
@@ -274,7 +274,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
     live = nil
     # Absent is not unmutatable: no warning and no skipped entry.
     expect { live = loader.overlay! }.not_to(output.to_stderr)
-    expect([live, loader.skipped]).to(eq([[], {}]))
+    expect([live, loader.skipped, notices.string]).to(eq([[], {}, ""]))
   end
 
   # The overlay re-runs class bodies, which re-declares defined enums.
@@ -758,9 +758,10 @@ RSpec.describe(Kimera::Execution::Schemata) do
       schemata(scan("sl_a_child.rb", "sl_b_parent.rb"))
     end
 
-    it "is retried quietly" do
+    it "is retried quietly", :aggregate_failures do
       loader = retried
       expect { loader.overlay! }.not_to(output.to_stderr)
+      expect(notices.string).to(be_empty)
     end
 
     it "is not skipped, and its class is defined" do
@@ -771,10 +772,9 @@ RSpec.describe(Kimera::Execution::Schemata) do
 
   it "reports a constant that stays missing once, after the retry", :aggregate_failures do
     write("sl_orphan.rb", "class SchemataOrphan < SchemataNowhere\n  def gt(a, b) = a > b\nend\n")
-    registry = Kimera::RegistryScan.new(root: dir).build([File.join(dir, "sl_orphan.rb")])
-
-    loader = described_class.new(registry, root: dir)
-    expect { loader.overlay! }.to(output(/\Akimera: sl_orphan\.rb cannot run[^\n]*NameError[^\n]*\n\z/).to_stderr)
+    loader = schemata(Kimera::RegistryScan.new(root: dir).build([File.join(dir, "sl_orphan.rb")]))
+    loader.overlay!
+    expect(notices.string).to(match(/\Akimera: sl_orphan\.rb cannot run[^\n]*NameError[^\n]*\n\z/))
     expect(loader.skipped.keys).to(eq(["sl_orphan.rb"]))
   end
 

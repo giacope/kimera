@@ -418,7 +418,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
   end
 
   def green_suite(seen = [])
-    allow(Kimera::Execution::SUITE).to(receive(:call)) do |_env, *command, **|
+    allow(Kimera::Execution::SUITE).to(receive(:timed)) do |_env, *command, **|
       seen << [command, out.string]
       ["", instance_double(Process::Status, success?: true)]
     end
@@ -428,7 +428,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
   describe "a doctor run where no test file matches" do
     before do
       project(".kimera.yml" => "tests: [test/**/*_test.rb]\n")
-      allow(Kimera::Execution::SUITE).to(receive(:call))
+      allow(Kimera::Execution::SUITE).to(receive(:timed))
     end
 
     it "fails discovery and skips loading", :aggregate_failures do
@@ -439,7 +439,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     it "never runs the baseline", :aggregate_failures do
       doctor("--check-baseline")
       expect(out.string).not_to(include("Baseline"))
-      expect(Kimera::Execution::SUITE).not_to(have_received(:call))
+      expect(Kimera::Execution::SUITE).not_to(have_received(:timed))
     end
   end
 
@@ -508,7 +508,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
 
   def test_doctor_jobs(config, *argv, serial: true)
     project("spec/a_spec.rb" => "", ".kimera.yml" => config)
-    allow(Kimera::Execution::SUITE).to(receive(:call)) do |_env, *command, **|
+    allow(Kimera::Execution::SUITE).to(receive(:timed)) do |_env, *command, **|
       ["", instance_double(Process::Status, success?: serial || command.include?("--dry-run"))]
     end
     test_doctor_in(dir, "--check-baseline", *argv).last
@@ -523,7 +523,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
 
     it "runs split across the configured jobs, or those --jobs gives", :aggregate_failures do
       expect(test_doctor_jobs("jobs: 3\n").lines.last).to(eq(parallel))
-      expect(Kimera::Execution::SUITE).to(have_received(:call).exactly(5).times)
+      expect(Kimera::Execution::SUITE).to(have_received(:timed).exactly(5).times)
       expect(test_doctor_jobs("{}\n", "--jobs", "3").lines.last).to(eq(parallel))
     end
 

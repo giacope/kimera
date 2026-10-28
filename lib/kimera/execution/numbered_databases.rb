@@ -1,21 +1,20 @@
 # frozen_string_literal: true
 
 require_relative "parallel_databases"
+require_relative "tolerance"
 
 class Kimera::Execution::NumberedDatabases
-  def initialize(errors: $stderr, env: ENV)
-    @errors = errors
+  def initialize(tolerance: Kimera::Execution::Tolerance.new($stderr), env: ENV)
+    @tolerance = tolerance
     @env = env
   end
 
   def numbered? = renamed(number(1)).any?
 
   def prepare(index)
-    renamed(number(index)).each do |config|
-      ActiveRecord::Tasks::DatabaseTasks.reconstruct_from_schema(config)
+    @tolerance.attempt("could not create the database for worker #{index}") do
+      renamed(number(index)).each { |config| ActiveRecord::Tasks::DatabaseTasks.reconstruct_from_schema(config) }
     end
-  rescue StandardError => error
-    @errors.puts("kimera: could not create the database for worker #{index} (#{error.class}: #{error.message})")
   end
 
   def adopt(index)

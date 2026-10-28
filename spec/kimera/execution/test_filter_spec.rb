@@ -41,9 +41,8 @@ RSpec.describe(Kimera::Execution::TestFilter, :aggregate_failures) do
   end
 
   it "builds strict attribution from unit_tests rules, locating each test under the root" do
-    ruled = described_class.build(
-      registry: registry, adapter: adapter,
-      rules: { "app/**/*.rb" => ["spec/requests/{name}s_spec.rb"] }
+    ruled = described_class.from_rules(
+      { "app/**/*.rb" => ["spec/requests/{name}s_spec.rb"] }, registry: registry, adapter: adapter
     )
     expect(ruled.active?).to(be(true))
     expect(ruled.keep("app/models/order.rb", %w[own request abs else ghost])).to(eq(%w[own request abs]))
@@ -52,7 +51,7 @@ RSpec.describe(Kimera::Execution::TestFilter, :aggregate_failures) do
   it "builds no attribution without rules" do
     plain = described_class.build(registry: registry, adapter: adapter, root: "/elsewhere")
     expect([plain.active?, plain.keep("app/models/order.rb", %w[own else])]).to(eq([false, %w[own else]]))
-    rooted = described_class.build(registry: registry, adapter: adapter, root: "/elsewhere", rules: {})
+    rooted = described_class.from_rules({}, registry: registry, adapter: adapter, root: "/elsewhere")
     expect(rooted.keep("app/models/order.rb", %w[own else])).to(eq(%w[else]))
   end
 

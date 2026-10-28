@@ -180,7 +180,9 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
   end
 
   describe "#verify!" do
-    def test_baseline(outcome, progress: Kimera::Execution::NullProgress.new, ids: nil, coverage: {})
+    def every = { first => %w[t3 t2 t1] }
+
+    def test_baseline(outcome, progress: Kimera::Execution::NullProgress.new, ids: [first], coverage: every)
       seen = []
       engine =
         Class.new(described_class) do
@@ -192,7 +194,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       Dir.mktmpdir do |root|
         File.write(File.join(root, "calc.rb"), "def a(x, y) = x > y\n")
         engine.new(registry: registry, root: root, tests: %w[t1 t2 t3], hard_timeout: 7, progress: progress, coverage:)
-          .verify!(*ids)
+          .verify!(ids)
       end
       seen
     end
@@ -201,11 +203,11 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     it "runs only the tests the mutants it is given will run, in suite order", :aggregate_failures do
       green = Kimera::Execution::IsolatedOutcome.new(:survived)
       coverage = { first => %w[t3 t1], 999 => %w[t2] }
-      expect(test_baseline(green, ids: [[first, 999]], coverage:)).to(eq([[true, %w[t1 t3]]]))
-      expect(test_baseline(green, ids: [[]], coverage:)).to(eq([]))
+      expect(test_baseline(green, ids: [first, 999], coverage:)).to(eq([[true, %w[t1 t3]]]))
+      expect(test_baseline(green, ids: [], coverage:)).to(eq([]))
     end
 
-    it "runs the whole suite once in a fresh mirror and passes when it is green", :aggregate_failures do
+    it "runs the tests once in a fresh mirror and passes when they are green", :aggregate_failures do
       green = Kimera::Execution::IsolatedOutcome.new(:survived)
       seen = nil
       expect { seen = test_baseline(green) }.not_to(output.to_stderr)

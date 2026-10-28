@@ -40,6 +40,6 @@ class Kimera::Report::Screen
   def columns
     @io.winsize.fetch(1)
   rescue NoMethodError, SystemCallError
-    nil
+    0
   end
 end

@@ -10,7 +10,7 @@ class Kimera::Report::Live
   ERASE = "\r\e[K"
   CURSOR_UP = "\e[1A"
 
-  def initialize(io, columns: nil)
+  def initialize(io, columns: 0)
     @io = io
     @columns = columns
   end
@@ -39,7 +39,7 @@ class Kimera::Report::Live
   end
 
   def rows_for(text)
-    return 1 unless @columns&.positive?
+    return 1 unless @columns.positive?
     [(text.length + @columns - 1) / @columns, 1].max
   end
 end

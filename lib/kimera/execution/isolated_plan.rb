@@ -89,7 +89,8 @@ class Kimera::Execution::IsolatedPlan
 
   def kin
     @_kin ||= Kin.new(
-      all: @tests, coverage: @options[:coverage] || {}, registry: @registry, locate: @options[:test_paths]
+      all: @tests, coverage: @options[:coverage] || {}, registry: @registry,
+      locate: @options[:test_paths] || ->(_test) { "" }
     )
   end
 
