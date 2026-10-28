@@ -26,7 +26,7 @@ module Kimera
       def float
         return @value.to_s if @value.finite?
         return "Float::NAN" if @value.nan?
-        @value.positive? ? "Float::INFINITY" : "-Float::INFINITY"
+        @value.positive? ? "1e999" : "-1e999"
       end
 
       def rational

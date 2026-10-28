@@ -340,7 +340,7 @@ RSpec.describe(Kimera::Scribe) do
         sources.map do |source|
           write(unparenthesized(source))
         end
-      ).to(eq(["~1.abs", "!1.abs", "-1", "+1", "-[1]", "1.abs&.-@"]))
+      ).to(eq(["~1.abs", "!1.abs", "-(1)", "+(1)", "-[1]", "1.abs&.-@"]))
     end
 
     it "re-emits a negated call and a parenthesized literal as written" do
@@ -829,7 +829,7 @@ RSpec.describe(Kimera::Scribe) do
       "not a number" => [statement("1.5").copy(value: Float::NAN), "Float::NAN"],
       "infinity" => [
         statement("[1.5, -1.5]").then { |list| list.copy(elements: list.elements.map { |item| infinite(item) }) },
-        "[Float::INFINITY, -Float::INFINITY]"
+        "[1e999, -1e999]"
       ],
       "a rational with no decimal" => [statement("1r").copy(numerator: 1, denominator: 3), "Rational(1, 3)"],
       "a rational with a decimal" => [statement("1r").copy(numerator: 5, denominator: 2), "2.5r"],
@@ -995,6 +995,24 @@ RSpec.describe(Kimera::Scribe) do
       expect(TreeShape.value(read(written)).encoding).to(eq(Encoding::UTF_8))
       expect(described_class.new(read(binary('"\xE3\x81\x82"'))).source).to(eq('"\xE3\x81\x82"'))
       expect(described_class.new(read("# encoding: us-ascii\n\"\\xFF\"\n")).source).to(eq('"\xFF"'))
+    end
+  end
+
+  # Found by the round-trip property over the field corpus: mustermann's
+  # `not (Regexp.new(s).options & X).zero?` was written `not(...).zero?`, which
+  # Ruby reads as `(not ...).zero?`; a sign folded into a literal (`++1`,
+  # `- 1`) and an infinite literal written as `Float::INFINITY` read back as
+  # other trees.
+  describe "a prefix the writer must not fuse" do
+    {
+      "not (a & b).zero?" => "not (a & b).zero?", "not (a).zero?" => "not (a).zero?", "not(a and b)" => "not(a and b)",
+      "not (a and b)" => "not (a and b)", "++1" => "+(1)", "- 1" => "-(1)", "-+1" => "-(1)", "- 1.0" => "-(1.0)",
+      "[10e10000000000, -10e1000000]" => "[1e999, -1e999]"
+    }.each do |source, written|
+      it "writes `#{source}` as `#{written}`, the same tree", :aggregate_failures do
+        expect(reemit(source)).to(eq(written))
+        expect(shape(bare(parse(written)))).to(eq(shape(bare(parse(source)))))
+      end
     end
   end
 

@@ -147,6 +147,12 @@ Field test round 6, batch 4: what the writer wrote, and what a test run reached.
   a `# encoding: binary` file is UTF-8, and Scribe wrote it `"\xE3\x81\x82"`,
   which is binary. Strings, symbols, labels, commands and interpolated parts
   are now written with the encoding Ruby gives them.
+- **`not (a & b).zero?` is written as it reads.** Found by the new
+  round-trip property over the field corpus: Scribe wrote mustermann's
+  `not (Regexp.new(s).options & X).zero?` as `not(...).zero?`, which Ruby
+  reads as `(not ...).zero?`. A sign over a numeral (`++1`, `- 1`) is now
+  written `+(1)`, a call, not the literal `+1`, and an infinite float literal
+  `1e999`, not `Float::INFINITY`, which a lexical `Float` constant shadows.
 
 Self-host gate: what kept the `selfhost` job red on main.
 
