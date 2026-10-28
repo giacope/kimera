@@ -1297,10 +1297,12 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   taken still runs the unmutated code. A test comparing them fails under
   Kimera only; the harness error names each such method and the
   `--exclude` that leaves its file out.
-- **Minitest class hooks.** Each test runs inside its class's
-  `with_info_handler`, as a plain run does, so minitest-hooks'
+- **Minitest class hooks.** Each test runs through its class's suite
+  runner (Minitest 6's `run_suite`, Minitest 5's `run`) and its per-test
+  runner, as a plain run does, so a fixture the class sets up there (excon
+  starts its test servers in `run_suite`) and minitest-hooks'
   `before(:all)`/`around(:all)` run around it, and a failing class hook
-  fails the test.
+  fails the test. A class Minitest runs in parallel runs its test in place.
 - **Locale.** Kimera reads its files, reports and pipes as UTF-8 whatever
   `LANG` says, so it runs with `LANG` unset or `LANG=C`.
 

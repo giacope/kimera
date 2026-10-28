@@ -8,6 +8,7 @@ require_relative "../exits/test_exit"
 require_relative "mirror_database"
 
 Minitest.seed ||= 1
+Minitest::Test.prepend(Kimera::TestExit::Test)
 begin
   Minitest.class_variable_set(:@@installed_at_exit, :installed)
 rescue NameError, ArgumentError
@@ -44,8 +45,8 @@ failed =
     klass, name = methods[id]
     next false unless klass
     File.write(pulse, ".", mode: "a") if pulse
-    Kernel.srand((seed ^ Zlib.crc32(id)) % (2**31)) if seed
-    result = Kimera::Frameworks::ClassHooks.new(klass).test(name)
+    reseed = -> { Kernel.srand((seed ^ Zlib.crc32(id)) % (2**31)) if seed }
+    result = Kimera::Frameworks::ClassHooks.new(klass).test(name, &reseed)
     next false unless result && !result.passed? && !result.skipped?
     messages[id] = result.failures.first&.message.to_s[0, 2000]
     true

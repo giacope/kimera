@@ -265,6 +265,18 @@ Field test round 6, batch 5: where a rewrite leaves your lines, and what runs th
   holds the whole warm overlay, every mutant off, to the file it came from,
   each node on its line.
 
+- **A Minitest 6 test runs through its class's `run_suite`.** Minitest 6
+  runs each class's tests through `run_suite`, and excon starts each test
+  class's server there; kimera ran a test as `new(name).run` inside the
+  class's info handler, so 149 of excon's 307 tests failed with "Connection
+  refused" under kimera only, and the run stopped at a harness error that
+  blamed the worker while `kimera doctor` called the baseline green. Kimera
+  now runs the one test through the class's suite runner (`run_suite`, or
+  Minitest 5's `run`) with only its name selected, so every class-level
+  extension a plain run honours runs around it; a class Minitest would run
+  in parallel runs its test in place, and `--seed` seeds each test after its
+  class drew its order.
+
 Field test round 5, harness: what kimera loads, runs and says.
 
 - **A test that fails only under kimera is a harness error, whatever it
