@@ -10,14 +10,12 @@ class Kimera::Readback
 
   def faithful?(source)
     result = Kimera::Syntax.parse(source)
-    result.success? && written(read(result.value)) == text
+    result.success? && written(lone(result.value.statements)) == text
   end
 
   def text = @_text ||= written(@tree)
 
   private
-
-  def read(program) = @tree.type == :program_node ? program : lone(program.statements)
 
   def lone(statements) = statements.body.one? ? statements.body.first : statements
 

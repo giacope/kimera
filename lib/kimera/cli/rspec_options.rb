@@ -39,10 +39,9 @@ class Kimera::CLI::RspecOptions
   def options = @_options ||= read(words)
 
   def read(words)
-    words.each_with_index.with_object({}) do |(word, index), found|
-      flag, value = word.split("=", 2)
-      key = FLAGS[flag]
-      found[key] = value || words[index + 1] if key
+    FLAGS.each_with_object({}) do |(flag, key), found|
+      index = words.index { |word| word.split("=", 2).first == flag }
+      found[key] = words[index].split("=", 2)[1] || words[index + 1] if index
     end
   end
 

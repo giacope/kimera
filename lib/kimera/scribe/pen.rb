@@ -69,7 +69,7 @@ module Kimera
 
       def bound(names) = Pen.new(@binders, @margin, (@locals | names).freeze, @mode)
 
-      def scoped(nodes = []) = Pen.new(@binders, @margin, Binders::NONE, @mode.with(pattern: false)).with(nodes)
+      def scoped(nodes = []) = Pen.new(@binders, @margin, Binders::NONE, @mode).with(nodes)
 
       def local?(name) = @locals.include?(name)
 

@@ -6,7 +6,6 @@ require_relative "../parsing/unescaped"
 class Kimera::Outline
   LOOSE = %i[forced_utf8_encoding? binary? decimal? octal? hexadecimal? symbol_keys?].freeze
   SKIPPED = %i[node_id location locals].freeze
-  STRINGS = %i[string_node interpolated_string_node].freeze
 
   def initialize(node)
     @node = node
@@ -31,10 +30,7 @@ class Kimera::Outline
     [type, *flags(node), *fields(node)]
   end
 
-  def lone(node)
-    only = single(node.type == :statements_node ? node : inner(node))
-    only unless node.type == :embedded_statements_node && !STRINGS.include?(only&.type)
-  end
+  def lone(node) = single(node.type == :statements_node ? node : inner(node))
 
   def single(body) = (body.body.first if body&.type == :statements_node && body.body.one?)
 

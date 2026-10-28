@@ -274,6 +274,21 @@ RSpec.describe(Kimera::Overlay) do
     end
   end
 
+  # R6B4-M1..M3: a bake written whole, file or method, must read back as the
+  # mutant meant.
+  describe "a whole write that reads back as another program" do
+    let(:source) { "def m(a, b)\n  a > b\nend\n" }
+    let(:registry) { build(source) }
+
+    it "is refused, file and method alike" do
+      allow(Kimera::BakeSplice).to(receive(:new).and_return(instance_double(Kimera::BakeSplice, source: nil)))
+      allow(Kimera::Readback).to(receive(:new).and_return(instance_double(Kimera::Readback, faithful?: false)))
+      mutant = registry.each.find { |m, _p| m.label == "> => <" }.first
+      expect { described_class.new(registry).bake("x.rb", source, mutant.id) }
+        .to(raise_error(described_class::Unbakeable, /reads back as another program/))
+    end
+  end
+
   # R6B4-M5: since batch 3's line guard refused every bake that changes a line
   # outside the mutation, no element of a multi-line %i/%w literal could be
   # baked: the writer put the whole array on one line.

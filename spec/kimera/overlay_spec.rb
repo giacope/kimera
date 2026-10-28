@@ -827,6 +827,27 @@ RSpec.describe(Kimera::Overlay) do
         [registry, result]
       end
 
+      # R6B4-M1..M3: a method written so it reads as another method is refused.
+      it "refuses a per-method splice whose methods read as other methods" do
+        registry = Kimera::RegistryScan.new.source(splice_source, file: "spliced.rb")
+        unwritable!
+        allow(Kimera::Unwoven).to(receive(:new).and_return(instance_double(Kimera::Unwoven, keeps?: false)))
+        expect { described_class.new(registry).synthesize("spliced.rb", splice_source) }
+          .to(raise_error(Kimera::Scribe::Unreadable, /could not write its guard/))
+      end
+
+      def checking(checked)
+        allow(Kimera::Unwoven).to(receive(:new).and_wrap_original) do |build, tree|
+          build.call(tree).tap { |found| allow(found).to(receive(:keeps?)) { |defs| checked.push(defs.map(&:name)) } }
+        end
+      end
+
+      it "reads back the methods it rewrote, and only those" do
+        checked = []
+        checking(checked) && spliced
+        expect(checked.last).to(contain_exactly(:compare, :also))
+      end
+
       it "keeps every method's mutants and the untouched source verbatim", :aggregate_failures do
         registry, result = spliced
         expect(result.mutant_ids.size).to(eq(registry.count))
@@ -1154,6 +1175,20 @@ RSpec.describe(Kimera::Overlay) do
       expect(result.mutant_ids).to(eq(registry.each.map { |mutant, _| mutant.id }))
       expect(registry.points.select(&:unmutatable?)).to(be_empty)
       expect(result.source.lines.size).to(eq(source.lines.size))
+    end
+
+    def nesting
+      call = Kimera::Syntax.parse("outer(inner(x))").value.statements.body.first
+      inner = call.arguments.arguments.first
+      sites = [Kimera::GuardText.new(call, [[1, "nil"]]), Kimera::GuardText.new(inner, [[2, "nil"]])]
+      [sites, inner.location.start_offset + 6]
+    end
+
+    it "writes a probe inside a guard inside a guard into the inner one only" do
+      sites, at = nesting
+      probe = [at, at, "PROBE; "]
+      guards = ["(!(::Kimera::RUNTIME.active?(1)) ? (outer(", "(!(::Kimera::RUNTIME.active?(2)) ? (inner(PROBE; x))"]
+      expect(sites.first.text(sites, [probe])).to(eq("#{guards.join} : (nil)))) : (nil))"))
     end
 
     it "makes the class the hook builds answer as the original, and each mutant as itself", :aggregate_failures do

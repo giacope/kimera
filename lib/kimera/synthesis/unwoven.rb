@@ -41,18 +41,12 @@ class Kimera::Unwoven
 
   def unguarded(rebuilt, original)
     return side(rebuilt) if guard?(rebuilt)
-    rebuilt.type == :statements_node ? kept(rebuilt, original) : rebuilt
-  end
-
-  def kept(rebuilt, original)
+    return rebuilt unless rebuilt.type == :statements_node
     pairs = rebuilt.body.zip(original.body).reject { |node, was| runtime?(node) || probe?(was) }
     rebuilt.copy(body: pairs.flat_map { |node, _| node.type == :statements_node ? node.body : [node] })
   end
 
-  def side(guard)
-    body = guard.subsequent&.statements&.body || []
-    body.one? ? body.first : statements(body)
-  end
+  def side(guard) = statements(guard.subsequent&.statements&.body || [])
 
   def guard?(node) = node.type == :if_node && runtime?(node.predicate)
 

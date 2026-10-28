@@ -23,7 +23,8 @@ RSpec.describe(Kimera::Outline) do
     "a string split into parts" => ['"a" "b"', '"ab"'], "a literal interpolated" => ["\"\#{\"a\"}b\"", '"ab"'],
     "a heredoc" => ["<<~X\n  a\n  b\nX", '"a\nb\n"'], "an escaped character" => ['"\u{e9}"', '"é"'],
     "a symbol escaped" => [':"\u{e9}"', ":é"], "a hexadecimal integer" => %w[0x1F 31],
-    "a binary integer" => %w[0b1 1], "an octal integer" => %w[0o7 7]
+    "a binary integer" => %w[0b1 1], "an octal integer" => %w[0o7 7],
+    "strings beside an interpolation" => ["\"a\" \"b\#{c}\"", "\"ab\#{c}\""]
   }.each do |kind, (one, other)|
     it "reads #{kind} as the same program" do
       expect(outline(tree(one))).to(eq(outline(tree(other))))
@@ -37,7 +38,8 @@ RSpec.describe(Kimera::Outline) do
   {
     "another string" => ['"a"', '"b"'], "a call interpolated" => ["\"\#{a}\"", '"a"'], "another integer" => %w[0x1F 30],
     "a string in another encoding" => ["# encoding: binary\n\"\\u{3042}\"", "# encoding: binary\n\"\\xE3\\x81\\x82\""],
-    "a safe call" => %w[a&.b a.b], "an exclusive range" => %w[a...b a..b], "another statement" => ["a; b", "a; c"]
+    "a safe call" => %w[a&.b a.b], "an exclusive range" => %w[a...b a..b], "another statement" => ["a; b", "a; c"],
+    "another interpolation" => ["\"a\#{b}c\"", "\"a\#{d}c\""], "other text beside it" => ["\"a\#{b}c\"", "\"a\#{b}d\""]
   }.each do |kind, (one, other)|
     it "tells #{kind} apart" do
       expect(outline(tree(one))).not_to(eq(outline(tree(other))))

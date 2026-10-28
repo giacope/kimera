@@ -52,8 +52,9 @@ RSpec.describe(Kimera::Unwoven) do
       .to(be(false))
   end
 
-  it "reads a guard over several statements as those statements" do
+  it "reads a guard over several statements as those statements", :aggregate_failures do
     expect(keeps?("def f\n  #{guard(1, "nil", "a; b")}\nend\n", "def f\n  a\n  b\nend\n")).to(be(true))
+    expect(keeps?("def f\n  #{guard(1, "nil", "a; b")}\n  c\nend\n", "def f\n  a\n  b\n  c\nend\n")).to(be(true))
   end
 
   it "refuses a method the rewrite moved or lost", :aggregate_failures do
