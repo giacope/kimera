@@ -100,7 +100,8 @@ bundle exec kimera init
 
 **3. Check the setup.** `doctor` confirms source and test discovery (it fails
 a `tests:` glob whose files define no test), Git, and Rails parallel-safety.
-`--check-baseline` also runs your suite once to confirm it is green, and when
+`--check-baseline` also runs your suite once to confirm it is green (leaving out
+the tests `exclude_test_names` names, as `kimera run` does), and when
 the suite aborts it quotes the reason (Rails' pending migrations). With `jobs:`
 over 1 it then runs it again, split across that many processes as `kimera run`
 splits it across its workers, and warns, naming the tests, when it is red

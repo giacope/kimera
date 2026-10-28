@@ -194,6 +194,12 @@ Field test round 6, batch 4: what the writer wrote, and what a test run reached.
   redefined, that no alias links back to the overlay, now has its mutants
   judged again in a fresh mirror, where the wrapper captures the mutant; one
   the mirror does not kill stays as warm judged it.
+- **`kimera doctor` leaves out the tests `exclude_test_names` names.** Its
+  baseline ran them, and called strong_migrations' suite red and blocking on
+  a test the configuration leaves out, while `kimera run` with the same file
+  left it out and ran. Doctor's baseline, split run and load check now
+  filter those tests (RSpec by description or id, Minitest by
+  `Class#test_name`), as run does.
 
 Self-host gate: what kept the `selfhost` job red on main.
 

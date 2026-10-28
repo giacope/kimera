@@ -454,6 +454,14 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     end
   end
 
+  # R6B4-M8: strong_migrations' configuration leaves out a test that fails
+  # here; `kimera run` left it out, doctor ran it and called the suite red.
+  it "runs the baseline without the tests exclude_test_names leaves out, as run does" do
+    project("spec/a_spec.rb" => "", ".kimera.yml" => "exclude_test_names: [\"needs a network\"]\njobs: 1\n")
+    seen = green_suite.tap { doctor("--check-baseline") }
+    expect(seen.map { |command, _| command.join(" ") }).to(all(include("filter_run_excluding", "needs a network")))
+  end
+
   describe "the configured load path" do
     let!(:seen) do
       config = "framework: minitest\ntests: [spec/**/*_spec.rb]\nload_path: [support, spec/helpers]\n"

@@ -112,13 +112,14 @@ class Kimera::CLI::Doctor
 
   def text(path) = File.read(path, encoding: Encoding::UTF_8).scrub
 
-  def baselines(config) = test_command(config).baselines
+  def baselines(config) = test_command(config).baselines(jobs(config))
 
   def loading(config) = test_command(config).loading
 
   def test_command(config)
     framework = config.fetch(:framework, "rspec").to_s
-    Kimera::CLI::TestCommand.new(framework, test_files(config), root: @root, jobs: jobs(config))
+    names = Array(config[:exclude_test_names])
+    Kimera::CLI::TestCommand.new(framework, test_files(config), root: @root, names: names)
   end
 
   def jobs(config) = Integer(config.fetch(:jobs, 1), exception: false).to_i

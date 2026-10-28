@@ -6,6 +6,7 @@ require_relative "../listing"
 require_relative "../frameworks/load_path"
 require_relative "../frameworks/test_task"
 require_relative "suite_signal"
+require_relative "test_exclusion"
 require_relative "test_shard"
 
 class Kimera::CLI::TestCommand
@@ -34,11 +35,11 @@ class Kimera::CLI::TestCommand
   ALLOWANCE = 120
   PER_FILE = 5
 
-  def initialize(framework, files, root:, jobs: 1)
+  def initialize(framework, files, root:, names: [])
     @framework = framework
     @files = files
     @root = root
-    @jobs = jobs
+    @names = names
   end
 
   def baseline
@@ -53,9 +54,9 @@ class Kimera::CLI::TestCommand
     end
   end
 
-  def baselines
+  def baselines(jobs = 1)
     serial = baseline
-    serial.first == "✓" && @jobs > 1 ? [serial, parallel(@jobs)] : [serial]
+    serial.first == "✓" && jobs > 1 ? [serial, parallel(jobs)] : [serial]
   end
 
   def parallel(jobs)
@@ -91,12 +92,12 @@ class Kimera::CLI::TestCommand
   def shards(jobs) = Array.new(jobs) { |index| Thread.new { capture(shard(index, jobs)) } }.map(&:value)
 
   def shard(index, count)
-    ["bundle", "exec", "ruby", *warnings, *Kimera::CLI::TestShard.new(index, count).argv(@framework, includes), *@files]
+    exclusion.ruby(warnings, Kimera::CLI::TestShard.new(index, count).argv(@framework, includes), @files)
   end
 
-  def run = minitest? ? ruby(LOADER) : rspec
+  def run = minitest? ? ruby(LOADER) : exclusion.rspec([], @files)
 
-  def dry_run = minitest? ? ruby(DRY_RUN) : rspec("--dry-run")
+  def dry_run = minitest? ? ruby(DRY_RUN) : exclusion.rspec(["--dry-run"], @files)
 
   def failing(output)
     ids = culprits(output.to_s)
@@ -125,7 +126,7 @@ class Kimera::CLI::TestCommand
     cause ? " (#{cause.captures.join(": ")})" : ""
   end
 
-  def ruby(script, flags = warnings) = ["bundle", "exec", "ruby", *flags, *includes, "-e", script, *@files]
+  def ruby(script, flags = warnings) = exclusion.ruby([*flags, *includes], ["-e", script], @files)
 
   def warnings = minitest? ? task.flags : []
 
@@ -133,7 +134,7 @@ class Kimera::CLI::TestCommand
 
   def includes = Kimera::Frameworks::LoadPath.new(@files, root: @root).flags
 
-  def rspec(*flags) = ["bundle", "exec", "rspec", *flags, *@files]
+  def exclusion = @_exclusion ||= Kimera::CLI::TestExclusion.new(@framework, @names)
 
   def minitest? = @framework == "minitest"
 end
