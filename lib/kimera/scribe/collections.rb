@@ -26,7 +26,38 @@ module Kimera
     class Elements < Form
       TYPES = %i[array_node].freeze
 
-      def text = "[#{listed(@node.elements)}]"
+      def text
+        listed = "[#{listed(@node.elements)}]"
+        @pen.pattern? ? Words.new(@node, @pen).text || "^(#{listed})" : listed
+      end
+    end
+
+    class Words
+      SIGILS = {
+        string_node: "W", interpolated_string_node: "W", symbol_node: "I", interpolated_symbol_node: "I"
+      }.freeze
+      BREAKS = "[] "
+
+      def initialize(node, pen)
+        @node = node
+        @pen = pen
+      end
+
+      def text
+        words = @node.elements.map { |element| word(element) }
+        "%#{sigils.first || "w"}[#{words.join(" ")}]" if sigils.size < 2 && words.all?
+      end
+
+      private
+
+      def sigils = @node.elements.map { |element| SIGILS[element.type] }.uniq
+
+      def word(element)
+        return unless SIGILS.key?(element.type)
+        return @pen.form(element).word if element.respond_to?(:parts)
+        text = element.unescaped
+        Quote.new(text, BREAKS).text unless text.empty?
+      end
     end
 
     class Arguments < Form

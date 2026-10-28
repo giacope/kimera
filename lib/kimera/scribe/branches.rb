@@ -34,10 +34,10 @@ module Kimera
       def pattern
         tested = @node.pattern
         word = GUARDS[tested.type]
-        return part(tested) unless word
+        return patterned(tested) unless word
         inner = tested.statements.body.first
         pen = pen_of(tested)
-        "#{pen.write(inner)} #{word} #{pen.with([inner]).write(tested.predicate, Level::EXPRESSION)}"
+        "#{pen.patterned.write(inner)} #{word} #{pen.with([inner]).write(tested.predicate, Level::EXPRESSION)}"
       end
     end
 

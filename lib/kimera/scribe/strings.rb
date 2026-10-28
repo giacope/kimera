@@ -5,6 +5,8 @@ module Kimera
     class Interpolated < Form
       TAIL = /\A[A-Za-z0-9_]/
 
+      def word = inner(Words::BREAKS)
+
       private
 
       def inner(delimiter)

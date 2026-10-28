@@ -23,7 +23,7 @@ module Kimera
 
       def escaped(char, following)
         return NAMED.fetch(char) if NAMED.key?(char)
-        return "\\#{char}" if char == @delimiter || (char == "#" && SIGILS.include?(following))
+        return "\\#{char}" if @delimiter.include?(char) || (char == "#" && SIGILS.include?(following))
         literal?(char) ? char : coded(char)
       end
 

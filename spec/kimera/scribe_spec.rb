@@ -937,6 +937,41 @@ RSpec.describe(Kimera::Scribe) do
     end
   end
 
+  # R6B4-M2: a %w/%i literal in a pattern is a value (`%w[a b] === value`);
+  # written as `["a", "b"]` it read as an array pattern, which a Struct of
+  # "a" and "b" matches.
+  describe "a word list in a pattern" do
+    {
+      "case v; in %w[a b] then :pair; end" => "case v\nin %W[a b]\n  :pair\nend", "x in %i[a b]" => "x in %I[a b]",
+      "x => %w[]" => "x => %w[]", "x in [%w[a], 1]" => "x in [%W[a], 1]", "x in {k: %i[a]}" => "x in { k: %I[a] }",
+      "x in %w[a] | %i[b]" => "x in %W[a] | %I[b]", "x in %w[a] => y" => "x in %W[a] => y",
+      "x in [*, %w[a], *]" => "x in [*, %W[a], *]", "x in Foo[%w[a]]" => "x in Foo(%W[a])",
+      "x in %W[a \#{b} c\#{d}e]" => "x in %W[a \#{b} c\#{d}e]", "x in %I[a \#{b}]" => "x in %I[a \#{b}]",
+      "x in %w[a\\ b c\\]d \\[ \#{]" => "x in %W[a\\ b c\\]d \\[ \\\#{]",
+      "x in %W[\\u3042 \\n]" => "x in %W[\\u{3042} \\n]",
+      "case v; in %w[a] if [1].any?; end" => "case v\nin %W[a] if [1].any?\nend",
+      "x in ^(%w[a])" => "x in ^([\"a\"])", "x in ->(y) { y == [1] }" => "x in ->(y) {\n  y == [1]\n}",
+      "x = %w[a b]" => "x = [\"a\", \"b\"]"
+    }.each do |source, written|
+      it "writes `#{source}` as `#{written}`", :aggregate_failures do
+        expect(reemit(source)).to(eq(written))
+        expect(shape(parse(written))).to(eq(shape(parse(source))))
+      end
+    end
+
+    def self.listed(*elements) = statement("x in %w[a]").then { it.copy(pattern: it.pattern.copy(elements: elements)) }
+
+    {
+      "an empty word" => [listed(plain(""), plain("b")), "x in ^([\"\", \"b\"])"],
+      "a string beside a symbol" => [listed(plain("a"), statement(":b")), "x in ^([\"a\", :b])"],
+      "a number" => [listed(statement("1")), "x in ^([1])"]
+    }.each do |kind, (tree, written)|
+      it "pins a word list with #{kind}, which no %-literal can hold" do
+        expect(write(tree)).to(eq(written))
+      end
+    end
+  end
+
   # Every file of kimera's own reads back as the very tree it was written from.
   it "writes kimera's own sources so they read back as the same tree", :aggregate_failures do
     Dir[File.expand_path("../../lib/**/*.rb", __dir__)].each do |file|

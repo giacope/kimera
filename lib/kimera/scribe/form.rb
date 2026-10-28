@@ -20,6 +20,8 @@ module Kimera
 
       def part(child, floor = Level::STATEMENT) = pen_of(child).write(child, floor)
 
+      def patterned(child) = pen_of(child).patterned.write(child)
+
       def leading(child, floor) = pen_of(child).closed.lead(child, floor)
 
       def trailing(child, floor)

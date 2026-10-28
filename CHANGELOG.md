@@ -136,6 +136,12 @@ Field test round 6, batch 4: what the writer wrote, and what a test run reached.
   with a harness error that blamed the worker. A `when`, `in`, `if`,
   `elsif`, `unless`, `while`, `until` or `for` head ending in `..` is now
   ended with `;`, as a statement was.
+- **A word list in a pattern stays a value.** `in %w[a b]` matches a value
+  equal to the list; Scribe wrote it `in ["a", "b"]`, an array pattern, which
+  a Struct of "a" and "b" matches too (unparser's pattern corpus). In a
+  pattern a `%w`/`%i`/`%W`/`%I` list is now written as one (`%W[a b]`,
+  interpolations kept), and one that no %-literal can hold (an emptied
+  element) as the pinned value `^(["", "b"])`.
 
 Self-host gate: what kept the `selfhost` job red on main.
 

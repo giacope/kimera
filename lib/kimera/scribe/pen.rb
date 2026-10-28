@@ -56,11 +56,15 @@ module Kimera
 
       def opened = Pen.new(@binders, @margin, @locals)
 
+      def patterned = Matched.new(@binders, @margin, @locals, open: @open)
+
       def open? = @open
+
+      def pattern? = false
 
       def with(nodes) = bound(nodes.reduce(Binders::NONE) { |names, node| names | @binders.of(node) })
 
-      def bound(names) = Pen.new(@binders, @margin, (@locals | names).freeze, open: @open)
+      def bound(names) = self.class.new(@binders, @margin, (@locals | names).freeze, open: @open)
 
       def scoped(nodes = []) = Pen.new(@binders, @margin, Binders::NONE, open: @open).with(nodes)
 
@@ -69,6 +73,10 @@ module Kimera
       def newline = @margin.newline
 
       def gap = @margin.gap
+    end
+
+    class Matched < Pen
+      def pattern? = true
     end
   end
 end
