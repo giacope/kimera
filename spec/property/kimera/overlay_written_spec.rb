@@ -20,7 +20,10 @@ require "kimera/synthesis/overlay"
 # hands down. With every mutant off the overlay reads as the file, each node
 # on its line, the methods and classes it writes whole too. A bake kimera
 # refuses names an unbound local, or drops the newline a heredoc's text ends
-# with: the mutants it cannot write.
+# with: the mutants it cannot write. A dropped rescue or ensure clause keeps
+# every line inside the mutation too (R6B6-M2): its bake is the method with
+# each node on its line, and with its mutant on the warm overlay runs those
+# same nodes on those same lines.
 # A seeded sample of files keeps it fast; `PBT_SCALE` widens it and
 # `PBT_SEED` picks another.
 RSpec.describe(Kimera::Overlay) do
@@ -162,6 +165,39 @@ RSpec.describe(Kimera::Overlay) do
         def where = __LINE__
       end
     RUBY
+    "rescue and ensure clauses (R6B6-M2)" => <<~'RUBY',
+      class Loader
+        def read(lines)
+          first = lines.fetch(0)
+          raise ArgumentError, "blank first line" if first.empty?
+          [first, __LINE__]
+        rescue IndexError, KeyError => error
+          [error, __LINE__]
+        rescue
+          nil
+        else
+          :read
+        ensure
+          lines.clear unless lines.frozen?
+        end
+
+        def parse(text)
+          value = begin
+            Integer(text)
+          rescue ArgumentError
+            retry if text.strip!
+            -1
+          end
+          value
+        ensure
+          log <<~MSG
+            parsed #{text}
+          MSG
+        end
+
+        def quiet = Integer("1") rescue 0
+      end
+    RUBY
     "bare lists, labels and `it` blocks" => <<~'RUBY'
       class Pair
         def initialize(left, right, list)
@@ -216,17 +252,19 @@ RSpec.describe(Kimera::Overlay) do
   def unlike(path, source)
     catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["all"])).source(source, file: "x.rb")
     overlay = described_class.new(catalog)
-    woven = woven(overlay.synthesize("x.rb", source).source, source)
+    weave = overlay.synthesize("x.rb", source).source
+    woven = woven(weave, source)
     baked =
       catalog.each.filter_map do |mutant, point|
-        problem = baked(overlay, source, mutant, point)
+        problem = baked(overlay, source, mutant, point, weave)
         "#{path}:#{point.location.start_line} #{mutant.label}: #{problem}" if problem
       end
     woven ? ["#{path}: the warm overlay #{woven}", *baked] : baked
   end
 
-  def baked(overlay, source, mutant, point)
-    written(overlay.bake("x.rb", source, mutant.id), source, mutant, point)
+  def baked(overlay, source, mutant, point, weave)
+    bake = overlay.bake("x.rb", source, mutant.id)
+    written(bake, source, mutant, point) || clause(bake, source, mutant, point, weave)
   rescue Kimera::Overlay::Unbakeable => error
     "unbakeable: #{error.message}" unless error.message.include?("Kimera::Scribe::Unbound") || ended?(source, point)
   end
@@ -270,6 +308,44 @@ RSpec.describe(Kimera::Overlay) do
   def worded?(node, location)
     node.type == :array_node && node.opening_loc&.slice&.start_with?("%") &&
       location.inside?(node.location.start_offset, node.location.end_offset)
+  end
+
+  # R6B6-M2: a dropped clause's bake is the mutated method, each node on its
+  # line, and the warm overlay with that mutant on runs the same nodes on the
+  # same lines (read as SchemataProjection reads a guarded clause).
+  def clause(bake, source, mutant, point, weave)
+    return unless %w[drop_rescue drop_ensure].include?(mutant.directive["type"])
+    mutated = Kimera::Guardrail.new(Kimera::SourceMap.new(source), []).changes(point, mutant.directive).last.last
+    method = holder(mutated, point)
+    method && (baked_lines(bake, method) || warm_lines(bake, weave, mutant, point))
+  end
+
+  def baked_lines(bake, method)
+    "moves a line of the method it bakes" unless Kimera::Unwoven.new(Kimera::Scribe.parse(bake)).keeps?([method])
+  end
+
+  def warm_lines(bake, weave, mutant, point)
+    on = SchemataProjection.project(read(weave), mutant.id)
+    "runs on other lines warm than baked" unless placed(holder(on, point)) == placed(holder(read(bake), point))
+  end
+
+  def holder(tree, point)
+    found = []
+    Kimera::Rewrite::AstWalk.new(tree).visit { |node| found << node if holds?(node, point.location.start_line) }
+    found.min_by { |node| node.location.end_line - node.location.start_line }
+  end
+
+  def holds?(node, line) = node.type == :def_node && (node.location.start_line..node.location.end_line).cover?(line)
+
+  # Each node of a method by type and line, a begin read with its guarded
+  # clauses settled (one that rescues nothing gone, an empty ensure gone);
+  # not `nil`, which a visibility mutant's probe reduces to.
+  def placed(node)
+    return [] unless node
+    node = SchemataProjection.settled(node) if node.type == :begin_node
+    structure = %i[statements_node begin_node else_node rescue_node ensure_node parentheses_node nil_node]
+    own = structure.include?(node.type) ? [] : [[node.type, node.location.start_line]]
+    own + node.compact_child_nodes.flat_map { |child| placed(child) }
   end
 
   def woven(written, source) = laid(written, source) || unwoven(written, source)

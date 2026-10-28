@@ -288,6 +288,52 @@ Field test round 6, batch 5: where a rewrite leaves your lines, and what runs th
   Appraisal `Gemfile.rails-8.1`, a `gemfiles/x.gemfile`), and a path gem
   its lockfile resolved inside the project resolves from the mirror.
 
+Field test round 6, batch 6: what the scan survives, where a dropped clause runs, and what the report shows.
+
+- **The registry scan no longer stops the run on a method that opens with
+  an empty `if`.** The memo-guard check read an `if` with two parts as
+  "condition and then-branch", but `if x` / `else ...` / `end` has two parts
+  too, the condition and the `else`, and it read the missing then-branch:
+  `NoMethodError: undefined method 'body' for nil`, before any mutant, on
+  every run whose scope held such a method (acts-as-taggable-on's default
+  scope; net-http, irb, debug and parser too). A guard is now an `if` with a
+  then-branch and no `else`. Scanned over 57,978 distinct Ruby files (three
+  bundles, Ruby's own library and gems, 52 MIT projects), the scan raises on
+  none. A file it trips on anyway is listed under "Not mutated", "kimera
+  could not scan it ... (a kimera bug, please report it)" with the error,
+  and every other file is scanned; one it cannot read (a directory named
+  `x.rb`) is listed, "could not be read", not raised.
+- **The scan is linear in a point's mutants.** Comparing each mutant's
+  program with every earlier one was quadratic: one method returning a
+  242-pair hash took 40 s to scan, prism's `serialize.rb` 80 s, parser's
+  generated lexer more than 2 minutes. Each program is now compared once,
+  each node read once: 1.7 s, 5 s and 17 s, the same registry.
+- **A dropped `rescue` or `ensure` runs the method's body on its own lines,
+  in both tiers.** The warm overlay wrote the mutant as a copy of the kept
+  body on the clause's `end` line, and the bake rewrote it (a modifier `if`
+  as a block one), so a test that read a line (a backtrace, `__LINE__`,
+  `caller_locations`) killed a mutant the mutation alone leaves alive:
+  "expected: 4 got: 8" warm, "got: 5" isolated. The guard now stands on the
+  clause alone, `rescue *(active ? [] : [IndexError])` (an empty splat
+  rescues nothing; a bare `rescue` is one of `::StandardError`) and an
+  `ensure` body under `if !active` on its own lines; the bake blanks the
+  clause's lines and keeps every other line's text. A `begin ... end while`
+  clause is now guarded warm too. A property spec holds every dropped
+  clause's bake, and its warm mutant, to the method's lines. The guard runs
+  when an exception reaches the clause, so a dropped `rescue` no test raises
+  into is `no_coverage` (it was a survivor "covered" by every test of the
+  method, none of which could kill it), and only the tests that raise into
+  it run for it.
+- **The report shows every mutant's code.** A mutant whose original code
+  does not parse on its own, a call forwarding an anonymous `&` (`forward(x,
+  1, &)`) or an element of `%i[...]`, had no `+` line: the report showed only
+  `- forward(x, 1, &)`, which reads as a deleted call, and `"mutated": null`
+  in JSON (14 of 617 results on state_machines). A slice is now parsed as
+  it sits in a method that forwards its arguments, and one that only parses
+  where it stands (a list element, a bare list, a call holding a heredoc, a
+  `retry`) is written in its file's own tree. One Kimera still cannot write
+  says so on its `+` line.
+
 Field test round 5, harness: what kimera loads, runs and says.
 
 - **A test that fails only under kimera is a harness error, whatever it

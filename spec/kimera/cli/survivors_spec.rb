@@ -79,10 +79,10 @@ RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
     expect(filtered).to(eq("no survived mutants matching zzz\n"))
   end
 
-  it "omits the + line for a mutant with no mutated source" do
+  # R6B6-M3: a lone `-` line reads as a deleted statement.
+  it "says it could not write the mutant's text for a mutant with no mutated source" do
     out, = run(report_path, "--status", "no_coverage")
-    expect(out).to(include("- x?"))
-    expect(out).not_to(include("+ "))
+    expect(out).to(include("- x?\n    + #{Kimera::Rewrite::MutantText::UNWRITTEN}\n"))
   end
 
   it "filters by file substring" do
@@ -125,9 +125,14 @@ RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
     expect(out).to(include("covering tests (2):", "failing tests (1):", "UserTest#test_active"))
   end
 
+  it "prints no diff for a result that carries no code" do
+    File.write(report_path, JSON.generate("results" => [{ "mutant_id" => 14, "status" => "error", "file" => "a.rb" }]))
+    expect(run(report_path, "--id", "14").first).not_to(include("+ "))
+  end
+
   it "omits the optional lines for a bare result with --id" do
     out, status = run(report_path, "--id", "12")
-    expect([status, out]).to(eq([0, "#12  timeout  app/models/bare.rb\n  - z\n"]))
+    expect([status, out]).to(eq([0, "#12  timeout  app/models/bare.rb\n  - z\n  + #{Kimera::Rewrite::MutantText::UNWRITTEN}\n"]))
   end
 
   describe "multiline diffs" do

@@ -222,9 +222,8 @@ RSpec.describe(Kimera::Report::Text) do
     io.string
   end
 
-  it "prints only the original line when the variant cannot be rendered", :aggregate_failures do
-    out = output
-    expect(out).to(include("- a > b"))
-    expect(out).not_to(include("+ "))
+  # R6B6-M3: a lone `-` line reads as a deleted statement.
+  it "says it could not write the variant when it cannot be rendered" do
+    expect(output).to(include("- a > b\n    + #{Kimera::Rewrite::MutantText::UNWRITTEN}\n"))
   end
 end

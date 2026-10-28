@@ -17,9 +17,8 @@ class Kimera::Rewrite::Outcomes
   end
 
   def distinct(node, variants, &)
-    variants.each_with_object([]) do |variant, kept|
-      kept << variant if kept.none? { |earlier| program(node, earlier, &) == program(node, variant, &) }
-    end
+    seen = Set.new
+    variants.select { |variant| seen.add?(rendered(node, yield(variant))) }
   end
 
   def writable(node, variants)
@@ -40,10 +39,6 @@ class Kimera::Rewrite::Outcomes
 
   def tree = @_tree ||= Kimera::Rewrite::NumberedParams.new(Kimera::Scribe.parse(@source)).normalize
 
-  def program(node, variant)
-    (@_programs ||= {}.compare_by_identity)[variant] ||= rendered(node, yield(variant))
-  end
-
   def rendered(node, directive)
     found = nodes[key(node)]
     (found && form(Kimera::Rewrite::Directive.new(directive).apply(found))) || directive
@@ -62,13 +57,16 @@ class Kimera::Rewrite::Outcomes
     [location.start_offset, location.end_offset, node.type]
   end
 
-  def form(node)
-    inner = bare(node)
+  def form(node) = (@_forms ||= {}.compare_by_identity)[node] ||= formed(bare(node))
+
+  def formed(inner)
     number = value(inner)
     number ? [Numeric, number.inspect] : [inner.type, *flags(inner), *fields(inner)]
   end
 
-  def flags(node) = node.class.instance_methods(false).grep(FLAG).sort.map { |flag| node.public_send(flag) }
+  def flags(node) = predicates(node.class).map { |flag| node.public_send(flag) }
+
+  def predicates(kind) = (@_predicates ||= {})[kind] ||= kind.instance_methods(false).grep(FLAG).sort
 
   def fields(node)
     node.deconstruct_keys(nil).except(*INCIDENTAL).filter_map do |field, value|

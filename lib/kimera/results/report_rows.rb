@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../rewrite/directive"
+require_relative "../rewrite/mutant_text"
 require_relative "test_quality"
 
 module Kimera
@@ -22,12 +22,12 @@ module Kimera
 
     def rewritten(pair)
       mutant, point = pair
-      place(point, mutant).merge(rendered(point.original_source, mutant))
+      place(point, mutant).merge(rendered(point, mutant))
     end
 
-    def rendered(original, mutant)
-      mutated = Kimera::Rewrite::Directive.new(mutant.directive).render(original)
-      { "original" => original, "mutated" => parenthesised(mutant, mutated) }
+    def rendered(point, mutant)
+      mutated = Kimera::Rewrite::MutantText.new(point, mutant, root: @registry.root).text
+      { "original" => point.original_source, "mutated" => mutated && parenthesised(mutant, mutated) }
     end
 
     def parenthesised(mutant, mutated) = mutant.directive["type"] == "boolean_connective" ? "(#{mutated})" : mutated

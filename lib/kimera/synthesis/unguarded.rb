@@ -7,6 +7,7 @@ class Kimera::Unguarded
   include Kimera::Scribe::Nodes
 
   RUNTIME = %i[active? privatize].freeze
+  CAUGHT = "*(::Kimera::RUNTIME.active?("
 
   def initialize(node)
     @node = node
@@ -19,8 +20,11 @@ class Kimera::Unguarded
   def unguarded(rebuilt, original)
     return side(rebuilt) if guard?(rebuilt)
     return statements(rebuilt.statements.body) if inverted?(original)
+    return Kimera::Unguarded::Caught.new(rebuilt).clause if clause?(original)
     rebuilt.type == :statements_node ? kept(rebuilt, original) : rebuilt
   end
+
+  def clause?(node) = node.type == :rescue_node && node.exceptions.first&.slice&.start_with?(CAUGHT)
 
   def kept(rebuilt, original)
     pairs = rebuilt.body.zip(original.body).reject { |node, was| runtime?(node) || probe?(was) }
@@ -53,3 +57,10 @@ class Kimera::Unguarded
     receiver&.type == :constant_path_node && receiver.name == :RUNTIME && RUNTIME.include?(node.name)
   end
 end
+
+Kimera::Unguarded::Caught =
+  Data.define(:guarded) do
+    def clause = guarded.copy(exceptions: listed.type == :array_node ? listed.elements : [])
+
+    def listed = guarded.exceptions.first.expression.body.body.first
+  end

@@ -3,6 +3,7 @@
 require_relative "../scribe"
 require_relative "../rewrite/ast_walk"
 require_relative "../rewrite/numbered_params"
+require_relative "clause_cut"
 require_relative "part_splice"
 require_relative "readback"
 require_relative "line_pad"
@@ -13,23 +14,6 @@ class Kimera::BakeSplice
   INTERPOLATED = %i[interpolated_string_node interpolated_x_string_node].freeze
   WORDS = %i[string_node symbol_node].freeze
   WORD = /\A\w+[?!=]?\z/
-
-  Attempt =
-    Data.define(:from, :to, :text, :grouping) do
-      def self.plain(from, to, text) = new(from, to, text, nil)
-
-      def self.grouped(from, to, text) = new(from, to, text, from + text.bytesize)
-
-      def grouped?(node)
-        location = node.location
-        node.type == :parentheses_node && [location.start_offset, location.end_offset] == [from, grouping]
-      end
-    end
-
-  Candidates =
-    Data.define(:changed) do
-      def to_a = [*Kimera::SpliceDiff.new(*changed.first).path.drop(1).reverse, *changed[0...-1]]
-    end
 
   def initialize(map, changed, expected)
     @map = map
@@ -46,9 +30,14 @@ class Kimera::BakeSplice
   private
 
   def placed(node, rebuilt)
-    lined(node, rebuilt) || worded(node, rebuilt) || laid(node, rebuilt)
+    cut(node, rebuilt) || lined(node, rebuilt) || worded(node, rebuilt) || laid(node, rebuilt)
   rescue StandardError
     nil
+  end
+
+  def cut(node, rebuilt)
+    attempts = Kimera::ClauseCut.new(@map.source, node, rebuilt).attempts
+    attempts.lazy.filter_map { |head, rest| read(Attempt.new(*head), rest) }.first
   end
 
   def worded(node, rebuilt)
@@ -135,3 +124,20 @@ class Kimera::BakeSplice
     map.splice(Kimera::SpliceReopening.new(map).edits)
   end
 end
+
+Kimera::BakeSplice::Attempt =
+  Data.define(:from, :to, :text, :grouping) do
+    def self.plain(from, to, text) = new(from, to, text, nil)
+
+    def self.grouped(from, to, text) = new(from, to, text, from + text.bytesize)
+
+    def grouped?(node)
+      location = node.location
+      node.type == :parentheses_node && [location.start_offset, location.end_offset] == [from, grouping]
+    end
+  end
+
+Kimera::BakeSplice::Candidates =
+  Data.define(:changed) do
+    def to_a = [*Kimera::SpliceDiff.new(*changed.first).path.drop(1).reverse, *changed[0...-1]]
+  end

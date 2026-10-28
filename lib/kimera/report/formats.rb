@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
+require_relative "../rewrite/mutant_text"
 require_relative "markdown"
 
 module Kimera
@@ -57,7 +58,7 @@ class Kimera::Report::Formats
   def diff(result)
     original = result["original"]
     mutated = result["mutated"]
-    original ? ["- #{original}", *("+ #{mutated}" if mutated)] : []
+    original ? ["- #{original}", "+ #{mutated || Kimera::Rewrite::MutantText::UNWRITTEN}"] : []
   end
 
   def crowded(counts)

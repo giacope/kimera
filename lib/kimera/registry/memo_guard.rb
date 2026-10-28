@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "../parsing/branches"
 require_relative "../parsing/syntax"
 require_relative "../parsing/syntax_types"
 
@@ -30,9 +31,9 @@ class Kimera::MemoGuard
     predicate.name if predicate.is_a?(READ)
   end
 
-  def guard? = @guard.is_a?(Kimera::SyntaxTypes::IfNode) && @guard.compact_child_nodes.size == 2 && returns?
+  def guard? = @guard.is_a?(Kimera::SyntaxTypes::IfNode) && !Kimera::Branches.new(@guard).following && returns?
 
-  def returns? = @guard.statements.body.size == 1 && returned.is_a?(Kimera::SyntaxTypes::ReturnNode)
+  def returns? = @guard.statements&.body&.one? && returned.is_a?(Kimera::SyntaxTypes::ReturnNode)
 
   def returned = @guard.statements.body.first
 

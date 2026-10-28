@@ -4,6 +4,7 @@ require_relative "../scribe"
 require_relative "../rewrite/directive"
 require_relative "../rewrite/numbered_params"
 require_relative "guardrail_dispatch"
+require_relative "guard_clause"
 require_relative "guard_probe"
 require_relative "guard_site"
 require_relative "guard_text"
@@ -40,15 +41,18 @@ class Kimera::GuardSplice
   def placements = @_placements ||= @points.map { |point| placement(point, index.node(point)) }
 
   def placement(point, node)
+    return unless node
     hidden, shown = point.mutants.partition { |mutant| mutant.directive[Kimera::Rewrite::TYPE] == "privatize" }
-    guards = shown.map { |mutant| guarded(node, mutant) }
-    probes = hidden.empty? ? [] : probed(node, hidden)
-    [guards, probes] if node && guards.all? && probes
+    clauses, sited = clauses(node, shown)
+    guards = sited.map { |mutant, _| guarded(node, mutant) }
+    [guards, probed(node, hidden) + clauses.flat_map(&:last)] if guards.all?
   end
 
-  def probed(node, hidden)
-    Kimera::GuardProbe.new(node, hidden.map(&:id)).edits if node
+  def clauses(node, mutants)
+    mutants.map { |mutant| [mutant, Kimera::GuardClause.new(node, mutant).edits] }.partition(&:last)
   end
+
+  def probed(node, hidden) = hidden.empty? ? [] : Kimera::GuardProbe.new(node, hidden.map(&:id)).edits
 
   def guarded(node, mutant)
     kind = Kimera::GuardrailDispatch::PARAMETERS[node.type]

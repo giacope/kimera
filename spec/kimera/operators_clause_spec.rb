@@ -209,13 +209,13 @@ RSpec.describe(Kimera::Operators) do
       expect(rendered(code, "rescue_clause")).to(eq(["def m(v)\n  Integer(v)\nend"]))
     end
 
-    # R6B5-M2: the clause is guarded where it stands, the body in a `begin`
-    # on its own lines, so no line of the method moves.
+    # R6B5-M2, R6B6-M2: the clause is guarded where it stands, on the clause
+    # alone, so no line of the method moves, with its mutant off or on.
     it "guards a method's own clause inside its body, on the method's lines", :aggregate_failures do
       code = "class Plain\n  def m(v)\n    Integer(v)\n  rescue ArgumentError\n    0\n  end\nend\n"
       source = Kimera::Overlay.new(scan(code, "rescue_clause")).synthesize("c.rb", code).source
-      expect(source.lines.values_at(1, 3, 6)).to(eq(["  def m(v)\n", "  rescue ArgumentError\n", "end\n"]))
-      expect(source.lines[2]).to(match(/^    \(!\(::Kimera::RUNTIME\.active\?\(\d+\)\) \? \(begin; Integer\(v\)$/))
+      guarded = /\A  rescue \*\(::Kimera::RUNTIME\.active\?\(\d+\) \? \[\] : \[ArgumentError\]\)\n\z/
+      expect(source.lines).to(match([*code.lines.first(3), guarded, *code.lines.drop(4)]))
       expect(Kimera::BodyTrim.new(code, [scan(code, "rescue_clause").points.first.location]).trimmed)
         .to(include("def m(v)"))
     end

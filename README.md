@@ -141,7 +141,11 @@ bundle exec kimera run app --method apply             # only inside apply
 ```
 
 `kimera mutant` shows the diff, the source lines around the mutant, and the
-tests that cover it and kill it, by file, line and description.
+tests that cover it and kill it, by file, line and description. The diff's
+`+` line is the mutant's code: written alone when it parses alone (a call
+forwarding an anonymous `&`, `*`, `**` or `...` does), else in its file
+where it stands (an element of a `%i[]` list, a bare list, a call holding a
+heredoc); one Kimera cannot write says so on the `+` line.
 
 A mutant has two names. Its ID (`42`) numbers every mutant the run scanned,
 so the same mutant gets a different ID when a run covers a different set of
@@ -1071,17 +1075,25 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   - A named-capture match (`/(?<n>\d+)/ =~ s`) is guarded whole, so its
     capture still binds; a visibility mutant's probe and registration go on
     the method's own lines.
-  - A dropped `rescue` or `ensure` clause is guarded where it stands: a
-    `begin`'s at the `begin`, a method's own clauses around the method's body
-    in a `begin` on the body's own lines. A point no expression can hold (a
-    mutant that must break a line) has its method written whole, or, outside
-    every method, the statement of the file that holds it, only where that
-    keeps every line: read back with every mutant off, the rewrite must be
-    the original, each node on its line, so `__LINE__`, a backtrace and a
-    coverage line inside it stay put. One that would move a line (written
-    whole, most methods sit on their first line) is not written, and its
-    point is unguardable. A `begin ... end while` keeps its clauses unguarded:
-    guarded, it would test before its first pass.
+  - A dropped `rescue` or `ensure` clause is guarded on the clause alone:
+    its classes as a splat that rescues nothing while its mutant is on
+    (`rescue *(active ? [] : [IndexError])`, a bare `rescue` as one of
+    `::StandardError`), an `ensure` body under `if !active` on the body's
+    lines. Its bake blanks the clause's lines (an `else` it leaves runs after
+    the body). So with the mutant on, in either tier, the method runs its own
+    body on its own lines: a test that reads a line (`__LINE__`, a backtrace,
+    `caller_locations`) sees the mutation and nothing else. A rescue's
+    guard runs when an exception reaches the clause, so its covering tests
+    are the tests that raise into it: a rescue no test raises into is
+    `no_coverage` ("no test reached the code it mutates"), not a survivor
+    "covered" by tests that could never kill it. A point no
+    expression can hold (a mutant that must break a line) has its method
+    written whole, or, outside every method, the statement of the file that
+    holds it, only where that keeps every line: read back with every mutant
+    off, the rewrite must be the original, each node on its line, so
+    `__LINE__`, a backtrace and a coverage line inside it stay put. One that
+    would move a line (written whole, most methods sit on their first line)
+    is not written, and its point is unguardable.
   - The file Kimera runs with every mutant off keeps the file's line layout:
     as many lines, every node on its line. Every
     bake changes no line outside its mutation (the point's lines, and the
@@ -1100,8 +1112,10 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   it would mutate in any other block outside a method (a class-level `map`,
   a DSL callback block), by its own lines (not those of a method it
   defines, which is mutated), and any scanned file that does
-  not parse, are listed under "Not mutated" in the text report and
-  `unmutated` in the JSON report and the registry, with the reason.
+  not parse, cannot be read, or that the scan itself trips on (a Kimera bug,
+  reported as one with the error, never a crash of the run), are listed
+  under "Not mutated" in the text report and `unmutated` in the JSON report
+  and the registry, with the reason.
 - **Schema-unsafe mutants.** Code that runs once at load (class/module bodies,
   constants) or is memoized can't be toggled in a warm process. Kimera mutates
   only inside method bodies and routes memoized points to a fork-per-mutant

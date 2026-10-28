@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../../support/readout"
+require_relative "../../rewrite/mutant_text"
 require_relative "../../support/snippet"
 require_relative "context"
 
@@ -91,9 +92,9 @@ class Kimera::CLI::Survivors::Panel
   end
 
   def diff(row, indent)
-    source(row["original"], "-", indent)
-    mutated = row["mutated"]
-    source(mutated, "+", indent) if mutated
+    original = row["original"]
+    source(original, "-", indent)
+    source(row["mutated"] || Kimera::Rewrite::MutantText::UNWRITTEN, "+", indent) if original
   end
 
   def source(code, sign, indent) = @io.puts(Kimera::Snippet.new(sign, code).lines(indent))
