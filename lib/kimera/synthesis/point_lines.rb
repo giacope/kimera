@@ -5,6 +5,8 @@ require_relative "part_splice"
 require_relative "splice_reopening"
 
 class Kimera::PointLines
+  WORDS = "%"
+
   def initialize(map, location)
     @map = map
     @location = location
@@ -22,8 +24,16 @@ class Kimera::PointLines
   def owned
     @_owned ||=
       @location.range.to_set.tap do |found|
-        Kimera::Rewrite::AstWalk.new(@map.ast).visit { |node| found.merge(body(node)) if held?(node) }
+        Kimera::Rewrite::AstWalk.new(@map.ast).visit do |node|
+          found.merge(body(node)) if held?(node)
+          found.merge(node.location.start_line..node.location.end_line) if worded?(node)
+        end
       end
+  end
+
+  def worded?(node)
+    node.type == :array_node && node.opening_loc&.slice&.start_with?(WORDS) &&
+      @location.inside?(node.location.start_offset, node.location.end_offset)
   end
 
   def held?(node)

@@ -179,6 +179,13 @@ Field test round 6, batch 4: what the writer wrote, and what a test run reached.
   the statement's guard, as an inner guard is. A method defined while its
   visibility mutant is active (a class a test builds, whose `included` hook
   defines it) is private as defined, as the real mutant's is.
+- **An element of a multi-line `%i[]`/`%w[]` bakes again.** Batch 3's
+  line guard refused every bake that changed a line outside the mutation, and
+  the writer put the whole list on one line: no element of transition's and
+  WebsiteOne's multi-line permit lists could be baked, so `--isolated` and
+  every mirror re-judge called 114 mutants unmutatable. A word is now written
+  in place in its list, and a list that holds the point owns its lines (no
+  element carries a line number), as a heredoc owns its body.
 
 Self-host gate: what kept the `selfhost` job red on main.
 

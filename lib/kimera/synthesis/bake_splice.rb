@@ -10,6 +10,8 @@ require_relative "splice_reopening"
 
 class Kimera::BakeSplice
   INTERPOLATED = %i[interpolated_string_node interpolated_x_string_node].freeze
+  WORDS = %i[string_node symbol_node].freeze
+  WORD = /\A\w+[?!=]?\z/
 
   Attempt =
     Data.define(:from, :to, :text, :grouping) do
@@ -43,9 +45,16 @@ class Kimera::BakeSplice
   private
 
   def placed(node, rebuilt)
-    lined(node, rebuilt) || laid(node, rebuilt)
+    lined(node, rebuilt) || worded(node, rebuilt) || laid(node, rebuilt)
   rescue StandardError
     nil
+  end
+
+  def worded(node, rebuilt)
+    return unless WORDS.include?(node.type) && rebuilt.type == node.type && !node.opening_loc && !node.closing_loc
+    value = rebuilt.unescaped
+    location = node.location
+    read(Attempt.plain(location.start_offset, location.end_offset, value), []) if value.match?(WORD)
   end
 
   def lined(node, rebuilt)

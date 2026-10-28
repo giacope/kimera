@@ -14,9 +14,9 @@ require "kimera/synthesis/overlay"
 # parentheses being that expression. A factory-built constant is reopened on
 # both sides alike. Every bake, and the warm overlay with every mutant off,
 # keeps the file's line layout: as many lines, each definition on its line,
-# and every line after the mutation (the point, and the bodies of the heredocs
-# it holds) as it was, so no node after the mutation point moves: not
-# `__LINE__`, a backtrace line, nor the `__LINE__ + 1` a `class_eval` heredoc
+# and every line after the mutation (the point, the bodies of the heredocs it
+# holds, and the %i/%w list that holds it) as it was, so no node after the
+# mutation point moves: not `__LINE__`, a backtrace line, nor the `__LINE__ + 1` a `class_eval` heredoc
 # hands down. A bake kimera refuses names an unbound local, or drops the
 # newline a heredoc's text ends with: the mutants it cannot write.
 # A seeded sample of files keeps it fast; `PBT_SCALE` widens it and
@@ -143,6 +143,23 @@ RSpec.describe(Kimera::Overlay) do
         end
       end
     RUBY
+    "word lists across lines (R6B4-M5)" => <<~RUBY,
+      class Mappings
+        def permitted
+          params.permit(mapping: %i[
+            type
+            path
+          ])
+        end
+
+        def labels = %w[
+          Type
+          Path
+        ]
+
+        def where = __LINE__
+      end
+    RUBY
     "bare lists, labels and `it` blocks" => <<~'RUBY'
       class Pair
         def initialize(left, right, list)
@@ -243,7 +260,14 @@ RSpec.describe(Kimera::Overlay) do
   def held(node, location)
     opening = node.location.start_offset
     own = node.respond_to?(:heredoc?) && node.heredoc? && opening.between?(location.start_offset, location.finish - 1)
-    [*(node.closing_loc.start_line if own), *node.compact_child_nodes.flat_map { |child| held(child, location) }]
+    last = node.closing_loc.start_line if own || worded?(node, location)
+    [*last, *node.compact_child_nodes.flat_map { |child| held(child, location) }]
+  end
+
+  # A %i/%w list owns its lines: no element carries a line number.
+  def worded?(node, location)
+    node.type == :array_node && node.opening_loc&.slice&.start_with?("%") &&
+      location.inside?(node.location.start_offset, node.location.end_offset)
   end
 
   # How a written file moves the original's lines, if it does: a different
