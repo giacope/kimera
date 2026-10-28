@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
-require_relative "../scribe"
+require_relative "../parsing/syntax"
+require_relative "../parsing/unescaped"
 
 class Kimera::Outline
   LOOSE = %i[forced_utf8_encoding? binary? decimal? octal? hexadecimal? symbol_keys?].freeze
@@ -23,10 +24,11 @@ class Kimera::Outline
   end
 
   def node(node)
-    return [:string, Kimera::Scribe::Unescaped.new(node).text] if node.type == :string_node
-    parts = joined(node.parts) if node.type == :interpolated_string_node
+    type = node.type
+    return [:string, Kimera::Unescaped.new(node).text] if type == :string_node
+    parts = joined(node.parts) if type == :interpolated_string_node
     return parts.first if parts&.one? && text?(parts.first)
-    [node.type, *flags(node), *fields(node)]
+    [type, *flags(node), *fields(node)]
   end
 
   def lone(node)

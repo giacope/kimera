@@ -97,12 +97,22 @@ RSpec.describe(Kimera::SpliceDiff) do
         .to(eq([2, true, false]))
     end
 
+    def fitted(span, node) = described_class.new(span).fitted(Kimera::Scribe.new(node), Kimera::Readback.new(node))
+
     it "fits a node's writing as Scribe lays it out, else on one line", :aggregate_failures do
       node = Kimera::Scribe.parse("if a\n  b\nend").statements.body.first
-      expect(described_class.new("if a\n  b\nend").fitted(Kimera::Scribe.new(node))).to(eq("if a\n  b\nend"))
-      expect(described_class.new("if a then b end").fitted(Kimera::Scribe.new(node))).to(eq("if a; b; end"))
-      extended = Kimera::Scribe.parse("/a\nb/x").statements.body.first
-      expect(described_class.new("/ab/x").fitted(Kimera::Scribe.new(extended))).to(be_nil)
+      expect(fitted("if a\n  b\nend", node)).to(eq("if a\n  b\nend"))
+      expect(fitted("if a then b end", node)).to(eq("if a; b; end"))
+      expect(fitted("/ab/x", Kimera::Scribe.parse("/a\nb/x").statements.body.first)).to(be_nil)
+    end
+
+    # R6B4-M1: a writing that reads back as another tree is no fit.
+    it "takes the first writing that reads back as the node" do
+      node = Kimera::Scribe.parse("case v\nwhen 3.. then :big\nend").statements.body.first
+      readback = instance_double(Kimera::Readback)
+      allow(readback).to(receive(:faithful?)) { |text| text.start_with?("case v;") }
+      expect(described_class.new("case v\nwhen 3.. then :big\nend").fitted(Kimera::Scribe.new(node), readback))
+        .to(eq("case v; when 3..;; :big; \n\nend"))
     end
   end
 

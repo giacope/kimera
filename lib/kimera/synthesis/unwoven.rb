@@ -37,11 +37,11 @@ class Kimera::Unwoven
       end
   end
 
-  def off(node)
-    Kimera::Rewrite::AstWalk.new(node).rebuild do |rebuilt, original|
-      next side(rebuilt) if guard?(rebuilt)
-      rebuilt.type == :statements_node ? kept(rebuilt, original) : rebuilt
-    end
+  def off(node) = Kimera::Rewrite::AstWalk.new(node).rebuild { |rebuilt, original| unguarded(rebuilt, original) }
+
+  def unguarded(rebuilt, original)
+    return side(rebuilt) if guard?(rebuilt)
+    rebuilt.type == :statements_node ? kept(rebuilt, original) : rebuilt
   end
 
   def kept(rebuilt, original)
@@ -59,8 +59,8 @@ class Kimera::Unwoven
   def probe?(node) = guard?(node) && [node.statements, node.subsequent&.statements].all? { |each| empty?(each) }
 
   def empty?(statements)
-    only = statements&.body&.first
-    statements.body.one? && (only.type == :nil_node || probe?(only))
+    body = statements&.body || []
+    body.one? && (body.first.type == :nil_node || probe?(body.first))
   end
 
   def runtime?(node)

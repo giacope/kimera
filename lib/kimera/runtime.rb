@@ -50,14 +50,11 @@ class Kimera::Runtime < Module
     @overlaying = false
     @ledgers = NONE
     @spills = NONE
-    @concealed = NONE
   end
 
   def active=(id)
-    @concealed.each(&:reveal)
     @active = id && Integer(id)
-    flip = hidden[@active]
-    @concealed = flip ? [flip.tap(&:conceal)] : NONE
+    hidden.switch(@active)
   end
 
   def active?(id)
@@ -99,9 +96,7 @@ class Kimera::Runtime < Module
   end
 
   def privatize(id, owner, name)
-    key = Integer(id)
-    flip = hidden[key] = Flip.new(owner, owner.instance_method(name), [])
-    @concealed = [*@concealed, flip.tap { it.conceal([owner]) }] if @active == key
+    hidden.register(Integer(id), Flip.new(owner, owner.instance_method(name), []), @active)
     self
   end
 
@@ -129,8 +124,22 @@ class Kimera::Runtime < Module
 
   def publish = @spills = Ractor.make_shareable(leaks)
 
-  def hidden = @_hidden ||= {}
+  def hidden = @_hidden ||= Hidden.new({}, [])
 end
+
+Kimera::Runtime::Hidden =
+  Struct.new(:flips, :concealed) do
+    def switch(id)
+      concealed.each(&:reveal).clear
+      flip = flips[id]
+      concealed << flip.tap(&:conceal) if flip
+    end
+
+    def register(id, flip, active)
+      flips[id] = flip
+      concealed << flip.tap { it.conceal([flip.owner]) } if active == id
+    end
+  end
 
 Kimera::Runtime::Flip =
   Struct.new(:owner, :definition, :names) do

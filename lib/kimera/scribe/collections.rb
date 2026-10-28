@@ -33,9 +33,8 @@ module Kimera
     end
 
     class Words
-      SIGILS = {
-        string_node: "W", interpolated_string_node: "W", symbol_node: "I", interpolated_symbol_node: "I"
-      }.freeze
+      SIGILS = { "string" => "W", "symbol" => "I" }.freeze
+      KIND = /\A(?:interpolated_)?(string|symbol)_node\z/
       BREAKS = "[] "
 
       def initialize(node, pen)
@@ -50,13 +49,17 @@ module Kimera
 
       private
 
-      def sigils = @node.elements.map { |element| SIGILS[element.type] }.uniq
+      def sigils = @node.elements.map { |element| SIGILS[element.type.to_s[KIND, 1]] }.uniq
 
       def word(element)
-        return unless SIGILS.key?(element.type)
-        return @pen.form(element).word if element.respond_to?(:parts)
-        text = Unescaped.new(element).text
-        Quote.new(text, BREAKS).text unless text.empty?
+        return unless element.type.match?(KIND)
+        text = (element.respond_to?(:parts) ? element.parts : [element]).sum("") { |part| piece(part) }
+        text unless text.empty?
+      end
+
+      def piece(part)
+        return "\#{#{@pen.write(part)}}" unless part.respond_to?(:unescaped)
+        Quote.new(Kimera::Unescaped.new(part).text, BREAKS).text
       end
     end
 
@@ -86,7 +89,7 @@ module Kimera
 
       def value = part(@node.value, Level::ASSIGNMENT)
 
-      def label(key) = Name.new(Unescaped.new(key).text.to_sym).label
+      def label(key) = Name.new(Kimera::Unescaped.new(key).text.to_sym).label
 
       def shorthand? = @node.value.nil? || @node.value.type == :implicit_node
     end

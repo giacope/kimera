@@ -8,18 +8,18 @@ class Kimera::Readback
     @tree = tree
   end
 
-  def faithful?(text)
-    result = Kimera::Syntax.parse(text)
-    result.success? && written(read(result.value)) == meant
+  def faithful?(source)
+    result = Kimera::Syntax.parse(source)
+    result.success? && written(read(result.value)) == text
   end
+
+  def text = @_text ||= written(@tree)
 
   private
 
   def read(program) = @tree.type == :program_node ? program : lone(program.statements)
 
   def lone(statements) = statements.body.one? ? statements.body.first : statements
-
-  def meant = @_meant ||= written(@tree)
 
   def written(tree) = Kimera::Scribe.new(Kimera::Rewrite::NumberedParams.new(tree).normalize).source
 end

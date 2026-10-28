@@ -4,6 +4,7 @@ require_relative "../scribe"
 require_relative "../rewrite/ast_walk"
 require_relative "../rewrite/numbered_params"
 require_relative "part_splice"
+require_relative "readback"
 require_relative "line_pad"
 require_relative "splice_diff"
 require_relative "splice_reopening"
@@ -119,7 +120,7 @@ class Kimera::BakeSplice
     spliced if result.success? && written(ungrouped(result.value, attempt)) == @expected
   end
 
-  def written(tree) = Kimera::Scribe.new(Kimera::Rewrite::NumberedParams.new(tree).normalize).source
+  def written(tree) = Kimera::Readback.new(tree).text
 
   def ungrouped(tree, attempt)
     Kimera::Rewrite::AstWalk.new(tree).rebuild do |rebuilt, original|

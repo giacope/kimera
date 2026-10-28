@@ -99,11 +99,10 @@ class Kimera::CLI::Doctor
 
   def rails? = Kimera::CLI::RailsLayout.new(@root).rails?
 
-  def notes(config) = [*floor, *Kimera::CLI::RspecOptions.new(@root).loaded(test_files(config))]
-
-  def floor
+  def notes(config)
     helper = glob(HELPERS).find { |path| floor?(path) }
-    helper ? [["!", floored(helper.delete_prefix("#{@root}/"))]] : []
+    dotted = Kimera::CLI::RspecOptions.new(@root).loaded(test_files(config))
+    helper ? [["!", floored(helper.delete_prefix("#{@root}/"))], *dotted] : dotted
   end
 
   def floored(helper)
