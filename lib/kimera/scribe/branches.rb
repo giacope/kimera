@@ -29,7 +29,7 @@ module Kimera
 
       private
 
-      def head = type == :when_node ? "when #{listed(@node.conditions)}" : "in #{pattern}"
+      def head = ended(type == :when_node ? "when #{listed(@node.conditions)}" : "in #{pattern}")
 
       def pattern
         tested = @node.pattern
@@ -56,7 +56,7 @@ module Kimera
 
       def keyword = type == :while_node ? "while" : "until"
 
-      def guard = part(@node.predicate, Level::EXPRESSION)
+      def guard = ended(part(@node.predicate, Level::EXPRESSION))
 
       def body = lines(@node.statements, pen_of(@node.statements))
 
@@ -70,7 +70,8 @@ module Kimera
 
       def text
         body = @node.statements
-        "for #{part(@node.index)} in #{part(@node.collection, Level::EXPRESSION)}#{lines(body, pen_of(body))}#{closing}"
+        collection = ended(part(@node.collection, Level::EXPRESSION))
+        "for #{part(@node.index)} in #{collection}#{lines(body, pen_of(body))}#{closing}"
       end
 
       def level = Level::KEYWORD

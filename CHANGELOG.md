@@ -125,6 +125,18 @@ Field test round 6, batch 3: where a bake leaves your lines, and how the suite r
   commands with `-w`; doctor names warnings when a red baseline is green the
   other way.
 
+Field test round 6, batch 4: what the writer wrote, and what a test run reached.
+
+- **A condition ending in an endless range ends before its line break.**
+  When the warm overlay rewrote a whole method (a point it cannot guard in
+  place, a dropped `rescue` clause), Scribe wrote `when 90.. then "A"` as
+  `when 90..` / `"A"`, which Ruby reads as `when 90.."A"` (ArgumentError, a
+  bad value for range), and `if x..; y; end` as `if x..` / `y`, which reads
+  `if x..y`: the woven copy was another program, and kimera stopped the run
+  with a harness error that blamed the worker. A `when`, `in`, `if`,
+  `elsif`, `unless`, `while`, `until` or `for` head ending in `..` is now
+  ended with `;`, as a statement was.
+
 Self-host gate: what kept the `selfhost` job red on main.
 
 - **A `def` inside a block calls refined methods as the plain suite does.**

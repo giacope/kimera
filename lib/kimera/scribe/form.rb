@@ -47,6 +47,8 @@ module Kimera
 
       def appended(head, tail, separator) = tail.empty? ? head : "#{head}#{separator}#{tail}"
 
+      def ended(head) = head.end_with?("..") ? "#{head};" : head
+
       def braced(body, pen, lead = "")
         opening, ending = Clauses.new(body, @pen).structured? ? [" do", "end"] : [" {", "}"]
         "#{opening}#{lead}#{clauses(body, pen)}#{closing(ending)}"

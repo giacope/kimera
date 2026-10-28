@@ -911,6 +911,32 @@ RSpec.describe(Kimera::Scribe) do
     end
   end
 
+  # R6B4-M1: a guard ending in an endless range ran on into the next line:
+  # `when 90.. then "A"` was written `when 90..` / `"A"`, which Ruby reads as
+  # `when 90.."A"` (a bad value for range); `if x..; y; end` read `if x..y`.
+  describe "a condition ending in an endless range" do
+    {
+      "case v; when 3.. then :big; end" => "case v\nwhen 3..;\n  :big\nend",
+      "case v; when 1, 3..; :big; end" => "case v\nwhen 1, 3..;\n  :big\nend",
+      "case v; in 3.. then :big; end" => "case v\nin 3..;\n  :big\nend",
+      "case 1; in ..3 | 5..; end" => "case 1\nin ..3 | 5..;\nend",
+      "if x..; y; end" => "if x..;\n  y\nend", "if x...; end" => "if x...;\nend",
+      "if a; elsif x..; y; end" => "if a\nelsif x..;\n  y\nend", "unless x..; y; end" => "unless x..;\n  y\nend",
+      "while x..; y; end" => "while x..;\n  y\nend", "until x..; end" => "until x..;\nend",
+      "for a in 1..; b; end" => "for a in 1..;\n  b\nend", ":big if v in 3.." => "if v in 3..;\n  :big\nend"
+    }.each do |source, written|
+      it "ends `#{source}`'s guard before the line break", :aggregate_failures do
+        expect(reemit(source)).to(eq(written))
+        expect(shape(parse(written))).to(eq(shape(parse(source))))
+      end
+    end
+
+    it "writes it on one line as it reads" do
+      joined = described_class.new(parse("case v; when 3..; :big; end")).joined
+      expect(joined.text).to(eq("case v; when 3..;; :big; end"))
+    end
+  end
+
   # Every file of kimera's own reads back as the very tree it was written from.
   it "writes kimera's own sources so they read back as the same tree", :aggregate_failures do
     Dir[File.expand_path("../../lib/**/*.rb", __dir__)].each do |file|
