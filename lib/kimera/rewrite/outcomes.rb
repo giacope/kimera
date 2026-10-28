@@ -7,7 +7,6 @@ require_relative "directive"
 require_relative "numbered_params"
 
 class Kimera::Rewrite::Outcomes
-  NUMERIC = Kimera::Scribe::Numeral::TYPES
   FLAG = /\A(?!forced_).*\?\z/
   INCIDENTAL = %i[node_id location locals].freeze
   NOTHING = Kimera::Syntax.parse("nil").value.statements.body.first
@@ -83,7 +82,7 @@ class Kimera::Rewrite::Outcomes
   end
 
   def value(node)
-    return node.value if NUMERIC.include?(node.type)
+    return node.value if Kimera::Scribe::Shape.new(node).numeral?
     number = negated?(node) && value(bare(node.receiver))
     -number if number
   end

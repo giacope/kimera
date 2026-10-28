@@ -118,7 +118,7 @@ class Kimera::Execution::BlockMethods
   def install(entry)
     return unless entry.missed?
     holder, site, visibility = entry.deconstruct
-    Kimera::Warnings::SILENCED.during { holder.class_exec(&compiled(site)) }
+    Kimera::Warnings.silenced.during { holder.class_exec(&compiled(site)) }
     holder.__send__(visibility, site.name)
   rescue StandardError, ScriptError
     nil

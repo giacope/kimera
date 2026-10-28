@@ -12,7 +12,12 @@ class Kimera::MemoGuard
   WRITE = Kimera::SyntaxTypes::InstanceVariableWriteNode
   DEFINED = Kimera::SyntaxTypes::DefinedNode
 
-  Exemption = Data.define(:location, :operator)
+  Exemption =
+    Data.define(:location, :operator) do
+      def self.conditional(location) = new(location, CONDITIONAL)
+
+      def self.deleted(location) = new(location, ASSIGNMENT_DELETION)
+    end
 
   def initialize(statements)
     @guard, @flag, *@rest = statements

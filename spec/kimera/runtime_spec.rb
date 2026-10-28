@@ -11,7 +11,7 @@ RSpec.describe(Kimera::Runtime) do
 
   it "keeps the runtime a second copy of this file finds already bound" do
     bound = Kimera::RUNTIME
-    Kimera::Warnings::SILENCED.during { load(described_class::SOURCE_PATH) }
+    Kimera::Warnings.silenced.during { load(described_class::SOURCE_PATH) }
     expect(Kimera::RUNTIME).to(equal(bound))
   end
 

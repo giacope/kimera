@@ -10,7 +10,6 @@ module Kimera
     RERUN = %i[require require_relative ruby2_keywords using].freeze
     CONDITIONS = [Prism::IfNode, Prism::UnlessNode].freeze
     DECLARATIONS = %i[included prepended class_methods concerning class_eval module_eval class_exec module_exec].freeze
-    FACTORIES = Kimera::GuardrailFactories::FACTORIES
     LOCALS = [
       Prism::LocalVariableWriteNode, Prism::LocalVariableOperatorWriteNode,
       Prism::LocalVariableOrWriteNode, Prism::LocalVariableAndWriteNode
@@ -91,7 +90,7 @@ module Kimera
       when Prism::ClassNode, Prism::ModuleNode, Prism::SingletonClassNode then node.body
       when Prism::CallNode then declared(node)
       when Prism::ConstantWriteNode, Prism::ConstantPathWriteNode then declared(node.value)
-      when *CONDITIONS then Kimera::Syntax::BRANCHES.call(node)
+      when *CONDITIONS then Kimera::Branches.new(node).bodies
       end
     end
 
@@ -105,7 +104,9 @@ module Kimera
       DECLARATIONS.include?(name) || factory?(call.receiver, name) || Kimera::FactoryBlock.new(call.block).defining?
     end
 
-    def factory?(receiver, name) = receiver.is_a?(Prism::ConstantReadNode) && FACTORIES.include?([receiver.name, name])
+    def factory?(receiver, name)
+      receiver.is_a?(Prism::ConstantReadNode) && Kimera::Factory.new(receiver.name, name).named?
+    end
 
     def blank(nodes)
       text = @source.b

@@ -6,6 +6,7 @@ require_relative "foreign_file"
 module Kimera
   class FileSet
     DEFAULT_GLOBS = ["app/**/*.rb", "lib/**/*.rb"].freeze
+    private_constant(:DEFAULT_GLOBS)
 
     Root =
       Data.define(:path) do
@@ -22,11 +23,15 @@ module Kimera
       new(Config::Precedence.new(from_cli, options[:paths]).chosen(DEFAULT_GLOBS), exclude: options[:exclude])
     end
 
+    def self.default = new(DEFAULT_GLOBS)
+
     def initialize(patterns, include: [], exclude: [])
       @patterns = patterns
       @include = include
       @exclude = exclude
     end
+
+    def to_s = Array(@patterns).join(", ")
 
     def files = listed.sort
 

@@ -9,7 +9,7 @@ RSpec.describe(Kimera::CLI::Mutant, :aggregate_failures) do
   let(:sample) { File.expand_path("../../../examples/sample_app", __dir__) }
   let(:provenance) do
     { "framework" => "rspec", "source_root" => ".", "tests" => ["spec/**/*_spec.rb"] }
-      .merge("operators" => Kimera::Operators::DEFAULT_KEYS, "coverage" => true, "isolated" => false)
+      .merge("operators" => Kimera::Operators.build.map(&:key), "coverage" => true, "isolated" => false)
   end
 
   def reported(registry, mutant, point)

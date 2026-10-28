@@ -11,10 +11,15 @@ end
 
 class Kimera::CLI::ReportFile
   DEFAULT = "tmp/kimera/report.json"
+  private_constant(:DEFAULT)
+
+  def self.default = new(DEFAULT)
 
   def initialize(path)
     @path = path
   end
+
+  def to_s = @path
 
   def document
     @_document ||= JSON.parse(File.read(@path, encoding: Encoding::UTF_8))

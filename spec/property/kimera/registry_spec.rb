@@ -5,6 +5,8 @@ require "tmpdir"
 require_relative "../property_helper"
 
 RSpec.describe(Kimera::Registry) do
+  def unmatched = "no node to guard: kimera found nothing of its kind where the point was scanned"
+
   let(:programs) { RubyPrograms.new(depth: 2) }
   let(:operators) { Kimera::Operators.build(keys: ["all"]) }
 
@@ -166,7 +168,7 @@ RSpec.describe(Kimera::Registry) do
   # Per point (its source and labels): whether a bake is the original, how
   # many bakes repeat, and which Ruby misreads.
   def baked(schemata)
-    folded = "#{Kimera::MutationPoint::UNMUTATABLE}#{Kimera::Overlay::FileWeave::UNMATCHED}"
+    folded = "#{Kimera::MutationPoint::UNMUTATABLE}#{unmatched}"
     schemata.registry.points.reject { |point| point.unsafe_reason == folded }.map do |point|
       ["#{point.original_source}: #{point.mutants.map(&:label)}", bake_facts(point, schemata)]
     end

@@ -15,7 +15,7 @@ class Kimera::CLI::Init
   OPTIONS = Kimera::FlagTable.new(
     banner: "Usage: kimera init [options]",
     flags: [
-      Kimera::FORCE_FLAG.with(help: "Replace an existing .kimera.yml"),
+      Kimera::Flag.shared(:force, help: "Replace an existing .kimera.yml"),
       Kimera::Flag.build("--dry-run", :dry_run, "Print the detected configuration without writing it")
     ]
   )
@@ -27,6 +27,7 @@ class Kimera::CLI::Init
     "rspec" => %w[spec/system/**/*_spec.rb spec/features/**/*_spec.rb]
   }.freeze
   JOBS = 4
+  FURTHER = [Kimera::Operators::WhenClause, Kimera::Operators::AppendDeletion].freeze
   MINITEST = %r{minitest/autorun|Minitest::Test|ActiveSupport::TestCase}
   LOCKS = %w[Gemfile.lock gems.locked].freeze
   LOCKED = { "rspec" => /^    rspec-core \(/, "minitest" => /^    minitest \(/ }.freeze
@@ -58,18 +59,15 @@ class Kimera::CLI::Init
   end
 
   def write(options)
-    path = File.join(@root, Kimera::Config::DEFAULT_PATH)
-    overwrite(path) if File.exist?(path) && !options[:force]
-    File.write(path, template)
-    announce
+    config = Kimera::Config.of(@root)
+    config.create(options[:force]) { template }
+    announce(config)
   end
 
   def template = Kimera::CLI::ConfigTemplate.new(detected).render
 
-  def overwrite(path) = raise(Kimera::UsageError, "#{path} already exists (use --force to replace it)")
-
-  def announce
-    @io.puts("Created #{Kimera::Config::DEFAULT_PATH} for #{framework}.", "Next: kimera doctor")
+  def announce(config)
+    @io.puts("Created #{config} for #{framework}.", "Next: kimera doctor")
     0
   end
 
@@ -87,7 +85,7 @@ class Kimera::CLI::Init
 
   def rails_app? = Kimera::CLI::RailsLayout.new(@root).rails?
 
-  def operators = [*Kimera::Operators::INIT_KEYS, *("rails" if rails_app?)]
+  def operators = [*Kimera::Operators.build.map(&:key), *FURTHER.map { it.new.key }, *("rails" if rails_app?)]
 
   def framework = @_framework ||= declared || bundled || layout
 
@@ -127,7 +125,7 @@ class Kimera::CLI::Init
 
   def sources
     paths = %w[app/**/*.rb lib/**/*.rb].select { |glob| Dir.glob(File.join(@root, glob)).any? }
-    paths.empty? ? Kimera::FileSet::DEFAULT_GLOBS : paths
+    paths.empty? ? Kimera::FileSet.default.patterns : paths
   end
 
   def tests

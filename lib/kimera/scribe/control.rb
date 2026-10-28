@@ -10,11 +10,11 @@ module Kimera
         "#{keyword} #{guard}#{lines(@node.statements, pen_of(@node.statements))}#{alternative}#{closing}"
       end
 
-      def level = postcondition? ? Level::STATEMENT : Level::KEYWORD
+      def level = postcondition? ? STATEMENT : KEYWORD
 
       def ternary
         middle, last = sides
-        "#{leading(@node.predicate, Level::RANGE)} ? #{branch(middle, Level::RANGE)} : #{branch(last, Level::RANGE)}"
+        "#{leading(@node.predicate, RANGE)} ? #{branch(middle, RANGE)} : #{branch(last, RANGE)}"
       end
 
       private
@@ -30,7 +30,7 @@ module Kimera
         subsequent&.type == :else_node ? subsequent.statements : subsequent
       end
 
-      def guard = ended(part(@node.predicate, Level::EXPRESSION))
+      def guard = ended(part(@node.predicate, EXPRESSION))
 
       def branch(node, floor)
         return "nil" unless node
@@ -38,7 +38,7 @@ module Kimera
         body = node.type == :statements_node ? node.body : [node]
         return "(#{Sequence.new(node, pen).text})" unless body.one?
         only = body.first
-        pen.write(only, Shape.new(only).assignment? ? Level::ASSIGNMENT : floor)
+        pen.write(only, Shape.new(only).assignment? ? ASSIGNMENT : floor)
       end
 
       def alternative
@@ -76,7 +76,7 @@ module Kimera
       end
 
       def text
-        "#{Body.new(@body, @pen.closed).text} #{@keyword} #{@pen.with([@body]).write(@condition, Level::EXPRESSION)}"
+        "#{Body.new(@body, @pen.closed).text} #{@keyword} #{@pen.with([@body]).write(@condition, EXPRESSION)}"
       end
     end
 
@@ -88,7 +88,7 @@ module Kimera
 
       def text
         body = @node.body
-        body.one? ? @pen.write(body.first, Level::EXPRESSION) : "(#{Sequence.new(@node, @pen.opened).text})"
+        body.one? ? @pen.write(body.first, EXPRESSION) : "(#{Sequence.new(@node, @pen.opened).text})"
       end
     end
 

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../self_protection"
+require_relative "baseline_failure"
 require_relative "isolated_child_command"
 require_relative "isolated_kin"
 require_relative "isolated_test_selection"
@@ -47,6 +48,8 @@ class Kimera::Execution::IsolatedPlan
 
   def suite = selection.all
 
+  def to_s = MIRROR_HINT
+
   def quality? = @options[:quality] == true
 
   def fastest(tests) = Kimera::Execution::Pace.new(timings).fastest(tests)
@@ -74,7 +77,7 @@ class Kimera::Execution::IsolatedPlan
   end
 
   def everything?(point)
-    point.revisit == Kimera::MutationPoint::ORDER_REASON ||
+    point.ordered? ||
       Kimera::SelfProtection.new(File.join(root, point.file)).protected?
   end
 

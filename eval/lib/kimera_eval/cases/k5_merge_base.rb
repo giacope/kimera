@@ -27,7 +27,7 @@ module KimeraEval
     end
 
     def history(dir)
-      git = Shell.new(chdir: dir, env: Sandbox::IDENTITY)
+      git = sandbox.shell(dir)
       STEPS.each { |step| apply(git, File.join(dir, "lib", "calc.rb"), step) }
       dir
     end

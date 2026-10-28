@@ -180,7 +180,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
   end
 
   describe "#verify!" do
-    def test_baseline(outcome, progress: Kimera::Execution::NullProgress::NONE, ids: nil, coverage: {})
+    def test_baseline(outcome, progress: Kimera::Execution::NullProgress.new, ids: nil, coverage: {})
       seen = []
       engine =
         Class.new(described_class) do
@@ -399,7 +399,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     def unannounced(root)
       File.write(File.join(root, "calc.rb"), "def a(x, y) = x > y\n")
-      test_canned_runner(root: root, jobs: 1, progress: Kimera::Execution::NullProgress::NONE)
+      test_canned_runner(root: root, jobs: 1, progress: Kimera::Execution::NullProgress.new)
     end
 
     it "prints nothing per verdict; progress alone reports the run" do

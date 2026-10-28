@@ -21,8 +21,6 @@ require_relative "run/options"
 require_relative "run/sources"
 
 class Kimera::CLI::Run
-  include Kimera::CLI::RunOptions
-
   def initialize(io: $stdout, errors: $stderr)
     @io = io
     @errors = errors

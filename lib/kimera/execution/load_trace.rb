@@ -12,8 +12,6 @@ module Kimera
 end
 
 class Kimera::Execution::LoadTrace
-  LOADED = Kimera::MutationPoint::LOAD_REASON
-  BOOTED = Kimera::MutationPoint::BOOT_REASON
   RAN = { call: [Prism::DefNode], b_call: [Prism::BlockNode, Prism::LambdaNode] }.freeze
 
   Span =
@@ -35,7 +33,7 @@ class Kimera::Execution::LoadTrace
 
   def quarantine!(coverage)
     runs.each do |file, lines|
-      loaded(file, lines).each { |point| point.defer!(coverage, LOADED, BOOTED) }
+      loaded(file, lines).each { |point| point.loading!(coverage) }
     end
     Kimera::Execution::MacroLambdas.new(@registry, root).quarantine!(coverage)
     Kimera::Execution::BlockUse.new(@registry, root).revisit!

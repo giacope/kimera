@@ -103,7 +103,7 @@ RSpec.describe(Kimera::Execution::Overrides) do
     expect(&quietly).not_to(output.to_stderr)
   end
 
-  def silently(&) = Kimera::Warnings::SILENCED.during(&)
+  def silently(&) = Kimera::Warnings.silenced.during(&)
 
   it "lets the overlay redefine what only its own file defined" do
     boot

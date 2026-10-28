@@ -23,6 +23,8 @@ class Kimera::PartSplice
 
   def body = parts.first&.location || @literal.content_loc
 
+  def verbatim? = @literal.opening_loc.slice.match?(VERBATIM)
+
   private
 
   def parts = @literal.respond_to?(:parts) ? @literal.parts : []

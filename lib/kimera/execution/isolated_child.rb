@@ -23,7 +23,7 @@ rescue StandardError, ScriptError
   nil
 end
 aborted = RSpec.world.wants_to_quit || RSpec.world.rspec_is_quitting
-Kimera::Warnings::SILENCED.during(&redirect)
+Kimera::Warnings.silenced.during(&redirect)
 
 RSpec.configuration.before(:suite) do
   RSpec.world.all_examples.each { |example| example.extend(Kimera::TestExit::Example) }

@@ -71,7 +71,7 @@ RSpec.describe(Kimera::Overlay) do
     # A guard written as a keyword `if` right after `return` reads as a
     # modifier, so it is written as a ternary there. The extended operators plant guards in the returned chain.
     let(:extended_keys) do
-      (Kimera::Operators::DEFAULT_KEYS + %w[string_literal return_value argument_drop element_drop]).freeze
+      (Kimera::Operators.build.map(&:key) + %w[string_literal return_value argument_drop element_drop]).freeze
     end
 
     let(:guarded_return) do
@@ -957,9 +957,9 @@ RSpec.describe(Kimera::Overlay) do
       def made_before(source)
         stub_const("Spliced", Module.new)
         stub_const("SplicedTop", nil)
-        Kimera::Warnings::SILENCED.during { TOPLEVEL_BINDING.eval(value_source) }
+        Kimera::Warnings.silenced.during { TOPLEVEL_BINDING.eval(value_source) }
         [Spliced::Point.new(x: 11), SplicedTop.new(20), Spliced::Nested.new(x: 10)].tap do
-          Kimera::Warnings::SILENCED.during { TOPLEVEL_BINDING.eval(source) }
+          Kimera::Warnings.silenced.during { TOPLEVEL_BINDING.eval(source) }
         end
       end
 

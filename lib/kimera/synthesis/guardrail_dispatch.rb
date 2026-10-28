@@ -5,6 +5,16 @@ module Kimera
     PRIVATIZE = "privatize"
     PARAMETERS = { optional_parameter_node: "argument", optional_keyword_parameter_node: "keyword" }.freeze
 
+    class Parameter
+      def initialize(node)
+        @node = node
+      end
+
+      def optional? = PARAMETERS.key?(@node.type)
+
+      def missing = %(raise(ArgumentError, "missing #{PARAMETERS.fetch(@node.type)}: #{@node.name}"))
+    end
+
     private
 
     def group(points)
@@ -17,7 +27,7 @@ module Kimera
     def dispatch(rebuilt, bare, points)
       mutants = points.flat_map(&:mutants).reverse
       return parameter(rebuilt, mutants) if PARAMETERS.key?(rebuilt.type)
-      hidden, shown = mutants.partition { |mutant| mutant.directive[Kimera::Rewrite::TYPE] == PRIVATIZE }
+      hidden, shown = mutants.partition { |mutant| Kimera::Rewrite::Directive.new(mutant.directive).kind?(PRIVATIZE) }
       guard(shown, hidden.empty? ? rebuilt : privatized(rebuilt, hidden)) { |mutant| variant(bare, mutant) }
     end
 

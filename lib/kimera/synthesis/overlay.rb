@@ -29,6 +29,8 @@ class Kimera::Overlay
 
   UNWRITTEN = "kimera could not write it"
   MISREAD = "what it wrote reads back as another program"
+  UNMATCHED = "no node to guard: kimera found nothing of its kind where the point was scanned"
+  private_constant(:UNMATCHED)
 
   def initialize(registry)
     @registry = registry
@@ -71,7 +73,7 @@ class Kimera::Overlay
 
   def baked(map, mutant, point)
     Kimera::Guardrail.new(map, []).bake(point, mutant.directive) ||
-      raise(Unbakeable, Kimera::Overlay::FileWeave::UNMATCHED)
+      raise(Unbakeable, UNMATCHED)
   end
 
   def write(map, tree, point)

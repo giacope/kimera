@@ -51,7 +51,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     def defaults
       {
         framework: "rspec", source_root: ".", tests: ["spec/**/*_spec.rb"], configured_tests: ["spec/**/*_spec.rb"],
-        operators: Kimera::Operators::DEFAULT_KEYS,
+        operators: Kimera::Operators.build.map(&:key),
         soft_timeout: 5.0, hard_timeout: nil,
         relative_timeout: true, timeout_factor: nil, timeout_slack: nil,
         registry: nil, report: "tmp/kimera/report.json", format: "text", focus: [], gate: true, coverage: true,

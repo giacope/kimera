@@ -9,7 +9,7 @@ module Kimera
 
       def level
         body = @node.body
-        body.one? ? pen_of(body.first).level(body.first) : Level::STATEMENT
+        body.one? ? pen_of(body.first).level(body.first) : STATEMENT
       end
     end
 
@@ -82,12 +82,12 @@ module Kimera
         key = @node.key
         return "#{label(key)}#{" #{value}" unless shorthand?}" if key.type == :symbol_node
         return "#{part(key).delete_prefix(":")}: #{value}" if key.type == :interpolated_symbol_node
-        "#{leading(key, Level::RANGE)} => #{value}"
+        "#{leading(key, RANGE)} => #{value}"
       end
 
       private
 
-      def value = part(@node.value, Level::ASSIGNMENT)
+      def value = part(@node.value, ASSIGNMENT)
 
       def label(key) = Name.new(Kimera::Unescaped.new(key).text.to_sym).label
 
@@ -100,7 +100,7 @@ module Kimera
 
       def text
         inner = type == :assoc_splat_node ? @node.value : @node.expression
-        "#{PREFIXES.fetch(type)}#{part(inner, Level::ASSIGNMENT) if inner}"
+        "#{PREFIXES.fetch(type)}#{part(inner, ASSIGNMENT) if inner}"
       end
     end
 
@@ -110,11 +110,11 @@ module Kimera
       def text
         first = @node.left
         last = @node.right
-        floor = Level::RANGE + 1
+        floor = RANGE + 1
         "#{leading(first, floor) if first}#{@node.exclude_end? ? "..." : ".."}#{trailing(last, floor) if last}"
       end
 
-      def level = Level::RANGE
+      def level = RANGE
     end
   end
 end

@@ -7,11 +7,11 @@ module Kimera
 
       attr_reader :locals, :slices, :depth, :joint
 
-      def self.top = new(Binders::NONE, {}.compare_by_identity, 0)
+      def self.top = new(NO_NAMES, {}.compare_by_identity, 0)
 
       def self.of(root, node, ends = Float::INFINITY)
         indent = node.location.start_line_slice[/\A */].size
-        new(Seen.new(node).locals(root), Kept.new(node, root, ends).slices, indent / Pen::INDENT.size)
+        new(Seen.new(node).locals(root), Kept.new(node, root, ends).slices, indent / INDENT.size)
       end
 
       def initialize(locals, slices, depth, joint = nil)
@@ -34,7 +34,7 @@ module Kimera
           @node = node
         end
 
-        def locals(scope, names = Binders::NONE)
+        def locals(scope, names = NO_NAMES)
           return names if scope.equal?(@node)
           children = scope.compact_child_nodes
           earlier = children.select { |child| before?(child) }
@@ -46,8 +46,8 @@ module Kimera
         private
 
         def opened(scope, names)
-          kept = SCOPES.include?(scope.type) ? Binders::NONE : names
-          Binders::NAMED.include?(scope.type) ? kept | [scope.name].compact : kept
+          kept = SCOPES.include?(scope.type) ? NO_NAMES : names
+          NAMED.include?(scope.type) ? kept | [scope.name].compact : kept
         end
 
         def seen(node) = (@_binders ||= Binders.new).of(node)

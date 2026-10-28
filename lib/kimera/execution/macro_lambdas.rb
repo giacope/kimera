@@ -10,12 +10,6 @@ module Kimera
 end
 
 class Kimera::Execution::MacroLambdas
-  REASON = Kimera::MutationPoint::MACRO_REASON
-  KEPT =
-    "a lambda handed to a class-body macro: the warm overlay re-declares the macro, and one that adds to a list " \
-      "(default_scope, a callback, a validation) keeps the original lambda beside the mutated one, so a warm " \
-      "survivor is judged again in a fresh mirror against the tests near its file"
-
   def initialize(registry, root)
     @registry = registry
     @given = root
@@ -24,7 +18,7 @@ class Kimera::Execution::MacroLambdas
   def quarantine!(coverage)
     @registry.files.each do |file|
       ranges = handed(file)
-      @registry.at(file).each { |point| point.defer!(coverage, REASON, KEPT) if open?(point, ranges) }
+      @registry.at(file).each { |point| point.macro!(coverage) if open?(point, ranges) }
     end
   end
 

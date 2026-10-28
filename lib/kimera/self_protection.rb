@@ -9,9 +9,11 @@ module Kimera
       execution/isolated_child_minitest.rb
     ].map { |path| File.expand_path(path, __dir__) }.freeze
 
-    PATHS = [Runtime::SOURCE_PATH, *OUT_OF_PROCESS_ENTRYPOINTS].freeze
+    RUNTIME_PATH = File.expand_path("runtime.rb", File.dirname(File.expand_path(__FILE__)))
 
-    HOME = File.dirname(Runtime::SOURCE_PATH)
+    PATHS = [RUNTIME_PATH, *OUT_OF_PROCESS_ENTRYPOINTS].freeze
+
+    HOME = File.dirname(RUNTIME_PATH)
 
     HARNESS_CRITICAL_SUFFIXES = %w[
       kimera/frameworks/suite.rb

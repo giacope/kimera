@@ -86,7 +86,7 @@ RSpec.describe(Kimera::RegistryScan) do
   end
 
   describe "statement positions inside interpolation" do
-    def scan(code, keys: Kimera::Operators::DEFAULT_KEYS)
+    def scan(code, keys: Kimera::Operators.build.map(&:key))
       described_class.new(operators: Kimera::Operators.build(keys: keys))
         .source("def m(o)\n#{code}\nend\n", file: "interp.rb")
     end

@@ -74,7 +74,7 @@ RSpec.describe(Kimera::Execution::Shift::Unmask) do
   describe "a test that hangs alone" do
     let(:clock) { [0.0] }
 
-    before { stub_const("Kimera::Execution::Shift::Deadline::CLOCK", -> { clock.first }) }
+    before { stub_const("Kimera::Execution::Stopwatch::CLOCK", -> { clock.first }) }
 
     # +script+ maps a test to its successive runs, as [seconds, passed?] pairs.
     def timed(script)

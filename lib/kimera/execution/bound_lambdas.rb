@@ -11,7 +11,6 @@ module Kimera
 end
 
 class Kimera::Execution::BoundLambdas
-  REASON = Kimera::MutationPoint::BOUND_REASON
   WRITES = [
     Prism::ConstantWriteNode, Prism::ConstantPathWriteNode, Prism::ConstantOrWriteNode, Prism::ConstantPathOrWriteNode
   ].freeze
@@ -23,7 +22,7 @@ class Kimera::Execution::BoundLambdas
 
   def hold!(file)
     ranges = held(Kimera::Syntax::Document.new(@root, file).result.value)
-    @registry.at(file).each { |point| point.unsafe!(REASON) if point.reloadable? && point.inside?(ranges) }
+    @registry.at(file).each { |point| point.bound! if point.reloadable? && point.inside?(ranges) }
   end
 
   private

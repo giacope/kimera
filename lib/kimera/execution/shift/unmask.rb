@@ -8,7 +8,7 @@ class Kimera::Execution::Shift::Unmask
   CAP = 50
   NOTE = "failed alone in a fresh process (an earlier covering test masked it when they ran together)"
 
-  def initialize(attempt, pace = Kimera::Execution::Pace::STILL)
+  def initialize(attempt, pace = Kimera::Execution::Pace.new({}))
     @attempt = attempt
     @pace = pace
   end

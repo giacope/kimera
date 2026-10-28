@@ -16,7 +16,7 @@ RSpec.describe(Kimera::Execution::FlakeHunt, :aggregate_failures) do
   end
   let(:registry) { Kimera::RegistryScan.new.source("def a(x)\n  x > 1\nend\n", file: "a.rb") }
   let(:filter) { Kimera::Execution::TestFilter.new(registry: registry) }
-  let(:progress) { Kimera::Execution::NullProgress::NONE }
+  let(:progress) { Kimera::Execution::NullProgress.new }
   let(:env) { { "KIMERA_SEED" => "11" } }
 
   # Under seed 12, t2 fails; under 13, t2 and t1 fail and t3 times out.

@@ -10,14 +10,13 @@ module Kimera
 end
 
 class Kimera::Execution::OrderTrace
-  ORDERED = Kimera::MutationPoint::ORDER_REASON
   NOTE = "baseline (whole suite, in order)"
 
   def initialize(registry)
     @registry = registry
   end
 
-  def follow!(baseline, coverage, scope: nil, progress: Kimera::Execution::NullProgress::NONE)
+  def follow!(baseline, coverage, scope: nil, progress: Kimera::Execution::NullProgress.new)
     return unless wanted?(scope, coverage)
     progress.note(NOTE)
     mark!(baseline, coverage)
@@ -26,7 +25,7 @@ class Kimera::Execution::OrderTrace
   def mark!(baseline, coverage)
     reached(baseline).each do |id|
       point = @registry.point(id)&.last
-      point.revisit!(ORDERED) if point&.safe? && uncovered?(id, coverage)
+      point.ordered! if point&.safe? && uncovered?(id, coverage)
     end
   end
 

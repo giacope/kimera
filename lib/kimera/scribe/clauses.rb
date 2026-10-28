@@ -13,7 +13,7 @@ module Kimera
       def structured? = @node&.type == :begin_node && !@node.begin_keyword_loc
 
       def structure
-        handlers = Kimera::Syntax::RESCUES.call(@node.rescue_clause)
+        handlers = Kimera::Rescues.new(@node.rescue_clause).to_a
         body = Lines.new(@node.statements, @pen.deeper).text
         "#{body}#{handling(handlers)}#{fallback(handlers)}#{cleanup(handlers)}"
       end

@@ -5,6 +5,8 @@ require "kimera/synthesis/overlay"
 
 # The reload fallback: one mutation baked into source, unguarded.
 RSpec.describe(Kimera::Overlay) do
+  def unmatched = "no node to guard: kimera found nothing of its kind where the point was scanned"
+
   def build(source, file: "x.rb")
     Kimera::RegistryScan.new.source(source, file: file)
   end
@@ -185,7 +187,7 @@ RSpec.describe(Kimera::Overlay) do
       point = catalog.points.first
       allow(point).to(receive(:node_type).and_return("float_node"))
       expect { described_class.new(catalog).bake("x.rb", program, point.ids.first) }.to(
-        raise_error(described_class::Unbakeable, Kimera::Overlay::FileWeave::UNMATCHED)
+        raise_error(described_class::Unbakeable, unmatched)
       )
     end
 

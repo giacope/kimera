@@ -13,7 +13,7 @@ class Kimera::Operators::Visibility < Kimera::Operators::Base
   ].freeze
   NAMED = /\A[a-z_]\w*[?!=]?\z/i
 
-  def initialize(listed = Kimera::Operators::Survey::NONE)
+  def initialize(listed = Kimera::Operators::EmptySurvey.new)
     super()
     @listed = listed
   end

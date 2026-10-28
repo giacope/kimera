@@ -8,6 +8,15 @@ require "tmpdir"
 # Proc.new) is mutated like a method body; any other block outside a method
 # is reported as not mutated, never silently skipped.
 RSpec.describe(Kimera::RegistryScan) do
+  def block_reason
+    "code in a block outside any method runs at load or as a DSL callback " \
+      "kimera can't swap, so it is not mutated"
+  end
+
+  def unparsed = "does not parse, so nothing in it is mutated: "
+  def unread = "could not be read, so nothing in it is mutated: "
+  def unscanned = "kimera could not scan it, so nothing in it is mutated (a kimera bug, please report it): "
+
   def scan(source) = described_class.new.source(source, file: "widget.rb")
 
   def lines(registry) = registry.points.select(&:safe?).map { |point| point.location.start_line }.uniq
@@ -41,7 +50,7 @@ RSpec.describe(Kimera::RegistryScan) do
     registry = scan("class W\n  LIMITS = [5].map { _1 > 1 ? 2 : 1 }\n  rule(:sane) do |size|\n    size > 0\n  end\nend")
     expect(registry.points.select(&:safe?)).to(be_empty)
     expect(registry.unmutated.map { |region| [region.start_line, region.end_line] }).to(eq([[2, 2], [4, 4]]))
-    expect(registry.unmutated.map(&:reason).uniq).to(eq([Kimera::Unmutated::BLOCK]))
+    expect(registry.unmutated.map(&:reason).uniq).to(eq([block_reason]))
   end
 
   it "doesn't report a class-level block that only declares things" do
@@ -53,7 +62,7 @@ RSpec.describe(Kimera::RegistryScan) do
     expect(registry.points).to(be_empty)
     region = registry.unmutated.first
     expect([region.file, region.start_line, region.end_line]).to(eq(["widget.rb", 1, 3]))
-    expect(region.reason).to(start_with(Kimera::Unmutated::UNPARSED))
+    expect(region.reason).to(start_with(unparsed))
   end
 
   describe "a file the scan trips on (R6B6-M1)" do
@@ -84,8 +93,8 @@ RSpec.describe(Kimera::RegistryScan) do
 
     it "reports it whole, with what went wrong, and scans every other file", :aggregate_failures do
       registry = built("a.rb" => "def trip\n  13\nend\n", "b.rb" => fine, "c.rb" => "class C\n  def deep = 17\nend\n")
-      tripped = "#{Kimera::Unmutated::UNSCANNED}NoMethodError: undefined method 'body' for nil"
-      deep = "#{Kimera::Unmutated::UNSCANNED}SystemStackError: stack level too deep"
+      tripped = "#{unscanned}NoMethodError: undefined method 'body' for nil"
+      deep = "#{unscanned}SystemStackError: stack level too deep"
       expect([registry.files, regions(registry)]).to(eq([["b.rb"], [["a.rb", 1, 3, tripped], ["c.rb", 1, 3, deep]]]))
     end
 
@@ -93,7 +102,7 @@ RSpec.describe(Kimera::RegistryScan) do
       registry = built("a.rb" => nil, "b.rb" => fine)
       gone = described_class.new(root: dir).build([File.join(dir, "gone.rb"), File.join(dir, "b.rb")])
       expect([registry.files, regions(registry).map { it.first(3) }]).to(eq([["b.rb"], [["a.rb", 1, 1]]]))
-      expect(registry.unmutated.first.reason).to(start_with(Kimera::Unmutated::UNREAD).and(include("Is a directory")))
+      expect(registry.unmutated.first.reason).to(start_with(unread).and(include("Is a directory")))
       expect([gone.files, gone.unmutated]).to(eq([["b.rb"], []]))
     end
   end

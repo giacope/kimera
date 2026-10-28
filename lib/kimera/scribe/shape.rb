@@ -15,9 +15,9 @@ module Kimera
 
       def setter? = call? && @node.attribute_write? && !@node.name.end_with?("]=")
 
-      def prefix? = call? && Level::PREFIX.key?(@node.name) && @node.receiver && plain? && arguments.empty?
+      def prefix? = call? && PREFIX.key?(@node.name) && @node.receiver && plain? && arguments.empty?
 
-      def binary? = call? && Level::BINARY.key?(@node.name) && @node.receiver && plain? && single?
+      def binary? = call? && BINARY.key?(@node.name) && @node.receiver && plain? && single?
 
       def numeral? = NUMERALS.include?(@node.type)
 

@@ -14,7 +14,7 @@ class Kimera::Execution::Redefinition
   end
 
   def redefine(method, visibility = self.visibility)
-    Kimera::Warnings::SILENCED.during { @holder.define_method(@name, method) }
+    Kimera::Warnings.silenced.during { @holder.define_method(@name, method) }
     @holder.__send__(visibility, @name)
   end
 

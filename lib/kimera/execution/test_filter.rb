@@ -15,12 +15,12 @@ class Kimera::Execution::TestFilter
     def build(registry:, adapter:, root: ".", rules: nil)
       base = "#{File.expand_path(root)}/"
       locate = ->(test) { File.expand_path(adapter.test_file(test).to_s).delete_prefix(base) }
-      attribution = rules ? Kimera::Execution::Attribution.new(rules) : Kimera::Execution::Attribution::ANY
+      attribution = rules ? Kimera::Execution::Attribution.new(rules) : Kimera::Execution::OpenAttribution.new
       new(registry: registry, attribution: attribution, locate: locate)
     end
   end
 
-  def initialize(registry:, attribution: Kimera::Execution::Attribution::ANY, flaky: [], locate: ->(_test) { "" })
+  def initialize(registry:, attribution: Kimera::Execution::OpenAttribution.new, flaky: [], locate: ->(_test) { "" })
     @registry = registry
     @attribution = attribution
     @flaky = flaky.to_set

@@ -18,8 +18,10 @@ module KimeraEval
       target
     end
 
+    def shell(dir) = Shell.new(chdir: dir, env: IDENTITY)
+
     def git(dir)
-      shell = Shell.new(chdir: dir, env: IDENTITY)
+      shell = shell(dir)
       shell.run("git", "init", "-q", "-b", "main")
       commit(shell, "fixture")
       dir

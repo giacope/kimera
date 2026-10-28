@@ -34,7 +34,7 @@ class Kimera::CLI::Doctor
 
   def run(argv)
     _, options = OPTIONS.parse(argv, { check_baseline: false })
-    config = Kimera::Config.new(File.join(@root, Kimera::Config::DEFAULT_PATH)).options.merge(options.slice(:jobs))
+    config = Kimera::Config.of(@root).options.merge(options.slice(:jobs))
     expose(config)
     list.verdict(checks(config, options))
   rescue Kimera::UsageError => error
@@ -69,9 +69,9 @@ class Kimera::CLI::Doctor
   def shown(check) = list.shown(check)
 
   def configuration(config)
-    path = File.join(@root, Kimera::Config::DEFAULT_PATH)
-    return ["!", "Configuration: none found; run `kimera init`"] unless File.file?(path)
-    ["✓", "Configuration: #{Kimera::Config::DEFAULT_PATH} (#{config.fetch(:framework, "rspec")})"]
+    file = Kimera::Config.of(@root)
+    return ["!", "Configuration: none found; run `kimera init`"] unless file.file?
+    ["✓", "Configuration: #{file} (#{config.fetch(:framework, "rspec")})"]
   end
 
   def framework(config)
@@ -82,7 +82,7 @@ class Kimera::CLI::Doctor
   end
 
   def sources(config)
-    count = glob(config.fetch(:paths, Kimera::FileSet::DEFAULT_GLOBS)).size
+    count = glob(config.fetch(:paths) { Kimera::FileSet.default.patterns }).size
     return ["✗", "Source scope: no Ruby files found; fix paths: in .kimera.yml"] if count.zero?
     ["✓", "Source scope: #{count} Ruby files"]
   end

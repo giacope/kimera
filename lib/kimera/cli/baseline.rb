@@ -15,7 +15,7 @@ class Kimera::CLI::Baseline
       review BASELINE.yml [--report REPORT.json]    List the entries, or judge them against a report
       prune BASELINE.yml --report REPORT.json       Drop the entries a report shows killed or stale
 
-    REPORT.json defaults to #{Kimera::CLI::ReportFile::DEFAULT}. Run kimera baseline <command> --help for its options.
+    REPORT.json defaults to #{Kimera::CLI::ReportFile.default}. Run kimera baseline <command> --help for its options.
   HELP
   REPORT_FLAG = Kimera::Flag.build("--report FILE", :report, "Judge each entry against this report")
 

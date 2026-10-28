@@ -16,8 +16,8 @@ class Kimera::CLI
     banner: "Usage: kimera registry [paths...] [options]",
     flags: [
       Kimera::Flag.build(["-o", "--output FILE"], :output, "Write registry JSON to FILE"),
-      Kimera::OPERATORS_FLAG,
-      Kimera::CONFIG_FLAG,
+      Kimera::Flag.shared(:operators),
+      Kimera::Flag.shared(:config),
       Kimera::Flag.build("--json", :json, "Print registry JSON to stdout"),
       Kimera::Flag.build(["-q", "--quiet"], :quiet, "Suppress the summary line")
     ]
@@ -63,9 +63,8 @@ class Kimera::CLI
   end
 
   def registry(argv)
-    paths, options = REGISTRY_OPTIONS.parse(
-      argv, Kimera::Config.parse(argv).scope({ output: nil, operators: Kimera::Operators::DEFAULT_KEYS, quiet: false })
-    )
+    defaults = { output: nil, operators: Kimera::Operators.build.map(&:key), quiet: false }
+    paths, options = REGISTRY_OPTIONS.parse(argv, Kimera::Config.parse(argv).scope(defaults))
     set = Kimera::FileSet.from_options(paths, options)
     files = set.files
     return missing(set) if files.empty?
@@ -73,7 +72,7 @@ class Kimera::CLI
   end
 
   def missing(set)
-    @errors.puts("kimera: no Ruby files matched #{set.patterns.join(", ")}")
+    @errors.puts("kimera: no Ruby files matched #{set}")
     1
   end
 
@@ -104,7 +103,7 @@ class Kimera::CLI
   end
 
   def help(*)
-    @io.puts(Kimera::HelpText::HELP)
+    @io.puts(Kimera::HelpText.new)
     0
   end
 

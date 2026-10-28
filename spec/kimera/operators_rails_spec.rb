@@ -47,7 +47,7 @@ RSpec.describe(Kimera::Operators) do
     def controller(catalog)
       stub_const("UsersController", Class.new)
       overlay = Kimera::Overlay.new(catalog).synthesize("app.rb", permit_src)
-      Kimera::Warnings::SILENCED.during { TOPLEVEL_BINDING.eval(overlay.source, "app.rb") }
+      Kimera::Warnings.silenced.during { TOPLEVEL_BINDING.eval(overlay.source, "app.rb") }
       params = fake_params
       UsersController.new.tap { |users| users.define_singleton_method(:params) { params.new } }
     end
@@ -87,7 +87,7 @@ RSpec.describe(Kimera::Operators) do
     end
 
     it "matches nothing when only default operators are active" do
-      catalog = registry(model_src, Kimera::Operators::DEFAULT_KEYS)
+      catalog = registry(model_src, described_class.build.map(&:key))
       expect(catalog.each.map { |m, _p| m.label }).not_to(include(a_string_matching(/validates|before_action/)))
     end
 
@@ -213,7 +213,7 @@ RSpec.describe(Kimera::Operators) do
   describe "class-body lambda bodies (scopes)" do
     def pricing_code = "class Pricing\n  DISCOUNT = ->(total) { total > 100 ? 10 : 0 }\nend\n"
 
-    def evaluated(source) = Kimera::Warnings::SILENCED.during { TOPLEVEL_BINDING.eval(source, "pricing.rb") }
+    def evaluated(source) = Kimera::Warnings.silenced.during { TOPLEVEL_BINDING.eval(source, "pricing.rb") }
 
     def pricing
       stub_const("Pricing", Class.new)

@@ -2,6 +2,7 @@
 
 require "prism"
 require_relative "branches"
+require_relative "rescues"
 
 module Kimera
   module Syntax
@@ -70,9 +71,14 @@ module Kimera
     def self.parse(source, **) = Prism.parse(source, **)
 
     FORWARDING = Prism.scope(forwarding: %i[* ** & ...])
+    private_constant(:FORWARDING)
 
-    BRANCHES = ->(conditional) { Kimera::Branches.new(conditional).bodies }
+    class Fragment
+      def initialize(source)
+        @source = source
+      end
 
-    RESCUES = ->(clause) { clause ? [clause, *RESCUES.call(clause.subsequent)] : [] }
+      def tree = Prism.parse(@source, partial_script: true, scopes: [FORWARDING])
+    end
   end
 end

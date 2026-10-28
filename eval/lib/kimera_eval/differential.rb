@@ -69,16 +69,20 @@ module KimeraEval
       { "mutants" => total }.merge(VERDICTS.to_h { |verdict| [verdict, tally.fetch(verdict, 0)] })
         .merge("agreement_pct" => Agreement.new(tally).percent)
     end
-  end
 
-  class Agreement
-    def initialize(tally)
-      @tally = tally
-    end
+    class Agreement
+      def initialize(tally)
+        @tally = tally
+      end
 
-    def percent
-      judged = @tally.sum { |verdict, count| %w[abstained unbakeable].include?(verdict) ? 0 : count }
-      judged.zero? ? nil : (100.0 * @tally.fetch("agree", 0) / judged).round(1)
+      def percent
+        judged = verdicts.sum { |verdict, count| %w[abstained unbakeable].include?(verdict) ? 0 : count }
+        judged.zero? ? nil : (100.0 * verdicts.fetch("agree", 0) / judged).round(1)
+      end
+
+      private
+
+      def verdicts = @tally.slice(*VERDICTS)
     end
   end
 end

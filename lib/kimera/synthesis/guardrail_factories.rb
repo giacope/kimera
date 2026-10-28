@@ -9,8 +9,18 @@ module Kimera
       end
     end
 
+  class Factory
+    PAIRS = [%i[Struct new], %i[Data define], %i[Class new], %i[Module new]].freeze
+
+    def initialize(receiver, name)
+      @receiver = receiver
+      @name = name
+    end
+
+    def named? = PAIRS.include?([@receiver, @name])
+  end
+
   module GuardrailFactories
-    FACTORIES = [%i[Struct new], %i[Data define], %i[Class new], %i[Module new]].freeze
     WRITES = %i[constant_write_node constant_path_write_node].freeze
     CONSTANTS = %i[constant_read_node constant_path_node].freeze
     LEXICAL = "(is_a?(::Module) ? self : ::Object)"
@@ -28,7 +38,7 @@ module Kimera
     def factory?(call)
       receiver = call.receiver
       return false unless CONSTANTS.include?(receiver&.type) && !call.safe_navigation?
-      FACTORIES.include?([receiver.name, call.name]) || Kimera::FactoryBlock.new(call.block).defining?
+      Kimera::Factory.new(receiver.name, call.name).named? || Kimera::FactoryBlock.new(call.block).defining?
     end
 
     def reopened(node, value)

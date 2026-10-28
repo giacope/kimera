@@ -38,7 +38,7 @@ class Kimera::CLI::Run::InlineIgnores
   def operators(listed)
     keys = listed.split(/[\s,]+/).reject(&:empty?)
     return {} if keys.empty?
-    Kimera::Operators::CATALOG.validate!(keys)
+    Kimera::Operators.validate!(keys)
     { operator: keys }
   end
 

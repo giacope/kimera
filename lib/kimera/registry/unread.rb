@@ -6,5 +6,5 @@ Kimera::RegistryScan::Unread =
   Data.define(:file, :cause) do
     def points = []
 
-    def regions = [Kimera::Unmutated.new(file, 1, 1, "#{Kimera::Unmutated::UNREAD}#{cause}")]
+    def regions = [Kimera::Unmutated.whole(file, 1, :unread, cause)]
   end

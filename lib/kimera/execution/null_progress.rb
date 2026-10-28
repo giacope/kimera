@@ -10,8 +10,6 @@ module Kimera
       def finish; end
 
       def note(_text); end
-
-      NONE = new.freeze
     end
   end
 end

@@ -12,6 +12,8 @@ require "kimera/registry/builder"
 # skipped (spec/kimera/registry_scan_deferred_spec.rb). `PBT_SCALE` widens
 # the sample and `PBT_SEED` picks another.
 RSpec.describe(Kimera::RegistryScan) do
+  def unscanned_reason = "kimera could not scan it, so nothing in it is mutated (a kimera bug, please report it): "
+
   shapes = {
     "an if whose only branch is its else (acts-as-taggable-on)" => <<~RUBY,
       class Tenant
@@ -86,7 +88,7 @@ RSpec.describe(Kimera::RegistryScan) do
 
   def unscanned(path, source)
     registry = described_class.new(operators: Kimera::Operators.build(keys: ["all"])).source(source, file: path)
-    tripped = registry.unmutated.map(&:reason).select { |reason| reason.start_with?(Kimera::Unmutated::UNSCANNED) }
+    tripped = registry.unmutated.map(&:reason).select { |reason| reason.start_with?(unscanned_reason) }
     tripped + registry.points.reject { |point| anchored?(point, source) }.map { "point #{it.point_id} moved" }
   end
 

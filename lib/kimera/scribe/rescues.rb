@@ -7,7 +7,7 @@ module Kimera
 
       def text = "begin#{Clauses.new(@node, @pen).structure}#{closing}"
 
-      def level = Level::KEYWORD
+      def level = KEYWORD
     end
 
     class Rescued < Form
@@ -15,11 +15,11 @@ module Kimera
 
       def text
         body = @node.expression
-        written = Jump::TYPES.include?(body.type) ? part(body) : leading(body, Level::TERNARY)
-        "#{written} rescue #{part(@node.rescue_expression, Level::EXPRESSION)}"
+        written = pen_of(body).form(body).jump? ? part(body) : leading(body, TERNARY)
+        "#{written} rescue #{part(@node.rescue_expression, EXPRESSION)}"
       end
 
-      def level = Level::STATEMENT
+      def level = STATEMENT
     end
 
     class Exceptions < Form
@@ -29,7 +29,7 @@ module Kimera
 
       def item(exception)
         return pen_of(exception).form(exception).ternary if %i[if_node unless_node].include?(exception.type)
-        part(exception, Level::ASSIGNMENT)
+        part(exception, ASSIGNMENT)
       end
     end
 
@@ -56,7 +56,7 @@ module Kimera
         "alias #{part(@node.new_name)} #{part(@node.old_name)}"
       end
 
-      def level = Level::STATEMENT
+      def level = STATEMENT
     end
 
     class Hook < Form
@@ -64,7 +64,7 @@ module Kimera
 
       def text = "#{type == :pre_execution_node ? "BEGIN" : "END"} {#{lines(@node.statements)}#{closing("}")}"
 
-      def level = Level::STATEMENT
+      def level = STATEMENT
     end
 
     class Capture < Form
@@ -72,7 +72,7 @@ module Kimera
 
       def text = part(@node.call)
 
-      def level = Level::EQUALITY
+      def level = EQUALITY
     end
 
     class Shareable < Form
@@ -80,7 +80,7 @@ module Kimera
 
       def text = part(@node.write)
 
-      def level = Level::ASSIGNMENT
+      def level = ASSIGNMENT
     end
   end
 end

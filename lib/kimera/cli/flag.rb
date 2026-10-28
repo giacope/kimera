@@ -10,12 +10,33 @@ module Kimera
         new(switch: switch, key: key, help: help, type: nil, collect: false, **settings)
       end
 
+      def self.shared(name, **settings) = new(**self::SHARED.fetch(name), **settings)
+
       def define(parser, &) = parser.on(*signature, &)
 
       def stored(options, value) = options.merge(key => collect ? options[key] + [value] : value)
       private
       def signature = [*switch, type, help].compact
     end
+
+  Flag::SHARED = {
+    force: { switch: "--force", key: :force, help: "Replace an existing file", type: nil, collect: false },
+    config: {
+      switch: "--config FILE", key: :config, help: "Load config (default: .kimera.yml)", type: nil, collect: false
+    },
+    registry: {
+      switch: "--registry FILE", key: :registry, help: "Load registry JSON instead of building", type: nil,
+      collect: false
+    },
+    require: {
+      switch: "--require FILE", key: :require,
+      help: "Load a Ruby file before scanning, for custom operators (repeatable)", type: nil, collect: true
+    },
+    operators: {
+      switch: "--operators a,b,c", key: :operators,
+      help: "Operator keys, or 'all'/'rails' (default: conservative core)", type: Array, collect: false
+    }
+  }.freeze
 
   FlagTable =
     Data.define(:banner, :flags) do
@@ -41,18 +62,4 @@ module Kimera
 
       def keys = flags.map(&:key)
     end
-
-  FORCE_FLAG = Flag.build("--force", :force, "Replace an existing file")
-  CONFIG_FLAG = Flag.build("--config FILE", :config, "Load config (default: .kimera.yml)")
-  REGISTRY_FLAG = Flag.build("--registry FILE", :registry, "Load registry JSON instead of building")
-  REQUIRE_FLAG = Flag.build(
-    "--require FILE", :require,
-    "Load a Ruby file before scanning, for custom operators (repeatable)",
-    collect: true
-  )
-  OPERATORS_FLAG = Flag.build(
-    "--operators a,b,c", :operators,
-    "Operator keys, or 'all'/'rails' (default: conservative core)",
-    type: Array
-  )
 end

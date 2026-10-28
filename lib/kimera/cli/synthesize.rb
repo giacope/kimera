@@ -19,9 +19,9 @@ class Kimera::CLI::Synthesize
     banner: "Usage: kimera synthesize [paths...] [options]",
     flags: [
       Kimera::Flag.build("--out DIR", :out, "Write synthesized mirror tree to DIR"),
-      Kimera::REGISTRY_FLAG,
-      Kimera::OPERATORS_FLAG,
-      Kimera::CONFIG_FLAG
+      Kimera::Flag.shared(:registry),
+      Kimera::Flag.shared(:operators),
+      Kimera::Flag.shared(:config)
     ]
   )
 
@@ -31,7 +31,8 @@ class Kimera::CLI::Synthesize
   end
 
   def run(argv)
-    defaults = Kimera::Config.parse(argv).scope({ out: nil, registry: nil, operators: Kimera::Operators::DEFAULT_KEYS })
+    operators = Kimera::Operators.build.map(&:key)
+    defaults = Kimera::Config.parse(argv).scope({ out: nil, registry: nil, operators: operators })
     paths, options = OPTIONS.parse(argv, defaults)
     out = options[:out]
     out ? synthesize(paths, options, out) : missing

@@ -58,11 +58,11 @@ RSpec.describe(Kimera::Flag) do
       end.keys
 
       # resolve_globs consumes :cli_tests, and attribution :cli_unit_tests.
-      expect(Kimera::CLI::Run::OPTIONS.keys - declared).to(eq(%i[cli_tests cli_unit_tests]))
+      expect(Kimera::CLI::RunOptions::OPTIONS.keys - declared).to(eq(%i[cli_tests cli_unit_tests]))
     end
 
     it "defines each switch exactly once" do
-      switches = Kimera::CLI::Run::OPTIONS.flags.map(&:switch)
+      switches = Kimera::CLI::RunOptions::OPTIONS.flags.map(&:switch)
 
       expect(switches.uniq).to(eq(switches))
     end
@@ -74,6 +74,6 @@ RSpec.describe(Kimera::Flag) do
         command::OPTIONS.flags.select { |flag| %i[registry operators].include?(flag.key) }
       end
 
-    expect(shared.call(Kimera::CLI::Run)).to(eq(shared.call(Kimera::CLI::Synthesize)))
+    expect(shared.call(Kimera::CLI::RunOptions)).to(eq(shared.call(Kimera::CLI::Synthesize)))
   end
 end

@@ -13,7 +13,7 @@ module Kimera
         "def #{receiver}#{@node.name}#{signature}#{clauses(@node.body, @pen.scoped([parameters]))}#{closing}"
       end
 
-      def level = Level::KEYWORD
+      def level = KEYWORD
 
       private
 
@@ -21,7 +21,7 @@ module Kimera
         owner = @node.receiver
         return "" unless owner
         bare = SIMPLE.include?(owner.type) || (owner.type == :call_node && owner.variable_call?)
-        bare ? "#{part(owner, Level::PRIMARY)}." : "(#{part(owner)})."
+        bare ? "#{part(owner, PRIMARY)}." : "(#{part(owner)})."
       end
     end
 
@@ -31,15 +31,15 @@ module Kimera
 
       def text = "#{WORDS.fetch(type)} #{subject}#{parent}#{clauses(@node.body, @pen.scoped)}#{closing}"
 
-      def level = Level::KEYWORD
+      def level = KEYWORD
 
       private
 
-      def subject = part(type == :singleton_class_node ? @node.expression : @node.constant_path, Level::PRIMARY)
+      def subject = part(type == :singleton_class_node ? @node.expression : @node.constant_path, PRIMARY)
 
       def parent
         superclass = @node.superclass if type == :class_node
-        superclass ? " < #{part(superclass, Level::PRIMARY)}" : ""
+        superclass ? " < #{part(superclass, PRIMARY)}" : ""
       end
     end
   end

@@ -10,7 +10,7 @@ class Kimera::CLI::Survivors
     banner: "Usage: kimera report [REPORT.json] [options] [FILE_SUBSTRING]\n" \
       "Lists a report's surviving mutants; FILE_SUBSTRING keeps only " \
       "mutants whose file path contains it (e.g. models/discount).\n" \
-      "REPORT.json defaults to #{Kimera::CLI::ReportFile::DEFAULT}.",
+      "REPORT.json defaults to #{Kimera::CLI::ReportFile.default}.",
     flags: [
       Kimera::Flag.build("--id ID|KEY", :id, "Show one mutant, by ID or key, in full detail"),
       Kimera::Flag.build("--report FILE", :report, "Read this report (the same as naming it first)"),
@@ -53,7 +53,7 @@ class Kimera::CLI::Survivors
   def positional(arguments, named)
     first, second = arguments
     return [named, first] if named
-    report?(first) ? [first, second] : [Kimera::CLI::ReportFile::DEFAULT, first]
+    report?(first) ? [first, second] : [Kimera::CLI::ReportFile.default.to_s, first]
   end
 
   def report?(argument) = argument && (argument.end_with?(".json") || File.file?(argument))

@@ -4,7 +4,7 @@ require_relative "../scope/file_set"
 require_relative "../version"
 
 module Kimera
-  module HelpText
+  class HelpText
     HELP = <<~HELP.freeze
       kimera #{Kimera::VERSION} -- schemata-based mutation testing for Ruby
       (every mutant is compiled into one guarded source tree, so the suite
@@ -32,7 +32,7 @@ module Kimera
         version               Print version
         help                  Show this help
 
-      With no paths, defaults to: #{Kimera::FileSet::DEFAULT_GLOBS.join(", ")}
+      With no paths, defaults to: #{Kimera::FileSet.default}
 
       Exit codes: 0 ok, 1 usage or setup error, 2 gate failed (run)
 
@@ -41,5 +41,8 @@ module Kimera
         kimera changed --report tmp/kimera/report.json
         kimera report tmp/kimera/report.json --status no_coverage
     HELP
+    private_constant(:HELP)
+
+    def to_s = HELP
   end
 end

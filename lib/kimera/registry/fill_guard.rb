@@ -16,8 +16,8 @@ class Kimera::FillGuard
   def exemptions
     return [] unless name && fills? && tail?
     [
-      Kimera::MemoGuard::Exemption.new(guard.location, Kimera::MemoGuard::CONDITIONAL),
-      Kimera::MemoGuard::Exemption.new(store.location, Kimera::MemoGuard::ASSIGNMENT_DELETION)
+      Kimera::MemoGuard::Exemption.conditional(guard.location),
+      Kimera::MemoGuard::Exemption.deleted(store.location)
     ]
   end
 

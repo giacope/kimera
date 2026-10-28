@@ -11,8 +11,6 @@ require_relative "guard_text"
 require_relative "splice_index"
 
 class Kimera::GuardSplice
-  NUMBERED = /\b#{Kimera::Rewrite::NumberedParams::PREFIX}(?:[1-9]|it)\b/
-
   def initialize(map, points)
     @map = map
     @points = points
@@ -42,7 +40,7 @@ class Kimera::GuardSplice
 
   def placement(point, node)
     return unless node
-    hidden, shown = point.mutants.partition { |mutant| mutant.directive[Kimera::Rewrite::TYPE] == "privatize" }
+    hidden, shown = point.mutants.partition { |mutant| Kimera::Rewrite::Directive.new(mutant.directive).kind?("privatize") }
     clauses, sited = clauses(node, shown)
     guards = sited.map { |mutant, _| guarded(node, mutant) }
     [guards, probed(node, hidden) + clauses.flat_map(&:last)] if guards.all?
@@ -55,8 +53,8 @@ class Kimera::GuardSplice
   def probed(node, hidden) = hidden.empty? ? [] : Kimera::GuardProbe.new(node, hidden.map(&:id)).edits
 
   def guarded(node, mutant)
-    kind = Kimera::GuardrailDispatch::PARAMETERS[node.type]
-    return [node.value, mutant.id, %(raise(ArgumentError, "missing #{kind}: #{node.name}"))] if kind
+    parameter = Kimera::GuardrailDispatch::Parameter.new(node)
+    return [node.value, mutant.id, parameter.missing] if parameter.optional?
     site, mutated = sites.of(node, Kimera::Rewrite::Directive.new(mutant.directive).apply(node))
     text = written(site, mutated)
     [site, mutant.id, text] if fits?(text)
@@ -66,7 +64,7 @@ class Kimera::GuardSplice
 
   def written(site, mutated) = Kimera::Scribe.new(mutated).at(@map.ast, site).after(site).unbroken.text
 
-  def fits?(text) = !text.match?(NUMBERED) && !text.include?("\n")
+  def fits?(text) = !Kimera::Rewrite::NumberedParams::Spelling.new(text).renamed? && !text.include?("\n")
 
   def index = @_index ||= Kimera::SpliceIndex.new(@map.ast)
 

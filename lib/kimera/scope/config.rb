@@ -6,6 +6,7 @@ require_relative "../error"
 module Kimera
   class Config
     DEFAULT_PATH = ".kimera.yml"
+    private_constant(:DEFAULT_PATH)
 
     SCALAR_KEYS = %w[framework source_root soft_timeout hard_timeout
       jobs max_survivors max_ignored max_errors coverage isolate_db
@@ -18,15 +19,6 @@ module Kimera
 
     SCOPE_KEYS = %i[paths operators exclude].freeze
     ATTRIBUTIONS = %w[any unit].freeze
-
-    Precedence =
-      Data.define(:cli, :configured) do
-        def chosen(default)
-          given = Array(cli)
-          picked = given.empty? ? Array(configured) : given
-          picked.empty? ? default.dup : picked
-        end
-      end
 
     Attribution =
       Data.define(:options) do
@@ -61,14 +53,25 @@ module Kimera
 
     def self.parse(argv)
       index = argv.index("--config")
-      return new(File.join(".", DEFAULT_PATH)) unless index
+      return of(".") unless index
       file = argv[index + 1]
       raise(UsageError, "no such config file: #{file}") unless file && File.exist?(file)
       new(file)
     end
 
+    def self.of(root) = new(File.join(root, DEFAULT_PATH))
+
     def initialize(file)
       @file = file
+    end
+
+    def to_s = File.basename(@file)
+
+    def file? = File.file?(@file)
+
+    def create(force)
+      raise(UsageError, "#{@file} already exists (use --force to replace it)") if File.exist?(@file) && !force
+      File.write(@file, yield)
     end
 
     def options
@@ -102,9 +105,7 @@ module Kimera
       end
     end
 
-    def symbolize(rule)
-      rule.transform_keys(&:to_sym)
-    end
+    def symbolize(rule) = rule.transform_keys(&:to_sym)
 
     def validate(rule)
       file = rule[:file]
@@ -118,8 +119,8 @@ module Kimera
       raise(UsageError, "ignore entry for #{file} needs a reason: (why is this mutant equivalent?)")
     end
 
-    def reasonless?(rule)
-      rule[:reason].to_s.strip.empty?
-    end
+    def reasonless?(rule) = rule[:reason].to_s.strip.empty?
   end
 end
+
+require_relative "precedence"

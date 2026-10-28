@@ -9,6 +9,7 @@ module Kimera
 end
 
 class Kimera::Execution::Verdicts
+  SELF_SUSPECT = %i[timeout error survived].freeze
   WIRE = { "id" => "mutant_id", "ms" => "duration", "fails" => "failing_tests", "cover" => "covering_tests" }.freeze
 
   def initialize(registry)
@@ -46,7 +47,7 @@ class Kimera::Execution::Verdicts
   end
 
   def point(id)
-    @registry.index[id] || Kimera::MutationPoint::NONE
+    @registry.index[id] || Kimera::MutationPoint.none
   end
 
   def path(id)
@@ -63,7 +64,7 @@ class Kimera::Execution::Verdicts
   def reclassify(result) = suspect?(result) ? result.isolated(detail(result.status)) : result
 
   def suspect?(result)
-    Kimera::Status::SELF_SUSPECT.include?(result.status) && harness?(result)
+    SELF_SUSPECT.include?(result.status) && harness?(result)
   end
 
   def harness?(result)

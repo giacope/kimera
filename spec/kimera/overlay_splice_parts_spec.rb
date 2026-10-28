@@ -5,6 +5,8 @@ require "kimera/synthesis/overlay"
 
 # The spliced text for each shape of point.
 RSpec.describe(Kimera::Overlay) do
+  def unmatched = "no node to guard: kimera found nothing of its kind where the point was scanned"
+
   def scan(source, keys)
     Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(source, file: "x.rb")
   end
@@ -130,7 +132,7 @@ RSpec.describe(Kimera::Overlay) do
       allow(catalog.points.first).to(receive(:node_type).and_return("float_node"))
       result = described_class.new(catalog).synthesize("x.rb", source)
       expect([result.skipped_unsafe, catalog.points.first.unsafe_reason])
-        .to(eq([catalog.points.first.ids, "unmutatable: #{Kimera::Overlay::FileWeave::UNMATCHED}"]))
+        .to(eq([catalog.points.first.ids, "unmutatable: #{unmatched}"]))
     end
   end
 

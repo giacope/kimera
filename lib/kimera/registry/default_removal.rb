@@ -13,7 +13,6 @@ class Kimera::DefaultRemoval
   BLOCK = "default removal in a block binds an omitted argument to nil (evaluate with reload)"
   REORDERS = "default removal skips an earlier default the warm guard would evaluate (evaluate with reload)"
   INERT = [IntegerNode, FloatNode, StringNode, SymbolNode, NilNode, TrueNode, FalseNode, LocalVariableReadNode].freeze
-  CALLABLES = [DefNode, LambdaNode, BlockNode].freeze
 
   def initialize(parameters, block)
     @parameters = parameters

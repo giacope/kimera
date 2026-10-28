@@ -6,7 +6,7 @@ class Kimera::Operators::StatementDeletion < Kimera::Operators::Base
   DIAGNOSTIC_NAMES = %i[puts print pp p].freeze
   LOGGER = %i[logger @logger].freeze
 
-  def key = Kimera::Operators::STATEMENT_DELETION
+  def key = "statement_deletion"
 
   def statement? = true
 

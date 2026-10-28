@@ -11,6 +11,13 @@ require "stringio"
 require "tmpdir"
 
 RSpec.describe(Kimera::CLI, :aggregate_failures) do
+  def initial_operators
+    %w[
+      comparison boolean_connective boolean_literal statement_deletion negation conditional when_clause
+      append_deletion rails
+    ]
+  end
+
   let(:dir) { Dir.mktmpdir }
   let(:out) { StringIO.new }
   let(:error) { StringIO.new }
@@ -122,7 +129,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
   it "configures the default source globs when neither app nor lib holds Ruby" do
     project("spec/thing_spec.rb" => "")
     configure
-    expect(configured).to(include("paths" => Kimera::FileSet::DEFAULT_GLOBS))
+    expect(configured).to(include("paths" => %w[app/**/*.rb lib/**/*.rb]))
   end
 
   it "detects RSpec from .rspec even without a spec directory" do
@@ -346,7 +353,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
   # declarations; the rails operators mutate them.
   it "turns on the rails operators in a Rails app, and only there", :aggregate_failures do
     rails = test_initialized("config/application.rb" => "", "spec/a_spec.rb" => "")
-    expect(rails["operators"]).to(eq([*Kimera::Operators::INIT_KEYS, "rails"]))
+    expect(rails["operators"]).to(eq(initial_operators))
     expect(test_initialized("spec/a_spec.rb" => "")["operators"]).not_to(include("rails"))
   end
 
@@ -365,7 +372,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
 
     it "turns on the rails operators", :aggregate_failures do
       dummy = engine.merge("spec/dummy/config/application.rb" => "", "spec/a_spec.rb" => "")
-      expect(test_initialized(dummy)["operators"]).to(eq([*Kimera::Operators::INIT_KEYS, "rails"]))
+      expect(test_initialized(dummy)["operators"]).to(eq(initial_operators))
       isolated = { "lib/cms/engine.rb" => "module Cms\n  class Engine\n    isolate_namespace Cms\n  end\nend\n" }
       minitest = isolated.merge("test/dummy/config/application.rb" => "", "test/test_helper.rb" => "require 'minitest'")
       expect(test_initialized(minitest)["operators"]).to(include("rails"))

@@ -41,7 +41,7 @@ class Kimera::Execution::BaselinePass
 
   private
 
-  def progress = @options.fetch(:progress, Kimera::Execution::NullProgress::NONE)
+  def progress = @options.fetch(:progress) { Kimera::Execution::NullProgress.new }
 
   def root = @options[:root]
 

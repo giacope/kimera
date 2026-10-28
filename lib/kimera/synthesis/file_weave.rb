@@ -4,63 +4,64 @@ require_relative "../scribe"
 require_relative "overlay_splice"
 require_relative "overlay_stitch"
 
-class Kimera::Overlay::FileWeave
-  include Kimera::OverlaySplice
+class Kimera::Overlay
+  class FileWeave
+    include Kimera::OverlaySplice
 
-  UNGUARDABLE = "kimera could not write its guard"
-  UNMATCHED = "no node to guard: kimera found nothing of its kind where the point was scanned"
+    UNGUARDABLE = "kimera could not write its guard"
 
-  def initialize(file, map, safe, unsafe)
-    @file = file
-    @map = map
-    @safe = safe
-    @unsafe = unsafe
-  end
+    def initialize(file, map, safe, unsafe)
+      @file = file
+      @map = map
+      @safe = safe
+      @unsafe = unsafe
+    end
 
-  def result
-    (attempt(@safe) || fallback).tap { |result| result.settle!(@safe, UNMATCHED) }
-  end
+    def result
+      (attempt(@safe) || fallback).tap { |result| result.settle!(@safe, UNMATCHED) }
+    end
 
-  private
+    private
 
-  def io = @_io ||= $stderr
+    def io = @_io ||= $stderr
 
-  def attempt(points) = Kimera::Overlay::Stitch.new(@file, @map, points, @unsafe).result
+    def attempt(points) = Kimera::Overlay::Stitch.new(@file, @map, points, @unsafe).result
 
-  def fallback
-    viable = bisect(@safe)
-    return recover if viable.empty?
-    finish(viable)
-  end
+    def fallback
+      viable = bisect(@safe)
+      return recover if viable.empty?
+      finish(viable)
+    end
 
-  def finish(viable)
-    dropped = @safe - viable
-    notice(dropped)
-    dropped.each { |point| point.unmutatable!(UNGUARDABLE) }
-    attempt(viable).tap { |result| result.skipped_unsafe.concat(dropped.flat_map(&:ids)) }
-  end
+    def finish(viable)
+      dropped = @safe - viable
+      notice(dropped)
+      dropped.each { |point| point.unmutatable!(UNGUARDABLE) }
+      attempt(viable).tap { |result| result.skipped_unsafe.concat(dropped.flat_map(&:ids)) }
+    end
 
-  def notice(dropped)
-    io.puts(
-      "kimera: #{@file}: #{dropped.size} mutation point(s) at " \
-        "#{dropped.map { |p| "line #{p.location.start_line}" }.uniq.join(", ")} " \
-        "are unguardable (kimera could not write them); their mutants are reported unmutatable"
-    )
-  end
+    def notice(dropped)
+      io.puts(
+        "kimera: #{@file}: #{dropped.size} mutation point(s) at " \
+          "#{dropped.map { |p| "line #{p.location.start_line}" }.uniq.join(", ")} " \
+          "are unguardable (kimera could not write them); their mutants are reported unmutatable"
+      )
+    end
 
-  def recover = splice || raise(Kimera::Scribe::Unreadable, UNGUARDABLE)
+    def recover = splice || raise(Kimera::Scribe::Unreadable, UNGUARDABLE)
 
-  def bisect(points)
-    return points if attempt(points)
-    count = points.size
-    return [] if count <= 1
-    merge(points, count)
-  end
+    def bisect(points)
+      return points if attempt(points)
+      count = points.size
+      return [] if count <= 1
+      merge(points, count)
+    end
 
-  def merge(points, count)
-    half = count / 2
-    merged = bisect(points[0...half]) + bisect(points[half..])
-    merged.pop while merged.any? && !attempt(merged)
-    merged
+    def merge(points, count)
+      half = count / 2
+      merged = bisect(points[0...half]) + bisect(points[half..])
+      merged.pop while merged.any? && !attempt(merged)
+      merged
+    end
   end
 end

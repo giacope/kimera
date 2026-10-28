@@ -8,7 +8,7 @@ end
 class Kimera::CLI
 end
 
-module Kimera::CLI::RunFlags
+module Kimera::CLI::RunOptions
   SCOPE = [
     Kimera::Flag.build("--framework NAME", :framework, "Test framework (rspec)"),
     Kimera::Flag.build(
@@ -16,9 +16,9 @@ module Kimera::CLI::RunFlags
       "Test file glob (repeatable; replaces config tests:)", collect: true
     ),
     Kimera::Flag.build("--source-root DIR", :source_root, "Project root for synthesis"),
-    Kimera::REGISTRY_FLAG,
-    Kimera::OPERATORS_FLAG,
-    Kimera::REQUIRE_FLAG,
+    Kimera::Flag.shared(:registry),
+    Kimera::Flag.shared(:operators),
+    Kimera::Flag.shared(:require),
     Kimera::Flag.build("--since REF", :since, "Incremental: only mutate lines changed vs REF (git diff)"),
     Kimera::Flag.build("--session FILE", :session, "Persist/resume per-mutant results in FILE"),
     Kimera::Flag.build(
@@ -37,7 +37,7 @@ module Kimera::CLI::RunFlags
       "Leave out the tests whose name or id matches REGEX, keeping the rest of their file (repeatable)",
       collect: true
     ),
-    Kimera::CONFIG_FLAG
+    Kimera::Flag.shared(:config)
   ].freeze
 
   EXECUTION = [
@@ -109,4 +109,5 @@ module Kimera::CLI::RunFlags
       collect: true
     )
   ].freeze
+  private_constant(:SCOPE, :EXECUTION)
 end

@@ -37,5 +37,3 @@ class Kimera::Execution::TimeBudget
 
   def seconds(value, digits = 2) = "#{value.round(digits)}s"
 end
-
-Kimera::Execution::TimeBudget::NONE = Kimera::Execution::TimeBudget.new({}.freeze)

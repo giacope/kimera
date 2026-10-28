@@ -14,8 +14,6 @@ module Kimera
     end
 
     class Pen
-      INDENT = "  "
-
       Margin =
         Data.define(:depth, :flat) do
           def deeper = with(depth: depth + 1)
@@ -28,14 +26,14 @@ module Kimera
       Mode = Data.define(:open, :pattern)
       OPEN = Mode.new(open: true, pattern: false)
 
-      def initialize(binders, margin, locals = Binders::NONE, mode = OPEN)
+      def initialize(binders, margin, locals = NO_NAMES, mode = OPEN)
         @binders = binders
         @margin = margin
         @locals = locals
         @mode = mode
       end
 
-      def write(node, floor = Level::STATEMENT)
+      def write(node, floor = STATEMENT)
         form = form(node)
         text = slice(node) || form.text
         form.level < floor ? "(#{text})" : text
@@ -49,9 +47,9 @@ module Kimera
 
       def slice(node) = @binders.slice(node, @locals)
 
-      def lead(node, floor) = write(node, level(node) == Level::KEYWORD ? [floor, Level::KEYWORD].min : floor)
+      def lead(node, floor) = write(node, level(node) == KEYWORD ? [floor, KEYWORD].min : floor)
 
-      def head(node) = write(node, level(node) == Level::KEYWORD ? Level::KEYWORD : Level::PRIMARY)
+      def head(node) = write(node, level(node) == KEYWORD ? KEYWORD : PRIMARY)
 
       def deeper = Pen.new(@binders, @margin.deeper, @locals)
 
@@ -65,11 +63,11 @@ module Kimera
 
       def pattern? = @mode.pattern
 
-      def with(nodes) = bound(nodes.reduce(Binders::NONE) { |names, node| names | @binders.of(node) })
+      def with(nodes) = bound(nodes.reduce(NO_NAMES) { |names, node| names | @binders.of(node) })
 
       def bound(names) = Pen.new(@binders, @margin, (@locals | names).freeze, @mode)
 
-      def scoped(nodes = []) = Pen.new(@binders, @margin, Binders::NONE, @mode).with(nodes)
+      def scoped(nodes = []) = Pen.new(@binders, @margin, NO_NAMES, @mode).with(nodes)
 
       def local?(name) = @locals.include?(name)
 

@@ -72,7 +72,7 @@ module Kimera
     def text
       depth = @place.depth
       pen = Pen.new(binders, Pen::Margin.new(depth: depth, flat: @place.flat?), @place.locals)
-      Lines.new(body, pen, @place.joint).text.delete_prefix("\n#{Pen::INDENT * depth}")
+      Lines.new(body, pen, @place.joint).text.delete_prefix("\n#{INDENT * depth}")
     end
 
     private

@@ -14,21 +14,19 @@ class Kimera::CLI::CI
   LOOKED = ["--since", "KIMERA_BASE", *BRANCHES].join(", ")
   UNGATED = "a full run leaves class-body DSL (validations, associations, callbacks) isolated_only: unjudged " \
     "and ungated; pass --judge-isolated-only to judge them all (hours on a Rails app)"
-  HELP = Kimera::FlagTable.new(
-    banner: "Usage: kimera ci [paths...] [options]\n" \
-      "kimera run with gate defaults: --max-survivors 0 --fail-on-no-coverage --format github.\n" \
-      "The pull request's base comes from #{LOOKED} (a branch, read as origin/BRANCH;\n" \
-      "KIMERA_BASE is any ref). With a base, ci mutates the changed lines, judges class-body DSL in fresh\n" \
-      "mirrors and confirms survivors, as --since does. With none, ci says so and runs a full run:\n" \
-      "#{UNGATED}.\n" \
-      "Exit codes: 0 gates passed, 1 usage or setup error, 2 gate failed",
-    flags: Kimera::CLI::RunOptions::OPTIONS.flags
-  )
+  BANNER = "Usage: kimera ci [paths...] [options]\n" \
+    "kimera run with gate defaults: --max-survivors 0 --fail-on-no-coverage --format github.\n" \
+    "The pull request's base comes from #{LOOKED} (a branch, read as origin/BRANCH;\n" \
+    "KIMERA_BASE is any ref). With a base, ci mutates the changed lines, judges class-body DSL in fresh\n" \
+    "mirrors and confirms survivors, as --since does. With none, ci says so and runs a full run:\n" \
+    "#{UNGATED}.\n" \
+    "Exit codes: 0 gates passed, 1 usage or setup error, 2 gate failed".freeze
 
-  def initialize(io: $stdout, errors: $stderr, env: ENV)
+  def initialize(io: $stdout, errors: $stderr, env: ENV, flags: Kimera::CLI::RunOptions::Usage.new)
     @io = io
     @errors = errors
     @env = env
+    @flags = flags
   end
 
   def run(argv)
@@ -40,7 +38,7 @@ class Kimera::CLI::CI
   private
 
   def help
-    @io.puts(HELP.build { |_flag, _value| :ignored }.help)
+    @io.puts(@flags.help(BANNER))
     0
   end
 

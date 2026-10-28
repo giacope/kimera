@@ -3,14 +3,6 @@
 require_relative "../parsing/syntax"
 
 class Kimera::SpliceDiff
-  HELD = %i[
-    statements_node arguments_node parameters_node block_parameters_node block_node embedded_statements_node
-    embedded_variable_node else_node when_node in_node rescue_node ensure_node implicit_node implicit_rest_node
-    keyword_hash_node multi_target_node begin_node def_node flip_flop_node match_last_line_node
-    interpolated_match_last_line_node block_argument_node assoc_node assoc_splat_node splat_node
-    class_node module_node singleton_class_node program_node
-  ].freeze
-
   def initialize(original, mutated)
     @original = original
     @mutated = mutated

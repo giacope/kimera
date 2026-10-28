@@ -29,10 +29,12 @@ class Kimera::ClauseCut
 
   def kept = @rebuilt.type == :begin_node ? @rebuilt : nil
 
-  def clauses = Kimera::Syntax::RESCUES.call(@node.rescue_clause)
+  def clauses = Kimera::Rescues.new(@node.rescue_clause).to_a
+
+  def left = Kimera::Rescues.new(kept&.rescue_clause).to_a.map { |clause| clause.location.start_offset }
 
   def rescues
-    left = Kimera::Syntax::RESCUES.call(kept&.rescue_clause).map { |clause| clause.location.start_offset }
+    left = self.left
     clauses.each_with_index.filter_map do |clause, index|
       blank(clause.keyword_loc.start_offset, following(index)) unless left.include?(clause.location.start_offset)
     end

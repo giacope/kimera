@@ -8,7 +8,7 @@ class Kimera::Operators::SuperCall < Kimera::Operators::Base
   CALL = ->(node) { CALLS.any? { |kind| node.is_a?(kind) } }
   COERCED = %i[respond_to_missing?].freeze
 
-  def initialize(coerced = Kimera::Operators::Survey::NONE)
+  def initialize(coerced = Kimera::Operators::EmptySurvey.new)
     super()
     @coerced = coerced
   end

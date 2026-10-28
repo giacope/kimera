@@ -47,22 +47,26 @@ RSpec.describe(Kimera::Execution::StackDump) do
   end
 
   it "stops a thread's frames at Kimera's own runner" do
-    frames = ["app/x.rb:1:in 'a'", "#{described_class::HARNESS}/execution/shift.rb:9:in 'b'", "app/y.rb:2:in 'c'"]
+    harness = Kimera::Execution::Frames::HARNESS
+    frames = ["app/x.rb:1:in 'a'", "#{harness}/execution/shift.rb:9:in 'b'", "app/y.rb:2:in 'c'"]
     text = dump.__send__(:describe, thread("w", frames: frames, status: "run"))
     expect(text).to(eq("thread w (run):\n  app/x.rb:1:in 'a'"))
   end
 
   it "skips the dump's own frames on the thread it interrupted" do
-    frames = ["#{described_class::HARNESS}/execution/stack_dump.rb:40:in 'write'", "app/x.rb:1:in 'a'"]
+    frames = ["#{Kimera::Execution::Frames::HARNESS}/execution/stack_dump.rb:40:in 'write'", "app/x.rb:1:in 'a'"]
     expect(dump.__send__(:describe, thread("w", frames: frames))).to(eq("thread w (sleep):\n  app/x.rb:1:in 'a'"))
   end
 
   it "shows frames relative to the project and caps them per thread", :aggregate_failures do
-    frames = Array.new(described_class::MAX_FRAMES + 2) { |i| "#{Dir.pwd}/app/m.rb:#{i}:in 'm'" }
+    frames = Array.new(Kimera::Execution::Frames::MAX_FRAMES + 2) { |i| "#{Dir.pwd}/app/m.rb:#{i}:in 'm'" }
     lines = dump.__send__(:describe, thread(nil, frames: frames)).lines(chomp: true)
     expect([lines.first, lines[1], lines.size, lines.last]).to(
       match(
-        [/\Athread \d+ \(sleep\):\z/, "  app/m.rb:0:in 'm'", described_class::MAX_FRAMES + 2, "  … 2 more frame(s)"]
+        [
+          /\Athread \d+ \(sleep\):\z/, "  app/m.rb:0:in 'm'", Kimera::Execution::Frames::MAX_FRAMES + 2,
+          "  … 2 more frame(s)"
+        ]
       )
     )
   end

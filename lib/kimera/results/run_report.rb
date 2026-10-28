@@ -19,6 +19,9 @@ class Kimera::RunReport
   attr_reader :results, :leaks, :registry
 
   CONDITIONAL = %i[uncovered_by_unit harness_error ignored isolated_only unmutatable leaks].freeze
+  REPORTED = %i[
+    survived timeout error no_coverage uncovered_by_unit harness_error ignored isolated_only unmutatable
+  ].freeze
   LABELS = { total: "mutants", harness_error: "unjudged" }.freeze
   SCHEMA_VERSION = 1
 
@@ -95,13 +98,9 @@ class Kimera::RunReport
 
   def percent = covered.empty? ? "n/a" : format("%.1f%%", score * 100)
 
-  def counts
-    { total: @results.size, killed: killed.size, leaks: @leaks.size, **reported }
-  end
+  def counts = { total: @results.size, killed: killed.size, leaks: @leaks.size, **reported }
 
-  def reported
-    Kimera::Status::REPORTED.to_h { |status| [status, statuses(status).size] }
-  end
+  def reported = REPORTED.to_h { |status| [status, statuses(status).size] }
 
   def summary
     tallies = counts

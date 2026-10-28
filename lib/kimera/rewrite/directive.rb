@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require_relative "../parsing/syntax"
-require_relative "../support/operator_protocol"
 require_relative "../scribe"
 
 require_relative "clause_handlers"
@@ -10,9 +9,10 @@ require_relative "numbered_params"
 
 module Kimera
   module Rewrite
-    TYPE = OperatorProtocol::TYPE
-    INDEX = OperatorProtocol::INDEX
-    STATEMENT_DELETION = OperatorProtocol::STATEMENT_DELETION
+    TYPE = "type"
+    INDEX = "index"
+    STATEMENT_DELETION = "statement_deletion"
+    private_constant(:TYPE, :INDEX, :STATEMENT_DELETION)
 
     class Directive
       TABLE = ->(*entries) { entries.each_slice(2).to_h.freeze }
@@ -49,13 +49,17 @@ module Kimera
         operation(node).public_send(handler)
       end
 
+      def kind?(name) = @directive[TYPE] == name
+
+      def position = Integer(@directive[INDEX])
+
       private
 
       def condition
         @directive["to"] if @directive[TYPE] == "condition"
       end
 
-      def parsed(source) = Kimera::Syntax.parse(source, partial_script: true, scopes: [Kimera::Syntax::FORWARDING])
+      def parsed(source) = Kimera::Syntax::Fragment.new(source).tree
 
       def forced(source, value)
         tree = parsed(source)

@@ -31,7 +31,7 @@ module Kimera
           def rebegun = node.type == :def_node ? node.copy(body: yield(node.body)) : yield(node)
 
           def unrescued(begun)
-            clauses = Kimera::Syntax::RESCUES.call(begun.rescue_clause)
+            clauses = Kimera::Rescues.new(begun.rescue_clause).to_a
             clauses.delete_at(Integer(directive[INDEX]))
             clauses.empty? ? folded(begun) : begun.copy(rescue_clause: linked(clauses))
           end

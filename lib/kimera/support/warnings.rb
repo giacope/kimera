@@ -2,6 +2,8 @@
 
 module Kimera
   class Warnings
+    def self.silenced = new(nil)
+
     def initialize(level)
       @level = level
     end
@@ -13,7 +15,5 @@ module Kimera
     ensure
       $VERBOSE = previous
     end
-
-    SILENCED = new(nil)
   end
 end

@@ -60,7 +60,7 @@ module Kimera
 
       def default
         value = @node.value
-        pen_of(value).bound(Set[@node.name]).write(value, Level::ASSIGNMENT)
+        pen_of(value).bound(Set[@node.name]).write(value, ASSIGNMENT)
       end
     end
   end

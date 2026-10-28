@@ -16,7 +16,7 @@ class Kimera::CLI::Baseline::Creation
       Kimera::Flag.build("--reason TEXT", :reason, "Why this existing mutation debt is being accepted"),
       Kimera::Flag.build("--output FILE", :output, "Baseline file to write (default: .kimera-baseline.yml)"),
       Kimera::Flag.build("--write", :write, "Also set baseline: FILE in .kimera.yml"),
-      Kimera::FORCE_FLAG.with(help: "Replace an existing baseline file")
+      Kimera::Flag.shared(:force, help: "Replace an existing baseline file")
     ]
   )
 
@@ -28,7 +28,7 @@ class Kimera::CLI::Baseline::Creation
     (report,), options = CREATE.parse(
       argv, { reason: nil, output: ".kimera-baseline.yml", force: false }.merge(write: false)
     )
-    report ||= Kimera::CLI::ReportFile::DEFAULT
+    report ||= Kimera::CLI::ReportFile.default.to_s
     check(report, options)
     write(report, options)
   end
@@ -57,8 +57,9 @@ class Kimera::CLI::Baseline::Creation
   def hint(output) = "Add `baseline: #{output}` to .kimera.yml to apply it, or rerun with --write."
 
   def set(output)
-    Kimera::CLI::Baseline::Setting.new(Kimera::Config::DEFAULT_PATH).apply(output)
-    "Set `baseline: #{output}` in #{Kimera::Config::DEFAULT_PATH}."
+    config = Kimera::Config.of(".").to_s
+    Kimera::CLI::Baseline::Setting.new(config).apply(output)
+    "Set `baseline: #{output}` in #{config}."
   end
 
   def survivors(path)

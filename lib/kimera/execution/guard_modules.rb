@@ -6,6 +6,9 @@ require_relative "concern_overrides"
 
 module Kimera
   module Execution
+    MIXES = Module.instance_method(:include?)
+    private_constant(:MIXES)
+
     CallbackChain =
       Data.define(:chain) do
         def fresh(type, filters)
@@ -70,12 +73,10 @@ module Kimera
           [klass.superclass].compact.none? { |parent| mixes?(parent) }
         end
 
-        def mixes?(klass) = GuardModules::MIXES.bind_call(klass, concern)
+        def mixes?(klass) = MIXES.bind_call(klass, concern)
       end
 
     module GuardModules
-      MIXES = Module.instance_method(:include?)
-
       ENUMGUARD =
         Module.new do
           def enum(*words, **kwargs, &)

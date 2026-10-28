@@ -28,8 +28,6 @@ class Kimera::Execution::IsolatedExecution
   include Kimera::Execution::IsolatedWatchdog
 
   DEFAULT_HARD_TIMEOUT = 300.0
-  COVERED = [Kimera::Execution::BlockUse::REASON, Kimera::Execution::MacroLambdas::KEPT].freeze
-
   def initialize(registry:, root:, tests:, **options)
     @registry = registry
     @root = root
@@ -43,7 +41,7 @@ class Kimera::Execution::IsolatedExecution
     progress.note("isolated baseline (unmutated mirror)")
     outcome = with_mirror { |mirror| verdict(mirror, tests) }
     return if outcome.status == :survived
-    mirror = Kimera::Execution::BaselineFailure::Mirror.new(outcome.explain, Kimera::Execution::IsolatedPlan::MIRROR_HINT)
+    mirror = Kimera::Execution::BaselineFailure::Mirror.new(outcome.explain, plan)
     raise(Kimera::Execution::BaselineFailure, mirror.to_s)
   end
 
@@ -78,7 +76,7 @@ class Kimera::Execution::IsolatedExecution
     Kimera::Execution::MirrorDatabase.new(nil).prepare(1...jobs)
   end
 
-  def progress = @options.fetch(:progress, Kimera::Execution::NullProgress::NONE)
+  def progress = @options.fetch(:progress) { Kimera::Execution::NullProgress.new }
 
   def limit = @options.fetch(:hard_timeout, DEFAULT_HARD_TIMEOUT)
 
@@ -109,7 +107,7 @@ class Kimera::Execution::IsolatedExecution
     judged.tap { judged.note = "judged in a fresh isolated mirror; the warm pass could not: #{warm.detail}" }
   end
 
-  def covered?(warm) = COVERED.include?(plan.registry.index.fetch(warm.mutant_id).revisit)
+  def covered?(warm) = plan.registry.index.fetch(warm.mutant_id).warm_covered?
 
   def covered(result, warm)
     kept = result.killed? || warm.status == :survived ? result : warm.dup

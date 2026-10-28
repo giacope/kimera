@@ -8,10 +8,10 @@ module Kimera
       def text
         subject = @node.predicate
         arms = @node.conditions.sum("") { |arm| part(arm) }
-        "#{subject ? "case #{part(subject, Level::EXPRESSION)}" : "case"}#{arms}#{otherwise}#{closing}"
+        "#{subject ? "case #{part(subject, EXPRESSION)}" : "case"}#{arms}#{otherwise}#{closing}"
       end
 
-      def level = Level::KEYWORD
+      def level = KEYWORD
 
       private
 
@@ -37,7 +37,7 @@ module Kimera
         return patterned(tested) unless word
         inner = tested.statements.body.first
         pen = pen_of(tested)
-        "#{pen.patterned.write(inner)} #{word} #{pen.with([inner]).write(tested.predicate, Level::EXPRESSION)}"
+        "#{pen.patterned.write(inner)} #{word} #{pen.with([inner]).write(tested.predicate, EXPRESSION)}"
       end
     end
 
@@ -50,17 +50,17 @@ module Kimera
         "#{keyword} #{guard}#{body}#{closing}"
       end
 
-      def level = @node.begin_modifier? || modifier? ? Level::STATEMENT : Level::KEYWORD
+      def level = @node.begin_modifier? || modifier? ? STATEMENT : KEYWORD
 
       private
 
       def keyword = type == :while_node ? "while" : "until"
 
-      def guard = ended(part(@node.predicate, Level::EXPRESSION))
+      def guard = ended(part(@node.predicate, EXPRESSION))
 
       def body = lines(@node.statements, pen_of(@node.statements))
 
-      def after = @pen.with([@node.statements]).write(@node.predicate, Level::EXPRESSION)
+      def after = @pen.with([@node.statements]).write(@node.predicate, EXPRESSION)
 
       def modifier? = @node.statements && Postcondition.new(@node.predicate, @node.statements, @pen).needed?
     end
@@ -70,23 +70,25 @@ module Kimera
 
       def text
         body = @node.statements
-        collection = ended(part(@node.collection, Level::EXPRESSION))
+        collection = ended(part(@node.collection, EXPRESSION))
         "for #{part(@node.index)} in #{collection}#{lines(body, pen_of(body))}#{closing}"
       end
 
-      def level = Level::KEYWORD
+      def level = KEYWORD
     end
 
     class Jump < Form
-      TYPES = %i[return_node next_node break_node].freeze
       WORDS = { return_node: "return", next_node: "next", break_node: "break" }.freeze
+      TYPES = WORDS.keys.freeze
       WRAPPED = %i[while_node until_node].freeze
 
       def text
         appended(WORDS.fetch(type), arguments(@node.arguments&.arguments || []), " ")
       end
 
-      def level = Level::EXPRESSION
+      def level = EXPRESSION
+
+      def jump? = true
 
       private
 
@@ -95,7 +97,7 @@ module Kimera
         only = values.first
         return pen.form(only).ternary if values.one? && %i[if_node unless_node].include?(only.type)
         values.map do |value|
-          WRAPPED.include?(value.type) ? "(#{pen.write(value)})" : pen.write(value, Level::ASSIGNMENT)
+          WRAPPED.include?(value.type) ? "(#{pen.write(value)})" : pen.write(value, ASSIGNMENT)
         end.join(", ")
       end
     end
@@ -107,13 +109,13 @@ module Kimera
       WORDS = { and_node: "and", or_node: "or" }.freeze
 
       def text
-        return "#{leading(@node.left, Level::EXPRESSION)} #{WORDS.fetch(type)} #{right(Level::ASSIGNMENT)}" if keyword?
+        return "#{leading(@node.left, EXPRESSION)} #{WORDS.fetch(type)} #{right(ASSIGNMENT)}" if keyword?
         "#{leading(@node.left, level)} #{SYMBOLS.fetch(type)} #{right(level + 1)}"
       end
 
       def level
-        return Level::EXPRESSION if keyword?
-        type == :and_node ? Level::AND : Level::OR
+        return EXPRESSION if keyword?
+        type == :and_node ? AND : OR
       end
 
       private

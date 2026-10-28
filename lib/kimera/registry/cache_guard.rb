@@ -30,7 +30,7 @@ class Kimera::CacheGuard
   def exempt(node, stores, cache)
     return unless cache && stores.key?(cache)
     [
-      Exemption.new(node.location, Kimera::MemoGuard::CONDITIONAL),
+      Exemption.conditional(node.location),
       *stores.fetch(cache).map { Exemption.new(it.location, STATEMENT_DELETION) }
     ]
   end

@@ -95,7 +95,7 @@ class Kimera::Execution::Harness
 
   def jobs = @_jobs ||= [Integer(options.fetch(:jobs, 1)), 1].max
 
-  def progress = options.fetch(:progress, Kimera::Execution::NullProgress::NONE)
+  def progress = options.fetch(:progress) { Kimera::Execution::NullProgress.new }
 
   def driver = rig.driver
 
@@ -154,7 +154,7 @@ class Kimera::Execution::Harness
   end
 
   def budget(timings)
-    return Kimera::Execution::TimeBudget::NONE if options[:relative_timeout] == false
+    return Kimera::Execution::TimeBudget.new({}) if options[:relative_timeout] == false
     Kimera::Execution::TimeBudget.new(timings, **tuning)
   end
 

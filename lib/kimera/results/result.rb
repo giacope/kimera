@@ -1,16 +1,18 @@
 # frozen_string_literal: true
 
 module Kimera
-  module Status
+  class Status
     KILLING = %i[killed timeout error].freeze
 
     UNJUDGED = %i[no_coverage ignored isolated_only unmutatable harness_error].freeze
 
-    REPORTED = %i[
-      survived timeout error no_coverage uncovered_by_unit harness_error ignored isolated_only unmutatable
-    ].freeze
+    def initialize(name)
+      @name = name
+    end
 
-    SELF_SUSPECT = ((KILLING - [:killed]) + [:survived]).freeze
+    def killing? = KILLING.include?(@name)
+
+    def judged? = !UNJUDGED.include?(@name)
   end
 
   MutantResult =
@@ -24,11 +26,11 @@ module Kimera
       end
 
       def killed?
-        Status::KILLING.include?(status)
+        Status.new(status).killing?
       end
 
       def lapsed?
-        Status::KILLING.include?(verdict)
+        Status.new(verdict).killing?
       end
 
       def isolated(detail)
@@ -51,7 +53,7 @@ module Kimera
       end
 
       def covered?
-        !Status::UNJUDGED.include?(status)
+        Status.new(status).judged?
       end
 
       def message

@@ -13,12 +13,18 @@ module Kimera
     end
 
   class << Unmutated
-    def from_h(hash) = new(**hash.transform_keys(&:to_sym))
-  end
+    BLOCK = "code in a block outside any method runs at load or as a DSL callback " \
+      "kimera can't swap, so it is not mutated"
+    WHOLE = {
+      unparsed: "does not parse, so nothing in it is mutated: ",
+      unread: "could not be read, so nothing in it is mutated: ",
+      unscanned: "kimera could not scan it, so nothing in it is mutated (a kimera bug, please report it): "
+    }.freeze
 
-  Unmutated::BLOCK = "code in a block outside any method runs at load or as a DSL callback " \
-    "kimera can't swap, so it is not mutated"
-  Unmutated::UNPARSED = "does not parse, so nothing in it is mutated: "
-  Unmutated::UNREAD = "could not be read, so nothing in it is mutated: "
-  Unmutated::UNSCANNED = "kimera could not scan it, so nothing in it is mutated (a kimera bug, please report it): "
+    def from_h(hash) = new(**hash.transform_keys(&:to_sym))
+
+    def block(file, first, last) = new(file, first, last, BLOCK)
+
+    def whole(file, last, kind, detail) = new(file, 1, last, "#{WHOLE.fetch(kind)}#{detail}")
+  end
 end

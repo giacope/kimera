@@ -8,7 +8,9 @@ module Kimera
         @pen = pen
       end
 
-      def level = Level::PRIMARY
+      def level = PRIMARY
+
+      def jump? = false
 
       private
 
@@ -18,7 +20,7 @@ module Kimera
 
       def pen_of(child) = pens.fetch(child, @pen)
 
-      def part(child, floor = Level::STATEMENT) = pen_of(child).write(child, floor)
+      def part(child, floor = STATEMENT) = pen_of(child).write(child, floor)
 
       def patterned(child) = pen_of(child).patterned.write(child)
 
@@ -26,8 +28,8 @@ module Kimera
 
       def trailing(child, floor)
         pen = pen_of(child)
-        bound = pen.level(child) == Level::KEYWORD ? Level::KEYWORD : floor
-        bound = Level::ASSIGNMENT if @pen.open? && Shape.new(child).assignment?
+        bound = pen.level(child) == KEYWORD ? KEYWORD : floor
+        bound = ASSIGNMENT if @pen.open? && Shape.new(child).assignment?
         pen.write(child, [floor, bound].min)
       end
 
@@ -38,7 +40,7 @@ module Kimera
 
       def receiver_part(child) = pen_of(child).closed.head(child)
 
-      def listed(nodes, floor = Level::ASSIGNMENT)
+      def listed(nodes, floor = ASSIGNMENT)
         nodes.map { |node| pen_of(node).opened.write(node, floor) }.join(", ")
       end
 
@@ -62,7 +64,7 @@ module Kimera
 
       def literal_block = (@node.block if @node.block&.type == :block_node)
 
-      def value_floor(node) = node.type == :rescue_modifier_node ? Level::STATEMENT : Level::ASSIGNMENT
+      def value_floor(node) = node.type == :rescue_modifier_node ? STATEMENT : ASSIGNMENT
 
       def enclosed(kind) = "(#{kind.new(@node, @pen).text})"
 

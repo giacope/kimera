@@ -36,9 +36,9 @@ module Kimera
 
       def solo(label, type, **fields) = [mutation(label, type, **fields)]
 
-      def deletion(node)
-        solo("delete `#{first(node)}`", STATEMENT_DELETION)
-      end
+      def deletion(node) = erased("delete `#{first(node)}`")
+
+      def erased(label) = solo(label, STATEMENT_DELETION)
 
       def drops(nodes, type, label:)
         nodes.each_with_index.map do |node, index|

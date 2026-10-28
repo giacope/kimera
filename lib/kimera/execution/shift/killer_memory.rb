@@ -5,7 +5,7 @@ require_relative "../pace"
 Kimera::Execution::Shift::KillerMemory =
   Struct.new(:pace, :recent) do
     limit = 16
-    def initialize(pace = Kimera::Execution::Pace::STILL, recent = []) = super
+    def initialize(pace = Kimera::Execution::Pace.new({}), recent = []) = super
 
     def order(tests)
       likely = recent & tests

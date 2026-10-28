@@ -26,7 +26,7 @@ module Kimera
       end
 
       def line(statement, index, pen)
-        written = pen.write(statement, Level::STATEMENT)
+        written = pen.write(statement, STATEMENT)
         terminator = index < statements.size - 1 && written.end_with?("..") ? ";" : ""
         return "#{@joint if index.positive?}#{written}#{terminator}" if @joint
         "#{@pen.gap if index.positive? && spaced?(statement)}#{@pen.newline}#{written}#{terminator}"
