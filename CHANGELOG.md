@@ -303,6 +303,11 @@ Field test round 6, batch 6: what the scan survives, where a dropped clause runs
   could not scan it ... (a kimera bug, please report it)" with the error,
   and every other file is scanned; one it cannot read (a directory named
   `x.rb`) is listed, "could not be read", not raised.
+- **The scan is linear in a point's mutants.** Comparing each mutant's
+  program with every earlier one was quadratic: one method returning a
+  242-pair hash took 40 s to scan, prism's `serialize.rb` 80 s, parser's
+  generated lexer more than 2 minutes. Each program is now compared once,
+  each node read once: 1.7 s, 5 s and 17 s, the same registry.
 
 Field test round 5, harness: what kimera loads, runs and says.
 
