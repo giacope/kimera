@@ -55,10 +55,10 @@ module Kimera
         @directive["to"] if @directive[TYPE] == "condition"
       end
 
-      def parsed(source, **) = Kimera::Syntax.parse(source, partial_script: true, **)
+      def parsed(source) = Kimera::Syntax.parse(source, partial_script: true, scopes: [Kimera::Syntax::FORWARDING])
 
       def forced(source, value)
-        tree = parsed(source, scopes: [Kimera::Syntax::FORWARDING])
+        tree = parsed(source)
         pinned(source, tree.value.statements.body.first.predicate, value) if value && tree.success?
       rescue NoMethodError
         nil

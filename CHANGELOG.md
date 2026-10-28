@@ -324,6 +324,15 @@ Field test round 6, batch 6: what the scan survives, where a dropped clause runs
   into is `no_coverage` (it was a survivor "covered" by every test of the
   method, none of which could kill it), and only the tests that raise into
   it run for it.
+- **The report shows every mutant's code.** A mutant whose original code
+  does not parse on its own, a call forwarding an anonymous `&` (`forward(x,
+  1, &)`) or an element of `%i[...]`, had no `+` line: the report showed only
+  `- forward(x, 1, &)`, which reads as a deleted call, and `"mutated": null`
+  in JSON (14 of 617 results on state_machines). A slice is now parsed as
+  it sits in a method that forwards its arguments, and one that only parses
+  where it stands (a list element, a bare list, a call holding a heredoc, a
+  `retry`) is written in its file's own tree. One Kimera still cannot write
+  says so on its `+` line.
 
 Field test round 5, harness: what kimera loads, runs and says.
 

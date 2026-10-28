@@ -141,7 +141,11 @@ bundle exec kimera run app --method apply             # only inside apply
 ```
 
 `kimera mutant` shows the diff, the source lines around the mutant, and the
-tests that cover it and kill it, by file, line and description.
+tests that cover it and kill it, by file, line and description. The diff's
+`+` line is the mutant's code: written alone when it parses alone (a call
+forwarding an anonymous `&`, `*`, `**` or `...` does), else in its file
+where it stands (an element of a `%i[]` list, a bare list, a call holding a
+heredoc); one Kimera cannot write says so on the `+` line.
 
 A mutant has two names. Its ID (`42`) numbers every mutant the run scanned,
 so the same mutant gets a different ID when a run covers a different set of

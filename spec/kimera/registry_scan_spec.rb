@@ -160,6 +160,12 @@ RSpec.describe(Kimera::RegistryScan) do
     end
   end
 
+  # R6B6-M3: a report writes a mutant in its file, found under the registry's root.
+  it "records the root it scanned: the working directory as `.`, another by its path", :aggregate_failures do
+    expect(described_class.new.source("def a = 1\n", file: "a.rb").root).to(eq("."))
+    expect(described_class.new(root: "/app").source("def a = 1\n", file: "a.rb").root).to(eq("/app"))
+  end
+
   it "round-trips through JSON", :aggregate_failures do
     json = registry.to_json
     reloaded = Kimera::Registry.from_h(JSON.parse(json))
