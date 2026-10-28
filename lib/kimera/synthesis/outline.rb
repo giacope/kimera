@@ -21,8 +21,7 @@ class Kimera::Outline
   def traced(value)
     return value.map { |item| traced(item) } if value.is_a?(Array)
     return value unless value.is_a?(Kimera::Syntax::Node)
-    lone = lone(value)
-    lone ? traced(lone) : node(value)
+    lones(value).map { |lone| traced(lone) }.fetch(0) { node(value) }
   end
 
   def node(node)
@@ -30,7 +29,7 @@ class Kimera::Outline
     literal = LITERALS[type]
     return [literal, Kimera::Unescaped.new(node).text] if literal
     parts = joined(node.parts) if type == :interpolated_string_node
-    return parts.first if parts&.one? && text?(parts.first)
+    return parts.fetch(0) if parts&.one? && text?(parts.fetch(0))
     [type, *lines(node), *flags(node), *fields(node)]
   end
 
@@ -39,12 +38,13 @@ class Kimera::Outline
     [[:lines, *node.deconstruct_keys(nil).values_at(*PLACED).compact.map(&:start_line)]]
   end
 
-  def lone(node)
+  def lones(node)
     body = node.type == :statements_node ? node : inner(node)
-    body&.type == :statements_node ? single(body) : body
+    return [] unless body
+    body.type == :statements_node ? singles(body) : [body]
   end
 
-  def single(body) = (body.body.first if body.body.one?)
+  def singles(body) = body.body.one? ? [body.body.fetch(0)] : []
 
   def inner(node)
     return node.body if node.type == :parentheses_node

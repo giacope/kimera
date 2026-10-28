@@ -67,7 +67,7 @@ module Kimera
     end
 
     def owner(node)
-      return snippet(LEXICAL).body.body.first if node.type == :constant_write_node
+      return snippet(LEXICAL).body.body.fetch(0) if node.type == :constant_write_node
       node.target.parent || snippet("::Object")
     end
   end

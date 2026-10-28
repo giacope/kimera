@@ -15,7 +15,7 @@ class Kimera::GuardSpan::Body
 
   private
 
-  def opening = [node.statements, node.rescue_clause, node.else_clause, node.ensure_clause].compact.first
+  def opening = [node.statements, node.rescue_clause, node.else_clause, node.ensure_clause].compact.fetch(0)
 
   attr_reader :node
 end

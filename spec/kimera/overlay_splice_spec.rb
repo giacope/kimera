@@ -122,7 +122,7 @@ RSpec.describe(Kimera::Overlay) do
     it "reports a bake that would change a line outside the mutation as unmutatable" do
       program = "def one = 1\n# two\ndef big?(x) = x > 1\n"
       catalog = scan(program, %w[comparison])
-      allow(Kimera::BakeSplice).to(receive(:new).and_return(instance_double(Kimera::BakeSplice, source: nil)))
+      allow(Kimera::BakeSplice).to(receive(:new).and_return(instance_double(Kimera::BakeSplice, source: [])))
       expect { described_class.new(catalog).bake("x.rb", program, catalog.each.first.first.id) }
         .to(
           raise_error(
@@ -134,7 +134,7 @@ RSpec.describe(Kimera::Overlay) do
 
     it "reports a bake that does not parse as unmutatable" do
       catalog = scan(source, %w[comparison])
-      allow(Kimera::BakeSplice).to(receive(:new).and_return(instance_double(Kimera::BakeSplice, source: "def (")))
+      allow(Kimera::BakeSplice).to(receive(:new).and_return(instance_double(Kimera::BakeSplice, source: ["def ("])))
       expect { described_class.new(catalog).bake("x.rb", source, catalog.each.first.first.id) }
         .to(raise_error(described_class::Unbakeable, "kimera could not write it (what it wrote does not parse)"))
     end

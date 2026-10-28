@@ -39,9 +39,7 @@ module Kimera
         @node = node
       end
 
-      def collection(splats)
-        [node.elements, splats[node.class]] if splats.key?(node.class)
-      end
+      def collections(splats) = splats.key?(node.class) ? [[node.elements, splats.fetch(node.class)]] : []
 
       def unwrap(names)
         return unless node.is_a?(CallNode) && node.receiver && names.include?(node.name)

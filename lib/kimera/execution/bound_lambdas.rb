@@ -34,5 +34,5 @@ class Kimera::Execution::BoundLambdas
 
   def bound?(node) = WRITES.any? { |kind| node.is_a?(kind) } && callable?(node.value)
 
-  def callable?(value) = value.is_a?(Prism::LambdaNode) || !Kimera::Deferral.new(value).block.nil?
+  def callable?(value) = value.is_a?(Prism::LambdaNode) || Kimera::Deferral.new(value).blocks.any?
 end

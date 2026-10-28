@@ -56,7 +56,7 @@ module Kimera
     def kept?(node, defined)
       case node
       when Prism::CallNode then directive?(node, defined)
-      when Prism::AliasMethodNode then defined.include?(named(node.old_name))
+      when Prism::AliasMethodNode then names(node.old_name).any? { defined.include?(it) }
       else local?(node)
       end
     end
@@ -76,12 +76,13 @@ module Kimera
       name = call.name
       arguments = call.arguments&.arguments || []
       return arguments.none?(Prism::DefNode) if VISIBILITY.include?(name)
-      RERUN.include?(name) || (name == :alias_method && defined.include?(named(arguments[1])))
+      RERUN.include?(name) || (name == :alias_method && names(arguments[1]).any? { defined.include?(it) })
     end
 
-    def named(node)
+    def names(node)
       case node
-      when Prism::SymbolNode, Prism::StringNode then node.unescaped.to_sym
+      when Prism::SymbolNode, Prism::StringNode then [node.unescaped.to_sym]
+      else []
       end
     end
 

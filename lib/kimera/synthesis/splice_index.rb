@@ -5,9 +5,11 @@ class Kimera::SpliceIndex
     @root = root
   end
 
-  def node(point) = anchors[[point.location.start_offset, point.location.finish, point.node_type]]
+  def anchored(point)
+    [anchors.fetch([point.location.start_offset, point.location.finish, point.node_type]) { return [] }]
+  end
 
-  def parent(node) = parents[node]
+  def parent(node) = parents.fetch(node)
 
   private
 

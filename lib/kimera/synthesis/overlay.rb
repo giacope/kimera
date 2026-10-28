@@ -45,7 +45,7 @@ class Kimera::Overlay
   def bake(_file, source, id)
     pair = @registry.point(id) { return source }
     map = Kimera::SourceMap.new(source)
-    checked(map, pair.last, spliced(map, *pair) || write(map, baked(map, *pair), pair.last))
+    checked(map, pair.last, spliced(map, *pair).fetch(0) { write(map, baked(map, *pair), pair.last) })
   end
 
   private
@@ -53,7 +53,7 @@ class Kimera::Overlay
   def spliced(map, mutant, point)
     changed = Kimera::Guardrail.new(map, []).changes(point, mutant.directive)
     expected, original = changed && expectation(changed.last&.last || map.ast, map.ast)
-    return unless expected
+    return [] unless expected
     raise(Unbakeable, "#{UNWRITTEN} (the mutant reads as the original)") if expected == original
     Kimera::BakeSplice.new(map, changed, expected).source
   end
@@ -83,8 +83,9 @@ class Kimera::Overlay
   end
 
   def grafted(map, tree, point, cause)
-    Kimera::Overlay::MethodBake.new(map, tree).source(point.location) ||
+    Kimera::Overlay::MethodBake.new(map, tree).source(point.location).fetch(0) do
       raise(Unbakeable, "kimera could not write its bake (#{cause})")
+    end
   end
 
   def unsafe(file, source, points)

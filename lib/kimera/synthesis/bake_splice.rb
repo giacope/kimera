@@ -23,41 +23,41 @@ class Kimera::BakeSplice
 
   def source
     candidates = Candidates.new(@changed).to_a.lazy
-    spliced = candidates.filter_map { |node, rebuilt| placed(node, rebuilt) }.first
-    spliced && reopened(spliced)
+    candidates.flat_map { |node, rebuilt| placed(node, rebuilt) }.first(1).map { |spliced| reopened(spliced) }
   end
 
   private
 
   def placed(node, rebuilt)
-    cut(node, rebuilt) || lined(node, rebuilt) || worded(node, rebuilt) || laid(node, rebuilt)
+    ways = [-> { cut(node, rebuilt) }, -> { lined(node, rebuilt) }, -> { worded(node, rebuilt) }]
+    [*ways, -> { laid(node, rebuilt) }].lazy.flat_map(&:call).first(1)
   rescue StandardError
-    nil
+    []
   end
 
   def cut(node, rebuilt)
     attempts = Kimera::ClauseCut.new(@map.source, node, rebuilt).attempts
-    attempts.lazy.filter_map { |head, rest| read(Attempt.new(*head), rest) }.first
+    attempts.lazy.flat_map { |head, rest| read(Attempt.new(*head), rest) }.first(1)
   end
 
   def worded(node, rebuilt)
-    return unless WORDS.include?(node.type) && rebuilt.type == node.type && !node.opening_loc && !node.closing_loc
+    return [] unless WORDS.include?(node.type) && rebuilt.type == node.type && !node.opening_loc && !node.closing_loc
     value = rebuilt.unescaped
     location = node.location
-    read(Attempt.plain(location.start_offset, location.end_offset, value), []) if value.match?(WORD)
+    value.match?(WORD) ? read(Attempt.plain(location.start_offset, location.end_offset, value), []) : []
   end
 
   def lined(node, rebuilt)
     literal = literals.find { |each| holds?(each, node) }
     edit = literal && rebuilt.respond_to?(:unescaped) && Kimera::PartSplice.new(literal).edit(node, rebuilt)
-    edit && read(Attempt.plain(*edit), [])
+    edit ? read(Attempt.plain(*edit), []) : []
   end
 
   def laid(node, rebuilt)
     scribe = Kimera::Scribe.new(rebuilt).over(@map.ast, node)
     texts = [scribe, scribe.joined].map(&:text).uniq
     cleared = cleared(node, rebuilt)
-    texts.lazy.flat_map { |text| attempts(node, text) }.filter_map { |attempt| read(attempt, cleared) }.first
+    texts.lazy.flat_map { |text| attempts(node, text) }.flat_map { |attempt| read(attempt, cleared) }.first(1)
   end
 
   def cleared(node, rebuilt)
@@ -106,7 +106,7 @@ class Kimera::BakeSplice
   def read(attempt, cleared)
     spliced = @map.splice([attempt.edit, *cleared])
     result = Kimera::Syntax.parse(spliced)
-    spliced if result.success? && written(ungrouped(result.value, attempt)) == @expected
+    result.success? && written(ungrouped(result.value, attempt)) == @expected ? [spliced] : []
   end
 
   def written(tree) = Kimera::Readback.new(tree).text
@@ -117,7 +117,7 @@ class Kimera::BakeSplice
     end
   end
 
-  def lone(body) = body.type == :statements_node && body.body.one? ? body.body.first : body
+  def lone(body) = body.type == :statements_node && body.body.one? ? body.body.fetch(0) : body
 
   def reopened(spliced)
     map = Kimera::SourceMap.new(spliced)

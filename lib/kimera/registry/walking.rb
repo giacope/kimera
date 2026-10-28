@@ -24,7 +24,7 @@ module Kimera::RegistryWalking
     Data.define(:statements, :tail, :matchnodes, :defbodies, :insidedef, :embeds, :deferred) do
       def advance(child, cursor)
         cursor.with(
-          position: position(child), inside_def: insidedef || child.equal?(deferred),
+          position: position(child), inside_def: insidedef || deferred.any? { child.equal?(it) },
           in_pattern: cursor.in_pattern || matchnodes.any? { child.equal?(it) },
           def_body: defbodies.any? { child.equal?(it) },
           embedded: embeds
@@ -70,5 +70,5 @@ module Kimera::RegistryWalking
     node.is_a?(Kimera::SyntaxTypes::DefNode) || node.is_a?(Kimera::SyntaxTypes::LambdaNode)
   end
 
-  def deferred(node) = Kimera::Deferral.new(node).block
+  def deferred(node) = Kimera::Deferral.new(node).blocks
 end

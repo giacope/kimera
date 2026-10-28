@@ -17,7 +17,7 @@ class Kimera::Readback
 
   private
 
-  def lone(statements) = statements.body.one? ? statements.body.first : statements
+  def lone(statements) = statements.body.one? ? statements.body.fetch(0) : statements
 
   def written(tree) = Kimera::Scribe.new(Kimera::Rewrite::NumberedParams.new(tree).normalize).source
 end

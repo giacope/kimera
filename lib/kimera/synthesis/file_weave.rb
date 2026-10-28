@@ -48,7 +48,7 @@ class Kimera::Overlay
       )
     end
 
-    def recover = splice || raise(Kimera::Scribe::Unreadable, UNGUARDABLE)
+    def recover = splice.fetch(0) { raise(Kimera::Scribe::Unreadable, UNGUARDABLE) }
 
     def bisect(points)
       return points if attempt(points)

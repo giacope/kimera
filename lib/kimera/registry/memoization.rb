@@ -103,8 +103,8 @@ module Kimera
 
     def holes(node)
       return [] unless node.is_a?(SyntaxTypes::Node)
-      hole = HOLE_NODES.any? { |kind| node.is_a?(kind) } ? node : Kimera::Deferral.new(node).block
-      return body(hole) if hole
+      found = HOLE_NODES.any? { |kind| node.is_a?(kind) } ? [node] : Kimera::Deferral.new(node).blocks
+      return found.flat_map { |hole| body(hole) } if found.any?
       node.compact_child_nodes.flat_map { |child| holes(child) }
     end
 

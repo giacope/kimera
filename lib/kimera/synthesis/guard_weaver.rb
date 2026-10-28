@@ -42,7 +42,7 @@ class Kimera::Guardrail
 
   def rewrite(node)
     woven = transform(node)
-    [Kimera::LinePad.new(node.slice).fitted(Kimera::Scribe.new(woven), Kimera::Readback.new(woven)), activated(woven)]
+    [Kimera::LinePad.new(node.slice).fits(Kimera::Scribe.new(woven), Kimera::Readback.new(woven)), activated(woven)]
   end
 
   def activated(node)
@@ -51,7 +51,7 @@ class Kimera::Guardrail
     found.compact
   end
 
-  def transform(node) = weave(node).first
+  def transform(node) = weave(node).fetch(0)
 
   def bake(point, directive)
     target = target(point)

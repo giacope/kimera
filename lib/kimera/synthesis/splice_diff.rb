@@ -8,21 +8,20 @@ class Kimera::SpliceDiff
     @mutated = mutated
   end
 
-  def path
-    found = [[@original, @mutated]]
-    while (pair = differing(*found.last))
-      found << pair
-    end
-    found
-  end
+  def path = descended([[@original, @mutated]])
 
   private
 
+  def descended(found)
+    pairs = differing(*found.fetch(-1))
+    pairs.empty? ? found : descended([*found, *pairs])
+  end
+
   def differing(original, mutated)
-    return unless alike?(original, mutated)
+    return [] unless alike?(original, mutated)
     pairs = fields(original).zip(fields(mutated)).reject { |left, right| left == right }
-    pair = pairs.first if pairs.one? && pairs.first.all?(Kimera::Syntax::Node)
-    pair unless pair && receiving?(original, pair)
+    return [] unless pairs.one? && pairs.fetch(0).all?(Kimera::Syntax::Node)
+    receiving?(original, pairs.fetch(0)) ? [] : pairs
   end
 
   def alike?(original, mutated) = original.type == mutated&.type

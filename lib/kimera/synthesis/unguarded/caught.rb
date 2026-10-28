@@ -7,7 +7,7 @@ class Kimera::Unguarded::Caught
 
   def clause = guarded.copy(exceptions: listed.type == :array_node ? listed.elements : [])
 
-  def listed = guarded.exceptions.first.expression.body.body.first
+  def listed = guarded.exceptions.fetch(0).expression.body.body.fetch(0)
 
   private
 

@@ -21,17 +21,17 @@ class Kimera::ClauseCut
   def variants
     clauses = [*rescues, *otherwise, *ensured]
     opening = @node.begin_keyword_loc
-    return [clauses] unless opening && !kept
+    return [clauses] unless opening && kept.empty?
     [%w[; ;], %w[( )]].map { |open, close| [word(opening, open), *clauses, word(@node.end_keyword_loc, close)] }
   end
 
   def grouping(edits) = @node.location.end_offset + edits.sum { |from, to, text| text.bytesize - (to - from) }
 
-  def kept = @rebuilt.type == :begin_node ? @rebuilt : nil
+  def kept = @rebuilt.type == :begin_node ? [@rebuilt] : []
 
   def clauses = Kimera::Rescues.new(@node.rescue_clause).to_a
 
-  def left = Kimera::Rescues.new(kept&.rescue_clause).to_a.map { |clause| clause.location.start_offset }
+  def left = kept.flat_map { Kimera::Rescues.new(it.rescue_clause).to_a }.map { |clause| clause.location.start_offset }
 
   def rescues
     left = self.left
@@ -47,12 +47,12 @@ class Kimera::ClauseCut
 
   def otherwise
     keyword = @node.else_clause&.else_keyword_loc
-    keyword && !kept&.else_clause ? [word(keyword, ";")] : []
+    keyword && kept.none?(&:else_clause) ? [word(keyword, ";")] : []
   end
 
   def ensured
     keyword = @node.ensure_clause&.ensure_keyword_loc
-    keyword && !kept&.ensure_clause ? [blank(keyword.start_offset, @node.end_keyword_loc.start_offset)] : []
+    keyword && kept.none?(&:ensure_clause) ? [blank(keyword.start_offset, @node.end_keyword_loc.start_offset)] : []
   end
 
   def word(keyword, text) = [keyword.start_offset, keyword.end_offset, text]

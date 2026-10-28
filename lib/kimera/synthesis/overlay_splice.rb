@@ -7,17 +7,14 @@ module Kimera
   module OverlaySplice
     private
 
-    def splice
-      prepared = prepare
-      prepared && report(*prepared)
-    end
+    def splice = prepare.map { |prepared| report(*prepared) }
 
     def prepare
-      return unless ready?
+      return [] unless ready?
       edits, dropped = gather
-      return if edits.empty?
+      return [] if edits.empty?
       source = @map.splice(edits + reopenings)
-      [edits, dropped, source] if unwoven?(source, rewritten(edits))
+      unwoven?(source, rewritten(edits)) ? [[edits, dropped, source]] : []
     end
 
     def rewritten(edits) = definitions(@map.ast).select { |node| edits.any? { |edit| edit.first(2) == span(node) } }
@@ -30,7 +27,8 @@ module Kimera
     def gather
       claims = claimed
       rewritten = claims.map { |definition, mine| [rewrite(definition, mine), mine] }
-      [rewritten.filter_map(&:first), rewritten.reject(&:first).flat_map(&:last) + (@safe - claims.flat_map(&:last))]
+      kept, lost = rewritten.partition { |edits, _| edits.any? }
+      [kept.flat_map(&:first), lost.flat_map(&:last) + (@safe - claims.flat_map(&:last))]
     end
 
     def reopenings = Kimera::SpliceReopening.new(@map).edits
@@ -85,10 +83,10 @@ module Kimera
     def span(node) = [node.location.start_offset, node.location.end_offset]
 
     def rewrite(definition, points)
-      text, applied = Kimera::Guardrail.new(@map, points).rewrite(definition)
-      span(definition) + [text, applied] if text
+      texts, applied = Kimera::Guardrail.new(@map, points).rewrite(definition)
+      texts.map { |text| span(definition) + [text, applied] }
     rescue StandardError
-      nil
+      []
     end
   end
 end

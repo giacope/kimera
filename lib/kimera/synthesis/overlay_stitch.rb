@@ -16,7 +16,7 @@ class Kimera::Overlay::Stitch
   def result
     whole = enclosing(weave.rest)
     rewritten = whole&.map { |definition, mine| rewrite(definition, mine) }
-    stitched(whole, rewritten) if rewritten&.all?
+    stitched(whole, rewritten.flatten(1)) if rewritten&.all?(&:any?)
   end
 
   private

@@ -283,7 +283,7 @@ RSpec.describe(Kimera::Overlay) do
     let(:registry) { build(source) }
 
     it "is refused, file and method alike" do
-      allow(Kimera::BakeSplice).to(receive(:new).and_return(instance_double(Kimera::BakeSplice, source: nil)))
+      allow(Kimera::BakeSplice).to(receive(:new).and_return(instance_double(Kimera::BakeSplice, source: [])))
       allow(Kimera::Readback).to(receive(:new).and_return(instance_double(Kimera::Readback, faithful?: false)))
       mutant = registry.each.find { |m, _p| m.label == "> => <" }.first
       expect { described_class.new(registry).bake("x.rb", source, mutant.id) }
