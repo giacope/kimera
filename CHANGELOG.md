@@ -277,6 +277,17 @@ Field test round 6, batch 5: where a rewrite leaves your lines, and what runs th
   in parallel runs its test in place, and `--seed` seeds each test after its
   class drew its order.
 
+- **Isolated children run under the Gemfile kimera runs under.** bullet's
+  CI runs its suite under `BUNDLE_GEMFILE=Gemfile.rails-8.1`; its `Gemfile`
+  tracks Rails main from GitHub. The warm pass ran under the gemfile kimera
+  was started with, but every isolated child and every mirror re-judge was
+  pinned to `./Gemfile`: bullet's 9 re-judged mutants came back unjudged
+  ("The git source https://github.com/rails/rails.git is not yet checked
+  out") and `--isolated` stopped at its baseline. A child now runs under
+  the mirror's copy of `BUNDLE_GEMFILE` when it lies in the project (an
+  Appraisal `Gemfile.rails-8.1`, a `gemfiles/x.gemfile`), and a path gem
+  its lockfile resolved inside the project resolves from the mirror.
+
 Field test round 5, harness: what kimera loads, runs and says.
 
 - **A test that fails only under kimera is a harness error, whatever it

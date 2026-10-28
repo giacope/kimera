@@ -1026,9 +1026,12 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   `run_all_when_everything_filtered`; a baseline whose test files load but
   select no test fails with exit 1 instead of scoring every mutant uncovered.
 - **Runs under your bundle.** Use `bundle exec`. A source checkout's `exe/kimera` activates the current
-  directory's Gemfile before booting Kimera. `--isolated` mirrors run under
-  the project's own Gemfile and lockfile, so a gem named by a relative
-  `path:` (a monorepo's engines) resolves there too.
+  directory's Gemfile before booting Kimera. `--isolated` mirrors and the
+  mirrors that judge a mutant again run under the Gemfile Kimera runs under
+  (`BUNDLE_GEMFILE=Gemfile.rails-8.1 bundle exec kimera run` runs them under
+  the mirror's `Gemfile.rails-8.1`), and under the project's own one when
+  its lockfile resolved a gem by a relative `path:` out of the project (a
+  monorepo's engines), so that gem resolves there too.
 - **Kimera writes its own Ruby.** Every rewrite and guard is made on Prism's
   own tree, the one the registry scanned, and `Kimera::Scribe` writes it back
   as source that reads as the very same tree: it groups operators, signs and powers by precedence

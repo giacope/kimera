@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
+require_relative "bundle"
 require_relative "parallel_databases"
 require_relative "suite_env"
 require_relative "../frameworks/load_path"
@@ -16,8 +17,6 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
   CHILD = File.expand_path("isolated_child.rb", __dir__)
   MINITEST_CHILD = File.expand_path("isolated_child_minitest.rb", __dir__)
   PULSE = ".pulse"
-  RELATIVE = %r{\bpath:?\s*\(?\s*["'](?!/|~)}
-  REMOTES = /^PATH\n  remote: (.+)$/
 
   def initialize(framework:, test_files:, root: nil, seed: nil)
     @framework = framework
@@ -55,29 +54,11 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
   end
 
   def bundled(mirror, env, argv)
-    return [env, argv] unless File.file?(File.join(mirror, "Gemfile"))
-    env["BUNDLE_GEMFILE"] = gemfile(mirror)
+    gemfile = Kimera::Execution::Bundle.new(@root || mirror).gemfile(mirror)
+    return [env, argv] unless gemfile
+    env["BUNDLE_GEMFILE"] = gemfile
     [env, ["bundle", "exec", *argv]]
   end
-
-  def gemfile(mirror)
-    own = File.join(@root || mirror, "Gemfile")
-    File.file?(own) && outward?(own) ? own : File.join(mirror, "Gemfile")
-  end
-
-  def outward?(gemfile)
-    lock = "#{gemfile}.lock"
-    return read(gemfile).match?(RELATIVE) unless File.file?(lock)
-    home = File.expand_path(File.dirname(gemfile))
-    read(lock).scan(REMOTES).flatten.any? { |remote| escapes?(remote, home) }
-  end
-
-  def escapes?(remote, home)
-    path = File.expand_path(remote, home)
-    !remote.start_with?("/") && path != home && !path.start_with?("#{home}/")
-  end
-
-  def read(path) = File.read(path, encoding: Encoding::UTF_8).scrub
 
   def minitest?
     @framework.to_s == "minitest"
