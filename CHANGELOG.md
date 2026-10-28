@@ -288,6 +288,22 @@ Field test round 6, batch 5: where a rewrite leaves your lines, and what runs th
   Appraisal `Gemfile.rails-8.1`, a `gemfiles/x.gemfile`), and a path gem
   its lockfile resolved inside the project resolves from the mirror.
 
+Field test round 6, batch 6: what the scan survives, where a dropped clause runs, and what the report shows.
+
+- **The registry scan no longer stops the run on a method that opens with
+  an empty `if`.** The memo-guard check read an `if` with two parts as
+  "condition and then-branch", but `if x` / `else ...` / `end` has two parts
+  too, the condition and the `else`, and it read the missing then-branch:
+  `NoMethodError: undefined method 'body' for nil`, before any mutant, on
+  every run whose scope held such a method (acts-as-taggable-on's default
+  scope; net-http, irb, debug and parser too). A guard is now an `if` with a
+  then-branch and no `else`. Scanned over 57,978 distinct Ruby files (three
+  bundles, Ruby's own library and gems, 52 MIT projects), the scan raises on
+  none. A file it trips on anyway is listed under "Not mutated", "kimera
+  could not scan it ... (a kimera bug, please report it)" with the error,
+  and every other file is scanned; one it cannot read (a directory named
+  `x.rb`) is listed, "could not be read", not raised.
+
 Field test round 5, harness: what kimera loads, runs and says.
 
 - **A test that fails only under kimera is a harness error, whatever it

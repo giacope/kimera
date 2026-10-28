@@ -43,6 +43,8 @@ class Kimera::RegistryScan
     scan(File.read(path, encoding: Encoding::UTF_8), relative(path), numbering)
   rescue Errno::ENOENT
     nil
+  rescue SystemCallError, IOError => error
+    Kimera::RegistryScan::Unread.new(relative(path), error.message)
   end
 
   def scan(source, file, numbering)
@@ -59,3 +61,4 @@ end
 
 require_relative "numbering"
 require_relative "source_file"
+require_relative "unread"

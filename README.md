@@ -1100,8 +1100,10 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   it would mutate in any other block outside a method (a class-level `map`,
   a DSL callback block), by its own lines (not those of a method it
   defines, which is mutated), and any scanned file that does
-  not parse, are listed under "Not mutated" in the text report and
-  `unmutated` in the JSON report and the registry, with the reason.
+  not parse, cannot be read, or that the scan itself trips on (a Kimera bug,
+  reported as one with the error, never a crash of the run), are listed
+  under "Not mutated" in the text report and `unmutated` in the JSON report
+  and the registry, with the reason.
 - **Schema-unsafe mutants.** Code that runs once at load (class/module bodies,
   constants) or is memoized can't be toggled in a warm process. Kimera mutates
   only inside method bodies and routes memoized points to a fork-per-mutant

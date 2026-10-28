@@ -33,18 +33,22 @@ class Kimera::RegistryScan::SourceFile
 
   def removals = @_removals ||= Kimera::DefaultRemoval::Source.new(@source)
 
-  def scanned = @_scanned ||= scan(Kimera::Syntax.parse(@source))
+  def scanned = @_scanned ||= attempt
+
+  def attempt
+    scan(Kimera::Syntax.parse(@source))
+  rescue StandardError, SystemStackError => error
+    [[], [whole("#{Kimera::Unmutated::UNSCANNED}#{error.class}: #{error.message.lines.first&.chomp}")]]
+  end
 
   def scan(parsed)
-    return [[], [unparsed(parsed.errors.first&.message)]] if parsed.failure?
+    return [[], [whole("#{Kimera::Unmutated::UNPARSED}#{parsed.errors.first&.message}")]] if parsed.failure?
     root = parsed.value
     operators = @operators.map { |operator| operator.survey(root) }
     self.class.new(@source, file: @file, operators: operators, numbering: @numbering).mined(root)
   end
 
-  def unparsed(error)
-    Kimera::Unmutated.new(@file, 1, [@source.lines.size, 1].max, "#{Kimera::Unmutated::UNPARSED}#{error}")
-  end
+  def whole(reason) = Kimera::Unmutated.new(@file, 1, [@source.lines.size, 1].max, reason)
 
   def unmutated(held)
     held.group_by { |block, _| block.location.start_offset }.values.flat_map { |pairs| runs(pairs.map(&:last)) }

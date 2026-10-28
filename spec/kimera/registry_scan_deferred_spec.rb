@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require "kimera/registry/builder"
+require "fileutils"
+require "tmpdir"
 
 # A block whose body runs on each call (define_method, lambda, proc,
 # Proc.new) is mutated like a method body; any other block outside a method
@@ -52,6 +54,48 @@ RSpec.describe(Kimera::RegistryScan) do
     region = registry.unmutated.first
     expect([region.file, region.start_line, region.end_line]).to(eq(["widget.rb", 1, 3]))
     expect(region.reason).to(start_with(Kimera::Unmutated::UNPARSED))
+  end
+
+  describe "a file the scan trips on (R6B6-M1)" do
+    let(:faulty) do
+      Class.new(Kimera::Operators::Base) do
+        def key = "faulty"
+
+        def variants(node, **)
+          value = node.value if node.type == :integer_node
+          raise(NoMethodError, "undefined method 'body' for nil\n  detail") if value == 13
+          raise(SystemStackError, "stack level too deep") if value == 17
+        end
+      end
+    end
+
+    let(:dir) { Dir.mktmpdir }
+
+    after { FileUtils.remove_entry(dir) }
+
+    def built(files)
+      paths = files.map { |name, text| File.join(dir, name).tap { text ? File.write(it, text) : Dir.mkdir(it) } }
+      described_class.new(operators: [faulty.new, *Kimera::Operators.build], root: dir).build(paths)
+    end
+
+    def fine = "def fine(a)\n  a > 2\nend\n"
+
+    def regions(registry) = registry.unmutated.map { [it.file, it.start_line, it.end_line, it.reason] }
+
+    it "reports it whole, with what went wrong, and scans every other file", :aggregate_failures do
+      registry = built("a.rb" => "def trip\n  13\nend\n", "b.rb" => fine, "c.rb" => "class C\n  def deep = 17\nend\n")
+      tripped = "#{Kimera::Unmutated::UNSCANNED}NoMethodError: undefined method 'body' for nil"
+      deep = "#{Kimera::Unmutated::UNSCANNED}SystemStackError: stack level too deep"
+      expect([registry.files, regions(registry)]).to(eq([["b.rb"], [["a.rb", 1, 3, tripped], ["c.rb", 1, 3, deep]]]))
+    end
+
+    it "reports a file it cannot read, and skips one that is gone", :aggregate_failures do
+      registry = built("a.rb" => nil, "b.rb" => fine)
+      gone = described_class.new(root: dir).build([File.join(dir, "gone.rb"), File.join(dir, "b.rb")])
+      expect([registry.files, regions(registry).map { it.first(3) }]).to(eq([["b.rb"], [["a.rb", 1, 1]]]))
+      expect(registry.unmutated.first.reason).to(start_with(Kimera::Unmutated::UNREAD).and(include("Is a directory")))
+      expect([gone.files, gone.unmutated]).to(eq([["b.rb"], []]))
+    end
   end
 
   it "keeps its regions through the registry's JSON" do
