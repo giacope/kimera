@@ -39,7 +39,8 @@ class Kimera::Overlay
   def synthesize(file, source)
     safe, unsafe = @registry.at(file).partition(&:safe?)
     return unsafe(file, source, unsafe) if safe.empty?
-    Kimera::Overlay::FileWeave.new(file, Kimera::SourceMap.new(source), safe, unsafe).result
+    map = Kimera::SourceMap.new(source)
+    Kimera::Overlay::FileWeave.new(file, map, safe, unsafe).result
   end
 
   def bake(_file, source, id)

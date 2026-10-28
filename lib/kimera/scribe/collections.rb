@@ -60,7 +60,8 @@ module Kimera
 
       def piece(part)
         return "\#{#{@pen.write(part)}}" unless part.respond_to?(:unescaped)
-        Quote.new(Kimera::Unescaped.new(part).text, BREAKS).text
+        unescaped = Kimera::Unescaped.new(part).text
+        Quote.new(unescaped, BREAKS).text
       end
     end
 
@@ -90,7 +91,10 @@ module Kimera
 
       def value = part(@node.value, ASSIGNMENT)
 
-      def label(key) = Name.new(Kimera::Unescaped.new(key).text.to_sym).label
+      def label(key)
+        name = Kimera::Unescaped.new(key).text.to_sym
+        Name.new(name).label
+      end
 
       def shorthand? = @node.value.nil? || @node.value.type == :implicit_node
     end

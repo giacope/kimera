@@ -61,8 +61,7 @@ class Kimera::BakeSplice
   end
 
   def cleared(node, rebuilt)
-    kept = Set.new.compare_by_identity
-    Kimera::Rewrite::AstWalk.new(rebuilt).visit { |each| kept << each }
+    kept = Set.new.compare_by_identity.merge(Kimera::Rewrite::AstWalk.new(rebuilt).nodes)
     trailing(node).reject { |doc| kept.include?(doc) }.map { |doc| blank(doc) }
   end
 

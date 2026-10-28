@@ -46,6 +46,7 @@ module Kimera
         def patterned = Mode.new(open: @open, pattern: true)
       end
       OPEN = Mode.new(open: true, pattern: false)
+      CLOSED = Mode.new(open: false, pattern: false)
 
       def initialize(binders, margin, locals = NO_NAMES, mode = OPEN)
         @binders = binders
@@ -74,7 +75,7 @@ module Kimera
 
       def deeper = Pen.new(@binders, @margin.deeper, @locals)
 
-      def closed = Pen.new(@binders, @margin, @locals, Mode.new(open: false, pattern: false))
+      def closed = Pen.new(@binders, @margin, @locals, CLOSED)
 
       def opened = Pen.new(@binders, @margin, @locals)
 

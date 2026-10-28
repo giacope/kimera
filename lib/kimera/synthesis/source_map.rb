@@ -12,7 +12,7 @@ class Kimera::SourceMap
   end
 
   def ast
-    @_ast ||= Kimera::Rewrite::NumberedParams.new(Kimera::Scribe.parse(@source)).normalize
+    @_ast ||= Kimera::Rewrite::NumberedParams.of(@source).normalize
   end
 
   def restore(text)

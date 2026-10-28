@@ -23,9 +23,10 @@ require_relative "run/options"
 require_relative "run/sources"
 
 class Kimera::CLI::Run
-  def initialize(io: $stdout, errors: $stderr)
+  def initialize(io: $stdout, errors: $stderr, arguments: Kimera::CLI::Run::Arguments.new)
     @io = io
     @errors = errors
+    @arguments = arguments
   end
 
   def run(argv)
@@ -70,7 +71,7 @@ class Kimera::CLI::Run
     1
   end
 
-  def parse(argv) = Kimera::CLI::Run::Arguments.new.parse(argv)
+  def parse(argv) = @arguments.parse(argv)
 
   def cycle(options)
     Kimera::Plugins.new(options[:require], root: options[:source_root]).load!

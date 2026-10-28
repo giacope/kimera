@@ -12,6 +12,8 @@ module Kimera
       RENAMED = /\b#{PREFIX}(?:[1-9]|it)\b/
       SCOPES = %i[block_node lambda_node].freeze
 
+      def self.of(source) = new(Kimera::Scribe.parse(source))
+
       def initialize(tree)
         @tree = tree
       end

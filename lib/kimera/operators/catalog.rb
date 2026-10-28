@@ -8,19 +8,20 @@ module Kimera
     class Catalog
       Roster = Struct.new(:classes)
 
-      def initialize(defaults, rails)
+      def initialize(defaults, rails, roster = Roster.new(defaults.dup))
         @defaults = defaults
         @rails = rails
+        @roster = roster
       end
 
       def build(keys:)
         requested = expand(keys)
         validate!(requested)
-        roster.classes.map(&:new).select { |operator| requested.include?(operator.key) }
+        @roster.classes.map(&:new).select { |operator| requested.include?(operator.key) }
       end
 
       def keys
-        roster.classes.map { |klass| key_of(klass) }
+        @roster.classes.map { |klass| key_of(klass) }
       end
 
       def register(*klasses)
@@ -29,12 +30,12 @@ module Kimera
       end
 
       def reset!
-        roster.classes.replace(@defaults)
+        @roster.classes.replace(@defaults)
         self
       end
 
       def custom
-        roster.classes - @defaults
+        @roster.classes - @defaults
       end
 
       def expand(keys)
@@ -49,12 +50,10 @@ module Kimera
 
       private
 
-      def roster = @_roster ||= Roster.new(@defaults.dup)
-
       def admit(klass)
         raise(UsageError, "not an operator class: #{klass.inspect}") unless operator?(klass)
         key = key_of(klass)
-        classes = roster.classes
+        classes = @roster.classes
         taken = classes.find { |operator| key_of(operator) == key }
         raise(UsageError, "operator key already registered: #{key} (#{taken})") if taken
         classes << klass

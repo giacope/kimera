@@ -11,9 +11,11 @@ require_relative "guard_text"
 require_relative "splice_index"
 
 class Kimera::GuardSplice
-  def initialize(map, points)
+  def initialize(map, points, index: Kimera::SpliceIndex.new(map.ast), sites: Kimera::GuardSite.new(index))
     @map = map
     @points = points
+    @index = index
+    @sites = sites
   end
 
   def edits
@@ -36,7 +38,7 @@ class Kimera::GuardSplice
 
   def probes = placed.flat_map(&:last)
 
-  def placements = @_placements ||= @points.map { |point| index.anchored(point).flat_map { placement(point, it) } }
+  def placements = @_placements ||= @points.map { |point| @index.anchored(point).flat_map { placement(point, it) } }
 
   def placement(point, node)
     hidden, shown = point.mutants.partition { |mutant| Kimera::Rewrite::Directive.new(mutant.directive).kind?("privatize") }
@@ -54,7 +56,7 @@ class Kimera::GuardSplice
   def guarded(node, mutant)
     parameter = Kimera::GuardrailDispatch::Parameter.new(node)
     return [[node.value, mutant.id, parameter.missing]] if parameter.optional?
-    site, mutated = sites.of(node, Kimera::Rewrite::Directive.new(mutant.directive).apply(node))
+    site, mutated = @sites.of(node, Kimera::Rewrite::Directive.new(mutant.directive).apply(node))
     text = written(site, mutated)
     fits?(text) ? [[site, mutant.id, text]] : []
   rescue StandardError
@@ -64,8 +66,4 @@ class Kimera::GuardSplice
   def written(site, mutated) = Kimera::Scribe.new(mutated).at(@map.ast, site).after(site).unbroken.text
 
   def fits?(text) = !Kimera::Rewrite::NumberedParams::Spelling.new(text).renamed? && !text.include?("\n")
-
-  def index = @_index ||= Kimera::SpliceIndex.new(@map.ast)
-
-  def sites = @_sites ||= Kimera::GuardSite.new(index)
 end

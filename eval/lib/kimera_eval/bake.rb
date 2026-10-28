@@ -9,8 +9,9 @@ module KimeraEval
 end
 
 class KimeraEval::Bake
-  def initialize(registry)
+  def initialize(registry, overlay: Kimera::Overlay.new(registry))
     @registry = registry
+    @overlay = overlay
   end
 
   def call(id)
@@ -23,9 +24,7 @@ class KimeraEval::Bake
 
   private
 
-  def baked(point, id) = overlay.bake(point.file, File.read(point.file, encoding: Encoding::UTF_8), id)
-
-  def overlay = @_overlay ||= Kimera::Overlay.new(@registry)
+  def baked(point, id) = @overlay.bake(point.file, File.read(point.file, encoding: Encoding::UTF_8), id)
 end
 
 options = Kimera::CLI::Run::Arguments.new.parse(ARGV.dup)

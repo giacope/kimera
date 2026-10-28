@@ -61,7 +61,8 @@ class Kimera::CLI::Synthesize
   def load(paths, options)
     stored = options[:registry]
     return Kimera::Registry.from_file(stored) if stored
-    Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: options[:operators]))
-      .build(Kimera::FileSet.from_options(paths, options).files)
+    operators = Kimera::Operators.build(keys: options[:operators])
+    files = Kimera::FileSet.from_options(paths, options).files
+    Kimera::RegistryScan.new(operators: operators).build(files)
   end
 end

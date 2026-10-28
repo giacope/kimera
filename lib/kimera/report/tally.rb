@@ -15,15 +15,16 @@ class Kimera::Report::Tally
       def add(status) = by_status.store(status, by_status.fetch(status, 0) + 1)
     end
 
-  def initialize(total, label, started)
+  def initialize(total, label, started, counts = Counts.new({}))
     @total = total
     @label = label
     @started = started
+    @counts = counts
   end
 
-  def count!(status) = counts.add(status)
+  def count!(status) = @counts.add(status)
 
-  def done = counts.by_status.values.sum
+  def done = @counts.by_status.values.sum
 
   def complete? = done >= @total
 
@@ -39,9 +40,7 @@ class Kimera::Report::Tally
 
   private
 
-  def counts = @_counts ||= Counts.new({})
-
-  def statuses = counts.by_status.keys.compact
+  def statuses = @counts.by_status.keys.compact
 
   def pace(now)
     parts = statuses.empty? ? [] : [breakdown]
@@ -63,7 +62,7 @@ class Kimera::Report::Tally
   end
 
   def counted(status)
-    "#{status}=#{counts.by_status.fetch(status, 0)}"
+    "#{status}=#{@counts.by_status.fetch(status, 0)}"
   end
 
   def elapsed(now) = clock(Integer(now - @started))

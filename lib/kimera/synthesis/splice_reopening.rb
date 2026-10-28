@@ -30,7 +30,7 @@ class Kimera::SpliceReopening
   end
 
   class Assignment
-    def initialize(node, target)
+    def initialize(node, lexical, target = Target.new(node, lexical))
       @node = node
       @target = target
     end
@@ -65,5 +65,5 @@ class Kimera::SpliceReopening
     found
   end
 
-  def assignment(node) = Assignment.new(node, Target.new(node, LEXICAL))
+  def assignment(node) = Assignment.new(node, LEXICAL)
 end

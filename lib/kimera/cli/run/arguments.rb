@@ -11,9 +11,10 @@ class Kimera::CLI::Run::Arguments
   SEEDS = 2**31
   DEFAULT_TESTS = ["spec/**/*_spec.rb"].freeze
 
-  def initialize(table = Kimera::CLI::RunOptions::Usage.new, random: Random.new)
+  def initialize(table = Kimera::CLI::RunOptions::Usage.new, random: Random.new, formats: Kimera::Report::Formats.new)
     @table = table
     @random = random
+    @formats = formats
   end
 
   def parse(argv)
@@ -29,7 +30,7 @@ class Kimera::CLI::Run::Arguments
       .merge(scoped(options, rest)).merge(attributed(options)).merge(seeded(options))
   end
 
-  def validate(options) = Kimera::Report::Formats.new.normalize(options[:format])
+  def validate(options) = @formats.normalize(options[:format])
 
   def attributed(options)
     settings = Kimera::Config::Attribution.new(options).settings

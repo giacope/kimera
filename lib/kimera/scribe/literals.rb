@@ -51,19 +51,28 @@ module Kimera
     class Atom < Form
       TYPES = %i[symbol_node].freeze
 
-      def text = Name.new(Kimera::Unescaped.new(@node).text.to_sym).symbol
+      def text
+        name = Kimera::Unescaped.new(@node).text.to_sym
+        Name.new(name).symbol
+      end
     end
 
     class Characters < Form
       TYPES = %i[string_node].freeze
 
-      def text = %("#{Quote.new(Kimera::Unescaped.new(@node).text).text}")
+      def text
+        unescaped = Kimera::Unescaped.new(@node).text
+        %("#{Quote.new(unescaped).text}")
+      end
     end
 
     class Command < Form
       TYPES = %i[x_string_node].freeze
 
-      def text = "`#{Quote.new(Kimera::Unescaped.new(@node).text, "`").text}`"
+      def text
+        unescaped = Kimera::Unescaped.new(@node).text
+        "`#{Quote.new(unescaped, "`").text}`"
+      end
     end
 
     class Path < Form

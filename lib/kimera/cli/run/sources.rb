@@ -21,7 +21,7 @@ class Kimera::CLI::Run::Sources
 
   def files(options, change)
     found = expand(options[:paths], options[:exclude], "source", "check paths and --exclude")
-    change.files(found) { |file| Kimera::FileSet::Root.new(File.expand_path(options[:source_root])).relative(file) }
+    change.files(found) { |file| relative(file, options[:source_root]) }
   end
 
   def expand(patterns, exclude, kind, hint)
@@ -44,11 +44,14 @@ class Kimera::CLI::Run::Sources
 
   private
 
+  def relative(file, root)
+    base = File.expand_path(root)
+    Kimera::FileSet::Root.new(base).relative(file)
+  end
+
   def build(options, files)
-    Kimera::RegistryScan.new(
-      operators: Kimera::Operators.build(keys: options[:operators]),
-      root: options[:source_root] || ".",
-      shielded: !options[:isolated]
-    ).build(files)
+    operators = Kimera::Operators.build(keys: options[:operators])
+    Kimera::RegistryScan.new(operators: operators, root: options[:source_root] || ".", shielded: !options[:isolated])
+      .build(files)
   end
 end

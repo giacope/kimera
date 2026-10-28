@@ -36,7 +36,7 @@ class Kimera::Rewrite::Outcomes
 
   def tested = @_tested ||= Kimera::Rewrite::Conditions.new(tree).places
 
-  def tree = @_tree ||= Kimera::Rewrite::NumberedParams.new(Kimera::Scribe.parse(@source)).normalize
+  def tree = @_tree ||= Kimera::Rewrite::NumberedParams.of(@source).normalize
 
   def rendered(node, directive)
     found = nodes[key(node)]

@@ -21,7 +21,7 @@ class Kimera::Rewrite::MutantText
   def directive = Kimera::Rewrite::Directive.new(@mutant.directive)
 
   def placed
-    program = Kimera::Rewrite::NumberedParams.new(Kimera::Scribe.parse(source)).normalize
+    program = Kimera::Rewrite::NumberedParams.of(source).normalize
     found(program)&.then { |node| Kimera::Scribe.new(directive.apply(node)).at(program, node).source }
   rescue StandardError
     nil

@@ -25,9 +25,10 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
     end
   end
 
-  def initialize
-    super
+  def initialize(task: Kimera::Frameworks::TestTask.new, **)
+    super(**)
     @loaders = Set.new
+    @task = task
   end
 
   def disarmed
@@ -38,9 +39,9 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
   end
 
   def source(files)
-    Kimera::Seed.new.value&.then { |seed| Minitest.seed = seed }
+    @seed.value&.then { |seed| Minitest.seed = seed }
     paths(files)
-    Kimera::Frameworks::TestTask.new.install
+    @task.install
     each_test_file(files) { |file| require(file) }
     indexed
     @loaders.add?(Process.pid)
@@ -49,7 +50,8 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
 
   def finish
     return unless @loaders.delete?(Process.pid)
-    Kimera::Frameworks::AfterRun.new(Minitest.class_variable_get(:@@after_run)).call
+    hooks = Minitest.class_variable_get(:@@after_run)
+    Kimera::Frameworks::AfterRun.new(hooks).call
   end
 
   def test_ids
@@ -69,7 +71,7 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
   def failed_plainly(output, _out) = output.scan(FAILED).flatten
 
   def reproduce(ids)
-    "bundle exec ruby #{[*Kimera::Frameworks::TestTask.new.flags, includes(ids)].join(" ")} " \
+    "bundle exec ruby #{[*@task.flags, includes(ids)].join(" ")} " \
       "-rminitest/autorun -e #{quote(loads(ids))} " \
       "-- -n #{quote("/^(?:#{ids.map { |id| Regexp.escape(id) }.join("|")})$/")} --seed #{Minitest.seed}"
   end

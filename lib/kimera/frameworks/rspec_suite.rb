@@ -81,11 +81,9 @@ class Kimera::Frameworks::RSpecSuite < Kimera::Frameworks::Suite
 
   private
 
-  def settings = @_settings ||= Kimera::Frameworks::DotRspec.new
+  def configure(settings = Kimera::Frameworks::DotRspec.new) = settings.configure(RSpec.configuration)
 
-  def configure = settings.configure(RSpec.configuration)
-
-  def preload = settings.preload(RSpec.configuration)
+  def preload(settings = Kimera::Frameworks::DotRspec.new) = settings.preload(RSpec.configuration)
 
   def hooks(store)
     config = RSpec.configuration
@@ -129,7 +127,8 @@ class Kimera::Frameworks::RSpecSuite < Kimera::Frameworks::Suite
 
   def execute(selected)
     reporter = RSpec::Core::Reporter.new(RSpec.configuration)
-    index = Kimera::Frameworks::GroupScope.new(selected, RSpec.world)
+    world = RSpec.world
+    index = Kimera::Frameworks::GroupScope.new(selected, world)
     index.narrow { index.tops.each { |top| top.run(reporter) } }
   end
 end

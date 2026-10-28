@@ -15,21 +15,23 @@ module Kimera
         new(Seen.new(node).locals(root), Kept.new(node, root, ends).slices, margin)
       end
 
-      def initialize(locals, slices, margin)
+      def initialize(locals, slices, margin, binders = Binders.new)
         @locals = locals
         @slices = slices
         @margin = margin
+        @binders = binders
       end
 
-      def after(node) = Place.new(@locals | Binders.new.of(node), @slices, @margin)
+      def after(node) = Place.new(@locals | @binders.of(node), @slices, @margin, @binders)
 
-      def joined = Place.new(@locals, @slices, @margin.flattened)
+      def joined = Place.new(@locals, @slices, @margin.flattened, @binders)
 
-      def unbroken = Place.new(@locals, @slices.reject { |_, text| text.include?("\n") }, @margin.flattened)
+      def unbroken = Place.new(@locals, @slices.reject { |_, text| text.include?("\n") }, @margin.flattened, @binders)
 
       class Seen
-        def initialize(node)
+        def initialize(node, binders = Binders.new)
           @node = node
+          @binders = binders
         end
 
         def locals(scope, names = NO_NAMES)
@@ -48,7 +50,7 @@ module Kimera
           NAMED.include?(scope.type) ? kept | [scope.name].compact : kept
         end
 
-        def seen(node) = (@_binders ||= Binders.new).of(node)
+        def seen(node) = @binders.of(node)
 
         def before?(child) = child.location.end_offset <= @node.location.start_offset
 

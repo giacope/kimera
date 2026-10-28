@@ -48,8 +48,8 @@ module KimeraEval
     end
 
     def clone
-      Shell.new(chdir: ROOT).run("git", "clone", "-q", INFLECTOR, CACHE) unless File.directory?(CACHE)
-      Shell.new(chdir: CACHE).run("git", "checkout", "-q", REVISION)
+      shell(ROOT).run("git", "clone", "-q", INFLECTOR, CACHE) unless File.directory?(CACHE)
+      shell(CACHE).run("git", "checkout", "-q", REVISION)
       sandbox.copy(CACHE, "dry-inflector").tap { |dir| bundled(dir) }
     end
 

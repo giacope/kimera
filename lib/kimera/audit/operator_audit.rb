@@ -24,7 +24,8 @@ class Kimera::Operators::Audit
       end
       private
       def reprinted
-        Kimera::Scribe.new(Kimera::Scribe.parse(original)).source
+        parsed = Kimera::Scribe.parse(original)
+        Kimera::Scribe.new(parsed).source
       rescue StandardError
         original
       end

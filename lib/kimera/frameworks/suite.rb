@@ -25,6 +25,10 @@ module Kimera
 end
 
 class Kimera::Frameworks::Suite
+  def initialize(seed: Kimera::Seed.new)
+    @seed = seed
+  end
+
   def source(files)
     raise(NotImplementedError)
   end
@@ -67,8 +71,7 @@ class Kimera::Frameworks::Suite
   private
 
   def reseed(test)
-    seed = Kimera::Seed.new
-    Kernel.srand(seed.for(test)) if seed.value
+    Kernel.srand(@seed.for(test)) if @seed.value
   end
 
   def outcome(failed)

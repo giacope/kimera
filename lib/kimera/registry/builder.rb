@@ -8,10 +8,11 @@ require_relative "registry"
 class Kimera::RegistryScan
   OWN_FIRST = 1_000_001
 
-  def initialize(operators: Kimera::Operators.build, root: ".", shielded: true)
+  def initialize(operators: Kimera::Operators.build, root: ".", shielded: true, numbering: Numbering.new)
     @operators = operators
     @base = root
     @shielded = shielded
+    @numbering = numbering
   end
 
   def build(paths)
@@ -24,7 +25,7 @@ class Kimera::RegistryScan
   end
 
   def source(source, file:)
-    scanned = scan(source, file, numbering)
+    scanned = scan(source, file, @numbering)
     Kimera::Registry.new(
       operators: @operators.map(&:key), root: located, points: scanned.points, unmutated: scanned.regions
     )
@@ -34,7 +35,6 @@ class Kimera::RegistryScan
 
   def root = @_root ||= File.expand_path(@base)
   def located = root == Dir.pwd ? "." : root
-  def numbering = @_numbering ||= Kimera::RegistryScan::Numbering.new
 
   def own?(path) = Kimera::SelfProtection.new(path).own?
 

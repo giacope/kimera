@@ -40,6 +40,8 @@ module KimeraEval
 
     def fixture(*parts) = File.join(FIXTURES, *parts)
 
+    def shell(dir, **) = Shell.new(chdir: dir, **)
+
     def framework(dir)
       config = File.join(dir, ".kimera.yml")
       File.exist?(config) ? YAML.safe_load_file(config).fetch("framework", "rspec") : "rspec"

@@ -28,8 +28,8 @@ module KimeraEval
     end
 
     def install(app, env)
-      Shell.new(env: env.merge("BUNDLE_GEMFILE" => File.join(app, "Gemfile")), chdir: app, timeout: 900)
-        .run("bundle", "install")
+      gemfile = File.join(app, "Gemfile")
+      Shell.new(env: env.merge("BUNDLE_GEMFILE" => gemfile), chdir: app, timeout: 900).run("bundle", "install")
     end
 
     def suite(app, arguments, command)

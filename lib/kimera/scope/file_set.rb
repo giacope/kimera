@@ -43,7 +43,8 @@ module Kimera
     def files = listed.sort
 
     def relative_to(root)
-      inside = Root.new(File.expand_path(root))
+      base = File.expand_path(root)
+      inside = Root.new(base)
       files.map { |file| inside.relative(file) }
     end
 
