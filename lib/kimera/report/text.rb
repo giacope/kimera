@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../rewrite/mutant_text"
+require_relative "../mutated_text"
 require_relative "coloring"
 require_relative "screen"
 require_relative "sections"
@@ -108,7 +109,7 @@ class Kimera::Report::Text
   def diff(point, mutant)
     variant = Kimera::Rewrite::MutantText.new(point, mutant, root: @registry.root).text
     source(red("-"), point.original_source)
-    source(green("+"), variant || Kimera::Rewrite::MutantText::UNWRITTEN)
+    source(green("+"), Kimera::MutatedText.new(variant).to_s)
   end
 
   def source(sign, text) = @io.puts(Kimera::Readout.new(text).quoted(sign, "    "))

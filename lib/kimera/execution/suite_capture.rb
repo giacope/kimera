@@ -2,6 +2,7 @@
 
 require "tempfile"
 require_relative "child_process"
+require_relative "suite_env"
 
 class Kimera::Execution::SuiteCapture
   include Kimera::Execution::ChildProcess
@@ -13,8 +14,9 @@ class Kimera::Execution::SuiteCapture
 
   Overdue = Data.define(:limit) { def success? = false }
 
-  def initialize(errors = $stderr)
+  def initialize(errors = $stderr, env = Kimera::Execution::SuiteEnv.new)
     @errors = errors
+    @env = env
   end
 
   def call(*spawned, chdir:) = captured(spawned, chdir) { |pid| Process.wait2(pid).last.tap { signal(-pid) } }
@@ -25,7 +27,7 @@ class Kimera::Execution::SuiteCapture
 
   def captured(spawned, chdir)
     Tempfile.create("kimera-suite") do |log|
-      pid = Process.spawn(*spawned, chdir: chdir, in: File::NULL, out: log, err: log, pgroup: true)
+      pid = Process.spawn(@env.to_h, *spawned, chdir: chdir, in: File::NULL, out: log, err: log, pgroup: true)
       status = stopping(pid) { yield(pid, log) }
       [File.read(log.path, encoding: Encoding::UTF_8).scrub, status]
     end

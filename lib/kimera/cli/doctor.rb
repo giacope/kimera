@@ -3,6 +3,7 @@
 require_relative "../error"
 require_relative "../scope/config"
 require_relative "../scope/file_set"
+require_relative "../frameworks/load_path"
 require_relative "checklist"
 require_relative "coverage_minimum"
 require_relative "flag"
@@ -44,7 +45,7 @@ class Kimera::CLI::Doctor
   private
 
   def expose(config, env = @env)
-    env.store(Kimera::Frameworks::LoadPath::VARIABLE, Array(config[:load_path]).join(File::PATH_SEPARATOR))
+    Kimera::Frameworks::LoadPath.new([], env: env).share(config[:load_path])
   end
 
   def usage(error)

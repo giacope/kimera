@@ -846,6 +846,9 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     def executor(**attributes)
       harness = instance_double(Kimera::Execution::Harness, timings: {}, flakes: nil, **attributes)
       allow(Kimera::Execution::Harness).to(receive(:build).and_return(harness))
+      allow(harness).to(receive(:isolated)) do |**options|
+        Kimera::Execution::IsolatedExecution.new(coverage: harness.coverage, timings: harness.timings, **options)
+      end
       harness
     end
 

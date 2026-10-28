@@ -7,6 +7,7 @@ end
 
 class Kimera::Execution::ParallelDatabases
   VARIABLE = "TEST_ENV_NUMBER"
+  private_constant(:VARIABLE)
 
   def initialize(
     env: ENV, support: (ActiveSupport if defined?(ActiveSupport)),

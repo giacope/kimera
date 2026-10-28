@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require_relative "../execution/suite_capture"
-require_relative "../execution/suite_env"
 require_relative "../listing"
 require_relative "../frameworks/load_path"
 require_relative "../frameworks/test_task"
@@ -83,9 +82,7 @@ class Kimera::CLI::TestCommand
   end
 
   def capture(command)
-    output, status = Kimera::Execution::SUITE.timed(
-      Kimera::Execution::SUITE_ENV, *command, chdir: @root, limit: ALLOWANCE + (PER_FILE * @files.size)
-    )
+    output, status = Kimera::Execution::SUITE.timed(*command, chdir: @root, limit: ALLOWANCE + (PER_FILE * @files.size))
     [output.dup.force_encoding(Encoding::UTF_8).scrub, status]
   end
 

@@ -232,7 +232,8 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
   # The hard watchdog renews on each test's beat, so a slow test's raised soft
   # limit stays a second under it and the soft timeout still fires first.
   it "keeps a test's raised soft limit under the hard watchdog" do
-    expect(pool.__send__(:soft_ceiling)).to(eq(1.0))
+    patience = Kimera::Execution::Patience.new(0.1, timings: { "t" => 5.0 }, hard: pool.__send__(:hard))
+    expect(patience.limit("t")).to(eq(1.0))
   end
 
   it "hands the shift a pulse that ticks through the worker's duty" do

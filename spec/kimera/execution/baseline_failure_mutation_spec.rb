@@ -245,7 +245,9 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
         source_root: "/root", jobs: 3, framework: "rspec", hard_timeout: 9,
         progress: false, tests: [], exclude_tests: []
       }
-      harness = instance_double(Kimera::Execution::Harness, coverage: { 1 => ["t1"] }, timings: { "t1" => 0.5 })
+      harness = Kimera::Execution::Harness.build(
+        registry: registry, adapter: adapter, coverage: { 1 => ["t1"] }, timings: { "t1" => 0.5 }
+      )
       Kimera::CLI::Run::Pass.new(registry, options, adapter).tap do |pass|
         pass.instance_variable_set(:@_harness, harness)
         pass.instance_variable_set(:@_files, ["a_spec.rb"])
@@ -253,11 +255,12 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     end
 
     it "is built without lossy intermediate hashes" do
-      expect(pass.__send__(:core)).to(
+      allow(Kimera::Execution::IsolatedExecution).to(receive(:new)) { |**contract| contract }
+      expect(pass.__send__(:isolation)).to(
         match(
           registry: registry, root: "/root", tests: %w[t1 t2], coverage: { 1 => ["t1"] }, timings: { "t1" => 0.5 },
           progress: pass.__send__(:progress), jobs: 3, framework: "rspec", test_files: ["a_spec.rb"],
-          filter: pass.__send__(:filter), test_paths: an_instance_of(Proc), warnings: []
+          filter: pass.__send__(:filter), test_paths: an_instance_of(Proc), warnings: [], hard_timeout: 9
         )
       )
     end

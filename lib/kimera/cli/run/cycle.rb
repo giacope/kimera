@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require_relative "../../execution/suite_env"
-require_relative "../../frameworks/load_path"
 require_relative "null_selection"
 require_relative "../../incremental/session"
 require_relative "../../incremental/stamp"
@@ -113,11 +112,8 @@ class Kimera::CLI::Run::Cycle
       .merge("judge_isolated_only" => route.judging?, "confirm_survivors" => route.confirming?)
   end
 
-  def harness(remaining, env: ENV)
-    env.update(Kimera::Execution::SUITE_ENV)
-    seed = @options[:seed]
-    seed ? env.store(Kimera::Execution::SEED_ENV, seed.to_s) : env.delete(Kimera::Execution::SEED_ENV)
-    env.store(Kimera::Frameworks::LoadPath::VARIABLE, Array(@options[:load_path]).join(File::PATH_SEPARATOR))
+  def harness(remaining, env: ENV, suite_env: Kimera::Execution::SuiteEnv.new(env))
+    suite_env.install(@options[:seed], @options[:load_path])
     Kimera::CLI::Run::Pass.new(@registry, @options, adapter).call(remaining)
   end
 

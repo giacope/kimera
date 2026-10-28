@@ -63,11 +63,11 @@ RSpec.describe(Kimera::Execution::Shift) do
   end
 
   # A slow example on a busy machine is not a hang: its limit is raised from
-  # its own baseline (× 3 + 1s), never past the hard watchdog's ceiling.
+  # its own baseline (× 3 + 1s), never past a second under the hard watchdog.
   it "raises a slow test's soft limit from its baseline", :aggregate_failures do
     expect(worker(timed({ "t1" => [hung] }), %w[t1], timings: { "t1" => 2.0 }).evaluate(target).status)
       .to(eq(:survived))
-    late = worker(timed({ "t1" => [[8.0, true], [0.4, true]] }), %w[t1], timings: { "t1" => 2.0 }, ceiling: 6.5)
+    late = worker(timed({ "t1" => [[8.0, true], [0.4, true]] }), %w[t1], timings: { "t1" => 2.0 }, hard: 7.5)
     expect(late.evaluate(target).detail).to(start_with("soft timeout (6.5s) expired while t1 ran with the mutant on"))
   end
 

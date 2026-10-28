@@ -6,7 +6,6 @@ require_relative "baseline_exclusions"
 require_relative "captured_methods"
 require_relative "failure_listing"
 require_relative "suite_capture"
-require_relative "suite_env"
 
 class Kimera::Execution::BaselineScreen
   CAUSES = {
@@ -43,7 +42,7 @@ class Kimera::Execution::BaselineScreen
       out = File.join(dir, "plain.json")
       argv = @adapter.plain(ids, out)
       return ids if argv.empty?
-      output, status = @suite.call(Kimera::Execution::SUITE_ENV, *argv, chdir: @root)
+      output, status = @suite.call(*argv, chdir: @root)
       status.success? ? [] : failing(ids, output, out)
     end
   rescue SystemCallError

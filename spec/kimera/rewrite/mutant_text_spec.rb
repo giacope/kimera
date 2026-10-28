@@ -76,6 +76,6 @@ RSpec.describe(Kimera::Rewrite::MutantText) do
     registry = scanned("class Relay\n  def kinds = %i[fast slow].size\nend\n", %w[symbol_literal]) { it }
     report = survivor(registry)
     expect(report.to_h["results"].first).to(include("original" => "fast", "mutated" => nil))
-    expect(shown(registry, report).string).to(include("- fast\n    + #{described_class::UNWRITTEN}\n"))
+    expect(shown(registry, report).string).to(include("- fast\n    + #{Kimera::MutatedText.new(nil)}\n"))
   end
 end

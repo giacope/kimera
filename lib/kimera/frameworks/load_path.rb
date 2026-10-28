@@ -8,6 +8,7 @@ end
 class Kimera::Frameworks::LoadPath
   ROOTS = %w[test spec].freeze
   VARIABLE = "KIMERA_LOAD_PATH"
+  private_constant(:VARIABLE)
 
   def initialize(files, root: ".", env: ENV)
     @files = Array(files)
@@ -22,6 +23,8 @@ class Kimera::Frameworks::LoadPath
   def install
     dirs.reverse_each { |dir| $LOAD_PATH.unshift(dir) unless $LOAD_PATH.include?(dir) }
   end
+
+  def share(paths, env = @env) = env.store(VARIABLE, Array(paths).join(File::PATH_SEPARATOR))
 
   private
 

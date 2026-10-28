@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require_relative "../../execution/harness"
-require_relative "../../execution/isolated"
 require_relative "../../execution/test_filter"
 require_relative "../../frameworks/suite"
 require_relative "../../frameworks/test_task"
@@ -121,12 +120,12 @@ class Kimera::CLI::Run::Pass
   end
 
   def isolation
-    @_isolation ||= Kimera::Execution::IsolatedExecution.new(**core, **limits)
+    @_isolation ||= harness.isolated(**core, **limits)
   end
 
   def core
     { registry: @registry, root: @options[:source_root], tests: @adapter.test_ids }
-      .merge(coverage: harness.coverage, timings: harness.timings, progress: progress, jobs: @options[:jobs])
+      .merge(progress: progress, jobs: @options[:jobs])
       .merge(framework: @options[:framework], test_files: files, filter: filter, test_paths: paths, warnings: warnings)
   end
 

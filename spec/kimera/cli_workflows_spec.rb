@@ -418,7 +418,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
   end
 
   def green_suite(seen = [])
-    allow(Kimera::Execution::SUITE).to(receive(:timed)) do |_env, *command, **|
+    allow(Kimera::Execution::SUITE).to(receive(:timed)) do |*command, **|
       seen << [command, out.string]
       ["", instance_double(Process::Status, success?: true)]
     end
@@ -508,7 +508,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
 
   def test_doctor_jobs(config, *argv, serial: true)
     project("spec/a_spec.rb" => "", ".kimera.yml" => config)
-    allow(Kimera::Execution::SUITE).to(receive(:timed)) do |_env, *command, **|
+    allow(Kimera::Execution::SUITE).to(receive(:timed)) do |*command, **|
       ["", instance_double(Process::Status, success?: serial || command.include?("--dry-run"))]
     end
     test_doctor_in(dir, "--check-baseline", *argv).last

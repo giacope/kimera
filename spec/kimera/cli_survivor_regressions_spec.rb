@@ -725,7 +725,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
     it "builds and diagnoses a successful minitest baseline command" do
       command = [
-        Kimera::Execution::SUITE_ENV, "bundle", "exec", "ruby", "-I", "test", "-I", "spec",
+        "bundle", "exec", "ruby", "-I", "test", "-I", "spec",
         "-e", Kimera::CLI::TestCommand::LOADER, File.join(dir, "test", "x_test.rb")
       ]
       success = ["", instance_double(Process::Status, success?: true)]
@@ -736,7 +736,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     it "builds and diagnoses a failing RSpec baseline command" do
-      command = [Kimera::Execution::SUITE_ENV, "bundle", "exec", "rspec", File.join(dir, "spec", "x_spec.rb")]
+      command = ["bundle", "exec", "rspec", File.join(dir, "spec", "x_spec.rb")]
       failure = ["noise\n3 examples, 1 failure\n", instance_double(Process::Status, success?: false)]
       allow(Kimera::Execution::SUITE).to(receive(:timed).with(*command, chdir: dir, limit: 125).and_return(failure))
       message = "Baseline: 3 examples, 1 failure (fix it, then rerun `kimera doctor --check-baseline`)"

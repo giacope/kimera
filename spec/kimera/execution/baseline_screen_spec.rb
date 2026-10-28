@@ -6,8 +6,8 @@ require "kimera/frameworks/suite"
 RSpec.describe(Kimera::Execution::BaselineScreen) do
   # Reruns ids "plainly": the ids in `red` fail; `ran` records each argv.
   def suite(red: [], output: "", ran: [])
-    lambda do |env, *argv, chdir:|
-      ran << [env, argv, chdir]
+    lambda do |*argv, chdir:|
+      ran << [argv, chdir]
       File.write(argv.last, red.join("\n")) if argv.first == "plain"
       [output, Struct.new(:success?).new(red.empty?)]
     end
@@ -39,8 +39,8 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
   it "reruns the failing tests in the project root, outside kimera", :aggregate_failures do
     ran = []
     screen(red: %w[t1 t2], ran: ran).call(failures)
-    env, argv, chdir = ran.first
-    expect([env, argv.first(3), chdir]).to(eq([{ "KIMERA" => "1" }, %w[plain t1 t2], "/project"]))
+    argv, chdir = ran.first
+    expect([argv.first(3), chdir]).to(eq([%w[plain t1 t2], "/project"]))
   end
 
   # K3-3: tests red only under kimera were dropped as "covering nothing".

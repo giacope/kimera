@@ -6,8 +6,6 @@ require_relative "numbered_params"
 require_relative "../scribe"
 
 class Kimera::Rewrite::MutantText
-  UNWRITTEN = "(kimera could not write this mutant's text; its label says what changed)"
-
   def initialize(point, mutant, root: ".")
     @point = point
     @mutant = mutant

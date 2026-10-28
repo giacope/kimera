@@ -48,16 +48,13 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
 
   private
 
-  def environment(slot)
-    env = Kimera::Execution::SUITE_ENV.dup
-    slot ? env.update(Kimera::Execution::ParallelDatabases.new.numbered(slot)) : env
+  def environment(slot, suite_env = Kimera::Execution::SuiteEnv.new, databases = Kimera::Execution::ParallelDatabases.new)
+    suite_env.to_h.merge(slot ? databases.numbered(slot) : {})
   end
 
   def bundled(mirror, env, argv)
     gemfile = Kimera::Execution::Bundle.new(@root).gemfile(mirror)
-    return [env, argv] unless gemfile
-    env["BUNDLE_GEMFILE"] = gemfile
-    [env, ["bundle", "exec", *argv]]
+    gemfile ? [env.merge("BUNDLE_GEMFILE" => gemfile), ["bundle", "exec", *argv]] : [env, argv]
   end
 
   def minitest?

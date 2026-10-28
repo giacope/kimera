@@ -12,6 +12,7 @@ require_relative "baseline_pass"
 require_relative "baseline_stall"
 require_relative "boot"
 require_relative "child_process"
+require_relative "isolated"
 require_relative "isolation"
 require_relative "load_trace"
 require_relative "order_trace"
@@ -63,11 +64,11 @@ class Kimera::Execution::Harness
 
   def isolate! = (state.isolation = boot.isolate(isolation))
 
-  def run(ids: mutants, label: "mutants")
-    schedule.run(ids, coverage: coverage, label: label)
-  end
+  def run(ids: mutants, label: "mutants") = schedule.run(ids, coverage: coverage, label: label)
 
   def coverage = options[:coverage]
+
+  def isolated(**) = Kimera::Execution::IsolatedExecution.new(coverage: coverage, timings: timings, **)
 
   def timings = options.fetch(:timings, {})
 

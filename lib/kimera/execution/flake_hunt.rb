@@ -25,15 +25,11 @@ class Kimera::Execution::FlakeHunt
   private
 
   def hunt(tests, seeds, env = @env)
-    saved = env[Kimera::Execution::SEED_ENV]
     Kimera::Execution::FlakeRecord.new(tests, seeds).tap do |record|
       seeds.each.with_index(1) do |seed, round|
-        env[Kimera::Execution::SEED_ENV] = seed.to_s
-        sweep(tests, seed, record, "flaky check #{round}/#{seeds.size}")
+        Kimera::Execution::SuiteEnv.new(env).seeded(seed) { sweep(tests, seed, record, "flaky check #{round}/#{seeds.size}") }
       end
     end
-  ensure
-    saved ? env.store(Kimera::Execution::SEED_ENV, saved) : env.delete(Kimera::Execution::SEED_ENV)
   end
 
   def series(seed, runs, random = Random.new)

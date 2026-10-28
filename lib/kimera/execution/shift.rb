@@ -80,7 +80,7 @@ class Kimera::Execution::Shift
     kind::Probe.new(@adapter, kind::Deadline.build(timeout, patience: patience, beat: beat, **@options.slice(:budget)))
   end
 
-  def patience = Kimera::Execution::Patience.new(timeout, **@options.slice(:timings, :ceiling))
+  def patience = Kimera::Execution::Patience.new(timeout, **@options.slice(:timings, :hard))
 
   def channel = @_channel ||= self.class::CoverageChannel.new(@adapter, zygote: zygote)
 
