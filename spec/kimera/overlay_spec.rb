@@ -835,8 +835,8 @@ RSpec.describe(Kimera::Overlay) do
 
       it "reads back the methods it rewrote, and only those" do
         checked = []
-        checking(checked) && spliced
-        expect(checked.last).to(contain_exactly(:compare, :also))
+        checking(checked) && unspliced && nested
+        expect(checked).to(eq([%i[outer]]))
       end
 
       it "keeps every method's mutants and the untouched source verbatim", :aggregate_failures do
