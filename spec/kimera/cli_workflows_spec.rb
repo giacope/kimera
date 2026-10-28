@@ -227,6 +227,25 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     end
   end
 
+  # R6B4-M9: hashie's .rspec leaves out spec/integration (each runs under its
+  # own Gemfile); init took every spec, and kimera's baseline could not load them.
+  describe "the specs a project's .rspec leaves out or picks" do
+    def dotted(options) = { ".rspec" => "--require spec_helper\n#{options}\n", "spec/a_spec.rb" => "" }
+
+    it "are left out, or picked, as rspec does", :aggregate_failures do
+      expect(test_initialized(dotted("--exclude-pattern 'spec/integration/**/*_spec.rb'")))
+        .to(include("tests" => ["spec/**/*_spec.rb"], "exclude_tests" => ["spec/integration/**/*_spec.rb"]))
+      expect(test_initialized(dotted("--pattern=spec/unit/**/*_spec.rb")))
+        .to(include("tests" => ["spec/unit/**/*_spec.rb"]))
+    end
+
+    it "join a Rails app's browser specs" do
+      rails = { "config/application.rb" => "", "spec/system/x_spec.rb" => "" }
+      app = dotted("--exclude-pattern **/slow/*_spec.rb").merge(rails)
+      expect(test_initialized(app)).to(include("exclude_tests" => %w[spec/system/**/*_spec.rb spec/**/slow/*_spec.rb]))
+    end
+  end
+
   # K3-1: RSpec Rails apps keep their browser specs in spec/system and spec/features.
   describe "an RSpec Rails app's browser specs" do
     let(:app) { { "config/application.rb" => "", ".rspec" => "", "spec/models/a_spec.rb" => "" } }

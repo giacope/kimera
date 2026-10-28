@@ -7,6 +7,7 @@ require_relative "checklist"
 require_relative "coverage_minimum"
 require_relative "flag"
 require_relative "rails_layout"
+require_relative "rspec_options"
 require_relative "test_command"
 require_relative "test_definitions"
 
@@ -54,7 +55,7 @@ class Kimera::CLI::Doctor
   def checks(config, options)
     discovery = Kimera::CLI::TestDefinitions.new(test_files(config)).discovery
     [configuration(config), framework(config), sources(config), discovery, git, rails]
-      .concat(floor).each { |check| shown(check) } + suite(config, options)
+      .concat(notes(config)).each { |check| shown(check) } + suite(config, options)
   end
 
   def suite(config, options)
@@ -97,6 +98,8 @@ class Kimera::CLI::Doctor
   end
 
   def rails? = Kimera::CLI::RailsLayout.new(@root).rails?
+
+  def notes(config) = [*floor, *Kimera::CLI::RspecOptions.new(@root).loaded(test_files(config))]
 
   def floor
     helper = glob(HELPERS).find { |path| floor?(path) }

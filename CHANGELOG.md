@@ -200,6 +200,12 @@ Field test round 6, batch 4: what the writer wrote, and what a test run reached.
   left it out and ran. Doctor's baseline, split run and load check now
   filter those tests (RSpec by description or id, Minitest by
   `Class#test_name`), as run does.
+- **`kimera init` reads `.rspec`.** hashie's `.rspec` leaves out
+  `spec/integration` (each runs under its own Gemfile); init wrote `tests:
+  spec/**/*_spec.rb`, and kimera's baseline loaded those specs and stopped
+  on a LoadError. Init now carries `.rspec`'s `--exclude-pattern` into
+  `exclude_tests` and its `--pattern` into `tests`, as rspec reads them, and
+  doctor names a test file kimera loads that `.rspec` leaves out.
 
 Self-host gate: what kept the `selfhost` job red on main.
 

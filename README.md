@@ -83,7 +83,8 @@ bundle install
 test helper, or which one `Gemfile.lock` installs), your source roots
 (`app/`, `lib/`), and your test glob (the one whose files define the most
 tests: `test/**/test_*.rb` over a `test/**/*_test.rb` that matches only a
-support class), and its operators: the conservative core plus `when_clause`
+support class, or `.rspec`'s `--pattern`; its `--exclude-pattern` goes to
+`exclude_tests`), and its operators: the conservative core plus `when_clause`
 and `append_deletion` (a `case`'s branches and `<<` statements, which the
 core never mutates), and on a Rails app the `rails` operators. A
 configuration without `operators:` keeps the core alone. It writes a commented `.kimera.yml`

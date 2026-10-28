@@ -8,6 +8,7 @@ require_relative "../scope/file_set"
 require_relative "config_template"
 require_relative "flag"
 require_relative "rails_layout"
+require_relative "rspec_options"
 require_relative "test_definitions"
 
 class Kimera::CLI::Init
@@ -74,14 +75,14 @@ class Kimera::CLI::Init
 
   def detected
     DOCUMENT.call(
-      framework: framework, paths: sources, tests: tests, **browserless, operators: operators,
+      framework: framework, paths: sources, tests: tests, **left_out, operators: operators,
       jobs: [Etc.nprocessors, JOBS].min, max_survivors: 0, max_errors: 0, count_no_coverage: true
     )
   end
 
-  def browserless
-    present = BROWSER_TESTS.fetch(framework, []).select { |glob| Dir.glob(File.join(@root, glob)).any? }
-    rails_app? && present.any? ? { exclude_tests: present } : {}
+  def left_out
+    present = BROWSER_TESTS.fetch(framework, []).select { |glob| rails_app? && Dir.glob(File.join(@root, glob)).any? }
+    [*present, *Kimera::CLI::RspecOptions.new(@root).excluded].then { |left| left.empty? ? {} : { exclude_tests: left } }
   end
 
   def rails_app? = Kimera::CLI::RailsLayout.new(@root).rails?
@@ -131,7 +132,8 @@ class Kimera::CLI::Init
 
   def tests
     globs = framework == "minitest" ? MINITEST_GLOBS : %w[spec/**/*_spec.rb]
-    [globs.each_with_index.max_by { |glob, index| [*reach(glob), -index] }.first]
+    found = globs.each_with_index.max_by { |glob, index| [*reach(glob), -index] }.first
+    Kimera::CLI::RspecOptions.new(@root).tests([found])
   end
 
   def reach(glob) = Kimera::CLI::TestDefinitions.within(@root, glob).reach
