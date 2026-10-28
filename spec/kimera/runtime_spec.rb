@@ -303,6 +303,35 @@ RSpec.describe(Kimera::Runtime) do
       expect(owner.public_method_defined?(:before)).to(be(true))
     end
 
+    # R6B4-M6: an includer took an alias at load (hashie's IndifferentAccess
+    # aliases update to indifferent_update in `included`); the real mutant makes
+    # that alias private too.
+    def mixin = @_mixin ||= Module.new { def sized = 3 }
+
+    def visible(holders, name) = holders.map { it.public_method_defined?(name) }
+
+    def aliased
+      box = Class.new.include(mixin).tap { it.alias_method(:size, :sized) }
+      single = Object.new.extend(mixin).singleton_class.tap { it.alias_method(:size, :sized) }
+      runtime.privatize(7, mixin, :sized)
+      [box, single]
+    end
+
+    it "flips the aliases an includer or an extended object took of it", :aggregate_failures do
+      holders = aliased
+      runtime.active = 7
+      expect(visible(holders, :size)).to(eq([false, false]))
+      runtime.active = nil
+      expect(visible(holders, :size)).to(eq([true, true]))
+    end
+
+    it "leaves an includer's own method of that name alone" do
+      box = Class.new.include(mixin).tap { it.define_method(:sized) { 4 } }
+      runtime.privatize(7, mixin, :sized)
+      runtime.active = 7
+      expect(box.public_method_defined?(:sized)).to(be(true))
+    end
+
     it "clears a Rails controller's cached actions with each flip" do
       controller = Class.new(owner) { def self.clear_action_methods! = (@cleared = (@cleared || 0) + 1) }
       runtime.privatize(5, controller, :shown)

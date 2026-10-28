@@ -164,6 +164,13 @@ Field test round 6, batch 4: what the writer wrote, and what a test run reached.
   from an exact bake under `--isolated`. A property spec writes every file of
   kimera's sources, example apps, evaluation fixtures and unparser's
   round-trip corpus (copied, MIT) and reads it back as the same tree.
+- **A visibility mutant makes the aliases an includer took private too.**
+  hashie's `IndifferentAccess.included` aliases `update` to
+  `indifferent_update` in the class that includes it; the real `private def
+  indifferent_update` makes that alias private, but the warm mutant flipped
+  only the names in the module, so five mutants survived warm that
+  `--isolated` killed. Activating the mutant now flips every alias of the
+  definition in the classes and objects that include or extend its owner.
 
 Self-host gate: what kept the `selfhost` job red on main.
 

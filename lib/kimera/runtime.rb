@@ -131,8 +131,8 @@ end
 
 Kimera::Runtime::Flip =
   Struct.new(:owner, :definition, :names) do
-    def conceal
-      self.names = owner.public_instance_methods(false).select { |name| owner.instance_method(name) == definition }
+    def conceal(holders = [owner, *ObjectSpace.each_object(Module).select { |each| each < owner }])
+      self.names = holders.flat_map { |holder| held(holder).map { |name| [holder, name] } }
       expose(:private)
     end
 
@@ -142,8 +142,19 @@ Kimera::Runtime::Flip =
     end
 
     def expose(visibility)
-      names.each { |name| owner.__send__(visibility, name) }
-      owner.clear_action_methods! if owner.respond_to?(:clear_action_methods!)
+      names.each { |holder, name| holder.__send__(visibility, name) }
+      [owner, *names.map(&:first)].uniq.each { |holder| cleared(holder) }
+    end
+
+    def cleared(holder) = holder.respond_to?(:clear_action_methods!) && holder.clear_action_methods!
+
+    def held(holder)
+      holder.public_instance_methods(false).select { |name| same?(holder.instance_method(name)) }
+    end
+
+    def same?(method)
+      method == definition ||
+        (method.original_name == definition.original_name && method.source_location == definition.source_location)
     end
   end
 

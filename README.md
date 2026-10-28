@@ -820,8 +820,9 @@ name's first write would turn its later reads into method calls, a
 survivor means no test calls it from outside its object: it is untested API,
 or it should be private. The schemata keeps the method public and registers
 it with `::Kimera::RUNTIME`; activating the mutant makes it private (every
-name holding that definition, so an alias another file took of it too, and
-not a later redefinition), and deactivating it makes it public again. So the
+name holding that definition, so an alias another file took of it too, or
+one a class or object that includes or extends its module took, and not a
+later redefinition), and deactivating it makes it public again. So the
 mutant is a real private method: `respond_to?` says false, an outside call
 reaches `method_missing`, `public_send` raises, `send` still works (a method
 only ever called through `send` survives, as it should), and a Rails
