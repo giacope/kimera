@@ -3,13 +3,11 @@
 require "fileutils"
 require "json"
 require "stringio"
-require_relative "../../report/coloring"
+require_relative "../../report/palette"
 require_relative "../../report/formats"
 require_relative "../../report/text"
 
 class Kimera::CLI::Run::Emission
-  include Kimera::Report::Coloring
-
   NARRATED = %w[text github].freeze
 
   Settings =
@@ -66,7 +64,7 @@ class Kimera::CLI::Run::Emission
 
   def captured(registry)
     io = StringIO.new
-    yield(Kimera::Report::Text.new(registry, io: io, color: color?))
+    yield(Kimera::Report::Text.new(registry, io: io, palette: Kimera::Report::Palette.new(@io, @color)))
     io.string
   end
 end

@@ -2,6 +2,7 @@
 
 require_relative "../registry/registry"
 require_relative "report_rows"
+require_relative "test_quality"
 require_relative "result"
 
 module Kimera
@@ -12,8 +13,6 @@ module Kimera
 end
 
 class Kimera::RunReport
-  include Kimera::ReportRows
-
   Notes = Data.define(:counted, :flaky, :suite)
   NOTES = Notes.new(counted: [], flaky: nil, suite: nil)
 
@@ -116,13 +115,18 @@ class Kimera::RunReport
 
   def document(metadata) = metadata ? to_h.merge("run" => metadata) : to_h
 
+  def quality = notes.suite&.then { |suite| Kimera::TestQuality.new(@results, suite).to_h }
+
   def to_h
+    rows = Kimera::ReportRows.new(@registry)
     { "schema_version" => SCHEMA_VERSION, "counts" => counts, "mutation_score" => score }
-      .merge("results" => @results.map { |result| detailed(result) }, "leaks" => @leaks.map(&:to_h))
+      .merge("results" => @results.map { |result| rows.of(result) }, "leaks" => @leaks.map(&:to_h))
       .merge("unmutated" => unmutated.map(&:to_h)).merge(catalog).merge(flakes)
   end
 
   private
+
+  def flakes = { "test_quality" => quality, "flaky_tests" => notes.flaky }.compact
 
   def catalog
     listed = tests.slice(*test_ids)
@@ -139,9 +143,7 @@ class Kimera::RunReport
     "#{text} (#{count} uncovered not scored)"
   end
 
-  def grouped
-    @_grouped ||= @results.group_by(&:status)
-  end
+  def grouped = @_grouped ||= @results.group_by(&:status)
 
   def rebuilt(results: @results, **changes)
     Kimera::RunReport.new(results: results, leaks: @leaks, registry: @registry, **@context, **changes)

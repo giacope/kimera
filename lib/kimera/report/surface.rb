@@ -5,9 +5,13 @@ module Kimera
   end
 end
 
-module Kimera::Report::Surface
+class Kimera::Report::Surface
   NEVER = -Float::INFINITY
   Shown = Struct.new(:painted, :drawn, :rows, keyword_init: true)
+
+  def initialize(io)
+    @io = io
+  end
 
   def due?(now, cadence) = now - shown.painted >= cadence
 

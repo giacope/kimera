@@ -25,7 +25,6 @@ end
 class Kimera::Execution::IsolatedExecution
   include Kimera::Execution::IsolatedScheduling
   include Kimera::Execution::IsolatedVerdict
-  include Kimera::Execution::IsolatedWatchdog
 
   DEFAULT_HARD_TIMEOUT = 300.0
   def initialize(registry:, root:, tests:, **options)
@@ -79,6 +78,8 @@ class Kimera::Execution::IsolatedExecution
   def progress = @options.fetch(:progress) { Kimera::Execution::NullProgress.new }
 
   def limit = @options.fetch(:hard_timeout, DEFAULT_HARD_TIMEOUT)
+
+  def watchdog = Kimera::Execution::IsolatedWatchdog.new(limit, poll: @options.fetch(:poll_interval, 0.05))
 
   def needed(ids)
     index = plan.registry.index

@@ -2,14 +2,8 @@
 
 require_relative "surface"
 
-class Kimera::Report::Log
-  include Kimera::Report::Surface
-
+class Kimera::Report::Log < Kimera::Report::Surface
   HEARTBEAT_EVERY = 30.0
-
-  def initialize(io)
-    @io = io
-  end
 
   def cadence = HEARTBEAT_EVERY
 

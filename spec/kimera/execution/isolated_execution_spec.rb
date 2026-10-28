@@ -61,8 +61,12 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
   end
 
   describe "#waitfor" do
+    def watchdog(hard_timeout:, poll_interval: 0.05)
+      Kimera::Execution::IsolatedWatchdog.new(hard_timeout, poll: poll_interval)
+    end
+
     it "honors the polling boundary while a child is still running", :aggregate_failures do
-      r = runner(hard_timeout: 5.0, poll_interval: 0.0125)
+      r = watchdog(hard_timeout: 5.0, poll_interval: 0.0125)
       allow(Process).to(receive(:waitpid2).and_return([nil, nil]))
       allow(r).to(receive(:sleep))
       expect(test_invoke_private(r, :attempt, 123, instance_double(Kimera::Execution::IsolatedPulse, expired?: false)))
@@ -71,9 +75,9 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end
 
     it "returns the exit status of a child that finishes in time" do
-      r = runner(hard_timeout: 5.0)
+      r = watchdog(hard_timeout: 5.0)
       pid = Process.spawn("true", pgroup: true)
-      status = test_invoke_private(r, :waitfor, pid)
+      status = r.waitfor(pid)
       expect(status).to(be_success)
     end
 
@@ -81,7 +85,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       pid = Process.spawn("sleep", "30", pgroup: true)
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       [
-        test_invoke_private(runner(hard_timeout: timeout), :waitfor, pid),
+        watchdog(hard_timeout: timeout).waitfor(pid),
         Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, pid
       ]
     end
@@ -101,7 +105,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     def beating(pulse, beats)
       script = "for _ in $(seq #{beats}); do printf . >> \"$0\"; sleep 0.15; done"
       pid = Process.spawn("sh", "-c", script, pulse, pgroup: true)
-      test_invoke_private(runner(hard_timeout: 0.5, poll_interval: 0.01), :waitfor, pid, pulse)
+      watchdog(hard_timeout: 0.5, poll_interval: 0.01).waitfor(pid, pulse)
     end
 
     it "lets a child run past the hard timeout while each test starts within it" do
@@ -111,7 +115,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     it "kills what a child left running in its group once it exits", :aggregate_failures do
       witness = self.witness
       pid = Process.spawn("sh", "-c", "sleep 30 & exit 3", pgroup: true, out: witness.holder)
-      expect(test_invoke_private(runner(hard_timeout: 5.0), :waitfor, pid).exitstatus).to(eq(3))
+      expect(watchdog(hard_timeout: 5.0).waitfor(pid).exitstatus).to(eq(3))
       expect(witness.outlived?).to(be(false))
     end
 
@@ -120,8 +124,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     it "takes a child's group down with it when kimera is interrupted", :aggregate_failures do
       pid = Process.spawn("sleep", "300", pgroup: true, out: File::NULL)
       allow(Process).to(receive(:waitpid2).and_raise(Interrupt))
-      expect { Timeout.timeout(10) { test_invoke_private(runner(hard_timeout: 5.0), :waitfor, pid) } }
-        .to(raise_error(Interrupt))
+      expect { Timeout.timeout(10) { watchdog(hard_timeout: 5.0).waitfor(pid) } }.to(raise_error(Interrupt))
       expect { Process.kill(0, pid) }.to(raise_error(Errno::ESRCH))
     end
   end

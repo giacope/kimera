@@ -102,7 +102,8 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
   it "seeds a run's random numbers from the run's seed and its first example's id", :aggregate_failures do
     passing = ids.find { |id| adapter.describe(id) == "KimeraDemo passes" }
     seeded(9) { quietly { adapter.run([passing]) } }
-    expect(rand(1_000_000)).to(eq(Random.new(Kimera::Seed.new("KIMERA_SEED" => "9").for(passing)).rand(1_000_000)))
+    seed = Kimera::Seed.new("KIMERA_SEED" => "9").for(passing).fetch(0)
+    expect(rand(1_000_000)).to(eq(Random.new(seed).rand(1_000_000)))
   end
 
   it "describes an unknown id as itself" do

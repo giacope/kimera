@@ -281,10 +281,12 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect(emitted("annotated.json", metadata: { "jobs" => 2 }).fetch("run")).to(eq("jobs" => 2))
     end
 
-    it "respects color overrides, and leaves color off where no terminal is" do
-      expect(Kimera::CLI::Run::Emission.new(color: false).__send__(:color?)).to(be(false))
-      expect(Kimera::CLI::Run::Emission.new(color: true).__send__(:color?)).to(be(true))
-      without("NO_COLOR") { expect(Kimera::CLI::Run::Emission.new(io: StringIO.new).__send__(:color?)).to(be(false)) }
+    def colored?(**) = Kimera::CLI::Run::Emission.new(**).rendered(report, tiny).include?("\e[")
+
+    it "respects color overrides, and leaves color off where no terminal is", :aggregate_failures do
+      expect(colored?(color: false)).to(be(false))
+      expect(colored?(color: true)).to(be(true))
+      without("NO_COLOR") { expect(colored?(io: StringIO.new)).to(be(false)) }
     end
 
     it "records verbose paths and tests, including empty lists" do
@@ -614,18 +616,14 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect(io.string).not_to(include("\e["))
     end
 
-    def uncolored
-      renderer = Kimera::Report::Text.new(Kimera::Registry.new(points: []), io: StringIO.new, color: false)
-      allow(renderer).to(receive(:screen).and_return(instance_double(Kimera::Report::Screen, enabled?: true)))
-      renderer.__send__(:color?)
-    end
+    def uncolored = Kimera::Report::Palette.new(terminal, false).bold("x")
 
     it "forces color off even if the underlying screen reports enabled" do
-      expect(uncolored).to(be(false))
+      expect(uncolored).to(eq("x"))
     end
 
     it "forces color off even if the screen is enabled and NO_COLOR is absent" do
-      without("NO_COLOR") { expect(uncolored).to(be(false)) }
+      without("NO_COLOR") { expect(uncolored).to(eq("x")) }
     end
 
     it "reports zero-time and positive-time rates and ETAs" do

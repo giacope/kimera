@@ -71,7 +71,7 @@ class Kimera::Frameworks::Suite
   private
 
   def reseed(test)
-    Kernel.srand(@seed.for(test)) if @seed.value
+    @seed.for(test).each { |seed| Kernel.srand(seed) }
   end
 
   def outcome(failed)

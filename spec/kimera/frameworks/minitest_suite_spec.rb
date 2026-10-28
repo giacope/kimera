@@ -172,7 +172,8 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
   # the class's tests; kimera's seed for the test follows that.
   it "seeds a test's random numbers by the run's seed and its id, or as Minitest orders it", :aggregate_failures do
     adapter
-    expected = Random.new(Kimera::Seed.new("KIMERA_SEED" => "42").for("DemoKimeraTest#test_passes")).rand(1_000_000)
+    seed = Kimera::Seed.new("KIMERA_SEED" => "42").for("DemoKimeraTest#test_passes").fetch(0)
+    expected = Random.new(seed).rand(1_000_000)
     expect([drawn(42), drawn(42)]).to(eq([expected, expected]))
     expect(drawn(nil)).to(eq(DemoKimeraTest.runnable_methods.then { rand(1_000_000) }))
   end

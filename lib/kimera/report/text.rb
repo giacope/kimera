@@ -1,17 +1,14 @@
 # frozen_string_literal: true
 
-require_relative "../rewrite/mutant_text"
-require_relative "../mutated_text"
-require_relative "coloring"
-require_relative "screen"
-require_relative "sections"
-require_relative "test_health"
 require_relative "actions"
+require_relative "entries"
 require_relative "file_table"
-require_relative "../support/readout"
-require_relative "saved"
-require_relative "test_list"
 require_relative "null_saved"
+require_relative "palette"
+require_relative "remarks"
+require_relative "saved"
+require_relative "test_health"
+require_relative "test_list"
 
 module Kimera
   module Report
@@ -19,14 +16,10 @@ module Kimera
 end
 
 class Kimera::Report::Text
-  include Kimera::Report::Coloring
-  include Kimera::Report::Sections
-  include Kimera::Report::TestHealth
-
-  def initialize(registry, io: $stdout, color: nil)
+  def initialize(registry, io: $stdout, color: nil, palette: Kimera::Report::Palette.new(io, color))
     @registry = registry
     @io = io
-    @color = color
+    @palette = palette
   end
 
   COVERAGE_SECTIONS = { hint: :hint, list: :missing }.freeze
@@ -47,70 +40,29 @@ class Kimera::Report::Text
 
   def header(report, scope)
     scope.each { |line| @io.puts(line) }
-    @io.puts(summary(report))
+    @io.puts(@palette.bold(report.summary))
     Kimera::Report::FileTable.new(io: @io).show(report)
   end
 
   def footer(report, coverage, saved, narrowed:)
-    __send__(COVERAGE_SECTIONS.fetch(coverage), report, saved, narrowed: narrowed)
-    regions(report.unmutated)
-    leaks(report.leaks)
-    flaky(report)
-    quality(report)
+    entries.public_send(COVERAGE_SECTIONS.fetch(coverage), report, saved, narrowed: narrowed)
+    remarks.regions(report.unmutated)
+    remarks.leaks(report.leaks)
+    health.flaky(report)
+    health.quality(report)
     Kimera::Report::Actions.new(io: @io).show(report, saved)
   end
 
   def survivors(report, tests)
-    section("Surviving mutants", report.survived) { |result| survivor(result, tests) }
-    section("Reached only by other units' tests", report.unattributed) { |result| unowned(result, tests) }
-    unjudged(report)
-    waivers(report)
-    rejudged(report)
+    entries.survived(report, tests)
+    entries.unjudged(report)
+    remarks.waivers(report)
+    remarks.rejudged(report)
   end
 
-  def summary(report)
-    bold(report.summary)
-  end
+  def entries = Kimera::Report::Entries.new(@io, @registry, @palette)
 
-  def section(title, results, &)
-    heading(title, results.sort_by(&:mutant_id)).each(&)
-  end
+  def remarks = Kimera::Report::Remarks.new(@io, @palette)
 
-  def heading(title, listed)
-    return listed if listed.empty?
-    @io.puts
-    @io.puts(bold("#{title} (#{listed.size}):"))
-    listed
-  end
-
-  def survivor(result, tests)
-    resolved(result) { |_id, mutant, point| display(mutant, point, result, tests.lines(result)) }
-  end
-
-  def unowned(result, tests)
-    survivor(result, tests)
-    @io.puts("    #{result.detail}")
-  end
-
-  def display(mutant, point, result, covering)
-    @io.puts
-    spotted(result.status.to_s, result.mutant_id, mutant, point)
-    diff(point, mutant)
-    covering.each { |line| @io.puts("    #{line}") }
-    annotate(result)
-  end
-
-  def resolved(result)
-    id = result.mutant_id
-    pair = @registry.point(id) { return }
-    yield(id, *pair)
-  end
-
-  def diff(point, mutant)
-    variants = Kimera::Rewrite::MutantText.new(point, mutant, root: @registry.root).texts
-    source(red("-"), point.original_source)
-    source(green("+"), Kimera::MutatedText.new(variants).to_s)
-  end
-
-  def source(sign, text) = @io.puts(Kimera::Readout.new(text).quoted(sign, "    "))
+  def health = Kimera::Report::TestHealth.new(@io, @palette)
 end

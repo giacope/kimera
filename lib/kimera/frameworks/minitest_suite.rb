@@ -39,7 +39,7 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
   end
 
   def source(files)
-    @seed.value&.then { |seed| Minitest.seed = seed }
+    @seed.given.each { |seed| Minitest.seed = seed }
     paths(files)
     @task.install
     each_test_file(files) { |file| require(file) }

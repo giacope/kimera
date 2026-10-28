@@ -94,7 +94,7 @@ module Kimera
       def captured(path) = File.read(path, encoding: Encoding::UTF_8).scrub
 
       def launch(mirror, command, dir, seconds)
-        waitfor(start(mirror, command, dir), File.join(dir, "#{LEDGER}#{ChildCommand::PULSE}"), seconds)
+        watchdog.waitfor(start(mirror, command, dir), File.join(dir, "#{LEDGER}#{ChildCommand::PULSE}"), seconds)
       end
 
       def start(mirror, command, dir)

@@ -3,15 +3,13 @@
 require_relative "surface"
 require "io/console"
 
-class Kimera::Report::Live
-  include Kimera::Report::Surface
-
+class Kimera::Report::Live < Kimera::Report::Surface
   REDRAW_EVERY = 0.1
   ERASE = "\r\e[K"
   CURSOR_UP = "\e[1A"
 
   def initialize(io, columns: 0)
-    @io = io
+    super(io)
     @columns = columns
   end
 
