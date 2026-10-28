@@ -48,7 +48,7 @@ class Kimera::MemoGuard
 
   def returns? = @guard.statements&.body&.one? && returned.is_a?(Kimera::SyntaxTypes::ReturnNode)
 
-  def returned = @guard.statements.body.first
+  def returned = @guard.statements.body.fetch(0)
 
   def value? = caches? && [@flag, *@rest].any? { named?(it, WRITE) }
 

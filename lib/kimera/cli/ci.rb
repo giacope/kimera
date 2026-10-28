@@ -51,17 +51,17 @@ class Kimera::CLI::CI
 
   def based(argv)
     return [] if Kimera::CLI::Argv.new(argv).any?(%w[--since])
-    base = self.base
-    return [[%w[--since], ["--since", base]]] if base
+    found = bases.map { |base| [%w[--since], ["--since", base]] }
+    return found unless found.empty?
     @errors.puts("kimera ci: no pull request base found (looked for #{LOOKED}); running a full run: #{UNGATED}")
     []
   end
 
-  def base
+  def bases
     explicit = @env["KIMERA_BASE"].to_s
-    return explicit unless explicit.empty?
-    branch = BRANCHES.map { |name| @env[name].to_s }.find { |value| !value.empty? && value != "false" }
-    "origin/#{branch}" if branch
+    return [explicit] unless explicit.empty?
+    branches = BRANCHES.map { |name| @env[name].to_s }.reject { |value| value.empty? || value == "false" }
+    branches.first(1).map { |branch| "origin/#{branch}" }
   end
 
   def defaulted(arguments, names, extra) = Kimera::CLI::Argv.new(arguments).any?(names) ? arguments : arguments + extra

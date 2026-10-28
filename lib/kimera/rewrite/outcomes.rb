@@ -59,8 +59,7 @@ class Kimera::Rewrite::Outcomes
   def form(node) = (@_forms ||= {}.compare_by_identity)[node] ||= formed(bare(node))
 
   def formed(inner)
-    number = value(inner)
-    number ? [Numeric, number.inspect] : [inner.type, *flags(inner), *fields(inner)]
+    values(inner).map { |number| [Numeric, number.inspect] }.fetch(0) { [inner.type, *flags(inner), *fields(inner)] }
   end
 
   def flags(node) = predicates(node.class).map { |flag| node.public_send(flag) }
@@ -81,10 +80,9 @@ class Kimera::Rewrite::Outcomes
     end
   end
 
-  def value(node)
-    return node.value if Kimera::Scribe::Shape.new(node).numeral?
-    number = negated?(node) && value(bare(node.receiver))
-    -number if number
+  def values(node)
+    return [node.value] if Kimera::Scribe::Shape.new(node).numeral?
+    negated?(node) ? values(bare(node.receiver)).map(&:-@) : []
   end
 
   def negated?(node) = node.type == :call_node && node.name == :-@ && node.receiver && !(node.arguments || node.block)

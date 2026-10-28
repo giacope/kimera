@@ -46,7 +46,7 @@ class Kimera::Report::Progress
 
   def surface = @_surface ||= screen.surface
 
-  def tally = phases.last
+  def tally = phases.fetch(-1)
 
   def phases = @_phases ||= [Kimera::Report::Tally.new(0, nil, 0.0)]
 

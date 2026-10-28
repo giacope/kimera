@@ -22,13 +22,12 @@ class Kimera::Incremental::CoverageMap
     File.write(path, JSON.generate(@document.merge("format" => FORMAT)))
   end
 
-  def mismatch(current)
-    return "it was stored by another kimera version" unless @document["format"] == FORMAT
+  def mismatches(current)
+    return ["it was stored by another kimera version"] unless @document["format"] == FORMAT
     ruby = @document["ruby"]
-    return "it was measured on #{ruby}, not #{current["ruby"]}" unless ruby == current["ruby"]
-    return "the settings that pick the tests and sources changed" unless @document["settings"] == current["settings"]
-    file = drift(@document["files"], current["files"])
-    "#{file} changed" if file
+    return ["it was measured on #{ruby}, not #{current["ruby"]}"] unless ruby == current["ruby"]
+    return ["the settings that pick the tests and sources changed"] unless @document["settings"] == current["settings"]
+    drift(@document["files"], current["files"]).map { |file| "#{file} changed" }
   end
 
   def changed(sources) = drift_all(@document["sources"], sources)
@@ -43,7 +42,7 @@ class Kimera::Incremental::CoverageMap
 
   private
 
-  def drift(stored, current) = drift_all(stored, current).first
+  def drift(stored, current) = drift_all(stored, current).first(1)
 
   def drift_all(stored, current) = (stored.keys | current.keys).sort.reject { |path| stored[path] == current[path] }
 end

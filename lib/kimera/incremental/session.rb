@@ -87,7 +87,7 @@ class Kimera::Incremental::Session
 
   def stale?(id, registry)
     stored = @fingerprints[id]
-    !stored || stored != fingerprint(registry.point(id))
+    !stored || stored != fingerprint(registry.point(id) { return true })
   end
 
   def payload(meta)
@@ -99,14 +99,10 @@ class Kimera::Incremental::Session
   end
 
   def fingerprints(registry)
-    @results.keys.each_with_object({}) do |id, hash|
-      stamp = fingerprint(registry.point(id))
-      hash[id] = stamp if stamp
-    end
+    @results.keys.select { |id| registry.index.key?(id) }.to_h { |id| [id, fingerprint(registry.point(id))] }
   end
 
   def fingerprint(pair)
-    return unless pair
     mutant, point = pair
     [point.file, point.location.start_line, point.original_source, mutant.label].join(" ")
   end

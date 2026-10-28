@@ -57,7 +57,7 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
   end
 
   def run(ids)
-    outcome(ids.filter_map { |id| record(id) })
+    outcome(ids.flat_map { |id| record(id) })
   end
 
   def locate(id) = { "location" => definition(*indexed.fetch(id)).join(":") }
@@ -106,9 +106,9 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
 
   def record(id)
     klass, name = indexed[id]
-    return unless klass
+    return [] unless klass
     result = Kimera::Frameworks::ClassHooks.new(klass).test(name) { reseed(id) }
-    [id, message(result)] if result && killing?(result)
+    result && killing?(result) ? [[id, message(result)]] : []
   end
 
   def paths(files) = Kimera::Frameworks::LoadPath.new(files).install

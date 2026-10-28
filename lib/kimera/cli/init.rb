@@ -87,13 +87,12 @@ class Kimera::CLI::Init
 
   def operators = [*Kimera::Operators.build.map(&:key), *FURTHER.map { it.new.key }, *("rails" if rails_app?)]
 
-  def framework = @_framework ||= declared || bundled || layout
+  def framework = @_framework ||= declared.fetch(0) { bundled.fetch(0) { layout } }
 
   def declared
-    return "rspec" if File.file?(File.join(@root, ".rspec"))
-    return "minitest" if minitest_only?
-    helper = present(HELPERS)
-    helper && framework_named_in(File.read(helper, encoding: Encoding::UTF_8).scrub)
+    return ["rspec"] if File.file?(File.join(@root, ".rspec"))
+    return ["minitest"] if minitest_only?
+    present(HELPERS).flat_map { |helper| framework_named_in(File.read(helper, encoding: Encoding::UTF_8).scrub) }
   end
 
   def minitest_only?
@@ -104,20 +103,20 @@ class Kimera::CLI::Init
   def text(path) = File.read(path, encoding: Encoding::UTF_8).scrub
 
   def framework_named_in(text)
-    return "minitest" if text.match?(MINITEST)
-    return "rspec" if text.match?(/\bRSpec\b|require\s*\(?\s*["']rspec/)
-    "minitest" if text.match?(/minitest/i)
+    return ["minitest"] if text.match?(MINITEST)
+    return ["rspec"] if text.match?(/\bRSpec\b|require\s*\(?\s*["']rspec/)
+    text.match?(/minitest/i) ? ["minitest"] : []
   end
 
   def bundled
-    lock = present(LOCKS)
-    return unless lock
-    text = File.read(lock, encoding: Encoding::UTF_8).scrub
-    found = LOCKED.select { |_name, line| text.match?(line) }.keys
-    found.first if found.one?
+    present(LOCKS).flat_map do |lock|
+      text = File.read(lock, encoding: Encoding::UTF_8).scrub
+      found = LOCKED.select { |_name, line| text.match?(line) }.keys
+      found.one? ? found : []
+    end
   end
 
-  def present(names) = names.map { |name| File.join(@root, name) }.find { |path| File.file?(path) }
+  def present(names) = names.lazy.map { |name| File.join(@root, name) }.select { |path| File.file?(path) }.first(1)
 
   def layout
     File.directory?(File.join(@root, "test")) && !File.directory?(File.join(@root, "spec")) ? "minitest" : "rspec"

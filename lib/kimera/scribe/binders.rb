@@ -13,7 +13,7 @@ module Kimera
         @texts = texts
       end
 
-      def slice(node, locals) = @texts.of(node, locals)
+      def slice(node, locals, &) = @texts.of(node, locals, &)
 
       def of(node)
         return NO_NAMES unless node

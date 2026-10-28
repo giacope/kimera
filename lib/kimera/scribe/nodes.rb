@@ -10,7 +10,7 @@ module Kimera
 
       private
 
-      def snippet(source) = Kimera::Syntax.parse(source).value.statements.body.first
+      def snippet(source) = Kimera::Syntax.parse(source).value.statements.body.fetch(0)
 
       def statements(nodes) = Kimera::Syntax.parse("nil").value.statements.copy(body: nodes)
 

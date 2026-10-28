@@ -28,7 +28,7 @@ module Kimera
 
       def text
         listed = "[#{listed(@node.elements)}]"
-        @pen.pattern? ? Words.new(@node, @pen).text || "^(#{listed})" : listed
+        @pen.pattern? ? Words.new(@node, @pen).text { "^(#{listed})" } : listed
       end
     end
 
@@ -44,7 +44,8 @@ module Kimera
 
       def text
         words = @node.elements.map { |element| word(element) }
-        "%#{sigils.first || "w"}[#{words.join(" ")}]" if sigils.size < 2 && words.all?
+        return yield unless sigils.size < 2 && words.all?(&:any?)
+        "%#{sigils.first || "w"}[#{words.flatten.join(" ")}]"
       end
 
       private
@@ -52,9 +53,9 @@ module Kimera
       def sigils = @node.elements.map { |element| SIGILS[element.type.to_s[KIND, 1]] }.uniq
 
       def word(element)
-        return unless element.type.match?(KIND)
+        return [] unless element.type.match?(KIND)
         text = (element.respond_to?(:parts) ? element.parts : [element]).sum("") { |part| piece(part) }
-        text unless text.empty?
+        text.empty? ? [] : [text]
       end
 
       def piece(part)

@@ -56,7 +56,7 @@ module Kimera
 
       def write(node, floor = STATEMENT)
         form = form(node)
-        text = slice(node) || form.text
+        text = slice(node) { form.text }
         form.level < floor ? "(#{text})" : text
       end
 
@@ -66,7 +66,7 @@ module Kimera
 
       def level(node) = form(node).level
 
-      def slice(node) = @binders.slice(node, @locals)
+      def slice(node, &) = @binders.slice(node, @locals, &)
 
       def lead(node, floor) = write(node, level(node) == KEYWORD ? [floor, KEYWORD].min : floor)
 

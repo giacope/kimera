@@ -22,13 +22,13 @@ class Kimera::CacheGuard
     nodes = walk(@method)
     stores = nodes.select { lookup(it, :[]=) }.group_by { lookup(it, :[]=) }
     locals = nodes.grep(Kimera::SyntaxTypes::LocalVariableWriteNode).to_h { [it.name, lookup(it.value, :[])] }
-    nodes.filter_map { |node| exempt(node, stores, guarded(node, locals)) }.flatten
+    nodes.flat_map { |node| guarded(node, locals).flat_map { |cache| exempt(node, stores, cache) } }
   end
 
   private
 
   def exempt(node, stores, cache)
-    return unless cache && stores.key?(cache)
+    return [] unless stores.key?(cache)
     [
       Exemption.conditional(node.location),
       *stores.fetch(cache).map { Exemption.new(it.location, STATEMENT_DELETION) }
@@ -36,17 +36,19 @@ class Kimera::CacheGuard
   end
 
   def guarded(node, locals)
-    returned = early(node) if CONDITIONALS.include?(node.class)
-    name = returned.name if returned.is_a?(LOCAL)
-    cache = returned && (lookup(returned, :[]) || locals[name])
-    cache if cache && mentions?(node.predicate, cache, name)
+    return [] unless CONDITIONALS.include?(node.class)
+    early(node).flat_map do |returned|
+      name = returned.name if returned.is_a?(LOCAL)
+      cache = lookup(returned, :[]) || locals[name]
+      cache && mentions?(node.predicate, cache, name) ? [cache] : []
+    end
   end
 
   def early(node)
     returned, *rest = node.statements&.body
-    return if rest.any? || !returned.is_a?(Kimera::SyntaxTypes::ReturnNode)
+    return [] if rest.any? || !returned.is_a?(Kimera::SyntaxTypes::ReturnNode)
     value, *more = returned.arguments&.arguments
-    value if more.empty?
+    more.empty? && value ? [value] : []
   end
 
   def mentions?(predicate, cache, name)

@@ -42,7 +42,7 @@ module Kimera
       end
 
       def render(source)
-        shortcut || forced(source, condition) || attempt(source)
+        shortcuts.fetch(0) { forced(source).fetch(0) { attempt(source) } }
       end
 
       def apply(node)
@@ -55,17 +55,15 @@ module Kimera
 
       private
 
-      def condition
-        @directive["to"] if @directive[TYPE] == "condition"
-      end
-
       def parsed(source) = Kimera::Syntax::Fragment.new(source).tree
 
-      def forced(source, value)
+      def forced(source)
+        value = @directive["to"]
+        return [] unless kind?("condition") && value
         tree = parsed(source)
-        pinned(source, tree.value.statements.body.first.predicate, value) if value && tree.success?
+        tree.success? ? [pinned(source, tree.value.statements.body.first.predicate, value)] : []
       rescue NoMethodError
-        nil
+        []
       end
 
       def pinned(source, predicate, value)
@@ -80,11 +78,11 @@ module Kimera
         source.byteslice(0, span.start_offset) + text + source.byteslice(span.end_offset..)
       end
 
-      def shortcut
+      def shortcuts
         type = @directive[TYPE]
-        return "(statement deleted)" if type == STATEMENT_DELETION
-        return String(@directive["value"]).inspect if type == "string_literal"
-        "#{@directive["name"]} (default removed)" if type == "required_argument"
+        return ["(statement deleted)"] if type == STATEMENT_DELETION
+        return [String(@directive["value"]).inspect] if type == "string_literal"
+        type == "required_argument" ? ["#{@directive["name"]} (default removed)"] : []
       end
 
       def attempt(source)

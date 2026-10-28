@@ -14,7 +14,7 @@ module Kimera
       def variant
         @_variant ||= [Negation, Operation, Unary, Setting, Indexing, Message].map do |kind|
           kind.new(@node, @pen)
-        end.find(&:fits?)
+        end.lazy.select(&:fits?).first(1).fetch(0)
       end
     end
 

@@ -84,8 +84,7 @@ class Kimera::CLI::Survivors
   end
 
   def show(report, id)
-    row = report.row(id)
-    return missing(id) unless row
+    row = report.row(id) { return missing(id) }
     document = report.document
     root = document.dig("run", "source_root") || "."
     Panel.new(io: @io, tests: document.fetch("tests", {}), root: root).describe(row)

@@ -24,12 +24,12 @@ class Kimera::Execution::OrderTrace
 
   def mark!(baseline, coverage)
     reached(baseline).each do |id|
-      point = @registry.point(id)&.last
+      point = @registry.index[id]
       point.ordered! if point&.safe? && uncovered?(id, coverage)
     end
   end
 
-  def wanted?(scope, coverage) = scope.nil? || scope.any? { |id| open?(@registry.point(id)&.last, coverage) }
+  def wanted?(scope, coverage) = scope.nil? || scope.any? { |id| open?(@registry.index[id], coverage) }
 
   private
 

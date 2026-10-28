@@ -101,8 +101,8 @@ class Kimera::Report::Text
 
   def resolved(result)
     id = result.mutant_id
-    pair = @registry.point(id)
-    yield(id, *pair) if pair
+    pair = @registry.point(id) { return }
+    yield(id, *pair)
   end
 
   def diff(point, mutant)

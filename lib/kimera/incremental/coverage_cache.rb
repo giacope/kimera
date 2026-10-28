@@ -22,8 +22,8 @@ class Kimera::Incremental::CoverageCache
   def measured(ids)
     return ids unless @options[:reuse_coverage] && @options[:since]
     stored = Kimera::Incremental::CoverageMap.read(path)
-    reason = stored.mismatch(fingerprint)
-    reason ? everything(ids, reason) : chosen(stored, ids)
+    reasons = stored.mismatches(fingerprint)
+    reasons.empty? ? chosen(stored, ids) : everything(ids, reasons.fetch(0))
   rescue Errno::ENOENT
     everything(ids, MISSING)
   rescue JSON::ParserError

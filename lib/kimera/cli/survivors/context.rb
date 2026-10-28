@@ -9,20 +9,20 @@ class Kimera::CLI::Survivors::Context
   end
 
   def lines
-    source = text
-    return [] unless source
-    return ["  (#{@row["file"]} changed since the report; no source context)"] unless current?(source)
-    window(source).map { |number| numbered(source, number) }
+    texts.flat_map do |source|
+      next ["  (#{@row["file"]} changed since the report; no source context)"] unless current?(source)
+      window(source).map { |number| numbered(source, number) }
+    end
   end
 
   private
 
-  def text
+  def texts
     path = File.join(@root, @row["file"].to_s)
-    File.readlines(path, encoding: Encoding::UTF_8).map(&:scrub) if first && File.file?(path)
+    @row["line"] && File.file?(path) ? [File.readlines(path, encoding: Encoding::UTF_8).map(&:scrub)] : []
   end
 
-  def first = @row["line"]
+  def first = @row.fetch("line")
 
   def last = @row["end_line"] || first
 

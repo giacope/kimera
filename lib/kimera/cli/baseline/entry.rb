@@ -24,18 +24,20 @@ class Kimera::CLI::Baseline::Entry
 
   def prunable? = PRUNABLE.include?(kind)
 
-  def moved = exact.empty? ? hits.first&.fetch("line") : nil
+  def moved? = exact.empty? && hits.any?
 
   def statuses = hits.map { |row| row["verdict"] || row["status"] }.uniq
 
-  def kept = moved ? @fields.merge("line" => moved) : @fields
+  def kept = moved? ? @fields.merge("line" => relocated) : @fields
 
   def place
     file, line, label = @fields.values_at("file", "line", "label")
-    "#{[file, line].compact.join(":")}#{" → #{moved}" if moved} [#{label}]"
+    "#{[file, line].compact.join(":")}#{" → #{relocated}" if moved?} [#{label}]"
   end
 
   private
+
+  def relocated = hits.first.fetch("line")
 
   def verdict
     return :surviving if statuses.intersect?(SURVIVING)

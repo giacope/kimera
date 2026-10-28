@@ -75,7 +75,7 @@ module Kimera
 
     def bare(node)
       inner = node.body&.body if node.is_a?(SyntaxTypes::ParenthesesNode)
-      inner&.size == 1 ? inner.first : node
+      inner&.size == 1 ? inner.fetch(0) : node
     end
 
     def cached(node)

@@ -19,9 +19,8 @@ class Kimera::IgnoreList::Placement
   def contested?(claimed) = exact.empty? && !hits.empty? && (ids - claimed).empty?
 
   def moved
-    return unless exact.empty?
-    _mutant, point = drifted.first
-    Kimera::IgnoreList::Shift.new(@rule, point.location.start_line) if point
+    return [] unless exact.empty?
+    drifted.first(1).map { |_mutant, point| Kimera::IgnoreList::Shift.new(@rule, point.location.start_line) }
   end
 
   private

@@ -21,9 +21,9 @@ class Kimera::RegistryScan::SourceFile
     @numbering = numbering
   end
 
-  def points = scanned.first
+  def points = scanned.fetch(0)
 
-  def regions = scanned.last
+  def regions = scanned.fetch(1)
 
   private
 

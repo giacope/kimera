@@ -69,7 +69,7 @@ module Kimera
       kept = uncontested(placements)
       Resolution.new(
         ids: kept.flat_map(&:ids).uniq.sort, stale: lapsed(placements, kept),
-        moved: kept.filter_map(&:moved)
+        moved: kept.flat_map(&:moved)
       )
     end
 

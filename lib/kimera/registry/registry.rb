@@ -53,11 +53,11 @@ class Kimera::Registry
   end
 
   def mutant(id)
-    lookup[id]
+    lookup.fetch(id)
   end
 
-  def point(id)
-    paired[id]
+  def point(id, &)
+    paired.fetch(id, &)
   end
 
   def keys

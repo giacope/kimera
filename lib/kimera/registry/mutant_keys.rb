@@ -40,14 +40,14 @@ class Kimera::MutantKeys
 
   def id(token)
     text = token.to_s
-    text.match?(ORDINAL) ? text.to_i : @keys.key(text) || moved(text) || text
+    text.match?(ORDINAL) ? text.to_i : @keys.key(text) || moved(text)
   end
 
   private
 
   def moved(text)
     found = @keys.select { |_id, key| unlined(key) == unlined(text) }.keys
-    found.first if found.one?
+    found.one? ? found.fetch(0) : text
   end
 
   def unlined(key) = key.sub(LINE, ":")

@@ -42,7 +42,7 @@ class Kimera::CLI::Baseline::Prune
 
   def kept = entries.reject(&:prunable?)
 
-  def moved = kept.select(&:moved)
+  def moved = kept.select(&:moved?)
 
   def changed? = !(dropped.empty? && moved.empty?)
 

@@ -11,22 +11,16 @@ module Kimera
         @node = node
       end
 
-      def begin
-        return unless @node.is_a?(SyntaxTypes::BeginNode)
-        @node if @node.begin_keyword_loc || @node.location.slice.match?(DEFINITION)
+      def begun
+        return [] unless @node.is_a?(SyntaxTypes::BeginNode)
+        @node.begin_keyword_loc || @node.location.slice.match?(DEFINITION) ? [@node] : []
       end
 
-      def rescues
-        clause = self.begin&.rescue_clause
-        found = []
-        while clause
-          found << clause
-          clause = following(clause)
-        end
-        found
-      end
+      def rescues = begun.flat_map { |node| chained(node.rescue_clause) }
 
       private
+
+      def chained(clause) = clause ? [clause, *chained(following(clause))] : []
 
       def following(clause) = clause.respond_to?(:subsequent) ? clause.subsequent : clause.consequent
     end

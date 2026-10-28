@@ -24,7 +24,7 @@ class Kimera::Incremental::Fingerprint
 
   def to_h
     settings = Digest::SHA256.hexdigest(@options.slice(*SETTINGS).inspect)
-    { "commit" => git("rev-parse", "HEAD")&.strip, "ruby" => RUBY, "settings" => settings }
+    { "commit" => git("rev-parse", "HEAD").strip, "ruby" => RUBY, "settings" => settings }
       .merge("files" => digests(suite - @sources), "sources" => digests(@sources))
   end
 
@@ -33,14 +33,14 @@ class Kimera::Incremental::Fingerprint
   def suite
     globs = Kimera::Incremental::SuiteFiles.new(@options[:tests]).globs + CONFIG
     found = Dir.glob(globs, base: @root).uniq.select { |path| File.file?(File.join(@root, path)) }
-    found - git("check-ignore", "-z", "--stdin", input: found.join("\0")).to_s.split("\0")
+    found - git("check-ignore", "-z", "--stdin", input: found.join("\0")).split("\0")
   end
 
   def git(*, input: "")
     out, status = Open3.capture2("git", "-C", @root, *, stdin_data: input, err: File::NULL)
-    out if status.success?
+    status.success? ? out : ""
   rescue SystemCallError
-    nil
+    ""
   end
 
   def digests(paths) = paths.sort.to_h { |path| [path, Digest::SHA256.file(File.join(@root, path)).hexdigest] }

@@ -14,14 +14,14 @@ RSpec.describe(Kimera::Incremental::CoverageMap) do
     described_class.new(current.merge("format" => 1, "coverage" => coverage, "tests" => %w[t1 t2 t3 t4]))
   end
 
-  def mismatch(**over) = stored.mismatch(current.merge(over.transform_keys(&:to_s)))
+  def mismatch(**over) = stored.mismatches(current.merge(over.transform_keys(&:to_s))).fetch(0)
 
   it "matches the fingerprint it was stored with" do
-    expect(stored.mismatch(current)).to(be_nil)
+    expect(stored.mismatches(current)).to(eq([]))
   end
 
   it "does not match another format" do
-    expect(described_class.new(current).mismatch(current)).to(eq("it was stored by another kimera version"))
+    expect(described_class.new(current).mismatches(current)).to(eq(["it was stored by another kimera version"]))
   end
 
   it "does not match another Ruby, naming both" do
@@ -65,7 +65,7 @@ RSpec.describe(Kimera::Incremental::CoverageMap) do
     Dir.mktmpdir("kimera-map") do |dir|
       path = File.join(dir, "tmp", "kimera", "coverage.json")
       described_class.new(current.merge("coverage" => {}, "tests" => [])).write(path)
-      expect(described_class.read(path).mismatch(current)).to(be_nil)
+      expect(described_class.read(path).mismatches(current)).to(eq([]))
     end
   end
 end

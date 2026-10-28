@@ -19,7 +19,7 @@ class Kimera::Report::Actions
   end
 
   def show(report, saved = Kimera::Report::NullSaved.new)
-    lines = groups(report).filter_map { |kind, found| advice(found, saved, kind) }
+    lines = groups(report).flat_map { |kind, found| advice(found, saved, kind) }
     @io.puts("", "Next actions:", *lines) unless lines.empty?
   end
 
@@ -32,7 +32,8 @@ class Kimera::Report::Actions
   end
 
   def advice(found, saved, kind)
-    first = found.min_by(&:mutant_id)
-    "  #{found.size} #{OWN.fetch(kind) { saved.advice(kind, first.mutant_id) }}" if first
+    found.min_by(1, &:mutant_id).map do |first|
+      "  #{found.size} #{OWN.fetch(kind) { saved.advice(kind, first.mutant_id) }}"
+    end
   end
 end

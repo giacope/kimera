@@ -23,7 +23,7 @@ class Kimera::CLI::Suggestion
   def distance(left, right)
     left.each_char.with_index(1).reduce(origin(right)) do |above, (char, index)|
       below(above, right.each_char.map { |other| other == char ? 0 : 1 }, index)
-    end.last
+    end.fetch(-1)
   end
 
   def origin(word) = (0..word.length).to_a

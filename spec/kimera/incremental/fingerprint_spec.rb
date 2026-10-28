@@ -50,7 +50,7 @@ RSpec.describe(Kimera::Incremental::Fingerprint) do
   end
 
   it "has no commit outside git" do
-    expect(fingerprint["commit"]).to(be_nil)
+    expect(fingerprint["commit"]).to(eq(""))
   end
 
   context "with the project in git" do

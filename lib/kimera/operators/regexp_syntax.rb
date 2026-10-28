@@ -5,17 +5,17 @@ require_relative "regexp_tokens"
 
 class Kimera::Operators::RegexpSyntax < Kimera::Operators::Base
   def variants(node, **)
-    source = pattern(node)
-    return unless source
-    Kimera::Operators::RegexpTokens.new(source).tokens.flat_map { |token| rewrites(source, token) }
+    patterns(node).flat_map do |source|
+      Kimera::Operators::RegexpTokens.new(source).tokens.flat_map { |token| rewrites(source, token) }
+    end
   end
 
   private
 
-  def pattern(node)
-    return unless node.is_a?(RegularExpressionNode) && !node.extended?
+  def patterns(node)
+    return [] unless node.is_a?(RegularExpressionNode) && !node.extended?
     source = node.unescaped
-    source if source == node.content.gsub("\\/", "/") && source.valid_encoding?
+    source == node.content.gsub("\\/", "/") && source.valid_encoding? ? [source] : []
   end
 
   def rewrite(source, token, replacement, label)

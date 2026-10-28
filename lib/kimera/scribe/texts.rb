@@ -10,7 +10,10 @@ module Kimera
         @calls = {}.compare_by_identity
       end
 
-      def of(node, locals) = (@slices[node] unless locals.intersect?(calls(node)))
+      def of(node, locals, &)
+        return yield if locals.intersect?(calls(node))
+        @slices.fetch(node, &)
+      end
 
       private
 

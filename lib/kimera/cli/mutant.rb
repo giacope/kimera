@@ -56,8 +56,7 @@ class Kimera::CLI::Mutant
   end
 
   def locate(file, id)
-    row = file.row(id)
-    raise(Kimera::UsageError, "no mutant ##{id} in this report") unless row
+    row = file.row(id) { raise(Kimera::UsageError, "no mutant ##{id} in this report") }
     raise(Kimera::UsageError, "mutant ##{id} has no source file") unless row["file"]
     row
   end

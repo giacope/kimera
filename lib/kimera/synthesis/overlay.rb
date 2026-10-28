@@ -43,8 +43,7 @@ class Kimera::Overlay
   end
 
   def bake(_file, source, id)
-    pair = @registry.point(id)
-    return source unless pair
+    pair = @registry.point(id) { return source }
     map = Kimera::SourceMap.new(source)
     checked(map, pair.last, spliced(map, *pair) || write(map, baked(map, *pair), pair.last))
   end

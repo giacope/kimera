@@ -14,7 +14,7 @@ module Kimera
       Operation =
         Data.define(:node, :directive) do
           include Kimera::Scribe::Nodes
-          def target = directive["to"]&.to_sym
+          def target = directive.fetch("to").to_sym
 
           def swap = node.copy(name: target)
 
@@ -69,7 +69,7 @@ module Kimera
 
           def fetch = node.copy(name: :fetch)
 
-          def argument = node.arguments.arguments.first
+          def argument = node.arguments.arguments.fetch(0)
 
           def symbol = node.copy(unescaped: directive["value"].to_s)
 

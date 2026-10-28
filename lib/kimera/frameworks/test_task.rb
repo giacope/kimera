@@ -11,6 +11,7 @@ class Kimera::Frameworks::TestTask
   FILES = %w[Rakefile rakefile Rakefile.rb rakefile.rb].freeze
   BUILDERS = %i[new create].freeze
   NAMED = "test"
+  NAMES = %i[symbol_node string_node].freeze
   QUIET = %i[false_node nil_node].freeze
   CONSTANTS = %i[constant_path_node constant_read_node].freeze
   WARNING = "-w"
@@ -57,17 +58,16 @@ class Kimera::Frameworks::TestTask
       node.receiver.name == :TestTask
   end
 
-  def named(task)
-    first = value(task)
-    %i[symbol_node string_node].include?(first&.type) ? first.unescaped : NAMED
-  end
+  def named(task) = values(task).select { |first| NAMES.include?(first.type) }.map(&:unescaped).fetch(0, NAMED)
 
   def quiet?(node)
     return false unless node
     silenced?(node) || node.compact_child_nodes.any? { |child| quiet?(child) }
   end
 
-  def silenced?(node) = node.type == :call_node && node.name == :warning= && QUIET.include?(value(node).type)
+  def silenced?(node)
+    node.type == :call_node && node.name == :warning= && values(node).any? { |value| QUIET.include?(value.type) }
+  end
 
-  def value(call) = call.arguments&.arguments&.first
+  def values(call) = Array(call.arguments&.arguments).first(1)
 end

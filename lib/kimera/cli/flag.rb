@@ -83,6 +83,6 @@ module Kimera
       message.sub(/\n\s*Did you mean\?\s+(?<name>\S+).*/m) { "; did you mean --#{Regexp.last_match[:name]}?" }
     end
 
-    def command = @banner[/\AUsage: (kimera(?: [a-z]+)*)/, 1]
+    def command = @banner.scan(/\AUsage: (kimera(?: [a-z]+)*)/).flatten.fetch(0)
   end
 end

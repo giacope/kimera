@@ -81,7 +81,8 @@ module Kimera
       def nearest(unknown)
         checker = DidYouMean::SpellChecker.new(dictionary: [*groups.keys, *keys])
         guesses = unknown.filter_map { |key| checker.correct(key).first }
-        "; did you mean #{guesses.join(", ")}?" unless guesses.empty?
+        return "" if guesses.empty?
+        "; did you mean #{guesses.join(", ")}?"
       end
     end
   end

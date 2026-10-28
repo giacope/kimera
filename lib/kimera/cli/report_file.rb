@@ -31,5 +31,5 @@ class Kimera::CLI::ReportFile
 
   def narrowed? = document.fetch("run", {})["narrowed"] == true
 
-  def row(token) = results.find { |result| [result["mutant_id"].to_s, result["key"]].include?(token.to_s) }
+  def row(token) = results.find { |result| [result["mutant_id"].to_s, result["key"]].include?(token.to_s) } || yield
 end

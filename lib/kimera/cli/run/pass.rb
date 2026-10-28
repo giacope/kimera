@@ -19,7 +19,7 @@ class Kimera::CLI::Run::Pass
   end
 
   def call(remaining)
-    with_adapter { perform(remaining).then { |judged| judged.annotate(flaky: harness.flakes&.to_h, suite: suite) } }
+    with_adapter { perform(remaining).then { |judged| judged.annotate(flaky: harness.flakes&.to_h, **suite) } }
       .then { |judged| judged.described(@adapter.catalog(judged.test_ids)) }
   end
 
@@ -38,7 +38,7 @@ class Kimera::CLI::Run::Pass
     run(remaining)
   end
 
-  def suite = @options[:test_quality] ? @adapter.test_ids : nil
+  def suite = @options[:test_quality] ? { suite: @adapter.test_ids } : {}
 
   def filter
     @_filter ||=
