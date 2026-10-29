@@ -140,7 +140,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     lost = ->(id, reason, _stacks) { tally[:events] << [:lost, id, reason] }
     listeners = described_class::Listeners.new(resolve: resolver(tally), lost: lost, trace: nil)
     options = { jobs: jobs, hard_timeout: watchdog }
-    described_class.new(described_class::Context.new((1..size).to_a, spawner, listeners, options))
+    described_class.new((1..size).to_a, spawner, listeners, options)
   end
 
   def resolver(tally)

@@ -13,7 +13,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
       resolve: ->(message) { resolved << message }, lost: ->(id, reason, _stacks) { lost << [id, reason] }, trace: nil
     )
     options = { jobs: jobs, hard_timeout: deadline }
-    described_class.new(described_class::Context.new(queue, spawner, listeners, options)).run
+    described_class.new(queue, spawner, listeners, options).run
     [resolved, lost]
   end
 
@@ -244,7 +244,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
         hung = founder(witness) { |*pipes| hang(*pipes) }
       end
     listeners = described_class::Listeners.new(resolve: resolve, lost: ->(*) {}, trace: nil)
-    described_class.new(described_class::Context.new([*1..6], fleet, listeners, { jobs: 2, hard_timeout: 5 })).run
+    described_class.new([*1..6], fleet, listeners, { jobs: 2, hard_timeout: 5 }).run
   rescue Kimera::Error, Interrupt => error
     [error, hung]
   end

@@ -1,16 +1,22 @@
 # frozen_string_literal: true
 
 module Kimera
-  Unmutated =
-    Data.define(:file, :start_line, :end_line, :reason) do
-      def to_h = super.transform_keys(&:to_s)
-
-      def place = start_line == end_line ? "#{file}:#{start_line}" : "#{file}:#{start_line}-#{end_line}"
-
-      def line = "#{place}  #{reason}"
-
-      def touches?(lines) = lines.any? { |line| (start_line..end_line).cover?(line) }
+  class Unmutated
+    def initialize(file:, start_line:, end_line:, reason:)
+      @file = file
+      @start_line = start_line
+      @end_line = end_line
+      @reason = reason
     end
+
+    def to_h = { "file" => @file, "start_line" => @start_line, "end_line" => @end_line, "reason" => @reason }
+
+    def place = @start_line == @end_line ? "#{@file}:#{@start_line}" : "#{@file}:#{@start_line}-#{@end_line}"
+
+    def line = "#{place}  #{@reason}"
+
+    def touched?(changed) = Array(changed[@file]).any? { |line| (@start_line..@end_line).cover?(line) }
+  end
 
   class << Unmutated
     BLOCK = "code in a block outside any method runs at load or as a DSL callback " \
@@ -23,8 +29,10 @@ module Kimera
 
     def from_h(hash) = new(**hash.transform_keys(&:to_sym))
 
-    def block(file, first, last) = new(file, first, last, BLOCK)
+    def block(file, first, last) = new(file: file, start_line: first, end_line: last, reason: BLOCK)
 
-    def whole(file, last, kind, detail) = new(file, 1, last, "#{WHOLE.fetch(kind)}#{detail}")
+    def whole(file, last, kind, detail)
+      new(file: file, start_line: 1, end_line: last, reason: "#{WHOLE.fetch(kind)}#{detail}")
+    end
   end
 end

@@ -14,7 +14,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     loss = ->(id, reason, stacks) { lost << [id, reason, stacks] }
     listeners = described_class::Listeners.new(resolve: resolve, lost: loss, trace: nil)
     options = { jobs: jobs, hard_timeout: deadline }
-    described_class.new(described_class::Context.new(queue, spawner, listeners, options)).run
+    described_class.new(queue, spawner, listeners, options).run
     [resolved, lost]
   end
 

@@ -7,13 +7,14 @@ require_relative "child_process"
 class Kimera::Execution::WorkerPool
   include Kimera::Execution::ChildProcess
 
-  Context = Data.define(:queue, :spawner, :listeners, :options)
-
   POLL_INTERVAL = 0.2
   CHUNK = 65_536
 
-  def initialize(context)
-    @context = context
+  def initialize(queue, spawner, listeners, options)
+    @queue = queue
+    @spawner = spawner
+    @listeners = listeners
+    @options = options
   end
 
   def run
@@ -35,17 +36,15 @@ class Kimera::Execution::WorkerPool
 
   private
 
-  attr_reader :context
+  attr_reader :listeners
 
-  def listeners = context.listeners
+  def limit = @options.fetch(:hard_timeout)
 
-  def limit = context.options.fetch(:hard_timeout)
-
-  def fleet = @_fleet ||= context.options.fetch(:fleet) { manned }
+  def fleet = @_fleet ||= @options.fetch(:fleet) { manned }
 
   def manned
     Kimera::Execution::WorkerPool::Fleet.new(
-      queue: context.queue, spawner: context.spawner, jobs: context.options.fetch(:jobs), pool: self
+      queue: @queue, spawner: @spawner, jobs: @options.fetch(:jobs), pool: self
     )
   end
 

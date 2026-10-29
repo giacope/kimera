@@ -16,20 +16,26 @@ class Kimera::Operators::Audit
       def to_s = "#{operator}: #{label}\n  #{original}\n  -> #{rendered.inspect} (#{verdict})"
     end
 
-  Rendering =
-    Data.define(:original, :rendered) do
-      def verdict
-        return UNRENDERABLE unless rendered
-        [original, reprinted].include?(rendered) ? IDENTICAL : OK
-      end
-      private
-      def reprinted
-        parsed = Kimera::Scribe.parse(original)
-        Kimera::Scribe.new(parsed).source
-      rescue StandardError
-        original
-      end
+  class Rendering
+    def initialize(original, rendered)
+      @original = original
+      @rendered = rendered
     end
+
+    def verdict
+      return UNRENDERABLE unless @rendered
+      [@original, reprinted].include?(@rendered) ? IDENTICAL : OK
+    end
+
+    private
+
+    def reprinted
+      parsed = Kimera::Scribe.parse(@original)
+      Kimera::Scribe.new(parsed).source
+    rescue StandardError
+      @original
+    end
+  end
 
   def initialize(operators)
     @operators = operators

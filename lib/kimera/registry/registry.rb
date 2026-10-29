@@ -19,7 +19,7 @@ class Kimera::Registry
   end
 
   def narrowed(changed)
-    kept = @unmutated.select { |region| region.touches?(Array(changed[region.file])) }
+    kept = @unmutated.select { |region| region.touched?(changed) }
     self.class.new(points: @points, operators: @operators, root: @root, unmutated: kept)
   end
 

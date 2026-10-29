@@ -35,6 +35,6 @@ RSpec.describe(Kimera::Unmutated) do
   end
 
   it "names a multi-line region by its first and last line" do
-    expect(described_class.new("w.rb", 3, 5, "why").place).to(eq("w.rb:3-5"))
+    expect(described_class.new(file: "w.rb", start_line: 3, end_line: 5, reason: "why").place).to(eq("w.rb:3-5"))
   end
 end

@@ -31,15 +31,16 @@ require_relative "worker_pool"
 class Kimera::Execution::Harness
   include Kimera::Execution::ChildProcess
 
-  Context = Data.define(:registry, :adapter, :options)
   State = Struct.new(:skipped, :irrelevant, :isolation, :recovered, :aliases)
 
   class << self
-    def build(registry:, adapter:, **options) = new(Context.new(registry, adapter, options), State.new({}, {}, nil, {}))
+    def build(registry:, adapter:, **options) = new(registry, adapter, options, State.new({}, {}, nil, {}))
   end
 
-  def initialize(context, state)
-    @context = context
+  def initialize(registry, adapter, options, state)
+    @registry = registry
+    @adapter = adapter
+    @options = options
     @state = state
   end
 
@@ -78,11 +79,7 @@ class Kimera::Execution::Harness
 
   private
 
-  attr_reader :context, :state
-
-  def registry = context.registry
-  def adapter = context.adapter
-  def options = context.options
+  attr_reader :registry, :adapter, :options, :state
 
   def root = options.fetch(:source_root, ".")
 
