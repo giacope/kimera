@@ -55,6 +55,10 @@ class Kimera::Execution::Zygote
       end
     end
 
+  def initialize(exits = Kernel)
+    @exits = exits
+  end
+
   def call(&)
     pipe = Pipe.new(*IO.pipe(Encoding::UTF_8))
     saved = Signal.trap(SIGNAL, "IGNORE")
@@ -70,7 +74,7 @@ class Kimera::Execution::Zygote
   def spawned(pipe, saved, &)
     restore(saved)
     pipe.post(JSON.generate(outcome(&)))
-    exit!(0)
+    @exits.exit!(0)
   end
 
   def collect(pipe, pid) = settle(pipe.take, reap(pid))

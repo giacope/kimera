@@ -108,7 +108,7 @@ class Kimera::Execution::Harness
     @_rig ||= Kimera::Execution::Rig.new(
       registry: registry, adapter: adapter, isolation: isolation, root: root, soft: soft, hard: hard, jobs: jobs,
       coverage: coverage, spawner: options[:spawner], progress: progress, aliases: state.aliases,
-      **options.slice(:filter, :test_quality, :confirm_survivors)
+      **options.slice(:filter, :test_quality, :confirm_survivors, :zygote)
     )
   end
 
@@ -139,9 +139,7 @@ class Kimera::Execution::Harness
     options[:flakes] = rig.hunt(coverage, scope, options)
   end
 
-  def arm(timings)
-    driver.arm(coverage: coverage, budget: budget(timings), timings: timings)
-  end
+  def arm(timings) = driver.arm(coverage: coverage, budget: budget(timings), timings: timings)
 
   def parallel(pass)
     pass.parallel!(jobs) do |ids, width, listeners|
@@ -161,7 +159,9 @@ class Kimera::Execution::Harness
 
   def tuning = { factor: options[:timeout_factor], slack: options[:timeout_slack] }.compact
 
-  def baseline = Kimera::Execution::BaselinePass.new(adapter:, registry:, root:, **options.slice(:progress, :measured))
+  def baseline
+    Kimera::Execution::BaselinePass.new(adapter:, registry:, root:, **options.slice(:progress, :measured, :zygote))
+  end
 
   def screen = Kimera::Execution::BaselineScreen.new(adapter: adapter, root: root, jobs: jobs).call(state.irrelevant)
 

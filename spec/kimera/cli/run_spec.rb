@@ -3,7 +3,6 @@
 require "kimera/cli/run"
 require "kimera/frameworks/rspec_suite"
 require "kimera/registry/builder"
-require "open3"
 require "stringio"
 require "tmpdir"
 
@@ -450,16 +449,14 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     # not, shows the registry loading each framework's file before it fetches
     # the suite the file registers.
     def fresh
-      script = <<~RUBY
+      fresh_lines(<<~RUBY)
         require "kimera/frameworks/suite"
         %w[rspec minitest].each { puts Kimera::Frameworks::SUITES.load(it).class }
       RUBY
-      root = File.expand_path("../../..", __dir__)
-      Open3.capture2(RbConfig.ruby, "-rbundler/setup", "-Ilib", "-e", script, chdir: root)
     end
 
     it "loads each framework's suite file before fetching its suite" do
-      expect(fresh.first.lines(chomp: true)).to(eq(%w[Kimera::Frameworks::RSpecSuite Kimera::Frameworks::MinitestSuite]))
+      expect(fresh).to(eq(%w[Kimera::Frameworks::RSpecSuite Kimera::Frameworks::MinitestSuite]))
     end
   end
 

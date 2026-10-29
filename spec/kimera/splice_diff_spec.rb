@@ -119,8 +119,7 @@ RSpec.describe(Kimera::SpliceDiff) do
     # R6B4-M1: a writing that reads back as another tree is no fit.
     it "takes the first writing that reads back as the node" do
       node = Kimera::Scribe.parse("case v\nwhen 3.. then :big\nend").statements.body.first
-      readback = instance_double(Kimera::Readback)
-      allow(readback).to(receive(:faithful?)) { |text| text.start_with?("case v;") }
+      readback = Class.new { def faithful?(text) = text.start_with?("case v;") }.new
       expect(described_class.new("case v\nwhen 3.. then :big\nend").fits(Kimera::Scribe.new(node), readback))
         .to(eq(["case v; when 3..;; :big; \n\nend"]))
     end

@@ -116,10 +116,20 @@ RSpec.describe(Kimera::WorkTree, :aggregate_failures) do
     end
   end
 
+  # A process environment with no git on its PATH.
+  def without_git
+    path = ENV.fetch("PATH")
+    Dir.mktmpdir do |empty|
+      ENV["PATH"] = empty
+      yield
+    end
+  ensure
+    ENV["PATH"] = path
+  end
+
   it "compares Ruby files by size and mtime when git is missing" do
     project(git: false) do |root|
-      allow(Open3).to(receive(:capture2e).and_raise(Errno::ENOENT))
-      expect(changes(root) { File.write(File.join(root, "b.rb"), "22\n") }).to(eq(["b.rb"]))
+      expect(without_git { changes(root) { File.write(File.join(root, "b.rb"), "22\n") } }).to(eq(["b.rb"]))
     end
   end
 

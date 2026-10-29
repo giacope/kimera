@@ -84,22 +84,23 @@ RSpec.describe(Kimera::Execution::Zygote) do
   end
 
   # The child's half runs only in a forked child, where no coverage reaches;
-  # run it here, with its exit stubbed.
+  # run it here, with exits that write the code down instead of exiting.
   describe "the child's half, run here" do
-    # A zygote whose child half ran here with its exit stubbed, and its reply.
+    let(:exits) { FakeExits.new }
+
+    # The reply of a zygote whose child half ran here.
     def spawned(saved)
       reader, writer = IO.pipe
-      zygote = described_class.new.tap { |stubbed| allow(stubbed).to(receive(:exit!)) }
-      zygote.__send__(:spawned, described_class::Pipe.new(reader.dup, writer), saved) { 7 }
-      [zygote, reader.read]
+      described_class.new(exits).__send__(:spawned, described_class::Pipe.new(reader.dup, writer), saved) { 7 }
+      reader.read
     end
 
     it "hands back the caller's QUIT handler, replies, and exits without unwinding", :aggregate_failures do
       handler = proc {}
       previous = Signal.trap("QUIT", "IGNORE")
-      child, reply = spawned(handler)
+      reply = spawned(handler)
       expect([Signal.trap("QUIT", previous), JSON.parse(reply)]).to(eq([handler, { "value" => 7 }]))
-      expect(child).to(have_received(:exit!).with(0))
+      expect(exits.codes).to(eq([0]))
     end
   end
 

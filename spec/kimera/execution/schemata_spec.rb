@@ -160,18 +160,16 @@ RSpec.describe(Kimera::Execution::Schemata) do
     expect(defined?(SchemataMemo)).to(be_nil)
   end
 
-  def shielded(relative)
-    allow(Kimera::SelfProtection).to(receive(:new).and_call_original)
-    shield = instance_double(Kimera::SelfProtection, protected?: true)
-    allow(Kimera::SelfProtection).to(receive(:new).with(File.join(dir, relative)).and_return(shield))
+  # The registry of a project file that is kimera's own runtime, linked in; the
+  # builder would leave a protected file out, so this one scans it anyway.
+  def shielded
+    File.symlink(Kimera::SelfProtection::RUNTIME_PATH, File.join(dir, "sl_protected.rb"))
+    Kimera::RegistryScan.new(root: dir, shielded: false).build([File.join(dir, "sl_protected.rb")])
   end
 
   it "never overlays a self-protected file" do
-    write("sl_protected.rb", greater("SchemataProtected"))
-    # The builder checks protected? too, so stub after building.
-    registry = scan("sl_protected.rb")
-    shielded("sl_protected.rb")
-    expect([schemata(registry).overlay!, defined?(SchemataProtected)]).to(eq([[], nil]))
+    registry = shielded
+    expect([registry.points.empty?, schemata(registry).overlay!]).to(eq([false, []]))
   end
 
   # Scripts may abort at top level when re-run. SystemExit is not a

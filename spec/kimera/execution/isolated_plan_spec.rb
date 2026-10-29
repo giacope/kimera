@@ -246,10 +246,7 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
 
     # R6B5-M4: bullet's CI runs its suite under Gemfile.rails-8.1, and the
     # mirror ran its children under ./Gemfile, which tracks Rails main.
-    def running(gemfile)
-      allow(ENV).to(receive(:fetch).and_call_original)
-      allow(ENV).to(receive(:fetch).with("BUNDLE_GEMFILE", "Gemfile").and_return(gemfile))
-    end
+    def running(gemfile) = stub_const("ENV", ENV.to_h.merge("BUNDLE_GEMFILE" => gemfile))
 
     def appraised(root)
       running(File.join(root, "Gemfile.ci"))

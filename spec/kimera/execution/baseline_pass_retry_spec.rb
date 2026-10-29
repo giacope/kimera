@@ -176,14 +176,20 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     end.new
   end
 
+  # BaselineScreen, as a pass builds one: it hands out +screen+ when built for +wanted+, and writes down what each
+  # was built with.
+  def screens(screen, built = [], wanted: nil)
+    Class.new do
+      define_method(:new) do |**settings|
+        raise(ArgumentError, "a screen for #{settings}") unless wanted.nil? || settings == wanted
+        built.push(settings) && screen
+      end
+    end.new
+  end
+
   def screened(screen, first, check: false)
-    allow(Kimera::Execution::BaselineScreen).to(
-      receive(:new).with(
-        adapter: adapter, root: "/app",
-        jobs: 1
-      ).and_return(screen)
-    )
-    pass = described_class.new(adapter: adapter, registry: registry, root: "/app")
+    building = screens(screen, wanted: { adapter: adapter, root: "/app", jobs: 1 })
+    pass = described_class.new(adapter: adapter, registry: registry, root: "/app", screens: building)
     return pass.check!(InlineZygote.new) if check
     pass.parallel!(1) { |queue, _jobs, listeners| round(queue, nil, listeners, [first], []) }
   end
@@ -218,9 +224,11 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
   end
 
   it "screens nothing when it has no project root to rerun the tests in", :aggregate_failures do
-    allow(Kimera::Execution::BaselineScreen).to(receive(:new))
-    expect { measure({ "t1" => :fail }) }.to(raise_error(Kimera::Execution::BaselineFailure))
-    expect(Kimera::Execution::BaselineScreen).not_to(have_received(:new))
+    built = []
+    pass = described_class.new(adapter: adapter, registry: registry, progress: progress, screens: screens(nil, built))
+    expect { pass.parallel!(1) { |queue, _jobs, listeners| round(queue, nil, listeners, [{ "t1" => :fail }], []) } }
+      .to(raise_error(Kimera::Execution::BaselineFailure))
+    expect(built).to(be_empty)
   end
 
   it "screens nothing when the baseline is green" do
@@ -230,8 +238,6 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
   end
 
   describe "the whole suite, run once in order" do
-    include_context("with an inline zygote")
-
     def outcome(failed) = Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed, failures: {})
 
     # +failed+ fail when the whole suite runs; a test run alone fails unless +alone+.
@@ -246,6 +252,9 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
 
     def summary = Kimera::Execution::BaselineFailure::Summary
 
+    # The whole suite run once in order, in this process.
+    def sequenced = described_class.new(adapter: adapter, registry: registry, zygote: InlineZygote.new).sequence
+
     # A suite that warns as it runs.
     def noisy
       quiet = outcome([])
@@ -257,20 +266,18 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
 
     it "closes the ledger it opens" do
       scripted([])
-      pass = described_class.new(adapter: adapter, registry: registry)
-      expect { pass.sequence }.not_to(change(Kimera::RUNTIME, :leaks))
+      expect { sequenced }.not_to(change(Kimera::RUNTIME, :leaks))
     end
 
     it "keeps the suite's own output off the terminal" do
       noisy
-      expect { described_class.new(adapter: adapter, registry: registry).sequence }.not_to(output.to_stderr)
+      expect { sequenced }.not_to(output.to_stderr)
     end
 
     # Under a run of kimera on itself the outer run's guards fire too.
     it "reports which mutants it reached" do
       scripted([], touch: [ids.first, ids.first])
-      touched = described_class.new(adapter: adapter, registry: registry).sequence["touched"]
-      expect(touched.intersection(ids)).to(eq([ids.first]))
+      expect(sequenced["touched"].intersection(ids)).to(eq([ids.first]))
     end
 
     it "names the failing tests that pass when the suite runs in order", :aggregate_failures do

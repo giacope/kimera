@@ -5,9 +5,11 @@ require "stringio"
 
 RSpec.describe(Kimera::Report::Progress) do
   # In-place redraw only engages on a tty; a plain StringIO gets heartbeat lines.
-  def fake_tty
+  # A terminal of +rows+ by +columns+, writing to a string.
+  def fake_tty(rows = nil, columns = nil)
     io = StringIO.new
     def io.tty? = true
+    io.define_singleton_method(:winsize) { [rows, columns] } if rows
     io
   end
 
@@ -259,8 +261,7 @@ RSpec.describe(Kimera::Report::Progress) do
 
   # A bar on a 20-column terminal, its stream, and its first frame.
   def narrow
-    io = fake_tty
-    allow(io).to(receive(:winsize).and_return([24, 20]))
+    io = fake_tty(24, 20)
     bar = described_class.new(io: io, enabled: true, cadence: ->(_surface) { 0 })
     bar.start(2, "mutants (isolated)")
     [bar, io, io.string.dup]

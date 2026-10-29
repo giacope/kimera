@@ -660,8 +660,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     def files(name)
       seen = []
-      described_class.build(registry: catalog(name), adapter: sink(seen), source_root: dir)
-        .without_coverage!(["spec/a_spec.rb"])
+      inline(registry: catalog(name), adapter: sink(seen), source_root: dir).without_coverage!(["spec/a_spec.rb"])
       seen
     end
 
@@ -681,7 +680,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "raises BaselineFailure from the coverage-off baseline check too" do
       stub_const("Warmred", Class.new)
       registry = catalog("warmred")
-      h = described_class.build(registry: registry, adapter: red, source_root: dir)
+      h = inline(registry: registry, adapter: red, source_root: dir)
       expect { h.without_coverage!(["t1"]) }.to(raise_error(Kimera::Execution::BaselineFailure, /t1/))
     end
 
@@ -707,7 +706,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       stub_const("Warmsuite", Class.new)
       registry = catalog("warmsuite")
       ad = green(starts)
-      described_class.build(registry: registry, adapter: ad, source_root: dir).without_coverage!(["t1"])
+      inline(registry: registry, adapter: ad, source_root: dir).without_coverage!(["t1"])
       expect(ad.booted).to(be(true))
     end
 
@@ -726,7 +725,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     def default(name)
       registry = catalog(name)
       mid = registry.each.map { |m, _p| m.id }.first
-      h = described_class.build(registry: registry, adapter: active(mid), source_root: dir)
+      h = inline(registry: registry, adapter: active(mid), source_root: dir)
       h.warm!(["t1"])
       [mid, h.coverage]
     end
@@ -743,13 +742,13 @@ RSpec.describe(Kimera::Execution::Harness) do
       stub_const("Warmeager", Class.new)
       registry = catalog("warmeager")
       app = rails
-      described_class.build(registry: registry, adapter: green, source_root: dir).without_coverage!(["t1"])
+      inline(registry: registry, adapter: green, source_root: dir).without_coverage!(["t1"])
       expect(app.eager_loads).to(eq(1))
     end
 
     def database(name)
       stub_const("ActiveRecord::Base", Class.new)
-      described_class.build(registry: catalog(name), adapter: green, source_root: dir, isolate_db: true)
+      inline(registry: catalog(name), adapter: green, source_root: dir, isolate_db: true)
     end
 
     it "wires DB isolation during warm-up when isolate_db is on" do
@@ -763,7 +762,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     def ungated(name)
       registry = catalog(name)
-      described_class.build(
+      inline(
         registry: registry, source_root: dir,
         adapter: adapter(coverage: { "t1" => [first(registry)], "t2" => [] }, failing: ["t2"])
       )
@@ -777,9 +776,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     def quiet(name)
       registry = catalog(name)
-      described_class.build(
-        registry: registry, source_root: dir, adapter: adapter(coverage: { "t1" => [first(registry)] })
-      )
+      inline(registry: registry, source_root: dir, adapter: adapter(coverage: { "t1" => [first(registry)] }))
     end
 
     it "stays silent after a fully green warm-up" do
@@ -1106,6 +1103,8 @@ RSpec.describe(Kimera::Execution::Harness) do
   describe "#verify!" do
     include_context("with an inline zygote")
 
+    def harness(adapter, **) = inline(registry: registry, adapter: adapter, **)
+
     it "passes silently when the suite is green" do
       h = harness(adapter(coverage: { "t1" => [] }))
       expect { h.__send__(:verify!) }.not_to(raise_error)
@@ -1392,7 +1391,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     def mutants
       registry = fixture("WarmTarget")
       ids = registry.each.map { |m, _p| m.id }
-      h = described_class.build(registry: registry, adapter: touching(ids), source_root: dir)
+      h = inline(registry: registry, adapter: touching(ids), source_root: dir)
       [h.warm!(["t1"]), ids, h.coverage]
     end
 
@@ -1427,7 +1426,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     def in_order
       registry, ids = stubbed("WarmOrdered")
       progress = journal
-      h = described_class.build(registry: registry, adapter: ordered(ids), source_root: dir, progress: progress)
+      h = inline(registry: registry, adapter: ordered(ids), source_root: dir, progress: progress)
       h.warm!(%w[t1 t2])
       revisits = registry.points.map(&:revisit).uniq
       { events: progress.events, covered: h.coverage.slice(*ids).values.flatten, revisits: revisits }
@@ -1461,7 +1460,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry = fixture(name)
       ids = registry.each.map { |m, _p| m.id }
       progress = journal
-      h = described_class.build(registry: registry, adapter: racing(ids), **screened(registry, flaky, progress))
+      h = inline(registry: registry, adapter: racing(ids), **screened(registry, flaky, progress))
       h.warm!(%w[t1], scope: ids)
       [h.run(ids: ids).results, ids, progress.events]
     end
@@ -1491,7 +1490,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry, ids = stubbed("WarmShaky")
       filter = Kimera::Execution::TestFilter.new(registry: registry)
       settings = { source_root: dir, soft_timeout: nil, filter: filter, flaky_runs: 1, seed: 5 }
-      h = described_class.build(registry: registry, adapter: shaking(ids), **settings)
+      h = inline(registry: registry, adapter: shaking(ids), **settings)
       [h.tap { h.warm!(%w[t1], scope: ids) }, ids]
     end
 
@@ -1521,10 +1520,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "records every killing test of a warm mutant under test quality, and the same verdicts" do
       registry, ids = stubbed("WarmCensus")
-      h = described_class.build(
-        registry: registry, adapter: racing(ids), source_root: dir, soft_timeout: nil,
-        test_quality: true
-      )
+      h = inline(registry: registry, adapter: racing(ids), source_root: dir, soft_timeout: nil, test_quality: true)
       h.warm!(%w[t1], scope: ids)
       results = h.run(ids: ids).results
       expect(results.map { |result| [result.status, result.failing_tests, result.killing_tests] }.uniq)
@@ -1533,7 +1529,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "kills each mutant with the covering test the baseline timed fastest", :aggregate_failures do
       registry, ids = stubbed("WarmRacing")
-      h = described_class.build(registry: registry, adapter: racing(ids), source_root: dir, soft_timeout: nil)
+      h = inline(registry: registry, adapter: racing(ids), source_root: dir, soft_timeout: nil)
       h.warm!(%w[t1], scope: ids)
       expect(h.timings.fetch("slow")).to(be > h.timings.fetch("fast"))
       expect(h.run(ids: ids).results.map(&:failing_tests).uniq).to(eq([["fast"]]))
@@ -1573,7 +1569,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "runs the plain baseline check when coverage is disabled" do
       stub_const("WarmNoCov", Class.new)
-      h = described_class.build(registry: fixture("WarmNoCov"), adapter: plain, source_root: dir)
+      h = inline(registry: fixture("WarmNoCov"), adapter: plain, source_root: dir)
       expect { h.without_coverage!(["t1"]) }.not_to(raise_error)
     end
   end

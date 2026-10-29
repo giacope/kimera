@@ -7,19 +7,17 @@ require "tmpdir"
 # K3-2: doctor waited forever on a suite that never exits.
 RSpec.describe(Kimera::Execution::SuiteCapture, :aggregate_failures) do
   let(:said) { StringIO.new }
-  let(:capture) { described_class.new(said) }
 
-  # Elapsed seconds since the start, one reading per poll.
-  def polled(*elapsed, limit:)
-    allow(capture).to(receive(:now).and_return(0.0, *elapsed))
-    allow(capture).to(receive(:sleep))
+  # A suite that never exits, watched with +elapsed+ seconds since the start, one reading per poll.
+  def polled(*elapsed, limit:, clock: FakeClock.new(0.0, *elapsed))
+    capture = described_class.new(said, Kimera::Execution::SuiteEnv.new, clock)
     Dir.mktmpdir { |root| capture.timed("sleep", "30", chdir: root, limit: limit) }
   end
 
   it "polls until the limit, sleeping between polls, then stops the suite" do
-    _output, status = polled(0.6, 0.7, limit: 0.6)
-    expect(status.success?).to(be(false))
-    expect(capture).to(have_received(:sleep).with(described_class::POLL).once)
+    clock = FakeClock.new(0.0, 0.6, 0.7)
+    _output, status = polled(limit: 0.6, clock: clock)
+    expect([status.success?, clock.paused]).to(eq([false, 1]))
   end
 
   it "says the suite is still running every 150 polls, half a minute of them" do

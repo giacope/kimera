@@ -2,6 +2,7 @@
 
 require "tempfile"
 require_relative "child_process"
+require_relative "clock"
 require_relative "suite_env"
 
 class Kimera::Execution::SuiteCapture
@@ -14,9 +15,10 @@ class Kimera::Execution::SuiteCapture
 
   Overdue = Data.define(:limit) { def success? = false }
 
-  def initialize(errors = $stderr, env = Kimera::Execution::SuiteEnv.new)
+  def initialize(errors = $stderr, env = Kimera::Execution::SuiteEnv.new, clock = Kimera::Execution::Clock.new(POLL))
     @errors = errors
     @env = env
+    @clock = clock
   end
 
   def call(*spawned, chdir:) = captured(spawned, chdir) { |pid| Process.wait2(pid).last.tap { signal(-pid) } }
@@ -41,13 +43,13 @@ class Kimera::Execution::SuiteCapture
   end
 
   def waited(pid, limit, log)
-    started = now
+    started = @clock.now
     (1..).each do |poll|
       _, status = Process.wait2(pid, Process::WNOHANG)
       return status.tap { signal(-pid) } if status
-      elapsed = now - started
+      elapsed = @clock.now - started
       return overdue(pid, limit, log) if elapsed > limit
-      sleep(POLL)
+      @clock.pause
       tick(elapsed) if (poll % TICKS).zero?
     end
   end

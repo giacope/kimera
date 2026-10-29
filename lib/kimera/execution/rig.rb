@@ -32,7 +32,7 @@ class Kimera::Execution::Rig
       adapter: @options.fetch(:adapter), registry: @options.fetch(:registry),
       isolation: @options.fetch(:isolation), jobs: @options.fetch(:jobs), hard: @options.fetch(:hard),
       soft: @options.fetch(:soft), paralleldb: parallel, coverage: @options[:coverage],
-      quality: @options[:test_quality], confirm: @options[:confirm_survivors]
+      quality: @options[:test_quality], confirm: @options[:confirm_survivors], **@options.slice(:zygote)
     )
   end
 

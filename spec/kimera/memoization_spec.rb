@@ -165,10 +165,9 @@ RSpec.describe(Kimera::Memoization) do
       expect(reasons(code)).to(eq([]))
     end
 
-    it "requires the or-left to be the matching read node, not merely same-named" do
-      result = Prism.parse("def m\n  @x = @@x || compute(1)\nend\n")
+    it "requires the or-left to be the matching read node itself, not one in parentheses" do
+      result = Prism.parse("def m\n  @x = (@x) || compute(1)\nend\n")
       write = find(result.value, Prism::InstanceVariableWriteNode)
-      allow(write.value.left).to(receive(:name).and_return(:@x))
       expect(described_class.new("").__send__(:cached, write)).to(be_nil)
     end
   end

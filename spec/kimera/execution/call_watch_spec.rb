@@ -35,11 +35,12 @@ RSpec.describe(Kimera::Execution::CallWatch) do
     expect(watched("value > 5", meter).source).to(eq(meter.sub("= value > 5 }", "= (#{probe}; value > 5) }")))
   end
 
+  # A guard probe whose edit opens a parenthesis it never closes.
+  def unbalanced = Struct.new(:node, :ids) { def watch = [[0, 0, "("]] }
+
   it "leaves the source unwatched when the probed text would not parse" do
-    allow(Kimera::GuardProbe).to(receive(:new).and_return(instance_double(Kimera::GuardProbe, watch: [[0, 0, "("]])))
-    expect([watched("@outer").source, watched("@outer").watching?, watched("@outer").reached?([])]).to(
-      eq([source, false, true])
-    )
+    unwatched = described_class.new(source, source.byteindex("@outer"), 7, unbalanced)
+    expect([unwatched.source, unwatched.watching?, unwatched.reached?([])]).to(eq([source, false, true]))
   end
 
   # Outside any method it cannot tell, so every test counts as reaching it.

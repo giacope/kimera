@@ -27,13 +27,13 @@ class Kimera::Execution::BaselinePass
     settle(jobs) { dispatch(&) }
   end
 
-  def check!(zygote = Kimera::Execution::Zygote.new)
-    outcome = sequence(zygote)
+  def check!(cell = zygote)
+    outcome = sequence(cell)
     return if outcome["passed"]
     red!(outcome["failed_ids"], 1, outcome["failures"]) { [] }
   end
 
-  def sequence(zygote = Kimera::Execution::Zygote.new) = zygote.call { whole }
+  def sequence(cell = zygote) = cell.call { whole }
 
   def alone?(test)
     Kimera::RUNTIME.active = nil
@@ -44,16 +44,20 @@ class Kimera::Execution::BaselinePass
 
   def progress = @options.fetch(:progress) { Kimera::Execution::NullProgress.new }
 
+  def zygote = @options.fetch(:zygote) { Kimera::Execution::Zygote.new }
+
   def root = @options[:root]
 
   def settle(jobs)
     yield
     failures = tally.failures
-    red!(failures, jobs) { Kimera::Execution::BaselineOrder.new(self).of(failures) { [] } } unless failures.empty?
+    red!(failures, jobs) { ordered(failures) } unless failures.empty?
     tally.measured(losses.recovered(tally.messages))
   ensure
     progress.finish
   end
+
+  def ordered(failures) = Kimera::Execution::BaselineOrder.new(self).of(failures, zygote) { [] }
 
   def tests = @_tests ||= @options.fetch(:measured, EVERY).call(@adapter.test_ids)
 
@@ -118,7 +122,9 @@ class Kimera::Execution::BaselinePass
     failure!(failed, jobs, yield, messages: messages)
   end
 
-  def screen(jobs) = Kimera::Execution::BaselineScreen.new(adapter: @adapter, root: root, jobs: jobs)
+  def screen(jobs) = screens.new(adapter: @adapter, root: root, jobs: jobs)
+
+  def screens = @options.fetch(:screens, Kimera::Execution::BaselineScreen)
 
   def quietly(streams = Kimera::Execution::StandardStreams.new, &) = streams.quietly(&)
 
