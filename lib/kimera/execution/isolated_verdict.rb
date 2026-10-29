@@ -83,7 +83,7 @@ module Kimera
       end
 
       def verdict(mirror, locations, first: false, slot: nil)
-        Dir.mktmpdir("kimera-ledger") do |dir|
+        dirs.mktmpdir("kimera-ledger") do |dir|
           ledger = File.join(dir, LEDGER)
           seconds = patience(locations)
           exit = launch(mirror, plan.command(mirror, locations, ledger, first: first, slot: slot), dir, seconds)
@@ -105,7 +105,7 @@ module Kimera
       def patience(locations) = Kimera::Execution::Patience.new(limit, timings: plan.timings).longest(locations)
 
       def with_mirror
-        Dir.mktmpdir("kimera-isolated") do |mirror|
+        dirs.mktmpdir("kimera-isolated") do |mirror|
           populate(mirror)
           yield(mirror)
         end

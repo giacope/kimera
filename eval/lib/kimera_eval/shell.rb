@@ -69,8 +69,9 @@ module KimeraEval
     def clock(now = Process.clock_gettime(Process::CLOCK_MONOTONIC)) = now
 
     class Peak
-      def initialize(root)
+      def initialize(root, proc = "/proc")
         @root = root
+        @proc = proc
       end
 
       def sample
@@ -100,7 +101,7 @@ module KimeraEval
       end
 
       def table
-        pairs = Dir.glob("/proc/[0-9]*/stat").flat_map { |path| stat(path) { [] } }
+        pairs = Dir.glob(File.join(@proc, "[0-9]*", "stat")).flat_map { |path| stat(path) { [] } }
         pairs.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |(pid, parent), children|
           children[Integer(parent)] << Integer(pid)
         end
@@ -114,7 +115,7 @@ module KimeraEval
       end
 
       def rss(pid)
-        Integer(File.read("/proc/#{pid}/statm").split[1]) * PAGE
+        Integer(File.read(File.join(@proc, pid.to_s, "statm")).split[1]) * PAGE
       rescue SystemCallError, ArgumentError
         yield
       end

@@ -15,10 +15,10 @@ class Kimera::Overlay::Stitch
     @unsafe = unsafe
   end
 
-  def result
+  def results
     whole = enclosing(weave.rest)
     rewritten = whole&.map { |held| splicer.rewrite(*held) { [] } }
-    stitched(whole, rewritten.flatten(1)) if rewritten&.all?(&:any?)
+    rewritten&.all?(&:any?) ? stitched(whole, rewritten.flatten(1)) : []
   end
 
   private
@@ -29,8 +29,9 @@ class Kimera::Overlay::Stitch
 
   def stitched(whole, rewritten)
     source = spliced(whole, rewritten)
+    return [] unless source
     applied = weave.applied - whole.flat_map(&:last).flat_map(&:ids) + rewritten.flat_map(&:last)
-    splicer.woven(applied, source, whole.map(&:first)).first if source
+    splicer.woven(applied, source, whole.map(&:first))
   end
 
   def spliced(whole, rewritten)

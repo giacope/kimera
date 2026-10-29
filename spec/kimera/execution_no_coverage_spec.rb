@@ -364,7 +364,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     weave = Kimera::Overlay::FileWeave.allocate
     points = %i[a b c d]
     allow(weave).to(receive(:bisect) { |half| half })
-    allow(weave).to(receive(:attempt) { |merged| merged.size <= 2 })
+    allow(weave).to(receive(:attempt) { |merged| merged.size <= 2 ? [:woven] : [] })
 
     expect(weave.__send__(:merge, points, points.size)).to(eq(%i[a b]))
   end

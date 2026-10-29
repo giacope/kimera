@@ -51,7 +51,7 @@ class Kimera::Execution::Pool
 
   def drive(queue, spawner, listeners, jobs: @options.fetch(:jobs))
     database.before_fork
-    Dir.mktmpdir("kimera-stacks") do |dir|
+    @options.fetch(:dirs, Dir).mktmpdir("kimera-stacks") do |dir|
       armed.stacks = Kimera::Execution::StackDump.new(dir)
       Kimera::Execution::WorkerPool.new(
         Kimera::Execution::WorkerPool::Context.new(

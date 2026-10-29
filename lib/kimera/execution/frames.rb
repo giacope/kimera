@@ -15,7 +15,7 @@ class Kimera::Execution::Frames
 
   def own = @frames.take_while { |frame| !frame.start_with?(HARNESS) }
 
-  def lines = @frames.first(MAX_FRAMES).map { |frame| "  #{frame.delete_prefix("#{Dir.pwd}/")}" }
+  def lines(here = Dir.pwd) = @frames.first(MAX_FRAMES).map { |frame| "  #{frame.delete_prefix("#{here}/")}" }
 
   def hidden = @frames.size - MAX_FRAMES
 end

@@ -11,6 +11,7 @@ require_relative "baseline_tally"
 require_relative "worker_pool"
 require_relative "null_progress"
 require_relative "zygote"
+require_relative "standard_streams"
 
 class Kimera::Execution::BaselinePass
   EVERY = :itself.to_proc
@@ -119,18 +120,7 @@ class Kimera::Execution::BaselinePass
 
   def screen(jobs) = Kimera::Execution::BaselineScreen.new(adapter: @adapter, root: root, jobs: jobs)
 
-  def quietly
-    swap = [$stdout, $stderr]
-    silence
-    yield
-  ensure
-    $stdout, $stderr = swap
-  end
-
-  def silence
-    $stdout = StringIO.new
-    $stderr = StringIO.new
-  end
+  def quietly(streams = Kimera::Execution::StandardStreams.new, &) = streams.quietly(&)
 
   def failure!(failed, jobs, ordered = [], messages: tally.messages)
     summary = Kimera::Execution::BaselineFailure::Summary

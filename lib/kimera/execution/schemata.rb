@@ -11,6 +11,7 @@ require_relative "definitions"
 require_relative "overrides"
 require_relative "overlay_guards"
 require_relative "pending_autoload"
+require_relative "standard_streams"
 
 class Kimera::Execution::Schemata
   Woven = Struct.new(:skipped)
@@ -129,14 +130,7 @@ class Kimera::Execution::Schemata
 
   def synth = @_synth ||= Kimera::Overlay.new(@registry)
 
-  def silence(&)
-    original, captured = capture
-    Kimera::Execution::OverlayGuards.new.overlay(&).tap { original.write(captured.string) }
-  ensure
-    $stderr = original
-  end
-
-  def capture
-    [$stderr, $stderr = StringIO.new]
+  def silence(streams = Kimera::Execution::StandardStreams.new, &)
+    streams.holding_errors { Kimera::Execution::OverlayGuards.new.overlay(&) }
   end
 end

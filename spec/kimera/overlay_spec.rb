@@ -25,14 +25,14 @@ RSpec.describe(Kimera::Overlay) do
   # The whole-file weave and its fallbacks: what kimera writes for a file
   # whose guards it can't splice into the source.
   def unspliced
-    allow(Kimera::Overlay::Stitch).to(receive(:new).and_return(instance_double(Kimera::Overlay::Stitch, result: nil)))
+    allow(Kimera::Overlay::Stitch).to(receive(:new).and_return(instance_double(Kimera::Overlay::Stitch, results: [])))
   end
 
   # Every splice of a set of points that holds one on `line` fails.
   def unspliced_at(line)
     allow(Kimera::Overlay::Stitch).to(receive(:new).and_wrap_original) do |build, file, map, points, unsafe|
       build.call(file, map, points, unsafe).tap do |stitch|
-        allow(stitch).to(receive(:result)) if points.any? { |point| point.location.start_line == line }
+        allow(stitch).to(receive(:results).and_return([])) if points.any? { |point| point.location.start_line == line }
       end
     end
   end
@@ -737,7 +737,7 @@ RSpec.describe(Kimera::Overlay) do
     def unweavable
       build = Kimera::Overlay::FileWeave.method(:new)
       allow(Kimera::Overlay::FileWeave).to(receive(:new)) do |*arguments, **options|
-        build.call(*arguments, **options).tap { |weave| allow(weave).to(receive(:attempt).and_return(nil)) }
+        build.call(*arguments, **options).tap { |weave| allow(weave).to(receive(:attempt).and_return([])) }
       end
     end
 

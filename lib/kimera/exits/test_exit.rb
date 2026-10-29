@@ -40,5 +40,5 @@ class Kimera::TestExit
     message == "exit" ? text : "#{text}: #{message}"
   end
 
-  def origin = @error.backtrace.first.delete_prefix("#{Dir.pwd}#{File::SEPARATOR}")
+  def origin(here = Dir.pwd) = @error.backtrace.first.delete_prefix("#{here}#{File::SEPARATOR}")
 end

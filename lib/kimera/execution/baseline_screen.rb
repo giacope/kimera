@@ -38,8 +38,8 @@ class Kimera::Execution::BaselineScreen
 
   private
 
-  def rerun(ids)
-    Dir.mktmpdir("kimera-plain") do |dir|
+  def rerun(ids, dirs = Dir)
+    dirs.mktmpdir("kimera-plain") do |dir|
       out = File.join(dir, "plain.json")
       argv = @adapter.plain(ids, out)
       return ids if argv.empty?

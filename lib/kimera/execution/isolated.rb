@@ -81,6 +81,8 @@ class Kimera::Execution::IsolatedExecution
 
   def watchdog = Kimera::Execution::IsolatedWatchdog.new(limit, poll: @options.fetch(:poll_interval, 0.05))
 
+  def dirs = @options.fetch(:dirs, Dir)
+
   def needed(ids)
     index = plan.registry.index
     plan.suite & ids.flat_map { |id| index.key?(id) ? Array(plan.tests(id, index[id])) : [] }

@@ -34,7 +34,7 @@ class Kimera::RegistryScan
   private
 
   def root = @_root ||= File.expand_path(@base)
-  def located = root == Dir.pwd ? "." : root
+  def located(here = Dir.pwd) = root == here ? "." : root
 
   def own?(path) = Kimera::SelfProtection.new(path).own?
 

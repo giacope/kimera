@@ -140,24 +140,24 @@ RSpec.describe(Kimera::Overlay) do
     def stitched(edits)
       weave = instance_double(Kimera::GuardSplice, rest: [], edits: edits, applied: [7])
       allow(Kimera::GuardSplice).to(receive(:new).and_return(weave))
-      described_class.new("x.rb", Kimera::SourceMap.new("a = 1\n"), [], []).result
+      described_class.new("x.rb", Kimera::SourceMap.new("a = 1\n"), [], []).results
     end
 
     it "writes the edits of the guards it was given", :aggregate_failures do
-      result = stitched([[4, 5, "2"]])
+      result, = stitched([[4, 5, "2"]])
       expect([result.source, result.mutant_ids]).to(eq(["a = 2\n", [7]]))
     end
 
     it "writes nothing for edits that overlap, even ones whose text would parse" do
-      expect(stitched([[4, 5, "2"], [4, 5, "3"]])).to(be_nil)
+      expect(stitched([[4, 5, "2"], [4, 5, "3"]])).to(eq([]))
     end
 
     it "writes nothing whose text does not parse" do
-      expect(stitched([[4, 5, "("]])).to(be_nil)
+      expect(stitched([[4, 5, "("]])).to(eq([]))
     end
 
     it "writes nothing whose edits move the lines after them" do
-      expect(stitched([[4, 5, "(2\n)"]])).to(be_nil)
+      expect(stitched([[4, 5, "(2\n)"]])).to(eq([]))
     end
 
     # A guardrail that cannot write the methods holding these points.
@@ -171,7 +171,7 @@ RSpec.describe(Kimera::Overlay) do
       source = "def m(a) = a > 1\n"
       point = scan(source, %w[comparison]).points.first
       unwritable([point])
-      expect(described_class.new("x.rb", Kimera::SourceMap.new(source), [point], []).result).to(be_nil)
+      expect(described_class.new("x.rb", Kimera::SourceMap.new(source), [point], []).results).to(eq([]))
     end
   end
 

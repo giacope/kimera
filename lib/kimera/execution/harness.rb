@@ -86,7 +86,7 @@ class Kimera::Execution::Harness
 
   def root = options.fetch(:source_root, ".")
 
-  def errors = options.fetch(:errio, $stderr)
+  def errors(standard = $stderr) = options.fetch(:errio, standard)
 
   def isolation = state.isolation ||= options.fetch(:isolation) { Kimera::Execution::Isolation.new }
 

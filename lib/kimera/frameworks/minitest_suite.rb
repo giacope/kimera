@@ -99,9 +99,9 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
 
   def declared(named) = named&.match?(CONSTANT) && Object.const_source_location(named)&.first
 
-  def definition(klass, name)
+  def definition(klass, name, here = Dir.pwd)
     path, line = klass.instance_method(name).source_location
-    [path.delete_prefix("#{Dir.pwd}#{File::SEPARATOR}"), line]
+    [path.delete_prefix("#{here}#{File::SEPARATOR}"), line]
   end
 
   def quote(text) = "'#{text.gsub("'") { "'\\''" }}'"
