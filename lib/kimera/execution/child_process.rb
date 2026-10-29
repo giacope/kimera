@@ -41,8 +41,8 @@ module Kimera
         reap(pid).tap { signal(-pid) }
       end
 
-      def signal(target)
-        Process.kill("KILL", target)
+      def signal(target, processes = Process)
+        processes.kill("KILL", target)
       rescue Errno::ESRCH, Errno::EPERM
         nil
       end

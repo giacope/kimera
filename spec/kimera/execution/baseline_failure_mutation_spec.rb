@@ -9,6 +9,7 @@ require "kimera/execution/callback"
 require "kimera/execution/shift"
 require "kimera/execution/worker_pool"
 require "kimera/incremental/session"
+require "kimera/registry/builder"
 require "kimera/registry/mutation_point"
 require "kimera/results/result"
 require "stringio"
@@ -237,7 +238,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
 
   describe "the isolated runner contract" do
     let(:registry) { Object.new }
-    let(:adapter) { FakeSuite.new(%w[t1 t2]) }
+    let(:adapter) { FakeSuite.new(%w[t1 t2], files: { "t1" => "spec/t1_spec.rb" }) }
     let(:harness) { FakeHarness.new }
     let(:pass) do
       options = {
@@ -282,7 +283,6 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     end
 
     it "finds each test's file through the suite" do
-      allow(adapter).to(receive(:test_file).with("t1").and_return("spec/t1_spec.rb"))
       expect(pass.__send__(:core).fetch(:test_paths).call("t1")).to(eq("spec/t1_spec.rb"))
     end
   end
@@ -320,33 +320,34 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
   end
 
   it "serializes a reload verdict at its process boundary", :aggregate_failures do
-    reload = Kimera::Execution::Reload.allocate
+    verdicts = [[:killed, ["t1"]], [:unmutatable, [], "why"]]
+    reload = Class.new(Kimera::Execution::Reload) { define_method(:evaluate) { |_errand| verdicts.shift } }.allocate
     errand = Kimera::Execution::Reload::Errand.new(7, [], nil, nil)
-    allow(reload).to(receive(:evaluate).with(errand).and_return([:killed, ["t1"]], [:unmutatable, [], "why"]))
     expect(JSON.parse(reload.__send__(:report, errand)))
       .to(match("id" => 7, "status" => "killed", "fails" => ["t1"], "detail" => nil, "ms" => Float, "cover" => []))
     expect(JSON.parse(reload.__send__(:report, errand)))
       .to(match("id" => 7, "status" => "unmutatable", "fails" => [], "detail" => "why", "ms" => Float, "cover" => []))
   end
 
+  # Mutant 1 of the registry, and 999, which it no longer has: the session saved a result and a leak for each.
   describe "a session's pruning" do
+    let(:registry) { Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n", file: "calc.rb") }
+    let(:kept) { registry.each.first.first.id }
     let(:session) do
       result = ->(id) { Kimera::MutantResult.new(mutant_id: id, status: :killed) }
-      leaks = [1, 2].map { |id| Kimera::LeakReport.new(mutant_id: id, detail: id.to_s) }
-      results = { 1 => result.call(1), 2 => result.call(2) }
-      Kimera::Incremental::Session.new(results: results, leaks: leaks).tap do |kept|
-        allow(kept).to(receive(:stale?) { |id, _registry| id == 2 })
-      end
+      leaks = [kept, 999].map { |id| Kimera::LeakReport.new(mutant_id: id, detail: id.to_s) }
+      results = { kept => result.call(kept), 999 => result.call(999) }
+      Kimera::Incremental::Session.new(results: results, leaks: leaks).fingerprinted(registry)
     end
 
     it "drops stale results and the leak records whose result is gone" do
-      pruned = session.pruned(Object.new)
-      expect([pruned.results.keys, pruned.leaks.map(&:mutant_id)]).to(eq([[1], [1]]))
+      pruned = session.pruned(registry)
+      expect([pruned.results.keys, pruned.leaks.map(&:mutant_id)]).to(eq([[kept], [kept]]))
     end
 
     it "leaves the session itself whole" do
-      session.pruned(Object.new)
-      expect(session.results.keys).to(eq([1, 2]))
+      session.pruned(registry)
+      expect(session.results.keys).to(eq([kept, 999]))
     end
   end
 

@@ -54,42 +54,37 @@ RSpec.describe(Kimera::Execution::Pool::Duty) do
     expect(JSON.parse(duty.pipes.res_r.read)).to(include("detail" => "SIGTERM in t1"))
   end
 
+  # Retires a duty on +error+ in a fork that exits 99 if it lives on: what the duty said, and how the fork ended.
   def retired(error)
     duty = duty()
-    allow(duty).to(receive(:exit!))
-    duty.retire(database, error)
-    [duty, JSON.parse(duty.pipes.res_r.read)]
+    pid =
+      fork do
+        duty.retire(database, error)
+      ensure
+        exit!(99)
+      end
+    duty.pipes.res_w.close
+    [JSON.parse(duty.pipes.res_r.read), Process.wait2(pid).last]
   end
 
   it "exits with the code the test process it ran exited with, after saying why", :aggregate_failures do
-    duty, message = retired(Kimera::Execution::Zygote::Died.new("gone", code: 3))
+    message, status = retired(Kimera::Execution::Zygote::Died.new("gone", code: 3))
     expect(message).to(include("t" => "crash", "detail" => "gone"))
-    expect(duty).to(have_received(:exit!).with(3))
+    expect(status.exitstatus).to(eq(3))
   end
 
   it "exits 1 for a test process that died with no code" do
-    duty, = retired(Kimera::Execution::Zygote::Died.new("gone"))
-    expect(duty).to(have_received(:exit!).with(1))
+    _, status = retired(Kimera::Execution::Zygote::Died.new("gone"))
+    expect(status.exitstatus).to(eq(1))
   end
 
-  describe "when the test process it ran died of a signal" do
-    before do
-      allow(Signal).to(receive(:trap))
-      allow(Process).to(receive(:kill))
-    end
-
-    it "dies of the same signal", :aggregate_failures do
-      duty, = retired(Kimera::Execution::Zygote::Died.new("killed", signal: 15))
-      expect(Signal).to(have_received(:trap).with(15, "SYSTEM_DEFAULT"))
-      expect(Process).to(have_received(:kill).with(15, Process.pid))
-      expect(duty).not_to(have_received(:exit!))
-    end
+  it "dies of the signal the test process it ran died of" do
+    _, status = retired(Kimera::Execution::Zygote::Died.new("killed", signal: 15))
+    expect([status.signaled?, status.termsig]).to(eq([true, 15]))
   end
 
   it "lives on after an error that is not a test process's death" do
-    duty = duty()
-    allow(duty).to(receive(:exit!))
-    duty.retire(database, RuntimeError.new("boom"))
-    expect(duty).not_to(have_received(:exit!))
+    _, status = retired(RuntimeError.new("boom"))
+    expect(status.exitstatus).to(eq(99))
   end
 end

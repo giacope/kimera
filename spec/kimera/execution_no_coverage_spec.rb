@@ -29,10 +29,9 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
   end
 
   it "falls back to the original source when audit reprinting fails" do
-    allow(Kimera::Scribe).to(receive(:parse).and_raise(StandardError, "unparseable"))
-    rendering = Kimera::Operators::Audit::Rendering.new("original", "rendered")
+    rendering = Kimera::Operators::Audit::Rendering.new("def (", "rendered")
 
-    expect(rendering.__send__(:reprinted)).to(eq("original"))
+    expect(rendering.__send__(:reprinted)).to(eq("def ("))
     expect(rendering.verdict).to(eq(Kimera::Operators::Audit::OK))
   end
 
@@ -88,10 +87,9 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     expect(silenced_output).to(eq("before|"))
   end
 
-  it "exposes the harness skip map and delegates its spawner to the rig" do
+  it "exposes the harness skip map and hands the rig the spawner it was given" do
     token = Object.new
-    harness = Kimera::Execution::Harness.build(registry: Object.new, adapter: Object.new)
-    harness.instance_variable_set(:@_rig, instance_double(Kimera::Execution::Rig, spawner: token))
+    harness = Kimera::Execution::Harness.build(registry: Object.new, adapter: Object.new, spawner: token)
 
     expect(harness.skipped).to(eq({}))
     expect(harness.__send__(:spawner)).to(equal(token))
@@ -133,7 +131,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     end
   end
 
-  def pool(database: instance_double(Kimera::Execution::WorkerDatabases))
+  def pool(database: FakeDatabases.new)
     Kimera::Execution::Pool.new(
       adapter: Object.new, registry: Object.new, isolation: Object.new,
       coverage: {}, paralleldb: database, soft: 1.0, hard: 2.0, leak: 3, jobs: 1
@@ -141,12 +139,12 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
   end
 
   describe "a pool duty" do
-    let(:shift) { instance_spy(Kimera::Execution::Shift) }
-    let(:response) { instance_spy(IO) }
-    let(:database) { instance_double(Kimera::Execution::WorkerDatabases, before_exit: nil) }
+    let(:shift) { FakeShift.new }
+    let(:database) { FakeDatabases.new }
+    let(:response) { IO.pipe }
 
     def served
-      pipes = instance_double(Kimera::Execution::Pool::Channels, req_r: :request, res_w: response)
+      pipes = Kimera::Execution::Pool::Channels.new(:request, nil, nil, response.last)
       Kimera::Execution::Pool::Duty.new(:coverage, 4, pipes).tap do |duty|
         duty.run(shift)
         duty.finish(database, nil)
@@ -155,79 +153,80 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
 
     it "serves its errand through the shift" do
       served
-      expect(shift).to(have_received(:coverage).with(:request, response))
+      expect(shift.served).to(eq([[:coverage, :request, response.last]]))
     end
 
     it "tells the databases its worker exits" do
       served
-      expect(database).to(have_received(:before_exit).with(4))
+      expect(database.exited).to(eq([4]))
     end
 
     it "closes its response pipe without writing to it" do
       served
-      expect(response).to(have_received(:close))
-      expect(response).not_to(have_received(:puts))
+      expect([response.last.closed?, response.first.read]).to(eq([true, ""]))
     end
   end
 
-  describe "a pool child's boot" do
-    let(:database) { instance_double(Kimera::Execution::WorkerDatabases, after_fork: nil, before_exit: nil) }
-    let(:runner) do
-      pool(database: database).tap { |child| allow(child).to(receive_messages(silence!: nil, exit!: nil)) }
-    end
-    let(:pipes) { instance_spy(Kimera::Execution::Pool::Channels) }
-    let(:duty) { instance_spy(Kimera::Execution::Pool::Duty, pipes: pipes, index: 5) }
+  # Read in the parent, what a duty wrote down in the worker the block forks.
+  def noted(notes)
+    reader, writer = notes
+    pid = yield
+    writer.close
+    [reader.readlines(chomp: true).map { |line| JSON.parse(line) }, Process.wait2(pid).last.exitstatus]
+  end
 
-    def booted = runner.__send__(:boot, duty)
+  describe "a pool child's boot" do
+    let(:database) { FakeDatabases.new }
+    let(:notes) { IO.pipe }
+    let(:duty) { FakeDuty.new(5, notes.last) }
+
+    # Boots worker 5 in a fork that exits 1 unless the boot exits first.
+    def booted
+      runner = pool(database: database)
+      noted(notes) do
+        fork do
+          runner.__send__(:boot, duty)
+        ensure
+          exit!(1)
+        end
+      end
+    end
 
     it "takes the child's pipe ends and silences it" do
-      booted
-      expect(pipes).to(have_received(:child!))
-      expect(runner).to(have_received(:silence!))
+      seen = nil
+      expect([descriptor_one { seen = booted }, seen.first.first.last(2)]).to(eq(["", [true, true]]))
     end
 
-    it "gives the worker its database" do
-      booted
-      expect(database).to(have_received(:after_fork).with(5))
-    end
-
-    it "runs the duty through a shift and always retires it" do
-      booted
-      expect(duty).to(have_received(:run).with(instance_of(Kimera::Execution::Shift)))
-      expect(duty).to(have_received(:retire).with(database, nil))
+    it "gives the worker its database, runs the duty through a shift and always retires it" do
+      notes, = booted
+      expect(notes).to(eq([["run", "Kimera::Execution::Shift", false, true, true], ["retire", [5], nil, nil]]))
     end
 
     it "exits cleanly" do
-      booted
-      expect(runner).to(have_received(:exit!).with(0))
+      expect(booted.last).to(eq(0))
     end
 
     it "builds a shift for the duty" do
-      expect(runner.__send__(:build, duty)).to(be_a(Kimera::Execution::Shift))
+      expect(pool.__send__(:build, duty)).to(be_a(Kimera::Execution::Shift))
     end
 
     # R4-KR1: a parallelize_setup hook raised before the worker could say a word.
-    def unprepared
-      allow(database).to(receive(:after_fork).and_raise(RuntimeError, "search index unavailable"))
-      retired = []
-      allow(duty).to(receive(:retire)) { |_database, error| retired << error }
-      booted
+    def unprepared(database)
+      said = StringIO.new
+      pool(database: database).__send__(:serve, FakeDuty.new(5, said))
     rescue Kimera::Execution::Pool::Unprepared => error
-      [error, *retired]
+      [error, said.string.lines.map { |line| JSON.parse(line) }]
     end
 
     it "retires a worker whose after-fork setup raised with what it raised", :aggregate_failures do
-      raised, retired = unprepared
-      expect([raised, retired.class]).to(eq([retired, Kimera::Execution::Pool::Unprepared]))
-      expect(retired.headline).to(eq("worker 5's after-fork setup raised RuntimeError: search index unavailable"))
-      expect(duty).not_to(have_received(:run))
+      raised, notes = unprepared(FakeDatabases.new { raise(RuntimeError, "search index unavailable") })
+      expect(raised.headline).to(eq("worker 5's after-fork setup raised RuntimeError: search index unavailable"))
+      expect(notes).to(eq([["retire", [5], "Kimera::Execution::Pool::Unprepared", raised.message]]))
     end
 
     it "keeps the setup error's backtrace" do
-      allow(database).to(receive(:after_fork)) { raise(ScriptError, "x") }
-      booted
-    rescue Kimera::Execution::Pool::Unprepared => error
-      expect(error.backtrace.first).to(include(__FILE__))
+      raised, = unprepared(FakeDatabases.new { raise(ScriptError, "x") })
+      expect(raised.backtrace.first).to(include(__FILE__))
     end
   end
 
@@ -239,43 +238,31 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
   end
 
   it "hands the shift a pulse that ticks through the worker's duty" do
-    duty = instance_spy(Kimera::Execution::Pool::Duty)
-    pool.__send__(:pulse, duty).call
-    expect(duty).to(have_received(:pulse))
+    said = StringIO.new
+    pool.__send__(:pulse, FakeDuty.new(1, said)).call
+    expect(said.string).to(eq("[\"pulse\"]\n"))
   end
-
-  def forking(child, pid) = child.tap { allow(child).to(receive(:fork).and_yield.and_return(pid)) }
 
   # Leading its own process group, the worker takes what its tests start
   # down with it when it is killed.
   it "boots a pool duty inside the fork block, as the leader of a process group" do
-    runner = forking(pool, 123)
-    allow(runner).to(receive(:lead))
-    allow(runner).to(receive(:boot)) { expect(runner).to(have_received(:lead)) }
-    expect(runner.__send__(:spawn, :duty)).to(eq(123))
-    expect(runner).to(have_received(:boot).with(:duty))
+    notes = IO.pipe
+    seen, status = noted(notes) { pool.__send__(:spawn, FakeDuty.new(5, notes.last)) }
+    expect([seen.first.take(3), status]).to(eq([["run", "Kimera::Execution::Shift", true], 0]))
   end
 
   describe "a reload errand" do
-    let(:reader) { instance_spy(IO) }
-    let(:writer) { instance_spy(IO) }
-
+    # An errand on a real pipe, emitted from the child's side: which ends it closed, and what a second
+    # copy of the parent's end reads.
     def emitted
-      Kimera::Execution::Reload::Errand.new(8, [], reader, writer).tap do |errand|
-        errand.child!
-        errand.emit("payload")
-      end
+      reader, writer = IO.pipe
+      kept = reader.dup
+      Kimera::Execution::Reload::Errand.new(8, [], reader, writer).tap(&:child!).emit("payload")
+      [reader.closed?, writer.closed?, kept.read]
     end
 
-    it "closes the parent's end in the child" do
-      emitted
-      expect(reader).to(have_received(:close))
-    end
-
-    it "writes its payload and closes its own end" do
-      emitted
-      expect(writer).to(have_received(:puts).with("payload"))
-      expect(writer).to(have_received(:close))
+    it "closes the parent's end in the child, writes its payload and closes its own end" do
+      expect(emitted).to(eq([true, true, "payload\n"]))
     end
 
     it "flushes each tick straight to the parent" do
@@ -290,46 +277,57 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     let(:reload) do
       Kimera::Execution::Reload.new(registry: Object.new, adapter: Object.new, isolation: Object.new, workspace: nil)
     end
-    let(:errand) { instance_spy(Kimera::Execution::Reload::Errand, id: 9) }
 
+    # An errand on a real pipe whose child side first says whether the child leads its own process group,
+    # and prints to standard output before it emits, as tests do.
+    let(:errand) do
+      Class.new(Kimera::Execution::Reload::Errand) do
+        def child!
+          super
+          writer.puts(Process.getpgrp == Process.pid ? "leader" : "member")
+        end
+
+        def emit(payload)
+          $stdout.print("loud")
+          $stdout.flush
+          super
+        end
+      end.new(9, [], *IO.pipe)
+    end
+
+    # The reload child of the errand: whether the parent's writer is closed, what the child wrote (until the
+    # pipe closes, or 10 s), and how it exited.
     def worked
-      allow(reload).to(receive_messages(lead: nil, silence!: nil, exit!: nil, report: "result"))
-      reload.__send__(:work, errand)
+      pid = reload.__send__(:child, errand)
+      said = Timeout.timeout(10) { errand.reader.readlines(chomp: true) }
+      [errand.writer.closed?, said, Process.wait2(pid).last.exitstatus]
     end
 
     it "leads its process group before it takes the child's pipe ends" do
-      allow(errand).to(receive(:child!)) { expect(reload).to(have_received(:lead)) }
-      worked
-      expect(errand).to(have_received(:child!))
+      expect(worked[1].first).to(eq("leader"))
     end
 
     it "silences the child and emits the report on its errand" do
-      worked
-      expect(reload).to(have_received(:silence!))
-      expect(reload).to(have_received(:report).with(errand))
-      expect(errand).to(have_received(:emit).with("result"))
+      lines = nil
+      expect(descriptor_one { _, lines, = worked }).to(eq(""))
+      expect(JSON.parse(lines.last)).to(include("id" => 9, "status" => "error"))
     end
 
     it "exits cleanly" do
-      worked
-      expect(reload).to(have_received(:exit!).with(0))
+      expect(worked.last).to(eq(0))
     end
 
     # The child leads its own process group, so the terminal's Ctrl-C never
     # reaches it: an interrupted kimera kills and reaps it on the way out.
     it "takes a reload child down with it when kimera is interrupted" do
       pid = fork { sleep(300) }
-      allow(errand).to(receive(:await).and_raise(Interrupt))
-      expect { Timeout.timeout(10) { reload.__send__(:hear, errand, pid, 1.0) } }.to(raise_error(Interrupt))
+      interrupted = Class.new(Kimera::Execution::Reload::Errand) { def await(_deadline, &) = raise(Interrupt) }.new
+      expect { Timeout.timeout(10) { reload.__send__(:hear, interrupted, pid, 1.0) } }.to(raise_error(Interrupt))
       expect { Process.kill(0, pid) }.to(raise_error(Errno::ESRCH))
     end
 
     it "runs inside the fork block before closing the parent writer" do
-      forking(reload, 456)
-      allow(reload).to(receive(:work))
-      expect(reload.__send__(:child, errand)).to(eq(456))
-      expect(reload).to(have_received(:work).with(errand))
-      expect(errand).to(have_received(:parent!))
+      expect(worked.first).to(be(true))
     end
   end
 
@@ -362,12 +360,11 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     end
   end
 
-  it "backs out merged weave points until the combined render succeeds" do
-    weave = Kimera::Overlay::FileWeave.allocate
-    points = %i[a b c d]
-    allow(weave).to(receive(:bisect) { |half| half })
-    allow(weave).to(receive(:attempt) { |merged| merged.size <= 2 ? [:woven] : [] })
+  # A weave whose points stitch together two at a time at most.
+  def pairwise = Class.new(Kimera::Overlay::FileWeave) { def attempt(points) = points.size <= 2 ? [:woven] : [] }
 
-    expect(weave.__send__(:merge, points, points.size)).to(eq(%i[a b]))
+  it "backs out merged weave points until the combined render succeeds" do
+    points = %i[a b c d]
+    expect(pairwise.allocate.__send__(:merge, points, points.size)).to(eq(%i[a b]))
   end
 end

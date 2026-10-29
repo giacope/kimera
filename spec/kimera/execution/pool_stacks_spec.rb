@@ -13,8 +13,7 @@ RSpec.describe(Kimera::Execution::Pool) do
     RUBY
   end
 
-  def driver(jobs: 2)
-    databases = Kimera::Execution::WorkerDatabases.new(jobs: jobs)
+  def driver(jobs: 2, databases: Kimera::Execution::WorkerDatabases.new(jobs: jobs))
     described_class.new(
       adapter: nil, registry: registry, isolation: Kimera::Execution::Isolation.new, jobs: jobs,
       hard: 5.0, soft: nil, leak: 0, paralleldb: databases
@@ -73,20 +72,28 @@ RSpec.describe(Kimera::Execution::Pool) do
     end
   end
 
-  # A driver with this stack dump, whose spawn forks inline.
-  def arming(stacks)
-    driver.tap do |pool|
-      pool.__send__(:armed).stacks = stacks
-      allow(pool).to(receive_messages(lead: nil))
-      allow(pool).to(receive(:fork).and_yield.and_return(7))
-    end
+  # A stack dump that writes down on +notes+ that a worker armed it.
+  def armed(notes)
+    Struct.new(:notes) do
+      def arm!
+        notes.puts(JSON.generate(["armed"]))
+        notes.flush
+      end
+    end.new(notes)
   end
 
-  it "arms the stack dump inside the fork, before the worker boots", :aggregate_failures do
-    stacks = instance_spy(Kimera::Execution::StackDump)
-    pool = arming(stacks)
-    allow(pool).to(receive(:boot)) { expect(stacks).to(have_received(:arm!)) }
-    expect(pool.__send__(:spawn, :duty)).to(eq(7))
-    expect(pool).to(have_received(:boot).with(:duty))
+  # A pool whose workers' stack dump writes down on +notes+ that a worker armed it.
+  def arming(notes) = driver(databases: FakeDatabases.new).tap { |pool| pool.__send__(:armed).stacks = armed(notes) }
+
+  # What a worker the pool spawns writes down on a pipe: its stack dump, then its duty; and how it exited.
+  def spawned
+    reader, writer = IO.pipe
+    pid = arming(writer).__send__(:spawn, FakeDuty.new(1, writer))
+    writer.close
+    [reader.readlines(chomp: true).map { |line| JSON.parse(line).first }, Process.wait2(pid).last.exitstatus]
+  end
+
+  it "arms the stack dump inside the fork, before the worker boots" do
+    expect(spawned).to(eq([%w[armed run retire], 0]))
   end
 end

@@ -353,7 +353,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   def spurious(response)
     woken = false
     read = response.method(:read_nonblock)
-    allow(response).to(receive(:read_nonblock)) do |*arguments, **options|
+    response.define_singleton_method(:read_nonblock) do |*arguments, **options|
       next read.call(*arguments, **options) if woken
       woken = true
       :wait_readable

@@ -239,7 +239,9 @@ RSpec.describe(Kimera::Execution::Schemata) do
 
     # Synthesis can raise, as on a node kimera can't write.
     def unparseable(loader)
-      allow(loader.__send__(:synth)).to(receive(:synthesize).and_wrap_original) do |original, file, source|
+      synth = loader.__send__(:synth)
+      original = synth.method(:synthesize)
+      synth.define_singleton_method(:synthesize) do |file, source|
         raise(ArgumentError, "kimera cannot write a foo node") if file == "sl_synth_bad.rb"
 
         original.call(file, source)

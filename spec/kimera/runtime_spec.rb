@@ -340,15 +340,6 @@ RSpec.describe(Kimera::Runtime) do
       expect(owner.public_method_defined?(:shown)).to(be(true))
     end
 
-    # Counts the walks of the object space in the block.
-    def walks
-      count = 0
-      counted = ->(walk, *kinds, &each) { (count += 1) && walk.call(*kinds, &each) }
-      allow(ObjectSpace).to(receive(:each_object).and_wrap_original(&counted))
-      yield
-      count
-    end
-
     it "finds the holders of a flip no fork has surveyed on its first switch, and keeps them" do
       holders = aliased
       walked = walks { [7, nil, 7].each { runtime.active = it } }

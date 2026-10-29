@@ -65,13 +65,24 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       Kimera::Execution::IsolatedWatchdog.new(hard_timeout, poll: poll_interval)
     end
 
+    # One look at a child still running, polled every +poll+ seconds: what the look answered, and how long it took.
+    def looked(poll)
+      pid = Process.spawn("sleep", "30", pgroup: true)
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      pulse = Kimera::Execution::IsolatedPulse.new(File::NULL, 5.0).observed
+      step = test_invoke_private(watchdog(hard_timeout: 5.0, poll_interval: poll), :attempt, pid, pulse)
+      [step, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started].tap { test_wedged_end(pid) }
+    end
+
+    def test_wedged_end(pid)
+      Process.kill("KILL", -pid)
+      Process.wait(pid)
+    end
+
     it "honors the polling boundary while a child is still running", :aggregate_failures do
-      r = watchdog(hard_timeout: 5.0, poll_interval: 0.0125)
-      allow(Process).to(receive(:waitpid2).and_return([nil, nil]))
-      allow(r).to(receive(:sleep))
-      expect(test_invoke_private(r, :attempt, 123, instance_double(Kimera::Execution::IsolatedPulse, expired?: false)))
-        .to(eq(:continue))
-      expect(r).to(have_received(:sleep).with(0.0125))
+      step, elapsed = looked(0.2)
+      expect(step).to(eq(:continue))
+      expect(elapsed).to(be_between(0.2, 2.0))
     end
 
     it "returns the exit status of a child that finishes in time" do
@@ -119,11 +130,19 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       expect(witness.outlived?).to(be(false))
     end
 
+    # Interrupts this thread, as Ctrl-C does, after +seconds+.
+    def interrupt_after(seconds)
+      Thread.new(Thread.current) do |waiting|
+        sleep(seconds)
+        waiting.raise(Interrupt)
+      end
+    end
+
     # The child leads its own process group, so the terminal's Ctrl-C never
     # reaches it: an interrupted kimera kills and reaps it on the way out.
     it "takes a child's group down with it when kimera is interrupted", :aggregate_failures do
       pid = Process.spawn("sleep", "300", pgroup: true, out: File::NULL)
-      allow(Process).to(receive(:waitpid2).and_raise(Interrupt))
+      interrupt_after(0.2)
       expect { Timeout.timeout(10) { watchdog(hard_timeout: 5.0).waitfor(pid) } }.to(raise_error(Interrupt))
       expect { Process.kill(0, pid) }.to(raise_error(Errno::ESRCH))
     end
@@ -134,7 +153,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     # waitpid blocks until the wedged child exits on its own.
     def timeout
       r = runner(hard_timeout: 0.3)
-      allow(r.__send__(:plan)).to(receive(:command).and_return([{}, %w[sleep 30]]))
+      r.__send__(:plan).define_singleton_method(:command) { |*, **| [{}, %w[sleep 30]] }
       Dir.mktmpdir do |mirror|
         started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         [test_invoke_private(r, :verdict, mirror, []).status, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started]
@@ -485,32 +504,34 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     # Evaluates mutant +id+ in a mirror of +root+; returns its result and the
     # mirror's calc.rb afterward.
-    def test_mirrored(runner, root, id)
+    def test_mirrored(runner, root, id, synth = Kimera::Overlay.new(registry))
       Dir.mktmpdir do |mirror|
         FileUtils.cp_r(File.join(root, "calc.rb"), File.join(mirror, "calc.rb"))
-        trial = Kimera::Execution::Trial.new(id, mirror, Kimera::Overlay.new(registry))
+        trial = Kimera::Execution::Trial.new(id, mirror, synth)
         [test_invoke_private(runner, :evaluate, trial), File.read(File.join(mirror, "calc.rb"))]
       end
     end
 
-    # Its verdict records the bake it saw (and whether it was the first), and kills.
+    # Its verdict records the bake it saw (and whether it was the first), and kills; unless it pauses, its clock
+    # reads 10.0, then 12.5.
     def test_baker(root, id, sink, pause, quality)
+      readings = [10.0, 12.5]
       Class.new(described_class) do
         define_method(:verdict) do |mirror, _locations, first: false, **|
           sink << [File.read(File.join(mirror, "calc.rb")), first]
           sleep(pause) if pause
           Kimera::Execution::IsolatedOutcome.new(:killed, ["t1[1:1]"])
         end
+        define_method(:now) { |*| readings.shift } unless pause
       end.new(registry: registry, root: root, tests: ["t1"], coverage: { id => ["t1"] }, **quality)
     end
 
-    def test_baking_evaluate(id, pause: nil, quality: {})
+    def test_baking_evaluate(id, pause: nil, quality: {}, synth: Kimera::Overlay.new(registry))
       baked = []
       Dir.mktmpdir do |root|
         File.write(File.join(root, "calc.rb"), test_source_fixture)
         runner = test_baker(root, id, baked, pause, quality)
-        allow(runner).to(receive(:now).and_return(10.0, 12.5)) unless pause
-        result, restored = test_mirrored(runner, root, id)
+        result, restored = test_mirrored(runner, root, id, synth)
         [result, baked.first, restored]
       end
     end
@@ -560,10 +581,19 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       expect(result.detail).to(eq("RuntimeError: boom"))
     end
 
+    # An overlay that cannot write the bake its writer printed.
+    def unwritable
+      Class.new do
+        def bake(*)
+          raise(Kimera::Overlay::Unbakeable, "kimera could not write its bake (KeyError: key not found: :lvar)")
+        end
+      end.new
+    end
+
     # The mirror keeps its copy, and the mutant gets no :error, which counts as killed.
+
     it "reports :unmutatable, with the reason, for a mutant kimera can't bake", :aggregate_failures do
-      allow(Kimera::Scribe).to(receive(:new).and_raise(KeyError, "key not found: :lvar"))
-      result, baked, restored = test_baking_evaluate(first)
+      result, baked, restored = test_baking_evaluate(first, synth: unwritable)
       expect([result.status, result.file, result.covering_tests]).to(eq([:unmutatable, "calc.rb", ["t1"]]))
       expect(result.detail).to(eq("unmutatable: kimera could not write its bake (KeyError: key not found: :lvar)"))
       expect([baked, restored]).to(eq([nil, test_source_fixture]))

@@ -2,6 +2,7 @@
 
 require "fileutils"
 require "kimera/execution/stack_dump"
+require "timeout"
 require "tmpdir"
 
 # In-process: the spec arms its own process and signals itself, so the dump
@@ -27,9 +28,8 @@ RSpec.describe(Kimera::Execution::StackDump) do
     end
   end
 
-  def thread(name, frames: [], status: "sleep")
-    instance_double(Thread, backtrace: frames, status: status, name: name)
-  end
+  # A thread as the dump reads one: its name, its frames and its status.
+  def thread(name, frames: [], status: "sleep") = Struct.new(:name, :backtrace, :status).new(name, frames, status)
 
   def interrupted = armed { dump.take(Process.pid) }
 
@@ -152,17 +152,46 @@ RSpec.describe(Kimera::Execution::StackDump) do
   # A worker in the pool's own process group gets the signal alone; only a
   # worker that leads its own group has the group signalled.
   describe "asking a worker" do
-    let!(:member) { fork { sleep(5) } }
-    let!(:leader) { fork { sleep(5) }.tap { |pid| Process.setpgid(pid, pid) } }
+    # Built before the forks, so every child writes to the parent's pipes.
+    let!(:ready) { IO.pipe }
+    let!(:heard) { IO.pipe }
 
-    after { [member, leader].each { |pid| Process.kill("KILL", pid) && Process.wait(pid) } }
+    after { Process.waitall }
 
-    it "signals a process in this group alone, and a group leader's whole group", :aggregate_failures do
-      allow(Process).to(receive(:kill).and_call_original)
-      allow(Process).to(receive(:kill).with(described_class::SIGNAL, anything))
-      [member, leader].each { |pid| dump.__send__(:ask, pid) }
-      expect(Process).to(have_received(:kill).with(described_class::SIGNAL, member))
-      expect(Process).to(have_received(:kill).with(described_class::SIGNAL, -leader))
+    # In a child: says +name+ on the heard pipe when the dump's signal comes, and exits; gives up after 10 s.
+    def listen(name)
+      Signal.trap(described_class::SIGNAL) do
+        heard.last.puts(name)
+        exit!(0)
+      end
+      ready.last.puts(name)
+      sleep(10)
+      exit!(1)
+    end
+
+    # In a child: leads a group of its own, with a child of its own in it.
+    def family
+      Process.setpgid(0, 0)
+      fork { listen("grandchild") }
+      listen("leader")
+    end
+
+    # A process in this group, and a group leader with a child of its own; the names of those that heard.
+    def asked
+      workers = [fork { listen("member") }, fork { family }]
+      3.times { ready.first.gets }
+      workers.each { |pid| dump.__send__(:ask, pid) }
+      names
+    end
+
+    # The names the listeners said, once every one has exited.
+    def names
+      heard.last.close
+      Timeout.timeout(15) { heard.first.readlines(chomp: true).sort }
+    end
+
+    it "signals a process in this group alone, and a group leader's whole group" do
+      expect(asked).to(eq(%w[grandchild leader member]))
     end
   end
 end
