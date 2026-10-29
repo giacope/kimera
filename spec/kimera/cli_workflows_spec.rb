@@ -160,6 +160,14 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     expect(error.string).to(eq(""))
   end
 
+  it "counts the default source scope when the configuration names no paths" do
+    project(
+      "app/thing.rb" => "class Thing; end\n", "lib/tool.rb" => "class Tool; end\n", ".kimera.yml" => "tests: []\n"
+    )
+    doctor
+    expect(out.string).to(include("✓ Source scope: 2 Ruby files"))
+  end
+
   def test_doctor_floor(helper)
     Dir.mktmpdir do |dir|
       FileUtils.mkdir_p(File.join(dir, "spec"))

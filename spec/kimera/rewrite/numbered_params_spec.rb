@@ -62,4 +62,10 @@ RSpec.describe(Kimera::Rewrite::NumberedParams) do
     expect(result.mutant_ids).not_to(be_empty)
     expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
   end
+
+  it "tells text that spells kimera's name for a numbered parameter from the source's own", :aggregate_failures do
+    spelling = ->(text) { Kimera::Rewrite::NumberedParams::Spelling.new(text).renamed? }
+    expect([spelling.call("x(__kimera_1)"), spelling.call("x(__kimera_it)")]).to(eq([true, true]))
+    expect(%w[x(_1) x(it) x(__kimera_10)].map(&spelling)).to(eq([false, false, false]))
+  end
 end

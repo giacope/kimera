@@ -45,6 +45,15 @@ RSpec.describe(Kimera::Execution::Aliases) do
     expect(aliased.new.cost(1)).to(eq(4))
   end
 
+  # An alias whose method its holder no longer has is no alias to re-point.
+  it "follows no alias whose method is gone from its holder" do
+    origin = costing.first.tap { |declaring| declaring.remove_method(:price) }
+    aliases = described_class.new([path]).tap { |tracker| tracker.follow { overlay(origin) } }
+    definition = origin.instance_method(:price)
+    aliases.witness([Kimera::Execution::Overrides::Held.new(origin, :price, definition, :public, nil)])
+    expect(aliases.reaches?(definition)).to(be(false))
+  end
+
   describe "an alias's visibility" do
     let(:aliased) do
       origin = declared

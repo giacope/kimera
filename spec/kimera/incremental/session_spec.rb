@@ -133,6 +133,13 @@ RSpec.describe(Kimera::Incremental::Session) do
       expect(resumed.done?(id)).to(be(false))
     end
 
+    it "drops a stored result whose id the registry no longer has" do
+      origin = registry("def m(a, b)\n  a > b\nend\n")
+      id = first(origin)
+      path = seed(dir, report([result(id, :killed)]), registry: origin)
+      expect(described_class.from(path).pruned(Kimera::Registry.new).done?(id)).to(be(false))
+    end
+
     it "drops leaks whose result was dropped as stale" do
       id = first(registry("def m(a, b)\n  a > b\nend\n"))
       leak = Kimera::LeakReport.new(mutant_id: id, detail: "leaked")

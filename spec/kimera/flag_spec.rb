@@ -34,6 +34,12 @@ RSpec.describe(Kimera::Flag) do
     end
   end
 
+  it "equals only another flag with the same signature, key and mode", :aggregate_failures do
+    flag = described_class.build("--name NAME", :value, "help")
+    expect(flag).to(eq(described_class.build("--name NAME", :value, "help")))
+    expect(flag).not_to(eq(flag.to_h))
+  end
+
   describe "FlagTable#parse" do
     it "turns a mistyped flag into a UsageError pointing at the command's help" do
       table = Kimera::FlagTable.new(banner: "Usage: kimera baseline create REPORT [options]", flags: [])

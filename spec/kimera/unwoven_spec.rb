@@ -37,6 +37,12 @@ RSpec.describe(Kimera::Unwoven) do
       .to(be(false))
   end
 
+  # Two methods on one line: each is matched by its name, not the first of its kind there.
+  it "finds a method among others of its kind on its line by its name" do
+    source = "def a = 1; def b = 2\n"
+    expect(described_class.new(tree(source)).keeps?([tree(source).statements.body.last])).to(be(true))
+  end
+
   def glyph(text) = "# encoding: binary\ndef glyph = #{text}\n"
 
   it "refuses a string written in another encoding (R6B4-M3)" do

@@ -626,6 +626,11 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       without("NO_COLOR") { expect(uncolored).to(eq("x")) }
     end
 
+    # Told not to color, it never asks the stream whether it is a terminal, so a closed one paints plainly.
+    it "paints plainly on a closed stream it was told not to color" do
+      expect(Kimera::Report::Palette.new(File.open(File::NULL, "w") { it }, false).bold("x")).to(eq("x"))
+    end
+
     it "reports zero-time and positive-time rates and ETAs" do
       tally = Kimera::Report::Tally.new(4, "mutants", 10.0)
       tally.count!(:killed)

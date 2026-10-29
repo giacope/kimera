@@ -525,6 +525,12 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       }.merge(over)
     end
 
+    it "names the files relative to the source root" do
+      FileUtils.mkdir_p(File.join(dir, "sub"))
+      File.write(File.join(dir, "sub", "calc.rb"), "def m(a, b)\n  a > b\nend\n")
+      expect(sources.load(options(paths: ["sub/calc.rb"], source_root: "sub")).files).to(eq(["calc.rb"]))
+    end
+
     it "builds a registry from source files" do
       registry = sources.load(options)
       expect(registry.files).to(eq(["calc.rb"]))
@@ -570,6 +576,13 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     def emission(dir)
       json = File.join(dir, "report.json")
       [emitted(json), json]
+    end
+
+    it "prints the hints of an unsaved report when no path is given" do
+      survived = Kimera::MutantResult.new(mutant_id: registry.each.first.first.id, status: :survived, file: "x.rb")
+      report = Kimera::RunReport.new(results: [survived], registry: registry)
+      out = captured { Kimera::CLI::Run::Emission.new.emit(report, registry, format: "text") }
+      expect(out).to(include("run without --no-report to save one"))
     end
 
     it "prints the text report and writes JSON when a path is given" do

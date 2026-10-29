@@ -30,6 +30,12 @@ RSpec.describe(Kimera::Incremental::Fingerprint) do
 
   def digest(body) = Digest::SHA256.hexdigest(body)
 
+  # `git rev-parse HEAD` in a repository with no commit prints "HEAD" and fails.
+  it "records no commit for a repository without one" do
+    git("init", "-q")
+    expect(fingerprint["commit"]).to(eq(""))
+  end
+
   it "digests the sources it is given, by path" do
     expect(fingerprint["sources"]).to(eq("lib/a.rb" => digest("1")))
   end

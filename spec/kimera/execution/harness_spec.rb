@@ -1080,6 +1080,13 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(worker_id(1)).to(be_nil)
     end
 
+    # Rails before 6 has no parallel_worker_id; the worker goes on without one.
+    it "leaves a Rails without parallel_worker_id as it is" do
+      stub_const("ActiveSupport::TestCase", Class.new)
+      stub(after: ->(_i) {})
+      expect { database(jobs: 2).after_fork(4) }.not_to(raise_error)
+    end
+
     # Without its slot index, a child loses its own test database.
     def slot
       parallelization(true)

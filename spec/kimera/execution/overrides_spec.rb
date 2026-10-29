@@ -49,6 +49,16 @@ RSpec.describe(Kimera::Execution::Overrides) do
       .to(contain_exactly([:total, own], [:make, own], [:build, own]))
   end
 
+  # A method the file defines on another object is that object's: the class's
+  # own, of the same name, is not the file's to put back.
+  def tallying = "class OverridesOrder\n  def OverridesTally.make = :tally\nend\n"
+
+  it "puts back no method of the class's own for one the file defines on another object" do
+    evaluate(OverridesOrder, "def self.make = :later", later)
+    _, displaced = described_class.new(own, tallying).keep { evaluate(OverridesOrder, "def self.make = :own", own) }
+    expect([OverridesOrder.make, displaced]).to(eq([:own, []]))
+  end
+
   # R6B4-M7: a memoizer in another file (unparser's Adamantium `memoize`)
   # replaces the method with one that calls the original it captured at load,
   # so the overlaid method is never reached warm.
