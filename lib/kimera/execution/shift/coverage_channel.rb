@@ -3,7 +3,16 @@
 require_relative "../stopwatch"
 
 class Kimera::Execution::Shift::CoverageChannel
-  Reading = Data.define(:passed, :touched, :failure, :took)
+  class Reading
+    def initialize(passed, touched, failure, took)
+      @passed = passed
+      @touched = touched
+      @failure = failure
+      @took = took
+    end
+
+    def to_h = { passed: @passed, touched: @touched, failure: @failure, took: @took }
+  end
 
   def initialize(adapter, zygote:)
     @adapter = adapter

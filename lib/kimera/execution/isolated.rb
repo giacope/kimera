@@ -37,7 +37,7 @@ class Kimera::Execution::IsolatedExecution
     return if tests.empty?
     progress.note("isolated baseline (unmutated mirror)")
     outcome = with_mirror { |mirror| verdict(mirror, tests) }
-    return if outcome.status == :survived
+    return if outcome.survived?
     mirror = Kimera::Execution::BaselineFailure::Mirror.new(outcome.explain, plan)
     raise(Kimera::Execution::BaselineFailure, mirror.to_s)
   end

@@ -61,12 +61,12 @@ RSpec.describe(Kimera::Execution::Shift::Deadline) do
       expect(guard.overran?("t1", 0.2)).to(be(false))
     end
 
-    it "holds the budget it checks against" do
-      expect(deadline([], budget).budget).to(be(budget))
+    it "explains an overrun through the budget it checks against" do
+      expect(deadline([], budget).explain("t1", [0.3, 0.4], 0.1)).to(eq(budget.explain("t1", [0.3, 0.4], 0.1)))
     end
 
     it "has no budget unless given one" do
-      expect(described_class.build(5.0).budget.exceeded?("t1", Float::MAX)).to(be(false))
+      expect(described_class.build(5.0).overran?("t1", Float::MAX)).to(be(false))
     end
   end
 end

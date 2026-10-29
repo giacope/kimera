@@ -8,8 +8,6 @@ end
 class Kimera::Execution::IsolatedPlan; end
 
 class Kimera::Execution::IsolatedPlan::TestSelection
-  attr_reader :all
-
   def initialize(all_tests:, coverage:)
     @all = all_tests
     @coverage = coverage

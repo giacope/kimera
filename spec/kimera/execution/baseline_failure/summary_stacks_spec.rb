@@ -5,7 +5,7 @@ require "kimera/execution/baseline_losses"
 
 # What a red baseline says about a test lost with its worker.
 RSpec.describe(Kimera::Execution::BaselineFailure::Summary) do
-  def context(stacks) = described_class::SERIAL.with(stacks: stacks)
+  def context(stacks) = described_class::Context.new(workers: {}, stacks: stacks, jobs: 1, ordered: [])
 
   it "prints a lost test's stacks in full, after its truncated message", :aggregate_failures do
     stacks = "threads:\n#{"frame\n" * 80}end"

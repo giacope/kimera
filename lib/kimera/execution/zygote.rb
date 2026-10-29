@@ -17,8 +17,6 @@ class Kimera::Execution::Zygote
   FRAMES = 40
 
   class Died < StandardError
-    attr_reader :signal, :code
-
     def initialize(message, signal: nil, code: nil)
       super(message)
       @signal = signal
@@ -28,32 +26,46 @@ class Kimera::Execution::Zygote
     def last_words = message
 
     def echo(duty) = signal ? duty.die_of(signal) : duty.exit_with(code || 1)
+
+    private
+
+    attr_reader :signal, :code
   end
 
   class Raised < StandardError
-    attr_reader :kind
-
     def initialize(kind, message)
       super(message)
       @kind = kind
     end
 
     def headline = "#{kind}: #{message}"
+
+    private
+
+    attr_reader :kind
   end
 
-  Pipe =
-    Data.define(:reader, :writer) do
-      def post(text)
-        reader.close
-        writer.write(text)
-        writer.close
-      end
-
-      def take
-        writer.close
-        reader.read.tap { reader.close }
-      end
+  class Pipe
+    def initialize(reader, writer)
+      @reader = reader
+      @writer = writer
     end
+
+    def post(text)
+      reader.close
+      writer.write(text)
+      writer.close
+    end
+
+    def take
+      writer.close
+      reader.read.tap { reader.close }
+    end
+
+    private
+
+    attr_reader :reader, :writer
+  end
 
   def initialize(exits = Kernel)
     @exits = exits

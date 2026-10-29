@@ -35,7 +35,7 @@ module Kimera
 
       def confirmed(result, slot = nil)
         control = with_mirror { |mirror| verdict(mirror, result.covering_tests, slot: slot) }
-        return result if control.status == :survived
+        return result if control.survived?
         result.unjudged(control.contradiction)
       end
 
@@ -49,11 +49,7 @@ module Kimera
       end
 
       def judged(trial, tests, outcome, duration)
-        result(
-          trial,
-          status: outcome.status, duration: duration, covering_tests: tests, failing_tests: outcome.failing,
-          detail: outcome.detail, **outcome.killing(plan.quality?)
-        )
+        result(trial, duration: duration, covering_tests: tests, **outcome.to_h, **outcome.killing(plan.quality?))
       end
 
       def measure(trial, tests, point)
@@ -72,7 +68,7 @@ module Kimera
       def cleared(trial, tests, outcome)
         return outcome unless outcome.outside?
         control = with_mirror { |mirror| verdict(mirror, tests, slot: trial.slot) }
-        control.status == :survived ? outcome.recurred : outcome.environmental(control)
+        control.survived? ? outcome.recurred : outcome.environmental(control)
       end
 
       def with_mutant(trial)

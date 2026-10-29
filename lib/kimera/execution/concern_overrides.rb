@@ -8,13 +8,20 @@ module Kimera
       MACROS = %i[scope has_many has_one belongs_to has_and_belongs_to_many].freeze
       SLOT = :kimera_concern_overrides
 
-      Skipping =
-        Data.define(:klass) do
-          def include?(name)
-            held, names = Thread.current[SLOT]
-            held.equal?(klass) && names.include?(name.to_s)
-          end
+      class Skipping
+        def initialize(klass)
+          @klass = klass
         end
+
+        def include?(name)
+          held, names = Thread.current[SLOT]
+          held.equal?(klass) && names.include?(name.to_s)
+        end
+
+        private
+
+        attr_reader :klass
+      end
 
       GUARD =
         Module.new do

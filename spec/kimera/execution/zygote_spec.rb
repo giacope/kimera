@@ -5,6 +5,15 @@ require "kimera/execution/zygote"
 RSpec.describe(Kimera::Execution::Zygote) do
   subject(:zygote) { described_class.new }
 
+  # How a death ends the worker that echoes it.
+  let(:ending) do
+    Class.new do
+      def die_of(signal) = [:signal, signal]
+
+      def exit_with(code) = [:exit, code]
+    end.new
+  end
+
   it "returns what the block returns in its own process, as JSON brings it back" do
     expect(zygote.call { { "pid" => Process.pid, "ids" => [1, 2] } }).to(include("ids" => [1, 2]))
   end
@@ -24,8 +33,9 @@ RSpec.describe(Kimera::Execution::Zygote) do
   end
 
   it "raises any other error here, naming its class", :aggregate_failures do
-    expect { zygote.call { raise(ArgumentError, "bad") } }
-      .to(raise_error(described_class::Raised, "bad") { |error| expect(error.kind).to(eq("ArgumentError")) })
+    expect { zygote.call { raise(ArgumentError, "bad") } }.to(
+      raise_error(described_class::Raised, "bad") { |error| expect(error.headline).to(start_with("ArgumentError:")) }
+    )
   end
 
   it "brings back the child's frames and headline with a raised error", :aggregate_failures do
@@ -50,18 +60,18 @@ RSpec.describe(Kimera::Execution::Zygote) do
 
   it "reports a child that exits without replying, with its status", :aggregate_failures do
     expect { zygote.call { exit!(3) } }
-      .to(raise_error(described_class::Died, "") { |died| expect([died.code, died.signal]).to(eq([3, nil])) })
+      .to(raise_error(described_class::Died, "") { |died| expect(died.echo(ending)).to(eq([:exit, 3])) })
   end
 
   it "reports a child killed by a signal, with the signal", :aggregate_failures do
     expect { zygote.call { Process.kill("KILL", Process.pid) } }
-      .to(raise_error(described_class::Died) { |died| expect(died.signal).to(eq(9)) })
+      .to(raise_error(described_class::Died) { |died| expect(died.echo(ending)).to(eq([:signal, 9])) })
   end
 
   it "reports a signal nothing in the child trapped, with the advice and the signal", :aggregate_failures do
     expect { zygote.call { raise(SignalException, "TERM") } }.to(
       raise_error(described_class::Died, /\ASignalException: SIGTERM\nnothing trapped SIGTERM/) do |died|
-        expect(died.signal).to(eq(15))
+        expect(died.echo(ending)).to(eq([:signal, 15]))
       end
     )
   end
@@ -105,24 +115,20 @@ RSpec.describe(Kimera::Execution::Zygote) do
   end
 
   describe described_class::Pipe do
-    def pipe
-      reader, writer = IO.pipe
-      [described_class.new(reader.dup, writer), reader]
-    end
-
     it "posts the reply and closes both of the child's ends", :aggregate_failures do
-      pipe, reader = pipe()
-      pipe.post("reply")
+      reader, writer = IO.pipe
+      ends = [reader.dup, writer]
+      described_class.new(*ends).post("reply")
       expect(reader.read).to(eq("reply"))
-      expect([pipe.reader, pipe.writer]).to(all(be_closed))
+      expect(ends).to(all(be_closed))
     end
 
     it "takes the reply and closes both of the parent's ends", :aggregate_failures do
       reader, writer = IO.pipe
-      pipe = described_class.new(reader, writer.dup)
+      ends = [reader, writer.dup]
       writer.tap { |sink| sink.write("reply") }.close
-      expect(pipe.take).to(eq("reply"))
-      expect([pipe.reader, pipe.writer]).to(all(be_closed))
+      expect(described_class.new(*ends).take).to(eq("reply"))
+      expect(ends).to(all(be_closed))
     end
   end
 end

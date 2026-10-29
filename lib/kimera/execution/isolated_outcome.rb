@@ -6,15 +6,17 @@ module Kimera
 end
 
 class Kimera::Execution::IsolatedOutcome
-  attr_reader :status, :failing, :detail
-
   def initialize(status, failing = nil, detail = nil)
     @status = status
     @failing = failing
     @detail = detail
   end
 
+  def to_h = { status: status, failing_tests: failing, detail: detail }
+
   def killing(wanted) = wanted && status == :killed ? { killing_tests: failing } : {}
+
+  def survived? = status == :survived
 
   def outside? = status == :outside
 
@@ -44,6 +46,10 @@ class Kimera::Execution::IsolatedOutcome
     return "failing: #{named.join(", ")}#{" (#{detail})" if detail}" if named.any?
     detail || "the test child failed without naming a test"
   end
+
+  private
+
+  attr_reader :status, :failing, :detail
 end
 
 require_relative "isolated_outcome/ruling"

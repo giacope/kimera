@@ -86,7 +86,7 @@ module Kimera
     end
 
     def lapsed(placements, kept)
-      placements.select { |placement| placement.stale? || !kept.include?(placement) }.map(&:rule)
+      placements.flat_map { |placement| placement.lapsed(kept) }
     end
 
     def pairs(registry, glob)

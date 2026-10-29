@@ -3,7 +3,22 @@
 module Kimera
   module Execution
     class Reflections
-      Declared = Data.define(:key, :reflection, :stale)
+      class Declared
+        def initialize(key, reflection, stale)
+          @key = key
+          @reflection = reflection
+          @stale = stale
+        end
+
+        def stale? = !@stale.nil?
+
+        def pass_down(heir)
+          held = heir._reflections
+          return unless held[@key].equal?(@stale)
+          heir.clear_reflections_cache
+          heir._reflections = held.merge(@key => @reflection)
+        end
+      end
 
       GUARD =
         Module.new do
@@ -26,20 +41,10 @@ module Kimera
       end
 
       def settle(before, declared)
-        return unless declared.stale
+        return unless declared.stale?
         held = @owner._reflections
         @owner._reflections = before.to_h { |name, _| [name, held[name]] }.merge(held)
-        @owner.descendants.each { |heir| replace(heir, declared) }
-      end
-
-      private
-
-      def replace(heir, declared)
-        held = heir._reflections
-        key = declared.key
-        return unless held[key].equal?(declared.stale)
-        heir.clear_reflections_cache
-        heir._reflections = held.merge(key => declared.reflection)
+        @owner.descendants.each { |heir| declared.pass_down(heir) }
       end
     end
   end

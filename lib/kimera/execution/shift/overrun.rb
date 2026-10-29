@@ -2,8 +2,15 @@
 
 require_relative "lapse"
 
-Kimera::Execution::Shift::Overrun =
-  Data.define(:test, :runs, :control, :budget) do
-    include Kimera::Execution::Shift::Lapse
-    def detail = budget.explain(test, runs, control)
+class Kimera::Execution::Shift::Overrun
+  include Kimera::Execution::Shift::Lapse
+
+  def initialize(test, runs, control, explainer)
+    @test = test
+    @runs = runs
+    @control = control
+    @explainer = explainer
   end
+
+  def detail = @explainer.explain(@test, @runs, @control)
+end

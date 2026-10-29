@@ -13,7 +13,17 @@ class Kimera::Execution::SuiteCapture
   OVERDUE = "the suite did not exit within %s s (a hook, or a parallel worker, that never returns?); " \
     "run it yourself to see where it stops"
 
-  Overdue = Data.define(:limit) { def success? = false }
+  class Overdue
+    def initialize(limit)
+      @limit = limit
+    end
+
+    def success? = false
+
+    private
+
+    attr_reader :limit
+  end
 
   def initialize(errors = $stderr, env = Kimera::Execution::SuiteEnv.new, clock = Kimera::Execution::Clock.new(POLL))
     @errors = errors

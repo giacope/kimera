@@ -14,10 +14,18 @@ end
 class Kimera::Execution::LoadTrace
   RAN = { call: [Prism::DefNode], b_call: [Prism::BlockNode, Prism::LambdaNode] }.freeze
 
-  Span =
-    Data.define(:range, :holes) do
-      def holds?(point) = point.inside?([range]) && !point.inside?(holes)
+  class Span
+    def initialize(range, holes)
+      @range = range
+      @holes = holes
     end
+
+    def holds?(point) = point.inside?([range]) && !point.inside?(holes)
+
+    private
+
+    attr_reader :range, :holes
+  end
 
   def initialize(registry, root)
     @registry = registry

@@ -48,7 +48,7 @@ class Kimera::Execution::IsolatedPlan
     child.command(mirror, request, ledger: ledger, paths: mutables)
   end
 
-  def suite = selection.all
+  def suite = @tests
 
   def to_s = MIRROR_HINT
 
@@ -74,7 +74,7 @@ class Kimera::Execution::IsolatedPlan
 
   def candidates(id, point)
     return if point.unloaded?
-    return selection.all if everything?(point)
+    return @tests if everything?(point)
     whole?(point) ? kin.tests(point.file) : selection.recorded(id)
   end
 

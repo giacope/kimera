@@ -10,8 +10,6 @@ class Kimera::Execution::Patience
   SLACK = 1.0
   private_constant(:FACTOR, :SLACK)
 
-  attr_reader :seconds
-
   def initialize(seconds, timings: {}, hard: Float::INFINITY)
     @seconds = seconds
     @timings = timings

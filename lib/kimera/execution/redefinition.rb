@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../support/warnings"
+require_relative "origin"
 
 module Kimera
   module Execution
@@ -23,8 +24,3 @@ class Kimera::Execution::Redefinition
     @holder.protected_method_defined?(@name) ? :protected : :public
   end
 end
-
-Kimera::Execution::Origin =
-  Data.define(:path) do
-    def canonical = path && File.exist?(path) ? File.realpath(path) : path
-  end

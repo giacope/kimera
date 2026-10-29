@@ -5,8 +5,6 @@ require_relative "ignore_drift"
 class Kimera::IgnoreList::Placement
   include Kimera::IgnoreList::Drift
 
-  attr_reader :rule
-
   def initialize(rule, pairs)
     @rule = rule
     @pairs = pairs
@@ -14,7 +12,7 @@ class Kimera::IgnoreList::Placement
 
   def ids = hits.map { |mutant, _point| mutant.id }
 
-  def stale? = hits.empty? && (!@pairs.empty? || gone?)
+  def lapsed(kept) = stale? || !kept.include?(self) ? [@rule] : []
 
   def contested?(claimed) = exact.empty? && !hits.empty? && (ids - claimed).empty?
 
@@ -24,6 +22,8 @@ class Kimera::IgnoreList::Placement
   end
 
   private
+
+  def stale? = hits.empty? && (!@pairs.empty? || gone?)
 
   def anchors = @rule
 

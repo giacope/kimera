@@ -45,12 +45,12 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
   end
 
   it "breaks a red parallel baseline down per worker, in the order each ran its tests" do
-    workers = { 1 => %w[p q r s t u v], 0 => %w[a b], 2 => %w[c] }
+    workers = { 1 => %w[p q r s t u v x1 x2 x3 x4 x5], 0 => %w[a b], 2 => %w[c] }
     failed = %w[s u c x1 x2 x3 x4 x5]
-    workers[1].push(*%w[x1 x2 x3 x4 x5])
 
     summary = Kimera::Execution::BaselineFailure::Summary
-    expect(summary.new(failed, {}, "cmd", summary::SERIAL.with(workers: workers)).to_s).to(
+    context = summary::Context.new(workers: workers, stacks: {}, jobs: 1, ordered: [])
+    expect(summary.new(failed, {}, "cmd", context).to_s).to(
       eq(
         "baseline suite is not green: 8 tests failed:\n    #{failed.join("\n    ")}\n  " \
           "per worker (tests in the order it ran them):\n    " \

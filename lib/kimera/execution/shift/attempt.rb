@@ -66,7 +66,7 @@ class Kimera::Execution::Shift::Attempt
     calm = replay(finding.calm)
     return [] unless calm["passed"] && !calm["overran"]
     again = replay(finding.solo)
-    again["overran"] ? [finding.overrun(calm, again, @probe.deadline.budget)] : []
+    again["overran"] ? [finding.overrun(calm, again, @probe)] : []
   end
 
   def replay(lineup) = fresh { @probe.replay(lineup) }

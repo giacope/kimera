@@ -156,7 +156,8 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       r.__send__(:plan).define_singleton_method(:command) { |*, **| [{}, %w[sleep 30]] }
       Dir.mktmpdir do |mirror|
         started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-        [test_invoke_private(r, :verdict, mirror, []).status, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started]
+        status = test_invoke_private(r, :verdict, mirror, []).to_h[:status]
+        [status, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started]
       end
     end
 
@@ -647,17 +648,17 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end
 
     it "maps a child that exits without reporting to :harness_error, whatever its status", :aggregate_failures do
-      expect(test_verdict_of(["true"]).status).to(eq(:harness_error))
-      expect(test_verdict_of(["false"]).status).to(eq(:harness_error))
+      expect(test_verdict_of(["true"]).to_h[:status]).to(eq(:harness_error))
+      expect(test_verdict_of(["false"]).to_h[:status]).to(eq(:harness_error))
     end
 
     it "explains a silent crash with the tail of the child's stderr" do
       outcome = test_verdict_of([Gem.ruby, "-e", "warn 'boot failed: NameError'; exit 1"])
-      expect(outcome.detail).to(eq("test child exited 1 without reporting results:\nboot failed: NameError"))
+      expect(outcome.to_h[:detail]).to(eq("test child exited 1 without reporting results:\nboot failed: NameError"))
     end
 
     it "maps a child that overruns the hard deadline to :timeout" do
-      expect(test_verdict_of(%w[sleep 30], hard_timeout: 0.3).status).to(eq(:timeout))
+      expect(test_verdict_of(%w[sleep 30], hard_timeout: 0.3).to_h[:status]).to(eq(:timeout))
     end
 
     # The watchdog renews on each test's beat; a test whose baseline needs
@@ -665,31 +666,31 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     it "lets a test whose baseline outlasts the hard timeout run to its own limit", :aggregate_failures do
       slow = command(%w[sleep 0.6], hard_timeout: 0.3, timings: { "t" => 0.1 })
       outcome = Dir.mktmpdir { |m| test_invoke_private(slow, :verdict, m, ["t"]) }
-      expect(outcome.status).to(eq(:harness_error))
+      expect(outcome.to_h[:status]).to(eq(:harness_error))
       expect(
         test_verdict_of(
           %w[sleep 30],
           hard_timeout: 0.3
-        ).detail
+        ).to_h[:detail]
       ).to(eq("timed out after 0.3s without a test finishing"))
     end
 
     it "kills on a reported failure and names the failing tests", :aggregate_failures do
       outcome = test_verdict_of(test_ledger_child(1, ["./spec/a_spec.rb[1:1]"], 1))
-      expect(outcome.status).to(eq(:killed))
-      expect(outcome.failing).to(eq(["./spec/a_spec.rb[1:1]"]))
+      expect(outcome.to_h[:status]).to(eq(:killed))
+      expect(outcome.to_h[:failing_tests]).to(eq(["./spec/a_spec.rb[1:1]"]))
     end
 
     it "keeps a clean reported run that exits zero :survived" do
-      expect(test_verdict_of(test_ledger_child(0, [], 0)).status).to(eq(:survived))
+      expect(test_verdict_of(test_ledger_child(0, [], 0)).to_h[:status]).to(eq(:survived))
     end
 
     # A SimpleCov floor trips on the partial run after every example passed.
     it "reports a non-zero exit with zero failures as :harness_error, not a kill", :aggregate_failures do
       outcome = test_verdict_of(test_ledger_child(0, [], 2))
-      expect(outcome.status).to(eq(:harness_error))
-      expect(outcome.detail).to(start_with("suite exited 2 with 0 failures"))
-      expect(outcome.failing).to(be_nil)
+      expect(outcome.to_h[:status]).to(eq(:harness_error))
+      expect(outcome.to_h[:detail]).to(start_with("suite exited 2 with 0 failures"))
+      expect(outcome.to_h[:failing_tests]).to(be_nil)
     end
 
     it "has only a mutant's run stop at the first failure" do
@@ -702,7 +703,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     it "hands the child a ledger path that does not exist yet" do
       script = "fresh = File.directory?(File.dirname(ARGV[0])) && !File.exist?(ARGV[0]); " \
         "File.write(ARGV[0], '{\"failures\":0}'); exit(fresh ? 0 : 1)"
-      expect(test_verdict_of(->(ledger) { [Gem.ruby, "-e", script, ledger] }).status).to(eq(:survived))
+      expect(test_verdict_of(->(ledger) { [Gem.ruby, "-e", script, ledger] }).to_h[:status]).to(eq(:survived))
     end
   end
 

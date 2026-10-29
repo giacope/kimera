@@ -2,6 +2,7 @@
 
 require_relative "overrun"
 require_relative "expiry"
+require_relative "stall"
 require_relative "suspect"
 
 Kimera::Execution::Shift::Finding =
@@ -39,8 +40,8 @@ Kimera::Execution::Shift::Finding =
 
     def refuted(control) = suspect(control.fetch("failures")[test], contradicted: true)
 
-    def overrun(calm, again, budget)
-      Kimera::Execution::Shift::Overrun.new(test, [found.fetch("elapsed"), again["elapsed"]], calm["elapsed"], budget)
+    def overrun(calm, again, probe)
+      Kimera::Execution::Shift::Overrun.new(test, [found.fetch("elapsed"), again["elapsed"]], calm["elapsed"], probe)
     end
 
     def stall(calm) = Kimera::Execution::Shift::Stall.new(test, expiry, calm.fetch("elapsed"))

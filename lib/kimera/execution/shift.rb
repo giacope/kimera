@@ -9,14 +9,22 @@ require_relative "patience"
 require_relative "zygote"
 
 class Kimera::Execution::Shift
-  Channel =
-    Data.define(:requests, :responses) do
-      def each_request
-        while (line = requests.gets)
-          yield(line, responses)
-        end
+  class Channel
+    def initialize(requests, responses)
+      @requests = requests
+      @responses = responses
+    end
+
+    def each_request
+      while (line = requests.gets)
+        yield(line, responses)
       end
     end
+
+    private
+
+    attr_reader :requests, :responses
+  end
 
   def initialize(adapter:, registry:, coverage: Unmapped.new(adapter), **options)
     @adapter = adapter
