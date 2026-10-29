@@ -26,5 +26,7 @@ class Kimera::Operators::Base
     Array(variants(node, position: position)).map { |variant| [key, variant] }
   end
 
+  private
+
   def syntax(node) = self.class::SYNTAX.call(node)
 end
