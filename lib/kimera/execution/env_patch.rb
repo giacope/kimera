@@ -10,13 +10,14 @@ class Kimera::Execution::EnvPatch
     @values = values
   end
 
-  def during(env)
-    saved = @values.keys.to_h { |name| [name, env.fetch(name, nil)] }
-    begin
-      env.update(@values)
-      yield
-    ensure
-      saved.each { |name, value| value ? env.store(name, value) : env.delete(name) }
-    end
+  def during(env, &) = restoring(env, @values.keys.to_h { |name| [name, env.fetch(name, nil)] }, &)
+
+  private
+
+  def restoring(env, saved)
+    env.update(@values)
+    yield
+  ensure
+    saved.each { |name, value| value ? env.store(name, value) : env.delete(name) }
   end
 end
