@@ -92,7 +92,7 @@ class Kimera::Registry
 
   def write(path)
     File.write(path, JSON.pretty_generate(to_h))
-    path
+    self
   end
 
   class << self

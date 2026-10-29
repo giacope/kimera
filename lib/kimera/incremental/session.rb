@@ -76,7 +76,7 @@ class Kimera::Incremental::Session
   def save(path, meta: {})
     FileUtils.mkdir_p(File.dirname(path))
     File.write(path, JSON.pretty_generate(payload(@meta.merge(meta))))
-    path
+    self
   end
 
   private

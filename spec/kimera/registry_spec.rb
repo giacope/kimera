@@ -62,7 +62,7 @@ RSpec.describe(Kimera::Registry) do
     end
 
     def written(path)
-      expect(registry.write(path)).to(eq(path))
+      expect(registry.write(path)).to(be(registry))
       described_class.from_file(path)
     end
 

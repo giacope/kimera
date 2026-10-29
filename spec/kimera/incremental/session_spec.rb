@@ -44,6 +44,11 @@ RSpec.describe(Kimera::Incremental::Session) do
     expect(File).to(exist(path))
   end
 
+  it "answers itself once it has saved" do
+    session = described_class.new
+    expect(session.save(File.join(dir, "session.json"))).to(be(session))
+  end
+
   # The tests or sources changed since: a kill may no longer stand.
   it "drops verdicts saved under another stamp, and keeps those saved under the same", :aggregate_failures do
     registry = Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n", file: "x.rb")
