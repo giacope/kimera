@@ -49,7 +49,6 @@ class Kimera::Runtime < Module
   def initialize
     super
     @active = nil
-    @overlaying = false
     @ledgers = NONE
     @spills = NONE
   end
@@ -87,15 +86,6 @@ class Kimera::Runtime < Module
     yield
   ensure
     self.active = previous
-  end
-
-  def overlaying? = @overlaying
-
-  def overlay
-    @overlaying = true
-    yield
-  ensure
-    @overlaying = false
   end
 
   def privatize(id, owner, name)

@@ -3,6 +3,7 @@
 require_relative "callback"
 require_relative "reflections"
 require_relative "concern_overrides"
+require_relative "overlaying"
 
 module Kimera
   module Execution
@@ -62,7 +63,7 @@ module Kimera
       end
 
       def replacing?(base)
-        Kimera::RUNTIME.overlaying? && !base && concern.instance_variable_defined?(stored)
+        OVERLAYING.overlaying? && !base && concern.instance_variable_defined?(stored)
       end
 
       def chained(trimmed)
@@ -104,7 +105,7 @@ module Kimera
       CALLBACKGUARD =
         Module.new do
           def set_callback(name, *arguments, &block)
-            return super unless Kimera::RUNTIME.overlaying?
+            return super unless OVERLAYING.overlaying?
             type, filters, options = normalize_callback_params(arguments.dup, block)
             fresh = Kimera::Execution::CallbackChain.new(__send__(:get_callbacks, name)).fresh(type, filters)
             return if fresh.empty?
@@ -115,7 +116,7 @@ module Kimera
       SERIALIZEGUARD =
         Module.new do
           def serialize(attribute, *words, **options, &)
-            return if Kimera::RUNTIME.overlaying? && AttributeType.new(type_for_attribute(attribute)).serialized?
+            return if OVERLAYING.overlaying? && AttributeType.new(type_for_attribute(attribute)).serialized?
             super
           end
         end

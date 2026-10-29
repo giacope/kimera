@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "overlaying"
+
 module Kimera
   module Execution
     class Reflections
@@ -27,7 +29,7 @@ module Kimera
             table = Reflections.new(owner)
             key = table.key(name)
             super
-            table.settle(before, Declared.new(key, reflection, before[key])) if Kimera::RUNTIME.overlaying?
+            table.settle(before, Declared.new(key, reflection, before[key])) if OVERLAYING.overlaying?
           end
         end
 

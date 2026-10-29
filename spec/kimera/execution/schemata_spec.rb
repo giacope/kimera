@@ -462,7 +462,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
     it "clears the overlaying flag even when the overlay raises", :aggregate_failures do
       callbacks
       expect { overlaying { raise(RuntimeError, "boom") } }.to(raise_error("boom"))
-      expect(Kimera::RUNTIME).not_to(be_overlaying)
+      expect(Kimera::Execution.const_get(:OVERLAYING)).not_to(be_overlaying)
     end
   end
 

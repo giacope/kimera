@@ -2,6 +2,7 @@
 
 require_relative "../runtime"
 require_relative "guard_modules"
+require_relative "overlaying"
 
 module Kimera
   module Execution
@@ -20,7 +21,7 @@ module Kimera
 
       def overlay(&)
         install!
-        Kimera::RUNTIME.overlay(&)
+        OVERLAYING.overlay(&)
       end
 
       def install!
