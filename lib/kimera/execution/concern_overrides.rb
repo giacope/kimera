@@ -54,7 +54,7 @@ module Kimera
         yield
       end
 
-      def source = Object.const_source_location(@klass.name).first
+      def source = Object.const_source_location(@klass.name).fetch(0)
 
       def after(calls, tail)
         calls.drop_while { |call| !mixin?(call, tail) }.drop(1).filter_map { |call| declaration(call) }

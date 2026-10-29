@@ -51,7 +51,7 @@ Kimera::Execution::Shift::Finding =
 
     def through = tests.first(index + 1)
 
-    def expiry = found.fetch("failures")[test]
+    def expiry = found.fetch("failures").fetch(test)
 
     def lag(calm)
       past = "ran past its soft timeout (#{calm["limit"]}s) with the mutant on"
@@ -71,7 +71,7 @@ Kimera::Execution::Shift::Finding::Kill =
   Data.define(:failed_ids, :failures) do
     def noted(note) = with(failures: failures.transform_values { |message| "#{note}: #{message}" })
 
-    def conclude(&) = self
+    def conclude(&) = [self]
 
     def ruling(subject, fields)
       subject.verdict(:killed, failing_tests: failed_ids, detail: failures.values.first, **fields)

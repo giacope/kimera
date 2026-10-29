@@ -20,38 +20,39 @@ class Kimera::Execution::DatabaseCopies
     @engines = engines
   end
 
-  def possible? = !engine.nil?
+  def possible? = engines.any?
 
   def prepare(indexes)
-    made = indexes.select { |index| attempt("copy", index) { engine.copy(name(index)) } }
+    made = indexes.select { |index| attempt("copy", index) { engines.each { |engine| engine.copy(name(index)) } } }
     owner = Process.pid
     @hooks.at_exit { drop(made) if Process.pid == owner }
   end
 
   def adopt(index)
-    copy = engine && name(index)
-    return unless copy && engine.exist?(copy)
-    config._database = copy
+    return unless engines.any? { |engine| engine.exist?(name(index)) }
+    config._database = name(index)
     ActiveRecord::Base.establish_connection(config)
   end
 
   private
 
-  def drop(indexes) = indexes.each { |index| attempt("drop the copy of", index) { engine.remove(name(index)) } }
+  def drop(indexes)
+    indexes.each { |index| attempt("drop the copy of", index) { engines.each { |engine| engine.remove(name(index)) } } }
+  end
 
   def config = ActiveRecord::Base.connection_db_config
 
   def name(index) = "#{config.database}_#{index}"
 
-  def engine
-    return @_engine if defined?(@_engine)
-    @_engine = (pick if defined?(ActiveRecord::Base) && !Kimera::Execution::MemoryDatabases.new.current?)
+  def engines
+    return @_engines if defined?(@_engines)
+    @_engines = defined?(ActiveRecord::Base) && !Kimera::Execution::MemoryDatabases.new.current? ? pick : []
   end
 
   def pick
-    @engines.find { |pattern, _| config.adapter.to_s.match?(pattern) }&.last&.new(config)
+    @engines.select { |pattern, _| config.adapter.to_s.match?(pattern) }.first(1).map { |(_, kind)| kind.new(config) }
   rescue StandardError
-    nil
+    []
   end
 
   def attempt(action, index)

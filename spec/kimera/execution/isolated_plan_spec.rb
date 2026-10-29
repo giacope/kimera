@@ -56,26 +56,27 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       :aggregate_failures do
       point.revisit!(Kimera::MutationPoint::BOOT_REASON)
       keeps = plan(filter: Kimera::Execution::TestFilter.new(registry: registry, flaky: %w[t2]))
-      expect([keeps.tests(mutant_id, point), keeps.settled(mutant_id, point)]).to(eq([%w[t1 t3], nil]))
+      expect([keeps.tests(mutant_id, point), keeps.settled(mutant_id, point)]).to(eq([%w[t1 t3], []]))
       none = plan(filter: Kimera::Execution::TestFilter.new(registry: registry, flaky: %w[t1 t2 t3]))
-      expect([none.tests(mutant_id, point), none.settled(mutant_id, point).status]).to(eq([[], :no_coverage]))
+      expect([none.tests(mutant_id, point), none.settled(mutant_id, point).map(&:status)]).to(eq([[], [:no_coverage]]))
     end
 
     def flaky_t2 = Kimera::Execution::TestFilter.new(registry: registry, flaky: %w[t2])
 
     it "screens the measured covering set too" do
       screened = plan(coverage: { mutant_id => %w[t1 t2] }, filter: flaky_t2)
-      expect([screened.tests(mutant_id, point), screened.settled(mutant_id, point)]).to(eq([["t1"], nil]))
+      expect([screened.tests(mutant_id, point), screened.settled(mutant_id, point)]).to(eq([["t1"], []]))
     end
 
     it "settles a point only screened tests cover as no_coverage" do
       flaky = plan(coverage: { mutant_id => ["t2"] }, filter: flaky_t2)
-      expect([flaky.tests(mutant_id, point), flaky.settled(mutant_id, point).status]).to(eq([[], :no_coverage]))
+      expect([flaky.tests(mutant_id, point), flaky.settled(mutant_id, point).map(&:status)])
+        .to(eq([[], [:no_coverage]]))
     end
 
     it "leaves an uncovered point to no_coverage" do
       uncovered = plan(filter: flaky_t2)
-      expect([uncovered.tests(mutant_id, point), uncovered.settled(mutant_id, point)]).to(eq([nil, nil]))
+      expect([uncovered.tests(mutant_id, point), uncovered.settled(mutant_id, point)]).to(eq([nil, []]))
     end
 
     it "returns the measured covering set (integer-keyed) when present" do

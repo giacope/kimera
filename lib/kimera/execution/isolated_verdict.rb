@@ -42,7 +42,7 @@ module Kimera
       def bake(trial, point)
         trial.file = point.file
         settled = plan.settled(trial.id, point)
-        return settled if settled
+        return settled.fetch(0) unless settled.empty?
         tests = plan.tests(trial.id, point)
         return result(trial, status: :no_coverage, detail: point.unsafe_reason) unless tests
         judged(trial, tests, *measure(trial, tests))
@@ -52,7 +52,7 @@ module Kimera
         result(
           trial,
           status: outcome.status, duration: duration, covering_tests: tests, failing_tests: outcome.failing,
-          detail: outcome.detail, killing_tests: outcome.killers(plan.quality?)
+          detail: outcome.detail, **outcome.killing(plan.quality?)
         )
       end
 

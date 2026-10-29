@@ -105,12 +105,12 @@ class Kimera::Execution::Shift
 
   def outcome(subject, tests)
     started = monotonic
-    outcome = attempt.run(subject.id, tests) || unmasked(subject.id, tests)
-    subject.judged(outcome, tests, monotonic - started)
+    found = attempt.run(subject.id, tests)
+    subject.judged(found.empty? ? unmasked(subject.id, tests) : found, tests, monotonic - started)
   end
 
   def unmasked(id, tests)
-    return unless @options[:confirm]
+    return [] unless @options[:confirm]
     pace = Kimera::Execution::Pace.new(@options.fetch(:timings, {}))
     self.class::Unmask.new(attempt, pace).run(id, tests)
   end

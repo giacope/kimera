@@ -7,18 +7,19 @@ Kimera::Execution::Shift::Probe =
   Data.define(:adapter, :deadline) do
     def sweep(lineup)
       active = lineup.active
-      lineup.tests.each_with_index.lazy.filter_map { |test, index| finding(test, *run(active, test), index) }.first
+      lineup.tests.each_with_index.lazy.flat_map { |test, index| finding(test, *run(active, test), index) }.first(1)
     end
 
     def replay(lineup)
       active = lineup.active
-      lineup.tests.map { |test| report(test, *run(active, test)) }.last
+      lineup.tests.map { |test| report(test, *run(active, test)) }.fetch(-1)
     end
 
     def finding(test, outcome, elapsed, index)
       kind = outcome.expired? ? "expired" : "failed"
-      return report(test, outcome, elapsed).merge("index" => index, "kind" => kind) unless outcome.passed?
-      report(test, outcome, elapsed).merge("index" => index, "kind" => "overran") if deadline.overran?(test, elapsed)
+      return [report(test, outcome, elapsed).merge("index" => index, "kind" => kind)] unless outcome.passed?
+      return [] unless deadline.overran?(test, elapsed)
+      [report(test, outcome, elapsed).merge("index" => index, "kind" => "overran")]
     end
 
     def report(test, outcome, elapsed)

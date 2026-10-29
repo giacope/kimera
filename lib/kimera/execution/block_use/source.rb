@@ -79,11 +79,11 @@ class Kimera::Execution::BlockUse::Source
   def reached(node, swap)
     known = BRANCHES.include?(node.type) ? fixed(node.predicate, swap) : nil
     return node.compact_child_nodes if known.nil?
-    [node.predicate, known ^ (node.type == :unless_node) ? node.statements : other(node)]
+    [node.predicate, *(known ^ (node.type == :unless_node) ? [node.statements] : others(node))]
   end
 
-  def other(node)
-    node.compact_child_nodes.find { |child| !child.equal?(node.predicate) && !child.equal?(node.statements) }
+  def others(node)
+    node.compact_child_nodes.select { |child| !child.equal?(node.predicate) && !child.equal?(node.statements) }.first(1)
   end
 
   def fixed(node, swap)

@@ -118,8 +118,8 @@ RSpec.describe(Kimera::Execution::IsolatedOutcome) do
   end
 
   it "names its failing tests as killers only when asked and only for a kill", :aggregate_failures do
-    expect(described_class.new(:killed, ["t1"]).killers(true)).to(eq(["t1"]))
-    expect(described_class.new(:killed, ["t1"]).killers(false)).to(be_nil)
-    expect(described_class.new(:harness_error, ["t1"]).killers(true)).to(be_nil)
+    expect(described_class.new(:killed, ["t1"]).killing(true)).to(eq(killing_tests: ["t1"]))
+    expect(described_class.new(:killed, ["t1"]).killing(false)).to(eq({}))
+    expect(described_class.new(:harness_error, ["t1"]).killing(true)).to(eq({}))
   end
 end

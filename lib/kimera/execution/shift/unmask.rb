@@ -13,12 +13,12 @@ class Kimera::Execution::Shift::Unmask
     @pace = pace
   end
 
-  def run(id, tests) = @pace.fastest(tests).first(CAP).lazy.filter_map { |test| alone(id, test) }.first
+  def run(id, tests) = @pace.fastest(tests).first(CAP).lazy.flat_map { |test| alone(id, test) }.first(1)
 
   private
 
   def alone(id, test)
-    found = @attempt.run(id, [test])&.conclude { |_doubt| false }
-    found.noted(NOTE) if found && @attempt.calm?(test)
+    found = @attempt.run(id, [test]).flat_map { |verdict| verdict.conclude { |_doubt| [] } }
+    found.empty? || !@attempt.calm?(test) ? [] : found.map { |kill| kill.noted(NOTE) }
   end
 end

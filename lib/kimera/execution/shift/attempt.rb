@@ -24,14 +24,14 @@ class Kimera::Execution::Shift::Attempt
 
   def hunt(lineup, doubts)
     found = fresh { @probe.sweep(lineup) }
-    return doubts.first&.final unless found
-    finding = Kimera::Execution::Shift::Finding.new(lineup, found)
+    return doubts.first(1).map(&:final) if found.empty?
+    finding = Kimera::Execution::Shift::Finding.new(lineup, found.fetch(0))
     settle(finding, doubts, judge(finding))
   end
 
-  def settle(finding, doubts, verdict)
-    return hunt(finding.onward, doubts) unless verdict
-    verdict.conclude { |suspect| hunt(finding.onward, doubts + [suspect]) }
+  def settle(finding, doubts, verdicts)
+    return hunt(finding.onward, doubts) if verdicts.empty?
+    verdicts.fetch(0).conclude { |suspect| hunt(finding.onward, doubts + [suspect]) }
   end
 
   def judge(finding)
@@ -41,32 +41,32 @@ class Kimera::Execution::Shift::Attempt
 
   def expired(finding)
     calm = replay(finding.calm)
-    clear?(calm) ? finding.stall(calm) : finding.crawl(calm)
+    [clear?(calm) ? finding.stall(calm) : finding.crawl(calm)]
   end
 
   def clear?(calm) = calm["passed"] && calm.fetch("elapsed") < calm.fetch("limit") * CLEAR
 
   def failed(finding)
-    return finding.kill(finding.found, @killers) if finding.first?
+    return [finding.kill(finding.found, @killers)] if finding.first?
     solo = replay(finding.solo)
-    solo["passed"] ? retrace(finding) : finding.kill(solo, @killers)
+    solo["passed"] ? retrace(finding) : [finding.kill(solo, @killers)]
   end
 
   def retrace(finding)
     control = replay(finding.control)
-    control["passed"] ? confirm(finding) : finding.refuted(control)
+    control["passed"] ? confirm(finding) : [finding.refuted(control)]
   end
 
   def confirm(finding)
     again = replay(finding.again)
-    again["passed"] ? finding.doubted : finding.kill(again, @killers)
+    [again["passed"] ? finding.doubted : finding.kill(again, @killers)]
   end
 
   def lagged(finding)
     calm = replay(finding.calm)
-    return unless calm["passed"] && !calm["overran"]
+    return [] unless calm["passed"] && !calm["overran"]
     again = replay(finding.solo)
-    finding.overrun(calm, again, @probe.deadline.budget) if again["overran"]
+    again["overran"] ? [finding.overrun(calm, again, @probe.deadline.budget)] : []
   end
 
   def replay(lineup) = fresh { @probe.replay(lineup) }

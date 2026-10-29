@@ -77,7 +77,7 @@ class Kimera::Execution::Reload
 
   def evaluate(errand)
     failed = mutate(errand)
-    return failed.verdict if failed
+    return failed.fetch(0).verdict unless failed.empty?
     errand.reached.empty? ? [:no_coverage, [], UNCALLED] : [:survived, []]
   rescue Kimera::Overlay::Unbakeable => error
     [:unmutatable, [], "#{Kimera::MutationPoint::UNMUTATABLE}#{error.message}"]
@@ -94,7 +94,7 @@ class Kimera::Execution::Reload
   end
 
   def hunt(errand, watch)
-    errand.tests.lazy.map { |test| trial(test, errand, watch) }.reject(&:passed?).first
+    errand.tests.lazy.map { |test| trial(test, errand, watch) }.reject(&:passed?).first(1)
   end
 
   def trial(test, errand, watch)

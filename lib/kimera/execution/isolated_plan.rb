@@ -39,7 +39,9 @@ class Kimera::Execution::IsolatedPlan
     found && screen ? screen.keep(point.file, found) : found
   end
 
-  def settled(id, point) = @options[:filter]&.settle(id, Array(candidates(id, point)))
+  def settled(id, point)
+    Array(@options[:filter]).filter_map { |screen| screen.settle(id, Array(candidates(id, point))) }
+  end
 
   def command(mirror, locations, ledger, **)
     request = child.request(locations, warnings: @options.fetch(:warnings, []), **)

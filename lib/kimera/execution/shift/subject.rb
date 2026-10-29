@@ -13,9 +13,9 @@ Kimera::Execution::Shift::Subject =
       Kimera::MutantResult.new(mutant_id: id, status: status, file: file, **fields)
     end
 
-    def judged(outcome, tests, duration)
+    def judged(outcomes, tests, duration)
       fields = { duration: duration, covering_tests: tests }
-      outcome ? outcome.ruling(self, fields) : verdict(:survived, **fields)
+      outcomes.map { |outcome| outcome.ruling(self, fields) }.fetch(0) { verdict(:survived, **fields) }
     end
 
     def crashed(error, limit)

@@ -14,7 +14,7 @@ class Kimera::Execution::IsolatedOutcome
     @detail = detail
   end
 
-  def killers(wanted) = wanted && status == :killed ? failing : nil
+  def killing(wanted) = wanted && status == :killed ? { killing_tests: failing } : {}
 
   def outside? = status == :outside
 
