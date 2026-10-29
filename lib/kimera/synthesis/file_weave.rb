@@ -1,13 +1,11 @@
 # frozen_string_literal: true
 
 require_relative "../scribe"
-require_relative "overlay_splice"
+require_relative "method_splice"
 require_relative "overlay_stitch"
 
 class Kimera::Overlay
   class FileWeave
-    include Kimera::OverlaySplice
-
     UNGUARDABLE = "kimera could not write its guard"
 
     def initialize(file, map, safe, unsafe)
@@ -48,7 +46,10 @@ class Kimera::Overlay
       )
     end
 
-    def recover = splice.fetch(0) { raise(Kimera::Scribe::Unreadable, UNGUARDABLE) }
+    def recover
+      spliced = Kimera::Overlay::MethodSplice.new(@file, @map, @safe, @unsafe).results(io)
+      spliced.fetch(0) { raise(Kimera::Scribe::Unreadable, UNGUARDABLE) }
+    end
 
     def bisect(points)
       return points if attempt(points)

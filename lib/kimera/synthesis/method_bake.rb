@@ -3,6 +3,7 @@
 require_relative "line_pad"
 require_relative "readback"
 require_relative "overlay_splice"
+require_relative "splice_reopening"
 
 class Kimera::Overlay::MethodBake
   include Kimera::OverlaySplice
@@ -27,7 +28,7 @@ class Kimera::Overlay::MethodBake
   end
 
   def graft(definition, text)
-    spliced = @map.splice([span(definition) + [text]] + reopenings)
+    spliced = @map.splice([span(definition) + [text]] + Kimera::SpliceReopening.new(@map).edits)
     Kimera::Syntax.parse(spliced).success? ? [spliced] : []
   end
 
