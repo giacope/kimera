@@ -26,7 +26,6 @@ class Kimera::Execution::TestFilter
     @attribution = attribution
     @flaky = flaky.to_set
     @locate = locate
-    @files = {}
   end
 
   def flag!(tests) = @flaky.merge(tests)
@@ -53,8 +52,10 @@ class Kimera::Execution::TestFilter
 
   def eligible?(test, file)
     return false if @flaky.include?(test)
-    @attribution.admits?(file.to_s) { @files[test] ||= @locate.call(test).to_s }
+    @attribution.admits?(file.to_s) { located[test] ||= @locate.call(test).to_s }
   end
+
+  def located = @_located ||= {}
 
   def unsteady(tests) = { status: :no_coverage, detail: "#{UNSTEADY}#{tests.join(", ")}" }
 

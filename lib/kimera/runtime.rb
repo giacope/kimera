@@ -23,8 +23,8 @@ class Kimera::Runtime < Module
         touched
       end
 
-      def leak(dir = Dir.tmpdir)
-        self.spill ||= File.join(dir, "kimera-ledger-#{Process.pid}-#{object_id}-#{rand(1 << 32)}")
+      def leak(dir = Dir.tmpdir, random = Random)
+        self.spill ||= File.join(dir, "kimera-ledger-#{Process.pid}-#{object_id}-#{random.rand(1 << 32)}")
       end
 
       def absorb
