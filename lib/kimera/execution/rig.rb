@@ -24,7 +24,7 @@ class Kimera::Execution::Rig
   private
 
   def parallel
-    @_parallel ||= Kimera::Execution::WorkerDatabases.new(jobs: @options.fetch(:jobs))
+    @_parallel ||= @options.fetch(:databases) { Kimera::Execution::WorkerDatabases.new(jobs: @options.fetch(:jobs)) }
   end
 
   def pool

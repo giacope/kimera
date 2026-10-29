@@ -81,6 +81,8 @@ class Kimera::Execution::IsolatedExecution
 
   def dirs = @options.fetch(:dirs, Dir)
 
+  def rulings = @options.fetch(:rulings, Kimera::Execution::IsolatedOutcome::Ruling)
+
   def needed(ids)
     index = plan.registry.index
     plan.suite & ids.flat_map { |id| index.key?(id) ? Array(plan.tests(id, index[id])) : [] }
@@ -88,8 +90,10 @@ class Kimera::Execution::IsolatedExecution
 
   def jobs = @_jobs ||= [Integer(@options.fetch(:jobs, 1)), 1].max
 
-  def plan
-    @_plan ||= Kimera::Execution::IsolatedPlan.new(
+  def plan = @_plan ||= @options.fetch(:plan) { planned }
+
+  def planned
+    Kimera::Execution::IsolatedPlan.new(
       registry: @registry, root: @root, tests: @tests,
       coverage: @options.fetch(:coverage, {}), timings: @options.fetch(:timings, {}),
       framework: @options.fetch(:framework, "rspec"),

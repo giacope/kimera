@@ -9,8 +9,9 @@ class Kimera::Report::Surface
   NEVER = -Float::INFINITY
   Shown = Struct.new(:painted, :drawn, :rows, keyword_init: true)
 
-  def initialize(io)
+  def initialize(io, shown = Shown.new(painted: NEVER, drawn: false, rows: 1))
     @io = io
+    @shown = shown
   end
 
   def due?(now, cadence) = now - shown.painted >= cadence
@@ -31,7 +32,7 @@ class Kimera::Report::Surface
 
   private
 
-  def shown = @_shown ||= Shown.new(painted: NEVER, drawn: false, rows: 1)
+  attr_reader :shown
 
   def write(text)
     @io.print(text)

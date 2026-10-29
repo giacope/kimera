@@ -99,7 +99,6 @@ class Kimera::MutationPoint
   NEVER_LOADED =
     "#{NEVER} (kimera did not evaluate it, since loading it would run its top-level code inside the test " \
       "process)".freeze
-  UNEXECUTED = "no test reached the code it mutates (other code on its line may have run); its file was loaded at boot"
   UNMUTATABLE = "unmutatable: "
   SAFE = true
 
@@ -139,7 +138,9 @@ class Kimera::MutationPoint
 
   def unmutatable? = unsafe_reason.to_s.start_with?(UNMUTATABLE)
 
-  def unmutatable!(detail) = unsafe!("#{UNMUTATABLE}#{detail}")
+  def unmutatable(detail) = "#{UNMUTATABLE}#{detail}"
+
+  def unmutatable!(detail) = unsafe!(unmutatable(detail))
 
   def safe = marks.safe
 

@@ -80,7 +80,7 @@ class Kimera::Execution::Reload
     return failed.fetch(0).verdict unless failed.empty?
     errand.reached.empty? ? [:no_coverage, [], UNCALLED] : [:survived, []]
   rescue Kimera::Overlay::Unbakeable => error
-    [:unmutatable, [], "#{Kimera::MutationPoint::UNMUTATABLE}#{error.message}"]
+    [:unmutatable, [], verdicts.point(errand.id).unmutatable(error.message)]
   rescue StandardError, ScriptError => error
     Failure.new(error).verdict
   end
@@ -105,14 +105,14 @@ class Kimera::Execution::Reload
 
   def overlay(file, path, id) = watched(file, path, id).tap { |watch| install(watch.source, path) }
 
-  def watched(file, path, id)
+  def watched(file, path, id, trims = Kimera::BodyTrim)
     location = verdicts.point(id).location
-    source = Kimera::BodyTrim.new(File.read(path, encoding: Encoding::UTF_8), [location]).trim(path)
+    source = trims.new(File.read(path, encoding: Encoding::UTF_8), [location]).trim(path)
     Kimera::Execution::CallWatch.new(Kimera::Overlay.new(@registry).bake(file, source, id), location.start_offset, id)
   end
 
-  def install(source, path)
-    aliases.again { Kimera::Execution::OverlayGuards.new.overlay { Kimera::Overlay::Source.new(source).evaluate(path) } }
+  def install(source, path, guards = Kimera::Execution::OverlayGuards.new)
+    aliases.again { guards.overlay { Kimera::Overlay::Source.new(source).evaluate(path) } }
   end
 
   def aliases = @workspace.aliases || Kimera::Execution::Aliases.new([])

@@ -78,26 +78,31 @@ class Kimera::Execution::IsolatedPlan
     whole?(point) ? kin.tests(point.file) : selection.recorded(id)
   end
 
-  def everything?(point)
-    point.ordered? ||
-      Kimera::SelfProtection.new(File.join(root, point.file)).protected?
+  def everything?(point, protection = Kimera::SelfProtection)
+    point.ordered? || protection.new(File.join(root, point.file)).protected?
   end
 
   def whole?(point)
     !point.safe? || point.revisit
   end
 
-  def selection = @_selection ||= TestSelection.new(all_tests: @tests, coverage: @options.fetch(:coverage, {}))
+  def selection = @_selection ||= @options.fetch(:selection) { selected }
 
-  def kin
-    @_kin ||= Kin.new(
+  def selected = TestSelection.new(all_tests: @tests, coverage: @options.fetch(:coverage, {}))
+
+  def kin = @_kin ||= @options.fetch(:kin) { kindred }
+
+  def kindred
+    Kin.new(
       all: @tests, coverage: @options[:coverage] || {}, registry: @registry,
       locate: @options[:test_paths] || ->(_test) { "" }
     )
   end
 
-  def child
-    @_child ||= ChildCommand.new(
+  def child = @_child ||= @options.fetch(:child) { commanded }
+
+  def commanded
+    ChildCommand.new(
       framework: @options.fetch(:framework), test_files: @options.fetch(:test_files), root: root, seed: @options[:seed]
     )
   end

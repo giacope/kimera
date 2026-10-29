@@ -41,6 +41,14 @@ module Kimera
         self.class.new(mutant_id: mutant_id, status: :harness_error, file: file, detail: detail)
       end
 
+      def unreached = dup.tap { |copy| copy.detail = unreached_detail }
+
+      def narrowed(note) = dup.tap { |copy| copy.detail = note if detail.nil? || detail == unreached_detail }
+
+      def unreached_detail
+        "no test reached the code it mutates (other code on its line may have run); its file was loaded at boot"
+      end
+
       def waive
         self.class.new(
           mutant_id: mutant_id, file: file, duration: duration, failing_tests: failing_tests,

@@ -50,8 +50,8 @@ class Kimera::Execution::IsolatedWatchdog
 
   def kill(pid)
     Process.kill("KILL", -pid)
-  rescue Errno::ESRCH, Errno::EPERM
-    nil
+  rescue Errno::ESRCH, Errno::EPERM => error
+    error
   end
 
   def reap(pid)

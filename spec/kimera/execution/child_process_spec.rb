@@ -110,16 +110,16 @@ RSpec.describe(Kimera::Execution::ChildProcess) do
       expect(witness.outlived?).to(be(false))
     end
 
-    it "shrugs off a process that is gone" do
+    it "shrugs off a process that is gone, answering why it could not signal it" do
       gone = fork { exit!(0) }.tap { |pid| Process.wait(pid) }
-      expect(call(:signal, gone)).to(be_nil)
+      expect(call(:signal, gone)).to(be_a(Errno::ESRCH))
     end
 
     # Processes as a user may not signal one they do not own.
     def foreign = Class.new { def kill(_signal, target) = raise(Errno::EPERM, target.to_s) }.new
 
-    it "shrugs off a process out of reach" do
-      expect(call(:signal, 12_345, foreign)).to(be_nil)
+    it "shrugs off a process out of reach, answering why it could not signal it" do
+      expect(call(:signal, 12_345, foreign)).to(be_a(Errno::EPERM))
     end
   end
 end

@@ -29,7 +29,9 @@ class Kimera::Execution::BlockUse
 
   def root = @_root ||= File.expand_path(@given)
 
-  def tree(file) = Kimera::Rewrite::NumberedParams.new(Kimera::Syntax::Document.new(root, file).result.value).normalize
+  def tree(file, params = Kimera::Rewrite::NumberedParams)
+    params.new(Kimera::Syntax::Document.new(root, file).result.value).normalize
+  end
 
   def open?(point) = point.safe? && !point.revisit
 end

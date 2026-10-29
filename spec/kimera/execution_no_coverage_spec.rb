@@ -92,7 +92,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     harness = Kimera::Execution::Harness.build(registry: Object.new, adapter: Object.new, spawner: token)
 
     expect(harness.skipped).to(eq({}))
-    expect(harness.__send__(:spawner)).to(equal(token))
+    expect(harness.__send__(:rig).spawner).to(equal(token))
   end
 
   describe "worker databases" do

@@ -58,7 +58,7 @@ class Kimera::Execution::Shift
 
   def attempt
     kind = self.class
-    pace = Kimera::Execution::Pace.new(@options.fetch(:timings, {}))
+    pace = @options.fetch(:pace) { Kimera::Execution::Pace.new(@options.fetch(:timings, {})) }
     @_attempt ||= kind::Attempt.new(
       probe: probe, isolation: isolation, killers: kind::KillerMemory.new(pace), zygote: zygote
     )
@@ -99,7 +99,7 @@ class Kimera::Execution::Shift
 
   def covered(subject)
     tests = available(subject.id)
-    return subject.verdict(:no_coverage, detail: Kimera::MutationPoint::UNEXECUTED) if tests.empty?
+    return subject.verdict(:no_coverage).unreached if tests.empty?
     outcome(subject, tests)
   end
 

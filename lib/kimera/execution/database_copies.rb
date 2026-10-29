@@ -44,9 +44,9 @@ class Kimera::Execution::DatabaseCopies
 
   def name(index) = "#{config.database}_#{index}"
 
-  def engines
+  def engines(databases = Kimera::Execution::MemoryDatabases.new)
     return @_engines if defined?(@_engines)
-    @_engines = defined?(ActiveRecord::Base) && !Kimera::Execution::MemoryDatabases.new.current? ? pick : []
+    @_engines = defined?(ActiveRecord::Base) && !databases.current? ? pick : []
   end
 
   def pick

@@ -43,8 +43,8 @@ module Kimera
 
       def signal(target, processes = Process)
         processes.kill("KILL", target)
-      rescue Errno::ESRCH, Errno::EPERM
-        nil
+      rescue Errno::ESRCH, Errno::EPERM => error
+        error
       end
 
       def shut(io)

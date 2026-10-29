@@ -8,8 +8,9 @@ class Kimera::Execution::WorkerPool::StillbornGuard
 
   Seen = Struct.new(:stillborn, :progressed, keyword_init: true)
 
-  def initialize(jobs)
+  def initialize(jobs, seen = Seen.new(stillborn: 0, progressed: false))
     @jobs = jobs
+    @seen = seen
   end
 
   def progress!
@@ -24,7 +25,7 @@ class Kimera::Execution::WorkerPool::StillbornGuard
 
   private
 
-  def seen = @_seen ||= Seen.new(stillborn: 0, progressed: false)
+  attr_reader :seen
 
   def abort!(status, words)
     raise(Kimera::Error, message(status) + (words ? ". The last one died of:\n#{words}" : SILENT))

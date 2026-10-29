@@ -53,7 +53,7 @@ class Kimera::Execution::Pool
     database.before_fork
     @options.fetch(:dirs, Dir).mktmpdir("kimera-stacks") do |dir|
       armed.stacks = Kimera::Execution::StackDump.new(dir)
-      Kimera::Execution::WorkerPool.new(
+      @options.fetch(:pools, Kimera::Execution::WorkerPool).new(
         Kimera::Execution::WorkerPool::Context.new(
           queue, spawner, listeners, { jobs: jobs, hard_timeout: @options.fetch(:hard) }
         )
@@ -75,7 +75,7 @@ class Kimera::Execution::Pool
 
   def stacks = armed.stacks
 
-  def armed = @_armed ||= Armed.new(*@options.values_at(:coverage, :budget, :timings))
+  def armed = @_armed ||= @options.fetch(:armed) { Armed.new(*@options.values_at(:coverage, :budget, :timings)) }
 
   def launch(entry, index)
     duty = Duty.new(entry, index, channels)

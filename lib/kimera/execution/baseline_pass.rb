@@ -46,7 +46,7 @@ class Kimera::Execution::BaselinePass
 
   def zygote = @options.fetch(:zygote) { Kimera::Execution::Zygote.new }
 
-  def root = @options[:root]
+  def roots = Array(@options[:root])
 
   def settle(jobs)
     yield
@@ -61,7 +61,9 @@ class Kimera::Execution::BaselinePass
 
   def tests = @_tests ||= @options.fetch(:measured, EVERY).call(@adapter.test_ids)
 
-  def tally = @_tally ||= Kimera::Execution::BaselineTally.new(Hash.new { |h, k| h[k] = [] }, [], [], {}, {})
+  def tally
+    @_tally ||= @options.fetch(:tally) { Kimera::Execution::BaselineTally.new(Hash.new { |h, k| h[k] = [] }, [], [], {}, {}) }
+  end
 
   def whole
     Kimera::RUNTIME.active = nil
@@ -83,7 +85,7 @@ class Kimera::Execution::BaselinePass
 
   def listeners(lost, trace) = Kimera::Execution::WorkerPool::Listeners.new(resolve: resolve, lost: lost, trace: trace)
 
-  def losses = @_losses ||= Kimera::Execution::BaselineLosses.new
+  def losses = @_losses ||= @options.fetch(:losses) { Kimera::Execution::BaselineLosses.new }
 
   def journal = @_journal ||= Hash.new { |workers, slot| workers[slot] = [] }
 
@@ -118,11 +120,11 @@ class Kimera::Execution::BaselinePass
   end
 
   def red!(failed, jobs, messages = tally.messages)
-    screen(jobs).plainly!(failed.to_h { |id| [id, losses.told(id, messages[id])] }) if root
+    roots.each { |root| screen(jobs, root).plainly!(failed.to_h { |id| [id, losses.told(id, messages[id])] }) }
     failure!(failed, jobs, yield, messages: messages)
   end
 
-  def screen(jobs) = screens.new(adapter: @adapter, root: root, jobs: jobs)
+  def screen(jobs, root) = screens.new(adapter: @adapter, root: root, jobs: jobs)
 
   def screens = @options.fetch(:screens, Kimera::Execution::BaselineScreen)
 

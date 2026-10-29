@@ -41,8 +41,10 @@ class Kimera::Execution::WorkerPool
 
   def limit = context.options.fetch(:hard_timeout)
 
-  def fleet
-    @_fleet ||= Kimera::Execution::WorkerPool::Fleet.new(
+  def fleet = @_fleet ||= context.options.fetch(:fleet) { manned }
+
+  def manned
+    Kimera::Execution::WorkerPool::Fleet.new(
       queue: context.queue, spawner: context.spawner, jobs: context.options.fetch(:jobs), pool: self
     )
   end

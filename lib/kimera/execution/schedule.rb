@@ -33,20 +33,21 @@ class Kimera::Execution::Schedule
 
   def progress = @options.fetch(:progress)
 
-  def filter = @options[:filter]
+  def filters = Array(@options[:filter])
 
   def screened(coverage)
-    return [coverage, {}] unless filter&.active?
-    filter.screen(coverage).tap { |kept, _settled| @driver.narrow(kept) }
+    active = filters.select(&:active?)
+    return [coverage, {}] if active.empty?
+    active.fetch(0).screen(coverage).tap { |kept, _settled| @driver.narrow(kept) }
   end
 
-  def hard = @options[:hard]
+  def hard = @options.fetch(:hard)
 
-  def verdicts = @_verdicts ||= Kimera::Execution::Verdicts.new(@registry)
+  def verdicts = @_verdicts ||= @options.fetch(:verdicts) { Kimera::Execution::Verdicts.new(@registry) }
 
-  def plan(ids, coverage)
+  def plan(ids, coverage, ledger = Ledger.new({}, []))
     safe, reloadable, deferred = verdicts.tiers(ids)
-    Batch.new(prioritized(safe, coverage), reloadable, deferred, Ledger.new({}, []), coverage)
+    Batch.new(prioritized(safe, coverage), reloadable, deferred, ledger, coverage)
   end
 
   def prioritized(safe, coverage) = Kimera::Execution::Priority.new(coverage).order(safe)
@@ -75,7 +76,10 @@ class Kimera::Execution::Schedule
 
   def rerun(id, kinship)
     tests = kinship.order(id, @options.fetch(:adapter).test_ids)
-    return reloader.run(id, deadline: hard, tests: tests) unless filter
+    filters.map { |filter| settled(filter, id, tests) }.fetch(0) { reloader.run(id, deadline: hard, tests: tests) }
+  end
+
+  def settled(filter, id, tests)
     filter.settle(id, tests) || reloader.run(id, deadline: hard, tests: filter.keep(verdicts.path(id), tests))
   end
 
@@ -117,8 +121,10 @@ class Kimera::Execution::Schedule
 
   def crashed(id, obituary) = verdicts.unjudged(id, ["worker crashed before result", obituary].compact.join(": "))
 
-  def reloader
-    @_reloader ||= Kimera::Execution::Reload.new(
+  def reloader = @_reloader ||= @options.fetch(:reloader) { reloading }
+
+  def reloading
+    Kimera::Execution::Reload.new(
       registry: @registry, adapter: @options.fetch(:adapter), isolation: @options.fetch(:isolation),
       workspace: Kimera::Execution::Reload::Workspace.new(root: @options.fetch(:root), aliases: @options[:aliases])
     )

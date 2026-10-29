@@ -20,6 +20,7 @@ require_relative "run/cycle"
 require_relative "run/digest"
 require_relative "run/options"
 require_relative "run/sources"
+require_relative "run/streams"
 
 class Kimera::CLI::Run
   def initialize(
@@ -45,11 +46,13 @@ class Kimera::CLI::Run
 
   private
 
-  def machine?(options) = options.fetch(:format, "text") != "text" && @io.equal?($stdout) && @io.is_a?(IO)
+  def machine?(options, streams = Kimera::CLI::Run::Streams.new)
+    options.fetch(:format, "text") != "text" && streams.standard?(@io) && @io.is_a?(IO)
+  end
 
-  def detached
+  def detached(streams = Kimera::CLI::Run::Streams.new)
     report = @io.dup.tap { |copy| copy.sync = true }
-    $stdout.reopen($stderr)
+    streams.divert
     self.class.new(io: report, errors: @errors, bench: @bench)
   end
 

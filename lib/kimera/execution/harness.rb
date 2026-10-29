@@ -100,21 +100,23 @@ class Kimera::Execution::Harness
 
   def driver = rig.driver
 
-  def spawner = rig.spawner
-
   def schedule = rig.schedule
 
-  def rig
-    @_rig ||= Kimera::Execution::Rig.new(
+  def rig = @_rig ||= options.fetch(:rig) { rigged }
+
+  def rigged
+    Kimera::Execution::Rig.new(
       registry: registry, adapter: adapter, isolation: isolation, root: root, soft: soft, hard: hard, jobs: jobs,
       coverage: coverage, spawner: options[:spawner], progress: progress, aliases: state.aliases,
       **options.slice(:filter, :test_quality, :confirm_survivors, :zygote)
     )
   end
 
-  def trace = @_trace ||= Kimera::Execution::LoadTrace.new(registry, root)
+  def trace = @_trace ||= options.fetch(:trace) { Kimera::Execution::LoadTrace.new(registry, root) }
 
-  def boot = @_boot ||= Kimera::Execution::Boot.new(adapter: adapter, isolate: options[:isolate_db], errors: errors)
+  def boot = @_boot ||= options.fetch(:boot) { booted }
+
+  def booted = Kimera::Execution::Boot.new(adapter: adapter, isolate: options[:isolate_db], errors: errors)
 
   def complete(loader)
     state.skipped = loader.skipped

@@ -56,8 +56,9 @@ class Kimera::Execution::Aliases
 
   Tracked = Struct.new(:resolved, :orphans)
 
-  def initialize(files)
+  def initialize(files, tracked = Tracked.new([], []))
     @files = files
+    @tracked = tracked
   end
 
   def follow(&)
@@ -77,7 +78,7 @@ class Kimera::Execution::Aliases
 
   private
 
-  def tracked = @_tracked ||= Tracked.new([], [])
+  attr_reader :tracked
 
   def watched
     @_watched ||= @files.flat_map { |file| [file, *(File.realpath(file) if File.exist?(file))] }

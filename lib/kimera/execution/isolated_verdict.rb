@@ -45,7 +45,7 @@ module Kimera
         return settled.fetch(0) unless settled.empty?
         tests = plan.tests(trial.id, point)
         return result(trial, status: :no_coverage, detail: point.unsafe_reason) unless tests
-        judged(trial, tests, *measure(trial, tests))
+        judged(trial, tests, *measure(trial, tests, point))
       end
 
       def judged(trial, tests, outcome, duration)
@@ -56,12 +56,12 @@ module Kimera
         )
       end
 
-      def measure(trial, tests)
+      def measure(trial, tests, point)
         started = now
         ordered = plan.fastest(tests)
         [cleared(trial, ordered, with_mutant(trial) { settle(trial, ordered) }), now - started]
       rescue Kimera::Overlay::Unbakeable => error
-        [IsolatedOutcome.new(:unmutatable, nil, "#{Kimera::MutationPoint::UNMUTATABLE}#{error.message}"), nil]
+        [IsolatedOutcome.new(:unmutatable, nil, point.unmutatable(error.message)), nil]
       end
 
       def settle(trial, tests)
@@ -87,7 +87,7 @@ module Kimera
           ledger = File.join(dir, LEDGER)
           seconds = patience(locations)
           exit = launch(mirror, plan.command(mirror, locations, ledger, first: first, slot: slot), dir, seconds)
-          IsolatedOutcome::Ruling.new(exit, ledger, captured(File.join(dir, STDERR_LOG))).outcome.timed(seconds)
+          rulings.new(exit, ledger, captured(File.join(dir, STDERR_LOG))).outcome.timed(seconds)
         end
       end
 
