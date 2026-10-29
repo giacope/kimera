@@ -137,4 +137,28 @@ RSpec.describe(Kimera::GuardClause) do
     expect(described_class.new(modifier, mutant).edits).to(be_nil)
     expect(woven("def m\n  work\nensure\nend\n")).to(include("(!(#{guard(1)}) ? (begin; work"))
   end
+
+  it "guards an explicit begin with an empty ensure where it stands, on its lines" do
+    code = "def m(n)\n  begin\n    n += 1\n  ensure\n  end\n  n\nend\n"
+    guarded = "  (!(#{guard(1)}) ? (begin\n    n += 1\n  ensure\n  end) : (n += 1))\n"
+    expect(woven(code)).to(eq(code.sub("  begin\n    n += 1\n  ensure\n  end\n", guarded)))
+  end
+
+  # Guarded in place, `begin ... end while` would test before its first pass,
+  # and guarded around the loop, its mutant would be written as a plain while.
+  def emptied_loop
+    code = "def m(n)\n  begin\n    n += 1\n  ensure\n  end while n < 3\n  n\nend\n"
+    catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: %w[ensure_clause comparison]))
+      .source(code, file: "c.rb")
+    result = nil
+    expect { result = Kimera::Overlay.new(catalog).synthesize("c.rb", code) }
+      .to(output(/1 mutation point\(s\) at line 2 are unguardable/).to_stderr)
+    [result, catalog.points.find { |point| point.mutants.first.label == "drop `ensure`" }]
+  end
+
+  it "leaves unguarded the empty ensure of a loop's begin, which still runs once" do
+    result, dropped = emptied_loop
+    looping = Object.new.extend(Module.new.tap { |mod| mod.module_eval(result.source) })
+    expect([result.skipped_unsafe, looping.m(5)]).to(eq([dropped.ids, 6]))
+  end
 end

@@ -35,8 +35,12 @@ RSpec.describe(Kimera::Frameworks::TestTask) do
     expect(flags(rakefile)).to(eq(["-w"]))
   end
 
+  # Starts with warnings off, whatever ran before: compared with the state it
+  # found, the task that keeps them off passed once a mutant had turned them on.
   def installed(rakefile)
     before = [$VERBOSE, Warning[:deprecated]]
+    $VERBOSE = false
+    Warning[:deprecated] = false
     task(rakefile, &:install)
     [$VERBOSE, Warning[:deprecated]]
   ensure
@@ -44,7 +48,7 @@ RSpec.describe(Kimera::Frameworks::TestTask) do
   end
 
   it "turns warnings on in this process only for a task that keeps them", :aggregate_failures do
-    expect(installed("Rake::TestTask.new { |t| t.warning = false }\n")).to(eq([$VERBOSE, Warning[:deprecated]]))
+    expect(installed("Rake::TestTask.new { |t| t.warning = false }\n")).to(eq([false, false]))
     expect(installed("Rake::TestTask.new\n")).to(eq([true, true]))
   end
 end

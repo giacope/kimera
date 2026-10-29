@@ -20,7 +20,8 @@ RSpec.describe(Kimera::Overlay::MethodBake) do
     expect(described_class.new(map, map.ast).source(point.location)).to(eq(["def m(a); a > 1; end\n"]))
   end
 
-  it "grafts nothing that leaves the file unparseable" do
-    expect(described_class.new(unparseable(map), map.ast).source(point.location)).to(eq([]))
+  # Whether the file still parses is the bake's to judge (Overlay#checked refuses one that does not), not the graft's.
+  it "grafts what the splice wrote, whether or not it parses" do
+    expect(described_class.new(unparseable(map), map.ast).source(point.location)).to(eq(["def ("]))
   end
 end
