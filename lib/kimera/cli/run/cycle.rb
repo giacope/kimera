@@ -90,7 +90,7 @@ class Kimera::CLI::Run::Cycle
 
   def inline = Kimera::CLI::Run::InlineIgnores.new(@registry, root: @options[:source_root]).rules
 
-  def narrowing = @_narrowing ||= Kimera::CLI::Run::Narrowing.new(@options)
+  def narrowing(kind = Kimera::CLI::Run::Narrowing) = @_narrowing ||= kind.new(@options)
 
   def coverage = @options[:fail_on_no_coverage] || @options[:count_no_coverage] ? :list : :hint
 

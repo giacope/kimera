@@ -31,7 +31,7 @@ class Kimera::RegistryScan::SourceFile
 
   def guards = @_guards ||= Kimera::MemoGuard::Source.new(@source).exemptions + removals.exemptions
 
-  def removals = @_removals ||= Kimera::DefaultRemoval::Source.new(@source)
+  def removals(kind = Kimera::DefaultRemoval::Source) = @_removals ||= kind.new(@source)
 
   def scanned = @_scanned ||= attempt
 
@@ -119,7 +119,7 @@ class Kimera::RegistryScan::SourceFile
 
   def distinct(node, pairs) = outcomes.distinct(node, pairs, &DIRECTIVE)
 
-  def outcomes = @_outcomes ||= Kimera::Rewrite::Outcomes.new(@source)
+  def outcomes(kind = Kimera::Rewrite::Outcomes) = @_outcomes ||= kind.new(@source)
 
   def attributes(node, pairs, name)
     location = node.location

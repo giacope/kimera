@@ -23,7 +23,7 @@ class Kimera::Overlay::Stitch
 
   private
 
-  def weave = @_weave ||= Kimera::GuardSplice.new(@map, @safe)
+  def weave(splices = Kimera::GuardSplice) = @_weave ||= splices.new(@map, @safe)
 
   def splicer = Kimera::Overlay::MethodSplice.new(@file, @map, @safe, @unsafe)
 

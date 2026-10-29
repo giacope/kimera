@@ -192,8 +192,8 @@ class Kimera::MutationPoint
 
   def ids = mutants.map(&:id)
 
-  def marks
-    @_marks ||= Marks.new(@attributes.fetch(:schema_safe, SAFE), *@attributes.values_at(:unsafe_reason, :revisit))
+  def marks(kind = Marks)
+    @_marks ||= kind.new(@attributes.fetch(:schema_safe, SAFE), *@attributes.values_at(:unsafe_reason, :revisit))
   end
 
   def project(*fields)

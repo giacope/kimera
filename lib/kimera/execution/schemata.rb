@@ -28,7 +28,9 @@ class Kimera::Execution::Schemata
     aliases.follow { weave(reachable) + weave(unresolved) }.tap { announce }
   end
 
-  def aliases = @_aliases ||= Kimera::Execution::Aliases.new(@registry.files.map { |path| File.join(root, path) })
+  def aliases(kind = Kimera::Execution::Aliases)
+    @_aliases ||= kind.new(@registry.files.map { |path| File.join(root, path) })
+  end
 
   private
 
@@ -124,7 +126,7 @@ class Kimera::Execution::Schemata
 
   def root = @_root ||= File.expand_path(@root)
 
-  def synth = @_synth ||= Kimera::Overlay.new(@registry)
+  def synth(overlays = Kimera::Overlay) = @_synth ||= overlays.new(@registry)
 
   def silence(streams = Kimera::Execution::StandardStreams.new, guards = Kimera::Execution::OverlayGuards.new, &)
     streams.holding_errors { guards.overlay(&) }

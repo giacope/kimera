@@ -129,7 +129,7 @@ class Kimera::Runtime < Module
 
   def publish = @spills = Ractor.make_shareable(leaks)
 
-  def hidden = @_hidden ||= Hidden.new({}, [])
+  def hidden(kind = Hidden) = @_hidden ||= kind.new({}, [])
 end
 
 Kimera::Runtime::Hidden =

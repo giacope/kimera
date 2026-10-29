@@ -26,7 +26,7 @@ class Kimera::CLI::Run::Pass
 
   private
 
-  def progress = @_progress ||= Kimera::Report::Progress.new(enabled: @options[:progress])
+  def progress(kind = Kimera::Report::Progress) = @_progress ||= kind.new(enabled: @options[:progress])
 
   def with_adapter
     yield
@@ -54,8 +54,8 @@ class Kimera::CLI::Run::Pass
 
   def harness = @_harness ||= @bench.harness(**settings)
 
-  def files
-    @_files ||= Kimera::CLI::Run::Sources.new.tests(@options[:tests], @options[:exclude_tests])
+  def files(sources = Kimera::CLI::Run::Sources)
+    @_files ||= sources.new.tests(@options[:tests], @options[:exclude_tests])
   end
 
   def settings = base.merge({ hard_timeout: @options[:hard_timeout] }.compact)
@@ -95,11 +95,11 @@ class Kimera::CLI::Run::Pass
     report.revise(judge(pending).results)
   end
 
-  def route = @_route ||= Kimera::CLI::Run::Route.new(@registry, @options)
+  def route(kind = Kimera::CLI::Run::Route) = @_route ||= kind.new(@registry, @options)
 
-  def cache
+  def cache(kind = Kimera::Incremental::CoverageCache)
     sources = -> { Kimera::FileSet.new(@options[:paths], exclude: @options[:exclude]).relative_to(@options[:source_root]) }
-    @_cache ||= Kimera::Incremental::CoverageCache.new(registry: @registry, options: @options, sources: sources)
+    @_cache ||= kind.new(registry: @registry, options: @options, sources: sources)
   end
 
   def rejudged(report)
