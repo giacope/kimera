@@ -1,7 +1,10 @@
 # frozen_string_literal: true
 
+require "fileutils"
 require "kimera/incremental/selection"
 require "kimera/registry/builder"
+require "open3"
+require "tmpdir"
 
 RSpec.describe(Kimera::Incremental::Selection) do
   let(:registry) do
@@ -11,30 +14,36 @@ RSpec.describe(Kimera::Incremental::Selection) do
       end
     RUBY
   end
+  let(:root) { Dir.mktmpdir }
+
+  after { FileUtils.remove_entry(root) }
+
+  def git(*arguments)
+    _out, error, status = Open3.capture3("git", "-C", root, *arguments)
+    raise(RuntimeError, "git #{arguments.join(" ")} failed: #{error}") unless status.success?
+  end
+
+  # calc.rb committed with `x < y` on line 2, then edited to `x > y`.
+  def changed
+    git("init", "-q", "-b", "main")
+    File.write(File.join(root, "calc.rb"), "def a(x, y)\n  x < y\nend\n")
+    git("add", "-A")
+    git(*%w[-c user.email=t@example.com -c user.name=Test -c commit.gpgsign=false commit -q -m a])
+    File.write(File.join(root, "calc.rb"), "def a(x, y)\n  x > y\nend\n")
+  end
 
   describe ".from_diff" do
-    it "selects mutants on the lines GitDiff reports as changed" do
-      changed = { "calc.rb" => Set[2] } # the `x > y` line
-      allow(Kimera::Incremental::GitDiff).to(
-        receive(:new).with(
-          since: "main",
-          root: "."
-        ).and_return(instance_double(Kimera::Incremental::GitDiff, lines: changed))
-      )
-
-      ids = described_class.from_diff(since: "main").ids(registry)
+    it "selects mutants on the lines git reports as changed since the ref, in the root" do
+      changed
+      ids = described_class.from_diff(since: "main", root: root).ids(registry)
       sources = ids.map { |id| registry.index[id].original_source }.uniq
       expect(sources).to(eq(["x > y"]))
     end
 
-    it "passes a custom root through to GitDiff" do
-      allow(Kimera::Incremental::GitDiff).to(
-        receive(:new).with(
-          since: "dev",
-          root: "/proj"
-        ).and_return(instance_double(Kimera::Incremental::GitDiff, lines: {}))
-      )
-      expect(described_class.from_diff(since: "dev", root: "/proj").ids(registry)).to(eq([]))
+    it "selects nothing when the root has not changed since the ref" do
+      changed
+      git("checkout", "-q", "--", "calc.rb")
+      expect(described_class.from_diff(since: "main", root: root).ids(registry)).to(eq([]))
     end
   end
 end

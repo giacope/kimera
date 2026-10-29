@@ -33,10 +33,11 @@ class Kimera::CLI::Init
   LOCKED = { "rspec" => /^    rspec-core \(/, "minitest" => /^    minitest \(/ }.freeze
   DOCUMENT = ->(**fields) { fields.transform_keys(&:to_s) }
 
-  def initialize(io: $stdout, errors: $stderr, root: ".")
+  def initialize(io: $stdout, errors: $stderr, root: ".", processors: Etc.nprocessors)
     @io = io
     @errors = errors
     @root = root
+    @processors = processors
   end
 
   def run(argv)
@@ -74,7 +75,7 @@ class Kimera::CLI::Init
   def detected
     DOCUMENT.call(
       framework: framework, paths: sources, tests: tests, **left_out, operators: operators,
-      jobs: [Etc.nprocessors, JOBS].min, max_survivors: 0, max_errors: 0, count_no_coverage: true
+      jobs: [@processors, JOBS].min, max_survivors: 0, max_errors: 0, count_no_coverage: true
     )
   end
 

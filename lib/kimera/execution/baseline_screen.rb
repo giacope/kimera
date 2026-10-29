@@ -17,7 +17,7 @@ class Kimera::Execution::BaselineScreen
       "reach it), or the order tests run in; run the command above, then `kimera run --jobs 1` on their file"
   }.freeze
 
-  def initialize(adapter:, root:, jobs:, suite: Kimera::Execution::SUITE)
+  def initialize(adapter:, root:, jobs:, suite: Kimera::Execution::SuiteCapture.new)
     @adapter = adapter
     @root = root
     @jobs = jobs

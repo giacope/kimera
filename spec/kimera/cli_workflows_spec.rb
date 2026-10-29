@@ -37,7 +37,10 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
 
   def configure(*argv) = Kimera::CLI::Init.new(io: out, errors: error, root: dir).run(argv)
 
-  def doctor(*argv) = Kimera::CLI::Doctor.new(io: out, errors: error, root: dir).run(argv)
+  def doctor(*argv, suite: Kimera::Execution::SuiteCapture.new, gems: Gem)
+    instruments = Kimera::CLI::Instruments.new(suite: suite, gems: gems)
+    Kimera::CLI::Doctor.new(io: out, errors: error, root: dir, instruments: instruments).run(argv)
+  end
 
   def configured = YAML.safe_load_file(File.join(dir, ".kimera.yml"))
 
@@ -140,9 +143,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
 
   it "fails doctor when the configured framework is not in the bundle" do
     project(".kimera.yml" => "framework: minitest\n")
-    allow(Gem).to(receive(:find_files).and_call_original)
-    allow(Gem).to(receive(:find_files).with("minitest").and_return([]))
-    expect(doctor).to(eq(1))
+    expect(doctor(gems: FakeGems.new("rspec/core" => ["rspec/core.rb"]))).to(eq(1))
     expect(out.string).to(include("✗ Framework: minitest is not in this bundle"))
   end
 
@@ -211,14 +212,14 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     expect(test_doctor_in(dir).last).to(include("! Coverage floor: minimum_coverage in test/test_helper.rb can fail"))
   end
 
-  def test_initialized(files)
+  def test_initialized(files, processors = Etc.nprocessors)
     Dir.mktmpdir do |dir|
       files.each do |path, body|
         FileUtils.mkdir_p(File.dirname(File.join(dir, path)))
         File.write(File.join(dir, path), body)
       end
       out, error = captured
-      Kimera::CLI::Init.new(io: out, errors: error, root: dir).run(["--dry-run"])
+      Kimera::CLI::Init.new(io: out, errors: error, root: dir, processors: processors).run(["--dry-run"])
       YAML.safe_load(out.string)
     end
   end
@@ -314,10 +315,8 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
   end
 
   it "writes at most four workers" do
-    allow(Etc).to(receive(:nprocessors).and_return(16))
-    expect(test_initialized("spec/a_spec.rb" => "")["jobs"]).to(eq(4))
-    allow(Etc).to(receive(:nprocessors).and_return(2))
-    expect(test_initialized("spec/a_spec.rb" => "")["jobs"]).to(eq(2))
+    expect(test_initialized({ "spec/a_spec.rb" => "" }, 16)["jobs"]).to(eq(4))
+    expect(test_initialized({ "spec/a_spec.rb" => "" }, 2)["jobs"]).to(eq(2))
   end
 
   # Sequel and graphql-ruby keep Minitest specs under spec/ with no helper
@@ -420,41 +419,39 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     expect(test_initialized(zeitwerk_like.slice("test/helper.rb"))).to(include("tests" => ["test/**/*_test.rb"]))
   end
 
-  def test_doctor_in(dir, *argv)
+  def test_doctor_in(dir, *argv, suite: Kimera::Execution::SuiteCapture.new)
     out, error = captured
-    [Kimera::CLI::Doctor.new(io: out, errors: error, root: dir).run(argv), out.string]
+    instruments = Kimera::CLI::Instruments.new(suite: suite)
+    [Kimera::CLI::Doctor.new(io: out, errors: error, root: dir, instruments: instruments).run(argv), out.string]
   end
 
+  # A green suite that writes down, as each command runs, the command and what
+  # doctor had printed by then.
   def green_suite(seen = [])
-    allow(Kimera::Execution::SUITE).to(receive(:timed)) do |*command, **|
-      seen << [command, out.string]
-      ["", instance_double(Process::Status, success?: true)]
-    end
-    seen
+    FakeCapture.new { |command| seen.push([command, out.string]) && ["", ProcessStatuses.exited(0)] }
   end
 
   describe "a doctor run where no test file matches" do
-    before do
-      project(".kimera.yml" => "tests: [test/**/*_test.rb]\n")
-      allow(Kimera::Execution::SUITE).to(receive(:timed))
-    end
+    let(:suite) { FakeCapture.new }
+
+    before { project(".kimera.yml" => "tests: [test/**/*_test.rb]\n") }
 
     it "fails discovery and skips loading", :aggregate_failures do
-      expect(doctor("--check-baseline")).to(eq(1))
+      expect(doctor("--check-baseline", suite: suite)).to(eq(1))
       expect(out.string).to(include("✗ Test discovery", "! Test loading: no test files to load"))
     end
 
     it "never runs the baseline", :aggregate_failures do
-      doctor("--check-baseline")
+      doctor("--check-baseline", suite: suite)
       expect(out.string).not_to(include("Baseline"))
-      expect(Kimera::Execution::SUITE).not_to(have_received(:timed))
+      expect(suite.ran).to(be_empty)
     end
   end
 
   it "fails discovery when the test files define no test" do
     project("test/support/loader_test.rb" => "class LoaderTest < Minitest::Test\nend\n")
     project(".kimera.yml" => "framework: minitest\ntests: [test/**/*_test.rb]\n")
-    green_suite && expect(test_doctor_in(dir)).to(
+    expect(test_doctor_in(dir, suite: green_suite)).to(
       match([1, include("✗ Test discovery: 1 files match tests:, but none defines a test")])
     )
   end
@@ -462,28 +459,27 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
   it "leaves the configured exclude_tests out of discovery", :aggregate_failures do
     project("test/a_test.rb" => "def test_a; end\n", "test/system/b_test.rb" => "def test_b; end\n")
     project(".kimera.yml" => "tests: [test/**/*_test.rb]\nexclude_tests: [test/system/**/*_test.rb]\n")
-    green_suite && expect(test_doctor_in(dir).last).to(include("✓ Test discovery: 1 files"))
+    expect(test_doctor_in(dir, suite: green_suite).last).to(include("✓ Test discovery: 1 files"))
     green = "✓ Baseline: configured test suite is green\n"
-    expect(test_doctor_in(dir, "--check-baseline").last.lines.last).to(eq(green))
+    expect(test_doctor_in(dir, "--check-baseline", suite: green_suite).last.lines.last).to(eq(green))
   end
 
   # Output piped to a file or CI log must show doctor working before the
   # suite run, which can take minutes.
   describe "a doctor run whose output is piped" do
-    let(:out) { Class.new(StringIO) { define_method(:flushed) { @_flushed ||= [] } }.new }
+    let(:out) { CountedIO.new }
 
     it "prints each check before the suite runs", :aggregate_failures do
       project("spec/a_spec.rb" => "it { }\n")
-      seen = green_suite
-      doctor("--check-baseline")
+      seen = []
+      doctor("--check-baseline", suite: green_suite(seen))
       expect(seen.first.last).to(include("✓ Test discovery: 1 files", "Git:"))
       expect(seen.last.last).to(include("✓ Test loading"))
     end
 
     it "flushes after every line" do
       project("spec/a_spec.rb" => "")
-      allow(out).to(receive(:flush)) { out.flushed << out.string.lines.size }
-      green_suite && doctor("--check-baseline")
+      doctor("--check-baseline", suite: green_suite)
       expect(out.flushed).to(eq((1..out.string.lines.size).to_a))
     end
   end
@@ -492,7 +488,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
   # here; `kimera run` left it out, doctor ran it and called the suite red.
   it "runs the baseline without the tests exclude_test_names leaves out, as run does" do
     project("spec/a_spec.rb" => "", ".kimera.yml" => "exclude_test_names: [\"needs a network\"]\njobs: 1\n")
-    seen = green_suite.tap { doctor("--check-baseline") }
+    seen = [].tap { |ran| doctor("--check-baseline", suite: green_suite(ran)) }
     expect(seen.map { |command, _| command.join(" ") }).to(all(include("filter_run_excluding", "needs a network")))
   end
 
@@ -500,7 +496,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     let!(:seen) do
       config = "framework: minitest\ntests: [spec/**/*_spec.rb]\nload_path: [support, spec/helpers]\n"
       project("spec/a_spec.rb" => "", ".kimera.yml" => config)
-      green_suite.tap { doctor }
+      [].tap { |ran| doctor(suite: green_suite(ran)) }
     end
 
     after { ENV.delete("KIMERA_LOAD_PATH") }
@@ -514,12 +510,14 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     end
   end
 
-  def test_doctor_jobs(config, *argv, serial: true)
+  # A suite whose dry run is green, and whose runs are green when +serial+.
+  def serial_suite(serial)
+    FakeCapture.new { |command| ["", ProcessStatuses.exited(serial || command.include?("--dry-run") ? 0 : 1)] }
+  end
+
+  def test_doctor_jobs(config, *argv, serial: true, suite: serial_suite(serial))
     project("spec/a_spec.rb" => "", ".kimera.yml" => config)
-    allow(Kimera::Execution::SUITE).to(receive(:timed)) do |*command, **|
-      ["", instance_double(Process::Status, success?: serial || command.include?("--dry-run"))]
-    end
-    test_doctor_in(dir, "--check-baseline", *argv).last
+    test_doctor_in(dir, "--check-baseline", *argv, suite: suite).last
   end
 
   # A suite that is green in one process can still be red on the configured
@@ -530,8 +528,9 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     end
 
     it "runs split across the configured jobs, or those --jobs gives", :aggregate_failures do
-      expect(test_doctor_jobs("jobs: 3\n").lines.last).to(eq(parallel))
-      expect(Kimera::Execution::SUITE).to(have_received(:timed).exactly(5).times)
+      suite = serial_suite(true)
+      expect(test_doctor_jobs("jobs: 3\n", suite: suite).lines.last).to(eq(parallel))
+      expect(suite.ran.size).to(eq(5))
       expect(test_doctor_jobs("{}\n", "--jobs", "3").lines.last).to(eq(parallel))
     end
 

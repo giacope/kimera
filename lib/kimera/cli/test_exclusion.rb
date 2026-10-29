@@ -21,21 +21,23 @@ class Kimera::CLI::TestExclusion
     @names = names
   end
 
-  def none? = @names.empty?
-
-  def before = none? || minitest? ? [] : ["-e", format(RSPEC, patterns.inspect)]
-
-  def after = none? || !minitest? ? [] : ["-e", format(MINITEST, Regexp.union(patterns).inspect.inspect)]
-
   def rspec(flags, files)
     none? ? ["bundle", "exec", "rspec", *flags, *files] : ruby([], ["-e", RUNNER, "--", *flags], files)
   end
 
   def ruby(head, script, files) = ["bundle", "exec", "ruby", *head, *before, *script, *after, *files]
 
-  private
-
-  def patterns = @names.map { |name| Regexp.new(name) }
+  def sharded(head, shard, includes, files) = ruby(head, shard.argv(@framework, includes), files)
 
   def minitest? = @framework == "minitest"
+
+  private
+
+  def none? = @names.empty?
+
+  def before = none? || minitest? ? [] : ["-e", format(RSPEC, patterns.inspect)]
+
+  def after = none? || !minitest? ? [] : ["-e", format(MINITEST, Regexp.union(patterns).inspect.inspect)]
+
+  def patterns = @names.map { |name| Regexp.new(name) }
 end

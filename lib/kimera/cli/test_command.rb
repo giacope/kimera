@@ -34,11 +34,11 @@ class Kimera::CLI::TestCommand
   ALLOWANCE = 120
   PER_FILE = 5
 
-  def initialize(framework, files, root:, names: [])
-    @framework = framework
+  def initialize(exclusion, files, root:, suite: Kimera::Execution::SuiteCapture.new)
+    @exclusion = exclusion
     @files = files
     @root = root
-    @names = names
+    @suite = suite
   end
 
   def baseline
@@ -82,19 +82,17 @@ class Kimera::CLI::TestCommand
   end
 
   def capture(command)
-    output, status = Kimera::Execution::SUITE.timed(*command, chdir: @root, limit: ALLOWANCE + (PER_FILE * @files.size))
+    output, status = @suite.timed(*command, chdir: @root, limit: ALLOWANCE + (PER_FILE * @files.size))
     [output.dup.force_encoding(Encoding::UTF_8).scrub, status]
   end
 
   def shards(jobs) = Array.new(jobs) { |index| Thread.new { capture(shard(index, jobs)) } }.map(&:value)
 
-  def shard(index, count)
-    exclusion.ruby(warnings, Kimera::CLI::TestShard.new(index, count).argv(@framework, includes), @files)
-  end
+  def shard(index, count) = @exclusion.sharded(warnings, Kimera::CLI::TestShard.new(index, count), includes, @files)
 
-  def run = minitest? ? ruby(LOADER) : exclusion.rspec([], @files)
+  def run = minitest? ? ruby(LOADER) : @exclusion.rspec([], @files)
 
-  def dry_run = minitest? ? ruby(DRY_RUN) : exclusion.rspec(["--dry-run"], @files)
+  def dry_run = minitest? ? ruby(DRY_RUN) : @exclusion.rspec(["--dry-run"], @files)
 
   def failing(output)
     ids = culprits(output.to_s)
@@ -123,7 +121,7 @@ class Kimera::CLI::TestCommand
     cause ? " (#{cause.captures.join(": ")})" : ""
   end
 
-  def ruby(script, flags = warnings) = exclusion.ruby([*flags, *includes], ["-e", script], @files)
+  def ruby(script, flags = warnings) = @exclusion.ruby([*flags, *includes], ["-e", script], @files)
 
   def warnings = minitest? ? task.flags : []
 
@@ -131,7 +129,5 @@ class Kimera::CLI::TestCommand
 
   def includes = Kimera::Frameworks::LoadPath.new(@files, root: @root).flags
 
-  def exclusion = @_exclusion ||= Kimera::CLI::TestExclusion.new(@framework, @names)
-
-  def minitest? = @framework == "minitest"
+  def minitest? = @exclusion.minitest?
 end

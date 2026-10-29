@@ -7,6 +7,7 @@ require_relative "../frameworks/load_path"
 require_relative "checklist"
 require_relative "coverage_minimum"
 require_relative "flag"
+require_relative "instruments"
 require_relative "rails_layout"
 require_relative "rspec_options"
 require_relative "test_command"
@@ -26,11 +27,11 @@ class Kimera::CLI::Doctor
   HELPERS = %w[.simplecov {spec,test}/**/*helper*.rb].freeze
   UNCHECKED = [["!", "Test loading: no test files to load"]].freeze
 
-  def initialize(io: $stdout, errors: $stderr, root: ".", env: ENV)
+  def initialize(io: $stdout, errors: $stderr, root: ".", instruments: Kimera::CLI::Instruments.new)
     @io = io
     @errors = errors
     @root = root
-    @env = env
+    @instruments = instruments
   end
 
   def run(argv)
@@ -44,7 +45,7 @@ class Kimera::CLI::Doctor
 
   private
 
-  def expose(config, env = @env)
+  def expose(config, env = ENV)
     Kimera::Frameworks::LoadPath.new([], env: env).share(config[:load_path])
   end
 
@@ -65,7 +66,7 @@ class Kimera::CLI::Doctor
     options[:check_baseline] ? [loaded, *baselines(config).each { |check| shown(check) }] : [loaded]
   end
 
-  def list = @_list ||= Kimera::CLI::Checklist.new(@io, @errors)
+  def list = Kimera::CLI::Checklist.new(@io, @errors)
 
   def shown(check) = list.shown(check)
 
@@ -78,7 +79,7 @@ class Kimera::CLI::Doctor
   def framework(config)
     name = config.fetch(:framework, "rspec").to_s
     feature = FRAMEWORK_FEATURES.fetch(name) { return ["✗", "Framework: unknown #{name}; use rspec or minitest"] }
-    return ["✓", "Framework: #{name} is installed"] if Gem.find_files(feature).any?
+    return ["✓", "Framework: #{name} is installed"] if @instruments.installed?(feature)
     ["✗", "Framework: #{name} is not in this bundle; fix framework: in .kimera.yml or add it to the Gemfile"]
   end
 
@@ -122,7 +123,7 @@ class Kimera::CLI::Doctor
   def test_command(config)
     framework = config.fetch(:framework, "rspec").to_s
     names = Array(config[:exclude_test_names])
-    Kimera::CLI::TestCommand.new(framework, test_files(config), root: @root, names: names)
+    @instruments.tests(Kimera::CLI::TestExclusion.new(framework, names), test_files(config), @root)
   end
 
   def jobs(config) = Integer(config.fetch(:jobs, 1), exception: false).to_i

@@ -384,7 +384,12 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
   describe "workflow branches" do
     def initialized(*argv) = Kimera::CLI::Init.new(io: out, errors: errors, root: dir).run(argv)
 
-    def doctored(*argv) = Kimera::CLI::Doctor.new(io: out, errors: errors, root: dir).run(argv)
+    def doctored(*argv, suite: Kimera::Execution::SuiteCapture.new) = examining(suite).run(argv)
+
+    def examining(suite)
+      instruments = Kimera::CLI::Instruments.new(suite: suite)
+      Kimera::CLI::Doctor.new(io: out, errors: errors, root: dir, instruments: instruments)
+    end
 
     it "initializes a minitest project under --dry-run, writing nothing" do
       directories("test") && project("thing.rb" => "class Thing; end\n")
@@ -430,30 +435,29 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
     it "fails when a test file cannot load, and accepts a worktree's .git file" do
       project("spec/x_spec.rb" => "# spec\n", ".git" => "gitdir: /elsewhere\n")
-      failure = instance_double(Process::Status, success?: false)
-      allow(Kimera::Execution::SUITE).to(receive(:timed).and_return(["x_spec.rb:1: boom (RuntimeError)\n", failure]))
-      expect(doctored).to(eq(1))
+      broken = FakeCapture.new { ["x_spec.rb:1: boom (RuntimeError)\n", ProcessStatuses.exited(1)] }
+      expect(doctored(suite: broken)).to(eq(1))
       expect(out.string).to(include("✗ Test loading: x_spec.rb:1: boom (RuntimeError)", "✓ Git: incremental"))
     end
 
     describe "doctor's baseline check" do
+      let(:suite) { FakeCapture.new }
       let(:doctor) do
         project("spec/x_spec.rb" => "# spec\n")
-        green = instance_double(Process::Status, success?: true)
-        allow(Kimera::Execution::SUITE).to(receive(:timed).and_return(["", green]))
-        Kimera::CLI::Doctor.new(io: out, errors: errors, root: dir).tap do |doctor|
-          allow(doctor).to(receive(:baselines).and_return([["✓", "Baseline: configured test suite is green"]]))
-        end
+        examining(suite)
       end
+
+      # The suite ran the configured tests, not only a dry run of them.
+      def baselined? = suite.commands.any? { |command| !command.include?("--dry-run") }
 
       it "is skipped unless requested" do
         expect(doctor.run([])).to(eq(1))
-        expect(doctor).not_to(have_received(:baselines))
+        expect(baselined?).to(be(false))
       end
 
       it "runs under --check-baseline" do
         expect(doctor.run(["--check-baseline"])).to(eq(1))
-        expect(doctor).to(have_received(:baselines))
+        expect(baselined?).to(be(true))
         expect(out.string).to(include("Baseline: configured test suite is green"))
       end
 
@@ -665,12 +669,13 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
   end
 
   describe "previously uncovered CLI paths" do
-    def doctor(dir)
+    def doctor(dir, suite)
       FileUtils.mkdir_p(File.join(dir, "test"))
       FileUtils.mkdir_p(File.join(dir, "spec"))
       File.write(File.join(dir, "test", "x_test.rb"), "# test\n")
       File.write(File.join(dir, "spec", "x_spec.rb"), "# spec\n")
-      Kimera::CLI::Doctor.new(io: StringIO.new, errors: StringIO.new, root: dir)
+      instruments = Kimera::CLI::Instruments.new(suite: suite)
+      Kimera::CLI::Doctor.new(io: StringIO.new, errors: StringIO.new, root: dir, instruments: instruments)
     end
 
     describe "the command wrappers" do
@@ -705,20 +710,19 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         "bundle", "exec", "ruby", "-I", "test", "-I", "spec",
         "-e", Kimera::CLI::TestCommand::LOADER, File.join(dir, "test", "x_test.rb")
       ]
-      success = ["", instance_double(Process::Status, success?: true)]
-      allow(Kimera::Execution::SUITE).to(receive(:timed).with(*command, chdir: dir, limit: 125).and_return(success))
-      expect(doctor(dir).__send__(:baselines, { framework: "minitest", tests: ["test/**/*_test.rb"] }))
+      suite = FakeCapture.new
+      expect(doctor(dir, suite).__send__(:baselines, { framework: "minitest", tests: ["test/**/*_test.rb"] }))
         .to(eq([["✓", "Baseline: configured test suite is green"]]))
-      expect(Kimera::Execution::SUITE).to(have_received(:timed).with(*command, chdir: dir, limit: 125))
+      expect(suite.ran).to(eq([[command, dir, 125]]))
     end
 
     it "builds and diagnoses a failing RSpec baseline command" do
       command = ["bundle", "exec", "rspec", File.join(dir, "spec", "x_spec.rb")]
-      failure = ["noise\n3 examples, 1 failure\n", instance_double(Process::Status, success?: false)]
-      allow(Kimera::Execution::SUITE).to(receive(:timed).with(*command, chdir: dir, limit: 125).and_return(failure))
+      suite = FakeCapture.new { ["noise\n3 examples, 1 failure\n", ProcessStatuses.exited(1)] }
       message = "Baseline: 3 examples, 1 failure (fix it, then rerun `kimera doctor --check-baseline`)"
-      expect(doctor(dir).__send__(:baselines, { framework: "rspec", tests: ["spec/**/*_spec.rb"] }))
+      expect(doctor(dir, suite).__send__(:baselines, { framework: "rspec", tests: ["spec/**/*_spec.rb"] }))
         .to(eq([["✗", message]]))
+      expect(suite.ran).to(eq([[command, dir, 125]]))
     end
 
     # A repository in +dir+ whose one commit is on the branches +refs+ names:

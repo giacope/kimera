@@ -2,17 +2,19 @@
 
 require "stringio"
 
-# A string stream that counts how often it was flushed.
+# A string stream that writes down, at each flush, how many lines it held.
 class CountedIO < StringIO
-  attr_reader :flushes
+  attr_reader :flushed
 
   def initialize(...)
     super
-    @flushes = 0
+    @flushed = []
   end
 
   def flush
-    @flushes += 1
+    @flushed.push(string.lines.size)
     super
   end
+
+  def flushes = @flushed.size
 end

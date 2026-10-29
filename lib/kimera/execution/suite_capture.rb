@@ -61,5 +61,3 @@ class Kimera::Execution::SuiteCapture
     Overdue.new(limit)
   end
 end
-
-Kimera::Execution::SUITE = Kimera::Execution::SuiteCapture.new
