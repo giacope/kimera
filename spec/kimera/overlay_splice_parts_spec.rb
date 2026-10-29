@@ -76,11 +76,7 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   # A point no guard can hold in place has its definition written whole.
-  def whole!
-    allow(Kimera::GuardSplice).to(receive(:new)) do |_map, points|
-      instance_double(Kimera::GuardSplice, rest: points, edits: [], applied: [])
-    end
-  end
+  def whole! = unanchored
 
   def trace
     "class Trace\n  def mark(l)\n    l.fetch(0)\n  rescue IndexError\n    [:seen, __LINE__]\n  end\n\n  " \
@@ -147,7 +143,7 @@ RSpec.describe(Kimera::Overlay) do
 
   def gone(source, keys)
     catalog = scan(source, keys)
-    allow(catalog.points.first).to(receive(:node_type).and_return("float_node"))
+    catalog.points.first.define_singleton_method(:node_type) { "float_node" }
     [described_class.new(catalog).synthesize("x.rb", source), *catalog.points]
   end
 
@@ -168,9 +164,19 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   describe Kimera::Overlay::Stitch do
+    # A guard splice that places every point, with +edits+, guarding mutant 7.
+    def placing(edits)
+      Class.new do
+        def initialize(_map, _points); end
+
+        define_method(:rest) { [] }
+        define_method(:edits) { edits }
+        define_method(:applied) { [7] }
+      end
+    end
+
     def stitched(edits)
-      weave = instance_double(Kimera::GuardSplice, rest: [], edits: edits, applied: [7])
-      allow(Kimera::GuardSplice).to(receive(:new).and_return(weave))
+      stub_const("Kimera::GuardSplice", placing(edits))
       described_class.new("x.rb", Kimera::SourceMap.new("a = 1\n"), [], []).results
     end
 
@@ -191,17 +197,16 @@ RSpec.describe(Kimera::Overlay) do
       expect(stitched([[4, 5, "(2\n)"]])).to(eq([]))
     end
 
-    # A guardrail that cannot write the methods holding these points.
-    def unwritable(points)
-      allow(Kimera::GuardSplice).to(receive(:new).and_return(instance_double(Kimera::GuardSplice, rest: points)))
-      allow(Kimera::Guardrail).to(receive(:new).and_return(instance_double(Kimera::Guardrail)))
-      allow(Kimera::Guardrail.new).to(receive(:rewrite).and_raise(ArgumentError))
+    # No guard holds a point in place, and the guardrail cannot write the methods holding them.
+    def unwritable
+      unanchored
+      stub_const("Kimera::Guardrail", Class.new(Kimera::Guardrail) { def rewrite(_node) = raise(ArgumentError) })
     end
 
     it "writes nothing when a method it must rewrite whole cannot be written" do
       source = "def m(a) = a > 1\n"
       point = scan(source, %w[comparison]).points.first
-      unwritable([point])
+      unwritable
       expect(described_class.new("x.rb", Kimera::SourceMap.new(source), [point], []).results).to(eq([]))
     end
   end
