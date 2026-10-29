@@ -114,24 +114,56 @@ RSpec.describe(Kimera::Overlay) do
     ).to(include("const_defined?(:Opts, false)"))
   end
 
-  it "leaves a named capture's regexp unguarded when its definition is written whole", :aggregate_failures do
+  # Guarded, the regexp would bind no local: the definition then reads as
+  # another method, so the regexp's point is left out and reported.
+  def named_capture
     whole!
     source = "def number(s); if /(?<num>\\d+)/ =~ s then num.to_i end; rescue ArgumentError; 0; end\n"
-    written = woven(source, %w[regexp_quantifier rescue_clause])
-    expect([written, Object.new.extend(Module.new.tap { |mod| mod.module_eval(written) }).number("x21")])
+    catalog = scan(source, %w[regexp_quantifier rescue_clause])
+    result = nil
+    expect { result = described_class.new(catalog).synthesize("x.rb", source) }
+      .to(output(/1 mutation point\(s\) at line 1 are unguardable/).to_stderr)
+    [result, *catalog.points.partition { |point| point.node_type == "regular_expression_node" }.map(&:first)]
+  end
+
+  it "leaves a named capture's regexp unguarded when its definition is written whole", :aggregate_failures do
+    result, regexp, clause = named_capture
+    expect([result.mutant_ids, regexp.unsafe_reason])
+      .to(eq([clause.ids, "unmutatable: #{Kimera::Overlay::FileWeave::UNGUARDABLE}"]))
+    expect([result.source, Object.new.extend(Module.new.tap { |mod| mod.module_eval(result.source) }).number("x21")])
       .to(match([start_with("def number(s); if ::Kimera::RUNTIME.active?("), 21]))
+  end
+
+  it "takes for its mutants only kimera's own guards in a definition it writes whole" do
+    whole!
+    source = "def m(a, flags); flags.active?(3) && Beta::Flag.active?(4) && RUNTIME.active?(5) && a > 1; end\n"
+    catalog = scan(source, %w[comparison])
+    result = described_class.new(catalog).synthesize("x.rb", source)
+    expect([result.mutant_ids, result.source])
+      .to(match([catalog.points.first.ids, start_with(source.delete_suffix(" a > 1; end\n"))]))
+  end
+
+  def gone(source, keys)
+    catalog = scan(source, keys)
+    allow(catalog.points.first).to(receive(:node_type).and_return("float_node"))
+    [described_class.new(catalog).synthesize("x.rb", source), *catalog.points]
   end
 
   {
     "def m(a) = a > 1\n" => %w[comparison], "class V\n  def m(a) = a\nend\n" => %w[visibility]
   }.each do |source, keys|
     it "reports a #{keys.first} point whose node is gone as unmutatable", :aggregate_failures do
-      catalog = scan(source, keys)
-      allow(catalog.points.first).to(receive(:node_type).and_return("float_node"))
-      result = described_class.new(catalog).synthesize("x.rb", source)
-      expect([result.skipped_unsafe, catalog.points.first.unsafe_reason])
-        .to(eq([catalog.points.first.ids, "unmutatable: #{Kimera::Overlay::FileWeave::UNMATCHED}"]))
+      result, lost = gone(source, keys)
+      expect([result.skipped_unsafe, lost.unsafe_reason])
+        .to(eq([lost.ids, "unmutatable: #{Kimera::Overlay::FileWeave::UNMATCHED}"]))
     end
+  end
+
+  # Written whole, the definition replaces the guards placed in it.
+  it "writes whole a definition that holds a gone point, without the guards placed in it", :aggregate_failures do
+    result, lost, placed = gone("def m(a) = a > 1 && a < 5\n", %w[comparison])
+    expect([result.mutant_ids, result.skipped_unsafe]).to(eq([placed.ids, lost.ids]))
+    expect(result.source).to(start_with("def m(a); a > 1 && if #{runtime}(#{placed.ids.first}); a <= 5; else; "))
   end
 
   describe Kimera::Overlay::Stitch do
