@@ -42,7 +42,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     report = Timeout.timeout(20) { harness(hanging, soft_timeout: nil, hard_timeout: 0.5).run(ids: [ids.first]) }
     detail = report.results.first.detail
 
-    expect(report.results.first.status).to(eq(:timeout))
+    expect([report.results.first.status, report.results.first.duration]).to(eq([:timeout, 0.5]))
     expect(detail).to(start_with("hard watchdog timeout\nthreads in the worker when it was killed:\nmain thread ("))
     expect(detail).to(match(/harness_recheck_spec\.rb:\d+:in '[^']*wedge'/))
   end

@@ -344,6 +344,12 @@ RSpec.describe(Kimera::Execution::Schemata) do
       types = [subtyped.new(ActiveRecord::Type::Serialized.new), subtyped.new(Object.new)]
       expect(types.map { |type| serialized?(type) }).to(eq([true, false]))
     end
+
+    # A wrapper whose cast type is itself would be followed forever: ten levels down the search gives up.
+    it "are not found in a wrapper that wraps itself" do
+      looped = Struct.new(:cast_type).new.tap { |wrapper| wrapper.cast_type = wrapper }
+      expect(serialized?(looped)).to(be(false))
+    end
   end
 
   describe "callback overlay guard" do
