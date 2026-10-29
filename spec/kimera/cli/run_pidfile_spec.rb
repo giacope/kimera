@@ -18,8 +18,8 @@ RSpec.describe(Kimera::CLI::Run) do
   end
 
   def run(*argv, &)
-    stub_harness(&)
-    described_class.new(io: StringIO.new, errors: StringIO.new).run(["calc.rb", *argv])
+    bench = FakeBench.new(harness: FakeHarness.new(&))
+    described_class.new(io: StringIO.new, errors: StringIO.new, bench: bench).run(["calc.rb", *argv])
   end
 
   # The pidfile as the run saw it, and the run's status.

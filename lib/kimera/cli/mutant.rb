@@ -17,9 +17,10 @@ class Kimera::CLI::Mutant
     ]
   )
 
-  def initialize(io: $stdout, errors: $stderr)
+  def initialize(io: $stdout, errors: $stderr, run: Kimera::CLI::Run.new(io: io, errors: errors))
     @io = io
     @errors = errors
+    @run = run
   end
 
   def run(argv)
@@ -52,7 +53,7 @@ class Kimera::CLI::Mutant
     row = locate(file, id)
     settings = provenance(file.document)
     @io.puts("Re-running mutant ##{row["mutant_id"]}: #{keyed(row)}")
-    Kimera::CLI::Run.new(io: @io, errors: @errors).run(arguments_for(row, settings))
+    @run.run(arguments_for(row, settings))
   end
 
   def locate(file, id)

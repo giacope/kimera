@@ -22,23 +22,23 @@ class Kimera::CLI::CI
     "#{UNGATED}.\n" \
     "Exit codes: 0 gates passed, 1 usage or setup error, 2 gate failed".freeze
 
-  def initialize(io: $stdout, errors: $stderr, env: ENV, flags: Kimera::CLI::RunOptions::Usage.new)
+  def initialize(io: $stdout, errors: $stderr, env: ENV, run: Kimera::CLI::Run.new(io: io, errors: errors))
     @io = io
     @errors = errors
     @env = env
-    @flags = flags
+    @run = run
   end
 
   def run(argv)
     return help if Kimera::CLI::Argv.new(argv).any?(%w[-h --help])
     arguments = (DEFAULTS + actions(argv)).reduce(argv.dup) { |given, (names, extra)| defaulted(given, names, extra) }
-    Kimera::CLI::Run.new(io: @io, errors: @errors).run(arguments)
+    @run.run(arguments)
   end
 
   private
 
-  def help
-    @io.puts(@flags.help(BANNER))
+  def help(flags = Kimera::CLI::RunOptions::Usage.new)
+    @io.puts(flags.help(BANNER))
     0
   end
 

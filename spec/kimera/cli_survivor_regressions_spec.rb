@@ -55,17 +55,12 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
   end
 
   def machine(rows)
-    run = instance_double(
-      Kimera::RunReport,
-      document: {
-        "schema_version" => 1, "counts" => { total: 4 }, "mutation_score" => 0.0,
-        "results" => rows, "leaks" => [{ "mutant_id" => 1, "detail" => "leak" }], "run" => { "jobs" => 2 }
-      }
-    )
+    document = {
+      "schema_version" => 1, "counts" => { total: 4 }, "mutation_score" => 0.0,
+      "results" => rows, "leaks" => [{ "mutant_id" => 1, "detail" => "leak" }], "run" => { "jobs" => 2 }
+    }
     outputs = Array.new(3) { StringIO.new }
-    %w[github sarif ndjson].zip(outputs).each do |format, output|
-      Kimera::Report::Formats.new(io: output).emit(format, run, metadata: { "jobs" => 2 })
-    end
+    %w[github sarif ndjson].zip(outputs).each { |format, output| Kimera::Report::Formats.new(io: output).render(format, document) }
     outputs
   end
 
@@ -79,19 +74,12 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       RUBY
     end
 
-    def lazy
-      [Kimera::CLI::Survivors, Kimera::CLI::Mutant].each do |handler|
-        allow(handler).to(receive(:new).and_return(instance_double(handler, run: 0)))
-      end
-      described_class.new(io: out, errors: errors).tap { |cli| allow(cli).to(receive(:require_relative)) }
-    end
-
-    it "requires the lazy report and mutant handlers before dispatching" do
-      cli = lazy
-      cli.__send__(:report, ["report.json"])
-      cli.__send__(:mutant, ["1", "--report", "report.json"])
-      expect(cli).to(have_received(:require_relative).with("cli/survivors"))
-      expect(cli).to(have_received(:require_relative).with("cli/mutant"))
+    it "hands report and mutant to their lazily loaded handlers" do
+      handlers = FakeHandlers.new
+      cli = described_class.new(io: out, errors: errors, handlers: handlers)
+      [%w[report report.json], %w[mutant 1 --report report.json]].each { |argv| cli.run(argv) }
+      expect(handlers.ran)
+        .to(eq([["survivors", :Survivors, ["report.json"]], ["mutant", :Mutant, ["1", "--report", "report.json"]]]))
     end
 
     it "suggests a command exactly three edits away" do
@@ -195,7 +183,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
   describe "run argument, cycle, and digest boundaries" do
     let(:tiny) { Kimera::RegistryScan.new.source("def x; 1; end\n", file: "x.rb") }
-    let(:digest) { instance_double(Kimera::CLI::Run::Digest, emit: nil) }
+    let(:digest) { FakeDigest.new }
 
     def options
       {
@@ -205,11 +193,11 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       }
     end
 
+    # A cycle that judged nothing concludes; its gate answers +gate+.
     def concluded(settings, gate: 0)
-      alerts = instance_double(Kimera::CLI::Run::Alerts, gate: gate)
-      loaded = instance_double(Kimera::Incremental::Session, report: report)
+      alerts = FakeAlerts.new(gate)
       cycle = Kimera::CLI::Run::Cycle.new(settings, tiny, digest: digest, alerts: alerts)
-      [cycle.__send__(:conclude, [], [], loaded), alerts]
+      [cycle.__send__(:conclude, [], [], Kimera::Incremental::Session.new), alerts]
     end
 
     def emission(coverage)
@@ -242,32 +230,28 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     it "gates by default, and hints at uncovered mutants" do
       status, alerts = concluded(options, gate: 7)
       expect(status).to(eq(7))
-      expect(alerts).to(have_received(:gate))
-      expect(digest).to(have_received(:emit).with(anything, tiny, **emission(:hint)))
+      expect(alerts.gated.size).to(eq(1))
+      expect(digest.emitted).to(match([[anything, tiny, emission(:hint)]]))
     end
 
     it "lists uncovered mutants under fail_on_no_coverage" do
       concluded(options.merge(fail_on_no_coverage: true))
-      expect(digest).to(have_received(:emit).with(anything, tiny, **emission(:list)))
+      expect(digest.emitted).to(match([[anything, tiny, emission(:list)]]))
     end
 
     it "lists and scores uncovered mutants under count_no_coverage" do
       concluded(options.merge(count_no_coverage: true))
-      expect(digest).to(have_received(:emit).with(anything, tiny, **emission(:list))) do |emitted, *|
-        expect(emitted.counted).to(eq([:no_coverage]))
-      end
+      expect(digest.emitted).to(match([[having_attributes(counted: [:no_coverage]), tiny, emission(:list)]]))
     end
 
     it "records count_no_coverage in the report metadata" do
       concluded(options.merge(count_no_coverage: true))
-      recorded = hash_including(metadata: hash_including("count_no_coverage" => true))
-      expect(digest).to(have_received(:emit).with(anything, anything, recorded))
+      expect(digest.emitted.fetch(0).last[:metadata]).to(include("count_no_coverage" => true))
     end
 
     it "neither lists nor scores them without count_no_coverage" do
       concluded(options.merge(count_no_coverage: false))
-      uncounted = satisfy { |emitted| emitted.counted.empty? }
-      expect(digest).to(have_received(:emit).with(uncounted, tiny, **emission(:hint)))
+      expect(digest.emitted).to(match([[having_attributes(counted: []), tiny, emission(:hint)]]))
     end
 
     def emitted(name, **settings)
@@ -302,8 +286,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
       it "never calls the gate when it is off" do
         status, alerts = concluded(base.merge(gate: false), gate: 9)
-        expect(status).to(eq(0))
-        expect(alerts).not_to(have_received(:gate))
+        expect([status, alerts.gated]).to(eq([0, []]))
       end
 
       it "returns the gate's status when it is on" do
@@ -323,17 +306,18 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       end
     end
 
-    def called(settings)
-      verbose = instance_double(Kimera::CLI::Run::Digest, verbose: nil)
-      cycle = Kimera::CLI::Run::Cycle.new(settings, tiny, digest: verbose)
-      allow(cycle).to(receive(:scope))
-      cycle.call
-      verbose
+    # What a whole cycle over +tiny+, judged by fakes, said.
+    def called(verbose)
+      settings = options.merge(verbose: verbose, ignore: [], tests: [__FILE__])
+      digest = FakeDigest.new
+      cycle = Kimera::CLI::Run::Cycle.new(settings, tiny, digest: digest, alerts: FakeAlerts.new)
+      cycle.call(Kimera::CLI::Run::NullSelection.new, FakeBench.new)
+      digest.said.filter_map { |kind, heard| heard if kind == :verbose }
     end
 
     it "runs verbose setup only when requested" do
-      expect(called(verbose: false)).not_to(have_received(:verbose))
-      expect(called(verbose: true)).to(have_received(:verbose).with(verbose: true))
+      expect(called(false)).to(eq([]))
+      expect(called(true)).to(eq([options.merge(verbose: true, ignore: [], tests: [__FILE__])]))
     end
 
     def focused(settings, ids, registry = tiny)
@@ -362,9 +346,11 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       end
     end
 
-    def harnessed(settings, env)
-      allow(Kimera::CLI::Run::Pass).to(receive(:new).and_return(instance_double(Kimera::CLI::Run::Pass, call: nil)))
-      Kimera::CLI::Run::Cycle.new(settings, tiny, digest: nil).__send__(:harness, [1], env: env)
+    # The harness pass of a cycle over +tiny+ with +settings+ in +env+; the
+    # bench calls the block as it loads the suite.
+    def harnessed(settings, env, &)
+      cycle = Kimera::CLI::Run::Cycle.new(settings.merge(source_root: ".", tests: [__FILE__]), tiny, digest: nil)
+      cycle.__send__(:harness, tiny.index.keys, FakeBench.new(&), env: env)
     end
 
     # `.rspec`'s `--require spec_helper` loads the helper while the adapter is
@@ -372,8 +358,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     it "sets KIMERA before loading the framework adapter" do
       env = {}
       seen = nil
-      allow(Kimera::Frameworks::SUITES).to(receive(:load) { seen = env["KIMERA"] })
-      harnessed({ framework: "rspec" }, env)
+      harnessed({ framework: "rspec" }, env) { seen = env["KIMERA"] }
       expect(seen).to(eq("1"))
     end
 
@@ -381,8 +366,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     it "exports the run's seed to the environment before loading the adapter, and clears a stale one" do
       seen = []
       env = { "KIMERA_SEED" => "3" }
-      allow(Kimera::Frameworks::SUITES).to(receive(:load) { seen << env["KIMERA_SEED"] })
-      [{ framework: "rspec", seed: 42 }, { framework: "rspec" }].each { |settings| harnessed(settings, env) }
+      [{ framework: "rspec", seed: 42 }, { framework: "rspec" }]
+        .each { |settings| harnessed(settings, env) { seen << env["KIMERA_SEED"] } }
       expect([seen, env.key?("KIMERA_SEED")]).to(eq([["42", nil], false]))
     end
 
@@ -390,9 +375,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     it "exports the configured load path to the environment before loading the adapter" do
       seen = []
       env = {}
-      allow(Kimera::Frameworks::SUITES).to(receive(:load) { seen << env["KIMERA_LOAD_PATH"] })
       [{ framework: "rspec", load_path: %w[support test/helpers] }, { framework: "rspec" }]
-        .each { |settings| harnessed(settings, env) }
+        .each { |settings| harnessed(settings, env) { seen << env["KIMERA_LOAD_PATH"] } }
       expect(seen).to(eq(["support#{File::PATH_SEPARATOR}test/helpers", ""]))
     end
   end
@@ -479,12 +463,11 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       end
     end
 
+    # The arguments of the run ci asks for, given +argv+.
     def ci_arguments(argv)
-      given = []
-      runner = instance_double(Kimera::CLI::Run)
-      allow(runner).to(receive(:run) { |arguments| given.replace(arguments).size })
-      allow(Kimera::CLI::Run).to(receive(:new).and_return(runner))
-      Kimera::CLI::CI.new(io: out, errors: errors, env: {}).run(argv) && given
+      run = FakeRun.new
+      Kimera::CLI::CI.new(io: out, errors: errors, env: {}, run: run).run(argv)
+      run.runs.fetch(0)
     end
 
     it "applies CI defaults only when neither spelling of an override is present" do
@@ -666,11 +649,10 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     it "clears a log surface only while it has a drawn frame" do
-      io = StringIO.new
-      allow(io).to(receive(:flush).and_call_original)
+      io = CountedIO.new
       log = Kimera::Report::Log.new(io).tap { |surface| surface.paint("frame", 0) }
       2.times { log.commit }
-      expect(io).to(have_received(:flush).twice)
+      expect(io.flushes).to(eq(2))
     end
 
     it "includes report actions in textual output" do
@@ -692,32 +674,24 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     describe "the command wrappers" do
-      let(:runner) { instance_double(Kimera::CLI::Init, run: 0) }
-      let(:cli) do
-        described_class.new(io: StringIO.new, errors: StringIO.new).tap do |cli|
-          allow(cli).to(receive(:require_relative))
-          allow(described_class).to(receive(:const_get).and_return(class_double(Kimera::CLI::Init, new: runner)))
-          allow(Kimera::CLI::Baseline).to(receive(:new).and_return(runner))
-        end
-      end
+      let(:handlers) { FakeHandlers.new }
+      let(:cli) { described_class.new(io: StringIO.new, errors: StringIO.new, handlers: handlers) }
 
       def wrappers = %i[configure doctor changed ci completion baseline]
 
       it "dispatch every workflow and the baseline to its runner" do
         expect(wrappers.map { |name| cli.__send__(name, []) }).to(eq([0] * 6))
-        expect(runner).to(have_received(:run).exactly(6).times)
+        expect(handlers.ran.size).to(eq(6))
       end
 
       it "load the workflows file for each workflow, and the baseline file for baseline" do
         wrappers.each { |name| cli.__send__(name, []) }
-        expect(cli).to(have_received(:require_relative).with("cli/workflows").exactly(5).times)
-        expect(cli).to(have_received(:require_relative).with("cli/baseline"))
+        expect(handlers.ran.map(&:first)).to(eq([*["workflows"] * 5, "baseline"]))
       end
 
       it "look each workflow's class up by its name" do
         %i[configure completion].each { |name| cli.__send__(name, []) }
-        expect(described_class).to(have_received(:const_get).with(:Init))
-        expect(described_class).to(have_received(:const_get).with(:Completion))
+        expect(handlers.ran.map { |_file, name, _argv| name }).to(eq(%i[Init Completion]))
       end
     end
 
@@ -747,24 +721,31 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         .to(eq([["✗", message]]))
     end
 
-    def changed_runner
-      instance_double(Kimera::CLI::Run, run: 0).tap { |runner| allow(Kimera::CLI::Run).to(receive(:new).and_return(runner)) }
+    # A repository in +dir+ whose one commit is on the branches +refs+ names:
+    # main and origin/main, as `kimera changed` looks them up.
+    def repository(*refs)
+      git = ->(*arguments) { system("git", "-C", dir, *arguments, out: File::NULL, err: File::NULL) }
+      git.call("init", "-q", "-b", "trunk")
+      identity = %w[-c user.email=t@example.com -c user.name=Test -c commit.gpgsign=false]
+      git.call(*identity, "commit", "-q", "--allow-empty", "-m", "x")
+      refs.each { |ref| git.call("update-ref", ref == "main" ? "refs/heads/main" : "refs/remotes/origin/main", "HEAD") }
+    end
+
+    # The arguments of the run `kimera changed +argv+` asks for, in +dir+.
+    def changed(argv)
+      run = FakeRun.new
+      Dir.chdir(dir) { Kimera::CLI::Changed.new(io: out, errors: errors, run: run).run(argv) }
+      run.runs.fetch(0)
     end
 
     it "uses the changed-workflow reference" do
-      runner = changed_runner
-      changed = Kimera::CLI::Changed.new(io: out, errors: errors)
-      allow(changed).to(receive(:reference).and_return("origin/main"))
-      expect(changed.run(["app"])).to(eq(0))
-      expect(runner).to(have_received(:run).with(["--since", "origin/main", "app"]))
+      repository("origin/main", "main")
+      expect(changed(["app"])).to(eq(["--since", "origin/main", "app"]))
     end
 
+    # Outside a repository, looking for a reference would fail.
     it "keeps an explicit --since=REF" do
-      runner = changed_runner
-      explicit = Kimera::CLI::Changed.new(io: out, errors: errors).tap { |changed| allow(changed).to(receive(:reference)) }
-      explicit.run(["--since=HEAD", "app"])
-      expect(explicit).not_to(have_received(:reference))
-      expect(runner).to(have_received(:run).with(["--since=HEAD", "app"]))
+      expect(changed(["--since=HEAD", "app"])).to(eq(["--since=HEAD", "app"]))
     end
 
     it "reads --since in either spelling" do
@@ -774,17 +755,15 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     it "prefers origin/main, then main" do
-      changed = Kimera::CLI::Changed.new
-      allow(changed).to(receive(:system).and_return(true))
-      expect(changed.__send__(:reference)).to(eq("origin/main"))
-      allow(changed).to(receive(:system).and_return(false, true))
-      expect(changed.__send__(:reference)).to(eq("main"))
+      repository("main")
+      expect(changed(["app"]).first(2)).to(eq(["--since", "main"]))
+      repository("origin/main")
+      expect(changed(["app"]).first(2)).to(eq(["--since", "origin/main"]))
     end
 
     it "explains a missing reference" do
-      changed = Kimera::CLI::Changed.new
-      allow(changed).to(receive(:system).and_return(false, false))
-      expect { changed.__send__(:reference) }
+      repository
+      expect { changed(["app"]) }
         .to(raise_error(Kimera::UsageError, "cannot find origin/main or main; pass --since REF"))
     end
   end

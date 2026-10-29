@@ -23,7 +23,7 @@ RSpec.describe(Kimera::CLI::Run) do
     [*report, *diagnostics].each { |io| io.close unless io.closed? }
   end
 
-  def cli(io: $stdout) = described_class.new(io: io, errors: $stderr)
+  def cli(io: $stdout) = described_class.new(io: io, errors: $stderr, bench: FakeBench.new)
 
   def machine?(format, io: $stdout) = cli(io: io).__send__(:machine?, { format: format })
 
@@ -38,10 +38,7 @@ RSpec.describe(Kimera::CLI::Run) do
     expect(machine?("json", io: diagnostics.last)).to(be(false))
   end
 
-  def full(*argv)
-    stub_harness
-    cli.run(["calc.rb", *argv])
-  end
+  def full(*argv) = cli.run(["calc.rb", *argv])
 
   def project(&)
     Dir.mktmpdir do |dir|

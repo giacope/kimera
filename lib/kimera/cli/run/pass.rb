@@ -7,14 +7,16 @@ require_relative "../../frameworks/test_task"
 require_relative "../../incremental/coverage_cache"
 require_relative "../../report/progress"
 require_relative "../../results/run_report"
+require_relative "bench"
 require_relative "route"
 require_relative "sources"
 
 class Kimera::CLI::Run::Pass
-  def initialize(registry, options, adapter)
+  def initialize(registry, options, adapter, bench = Kimera::CLI::Run::Bench.new)
     @registry = registry
     @options = options
     @adapter = adapter
+    @bench = bench
   end
 
   def call(remaining)
@@ -50,7 +52,7 @@ class Kimera::CLI::Run::Pass
 
   def sourcing = { registry: @registry, adapter: @adapter, root: @options[:source_root] }
 
-  def harness = @_harness ||= Kimera::Execution::Harness.build(**settings)
+  def harness = @_harness ||= @bench.harness(**settings)
 
   def files
     @_files ||= Kimera::CLI::Run::Sources.new.tests(@options[:tests], @options[:exclude_tests])

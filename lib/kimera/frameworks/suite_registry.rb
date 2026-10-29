@@ -13,12 +13,13 @@ class Kimera::Frameworks::SuiteRegistry
     end
   }.freeze
 
-  def initialize
+  def initialize(loaders = LOADERS)
+    @loaders = loaders
     @suites = {}
   end
 
   def load(name)
-    LOADERS.fetch(name.to_s, NO_LOADER).call
+    @loaders.fetch(name.to_s, NO_LOADER).call
     fetch(name).build
   rescue LoadError => error
     raise(Kimera::Error, unloadable(name, error))

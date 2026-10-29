@@ -59,47 +59,22 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
       expect(status).to(eq(1))
     end
 
-    def dispatch(klass, argv)
-      cli = described_class.new
-      allow(klass).to(receive(:new).and_return(instance_double(klass, run: 0)))
-      allow(cli).to(receive(:require_relative))
-      [cli, cli.run(argv)]
+    # The handler a subcommand dispatches to, with its file and arguments, and the status it answers.
+    def dispatch(argv, status = 0)
+      handlers = FakeHandlers.new(status)
+      [described_class.new(handlers: handlers).run(argv), handlers.ran]
     end
 
-    # In-process the files are already loaded, so pin the require itself.
-    it "requires the synthesize subcommand file at dispatch" do
-      cli, status = dispatch(Kimera::CLI::Synthesize, ["synthesize", "--out", "x"])
-      expect(cli).to(have_received(:require_relative).with("cli/synthesize"))
-      expect(status).to(eq(0))
+    it "hands the synthesize subcommand to its file's handler" do
+      expect(dispatch(["synthesize", "--out", "x"])).to(eq([0, [["synthesize", :Synthesize, ["--out", "x"]]]]))
     end
 
-    it "requires the run subcommand file at dispatch" do
-      cli, status = dispatch(Kimera::CLI::Run, ["run"])
-      expect(cli).to(have_received(:require_relative).with("cli/run"))
-      expect(status).to(eq(0))
+    it "hands the run subcommand to its file's handler, and answers its status" do
+      expect(dispatch(%w[run app --jobs 2], 2)).to(eq([2, [["run", :Run, ["app", "--jobs", "2"]]]]))
     end
 
-    it "requires the survivors subcommand file at dispatch" do
-      require "kimera/cli/survivors"
-      cli, status = dispatch(Kimera::CLI::Survivors, ["survivors", "r.json"])
-      expect(cli).to(have_received(:require_relative).with("cli/survivors"))
-      expect(status).to(eq(0))
-    end
-
-    it "delegates `synthesize` to the synthesis CLI" do
-      delegate = instance_double(Kimera::CLI::Synthesize, run: 0)
-      allow(Kimera::CLI::Synthesize).to(receive(:new).and_return(delegate))
-      _out, _error, status = run("synthesize", "--out", "x")
-      expect(delegate).to(have_received(:run).with(["--out", "x"]))
-      expect(status).to(eq(0))
-    end
-
-    it "delegates `run` to the execution CLI" do
-      delegate = instance_double(Kimera::CLI::Run, run: 2)
-      allow(Kimera::CLI::Run).to(receive(:new).and_return(delegate))
-      _out, _error, status = run("run", "app", "--jobs", "2")
-      expect(delegate).to(have_received(:run).with(["app", "--jobs", "2"]))
-      expect(status).to(eq(2))
+    it "hands the survivors subcommand to its file's handler" do
+      expect(dispatch(["survivors", "r.json"])).to(eq([0, [["survivors", :Survivors, ["r.json"]]]]))
     end
   end
 

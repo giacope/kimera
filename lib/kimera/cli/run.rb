@@ -2,7 +2,6 @@
 
 require "fileutils"
 require_relative "../error"
-require_relative "../incremental/selection"
 require_relative "../plugins"
 require_relative "../work_tree"
 
@@ -16,17 +15,20 @@ class Kimera::CLI::Run
 end
 
 require_relative "run/arguments"
+require_relative "run/bench"
 require_relative "run/cycle"
 require_relative "run/digest"
-require_relative "run/null_selection"
 require_relative "run/options"
 require_relative "run/sources"
 
 class Kimera::CLI::Run
-  def initialize(io: $stdout, errors: $stderr, arguments: Kimera::CLI::Run::Arguments.new)
+  def initialize(
+    io: $stdout, errors: $stderr, arguments: Kimera::CLI::Run::Arguments.new, bench: Kimera::CLI::Run::Bench.new
+  )
     @io = io
     @errors = errors
     @arguments = arguments
+    @bench = bench
   end
 
   def run(argv)
@@ -48,7 +50,7 @@ class Kimera::CLI::Run
   def detached
     report = @io.dup.tap { |copy| copy.sync = true }
     $stdout.reopen($stderr)
-    self.class.new(io: report, errors: @errors)
+    self.class.new(io: report, errors: @errors, bench: @bench)
   end
 
   def pid_file(path, &)
@@ -75,21 +77,15 @@ class Kimera::CLI::Run
 
   def cycle(options)
     Kimera::Plugins.new(options[:require], root: options[:source_root]).load!
-    change = change(options)
+    change = @bench.change(options[:since], options[:source_root])
     registry = Kimera::CLI::Run::Sources.new(errors: @errors).load(options, change)
-    built(options, change.narrowed(registry)).call(change)
+    built(options, change.narrowed(registry)).call(change, @bench)
   end
 
   def built(options, registry)
     Kimera::CLI::Run::Cycle.new(
       options, registry, digest: digest(options), alerts: Kimera::CLI::Run::Alerts.new(errors: @errors)
     )
-  end
-
-  def change(options)
-    since = options[:since]
-    return Kimera::CLI::Run::NullSelection.new unless since
-    Kimera::Incremental::Selection.from_diff(since: since, root: options[:source_root])
   end
 
   def digest(options = {})

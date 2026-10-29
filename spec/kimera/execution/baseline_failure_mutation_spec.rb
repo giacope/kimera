@@ -11,6 +11,8 @@ require "kimera/execution/worker_pool"
 require "kimera/incremental/session"
 require "kimera/registry/mutation_point"
 require "kimera/results/result"
+require "stringio"
+require "tmpdir"
 
 RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
   describe "the baseline summary" do
@@ -197,72 +199,72 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
   end
 
   describe "the run cycle's setup" do
-    let(:runner) { Kimera::CLI::Run.new }
-    let(:options) { { require: ["plugin.rb"], source_root: "/project", since: "main" } }
-    let(:registry) { instance_double(Kimera::Registry) }
-    let(:diff) { instance_double(Kimera::Incremental::GitDiff, lines: ["a.rb"]) }
+    around { |example| Dir.mktmpdir { |dir| Dir.chdir(dir) { example.run } } }
 
     before do
-      allow(registry).to(receive(:narrowed).with(["a.rb"]).and_return(registry))
-      sources = instance_double(Kimera::CLI::Run::Sources, load: registry)
-      allow(Kimera::CLI::Run::Sources).to(receive(:new).and_return(sources))
-      allow(Kimera::Incremental::GitDiff).to(receive(:new).with(since: "main", root: "/project").and_return(diff))
-      allow(Kimera::Plugins).to(receive(:new).and_return(instance_double(Kimera::Plugins, load!: [])))
-      allow(runner).to(receive(:built).and_return(echo))
+      File.write("a.rb", "def a(x)\n  x > 1\nend\n")
+      File.write("b.rb", "def b(x)\n  x < 1\nend\n")
+      FileUtils.mkdir_p("spec")
+      File.write("spec/a_spec.rb", "")
+      File.write("plugin.rb", "File.write(File.join(__dir__, \"plugged\"), \"\")\n")
     end
 
-    # A cycle that answers the changed lines it is called with.
-    def echo
-      instance_double(Kimera::CLI::Run::Cycle).tap { |cycle| allow(cycle).to(receive(:call)) { |changed| changed } }
+    # The mutants the warm harness ran in a run of a.rb and b.rb with +flags+,
+    # where a --since run finds line 2 of a.rb changed.
+    def ran(*flags)
+      harness = FakeHarness.new
+      bench = FakeBench.new(harness: harness, changed: { "a.rb" => Set[2] })
+      Kimera::CLI::Run.new(io: StringIO.new, errors: StringIO.new, bench: bench)
+        .run(["a.rb", "b.rb", "--no-report", *flags])
+      harness.asked.filter_map { |kind, ids| ids if kind == :run }.flatten
     end
 
-    it "narrows the run to the lines changed since the reference", :aggregate_failures do
-      expect(runner.__send__(:cycle, options)).to(be_a(Kimera::Incremental::Selection))
-      expect(registry).to(have_received(:narrowed).with(["a.rb"]))
-      expect(runner).to(have_received(:built).with(options, registry))
-    end
-
-    it "runs everything, reading no diff, without a reference", :aggregate_failures do
-      expect(runner.__send__(:cycle, options.merge(since: nil))).to(be_a(Kimera::CLI::Run::NullSelection))
-      expect(diff).not_to(have_received(:lines))
+    # a.rb and b.rb each hold the same number of mutants, all on line 2.
+    it "narrows the run to the lines changed since the reference, and runs everything without one" do
+      narrowed = ran("--since", "main")
+      expect([narrowed.size * 2, narrowed.empty?]).to(eq([ran.size, false]))
     end
 
     it "loads the configured plugins from the source root" do
-      runner.__send__(:cycle, options)
-      expect(Kimera::Plugins).to(have_received(:new).with(["plugin.rb"], root: "/project"))
+      ran("--require", "plugin.rb")
+      expect(File).to(exist("plugged"))
     end
 
     it "builds a digest" do
-      expect(runner.__send__(:digest)).to(be_a(Kimera::CLI::Run::Digest))
+      expect(Kimera::CLI::Run.new.__send__(:digest)).to(be_a(Kimera::CLI::Run::Digest))
     end
   end
 
   describe "the isolated runner contract" do
     let(:registry) { Object.new }
-    let(:adapter) { instance_double(Kimera::Frameworks::Suite, test_ids: %w[t1 t2]) }
+    let(:adapter) { FakeSuite.new(%w[t1 t2]) }
+    let(:harness) { FakeHarness.new }
     let(:pass) do
       options = {
         source_root: "/root", jobs: 3, framework: "rspec", hard_timeout: 9,
         progress: false, tests: [], exclude_tests: []
       }
-      harness = Kimera::Execution::Harness.build(
-        registry: registry, adapter: adapter, coverage: { 1 => ["t1"] }, timings: { "t1" => 0.5 }
-      )
-      Kimera::CLI::Run::Pass.new(registry, options, adapter).tap do |pass|
-        pass.instance_variable_set(:@_harness, harness)
+      Kimera::CLI::Run::Pass.new(registry, options, adapter, FakeBench.new(harness: harness)).tap do |pass|
         pass.instance_variable_set(:@_files, ["a_spec.rb"])
       end
     end
 
-    it "is built without lossy intermediate hashes" do
-      allow(Kimera::Execution::IsolatedExecution).to(receive(:new)) { |**contract| contract }
-      expect(pass.__send__(:isolation)).to(
+    it "is handed to the harness without lossy intermediate hashes" do
+      expect(pass.__send__(:isolation).settings).to(
         match(
-          registry: registry, root: "/root", tests: %w[t1 t2], coverage: { 1 => ["t1"] }, timings: { "t1" => 0.5 },
+          registry: registry, root: "/root", tests: %w[t1 t2],
           progress: pass.__send__(:progress), jobs: 3, framework: "rspec", test_files: ["a_spec.rb"],
           filter: pass.__send__(:filter), test_paths: an_instance_of(Proc), warnings: [], hard_timeout: 9
         )
       )
+    end
+
+    it "gets the warm pass's coverage and timings from the harness" do
+      warm = Kimera::Execution::Harness.build(
+        registry: registry, adapter: adapter, coverage: { 1 => ["t1"] }, timings: { "t1" => 0.5 }
+      )
+      expect(warm.isolated(FakeExecutions.new, registry: registry, jobs: 3))
+        .to(eq(coverage: { 1 => ["t1"] }, timings: { "t1" => 0.5 }, registry: registry, jobs: 3))
     end
 
     # R6B3-M1: a Minitest suite's mirrors run with the warnings its Rakefile's test task sets.

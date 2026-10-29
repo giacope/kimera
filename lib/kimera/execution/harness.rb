@@ -68,7 +68,7 @@ class Kimera::Execution::Harness
 
   def coverage = options[:coverage]
 
-  def isolated(**) = Kimera::Execution::IsolatedExecution.new(coverage: coverage, timings: timings, **)
+  def isolated(executions = Kimera::Execution::IsolatedExecution, **) = executions.new(coverage:, timings:, **)
 
   def timings = options.fetch(:timings, {})
 

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../../execution/suite_env"
+require_relative "bench"
 require_relative "null_selection"
 require_relative "../../incremental/session"
 require_relative "../../incremental/stamp"
@@ -12,7 +13,6 @@ require_relative "digest"
 require_relative "narrowing"
 require_relative "pass"
 require_relative "route"
-require_relative "../../frameworks/name_exclusion"
 require_relative "sources"
 
 class Kimera::CLI::Run::Cycle
@@ -31,9 +31,10 @@ class Kimera::CLI::Run::Cycle
     @alerts = alerts
   end
 
-  def call(change = Kimera::CLI::Run::NullSelection.new)
+  def call(change = Kimera::CLI::Run::NullSelection.new, bench = Kimera::CLI::Run::Bench.new)
     @digest.verbose(@options) if @options[:verbose]
-    scope(change, change.ids(@registry))
+    todo, ignored = scope(change, change.ids(@registry))
+    conclude(todo, ignored, session(todo, ignored, bench))
   end
 
   private
@@ -43,7 +44,7 @@ class Kimera::CLI::Run::Cycle
     resolution = Kimera::IgnoreList.new(@options[:ignore] + inline).resolve(@registry)
     ignored = resolution.ignored(eligible)
     notify(change, selected, ignored, resolution)
-    session(eligible - ignored, ignored)
+    [eligible - ignored, ignored]
   end
 
   def notify(change, selected, ignored, resolution)
@@ -52,14 +53,14 @@ class Kimera::CLI::Run::Cycle
     @digest.evaluating(ignored) if @options[:evaluate_ignored]
   end
 
-  def session(todo, ignored)
+  def session(todo, ignored, bench)
     loaded = Kimera::Incremental::Session.from(@options[:session], stamp: stamp).pruned(@registry)
-    conclude(todo, ignored, perform(@options[:evaluate_ignored] ? todo + ignored : todo, loaded))
+    perform(@options[:evaluate_ignored] ? todo + ignored : todo, loaded, bench)
   end
 
-  def perform(todo, loaded)
+  def perform(todo, loaded, bench)
     remaining = todo.reject { |id| loaded.done?(id) }
-    judged = remaining.empty? ? loaded : loaded.merged(harness(remaining))
+    judged = remaining.empty? ? loaded : loaded.merged(harness(remaining, bench))
     path = @options[:session]
     judged.fingerprinted(@registry).save(path, meta: { "since" => @options[:since] }) if path
     judged
@@ -112,14 +113,9 @@ class Kimera::CLI::Run::Cycle
       .merge("judge_isolated_only" => route.judging?, "confirm_survivors" => route.confirming?)
   end
 
-  def harness(remaining, env: ENV, suite_env: Kimera::Execution::SuiteEnv.new(env))
+  def harness(remaining, bench, env: ENV, suite_env: Kimera::Execution::SuiteEnv.new(env))
     suite_env.install(@options[:seed], @options[:load_path])
-    Kimera::CLI::Run::Pass.new(@registry, @options, adapter).call(remaining)
-  end
-
-  def adapter
-    loaded = Kimera::Frameworks::SUITES.load(@options[:framework])
-    names = Array(@options[:exclude_test_names])
-    names.empty? ? loaded : Kimera::Frameworks::NameExclusion.new(loaded, names)
+    suite = bench.suite(@options[:framework], Array(@options[:exclude_test_names]))
+    Kimera::CLI::Run::Pass.new(@registry, @options, suite, bench).call(remaining)
   end
 end

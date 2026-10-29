@@ -14,37 +14,39 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
   let(:out) { StringIO.new }
   let(:errors) { StringIO.new }
   let(:cli) { described_class.new(io: out, errors: errors) }
+  let(:runner) { harness(:killed) }
 
   def configure
     File.write("calc.rb", "def m(a, b)\n  a > b\nend\n\ndef n(a, b)\n  a < b\nend\n")
+    FileUtils.mkdir_p("spec")
+    File.write("spec/calc_spec.rb", "")
     File.write("debt.yml", YAML.dump("ignore" => [rule("> => >=", "accepted debt")]))
     File.write("custom.yml", YAML.dump("baseline" => "debt.yml", "ignore" => [rule("> => <", "equivalent")]))
   end
 
   def rule(label, reason) = { "file" => "calc.rb", "line" => 2, "label" => label, "reason" => reason }
 
-  def harness(status)
-    runner = instance_double(Kimera::CLI::Run::Pass)
-    allow(runner).to(receive(:call) { |ids| judged(ids, status) })
-    allow(Kimera::CLI::Run::Pass).to(receive(:new).and_return(runner))
-    allow(Kimera::Frameworks::SUITES).to(receive(:load).and_return(nil))
-    runner
-  end
+  # A warm harness that gives every mutant it runs +status+.
+  def harness(status) = FakeHarness.new { |ids| judged(ids, status) }
 
   def judged(ids, status)
     Kimera::RunReport.new(results: ids.map { |id| Kimera::MutantResult.new(mutant_id: id, status: status) })
   end
 
-  def run(*flags)
+  def run(*flags, judge: runner)
+    judging = described_class.new(io: out, errors: errors, bench: FakeBench.new(harness: judge))
     [
-      cli.run(["calc.rb", "--config", "custom.yml", "--report", "report.json", "--no-color", *flags]),
+      judging.run(["calc.rb", "--config", "custom.yml", "--report", "report.json", "--no-color", *flags]),
       JSON.parse(File.read("report.json"))
     ]
   end
 
   def rows(document, status) = document["results"].select { |row| row["status"] == status }
 
-  def evaluated(ids) = have_received(:call).with(match_array(ids))
+  # The warm harness ran exactly the mutants +ids+.
+  def evaluated(ids) = satisfy { |judge| ran(judge).sort == ids.sort }
+
+  def ran(judge) = judge.asked.filter_map { |kind, run| run if kind == :run }.flatten
 
   def mutants = Kimera::RegistryScan.new.source(File.read("calc.rb"), file: "calc.rb").each.to_a
 
@@ -53,8 +55,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
   before { configure }
 
   describe "by default" do
-    let!(:runner) { harness(:killed) }
-
     it "skips ignored mutants, including the baseline's" do
       status, = run
       expect(status).to(eq(0))
@@ -70,8 +70,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
   end
 
   describe "with --evaluate-ignored" do
-    let!(:runner) { harness(:killed) }
-
     def evaluating = run("--evaluate-ignored", "--max-ignored", "2")
 
     it "evaluates ignored mutants" do
@@ -98,20 +96,20 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
   end
 
   it "never gates an evaluated ignored survivor as a survivor" do
-    harness(:survived)
-    expect(run("--evaluate-ignored", "--max-ignored", "2", "--max-survivors", "2").first).to(eq(0))
+    flags = ["--evaluate-ignored", "--max-ignored", "2", "--max-survivors", "2"]
+    expect(run(*flags, judge: harness(:survived)).first).to(eq(0))
     expect(out.string).to(include("0 ignored mutant(s) are now killed (their entries can be pruned); 2 still survive."))
   end
 
   it "still budgets an evaluated ignored survivor" do
-    harness(:survived)
-    expect(run("--evaluate-ignored", "--max-ignored", "1", "--max-survivors", "2").first).to(eq(2))
+    flags = ["--evaluate-ignored", "--max-ignored", "1", "--max-survivors", "2"]
+    expect(run(*flags, judge: harness(:survived)).first).to(eq(2))
     expect(errors.string).to(include("ignored=2 > max_ignored=1"))
   end
 
   it "judges the baseline's mutants like any other with --no-baseline" do
     runner = harness(:survived)
-    status, document = run("--no-baseline")
+    status, document = run("--no-baseline", judge: runner)
     expect([status, rows(document, "survived").size]).to(eq([2, 3]))
     expect(runner).to(evaluated(ids("< => <=", "< => >", "> => >=")))
     expect(out.string).to(include("Ignoring 1 mutant(s) marked equivalent."))
@@ -119,7 +117,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
   it "re-anchors a drifted ignore entry that still singles out one mutant" do
     File.write("calc.rb", "\n#{File.read("calc.rb")}")
-    harness(:killed)
     expect(rows(run.last, "ignored").size).to(eq(2))
     expect(errors.string).to(include("kimera: warning: ignore entry re-anchored: calc.rb:2 → 3 [> => <]"))
     expect(errors.string).not_to(include("stale anchor"))
@@ -136,7 +133,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
   end
 
   it "records the --since ref in the report's run provenance" do
-    harness(:killed)
     expect(run.last.dig("run", "since")).to(be_nil)
     expect(run.last["run"]).to(have_key("since"))
   end

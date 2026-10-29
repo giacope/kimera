@@ -563,12 +563,9 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
   # K3-6: outside GitHub, ci silently ran a full run that judged no DSL.
   def ci_given(env, argv = [])
     out, error = captured
-    runner = instance_double(Kimera::CLI::Run, run: 0)
-    allow(Kimera::CLI::Run).to(receive(:new).and_return(runner))
-    Kimera::CLI::CI.new(io: out, errors: error, env: env).run(argv)
-    given = nil
-    expect(runner).to(have_received(:run) { |arguments| given = arguments })
-    [given, error.string]
+    run = FakeRun.new
+    Kimera::CLI::CI.new(io: out, errors: error, env: env, run: run).run(argv)
+    [run.runs.fetch(0), error.string]
   end
 
   it "adds strict CI defaults without replacing explicit user choices" do
@@ -716,23 +713,23 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
   end
 
   describe "--rerun" do
-    let(:runner) { instance_double(Kimera::CLI::Run, run: 2) }
-
-    before { allow(Kimera::CLI::Run).to(receive(:new).and_return(runner)) }
+    let(:runner) { FakeRun.new(2) }
 
     def rerun(row)
       provenance = { "framework" => "rspec", "source_root" => ".", "tests" => ["spec/**/*_spec.rb"] }
         .merge("operators" => ["comparison"], "coverage" => true, "isolated" => false)
       report = written(dir, "run" => provenance, "results" => [row.merge("key" => "app/a.rb:3:0123abcd")])
-      Kimera::CLI::Mutant.new(io: out, errors: error).run(["7", "--report", report, "--rerun"])
+      Kimera::CLI::Mutant.new(io: out, errors: error, run: runner).run(["7", "--report", report, "--rerun"])
     end
 
     it "re-runs only the requested mutant", :aggregate_failures do
       expect(rerun(survivor.slice("mutant_id", "status", "file"))).to(eq(2))
-      expect(runner).to(
-        have_received(:run).with(
-          ["app/a.rb", "--focus", "app/a.rb:3:0123abcd", "--framework", "rspec", "--source-root", "."]
-            .push("--tests", "spec/**/*_spec.rb", "--operators", "comparison", "--no-report")
+      expect(runner.runs).to(
+        eq(
+          [
+            ["app/a.rb", "--focus", "app/a.rb:3:0123abcd", "--framework", "rspec", "--source-root", "."]
+              .push("--tests", "spec/**/*_spec.rb", "--operators", "comparison", "--no-report")
+          ]
         )
       )
       expect(out.string).to(eq("Re-running mutant #7: app/a.rb:3:0123abcd\n"))
@@ -740,7 +737,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
 
     it "evaluates an ignored mutant" do
       rerun("mutant_id" => 7, "status" => "ignored", "file" => "app/a.rb")
-      expect(runner).to(have_received(:run).with(array_including("--evaluate-ignored")))
+      expect(runner.runs.fetch(0)).to(include("--evaluate-ignored"))
     end
   end
 end

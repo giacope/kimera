@@ -2,6 +2,7 @@
 
 require "optparse"
 require_relative "cli/flag"
+require_relative "cli/handlers"
 require_relative "cli/help_text"
 require_relative "cli/interruption"
 require_relative "cli/suggestion"
@@ -35,9 +36,10 @@ class Kimera::CLI
   ALIASES = %w[dump survivors].freeze
   COMMAND_NAMES = (COMMANDS.keys.grep_v(/\A-/) - ALIASES).freeze
 
-  def initialize(io: $stdout, errors: $stderr)
+  def initialize(io: $stdout, errors: $stderr, handlers: Kimera::CLI::Handlers.new(io, errors))
     @io = io
     @errors = errors
+    @handlers = handlers
   end
 
   def run(argv)
@@ -121,8 +123,5 @@ class Kimera::CLI
   def skill(argv) = workflow(:Skill, argv)
   def workflow(name, argv) = delegate("workflows", name, argv)
 
-  def delegate(file, name, argv)
-    require_relative("cli/#{file}")
-    Kimera::CLI.const_get(name).new(io: @io, errors: @errors).run(argv)
-  end
+  def delegate(file, name, argv) = @handlers.run(file, name, argv)
 end
