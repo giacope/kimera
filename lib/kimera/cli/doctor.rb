@@ -8,10 +8,12 @@ require_relative "checklist"
 require_relative "coverage_minimum"
 require_relative "flag"
 require_relative "instruments"
+require_relative "outcome"
 require_relative "rails_layout"
 require_relative "rspec_options"
 require_relative "test_command"
 require_relative "test_definitions"
+require_relative "verdict"
 
 class Kimera::CLI::Doctor
   OPTIONS = Kimera::FlagTable.new(
@@ -27,9 +29,8 @@ class Kimera::CLI::Doctor
   HELPERS = %w[.simplecov {spec,test}/**/*helper*.rb].freeze
   UNCHECKED = [["!", "Test loading: no test files to load"]].freeze
 
-  def initialize(io: $stdout, errors: $stderr, root: ".", instruments: Kimera::CLI::Instruments.new)
+  def initialize(io: $stdout, root: ".", instruments: Kimera::CLI::Instruments.new, **)
     @io = io
-    @errors = errors
     @root = root
     @instruments = instruments
   end
@@ -38,20 +39,13 @@ class Kimera::CLI::Doctor
     _, options = OPTIONS.parse(argv, { check_baseline: false })
     config = Kimera::Config.of(@root).options.merge(options.slice(:jobs))
     expose(config)
-    list.verdict(checks(config, options))
-  rescue Kimera::UsageError => error
-    usage(error)
+    Kimera::CLI::Verdict.new(checks(config, options)).outcome
   end
 
   private
 
   def expose(config, env = ENV)
     Kimera::Frameworks::LoadPath.new([], env: env).share(config[:load_path])
-  end
-
-  def usage(error)
-    @errors.puts("kimera: #{error.message}")
-    1
   end
 
   def checks(config, options)
@@ -62,11 +56,13 @@ class Kimera::CLI::Doctor
 
   def suite(config, options)
     return UNCHECKED.each { |check| shown(check) } if test_files(config).empty?
-    loaded = shown(loading(config))
-    options[:check_baseline] ? [loaded, *baselines(config).each { |check| shown(check) }] : [loaded]
+    command = test_command(config)
+    loaded = command.loading
+    shown(loaded)
+    options[:check_baseline] ? [loaded, *command.baselines(jobs(config)).each { |check| shown(check) }] : [loaded]
   end
 
-  def list = Kimera::CLI::Checklist.new(@io, @errors)
+  def list = Kimera::CLI::Checklist.new(@io)
 
   def shown(check) = list.shown(check)
 
@@ -115,10 +111,6 @@ class Kimera::CLI::Doctor
   def floor?(path) = File.file?(path) && Kimera::CLI::CoverageMinimum.new(text(path)).ungated?
 
   def text(path) = File.read(path, encoding: Encoding::UTF_8).scrub
-
-  def baselines(config) = test_command(config).baselines(jobs(config))
-
-  def loading(config) = test_command(config).loading
 
   def test_command(config)
     framework = config.fetch(:framework, "rspec").to_s

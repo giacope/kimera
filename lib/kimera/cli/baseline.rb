@@ -3,6 +3,7 @@
 require "yaml"
 require_relative "../error"
 require_relative "flag"
+require_relative "outcome"
 require_relative "report_file"
 
 class Kimera::CLI::Baseline
@@ -29,17 +30,14 @@ class Kimera::CLI::Baseline
     flags: [REPORT_FLAG, Kimera::Flag.build("--dry-run", :dry_run, "Print what would change; leave the file as is")]
   )
 
-  def initialize(io: $stdout, errors: $stderr)
-    @io = io
-    @errors = errors
+  def initialize(creation: Kimera::CLI::Baseline::Creation.new, review: Kimera::CLI::Baseline::Review.new, **)
+    @creation = creation
+    @review = review
   end
 
   def run(argv)
     name, *rest = argv
     __send__(command(name), rest)
-  rescue Kimera::UsageError => error
-    @errors.puts("kimera: #{error.message}")
-    1
   end
 
   private
@@ -50,29 +48,26 @@ class Kimera::CLI::Baseline
     end
   end
 
-  def help(_argv)
-    @io.write(HELP)
-    0
-  end
+  def help(_argv) = Kimera::CLI::Outcome::Written.new(HELP)
 
-  def create(argv) = Kimera::CLI::Baseline::Creation.new(io: @io).run(argv)
+  def create(argv) = @creation.run(argv)
 
   def review(argv)
     file, options = baseline(REVIEW, argv, { report: nil })
     report = options[:report]
-    report ? Review.new(io: @io).show(ledger(file, report)) : list(file)
+    report ? @review.show(ledger(file, report), file, report) : list(file)
   end
 
   def prune(argv)
     file, options = baseline(PRUNE, argv, { dry_run: false })
     report = options.fetch(:report) { raise(Kimera::UsageError, "baseline prune needs --report FILE") }
-    pruning = Prune.new(ledger(file, report), io: @io)
+    pruning = Prune.new(ledger(file, report), file)
     options[:dry_run] ? pruning.preview : pruning.apply
   end
 
   def baseline(table, argv, defaults)
     (file, *rest), options = table.parse(argv, defaults)
-    table.refuse unless file && rest.empty?
+    raise(table.refusal) unless file && rest.empty?
     [existing(file), options]
   end
 
@@ -85,9 +80,9 @@ class Kimera::CLI::Baseline
 
   def list(file)
     entries = Array((YAML.safe_load_file(file) || {})["ignore"])
-    @io.puts("#{entries.size} accepted mutant(s) in #{file}:")
-    entries.sort_by { |entry| [entry["file"], entry["line"], entry["label"]] }.each { |entry| @io.puts(line(entry)) }
-    0
+    sorted = entries.sort_by { |entry| [entry["file"], entry["line"], entry["label"]] }
+    listed = ["#{entries.size} accepted mutant(s) in #{file}:", *sorted.map { |entry| line(entry) }]
+    Kimera::CLI::Outcome::Said.new(*listed)
   end
 
   def line(entry) = "  #{entry["file"]}:#{entry["line"]} [#{entry["label"]}] — #{entry["reason"]}"

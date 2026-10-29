@@ -3,6 +3,7 @@
 require "optparse"
 require_relative "../error"
 require_relative "flag"
+require_relative "outcome"
 require_relative "report_file"
 
 class Kimera::CLI::Survivors
@@ -21,34 +22,22 @@ class Kimera::CLI::Survivors
       )
     ]
   )
-  STATUSES = { "unjudged" => "harness_error" }.freeze
 
-  def initialize(io: $stdout, errors: $stderr)
-    @io = io
-    @errors = errors
+  def initialize(listing: Kimera::CLI::Survivors::Panel.new, **)
+    @listing = listing
   end
 
   def run(argv)
-    attempt(argv)
-  rescue Kimera::UsageError => error
-    @errors.puts("kimera: #{error.message}")
-    1
+    arguments, flags = OPTIONS.parse(argv, { status: "survived", id: nil, report: nil })
+    path, filter = positional(arguments, flags[:report])
+    report = load(path)
+    id = flags[:id]
+    return show(report, id) if id
+    selection = Selection.new(flags[:status], filter, path, report.narrowed?)
+    Kimera::CLI::Outcome::Said.new(*selection.listed(report.results, @listing))
   end
 
   private
-
-  def attempt(argv)
-    options = parse(argv)
-    report = load(options[:report])
-    id = options[:id]
-    id ? show(report, id) : list(report.results, options.merge(narrowed: report.narrowed?))
-  end
-
-  def parse(argv)
-    arguments, options = OPTIONS.parse(argv, { status: "survived", id: nil, report: nil })
-    report, filter = positional(arguments, options[:report])
-    options.merge(report: report, filter: filter)
-  end
 
   def positional(arguments, named)
     first, second = arguments
@@ -63,38 +52,14 @@ class Kimera::CLI::Survivors
     raise(Kimera::UsageError, "no such report: #{path} (run kimera run first, or pass REPORT.json)")
   end
 
-  def list(results, options)
-    matching = matches(results, options)
-    return none(options) if matching.empty?
-    Panel.new(io: @io).announce(matching, options)
-    0
-  end
-
-  def matches(results, options)
-    status = STATUSES.fetch(options[:status], options[:status])
-    filter = options[:filter]
-    found = results.select { |row| row["status"] == status }.map { |row| [row["file"].to_s, row["line"] || 0, row] }
-    filter ? found.select { |file,| file.include?(filter) } : found
-  end
-
-  def none(options)
-    filter = options[:filter]
-    @io.puts("no #{options[:status]} mutants#{" matching #{filter}" if filter}")
-    0
-  end
-
   def show(report, id)
-    row = report.row(id) { return missing(id) }
+    row = report.row(id) { return Kimera::CLI::Outcome::Failed.new(1, "kimera: no mutant ##{id} in this report") }
     document = report.document
     root = document.dig("run", "source_root") || "."
-    Panel.new(io: @io, tests: document.fetch("tests", {}), root: root).describe(row)
-    0
-  end
-
-  def missing(id)
-    @errors.puts("kimera: no mutant ##{id} in this report")
-    1
+    panel = Kimera::CLI::Survivors::Panel.new(tests: document.fetch("tests", {}), root: root)
+    Kimera::CLI::Outcome::Said.new(*panel.describe(row))
   end
 end
 
 require_relative "survivors/panel"
+require_relative "survivors/selection"

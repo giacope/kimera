@@ -10,6 +10,7 @@ require_relative "targets"
 class Kimera::CLI::Run::Arguments
   SEEDS = 2**31
   DEFAULT_TESTS = ["spec/**/*_spec.rb"].freeze
+  UNMEASURED = "needs the coverage baseline; drop --no-coverage"
 
   def initialize(table = Kimera::CLI::RunOptions::Usage.new, random: Random.new, formats: Kimera::Report::Formats.new)
     @table = table
@@ -25,22 +26,19 @@ class Kimera::CLI::Run::Arguments
   private
 
   def finish(options, rest)
-    validate(options)
-    options.except(:cli_tests, :cli_unit_tests, :baseline_ignore)
+    options.except(:cli_tests, :cli_unit_tests, :baseline_ignore).merge(format: @formats.normalize(options[:format]))
       .merge(scoped(options, rest)).merge(attributed(options)).merge(seeded(options))
   end
 
-  def validate(options) = @formats.normalize(options[:format])
-
   def attributed(options)
     settings = Kimera::Config::Attribution.new(options).settings
-    measured(options, "--attribution unit") if settings[:attribution] == "unit"
+    require_coverage!(options, "--attribution unit") if settings[:attribution] == "unit"
     settings
   end
 
   def seeded(options)
     runs = reruns(options[:flaky_runs])
-    measured(options, "--flaky-runs") if runs.positive?
+    require_coverage!(options, "--flaky-runs") if runs.positive?
     { seed: options[:seed]&.then { |value| seed(value) }, flaky_runs: runs }
   end
 
@@ -57,9 +55,8 @@ class Kimera::CLI::Run::Arguments
     raise(Kimera::UsageError, "--flaky-runs takes a whole number of reruns, got #{value.inspect}")
   end
 
-  def measured(options, setting)
-    return unless options[:coverage] == false
-    raise(Kimera::UsageError, "#{setting} needs the coverage baseline; drop --no-coverage")
+  def require_coverage!(options, setting)
+    raise(Kimera::UsageError, "#{setting} #{UNMEASURED}") if options[:coverage] == false
   end
 
   def scoped(options, rest)

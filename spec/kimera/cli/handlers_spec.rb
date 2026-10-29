@@ -13,7 +13,9 @@ RSpec.describe(Kimera::CLI::Handlers) do
       require "kimera/cli"
       require "stringio"
       before = defined?(Kimera::CLI::Completion).inspect
-      puts(before, Kimera::CLI::Handlers.new(StringIO.new, StringIO.new).run("workflows", :Completion, ["bash"]))
+      outcome = Kimera::CLI::Handlers.new(StringIO.new, StringIO.new).run("workflows", :Completion, ["bash"])
+      puts(before)
+      outcome.print(StringIO.new, StringIO.new).exit(Class.new { def exit(code) = puts(code) }.new)
     RUBY
   end
 

@@ -21,6 +21,7 @@ require_relative "run/digest"
 require_relative "run/options"
 require_relative "run/sources"
 require_relative "run/streams"
+require_relative "outcome"
 
 class Kimera::CLI::Run
   def initialize(
@@ -32,12 +33,14 @@ class Kimera::CLI::Run
     @bench = bench
   end
 
-  def run(argv)
+  def run(argv, streams = Kimera::CLI::Run::Streams.new)
     options = parse(argv)
-    (machine?(options) ? detached : self).perform(options)
+    return perform(options) unless machine?(options, streams)
+    report = @io.dup.tap { |copy| copy.sync = true }
+    streams.divert
+    self.class.new(io: report, errors: @errors, bench: @bench).perform(options)
   rescue Kimera::Error => error
-    @errors.puts("kimera: #{error.message}")
-    1
+    Kimera::CLI::Outcome::Failed.new(1, "kimera: #{error.message}")
   end
 
   protected
@@ -46,14 +49,8 @@ class Kimera::CLI::Run
 
   private
 
-  def machine?(options, streams = Kimera::CLI::Run::Streams.new)
+  def machine?(options, streams)
     options.fetch(:format, "text") != "text" && streams.standard?(@io) && @io.is_a?(IO)
-  end
-
-  def detached(streams = Kimera::CLI::Run::Streams.new)
-    report = @io.dup.tap { |copy| copy.sync = true }
-    streams.divert
-    self.class.new(io: report, errors: @errors, bench: @bench)
   end
 
   def pid_file(path, &)
@@ -71,9 +68,7 @@ class Kimera::CLI::Run
   def guarded(options, &)
     ignored = options.values_at(:report, :session, :pidfile, :log)
     code, warning = Kimera::WorkTree.new(options[:source_root] || ".", ignored: ignored).watch(&)
-    return code unless warning
-    @errors.puts(warning)
-    1
+    warning ? Kimera::CLI::Outcome::Failed.new(1, warning) : Kimera::CLI::Outcome::Ended.new(code)
   end
 
   def parse(argv) = @arguments.parse(argv)

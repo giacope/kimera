@@ -50,7 +50,7 @@ RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
     out = StringIO.new
     original = $stdout
     $stdout = out
-    [out.string, Kimera::CLI.new.run(["survivors", *argv])]
+    [out.string, ended(Kimera::CLI.new.run(["survivors", *argv]), out, $stderr)]
   ensure
     $stdout = original
   end

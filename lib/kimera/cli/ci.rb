@@ -2,6 +2,7 @@
 
 require_relative "argv"
 require_relative "flag"
+require_relative "outcome"
 require_relative "run"
 
 class Kimera::CLI::CI
@@ -14,6 +15,7 @@ class Kimera::CLI::CI
   LOOKED = ["--since", "KIMERA_BASE", *BRANCHES].join(", ")
   UNGATED = "a full run leaves class-body DSL (validations, associations, callbacks) isolated_only: unjudged " \
     "and ungated; pass --judge-isolated-only to judge them all (hours on a Rails app)"
+  UNBASED = "kimera ci: no pull request base found (looked for #{LOOKED}); running a full run: #{UNGATED}".freeze
   BANNER = "Usage: kimera ci [paths...] [options]\n" \
     "kimera run with gate defaults: --max-survivors 0 --fail-on-no-coverage --format github.\n" \
     "The pull request's base comes from #{LOOKED} (a branch, read as origin/BRANCH;\n" \
@@ -23,7 +25,6 @@ class Kimera::CLI::CI
     "Exit codes: 0 gates passed, 1 usage or setup error, 2 gate failed".freeze
 
   def initialize(io: $stdout, errors: $stderr, env: ENV, run: Kimera::CLI::Run.new(io: io, errors: errors))
-    @io = io
     @errors = errors
     @env = env
     @run = run
@@ -31,31 +32,26 @@ class Kimera::CLI::CI
 
   def run(argv)
     return help if Kimera::CLI::Argv.new(argv).any?(%w[-h --help])
-    arguments = (DEFAULTS + actions(argv)).reduce(argv.dup) { |given, (names, extra)| defaulted(given, names, extra) }
+    @errors.puts(UNBASED) if unbased?(argv)
+    arguments = (DEFAULTS + actions).reduce(argv.dup) { |given, (names, extra)| defaulted(given, names, extra) }
     @run.run(arguments)
   end
 
   private
 
   def help(flags = Kimera::CLI::RunOptions::Usage.new)
-    @io.puts(flags.help(BANNER))
-    0
+    Kimera::CLI::Outcome::Said.new(flags.help(BANNER))
   end
 
-  def actions(argv)
+  def actions
     summary = @env["GITHUB_STEP_SUMMARY"].to_s
-    pairs = based(argv)
-    pairs << [%w[--summary], ["--summary", summary]] unless summary.empty?
-    pairs
+    based = bases.map { |base| [%w[--since], ["--since", base]] }
+    summary.empty? ? based : [*based, [%w[--summary], ["--summary", summary]]]
   end
 
-  def based(argv)
-    return [] if Kimera::CLI::Argv.new(argv).any?(%w[--since])
-    found = bases.map { |base| [%w[--since], ["--since", base]] }
-    return found unless found.empty?
-    @errors.puts("kimera ci: no pull request base found (looked for #{LOOKED}); running a full run: #{UNGATED}")
-    []
-  end
+  def unbased?(argv) = !since?(argv) && bases.empty?
+
+  def since?(argv) = Kimera::CLI::Argv.new(argv).any?(%w[--since])
 
   def bases
     explicit = @env["KIMERA_BASE"].to_s

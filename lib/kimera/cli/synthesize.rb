@@ -7,6 +7,7 @@ require_relative "../scope/config"
 require_relative "../scope/file_set"
 require_relative "../synthesis/project"
 require_relative "flag"
+require_relative "outcome"
 
 module Kimera
 end
@@ -25,10 +26,9 @@ class Kimera::CLI::Synthesize
     ]
   )
 
-  def initialize(io: $stdout, errors: $stderr)
-    @io = io
-    @errors = errors
-  end
+  MISSING = "kimera synthesize: --out DIR is required"
+
+  def initialize(**); end
 
   def run(argv)
     operators = Kimera::Operators.build.map(&:key)
@@ -40,22 +40,19 @@ class Kimera::CLI::Synthesize
 
   private
 
-  def missing
-    @errors.puts("kimera synthesize: --out DIR is required")
-    1
-  end
+  def missing = Kimera::CLI::Outcome::Failed.new(1, MISSING)
 
   def synthesize(paths, options, out)
     registry = load(paths, options)
-    report(registry, Kimera::Synthesis::Project.new(registry).write(out), out)
-    0
+    manifest = Kimera::Synthesis::Project.new(registry).write(out)
+    Kimera::CLI::Outcome::Said.new(*report(registry, manifest, out))
   end
 
   def report(registry, manifest, out)
-    @io.puts("Synthesized #{registry.files.size} files to #{out}.")
-    @io.puts("  #{manifest.mutant_files.size} mutants on the schema path.")
     unsafe = manifest.unsafe_mutants
-    @io.puts("  #{unsafe.size} mutants routed to reload fallback (memoization).") unless unsafe.empty?
+    routed = unsafe.empty? ? [] : ["  #{unsafe.size} mutants routed to reload fallback (memoization)."]
+    schema = "  #{manifest.mutant_files.size} mutants on the schema path."
+    ["Synthesized #{registry.files.size} files to #{out}.", schema, *routed]
   end
 
   def load(paths, options)

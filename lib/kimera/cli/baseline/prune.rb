@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "yaml"
+require_relative "../outcome"
 
 class Kimera::CLI::Baseline::Prune
   class Tense
@@ -13,64 +14,56 @@ class Kimera::CLI::Baseline::Prune
 
     def holding(path, count) = "#{path} #{@holds} #{count} accepted mutant(s) "
   end
+  PRUNABLE = %i[killed stale].freeze
   DONE = Tense.new("Removed", "now holds")
   PREVIEW = Tense.new("Would remove", "would hold")
 
-  def initialize(ledger, io: $stdout, listing: Kimera::CLI::Baseline::Listing.new(io))
+  def initialize(ledger, path)
     @ledger = ledger
-    @io = io
-    @listing = listing
+    @path = path
   end
 
-  def preview
-    summarize(PREVIEW)
-    @io.puts("(dry run: #{@ledger.path} is unchanged)")
-    0
-  end
+  def preview = said(*summary(PREVIEW), "(dry run: #{@path} is unchanged)")
 
   def apply
-    summarize(DONE)
-    File.write(@ledger.path, YAML.dump(pruned)) if changed?
-    0
+    lines = summary(DONE)
+    prune if changed?
+    said(*lines)
   end
 
   private
 
   def entries = @ledger.entries
 
-  def dropped = entries.select(&:prunable?)
+  def dropped = entries.select { |entry| entry.kind?(*PRUNABLE) }
 
-  def kept = entries.reject(&:prunable?)
+  def kept = entries.reject { |entry| entry.kind?(*PRUNABLE) }
 
   def moved = kept.select(&:moved?)
 
   def changed? = !(dropped.empty? && moved.empty?)
 
-  def pruned = @ledger.document.merge("ignore" => kept.map(&:kept))
+  def pruned = @ledger.document.merge("ignore" => kept.map(&:to_h))
 
-  def summarize(tense)
-    return unchanged unless changed?
-    removed(tense)
-    anchored
-    total(tense)
+  def prune = File.write(@path, YAML.dump(pruned))
+
+  def said(*lines) = Kimera::CLI::Outcome::Said.new(*lines)
+
+  def summary(tense)
+    return ["Nothing to prune: #{@path} keeps its #{entries.size} accepted mutant(s)."] unless changed?
+    [*removed(tense), *anchored, total(tense)]
   end
 
-  def unchanged = @io.puts("Nothing to prune: #{@ledger.path} keeps its #{entries.size} accepted mutant(s).")
-
   def removed(tense)
-    @listing.show(tense.removal(dropped.size, @ledger.path), dropped) { |entry| "  - #{entry.place} (#{entry.kind})" }
+    Kimera::CLI::Baseline::Listing.new(tense.removal(dropped.size, @path), dropped).lines { |place, kind| "  - #{place} (#{kind})" }
   end
 
   def anchored
-    @listing.show("Re-anchored #{moved.size} entr(ies) to their mutant's current line:", moved) do |entry|
-      "  #{entry.place}"
-    end
+    heading = "Re-anchored #{moved.size} entr(ies) to their mutant's current line:"
+    Kimera::CLI::Baseline::Listing.new(heading, moved).lines { |place| "  #{place}" }
   end
 
   def total(tense)
-    @io.puts(
-      "#{tense.holding(@ledger.path, kept.size)}" \
-        "(was #{entries.size}); max_ignored can be lowered by #{dropped.size}."
-    )
+    "#{tense.holding(@path, kept.size)}(was #{entries.size}); max_ignored can be lowered by #{dropped.size}."
   end
 end

@@ -35,10 +35,8 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
   def run(*flags, judge: runner)
     judging = described_class.new(io: out, errors: errors, bench: FakeBench.new(harness: judge))
-    [
-      judging.run(["calc.rb", "--config", "custom.yml", "--report", "report.json", "--no-color", *flags]),
-      JSON.parse(File.read("report.json"))
-    ]
+    outcome = judging.run(["calc.rb", "--config", "custom.yml", "--report", "report.json", "--no-color", *flags])
+    [ended(outcome, out, errors), JSON.parse(File.read("report.json"))]
   end
 
   def rows(document, status) = document["results"].select { |row| row["status"] == status }

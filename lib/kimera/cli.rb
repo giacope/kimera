@@ -5,6 +5,7 @@ require_relative "cli/flag"
 require_relative "cli/handlers"
 require_relative "cli/help_text"
 require_relative "cli/interruption"
+require_relative "cli/outcome"
 require_relative "cli/suggestion"
 require_relative "operators"
 require_relative "registry/builder"
@@ -37,16 +38,13 @@ class Kimera::CLI
   COMMAND_NAMES = (COMMANDS.keys.grep_v(/\A-/) - ALIASES).freeze
 
   def initialize(io: $stdout, errors: $stderr, handlers: Kimera::CLI::Handlers.new(io, errors))
-    @io = io
-    @errors = errors
     @handlers = handlers
   end
 
   def run(argv)
-    Kimera::CLI::Interruption.new(@errors).guard { dispatch(argv.dup) }
+    @handlers.guard(Process.pid).guard { dispatch(argv.dup) }
   rescue Kimera::UsageError => error
-    @errors.puts("kimera: #{error.message}")
-    1
+    refused("kimera: #{error.message}")
   end
 
   private
@@ -60,8 +58,7 @@ class Kimera::CLI
 
   def unknown(command, _argv)
     hint = Kimera::CLI::Suggestion.new(COMMAND_NAMES).hint(command)
-    @errors.puts("kimera: unknown command #{command.inspect}#{hint}\nTry: kimera help")
-    1
+    refused("kimera: unknown command #{command.inspect}#{hint}\nTry: kimera help")
   end
 
   def registry(argv)
@@ -73,13 +70,15 @@ class Kimera::CLI
     build(files, options)
   end
 
-  def missing(set)
-    @errors.puts("kimera: no Ruby files matched #{set}")
-    1
-  end
+  def missing(set) = refused("kimera: no Ruby files matched #{set}")
+
+  def refused(text) = Kimera::CLI::Outcome::Failed.new(1, text)
 
   def build(files, options)
-    emit(scan(options).build(files), options)
+    built = scan(options).build(files)
+    out = options[:output]
+    built.write(out) if out
+    emit(built, options)
   end
 
   def scan(options)
@@ -88,26 +87,15 @@ class Kimera::CLI
 
   def emit(built, options)
     out, json = options.values_at(:output, :json)
-    built.write(out) if out
-    @io.puts(built.to_json) if json
-    announce(built, out) unless options[:quiet] || json
-    0
+    return Kimera::CLI::Outcome::Said.new(built.to_json) if json
+    options[:quiet] ? Kimera::CLI::Outcome::Ended.new(0) : Kimera::CLI::Outcome::Said.new(*announced(built, out))
   end
 
-  def announce(built, out)
-    @io.puts(built.summary)
-    @io.puts("Wrote registry to #{out}") if out
-  end
+  def announced(built, out) = [built.summary, *(out ? ["Wrote registry to #{out}"] : [])]
 
-  def version(*)
-    @io.puts("kimera #{Kimera::VERSION}")
-    0
-  end
+  def version(*) = Kimera::CLI::Outcome::Said.new("kimera #{Kimera::VERSION}")
 
-  def help(*)
-    @io.puts(Kimera::HelpText.new)
-    0
-  end
+  def help(*) = @handlers.help
 
   def synthesize(argv) = delegate("synthesize", :Synthesize, argv)
   def execute(argv) = delegate("run", :Run, argv)

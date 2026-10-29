@@ -12,7 +12,7 @@ RSpec.describe(Kimera::CLI::Synthesize, :aggregate_failures) do
     errors = $stderr
     $stdout = out
     $stderr = error
-    [out.string, error.string, described_class.new.run(argv)]
+    [out.string, error.string, ended(described_class.new.run(argv), out, error)]
   ensure
     $stdout = output
     $stderr = errors

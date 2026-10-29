@@ -38,6 +38,9 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
   def fixture(row) = written("results" => [row])
 
+  # The status `kimera ARGV` exits with, having printed what it said to out and errors.
+  def commanded(*argv) = ended(described_class.new(io: out, errors: errors).run(argv), out, errors)
+
   def project(files)
     files.each do |path, body|
       FileUtils.mkdir_p(File.dirname(File.join(dir, path)))
@@ -69,8 +72,10 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       <<~RUBY
         require "kimera/cli"
         report = ARGV.fetch(0)
-        abort("report failed") unless Kimera::CLI.new.run(["report", report]).zero?
-        abort("mutant failed") unless Kimera::CLI.new.run(["mutant", "1", "--report", report]).zero?
+        answered = Class.new { def exit(code) = code }.new
+        ran = ->(argv) { Kimera::CLI.new.run(argv).print($stdout, $stderr).exit(answered) }
+        abort("report failed") unless ran.call(["report", report]).zero?
+        abort("mutant failed") unless ran.call(["mutant", "1", "--report", report]).zero?
       RUBY
     end
 
@@ -84,12 +89,12 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
     it "suggests a command exactly three edits away" do
       expect(Kimera::CLI::Suggestion.new(["run"]).hint("rxxx")).to(eq('; did you mean "run"?'))
-      expect(described_class.new(io: out, errors: errors).run(["rxxx"])).to(eq(1))
+      expect(commanded("rxxx")).to(eq(1))
       expect(errors.string).to(include('did you mean "run"?'))
     end
 
     it "suggests nothing for a distant one" do
-      described_class.new(io: out, errors: errors).run(["completely-unknown"])
+      commanded("completely-unknown")
       expect(errors.string).not_to(include("did you mean"))
     end
 
@@ -107,7 +112,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     def source = fixture("mutant_id" => 9, "status" => "survived", "file" => "x.rb", "line" => 2, "label" => "x")
 
     def baseline(argv)
-      [Dir.chdir(dir) { Kimera::CLI::Baseline.new(io: out, errors: errors).run(argv) }, out.string, errors.string]
+      [Dir.chdir(dir) { commanded("baseline", *argv) }, out.string, errors.string]
     end
 
     it "rejects every invalid create input" do
@@ -119,7 +124,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     it "creates a baseline and refuses to replace it implicitly" do
       status, output, = baseline(["create", source, "--reason", "why", "--output", target])
       expect(status).to(eq(0))
-      expect(output).to(include("Created #{target} with 1 accepted survivor(s).", "baseline: #{target}"))
+      expect(output)
+        .to(include("Created #{target} with 1 accepted survivor(s).", "Add `baseline: #{target}` to .kimera.yml"))
       expect(baseline(["create", source, "--reason", "why", "--output", target])[2]).to(include("already exists"))
     end
 
@@ -141,7 +147,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       Kimera::CLI::Mutant.new.__send__(:arguments_for, row, settings)
     end
 
-    def mutant(*argv) = Kimera::CLI::Mutant.new(io: out, errors: errors).run(argv)
+    def mutant(*argv) = commanded("mutant", *argv)
 
     it "requires a mutant ID" do
       expect(mutant).to(eq(1))
@@ -382,9 +388,9 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
   end
 
   describe "workflow branches" do
-    def initialized(*argv) = Kimera::CLI::Init.new(io: out, errors: errors, root: dir).run(argv)
+    def initialized(*argv) = Dir.chdir(dir) { commanded("init", *argv) }
 
-    def doctored(*argv, suite: Kimera::Execution::SuiteCapture.new) = examining(suite).run(argv)
+    def doctored(*argv, suite: Kimera::Execution::SuiteCapture.new) = ended(examining(suite).run(argv), out, errors)
 
     def examining(suite)
       instruments = Kimera::CLI::Instruments.new(suite: suite)
@@ -451,12 +457,12 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       def baselined? = suite.commands.any? { |command| !command.include?("--dry-run") }
 
       it "is skipped unless requested" do
-        expect(doctor.run([])).to(eq(1))
+        expect(ended(doctor.run([]), out, errors)).to(eq(1))
         expect(baselined?).to(be(false))
       end
 
       it "runs under --check-baseline" do
-        expect(doctor.run(["--check-baseline"])).to(eq(1))
+        expect(ended(doctor.run(["--check-baseline"]), out, errors)).to(eq(1))
         expect(baselined?).to(be(true))
         expect(out.string).to(include("Baseline: configured test suite is green"))
       end
@@ -484,12 +490,12 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     it "rejects an invalid completion request" do
-      expect(Kimera::CLI::Completion.new(io: out, errors: errors).run(%w[bash extra])).to(eq(1))
+      expect(commanded("completion", "bash", "extra")).to(eq(1))
       expect(errors.string).to(include("completion <bash|zsh|fish>"))
     end
 
     it "completes for fish" do
-      expect(Kimera::CLI::Completion.new(io: out, errors: errors).run(["fish"])).to(eq(0))
+      expect(commanded("completion", "fish")).to(eq(0))
       expect(out.string).to(include("complete -c kimera"))
     end
   end
@@ -685,7 +691,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       def wrappers = %i[configure doctor changed ci completion baseline]
 
       it "dispatch every workflow and the baseline to its runner" do
-        expect(wrappers.map { |name| cli.__send__(name, []) }).to(eq([0] * 6))
+        expect(wrappers.map { |name| ended(cli.__send__(name, [])) }).to(eq([0] * 6))
         expect(handlers.ran.size).to(eq(6))
       end
 
@@ -701,9 +707,12 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     it "prints a useful doctor usage error" do
-      expect(Kimera::CLI::Doctor.new(io: out, errors: errors).run(["--unknown"])).to(eq(1))
+      expect(commanded("doctor", "--unknown")).to(eq(1))
       expect(errors.string).to(include("kimera: invalid option: --unknown"))
     end
+
+    # The baseline checks doctor's suite makes for a project configured with SETTINGS.
+    def baselined(suite, **settings) = doctor(dir, suite).__send__(:test_command, settings).baselines(1)
 
     it "builds and diagnoses a successful minitest baseline command" do
       command = [
@@ -711,7 +720,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         "-e", Kimera::CLI::TestCommand::LOADER, File.join(dir, "test", "x_test.rb")
       ]
       suite = FakeCapture.new
-      expect(doctor(dir, suite).__send__(:baselines, { framework: "minitest", tests: ["test/**/*_test.rb"] }))
+      expect(baselined(suite, framework: "minitest", tests: ["test/**/*_test.rb"]))
         .to(eq([["✓", "Baseline: configured test suite is green"]]))
       expect(suite.ran).to(eq([[command, dir, 125]]))
     end
@@ -720,8 +729,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       command = ["bundle", "exec", "rspec", File.join(dir, "spec", "x_spec.rb")]
       suite = FakeCapture.new { ["noise\n3 examples, 1 failure\n", ProcessStatuses.exited(1)] }
       message = "Baseline: 3 examples, 1 failure (fix it, then rerun `kimera doctor --check-baseline`)"
-      expect(doctor(dir, suite).__send__(:baselines, { framework: "rspec", tests: ["spec/**/*_spec.rb"] }))
-        .to(eq([["✗", message]]))
+      expect(baselined(suite, framework: "rspec", tests: ["spec/**/*_spec.rb"])).to(eq([["✗", message]]))
       expect(suite.ran).to(eq([[command, dir, 125]]))
     end
 

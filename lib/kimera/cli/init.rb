@@ -7,6 +7,7 @@ require_relative "../scope/config"
 require_relative "../scope/file_set"
 require_relative "config_template"
 require_relative "flag"
+require_relative "outcome"
 require_relative "rails_layout"
 require_relative "rspec_options"
 require_relative "test_definitions"
@@ -32,10 +33,9 @@ class Kimera::CLI::Init
   LOCKS = %w[Gemfile.lock gems.locked].freeze
   LOCKED = { "rspec" => /^    rspec-core \(/, "minitest" => /^    minitest \(/ }.freeze
   DOCUMENT = ->(**fields) { fields.transform_keys(&:to_s) }
+  NEXT = "Next: kimera doctor"
 
-  def initialize(io: $stdout, errors: $stderr, root: ".", processors: Etc.nprocessors)
-    @io = io
-    @errors = errors
+  def initialize(root: ".", processors: Etc.nprocessors, **)
     @root = root
     @processors = processors
   end
@@ -43,34 +43,19 @@ class Kimera::CLI::Init
   def run(argv)
     _, options = OPTIONS.parse(argv, { force: false, dry_run: false })
     options[:dry_run] ? preview : write(options)
-  rescue Kimera::UsageError => error
-    usage(error)
   end
 
   private
 
-  def usage(error)
-    @errors.puts("kimera: #{error.message}")
-    1
-  end
-
-  def preview
-    @io.write(template)
-    0
-  end
+  def preview = Kimera::CLI::Outcome::Written.new(template)
 
   def write(options)
     config = Kimera::Config.of(@root)
     config.create(options[:force]) { template }
-    announce(config)
+    Kimera::CLI::Outcome::Said.new("Created #{config} for #{framework}.", NEXT)
   end
 
   def template = Kimera::CLI::ConfigTemplate.new(detected).render
-
-  def announce(config)
-    @io.puts("Created #{config} for #{framework}.", "Next: kimera doctor")
-    0
-  end
 
   def detected
     DOCUMENT.call(

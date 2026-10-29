@@ -73,7 +73,7 @@ module Kimera
 
     def retitled(banner) = FlagTable.new(banner: banner, flags: @flags)
 
-    def refuse = raise(UsageError, @banner)
+    def refusal = UsageError.new(@banner)
 
     def to_a = @flags.dup
 

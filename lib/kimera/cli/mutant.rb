@@ -17,25 +17,20 @@ class Kimera::CLI::Mutant
     ]
   )
 
-  def initialize(io: $stdout, errors: $stderr, run: Kimera::CLI::Run.new(io: io, errors: errors))
+  def initialize(
+    io: $stdout, errors: $stderr, run: Kimera::CLI::Run.new(io: io, errors: errors), survivors: Kimera::CLI::Survivors.new
+  )
     @io = io
-    @errors = errors
     @run = run
+    @survivors = survivors
   end
 
   def run(argv)
     (id,), options = OPTIONS.parse(argv, { report: Kimera::CLI::ReportFile.default.to_s, rerun: false })
     show(identify(id), options)
-  rescue Kimera::UsageError => error
-    usage(error)
   end
 
   private
-
-  def usage(error)
-    @errors.puts("kimera: #{error.message}")
-    1
-  end
 
   def identify(id)
     raise(Kimera::UsageError, "mutant ID is required") unless id
@@ -45,7 +40,7 @@ class Kimera::CLI::Mutant
   def show(id, options)
     report = options[:report]
     return rerun(id, report) if options[:rerun]
-    Kimera::CLI::Survivors.new(io: @io, errors: @errors).run([report, "--id", id])
+    @survivors.run([report, "--id", id])
   end
 
   def rerun(id, report)

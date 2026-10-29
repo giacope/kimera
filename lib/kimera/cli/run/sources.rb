@@ -19,21 +19,25 @@ class Kimera::CLI::Run::Sources
     build(options, files(options, change))
   end
 
+  def tests(patterns, exclude)
+    notice(patterns, exclude, "test")
+    expand(patterns, exclude, "test", "check --tests")
+    Kimera::FileSet.new(patterns, exclude: exclude).listed
+  end
+
+  private
+
   def files(options, change)
-    found = expand(options[:paths], options[:exclude], "source", "check paths and --exclude")
+    patterns, exclude = options.values_at(:paths, :exclude)
+    notice(patterns, exclude, "source")
+    found = expand(patterns, exclude, "source", "check paths and --exclude")
     change.files(found) { |file| relative(file, options[:source_root]) }
   end
 
   def expand(patterns, exclude, kind, hint)
-    notice(patterns, exclude, kind)
     found = Kimera::FileSet.new(patterns, exclude: exclude).files
     raise(Kimera::UsageError, "no #{kind} files matched: #{Array(patterns).join(", ")} (#{hint})") if found.empty?
     found
-  end
-
-  def tests(patterns, exclude)
-    expand(patterns, exclude, "test", "check --tests")
-    Kimera::FileSet.new(patterns, exclude: exclude).listed
   end
 
   def notice(patterns, exclude, kind)
@@ -41,8 +45,6 @@ class Kimera::CLI::Run::Sources
       @errors.puts("kimera: warning: exclude pattern matched no #{kind} files: #{pattern}")
     end
   end
-
-  private
 
   def relative(file, root)
     base = File.expand_path(root)

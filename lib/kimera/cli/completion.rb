@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "outcome"
+
 module Kimera
 end
 
@@ -12,23 +14,18 @@ class Kimera::CLI
     }.freeze
     SHELLS = SCRIPTS.keys.freeze
 
-    def initialize(io: $stdout, errors: $stderr)
-      @io = io
-      @errors = errors
-    end
+    def initialize(**); end
 
     def run(argv)
       shell = argv.first
       return usage unless SHELLS.include?(shell) && argv.size == 1
-      @io.puts(script(shell))
-      0
+      Kimera::CLI::Outcome::Said.new(script(shell))
     end
 
     private
 
     def usage
-      @errors.puts("kimera: usage: kimera completion <#{SHELLS.join("|")}>")
-      1
+      Kimera::CLI::Outcome::Failed.new(1, "kimera: usage: kimera completion <#{SHELLS.join("|")}>")
     end
 
     def script(shell) = format(SCRIPTS.fetch(shell), COMMAND_NAMES.join(" "))

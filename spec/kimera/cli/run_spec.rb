@@ -34,9 +34,9 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     errors = $stderr
     $stdout = out
     $stderr = error
-    returned = yield
+    status = ended(yield, out, error)
 
-    [out.string, error.string, returned]
+    [out.string, error.string, status]
   ensure
     $stdout = output
     $stderr = errors
@@ -642,7 +642,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       io = StringIO.new
       original = $stdout
       $stdout = io
-      [io.string, cli.run(argv)]
+      [io.string, ended(cli.run(argv), io, $stderr)]
     ensure
       $stdout = original
     end
@@ -1116,7 +1116,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       $stderr = error
       $stdout = StringIO.new
       begin
-        [cli.run(argv), error.string]
+        [ended(cli.run(argv), $stdout, error), error.string]
       ensure
         $stderr = errors
         $stdout = output
@@ -1124,11 +1124,19 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
 
     # A silent no-op exclude widens a CI gate's scope.
-    it "warns about exclude patterns that matched nothing" do
+    # What loading a.rb as the sources and as the tests, excluding a pattern that matches nothing, warns.
+    def unexcluded
       File.write(File.join(dir, "a.rb"), "class A; end\n")
-      warning = "kimera: warning: exclude pattern matched no source files: typo/**/*.rb\n"
-      scan = -> { Kimera::CLI::Run::Sources.new.expand(["a.rb"], ["typo/**/*.rb"], "source", "hint") }
-      expect { scan.call }.to(output(warning).to_stderr)
+      errors = StringIO.new
+      sources = Kimera::CLI::Run::Sources.new(errors: errors)
+      sources.load({ paths: ["a.rb"], exclude: ["typo/**/*.rb"], operators: [], source_root: "." })
+      sources.tests(["a.rb"], ["typo/**/*.rb"])
+      errors.string
+    end
+
+    it "warns about exclude patterns that matched nothing" do
+      warned = %w[source test].map { |kind| "exclude pattern matched no #{kind} files: typo/**/*.rb" }
+      expect(unexcluded).to(eq(warned.map { |warning| "kimera: warning: #{warning}\n" }.join))
     end
 
     it "warns and returns 1 when no source files match the paths" do

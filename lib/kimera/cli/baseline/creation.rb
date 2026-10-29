@@ -4,6 +4,7 @@ require "yaml"
 require_relative "../../error"
 require_relative "../../scope/config"
 require_relative "../flag"
+require_relative "../outcome"
 require_relative "../report_file"
 
 class Kimera::CLI::Baseline::Creation
@@ -19,10 +20,6 @@ class Kimera::CLI::Baseline::Creation
       Kimera::Flag.build("--force", :force, "Replace an existing baseline file")
     ]
   )
-
-  def initialize(io: $stdout)
-    @io = io
-  end
 
   def run(argv)
     (report,), options = CREATE.parse(
@@ -48,19 +45,19 @@ class Kimera::CLI::Baseline::Creation
     output = options[:output]
     ignored = survivors(report).map { |row| entry(row, options[:reason]) }
     File.write(output, YAML.dump("format_version" => 1, "ignore" => ignored))
-    @io.puts("Created #{output} with #{ignored.size} accepted survivor(s).", applied(output, options))
-    0
+    set(output) if options[:write]
+    created(output, ignored.size, options[:write] ? "Set `baseline: #{output}` in #{config}." : hint(output))
   end
 
-  def applied(output, options) = options[:write] ? set(output) : hint(output)
+  def created(output, count, applied)
+    Kimera::CLI::Outcome::Said.new("Created #{output} with #{count} accepted survivor(s).", applied)
+  end
 
   def hint(output) = "Add `baseline: #{output}` to .kimera.yml to apply it, or rerun with --write."
 
-  def set(output)
-    config = Kimera::Config.of(".").to_s
-    Kimera::CLI::Baseline::Setting.new(config).apply(output)
-    "Set `baseline: #{output}` in #{config}."
-  end
+  def set(output) = Kimera::CLI::Baseline::Setting.new(config).apply(output)
+
+  def config = Kimera::Config.of(".").to_s
 
   def survivors(path)
     Kimera::CLI::ReportFile.new(path).results.select { |row| SURVIVING.include?(row["status"]) }

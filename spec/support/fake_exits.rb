@@ -10,4 +10,6 @@ class FakeExits
   end
 
   def exit!(code) = @codes.push(code)
+
+  def exit(code) = @codes.push(code)
 end

@@ -10,13 +10,13 @@ RSpec.describe(Kimera::CLI::Interruption) do
   # What the guard answers, or the signal it let through: one that escaped
   # would stop this very run, so it is caught here and compared.
   def answer(leader = Process.pid, &)
-    described_class.new(errors, leader).guard(&)
+    ended(described_class.new(leader).guard(&), StringIO.new, errors)
   rescue SignalException => error
     error
   end
 
   it "answers what the command answers" do
-    expect(answer { 2 }).to(eq(2))
+    expect(answer { Kimera::CLI::Outcome::Ended.new(2) }).to(eq(2))
   end
 
   it "says it was interrupted, and exits as the shell would", :aggregate_failures do

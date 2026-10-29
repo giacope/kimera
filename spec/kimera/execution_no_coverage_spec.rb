@@ -42,11 +42,13 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
 
     def broken = File.join(dir, "broken.json").tap { |path| File.write(path, "{") }
 
-    def mutant(*argv) = Kimera::CLI::Mutant.new(io: StringIO.new, errors: errors).run(argv)
+    def kimera(*argv) = ended(Kimera::CLI.new(io: StringIO.new, errors: errors).run(argv), StringIO.new, errors)
+
+    def mutant(*argv) = kimera("mutant", *argv)
 
     it "is explained with the parser's detail when creating a baseline" do
       argv = ["create", broken, "--reason", "legacy", "--output", File.join(dir, "baseline.yml")]
-      status = Dir.chdir(dir) { Kimera::CLI::Baseline.new(errors: errors).run(argv) }
+      status = Dir.chdir(dir) { kimera("baseline", *argv) }
       expect(status).to(eq(1))
       expect(errors.string).to(include("unreadable report #{broken}", malformation("{")))
     end

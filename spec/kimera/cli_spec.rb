@@ -16,7 +16,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     errors = $stderr
     $stdout = out
     $stderr = error
-    [out.string, error.string, described_class.new.run(argv)]
+    [out.string, error.string, ended(described_class.new.run(argv), out, error)]
   ensure
     $stdout = output
     $stderr = errors
@@ -62,7 +62,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     # The handler a subcommand dispatches to, with its file and arguments, and the status it answers.
     def dispatch(argv, status = 0)
       handlers = FakeHandlers.new(status)
-      [described_class.new(handlers: handlers).run(argv), handlers.ran]
+      [ended(described_class.new(handlers: handlers).run(argv), StringIO.new, StringIO.new), handlers.ran]
     end
 
     it "hands the synthesize subcommand to its file's handler" do

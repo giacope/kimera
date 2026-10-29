@@ -73,12 +73,12 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
 
   it "prints the survivor panel framing exactly" do
     io = StringIO.new
-    panel = Kimera::CLI::Survivors::Panel.new(io: io)
     row = {
       "mutant_id" => 7, "file" => "b.rb", "line" => 4, "label" => "x",
       "original" => "a", "mutated" => "b", "covering_tests" => ["t"]
     }
-    panel.announce([["b.rb", 4, row]], status: "survived", report: "report.json")
+    selection = Kimera::CLI::Survivors::Selection.new("survived", nil, "report.json", false)
+    io.puts(*Kimera::CLI::Survivors::Panel.new.announce([["b.rb", 4, row]], selection))
 
     expect(io.string).to(
       eq(
