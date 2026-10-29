@@ -87,8 +87,9 @@ class FailingHarness < FakeHarness
   def warm!(*, **) = raise(@failure)
 end
 
-# A suite of the tests a spec names: it lists them, names them from its
-# catalog, places each in its file, and knows whether the run finished it.
+# A suite of the tests a spec names: it loads no file and starts nothing, lists
+# them, names them from its catalog, places each in its file, and knows whether
+# the run finished it.
 class FakeSuite
   def initialize(test_ids = [], catalog: {}, files: {})
     @test_ids = test_ids
@@ -98,6 +99,10 @@ class FakeSuite
   end
 
   attr_reader :test_ids
+
+  def source(_files) = self
+
+  def start = self
 
   def catalog(ids) = @catalog.slice(*ids)
 

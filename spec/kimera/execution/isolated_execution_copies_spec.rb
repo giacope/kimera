@@ -6,31 +6,24 @@ require "tmpdir"
 # Without numbered databases, concurrent mirrors past the first take copies
 # of the parent's prepared database, made once before the first mirror.
 RSpec.describe(Kimera::Execution::IsolatedExecution) do
-  let(:mirror) { instance_double(Kimera::Execution::MirrorDatabase, prepare: nil) }
-
-  before do
-    parent = instance_double(Kimera::Execution::ParentConnections, release!: nil)
-    allow(Kimera::Execution::ParentConnections).to(receive(:new).and_return(parent))
-    allow(Kimera::Execution::MirrorDatabase).to(receive(:new).with(nil).and_return(mirror))
-  end
-
+  # The slots the mirror database was prepared for over two mirrors of +jobs+.
   def mirrored(jobs, numbered: false)
-    numbers = instance_double(Kimera::Execution::NumberedDatabases, numbered?: numbered, prepare: nil)
-    allow(Kimera::Execution::NumberedDatabases).to(receive(:new).and_return(numbers))
+    mirror = FakeMirror.new
+    numbers = FakeNumbered.new(numbered: numbered)
+    connections = FakeConnections.new
+    slots = Kimera::Execution::MirrorSlots.new(jobs, connections: connections, numbered: numbers, mirror: mirror)
     Dir.mktmpdir do |root|
-      execution = described_class.new(registry: nil, root: root, tests: [], jobs: jobs)
-      allow(execution).to(receive(:plan).and_return(instance_double(Kimera::Execution::IsolatedPlan, root: root)))
+      execution = described_class.new(registry: nil, root: root, tests: [], jobs: jobs, slots: slots)
       2.times { execution.__send__(:with_mirror, &:itself) }
     end
+    mirror.prepared
   end
 
   it "copies the parent's database once for the mirrors past the first" do
-    mirrored(3)
-    expect(mirror).to(have_received(:prepare).with(1...3).once)
+    expect(mirrored(3)).to(eq([1...3]))
   end
 
   it "copies nothing for numbered databases" do
-    mirrored(3, numbered: true)
-    expect(mirror).not_to(have_received(:prepare))
+    expect(mirrored(3, numbered: true)).to(eq([]))
   end
 end

@@ -12,13 +12,31 @@ RSpec.describe(Kimera::Execution::DatabaseCopies::Postgres) do
       .new("test", "primary", "app_test", { adapter: "postgresql", database: "app_test", host: "db" })
   end
   let(:log) { [] }
+  let(:named) { [] }
 
   before do
-    sink = log
-    base = Class.new { define_singleton_method(:establish_connection) { |db| sink << [:connect, db.database] } }
-    stub_const("ActiveRecord::Base", base)
-    stub_const("ActiveRecord::DatabaseConfigurations::HashConfig", Struct.new(:env_name, :name, :configuration_hash))
-    stub_const("ActiveRecord::Tasks::PostgreSQLDatabaseTasks", tasks(sink))
+    stub_const("ActiveRecord::Base", base(log))
+    stub_const("ActiveRecord::DatabaseConfigurations::HashConfig", configs(named))
+    stub_const("ActiveRecord::Tasks::PostgreSQLDatabaseTasks", tasks(log))
+  end
+
+  # An Active Record that logs each connection it establishes, on a server that lists +listed+.
+  def base(sink, listed = nil)
+    pool = self.pool(listed)
+    Class.new do
+      define_singleton_method(:establish_connection) { |db| sink << [:connect, db.database] }
+      define_singleton_method(:connection_pool) { pool }
+    end
+  end
+
+  # Active Record's config class, writing down the environment and name of each config made.
+  def configs(sink)
+    Struct.new(:env_name, :name, :configuration_hash) do
+      define_method(:initialize) do |*settings|
+        sink << settings.first(2)
+        super(*settings)
+      end
+    end
   end
 
   def tasks(sink)
@@ -33,8 +51,7 @@ RSpec.describe(Kimera::Execution::DatabaseCopies::Postgres) do
       def quote(name) = "'#{name}'"
       def select_value(sql) = (1 if sql == "SELECT 1 FROM pg_database WHERE datname = '#{listed}'")
     end.new(listed)
-    pool = Struct.new(:connection) { def with_connection = yield(connection) }
-    allow(ActiveRecord::Base).to(receive(:connection_pool).and_return(pool.new(connection)))
+    Struct.new(:connection) { def with_connection = yield(connection) }.new(connection)
   end
 
   it "drops a stale copy, creates it from the database as its template, and restores the parent's settings" do
@@ -44,15 +61,14 @@ RSpec.describe(Kimera::Execution::DatabaseCopies::Postgres) do
   end
 
   it "restores the parent's settings when the copy fails" do
-    allow(ActiveRecord::Tasks::PostgreSQLDatabaseTasks).to(receive(:new).and_raise(RuntimeError))
+    refusing = Class.new { def initialize(_config) = raise(RuntimeError) }
+    stub_const("ActiveRecord::Tasks::PostgreSQLDatabaseTasks", refusing)
     expect { engine.copy("app_test_1") }.to(raise_error(RuntimeError).and(change(log, :size).by(1)))
   end
 
   it "names the copy apart from the parent's config" do
-    allow(ActiveRecord::DatabaseConfigurations::HashConfig).to(receive(:new).and_call_original)
     engine.remove("app_test_1")
-    expect(ActiveRecord::DatabaseConfigurations::HashConfig)
-      .to(have_received(:new).with("test", "primary_copy", anything))
+    expect(named).to(eq([%w[test primary_copy]]))
   end
 
   it "drops a copy, and restores the parent's settings" do
@@ -61,7 +77,7 @@ RSpec.describe(Kimera::Execution::DatabaseCopies::Postgres) do
   end
 
   it "finds a copy the server lists, and no other" do
-    pool("app_test_1")
+    stub_const("ActiveRecord::Base", base(log, "app_test_1"))
     expect(%w[app_test_1 app_test_2].map { |name| engine.exist?(name) }).to(eq([true, false]))
   end
 end

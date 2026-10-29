@@ -13,18 +13,18 @@ class Kimera::Execution::WorkerDatabases
     "database.yml give each worker its own; tests that write the same rows can fail or pass by timing " \
     "(use jobs: 1, or name the database per worker)"
 
-  def initialize(jobs:, errors: $stderr, env: ENV, tolerance: Kimera::Execution::Tolerance.new(errors))
+  def initialize(jobs:, errors: $stderr, env: ENV, copies: Kimera::Execution::DatabaseCopies.new(errors: errors))
     @jobs = jobs
     @errors = errors
     @env = env
-    @tolerance = tolerance
+    @copies = copies
   end
 
   def active? = eligible? && parallel.enabled? && hooks.any? && parallel.loadable?
 
-  def before_fork
+  def before_fork(connections = Kimera::Execution::ParentConnections.new)
     register!
-    Kimera::Execution::ParentConnections.new.release!
+    connections.release!
     return before_hooks.each(&:call) if active?
     prepare
   end
@@ -36,11 +36,11 @@ class Kimera::Execution::WorkerDatabases
     register!
     return hooks.each { |hook| hook.call(index) } if active?
     numbered.adopt(index)
-    copies.adopt(index)
+    @copies.adopt(index)
   end
 
   def before_exit(index)
-    @tolerance.attempt("parallelize_teardown failed") { Array(index).each { |worker| cleanup(worker) } }
+    tolerance.attempt("parallelize_teardown failed") { Array(index).each { |worker| cleanup(worker) } }
   end
 
   private
@@ -55,7 +55,7 @@ class Kimera::Execution::WorkerDatabases
   def cleanup(index)
     register!
     return unless active?
-    @tolerance.attempt("could not empty the worker's test database") { scrub }
+    tolerance.attempt("could not empty the worker's test database") { scrub }
     ActiveSupport::Testing::Parallelization.run_cleanup_hooks.each { |hook| hook.call(index) }
   end
 
@@ -65,21 +65,21 @@ class Kimera::Execution::WorkerDatabases
     ActiveSupport::TestCase.parallel_worker_id = index
   end
 
-  def numbered = @_numbered ||= Kimera::Execution::NumberedDatabases.new(tolerance: @tolerance, env: @env)
+  def tolerance = Kimera::Execution::Tolerance.new(@errors)
+
+  def numbered = Kimera::Execution::NumberedDatabases.new(tolerance: tolerance, env: @env)
 
   def parallel = Kimera::Execution::ParallelDatabases.new(env: @env)
 
-  def memory? = Kimera::Execution::MemoryDatabases.new.current?
+  def memory?(databases = Kimera::Execution::MemoryDatabases.new) = databases.current?
 
   def prepare
     return if @_prepared || !separate?
     @_prepared = true
     return (1...@jobs).each { |index| numbered.prepare(index) } if numbered.numbered?
-    return copies.prepare(1...@jobs) if copies.possible?
+    return @copies.prepare(1...@jobs) if @copies.possible?
     shared
   end
-
-  def copies = @_copies ||= Kimera::Execution::DatabaseCopies.new(errors: @errors)
 
   def separate? = @jobs > 1 && defined?(ActiveRecord::Base) && !memory?
 

@@ -12,10 +12,8 @@ require_relative "isolated_scheduling"
 require_relative "isolated_verdict"
 require_relative "isolated_watchdog"
 require_relative "macro_lambdas"
-require_relative "mirror_database"
+require_relative "mirror_slots"
 require_relative "null_progress"
-require_relative "numbered_databases"
-require_relative "parent_connections"
 
 module Kimera
   module Execution
@@ -67,13 +65,13 @@ class Kimera::Execution::IsolatedExecution
   end
 
   def ready!
-    Kimera::Execution::ParentConnections.new.release!
+    released = slots.tap(&:release!)
     return if @_ready || jobs == 1
     @_ready = true
-    databases = Kimera::Execution::NumberedDatabases.new
-    return (1...jobs).each { |slot| databases.prepare(slot) } if databases.numbered?
-    Kimera::Execution::MirrorDatabase.new(nil).prepare(1...jobs)
+    released.prepare
   end
+
+  def slots = @options.fetch(:slots) { Kimera::Execution::MirrorSlots.new(jobs) }
 
   def progress = @options.fetch(:progress) { Kimera::Execution::NullProgress.new }
 

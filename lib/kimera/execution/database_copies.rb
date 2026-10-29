@@ -14,9 +14,10 @@ class Kimera::Execution::DatabaseCopies
     /postg/i => Kimera::Execution::DatabaseCopies::Postgres, /sqlite/i => Kimera::Execution::DatabaseCopies::Sqlite
   }.freeze
 
-  def initialize(errors: $stderr, hooks: Kernel)
+  def initialize(errors: $stderr, hooks: Kernel, engines: ENGINES)
     @errors = errors
     @hooks = hooks
+    @engines = engines
   end
 
   def possible? = !engine.nil?
@@ -48,7 +49,7 @@ class Kimera::Execution::DatabaseCopies
   end
 
   def pick
-    ENGINES.find { |pattern, _| config.adapter.to_s.match?(pattern) }&.last&.new(config)
+    @engines.find { |pattern, _| config.adapter.to_s.match?(pattern) }&.last&.new(config)
   rescue StandardError
     nil
   end

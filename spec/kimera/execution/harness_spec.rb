@@ -567,19 +567,14 @@ RSpec.describe(Kimera::Execution::Harness) do
     # Rails isn't loaded here: Rails and its application are plain stand-ins.
     def rails_with(app) = stub_const("Rails", Data.define(:application).new(app))
 
-    def eager_app = Class.new { def eager_load!; end }.new
-
     it "eager-loads a detected Rails application before overlaying" do
-      app = eager_app
-      allow(app).to(receive(:eager_load!))
+      app = FakeApplication.new
       rails_with(app) && harness(adapter).__send__(:load!)
-      expect(app).to(have_received(:eager_load!))
+      expect(app.eager_loads).to(eq(1))
     end
 
     it "warns but continues when eager loading fails" do
-      app = eager_app
-      allow(app).to(receive(:eager_load!).and_raise(RuntimeError, "boom"))
-      rails_with(app)
+      rails_with(FakeApplication.new(RuntimeError.new("boom")))
       expect { harness(adapter).__send__(:load!) }.to(output(/eager_load! failed \(RuntimeError: boom\)/).to_stderr)
     end
 
@@ -742,19 +737,14 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(coverage[mid]).to(eq(["t1"]))
     end
 
-    def rails
-      app = Class.new { def eager_load!; end }.new
-      allow(app).to(receive(:eager_load!))
-      stub_const("Rails", Data.define(:application).new(app))
-      app
-    end
+    def rails = FakeApplication.new.tap { |app| stub_const("Rails", Data.define(:application).new(app)) }
 
     it "eager-loads a detected Rails app during warm-up" do
       stub_const("Warmeager", Class.new)
       registry = catalog("warmeager")
       app = rails
       described_class.build(registry: registry, adapter: green, source_root: dir).without_coverage!(["t1"])
-      expect(app).to(have_received(:eager_load!))
+      expect(app.eager_loads).to(eq(1))
     end
 
     def database(name)
@@ -856,12 +846,12 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(database(jobs: 2).active?).to(be(false))
     end
 
+    # Rails' parallel testing is on: no Active Support switch, no Active Record schema to miss.
     def callbacks
       before = 0
       after = []
       stub(before: -> { before += 1 }, after: ->(i) { after << i })
       db = database(jobs: 2)
-      allow(db).to(receive(:active?).and_return(true))
       db.before_fork
       db.after_fork(3)
       [before, after]
@@ -878,8 +868,8 @@ RSpec.describe(Kimera::Execution::Harness) do
       cleaned = []
       parallelization(true)
       stub(after: ->(_i) {}, cleanup: ->(i) { cleaned << i })
+      fake_feature("active_record/test_databases")
       db = database(jobs: 2)
-      allow(db).to(receive(:require).with("active_record/test_databases"))
       db.before_exit(0)
       db.before_exit(nil) # injected spawners have no slot
       cleaned
@@ -890,56 +880,45 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(drain).to(eq([0]))
     end
 
-    # An Active Record whose one connection answers, with a schema dump to load.
-    def answering(connection)
-      stub_const("ActiveRecord::Base", Class.new { define_singleton_method(:connection) { connection } })
-      parallel = instance_double(Kimera::Execution::ParallelDatabases, enabled?: true, loadable?: true, assign: nil)
-      allow(Kimera::Execution::ParallelDatabases).to(receive(:new).and_return(parallel))
+    # An Active Record on a test database with its schema dump, whose one connection is +connection+.
+    def connected(connection)
+      stub_const("ActiveRecord::Tasks::DatabaseTasks", FakeRails::Tasks.new(__FILE__))
+      stub_const("ActiveRecord::ConnectionHandling::DEFAULT_ENV", -> { "test" })
+      config = FakeRails::Config.new("postgresql", "app_test")
+      stub_const("ActiveRecord::Base", FakeRails::Base.new(config, connection: connection))
+      connection
     end
 
     it "empties the worker's database as it drains" do
-      connection = double(tables: %w[users posts], adapter_name: "SQLite", truncate_tables: nil)
-      answering(connection)
+      connection = connected(FakeRails::Connection.new("SQLite", %w[users posts]))
       drain
-      expect(connection).to(have_received(:truncate_tables).with("users", "posts"))
-    end
-
-    def connected(adapter, truncate = nil)
-      double(tables: %w[users], adapter_name: adapter, execute: nil).tap do |connection|
-        truncation = allow(connection).to(receive(:truncate_tables))
-        truncation.and_raise(truncate) if truncate
-        stub_const("ActiveRecord::Base", Class.new)
-        allow(ActiveRecord::Base).to(receive(:connection).and_return(connection))
-      end
+      expect(connection.said).to(eq([[:truncate_tables, "users", "posts"]]))
     end
 
     def scrub(adapter, truncate: nil)
-      connection = connected(adapter, truncate)
+      connection = connected(FakeRails::Connection.new(adapter, %w[users], truncate: truncate))
       cleaned = []
-      stub(cleanup: ->(index) { cleaned << index })
+      stub(after: ->(_i) {}, cleanup: ->(index) { cleaned << index })
+      fake_feature("active_record/test_databases")
       errors = StringIO.new
-      db = Kimera::Execution::WorkerDatabases.new(jobs: 2, errors: errors)
-      allow(db).to(receive(:active?).and_return(true))
-      allow(db).to(receive(:require).with("active_record/test_databases"))
-      db.before_exit(0)
+      Kimera::Execution::WorkerDatabases.new(jobs: 2, errors: errors).before_exit(0)
       [connection, errors.string, cleaned]
     end
 
     # A thread left behind by a timed-out test can hold a table lock forever.
-    it "bounds how long a PostgreSQL teardown truncate waits for locks", :aggregate_failures do
+    it "bounds how long a PostgreSQL teardown truncate waits for locks" do
       postgres, = scrub("PostgreSQL")
-      expect(postgres).to(have_received(:execute).with("SET lock_timeout = '5s'").ordered)
-      expect(postgres).to(have_received(:truncate_tables).with("users").ordered)
+      expect(postgres.said).to(eq([[:execute, "SET lock_timeout = '5s'"], [:truncate_tables, "users"]]))
     end
 
     it "bounds how long a MySQL teardown truncate waits for locks" do
       mysql, = scrub("Mysql2")
-      expect(mysql).to(have_received(:execute).with("SET SESSION lock_wait_timeout = 5"))
+      expect(mysql.said).to(include([:execute, "SET SESSION lock_wait_timeout = 5"]))
     end
 
     it "sets no lock bound on SQLite" do
       lite, = scrub("SQLite")
-      expect(lite).not_to(have_received(:execute))
+      expect(lite.said).to(eq([[:truncate_tables, "users"]]))
     end
 
     it "warns and still runs the app's cleanup hooks when the teardown truncate gives up", :aggregate_failures do
@@ -951,7 +930,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     # Serial workers share the app's own test database: emptying it, or
     # running teardown hooks meant for per-worker copies, would wipe it.
     def unisolated
-      connection = connected("SQLite")
+      connection = connected(FakeRails::Connection.new("SQLite", %w[users]))
       parallelization(true)
       cleaned = []
       stub(after: ->(_i) {}, cleanup: ->(i) { cleaned << i })
@@ -961,8 +940,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "leaves the shared database and the app's teardown hooks alone when isolation is off", :aggregate_failures do
       connection, cleaned = unisolated
-      expect(connection).not_to(have_received(:truncate_tables))
-      expect(cleaned).to(be_empty)
+      expect([connection.said, cleaned]).to(eq([[], []]))
     end
 
     # parallelize_setup/teardown are Active Support's: an app without Active
@@ -985,9 +963,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "never runs a nil-slot worker's after-fork hook (injected/test spawners)" do
       stub(after: ->(_i) { raise(RuntimeError, "should not run") })
-      db = database(jobs: 2)
-      allow(db).to(receive(:active?).and_return(true))
-      expect { db.after_fork(nil) }.not_to(raise_error)
+      expect { database(jobs: 2).after_fork(nil) }.not_to(raise_error)
     end
 
     it "turns on only for jobs > 1 with Rails parallel test databases enabled", :aggregate_failures do
@@ -1005,21 +981,20 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(database(jobs: 2).active?).to(be(false))
     end
 
+    # Whether a worker database's step loaded Rails' own hook registration.
     def registration
       parallelization(true)
       stub(after: [])
       stub_const("ActiveRecord::Base", Class.new)
-      db = database(jobs: 2)
-      allow(db).to(receive(:require).with("active_record/test_databases"))
-      yield(db)
-      db
+      registered = fake_feature("active_record/test_databases")
+      yield(database(jobs: 2))
+      loaded?(registered).tap { $LOADED_FEATURES.delete(registered) }
     end
 
     it "loads Rails' own hook registration before deciding, on each side of the fork", :aggregate_failures do
-      loaded = have_received(:require).with("active_record/test_databases")
-      expect(registration(&:before_fork)).to(loaded)
-      expect(registration { |db| db.after_fork(0) }).to(loaded)
-      expect(registration { |db| db.before_exit(0) }).to(loaded)
+      expect(registration { |db| db.before_fork(FakeConnections.new) }).to(be(true))
+      expect(registration { |db| db.after_fork(0) }).to(be(true))
+      expect(registration { |db| db.before_exit(0) }).to(be(true))
     end
 
     def skip
@@ -1815,12 +1790,19 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(report.values_at("status", "fails", "cover", "ms")).to(match(["killed", ["t3"], ["t2"], be >= 0]))
     end
 
-    it "ticks the errand before every test it runs" do
+    # The tests an errand for three tests ran, and the ticks it wrote.
+    def ticked
       registry, unsafe = reload("HarnessReloadTick")
-      spy = instance_spy(Kimera::Execution::Reload::Errand, id: unsafe, tests: %w[t1 t2 t3], reached: [])
-      runner = reloader(counting(%w[t1 t2 t3], [], []), catalog: registry, root: dir, isolation: reselection)
-      runner.__send__(:evaluate, spy)
-      expect(spy).to(have_received(:tick).exactly(3).times)
+      reader, writer = IO.pipe
+      errand = Kimera::Execution::Reload::Errand.new(unsafe, %w[t1 t2 t3], reader, writer)
+      reloader(counting(%w[t1 t2 t3], [], []), catalog: registry, root: dir, isolation: reselection)
+        .__send__(:evaluate, errand)
+      writer.close
+      [errand.ran, reader.read.lines.size]
+    end
+
+    it "ticks the errand before every test it runs" do
+      expect(ticked).to(eq([%w[t1 t2 t3], 3]))
     end
 
     it "orders tests covering the mutant's method, then its file, before the rest" do

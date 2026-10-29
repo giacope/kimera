@@ -104,28 +104,30 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
       "kimera: per-worker test databases unavailable (LoadError: missing helper); workers share one database\n"
     end
 
-    def unloadable
-      allow(databases).to(receive(:eligible?).and_return(true))
-      allow(databases).to(receive(:require).with("active_record/test_databases").and_raise(LoadError, "missing helper"))
+    # Rails' parallel testing, whose registration file raises +loading+ when given.
+    def parallelization(loading = nil)
+      par = Module.new
+      par.define_singleton_method(:after_fork_hooks) { [->(_index) {}] }
+      par.define_singleton_method(:run_cleanup_hooks) { [->(_index) { raise(RuntimeError, "teardown boom") }] }
+      stub_const("ActiveSupport::Testing::Parallelization", par)
+      fake_feature("active_record/test_databases", loading ? "raise(#{loading})" : "")
     end
 
     it "report teardown failures with the injected error stream" do
-      allow(databases).to(receive(:cleanup).and_raise(RuntimeError, "teardown boom"))
+      parallelization
       databases.before_exit(1)
       expect(errors.string).to(eq("kimera: parallelize_teardown failed (RuntimeError: teardown boom)\n"))
     end
 
     it "report to standard error by default" do
-      expect do
-        standard = Kimera::Execution::WorkerDatabases.new(jobs: 2)
-        allow(standard).to(receive(:cleanup).and_raise(RuntimeError, "teardown boom"))
-        standard.before_exit(1)
-      end.to(output("kimera: parallelize_teardown failed (RuntimeError: teardown boom)\n").to_stderr)
+      parallelization
+      expect { Kimera::Execution::WorkerDatabases.new(jobs: 2).before_exit(1) }
+        .to(output("kimera: parallelize_teardown failed (RuntimeError: teardown boom)\n").to_stderr)
     end
 
     it "report unavailable per-worker database support with exception detail" do
       stub_const("ActiveRecord::Base", Class.new)
-      unloadable
+      parallelization('LoadError, "missing helper"')
       databases.__send__(:register!)
       expect(errors.string).to(eq(unavailable))
     end

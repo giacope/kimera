@@ -10,17 +10,18 @@ module Kimera
 end
 
 class Kimera::Execution::MirrorDatabase
-  def initialize(slot)
+  def initialize(slot, copies: Kimera::Execution::DatabaseCopies.new)
     @slot = slot
+    @copies = copies
   end
 
   def prepare(slots)
-    copies.prepare(slots) if copies.possible? && !parallel?
+    @copies.prepare(slots) if @copies.possible? && !parallel?
   end
 
   def adopt
     return unless @slot
-    return copies.adopt(@slot) unless parallel?
+    return @copies.adopt(@slot) unless parallel?
     require("active_record/test_databases")
     ActiveSupport::Testing::Parallelization.after_fork_hooks.each { |hook| hook.call(@slot) }
   rescue LoadError
@@ -29,12 +30,9 @@ class Kimera::Execution::MirrorDatabase
 
   private
 
-  def copies = @_copies ||= Kimera::Execution::DatabaseCopies.new
-
-  def parallel?
+  def parallel?(memory = Kimera::Execution::MemoryDatabases.new, parallel = Kimera::Execution::ParallelDatabases.new)
     return false unless defined?(ActiveSupport::Testing::Parallelization) && defined?(ActiveRecord::Base)
-    return false if Kimera::Execution::MemoryDatabases.new.current?
-    parallel = Kimera::Execution::ParallelDatabases.new
+    return false if memory.current?
     parallel.enabled? && parallel.loadable?
   end
 end
