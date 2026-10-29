@@ -94,6 +94,7 @@ class Kimera::Execution::Schemata
     apply(result, file, blocks).tap { preempt(file) }
   rescue StandardError, ScriptError, SystemExit => error
     skip(path, "#{error.class}: #{error.message}")
+    []
   end
 
   def preempt(file) = $LOADED_FEATURES.concat([file, File.realpath(file)].uniq - $LOADED_FEATURES)
@@ -107,15 +108,15 @@ class Kimera::Execution::Schemata
   def apply(result, file, blocks)
     overrides = Kimera::Execution::Overrides.new(file, result.source)
     installed, displaced = silence { overrides.keep { blocks.adopt { result.install(file) } } }
-    aliases.witness(displaced)
-    displaced.reject { |held| aliases.reaches?(held.definition) }.each { it.revisit!(@registry.at(result.file)) }
-    installed
+    installed.tap { settle(displaced, result.file) }
   end
 
-  def skip(path, reason)
-    skipped[path] = reason
-    []
+  def settle(displaced, path)
+    aliases.witness(displaced)
+    displaced.reject { |held| aliases.reaches?(held.definition) }.each { it.revisit!(@registry.at(path)) }
   end
+
+  def skip(path, reason) = skipped.store(path, reason)
 
   def notice(path, reason)
     @errors.puts(

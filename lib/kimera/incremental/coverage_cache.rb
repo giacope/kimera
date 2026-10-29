@@ -47,8 +47,7 @@ class Kimera::Incremental::CoverageCache
   end
 
   def everything(ids, reason)
-    @errors.puts("kimera: not reusing the stored coverage map: #{reason}; the baseline runs every test")
-    ids
+    ids.tap { @errors.puts("kimera: not reusing the stored coverage map: #{reason}; the baseline runs every test") }
   end
 
   def chosen(stored, ids)

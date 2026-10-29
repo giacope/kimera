@@ -31,10 +31,7 @@ Kimera::Execution::Shift::Finding =
 
     def again = Kimera::Execution::Shift::Lineup.new(id, through)
 
-    def kill(result, killers)
-      killers.remember(test)
-      Kimera::Execution::Shift::Finding::Kill.new(result["failed_ids"], result["failures"])
-    end
+    def kill(result) = Kimera::Execution::Shift::Finding::Kill.new(result["failed_ids"], result["failures"])
 
     def doubted = suspect(found.fetch("failures")[test], contradicted: false)
 

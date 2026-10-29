@@ -63,7 +63,7 @@ class Kimera::Execution::WorkerPool
     worker = fleet.fetch(pipe)
     chunk = pipe.read_nonblock(CHUNK, exception: false)
     return hangup(pipe, worker) unless chunk
-    worker.lines(chunk).each { |line| deliver(worker, line) } unless chunk == :wait_readable
+    worker.feed(chunk) { |line| deliver(worker, line) } unless chunk == :wait_readable
   end
 
   def hangup(pipe, worker)
@@ -80,21 +80,23 @@ class Kimera::Execution::WorkerPool
     case message["t"]
     when "result" then finish(worker, message)
     when "ready" then assign(worker)
-    when "leak", "requeue" then close(worker) if relay(message)
+    when "leak" then relay(message)
+    when "requeue" then requeue(worker, message)
     end
   end
 
-  def relay(message)
-    listeners.resolve.call(message)
-    requeue = message["t"] == "requeue"
-    fleet.requeue(message["id"]) if requeue
-    requeue
+  def relay(message) = listeners.resolve.call(message)
+
+  def requeue(worker, message)
+    relay(message)
+    fleet.requeue(message["id"])
+    close(worker)
   end
 
   def finish(worker, message)
     fleet.done!(message["id"])
     fleet.progress!
-    listeners.resolve.call(message)
+    relay(message)
     worker.idle!
   end
 

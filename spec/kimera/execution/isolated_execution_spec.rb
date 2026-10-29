@@ -65,24 +65,19 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       Kimera::Execution::IsolatedWatchdog.new(hard_timeout, poll: poll_interval)
     end
 
-    # One look at a child still running, polled every +poll+ seconds: what the look answered, and how long it took.
+    # A wait, polled every +poll+ seconds, on a child that is still running at the first look and ends soon
+    # after: what the wait answered, and how long it took.
     def looked(poll)
-      pid = Process.spawn("sleep", "30", pgroup: true)
+      pid = Process.spawn("sleep", "0.1", pgroup: true)
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      pulse = Kimera::Execution::IsolatedPulse.new(File::NULL, 5.0).observed
-      step = test_invoke_private(watchdog(hard_timeout: 5.0, poll_interval: poll), :attempt, pid, pulse)
-      [step, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started].tap { test_wedged_end(pid) }
-    end
-
-    def test_wedged_end(pid)
-      Process.kill("KILL", -pid)
-      Process.wait(pid)
+      status = watchdog(hard_timeout: 5.0, poll_interval: poll).waitfor(pid)
+      [status, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started]
     end
 
     it "honors the polling boundary while a child is still running", :aggregate_failures do
-      step, elapsed = looked(0.2)
-      expect(step).to(eq(:continue))
-      expect(elapsed).to(be_between(0.2, 2.0))
+      status, elapsed = looked(0.6)
+      expect(status).to(be_success)
+      expect(elapsed).to(be_between(0.6, 2.4))
     end
 
     it "returns the exit status of a child that finishes in time" do

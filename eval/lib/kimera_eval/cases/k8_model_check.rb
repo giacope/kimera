@@ -18,9 +18,13 @@ module KimeraEval
     def shell = Shell.new(env: { "BUNDLE_GEMFILE" => checkout.gemfile }, chdir: checkout.path, timeout: 1800)
 
     def fetch
-      FileUtils.rm_f(File.join(checkout.path, "tmp", "tla2tools.jar"))
-      result = shell.run("bundle", "exec", "ruby", "bin/model-check", "--fetch")
+      result = refetch
       { "ok" => result.ok?, "tail" => result.output.lines.last(2).join, "wall_s" => result.wall.round(1) }
+    end
+
+    def refetch
+      FileUtils.rm_f(File.join(checkout.path, "tmp", "tla2tools.jar"))
+      shell.run("bundle", "exec", "ruby", "bin/model-check", "--fetch")
     end
 
     def checked

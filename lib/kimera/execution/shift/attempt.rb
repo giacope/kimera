@@ -47,9 +47,14 @@ class Kimera::Execution::Shift::Attempt
   def clear?(calm) = calm["passed"] && calm.fetch("elapsed") < calm.fetch("limit") * CLEAR
 
   def failed(finding)
-    return [finding.kill(finding.found, @killers)] if finding.first?
+    return [killed(finding, finding.found)] if finding.first?
     solo = replay(finding.solo)
-    solo["passed"] ? retrace(finding) : [finding.kill(solo, @killers)]
+    solo["passed"] ? retrace(finding) : [killed(finding, solo)]
+  end
+
+  def killed(finding, result)
+    @killers.remember(finding.test)
+    finding.kill(result)
   end
 
   def retrace(finding)
@@ -59,7 +64,7 @@ class Kimera::Execution::Shift::Attempt
 
   def confirm(finding)
     again = replay(finding.again)
-    [again["passed"] ? finding.doubted : finding.kill(again, @killers)]
+    [again["passed"] ? finding.doubted : killed(finding, again)]
   end
 
   def lagged(finding)

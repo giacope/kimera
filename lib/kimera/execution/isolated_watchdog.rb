@@ -26,16 +26,16 @@ class Kimera::Execution::IsolatedWatchdog
     loop do
       watch = watch.observed
       step = attempt(pid, watch)
+      return fail!(pid) if step == :timeout
       return step unless step == :continue
+      pause
     end
   end
 
   def attempt(pid, watch)
     done, status = Process.waitpid2(pid, Process::WNOHANG)
     return status.tap { kill(pid) } if done
-    return fail!(pid) if watch.expired?
-    pause
-    :continue
+    watch.expired? ? :timeout : :continue
   end
 
   def pause

@@ -15,6 +15,11 @@ class Kimera::Report::Live < Kimera::Report::Surface
 
   def cadence = REDRAW_EVERY
 
+  def paint(text, now)
+    super
+    shown.rows = rows_for(text)
+  end
+
   def commit
     return unless shown.drawn
     write("\n")
@@ -24,11 +29,7 @@ class Kimera::Report::Live < Kimera::Report::Surface
 
   private
 
-  def frame(text)
-    prefix = erasure
-    shown.rows = rows_for(text)
-    "#{prefix}#{text}"
-  end
+  def frame(text) = "#{erasure}#{text}"
 
   def wipe = write(erasure)
 

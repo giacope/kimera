@@ -40,14 +40,14 @@ class Kimera::Report::Entries
   private
 
   def section(title, results, &)
-    heading(title, results.sort_by(&:mutant_id)).each(&)
+    listed = results.sort_by(&:mutant_id)
+    heading(title, listed.size) unless listed.empty?
+    listed.each(&)
   end
 
-  def heading(title, listed)
-    return listed if listed.empty?
+  def heading(title, count)
     @io.puts
-    @io.puts(@palette.bold("#{title} (#{listed.size}):"))
-    listed
+    @io.puts(@palette.bold("#{title} (#{count}):"))
   end
 
   def survivor(result, tests)

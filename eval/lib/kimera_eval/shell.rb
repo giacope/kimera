@@ -54,10 +54,11 @@ module KimeraEval
 
     def text(bytes) = bytes.to_s.force_encoding(Encoding::UTF_8).scrub
 
-    def wait(waiter)
-      done = waiter.join(@timeout)
-      stop(waiter) unless done
-      [waiter.value, !done]
+    def wait(waiter) = waiter.join(@timeout) ? [waiter.value, false] : [killed(waiter), true]
+
+    def killed(waiter)
+      stop(waiter)
+      waiter.value
     end
 
     def stop(waiter)

@@ -75,15 +75,10 @@ module KimeraEval
       worse = baseline ? board.failing - recorded(board, baseline) : []
       board.write(settings.out)
       @out.puts(board.markdown)
-      verdict(worse, baseline)
+      @errors.puts("eval: worse than #{baseline}: #{worse.join(" ")}") unless worse.empty?
+      worse.empty? ? 0 : 1
     end
 
     def recorded(board, path) = board.failing(JSON.parse(File.read(path, encoding: Encoding::UTF_8)).fetch("cases"))
-
-    def verdict(worse, baseline)
-      return 0 if worse.empty?
-      @errors.puts("eval: worse than #{baseline}: #{worse.join(" ")}")
-      1
-    end
   end
 end

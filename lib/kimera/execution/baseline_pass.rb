@@ -35,10 +35,7 @@ class Kimera::Execution::BaselinePass
 
   def sequence(cell = zygote) = cell.call { whole }
 
-  def alone?(test)
-    Kimera::RUNTIME.active = nil
-    quietly { @adapter.run([test]) }.passed?
-  end
+  def alone?(test) = Kimera::RUNTIME.during(nil) { quietly { @adapter.run([test]) } }.passed?
 
   private
 

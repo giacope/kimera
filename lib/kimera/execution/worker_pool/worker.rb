@@ -5,10 +5,10 @@ require_relative "../child_process"
 Kimera::Execution::WorkerPool::Worker =
   Struct.new(:pid, :request, :response, :inflight, :deadline, :slot, :stacks, :served, :last_words, :unread) do
     include Kimera::Execution::ChildProcess
-    def lines(chunk)
+    def feed(chunk, &)
       *complete, partial = (rest + chunk).split("\n", -1)
       self.unread = partial
-      complete
+      complete.each(&)
     end
 
     def rest

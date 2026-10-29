@@ -58,7 +58,7 @@ class Kimera::Execution::SuiteCapture
       _, status = Process.wait2(pid, Process::WNOHANG)
       return status.tap { signal(-pid) } if status
       elapsed = @clock.now - started
-      return overdue(pid, limit, log) if elapsed > limit
+      return Overdue.new(limit).tap { overrun(pid, limit, log) } if elapsed > limit
       @clock.pause
       tick(elapsed) if (poll % TICKS).zero?
     end
@@ -66,10 +66,9 @@ class Kimera::Execution::SuiteCapture
 
   def tick(elapsed) = @errors.puts("kimera: the suite is still running (#{elapsed.round} s)…")
 
-  def overdue(pid, limit, log)
+  def overrun(pid, limit, log)
     stop(-pid)
     log.write("\n#{format(OVERDUE, limit)}\n")
     log.flush
-    Overdue.new(limit)
   end
 end

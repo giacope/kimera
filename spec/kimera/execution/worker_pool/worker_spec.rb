@@ -22,7 +22,8 @@ RSpec.describe Kimera::Execution::WorkerPool::Worker do
 
   it "hands back only whole lines and keeps the rest for the next chunk", :aggregate_failures do
     worker = described_class.new
-    chunks = [worker.lines("a\nb"), worker.lines("c\n\nd\n"), worker.rest, worker.lines("e"), worker.rest, worker.rest]
+    fed = ->(chunk) { worker.feed(chunk).to_a }
+    chunks = [fed.call("a\nb"), fed.call("c\n\nd\n"), worker.rest, fed.call("e"), worker.rest, worker.rest]
     expect(chunks).to(eq([["a"], ["bc", "", "d"], "", [], "e", ""]))
   end
 

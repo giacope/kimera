@@ -15,8 +15,7 @@ module KimeraEval
     def root = @_root ||= @dirs.mktmpdir("kimera-eval")
 
     def copy(source, name = File.basename(source))
-      target = File.join(root, "#{name}-#{made.size + 1}")
-      made << target
+      target = File.join(root, "#{name}-#{copies.next}")
       FileUtils.mkdir_p(target)
       FileUtils.cp_r(File.join(source, "."), target)
       target
@@ -40,6 +39,6 @@ module KimeraEval
 
     private
 
-    def made = @_made ||= []
+    def copies = @_copies ||= (1..).each
   end
 end

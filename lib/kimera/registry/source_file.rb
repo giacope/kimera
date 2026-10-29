@@ -108,10 +108,7 @@ class Kimera::RegistryScan::SourceFile
 
   def assemble(node, pairs, name) = Kimera::MutationPoint.new(**attributes(node, distinct(node, pairs), name))
 
-  def classed(point, cursor, pairs)
-    point.class_body! unless cursor.inside_def || toggled?(pairs)
-    point
-  end
+  def classed(point, cursor, pairs) = cursor.inside_def || toggled?(pairs) ? point : point.tap(&:class_body!)
 
   def toggled?(pairs) = pairs.all? { |key, _| @operators.any? { it.toggles? && it.key == key } }
 
