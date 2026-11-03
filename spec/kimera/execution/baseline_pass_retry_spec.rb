@@ -25,16 +25,7 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     end.new
   end
 
-  def progress
-    Class.new do
-      attr_reader :ticks
-
-      def initialize = @ticks = 0
-      def start(*); end
-      def finish; end
-      def tick(*) = @ticks += 1
-    end.new
-  end
+  def progress = ProgressJournal.new
 
   def passed(id, touched = ids) = { "t" => "result", "id" => id, "passed" => true, "touched" => touched }
 
@@ -101,11 +92,16 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
       .to(raise_error(Kimera::Execution::BaselineFailure, Regexp.new(Regexp.escape(text))))
   end
 
+  # t1 stalls in parallel and is lost again alone; t2 crashes alone.
+  def relapsed(pass, tick = Kimera::Execution::NullProgress::UNSEEN)
+    pass.__send__(:lost, tick, "t1", :timeout, ["parallel stacks"])
+    pass.__send__(:relapse, tick, "t1", :timeout, ["stacks alone"])
+    pass.__send__(:relapse, tick, "t2", :crash)
+    pass
+  end
+
   it "keeps the stacks of the run that lost the test", :aggregate_failures do
-    pass = described_class.new(adapter: adapter, registry: registry)
-    pass.__send__(:lost, "t1", :timeout, ["parallel stacks"])
-    pass.__send__(:relapse, "t1", :timeout, ["stacks alone"])
-    pass.__send__(:relapse, "t2", :crash)
+    pass = relapsed(described_class.new(adapter: adapter, registry: registry))
     expect(pass.__send__(:losses).stacks).to(eq("t1" => ["stacks alone"], "t2" => []))
   end
 
@@ -133,7 +129,7 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
 
   it "counts a crash as the parallel loss it was, not a rerun one" do
     pass = described_class.new(adapter: adapter, registry: registry)
-    pass.__send__(:lost, "t1", :crash)
+    pass.__send__(:lost, Kimera::Execution::NullProgress::UNSEEN, "t1", :crash)
     expect(pass.__send__(:tally).messages["t1"]).to(eq("its worker died before reporting a result"))
   end
 

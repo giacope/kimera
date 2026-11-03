@@ -113,17 +113,7 @@ RSpec.describe(Kimera::Execution::Harness) do
   end
 
   # Progress double that records events instead of drawing.
-  def journal
-    Class.new do
-      attr_reader :events
-
-      def initialize = @events = []
-      def start(total, label = "mutants") = @events << [:start, total, label]
-      def tick(status = nil) = @events << [:tick, status]
-      def finish = @events << [:finish]
-      def note(text) = @events << [:note, text]
-    end.new
-  end
+  def journal = ProgressJournal.new
 
   # Before its warm pass measures anything, every test may cover any mutant.
   it "answers unmeasured coverage until its warm pass measures it" do
@@ -316,14 +306,14 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     def ticker
       Class.new do
-        def start(_total, _label = nil); end
-
-        def tick(_status = nil)
-          Kimera::RUNTIME.active?(9_999_991)
-          :ticked
+        def during(_total, _label = nil)
+          yield(
+            lambda do |_status = nil|
+              Kimera::RUNTIME.active?(9_999_991)
+              :ticked
+            end
+          )
         end
-
-        def finish; end
       end.new
     end
 
@@ -390,20 +380,21 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     it "charges a lost parallel test and advances progress", :aggregate_failures do
-      progress = journal
-      lost = Kimera::Execution::BaselinePass.new(adapter: adapter, registry: registry, progress: progress)
-      lost.__send__(:lost, "t2", :crash)
+      ticks = []
+      lost = Kimera::Execution::BaselinePass.new(adapter: adapter, registry: registry)
+      lost.__send__(:lost, ->(status = nil) { ticks << status }, "t2", :crash)
 
       expect(lost.__send__(:tally).failures).to(eq(["t2"]))
-      expect(progress.events).to(eq([[:tick, nil]]))
+      expect(ticks).to(eq([nil]))
     end
 
     # A test lost with its worker is not a test failure; say which it was.
     def lost_messages
       lost = Kimera::Execution::BaselinePass.new(adapter: adapter, registry: registry)
-      lost.__send__(:lost, "t1", :timeout, nil)
-      lost.__send__(:relapse, "t1", :timeout)
-      lost.__send__(:lost, "t2", :crash, nil)
+      tick = Kimera::Execution::NullProgress::UNSEEN
+      lost.__send__(:lost, tick, "t1", :timeout, nil)
+      lost.__send__(:relapse, tick, "t1", :timeout)
+      lost.__send__(:lost, tick, "t2", :crash, nil)
       lost.__send__(:tally).messages
     end
 

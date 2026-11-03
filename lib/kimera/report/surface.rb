@@ -1,42 +1,18 @@
 # frozen_string_literal: true
 
+require_relative "frame"
+
 module Kimera
   module Report
   end
 end
 
 class Kimera::Report::Surface
-  NEVER = -Float::INFINITY
-  Shown = Struct.new(:painted, :drawn, :rows, keyword_init: true)
+  def committed(frame) = closed(frame) { commit(frame) }
 
-  def initialize(io, shown = Shown.new(painted: NEVER, drawn: false, rows: 1))
-    @io = io
-    @shown = shown
-  end
-
-  def due?(now, cadence) = now - shown.painted >= cadence
-
-  def note(text) = write("kimera: #{text}\n")
-
-  def paint(text, now)
-    write(frame(text))
-    shown.drawn = true
-    shown.painted = now
-  end
-
-  def clear
-    return unless shown.drawn
-    wipe
-    shown.drawn = false
-    shown.rows = 1
-  end
+  def cleared(frame) = closed(frame) { wipe(frame) }
 
   private
 
-  attr_reader :shown
-
-  def write(text)
-    @io.print(text)
-    @io.flush
-  end
+  def closed(frame) = frame.drawn? ? [yield] : []
 end

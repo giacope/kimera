@@ -22,15 +22,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
   let(:ids) { registry.each.map { |mutant, _point| mutant.id }.first(2) }
   let(:note) { "judged in a fresh isolated mirror; the warm pass could not: warm " }
 
-  def test_bar(sink)
-    Class.new do
-      define_method(:initialize) { |s| @s = s }
-      define_method(:note) { |text| @s << [:note, text] }
-      define_method(:start) { |total, label| @s << [:start, total, label] }
-      define_method(:tick) { |status| @s << [:tick, status] }
-      define_method(:finish) { @s << [:finish] }
-    end.new(sink)
-  end
+  def test_bar(sink) = ProgressJournal.new(sink)
 
   def test_warm(id)
     Kimera::MutantResult.new(mutant_id: id, status: :harness_error, file: "calc.rb", detail: "warm #{id}")

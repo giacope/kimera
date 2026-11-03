@@ -7,11 +7,14 @@ class Kimera::Report::Log < Kimera::Report::Surface
 
   def cadence = HEARTBEAT_EVERY
 
-  def commit = clear
+  def painted(frame, tally, now)
+    line = tally.plain(now)
+    [frame.over(line, now), ["#{line}\n"]]
+  end
 
   private
 
-  def frame(text) = "#{text}\n"
+  def commit(frame) = wipe(frame)
 
-  def wipe = @io.flush
+  def wipe(_frame) = ""
 end

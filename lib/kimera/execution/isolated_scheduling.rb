@@ -12,8 +12,8 @@ module Kimera
         plan.registry.each.map { |m, _p| m.id }
       end
 
-      def serially(ids)
-        sweep = Kimera::Execution::Sweep.new(ids, Mutex.new)
+      def serially(ids, tick)
+        sweep = Kimera::Execution::Sweep.new(ids, Mutex.new, tick)
         with_mirror { |mirror| scan(sweep, mirror) }
         sweep.results
       end
@@ -23,8 +23,8 @@ module Kimera
         sweep.each { |id| charge(sweep, evaluate(Kimera::Execution::Trial.new(id, mirror, synth))) }
       end
 
-      def concurrently(ids)
-        sweep = Kimera::Execution::Sweep.new(ids, Mutex.new)
+      def concurrently(ids, tick)
+        sweep = Kimera::Execution::Sweep.new(ids, Mutex.new, tick)
         workers(sweep).each(&:join)
         sweep.results
       end
@@ -42,8 +42,8 @@ module Kimera
         sweep.drain { |id| charge(sweep, evaluate(Kimera::Execution::Trial.new(id, mirror, synth, nil, slot))) }
       end
 
-      def alone(ids)
-        sweep = Kimera::Execution::Sweep.new(ids, Mutex.new)
+      def alone(ids, tick)
+        sweep = Kimera::Execution::Sweep.new(ids, Mutex.new, tick)
         Array.new(jobs) { |slot| Thread.new { solo(sweep, jobs > 1 ? slot : nil) } }.each(&:join)
         sweep.results.to_h { |result| [result.mutant_id, result] }
       end
@@ -52,10 +52,7 @@ module Kimera
         sweep.drain { |id| charge(sweep, single(id, slot)) }
       end
 
-      def charge(sweep, result)
-        sweep.record(result)
-        progress.tick(result.status)
-      end
+      def charge(sweep, result) = sweep.record(result)
     end
   end
 end

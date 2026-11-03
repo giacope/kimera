@@ -37,15 +37,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     "def a(x, y)\n  x > y\nend\n"
   end
 
-  def test_recording_bar(sink)
-    Class.new do
-      define_method(:initialize) { |s| @s = s }
-      define_method(:note) { |text| @s << [:note, text] }
-      define_method(:start) { |total, label = "mutants"| @s << [:start, total, label] }
-      define_method(:tick) { |status = nil| @s << [:tick, status] }
-      define_method(:finish) { @s << [:finish] }
-    end.new(sink)
-  end
+  def test_recording_bar(sink) = ProgressJournal.new(sink)
 
   def test_canned_runner(root:, **options, &verdict)
     options = { progress: test_recording_bar([]) }.merge(options)
@@ -314,11 +306,11 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     def routing(root, jobs)
       Class.new(described_class) do
         define_method(:path) { @path }
-        define_method(:serially) do |_ids|
+        define_method(:serially) do |_ids, _tick|
           @path = :serial
           []
         end
-        define_method(:concurrently) do |_ids|
+        define_method(:concurrently) do |_ids, _tick|
           @path = :parallel
           []
         end

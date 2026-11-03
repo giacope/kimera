@@ -634,8 +634,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     it "reports zero-time and positive-time rates and ETAs" do
-      tally = Kimera::Report::Tally.new(4, "mutants", 10.0)
-      tally.count!(:killed)
+      tally = Kimera::Report::Tally.new(4, "mutants", 10.0).counted(:killed)
       expect(tally.line(10.0)).to(include("rate=—", "ETA —", "0:00"))
       expect(tally.line(12.0)).to(include("0.5/s", "ETA 0:06", "0:02"))
     end
@@ -648,9 +647,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     def unfinished
       terminal.tap do |io|
         bar = Kimera::Report::Progress.new(io: io, enabled: true, cadence: ->(_surface) { 0 })
-        bar.start(2, "mutants")
-        bar.tick(:killed)
-        bar.finish
+        bar.during(2, "mutants") { |tick| tick.call(:killed) }
       end.string
     end
 
@@ -660,18 +657,20 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect(shown).not_to(end_with("\n"))
     end
 
+    # A surface answers what to write: a frame over the blank screen, then one commit, and nothing once blank.
+    def shown(surface)
+      blank = Kimera::Report::Frame.new(0)
+      frame, ink = surface.painted(blank, Kimera::Report::Tally.new(1, "m", 0.0), 0)
+      [ink, surface.committed(frame), surface.committed(blank)]
+    end
+
     it "commits a live frame once" do
-      stream = StringIO.new
-      live = Kimera::Report::Live.new(stream).tap { |surface| surface.paint("frame", 0) }
-      2.times { live.commit }
-      expect(stream.string).to(eq("\r\e[Kframe\n"))
+      frame = "\r\e[Km [                        ]  0/1  0%  0:00"
+      expect(shown(Kimera::Report::Live.new)).to(eq([[frame], ["\n"], []]))
     end
 
     it "clears a log surface only while it has a drawn frame" do
-      io = CountedIO.new
-      log = Kimera::Report::Log.new(io).tap { |surface| surface.paint("frame", 0) }
-      2.times { log.commit }
-      expect(io.flushes).to(eq(2))
+      expect(shown(Kimera::Report::Log.new)).to(eq([["kimera: m 0/1 0%  0:00 elapsed\n"], [""], []]))
     end
 
     it "includes report actions in textual output" do

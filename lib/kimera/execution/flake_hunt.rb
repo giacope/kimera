@@ -31,13 +31,12 @@ class Kimera::Execution::FlakeHunt
   end
 
   def sweep(tests, seed, record, label)
-    @progress.start(tests.size, "#{label} (seed #{seed})")
-    listeners = Kimera::Execution::WorkerPool::Listeners.new(
-      resolve: ->(message) { record.note(message, seed).then { @progress.tick } },
-      lost: ->(test, reason, _stacks) { record.lose(test, reason, seed).then { @progress.tick } }, trace: nil
-    )
-    @driver.drive(tests, @driver.method(:channel), listeners)
-  ensure
-    @progress.finish
+    @progress.during(tests.size, "#{label} (seed #{seed})") do |tick|
+      listeners = Kimera::Execution::WorkerPool::Listeners.new(
+        resolve: ->(message) { record.note(message, seed).then { tick.call } },
+        lost: ->(test, reason, _stacks) { record.lose(test, reason, seed).then { tick.call } }, trace: nil
+      )
+      @driver.drive(tests, @driver.method(:channel), listeners)
+    end
   end
 end

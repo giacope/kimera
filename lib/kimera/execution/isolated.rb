@@ -43,18 +43,16 @@ class Kimera::Execution::IsolatedExecution
   end
 
   def run(ids: self.ids, label: "mutants")
-    progress.start(ids.size, label)
-    report(ids)
-  ensure
-    progress.finish
+    progress.during(ids.size, label) { |tick| report(ids, tick) }
   end
 
   def rejudge(warm, label:)
-    announce(warm.size, label)
-    verdicts = alone(warm.map(&:mutant_id))
-    warm.map { |result| noted(verdicts.fetch(result.mutant_id), result) }
-  ensure
-    progress.finish
+    count = warm.size
+    progress.note("re-judging #{count} mutant(s) the warm pass could not judge, each in a fresh mirror")
+    progress.during(count, label) do |tick|
+      verdicts = alone(warm.map(&:mutant_id), tick)
+      warm.map { |result| noted(verdicts.fetch(result.mutant_id), result) }
+    end
   end
 
   private
@@ -102,11 +100,6 @@ class Kimera::Execution::IsolatedExecution
     )
   end
 
-  def announce(count, label)
-    progress.note("re-judging #{count} mutant(s) the warm pass could not judge, each in a fresh mirror")
-    progress.start(count, label)
-  end
-
   def noted(result, warm)
     judged = covered?(warm) ? covered(result, warm) : result
     judged.tap { judged.note = "judged in a fresh isolated mirror; the warm pass could not: #{warm.detail}" }
@@ -119,9 +112,9 @@ class Kimera::Execution::IsolatedExecution
     kept.tap { kept.covering_tests = [*warm.covering_tests, *result.failing_tests].uniq }
   end
 
-  def report(ids)
+  def report(ids, tick)
     Kimera::RunReport.new(
-      results: (jobs > 1 ? concurrently(ids) : serially(ids)),
+      results: (jobs > 1 ? concurrently(ids, tick) : serially(ids, tick)),
       leaks: [], registry: plan.registry
     )
   end

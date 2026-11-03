@@ -24,24 +24,20 @@ RSpec.describe(Kimera::Report::Progress) do
     io.string.split("\r\e[K").reject(&:empty?)
   end
 
-  def drive(total, label, ticks: 0, status: nil, finish: false, **)
+  def drive(total, label, ticks: 0, status: nil, **)
     bar, io = progress(**)
-    bar.start(total, label)
-    ticks.times { status ? bar.tick(status) : bar.tick }
-    bar.finish if finish
+    bar.during(total, label) { |tick| ticks.times { status ? tick.call(status) : tick.call } }
     [bar, io]
   end
 
   it "stays completely silent when disabled" do
-    _bar, io = drive(10, "mutants", ticks: 10, status: :killed, finish: true, enabled: false)
+    _bar, io = drive(10, "mutants", ticks: 10, status: :killed, enabled: false)
     expect(io.string).to(be_empty)
   end
 
   def exercise(io, total: 5, label: "mutants", status: :killed)
     bar = described_class.new(io: io)
-    bar.start(total, label)
-    bar.tick(status)
-    bar.finish
+    bar.during(total, label) { |tick| tick.call(status) }
     bar
   end
 
@@ -54,18 +50,19 @@ RSpec.describe(Kimera::Report::Progress) do
 
   it "stays silent on a non-tty stream when disabled explicitly" do
     io = StringIO.new
-    described_class.new(io: io, enabled: false).tap { |bar| bar.start(2, "mutants") }.note("phase")
+    bar = described_class.new(io: io, enabled: false)
+    bar.during(2, "mutants") { bar.note("phase") }
     expect(io.string).to(be_empty)
   end
 
   it "auto-enables when the stream is a tty" do
     bar, io = progress
-    bar.start(5, "mutants")
+    bar.during(5, "mutants", &:itself)
     expect(io.string).to(include("0/5"))
   end
 
   it "prints heartbeat lines instead of redrawing on a non-tty stream", :aggregate_failures do
-    _bar, io = drive(2, "mutants", ticks: 2, status: :killed, finish: true, io: StringIO.new)
+    _bar, io = drive(2, "mutants", ticks: 2, status: :killed, io: StringIO.new)
 
     expect(io.string).not_to(include("\r\e[K"))
     lines = io.string.lines
@@ -78,10 +75,11 @@ RSpec.describe(Kimera::Report::Progress) do
     now = 0.0
     io = StringIO.new
     bar = described_class.new(io: io, clock: -> { now })
-    bar.start(total, label)
-    ticks[...-1].each { |status| bar.tick(status) }
-    now = at
-    bar.tick(ticks.last)
+    bar.during(total, label) do |tick|
+      ticks[...-1].each { |status| tick.call(status) }
+      now = at
+      tick.call(ticks.last)
+    end
     io.string.lines
   end
 
@@ -121,10 +119,11 @@ RSpec.describe(Kimera::Report::Progress) do
     now = 0.0
     io = tty ? fake_tty : StringIO.new
     bar = described_class.new(io: io, enabled: true, clock: -> { now })
-    bar.start(10, "mutants")
-    bar.tick(:killed)
-    now = elapsed
-    bar.tick(:killed)
+    bar.during(10, "mutants") do |tick|
+      tick.call(:killed)
+      now = elapsed
+      tick.call(:killed)
+    end
     io
   end
 
@@ -180,11 +179,12 @@ RSpec.describe(Kimera::Report::Progress) do
   def boundary
     now = 0.0
     bar, io = progress(interval: 0.1, clock: -> { now })
-    bar.start(10, "mutants") # draws at t=0
-    now = 0.05
-    bar.tick # inside the window: skipped
-    now = 0.1
-    bar.tick # at the edge: drawn
+    bar.during(10, "mutants") do |tick| # draws at t=0
+      now = 0.05
+      tick.call # inside the window: skipped
+      now = 0.1
+      tick.call # at the edge: drawn
+    end
     frames(io)
   end
 
@@ -196,9 +196,8 @@ RSpec.describe(Kimera::Report::Progress) do
 
   def phases
     bar, io = progress(interval: 600)
-    bar.start(2, "baseline")
-    2.times { bar.tick }
-    bar.start(3, "mutants")
+    bar.during(2, "baseline") { |tick| 2.times { tick.call } }
+    bar.during(3, "mutants", &:itself)
     frames(io)
   end
 
@@ -210,18 +209,21 @@ RSpec.describe(Kimera::Report::Progress) do
     expect(drawn[2]).to(include("mutants", "0/3"))
   end
 
-  it "commits a completed phase only once for repeated finishes" do
-    bar, io = drive(1, "mutants", ticks: 1, finish: true)
-    bar.finish
+  it "commits a completed phase once" do
+    _, io = drive(1, "mutants", ticks: 1)
     transcript = io.string
     expect([transcript.scan("\r\e[K").size, transcript.end_with?("\n")]).to(eq([2, true]))
   end
 
-  it "does not record a status count when ticked without one", :aggregate_failures do
-    bar, io = drive(2, "baseline", ticks: 1)
-    bar.tick(:killed)
+  # One tick without a status, then one with.
+  def unstated
+    bar, io = progress
+    bar.during(2, "baseline") { |tick| [nil, :killed].each { |status| tick.call(status) } }
+    frames(io).last
+  end
 
-    last = frames(io).last
+  it "does not record a status count when ticked without one", :aggregate_failures do
+    last = unstated
     expect(last).to(include("killed=1 survived=0"))
     expect(last).not_to(include("=2"))
   end
@@ -231,72 +233,82 @@ RSpec.describe(Kimera::Report::Progress) do
     expect(frames(io).last).not_to(match(/=\d/))
   end
 
-  def started
+  # What the stream shows after a kill, and then after a timeout.
+  def snapshots
     bar, io = progress
-    bar.start(2, "mutants")
-    [bar, io]
+    bar.during(2, "mutants") do |tick|
+      %i[killed timeout].map do |status|
+        tick.call(status)
+        io.string.dup
+      end
+    end
   end
 
   it "shows timeout/error counts only once they are nonzero", :aggregate_failures do
-    bar, io = started
-    bar.tick(:killed)
-    expect(io.string).not_to(include("timeout="))
-    bar.tick(:timeout)
-    expect(io.string).to(include("timeout=1"))
+    killed, timed = snapshots
+    expect(killed).not_to(include("timeout="))
+    expect(timed).to(include("timeout=1"))
   end
 
   it "keeps a completed phase on its own line for the report or next phase" do
-    _, io = drive(1, "baseline", ticks: 1, finish: true)
+    _, io = drive(1, "baseline", ticks: 1)
     expect(io.string).to(match(%r{baseline \[========================\]  1/1  100%.*  0:00\n\z}))
   end
 
   it "keeps a completed phase visible when the next phase starts" do
     bar, io = progress(interval: 0)
-    bar.start(1, "baseline")
-    bar.tap(&:tick).finish
-    bar.start(1, "mutants (warm)")
+    bar.during(1, "baseline", &:call)
+    bar.during(1, "mutants (warm)", &:itself)
 
     expect(io.string).to(match(%r{baseline \[========================\]  1/1  100%.*\n\r\e\[Kmutants \(warm\)}m))
   end
 
-  # A bar on a 20-column terminal, its stream, and its first frame.
-  def narrow
-    io = fake_tty(24, 20)
+  # The stream of a bar on a 20-column terminal; the phase yields its first frame and its tick.
+  def narrow(label = "mutants (isolated)", io: fake_tty(24, 20))
     bar = described_class.new(io: io, enabled: true, cadence: ->(_surface) { 0 })
-    bar.start(2, "mutants (isolated)")
-    [bar, io, io.string.dup]
+    bar.during(2, label) { |tick| yield(io.string.dup, tick) }
+    io
+  end
+
+  # What a tick wrote after the first frame, and how many rows that frame took.
+  def wrapped
+    rows = erased = nil
+    io = fake_tty(24, 20)
+    narrow(io: io) do |first, tick|
+      rows = (first.delete_prefix("\r\e[K").length + 19) / 20
+      tick.call(:killed)
+      erased = first
+    end
+    [io.string.delete_prefix(erased), rows]
   end
 
   it "erases every terminal row occupied by a wrapped frame" do
-    bar, io, first = narrow
-    rows = (first.delete_prefix("\r\e[K").length + 19) / 20
-    bar.tick(:killed)
-    expect(io.string.delete_prefix(first)).to(start_with("\r\e[K#{"\e[1A\r\e[K" * (rows - 1)}"))
+    after, rows = wrapped
+    expect(after).to(start_with("\r\e[K#{"\e[1A\r\e[K" * (rows - 1)}"))
   end
 
   # A wiped frame leaves the cursor on its first row: the next phase's frame has nothing above it to erase.
   it "climbs no rows into earlier output after a phase it cleared short" do
-    bar, io, = narrow
-    bar.finish
+    io = narrow { |first, _tick| first }
     cleared = io.string.size
-    bar.start(2, "mutants (rejudge)")
-    expect(io.string[cleared..].scan("\e[1A").size).to(eq(0))
+    first = nil
+    narrow("mutants (rejudge)", io: io) { |shown, _tick| first = shown[cleared..] }
+    expect(first.scan("\e[1A").size).to(eq(0))
   end
 
   it "does not emit the erase sequence when nothing was drawn" do
-    _, io = drive(1, "mutants", finish: true, enabled: false)
+    _, io = drive(1, "mutants", enabled: false)
     expect(io.string).to(be_empty)
   end
 
   it "handles an empty pass without drawing or dividing by zero" do
-    _, io = drive(0, "mutants", finish: true)
+    _, io = drive(0, "mutants")
     expect(io.string).to(be_empty)
   end
 
   def restart
     bar, io = drive(2, "baseline", ticks: 2)
-    bar.start(3, "mutants")
-    bar.tick(:survived)
+    bar.during(3, "mutants") { |tick| tick.call(:survived) }
     frames(io).last
   end
 
@@ -309,9 +321,10 @@ RSpec.describe(Kimera::Report::Progress) do
   def elapsed(start_at, tick_at)
     now = start_at
     bar, io = progress(clock: -> { now })
-    bar.start(2, "mutants")
-    now = tick_at
-    bar.tick(:killed)
+    bar.during(2, "mutants") do |tick|
+      now = tick_at
+      tick.call(:killed)
+    end
     frames(io).last
   end
 
@@ -343,19 +356,24 @@ RSpec.describe(Kimera::Report::Progress) do
     io
   end
 
-  it "flushes the stream after every frame it paints" do
+  # The flushes a tty saw by the end of a phase's first tick.
+  def painted_flushes
     io = watched(tty: true)
     bar = described_class.new(io: io, enabled: true, cadence: ->(_surface) { 0 })
-    bar.start(2, "mutants")
-    bar.tick(:killed)
-    expect(io.flushes).to(eq(2))
+    bar.during(2, "mutants") do |tick|
+      tick.call(:killed)
+      io.flushes
+    end
+  end
+
+  it "flushes the stream after every frame it paints" do
+    expect(painted_flushes).to(eq(2))
   end
 
   it "flushes once more when a heartbeat run finishes", :aggregate_failures do
     io = watched(tty: false)
-    bar = described_class.new(io: io, enabled: true, cadence: ->(_surface) { 0 }).tap { it.start(1, "mutants") }
-    painted = io.flushes
-    bar.finish
+    bar = described_class.new(io: io, enabled: true, cadence: ->(_surface) { 0 })
+    painted = bar.during(1, "mutants") { io.flushes }
     expect([painted, io.flushes]).to(eq([1, 2]))
   end
 end

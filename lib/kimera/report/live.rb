@@ -8,37 +8,23 @@ class Kimera::Report::Live < Kimera::Report::Surface
   ERASE = "\r\e[K"
   CURSOR_UP = "\e[1A"
 
-  def initialize(io, columns: 0)
-    super(io)
+  def initialize(columns: 0)
+    super()
     @columns = columns
   end
 
   def cadence = REDRAW_EVERY
 
-  def paint(text, now)
-    super
-    shown.rows = rows_for(text)
-  end
-
-  def commit
-    return unless shown.drawn
-    write("\n")
-    shown.drawn = false
-    shown.rows = 1
+  def painted(frame, tally, now)
+    line = tally.line(now)
+    [frame.over(line, now), ["#{wipe(frame)}#{line}"]]
   end
 
   private
 
-  def frame(text) = "#{erasure}#{text}"
+  def commit(_frame) = "\n"
 
-  def wipe = write(erasure)
-
-  def erasure
-    ERASE + ((CURSOR_UP + ERASE) * (shown.rows - 1))
-  end
-
-  def rows_for(text)
-    return 1 unless @columns.positive?
-    [(text.length + @columns - 1) / @columns, 1].max
+  def wipe(frame)
+    ERASE + ((CURSOR_UP + ERASE) * (frame.rows(@columns) - 1))
   end
 end

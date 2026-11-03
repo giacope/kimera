@@ -10,25 +10,17 @@ end
 class Kimera::Report::Tally
   BAR_WIDTH = 24
   ALWAYS_SHOWN = %i[killed survived].freeze
-  Counts =
-    Struct.new(:by_status) do
-      def add(status) = by_status.store(status, by_status.fetch(status, 0) + 1)
-    end
 
-  def initialize(total, label, started, counts = Counts.new({}))
+  def initialize(total, label, started, counts = {}.freeze)
     @total = total
     @label = label
     @started = started
     @counts = counts
   end
 
-  def count!(status) = @counts.add(status)
-
-  def done = @counts.by_status.values.sum
+  def counted(status) = self.class.new(@total, @label, @started, @counts.merge(status => count(status) + 1).freeze)
 
   def complete? = done >= @total
-
-  def running? = @total.positive?
 
   def line(now)
     ["#{@label} #{bar}", "#{done}/#{@total}", "#{percent}%", *pace(now), elapsed(now)].join("  ")
@@ -40,7 +32,11 @@ class Kimera::Report::Tally
 
   private
 
-  def statuses = @counts.by_status.keys.compact
+  def done = @counts.values.sum
+
+  def count(status) = @counts.fetch(status, 0)
+
+  def statuses = @counts.keys.compact
 
   def pace(now)
     parts = statuses.empty? ? [] : [breakdown]
@@ -58,11 +54,7 @@ class Kimera::Report::Tally
   def percent = (done * 100) / @total
 
   def breakdown
-    (ALWAYS_SHOWN + statuses).uniq.filter_map { |status| counted(status) }.join(" ")
-  end
-
-  def counted(status)
-    "#{status}=#{@counts.by_status.fetch(status, 0)}"
+    (ALWAYS_SHOWN + statuses).uniq.map { |status| "#{status}=#{count(status)}" }.join(" ")
   end
 
   def elapsed(now) = clock(Integer(now - @started))

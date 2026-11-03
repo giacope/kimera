@@ -118,7 +118,7 @@ RSpec.describe(Kimera::RunReport) do
     def widths(total, ticks)
       tally = described_class.new(total, "mutants", 0.0)
       ticks.first(total).each_with_index.map do |status, i|
-        tally.count!(status)
+        tally = tally.counted(status)
         tally.line(i + 1.5)[/\[[^\]]*\]/].size
       end
     end

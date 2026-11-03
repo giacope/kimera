@@ -94,14 +94,9 @@ RSpec.describe(Kimera::Execution::FlakeHunt, :aggregate_failures) do
   end
 
   it "labels each rerun's progress with its round and seed, and ticks each test, lost ones too" do
-    events = []
-    journal = Class.new do
-      define_method(:start) { |total, label| events << [:start, total, label] }
-      define_method(:tick) { |*| events << :tick }
-      define_method(:finish) { events << :finish }
-    end.new
+    journal = ProgressJournal.new
     described_class.new(adapter, driver([]), journal, env: env)
       .call({ 1 => %w[t1] }, nil, runs(seed: 12, flaky_runs: 1))
-    expect(events).to(eq([[:start, 1, "flaky check 1/1 (seed 13)"], :tick, :tick, :finish]))
+    expect(journal.events).to(eq([[:start, 1, "flaky check 1/1 (seed 13)"], [:tick, nil], [:tick, nil], [:finish]]))
   end
 end

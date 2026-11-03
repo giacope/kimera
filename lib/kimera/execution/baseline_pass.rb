@@ -23,8 +23,7 @@ class Kimera::Execution::BaselinePass
   end
 
   def parallel!(jobs, &)
-    progress.start(tests.size, "baseline")
-    settle(jobs) { dispatch(&) }
+    progress.during(tests.size, "baseline") { |tick| settle(jobs) { dispatch(tick, &) } }
   end
 
   def check!(cell = zygote)
@@ -50,8 +49,6 @@ class Kimera::Execution::BaselinePass
     failures = tally.failures
     red!(failures, jobs) { ordered(failures) } unless failures.empty?
     tally.measured(losses.recovered(tally.messages))
-  ensure
-    progress.finish
   end
 
   def ordered(failures) = Kimera::Execution::BaselineOrder.new(self).of(failures, zygote) { [] }
@@ -74,37 +71,38 @@ class Kimera::Execution::BaselinePass
     { "passed" => outcome.passed?, "failed_ids" => outcome.failed_ids, "failures" => outcome.failures }
   end
 
-  def dispatch
-    yield(tests, nil, listeners(method(:lost), ->(slot, test_id) { journal[slot] << test_id }))
+  def dispatch(tick)
+    yield(tests, nil, listeners(tick, ->(*loss) { lost(tick, *loss) }, ->(slot, test_id) { journal[slot] << test_id }))
     stalled = losses.stalled
-    yield(stalled, 1, listeners(method(:relapse), nil)) unless stalled.empty?
+    yield(stalled, 1, listeners(tick, ->(*loss) { relapse(tick, *loss) }, nil)) unless stalled.empty?
   end
 
-  def listeners(lost, trace) = Kimera::Execution::WorkerPool::Listeners.new(resolve: resolve, lost: lost, trace: trace)
+  def listeners(tick, lost, trace)
+    resolve = ->(message) { receive(message, tick) }
+    Kimera::Execution::WorkerPool::Listeners.new(resolve: resolve, lost: lost, trace: trace)
+  end
 
   def losses = @_losses ||= @options.fetch(:losses) { Kimera::Execution::BaselineLosses.new }
 
   def journal = @_journal ||= Hash.new { |workers, slot| workers[slot] = [] }
 
-  def resolve = ->(message) { receive(message) }
-
-  def receive(message)
+  def receive(message, tick)
     touched = message["touched"]
     test_id = message["id"]
     tally.cover(test_id, touched, message["took"])
     bank(test_id, touched, message: message["failure"]) unless message["passed"]
-    progress.tick
+    tick.call
   end
 
-  def lost(test_id, reason, stacks = [])
+  def lost(tick, test_id, reason, stacks = [])
     return losses.stall(test_id, stacks) if reason == :timeout
-    relapse(test_id, reason, stacks)
+    relapse(tick, test_id, reason, stacks)
   end
 
-  def relapse(test_id, reason, stacks = [])
+  def relapse(tick, test_id, reason, stacks = [])
     tally.messages[test_id] = losses.charge(test_id, reason, stacks)
     tally.failures << test_id
-    progress.tick
+    tick.call
   end
 
   def bank(test_id, touched, message: nil)

@@ -32,7 +32,7 @@ class Kimera::Report::Screen
   def colored? = @enabled && !@env.key?("NO_COLOR")
 
   def surface
-    @interactive ? Kimera::Report::Live.new(@io, columns: columns { 0 }) : Kimera::Report::Log.new(@io)
+    @interactive ? Kimera::Report::Live.new(columns: columns { 0 }) : Kimera::Report::Log.new
   end
 
   private
