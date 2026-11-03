@@ -274,6 +274,15 @@ RSpec.describe(Kimera::Report::Progress) do
     expect(io.string.delete_prefix(first)).to(start_with("\r\e[K#{"\e[1A\r\e[K" * (rows - 1)}"))
   end
 
+  # A wiped frame leaves the cursor on its first row: the next phase's frame has nothing above it to erase.
+  it "climbs no rows into earlier output after a phase it cleared short" do
+    bar, io, = narrow
+    bar.finish
+    cleared = io.string.size
+    bar.start(2, "mutants (rejudge)")
+    expect(io.string[cleared..].scan("\e[1A").size).to(eq(0))
+  end
+
   it "does not emit the erase sequence when nothing was drawn" do
     _, io = drive(1, "mutants", finish: true, enabled: false)
     expect(io.string).to(be_empty)

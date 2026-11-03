@@ -28,6 +28,7 @@ class Kimera::Report::Surface
     return unless shown.drawn
     wipe
     shown.drawn = false
+    shown.rows = 1
   end
 
   private
