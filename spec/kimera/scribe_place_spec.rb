@@ -26,12 +26,18 @@ RSpec.describe(Kimera::Scribe) do
   def read(source) = tree(source).statements.body.first
 
   describe "locals where a node stands" do
-    # Every name in the source the place's pen reads as a local.
+    # Every name in the source that reads as a local where the node stands
+    # (or after it): a bare call of that name written there takes parentheses.
     def locals(source, slice, after: false)
       root = tree(source)
-      place = Kimera::Scribe::Place.of(root, find(root, slice))
-      pen = (after ? place.after(find(root, slice)) : place).pen
-      source.scan(/[a-z_]\w*/).map(&:to_sym).uniq.select { |name| pen.local?(name) }.sort
+      original = find(root, slice)
+      names = source.scan(/[a-z_]\w*/).map(&:to_sym).uniq
+      names.select { |name| called(name, root, original, after) == "#{name}()" }.sort
+    end
+
+    def called(name, root, original, after)
+      call = read("call").copy(name: name)
+      described_class.new(call).at(root, original) { |place| after ? place.after(original) : place }.text
     end
 
     it "reads earlier writes, parameters and block parameters, and not later ones" do

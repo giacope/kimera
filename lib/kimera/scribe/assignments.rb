@@ -12,7 +12,7 @@ module Kimera
         value = @node.value
         target = type == :constant_path_write_node ? part(@node.target) : @node.name.to_s
         own = type == :local_variable_write_node ? Set[@node.name] : NO_NAMES
-        "#{target} = #{pen_of(value).bound(own).write(value, value_floor(value))}"
+        "#{target} = #{bound(value, own, value_floor(value))}"
       end
 
       def level = ASSIGNMENT
@@ -32,7 +32,7 @@ module Kimera
 
       def text
         value = @node.value
-        "#{target} #{operator}= #{pen_of(value).bound(Set[*own]).write(value, value_floor(value))}"
+        "#{target} #{operator}= #{bound(value, Set[*own], value_floor(value))}"
       end
 
       def level = ASSIGNMENT
@@ -69,7 +69,7 @@ module Kimera
     class Multiple < Form
       TYPES = %i[multi_write_node].freeze
 
-      def text = "#{Targets.new(@node, @pen).items} = #{part(@node.value, value_floor(@node.value))}"
+      def text = "#{Targets.new(@node, @pen, @scope, @mode).items} = #{part(@node.value, value_floor(@node.value))}"
 
       def level = STATEMENT
     end

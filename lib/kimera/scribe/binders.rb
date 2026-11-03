@@ -8,12 +8,9 @@ module Kimera
         singleton_class_node: %i[expression], block_node: [], lambda_node: []
       }.freeze
 
-      def initialize(texts = Texts.new)
+      def initialize
         @memo = {}.compare_by_identity
-        @texts = texts
       end
-
-      def slice(node, locals, &) = @texts.of(node, locals, &)
 
       def of(node)
         return NO_NAMES unless node

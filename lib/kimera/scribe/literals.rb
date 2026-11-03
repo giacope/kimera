@@ -37,7 +37,7 @@ module Kimera
 
       def text
         name = @node.name
-        return name.to_s if @pen.local?(name) || name.match?(IMPLICIT)
+        return name.to_s if @scope.local?(name) || name.match?(IMPLICIT)
         raise(Unbound, "kimera cannot write this read of #{name}: nothing binds the local there")
       end
     end

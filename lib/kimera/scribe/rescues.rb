@@ -5,7 +5,7 @@ module Kimera
     class Bracketed < Form
       TYPES = %i[begin_node].freeze
 
-      def text = "begin#{Clauses.new(@node, @pen).structure}#{closing}"
+      def text = "begin#{Clauses.new(@node, @pen, @scope, @mode).structure}#{closing}"
 
       def level = KEYWORD
     end
@@ -15,7 +15,7 @@ module Kimera
 
       def text
         body = @node.expression
-        written = pen_of(body).form(body).jump? ? part(body) : leading(body, TERNARY)
+        written = form_of(body).jump? ? part(body) : leading(body, TERNARY)
         "#{written} rescue #{part(@node.rescue_expression, EXPRESSION)}"
       end
 
@@ -28,7 +28,7 @@ module Kimera
       private
 
       def item(exception)
-        return pen_of(exception).form(exception).ternary if %i[if_node unless_node].include?(exception.type)
+        return form_of(exception).ternary if %i[if_node unless_node].include?(exception.type)
         part(exception, ASSIGNMENT)
       end
     end
@@ -41,11 +41,11 @@ module Kimera
       def head
         exceptions = @node.exceptions
         target = @node.reference
-        written = exceptions.any? ? "rescue #{Exceptions.new(@node, @pen).text}" : "rescue"
-        target ? "#{written} => #{@pen.with(exceptions).write(target)}" : written
+        written = exceptions.any? ? "rescue #{Exceptions.new(@node, @pen, @scope, @mode).text}" : "rescue"
+        target ? "#{written} => #{@pen.form(target, @scope.with(exceptions), @mode).written(STATEMENT)}" : written
       end
 
-      def body = Lines.new(@node.statements, @pen.with([*@node.exceptions, @node.reference]).deeper).text
+      def body = @pen.lines(@node.statements, @scope.with([*@node.exceptions, @node.reference]))
     end
 
     class Exchange < Form

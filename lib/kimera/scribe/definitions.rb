@@ -10,7 +10,7 @@ module Kimera
       def text
         parameters = @node.parameters
         signature = parameters ? "(#{part(parameters)})" : ""
-        "def #{receiver}#{@node.name}#{signature}#{clauses(@node.body, @pen.scoped([parameters]))}#{closing}"
+        "def #{receiver}#{@node.name}#{signature}#{clauses(@node.body, @scope.scoped([parameters]))}#{closing}"
       end
 
       def level = KEYWORD
@@ -29,7 +29,7 @@ module Kimera
       TYPES = %i[class_node module_node singleton_class_node].freeze
       WORDS = { class_node: "class", module_node: "module", singleton_class_node: "class <<" }.freeze
 
-      def text = "#{WORDS.fetch(type)} #{subject}#{parent}#{clauses(@node.body, @pen.scoped)}#{closing}"
+      def text = "#{WORDS.fetch(type)} #{subject}#{parent}#{clauses(@node.body, @scope.scoped)}#{closing}"
 
       def level = KEYWORD
 

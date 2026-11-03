@@ -62,8 +62,7 @@ module Kimera
 
       def text
         return "^#{part(@node.variable)}" if type == :pinned_variable_node
-        expression = @node.expression
-        "^(#{pen_of(expression).opened.write(expression)})"
+        "^(#{form_of(@node.expression, OPEN).written(STATEMENT)})"
       end
     end
   end

@@ -8,6 +8,9 @@ require_relative "scribe/token"
 require_relative "scribe/binders"
 require_relative "scribe/texts"
 require_relative "scribe/place"
+require_relative "scribe/margin"
+require_relative "scribe/mode"
+require_relative "scribe/scope"
 require_relative "scribe/pen"
 require_relative "scribe/quote"
 require_relative "scribe/number"
@@ -67,10 +70,7 @@ module Kimera
 
     def joined = Scribe.new(@node, @place.joined)
 
-    def text
-      pen = @place.pen
-      Lines.new(body, pen).text.delete_prefix(pen.newline)
-    end
+    def text = @place.written(body)
 
     private
 

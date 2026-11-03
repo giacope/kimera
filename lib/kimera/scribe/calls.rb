@@ -13,7 +13,7 @@ module Kimera
 
       def variant
         @_variant ||= [Negation, Operation, Unary, Setting, Indexing, Message].map do |kind|
-          kind.new(@node, @pen)
+          kind.new(@node, @pen, @scope, @mode)
         end.lazy.select(&:fits?).first(1).fetch(0)
       end
     end
@@ -68,7 +68,7 @@ module Kimera
       private
 
       def unbraced(receiver)
-        pen_of(receiver).level(receiver) == KEYWORD ? part(receiver, TERNARY) : trailing(receiver, ASSIGNMENT)
+        form_of(receiver).level == KEYWORD ? part(receiver, TERNARY) : trailing(receiver, ASSIGNMENT)
       end
     end
 
@@ -93,7 +93,7 @@ module Kimera
       def text
         *keys, value = Operands.new(@node).to_a
         return "#{head(keys)} = #{part(value, value_floor(value))}" unless @node.name == :[]
-        "#{head([*keys, value].compact)}#{Block.new(@node.block, @pen).suffix if literal_block}"
+        "#{head([*keys, value].compact)}#{Block.new(@node.block, @pen, @scope, @mode).suffix if literal_block}"
       end
 
       private
@@ -106,7 +106,7 @@ module Kimera
 
       def fits? = true
 
-      def text = "#{head}#{arguments}#{Block.new(literal_block, pen_of(literal_block)).suffix if literal_block}"
+      def text = "#{head}#{arguments}#{attached(literal_block) if literal_block}"
 
       private
 
@@ -127,7 +127,7 @@ module Kimera
       def bare?
         name = @node.name
         return true if @node.receiver
-        return false if @pen.local?(name) || name.match?(CAPITAL)
+        return false if @scope.local?(name) || name.match?(CAPITAL)
         @node.variable_call? || literal_block || name.end_with?("?", "!")
       end
     end
@@ -152,7 +152,7 @@ module Kimera
 
       def suffix
         block = @node.block if @node.respond_to?(:block)
-        block&.type == :block_node ? Block.new(block, pen_of(block)).suffix : ""
+        block&.type == :block_node ? attached(block) : ""
       end
     end
   end

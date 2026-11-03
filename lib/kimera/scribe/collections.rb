@@ -5,11 +5,11 @@ module Kimera
     class Sequence < Form
       TYPES = %i[statements_node].freeze
 
-      def text = @node.body.map { |statement| pen_of(statement).opened.write(statement) }.join("; ")
+      def text = @node.body.map { |statement| form_of(statement, OPEN).written(STATEMENT) }.join("; ")
 
       def level
         body = @node.body
-        body.one? ? pen_of(body.first).level(body.first) : STATEMENT
+        body.one? ? form_of(body.first).level : STATEMENT
       end
     end
 
@@ -28,7 +28,7 @@ module Kimera
 
       def text
         listed = "[#{listed(@node.elements)}]"
-        @pen.pattern? ? Words.new(@node, @pen).text { "^(#{listed})" } : listed
+        @mode.pattern? ? Words.new(@node, @pen, @scope, @mode).text { "^(#{listed})" } : listed
       end
     end
 
@@ -37,9 +37,11 @@ module Kimera
       KIND = /\A(?:interpolated_)?(string|symbol)_node\z/
       BREAKS = "[] "
 
-      def initialize(node, pen)
+      def initialize(node, pen, scope, mode)
         @node = node
         @pen = pen
+        @scope = scope
+        @mode = mode
       end
 
       def text
@@ -59,7 +61,7 @@ module Kimera
       end
 
       def piece(part)
-        return "\#{#{@pen.write(part)}}" unless part.respond_to?(:unescaped)
+        return "\#{#{@pen.form(part, @scope, @mode).written(STATEMENT)}}" unless part.respond_to?(:unescaped)
         unescaped = Kimera::Unescaped.new(part).text
         Quote.new(unescaped, BREAKS).text
       end

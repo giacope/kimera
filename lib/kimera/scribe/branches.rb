@@ -17,7 +17,7 @@ module Kimera
 
       def otherwise
         fallback = @node.else_clause
-        fallback ? "#{newline}else#{lines(fallback.statements, pen_of(fallback))}" : ""
+        fallback ? "#{newline}else#{lines(fallback.statements, scope_of(fallback))}" : ""
       end
     end
 
@@ -25,7 +25,7 @@ module Kimera
       TYPES = %i[when_node in_node].freeze
       GUARDS = { if_node: "if", unless_node: "unless" }.freeze
 
-      def text = "#{newline}#{head}#{lines(@node.statements, pen_of(@node.statements))}"
+      def text = "#{newline}#{head}#{lines(@node.statements, scope_of(@node.statements))}"
 
       private
 
@@ -36,8 +36,9 @@ module Kimera
         word = GUARDS[tested.type]
         return patterned(tested) unless word
         inner = tested.statements.body.first
-        pen = pen_of(tested)
-        "#{pen.patterned.write(inner)} #{word} #{pen.with([inner]).write(tested.predicate, EXPRESSION)}"
+        scope = scope_of(tested)
+        written = @pen.form(inner, scope, @mode.patterned).written(STATEMENT)
+        "#{written} #{word} #{@pen.form(tested.predicate, scope.with([inner]), @mode).written(EXPRESSION)}"
       end
     end
 
@@ -45,8 +46,8 @@ module Kimera
       TYPES = %i[while_node until_node].freeze
 
       def text
-        return "#{Body.new(@node.statements, @pen).text} #{keyword} #{after}" if @node.begin_modifier?
-        return Postfix.new(keyword, @node.predicate, @node.statements, @pen).text if modifier?
+        return modifier(keyword, @mode) if @node.begin_modifier?
+        return modifier(keyword, CLOSED) if modifier?
         "#{keyword} #{guard}#{body}#{closing}"
       end
 
@@ -58,11 +59,9 @@ module Kimera
 
       def guard = ended(part(@node.predicate, EXPRESSION))
 
-      def body = lines(@node.statements, pen_of(@node.statements))
+      def body = lines(@node.statements, scope_of(@node.statements))
 
-      def after = @pen.with([@node.statements]).write(@node.predicate, EXPRESSION)
-
-      def modifier? = @node.statements && Postcondition.new(@node.predicate, @node.statements, @pen).needed?
+      def modifier? = @node.statements && Postcondition.new(@node.predicate, @node.statements, @scope).needed?
     end
 
     class Iteration < Form
@@ -71,7 +70,7 @@ module Kimera
       def text
         body = @node.statements
         collection = ended(part(@node.collection, EXPRESSION))
-        "for #{part(@node.index)} in #{collection}#{lines(body, pen_of(body))}#{closing}"
+        "for #{part(@node.index)} in #{collection}#{lines(body, scope_of(body))}#{closing}"
       end
 
       def level = KEYWORD
@@ -93,11 +92,12 @@ module Kimera
       private
 
       def arguments(values)
-        pen = pen_of(@node.arguments)
+        scope = scope_of(@node.arguments)
         only = values.first
-        return pen.form(only).ternary if values.one? && %i[if_node unless_node].include?(only.type)
+        return @pen.form(only, scope, @mode).ternary if values.one? && %i[if_node unless_node].include?(only.type)
         values.map do |value|
-          WRAPPED.include?(value.type) ? "(#{pen.write(value)})" : pen.write(value, ASSIGNMENT)
+          form = @pen.form(value, scope, @mode)
+          WRAPPED.include?(value.type) ? "(#{form.written(STATEMENT)})" : form.written(ASSIGNMENT)
         end.join(", ")
       end
     end

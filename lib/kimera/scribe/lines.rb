@@ -5,14 +5,16 @@ module Kimera
     class Lines
       SPACED = %i[def_node class_node module_node singleton_class_node].freeze
 
-      def initialize(node, pen)
+      def initialize(node, pen, scope, margin)
         @node = node
         @pen = pen
+        @scope = scope
+        @margin = margin
       end
 
       def text
-        pens = Pens.new(@pen, statements).list
-        statements.each_with_index.sum("") { |statement, index| line(statement, index, pens.fetch(index)) }
+        scopes = Scopes.new(@scope, statements).list
+        statements.each_with_index.sum("") { |statement, index| line(statement, index, scopes.fetch(index)) }
       end
 
       private
@@ -24,10 +26,10 @@ module Kimera
         node.type == :statements_node ? node.body.flat_map { |statement| flat(statement) } : [node]
       end
 
-      def line(statement, index, pen)
-        written = pen.write(statement, STATEMENT)
+      def line(statement, index, scope)
+        written = @pen.form(statement, scope, OPEN).written(STATEMENT)
         terminator = index < statements.size - 1 && written.end_with?("..") ? ";" : ""
-        "#{@pen.gap if index.positive? && spaced?(statement)}#{@pen.newline}#{written}#{terminator}"
+        "#{@margin.gap if index.positive? && spaced?(statement)}#{@margin.newline}#{written}#{terminator}"
       end
 
       def spaced?(statement)

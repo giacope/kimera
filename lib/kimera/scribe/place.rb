@@ -5,11 +5,11 @@ module Kimera
     class Place
       SCOPES = %i[program_node def_node class_node module_node singleton_class_node].freeze
 
-      def self.top = new(NO_NAMES, {}.compare_by_identity, Pen::Margin.new(depth: 0, flat: false))
+      def self.top = new(NO_NAMES, {}.compare_by_identity, Margin.new(depth: 0, flat: false))
 
       def self.of(root, node, ends = Float::INFINITY)
         indent = node.location.start_line_slice[/\A */].size
-        margin = Pen::Margin.new(depth: indent / INDENT.size, flat: false)
+        margin = Margin.new(depth: indent / INDENT.size, flat: false)
         new(Seen.new(node).locals(root), Kept.new(node, root, ends).slices, margin)
       end
 
@@ -26,11 +26,13 @@ module Kimera
 
       def unbroken = Place.new(@locals, @slices.reject { |_, text| text.include?("\n") }, @margin.flattened, @binders)
 
-      def pen = Pen.new(binders, @margin, @locals)
+      def written(node) = Lines.new(node, pen, scope, @margin).text.delete_prefix(@margin.newline)
 
       private
 
-      def binders = Binders.new(Texts.new(@slices))
+      def pen = Pen.new(Texts.new(@slices), @margin)
+
+      def scope = Scope.new(@binders, @locals)
 
       class Seen
         def initialize(node, binders = Binders.new)
