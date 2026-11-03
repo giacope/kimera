@@ -8,6 +8,4 @@ class Kimera::Execution::Shift::Suspect
   def final = @doubt
 
   def conclude = yield(self)
-
-  def taught(killers) = killers
 end

@@ -37,6 +37,7 @@ module Kimera
       kimera/execution/shift/lag.rb
       kimera/execution/shift/kill.rb
       kimera/execution/shift/lineup.rb
+      kimera/execution/shift/interruption.rb
       kimera/execution/shift/probe.rb
       kimera/execution/shift/finding.rb
       kimera/execution/shift/failure.rb

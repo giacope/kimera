@@ -69,7 +69,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     end
   end
 
-  # Shift#step and Shift#process, reduced to their pipe traffic.
+  # Shift#judging and Shift#process, reduced to their pipe traffic.
   def act(behavior, id, response)
     case behavior
     when :crash then exit!(1)

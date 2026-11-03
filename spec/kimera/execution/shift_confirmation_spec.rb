@@ -99,7 +99,7 @@ RSpec.describe(Kimera::Execution::Shift) do
     it "remembers only a confirmed killer for the next mutant", :aggregate_failures do
       a, b = ids.first(2)
       adapter = scripted({ "slow" => [], "t1" => %i[fail pass pass], "t2" => %i[fail fail] })
-      worker(adapter, { a => %w[t1], b => %w[slow t2] }).tap { |shift| shift.evaluate(a) }.evaluate(b)
+      worker(adapter, { a => %w[t1], b => %w[slow t2] }).run([a, b], StringIO.new)
       expect(adapter.log.find { |_test, active| active == b }).to(eq(["slow", b]))
     end
   end

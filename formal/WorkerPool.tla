@@ -318,7 +318,7 @@ Become(w, state) ==
 
 ChildUnchanged == UNCHANGED parent
 
-\* Channel#each_request: read an offer, or EOF (retired) and exit.
+\* Channel#ids: read an offer, or EOF (retired) and exit.
 ChildRead(w) ==
   /\ child[w] = "idle" /\ req[w] # <<>>
   /\ LET m == Head(req[w]) IN
@@ -333,7 +333,7 @@ ChildRead(w) ==
 
 Busy(w) == child[w] \in {"busy", "torn"}
 
-\* Shift#step: a trusted result, then "ready". Shift#process may slip a
+\* Shift#judging: a trusted result, then "ready". Shift#process may slip a
 \* "leak" for an earlier kill in between (LeakGuard#check). From torn, the
 \* first line finishes the one already started.
 ChildResult(w) ==

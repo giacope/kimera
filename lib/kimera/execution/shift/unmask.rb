@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
 require_relative "../pace"
+require_relative "../zygote"
 require_relative "finding"
+require_relative "interruption"
 require_relative "suspect"
 
 class Kimera::Execution::Shift::Unmask
@@ -13,12 +15,23 @@ class Kimera::Execution::Shift::Unmask
     @pace = pace
   end
 
-  def run(id, tests) = @pace.fastest(tests).first(CAP).lazy.flat_map { |test| alone(id, test) }.first(1)
+  def run(id, tests, killers)
+    @pace.fastest(tests).first(CAP).each do |test|
+      found, killers = alone(id, test, killers)
+      return [found.first(1), killers] unless found.empty?
+    end
+    [[], killers]
+  rescue Kimera::Execution::Zygote::Died
+    raise
+  rescue StandardError, ScriptError => error
+    raise(Kimera::Execution::Shift::Interruption.new(error, killers))
+  end
 
   private
 
-  def alone(id, test)
-    found = @attempt.run(id, [test]).flat_map { |verdict| verdict.conclude { |_doubt| [] } }
-    found.empty? || !@attempt.calm?(test) ? [] : found.map { |kill| kill.noted(NOTE) }
+  def alone(id, test, killers)
+    verdicts, killers = @attempt.run(id, [test], killers)
+    found = verdicts.flat_map { |verdict| verdict.conclude { |_doubt| [] } }
+    [found.empty? || !@attempt.calm?(test) ? [] : found.map { |kill| kill.noted(NOTE) }, killers]
   end
 end

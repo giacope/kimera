@@ -100,31 +100,24 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
       end
     end
 
-    def memory(remembered)
-      Object.new.tap do |killers|
-        killers.define_singleton_method(:order) { |tests| tests }
-        killers.define_singleton_method(:remember) { |id| remembered << id }
-      end
-    end
-
-    def attempt(remembered = [])
+    def attempt
       isolation = Object.new.tap { |inline| inline.define_singleton_method(:around) { |&block| block.call } }
       probe = Kimera::Execution::Shift::Probe.new(picky, Kimera::Execution::Shift::Deadline.build(nil))
-      Kimera::Execution::Shift::Attempt.new(
-        probe: probe, isolation: isolation, killers: memory(remembered), zygote: InlineZygote.new
-      )
+      Kimera::Execution::Shift::Attempt.new(probe: probe, isolation: isolation, zygote: InlineZygote.new)
     end
+
+    def memory = Kimera::Execution::Shift::KillerMemory.new
 
     it "stops at the first killing test" do
       subject = Kimera::Execution::Shift::Subject.new(9, "x.rb")
-      verdicts = attempt.run(9, %w[a b c]).map { |verdict| verdict.ruling(subject, {}) }
-      expect(verdicts).to(match([have_attributes(status: :killed, failing_tests: ["b"], detail: "boom")]))
+      verdicts, = attempt.run(9, %w[a b c], memory)
+      expect(verdicts.map { |verdict| verdict.ruling(subject, {}) })
+        .to(match([have_attributes(status: :killed, failing_tests: ["b"], detail: "boom")]))
     end
 
     it "records only the first killing test in the attempt memory" do
-      remembered = []
-      attempt(remembered).run(9, %w[a b c])
-      expect(remembered).to(eq(["b"]))
+      _, known = attempt.run(9, %w[a b c], memory)
+      expect(known.order(%w[c a b])).to(eq(%w[b c a]))
     end
   end
 

@@ -6,14 +6,16 @@ require_relative "lineup"
 require_relative "probe"
 
 class Kimera::Execution::Shift::Attempt
-  def initialize(probe:, isolation:, killers:, zygote:)
+  def initialize(probe:, isolation:, zygote:)
     @probe = probe
     @isolation = isolation
-    @killers = killers
     @zygote = zygote
   end
 
-  def run(id, tests) = hunt(Kimera::Execution::Shift::Lineup.new(id, @killers.order(tests)), [])
+  def run(id, tests, killers)
+    verdicts = hunt(Kimera::Execution::Shift::Lineup.new(id, killers.order(tests)), [])
+    [verdicts, verdicts.reduce(killers) { |known, verdict| verdict.taught(known) }]
+  end
 
   def calm?(test) = replayed(Kimera::Execution::Shift::Lineup.new(nil, [test]))["passed"]
 
@@ -25,9 +27,7 @@ class Kimera::Execution::Shift::Attempt
     found = fresh { @probe.sweep(lineup) }
     return doubts.first(1).map(&:final) if found.empty?
     finding = lineup.found(found.fetch(0))
-    verdicts = finding.judged(self, @probe)
-    verdicts.each { |verdict| verdict.taught(@killers) }
-    settle(finding, doubts, verdicts)
+    settle(finding, doubts, finding.judged(self, @probe))
   end
 
   def settle(finding, doubts, verdicts)

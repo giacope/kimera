@@ -70,6 +70,29 @@ RSpec.describe(Kimera::Execution::Shift::Unmask) do
     expect([alone.size, alone.first]).to(eq([described_class::CAP, ["t9", target]]))
   end
 
+  # Passes every run together, then raises +error+ on the first run alone.
+  def raising(error)
+    Class.new do
+      define_method(:initialize) { @runs = 0 }
+
+      define_method(:run) do |_ids|
+        @runs += 1
+        raise(error) if @runs > 2
+        Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+      end
+    end.new
+  end
+
+  it "judges the mutant an error when a test raises while it runs alone", :aggregate_failures do
+    result = judged(raising(ArgumentError.new("broken fixture")), %w[t1 t2])
+    expect([result.status, result.detail]).to(eq([:error, "ArgumentError: broken fixture"]))
+  end
+
+  it "lets a test process's death through, for the worker to die of" do
+    expect { judged(raising(SignalException.new("TERM")), %w[t1 t2]) }
+      .to(raise_error(Kimera::Execution::Zygote::Died, /\ASignalException: SIGTERM/))
+  end
+
   # A timeout found alone carries no failure messages to annotate.
   describe "a test that hangs alone" do
     let(:clock) { [0.0] }

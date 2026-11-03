@@ -5,7 +5,7 @@ module Kimera::Execution::Shift::Lapse
 
   def conclude(&) = [self]
 
-  def taught(_killers) = self
+  def taught(killers) = killers
 
   def ruling(subject, fields) = subject.verdict(:timeout, detail: detail, **fields)
 end

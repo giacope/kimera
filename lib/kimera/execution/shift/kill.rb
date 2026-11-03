@@ -11,7 +11,7 @@ class Kimera::Execution::Shift::Kill
 
   def conclude(&) = [self]
 
-  def taught(killers) = killers.remember(@test)
+  def taught(killers) = killers.remembered(@test)
 
   def ruling(subject, fields)
     subject.verdict(:killed, failing_tests: @failed_ids, detail: @failures.values.first, **fields)
