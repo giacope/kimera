@@ -126,7 +126,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
   end
 
   it "keeps the raw baseline entries out of the parsed options" do
-    expect(cli.__send__(:parse, ["--config", "custom.yml"])).not_to(have_key(:baseline_ignore))
+    expect(cli.__send__(:parse, ["--config", "custom.yml"]).to_h).not_to(have_key(:baseline_ignore))
     expect(cli.__send__(:parse, ["--config", "custom.yml", "--evaluate-ignored"])[:evaluate_ignored]).to(be(true))
   end
 

@@ -38,7 +38,7 @@ class Kimera::Incremental::CoverageCache
 
   private
 
-  def root = @options.fetch(:source_root)
+  def root = @options.to_h.fetch(:source_root)
 
   def path = File.expand_path(PATH, root)
 

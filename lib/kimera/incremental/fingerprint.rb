@@ -23,7 +23,7 @@ class Kimera::Incremental::Fingerprint
   end
 
   def to_h
-    settings = Digest::SHA256.hexdigest(@options.slice(*SETTINGS).inspect)
+    settings = Digest::SHA256.hexdigest(@options.to_h.slice(*SETTINGS).inspect)
     { "commit" => git("rev-parse", "HEAD") { "" }.strip, "ruby" => RUBY, "settings" => settings }
       .merge("files" => digests(suite - @sources), "sources" => digests(@sources))
   end

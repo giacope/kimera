@@ -21,11 +21,5 @@ class Kimera::CLI::Run::Digest
     @io.puts("Evaluating them anyway (--evaluate-ignored): each keeps status ignored and records its verdict.")
   end
 
-  def verbose(options)
-    @io.puts(
-      "Kimera: framework=#{options[:framework]} jobs=#{options[:jobs]} " \
-        "sources=#{Array(options[:paths]).join(",")} tests=#{Array(options[:tests]).join(",")} " \
-        "format=#{options.fetch(:format, "text")}"
-    )
-  end
+  def verbose(settings) = @io.puts("Kimera: #{settings}")
 end

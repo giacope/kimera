@@ -52,12 +52,9 @@ module Kimera
       def waive
         self.class.new(
           mutant_id: mutant_id, file: file, duration: duration, failing_tests: failing_tests,
-          covering_tests: covering_tests, note: note, killing_tests: killing_tests, **waiver
+          covering_tests: covering_tests, note: note, killing_tests: killing_tests,
+          status: :ignored, verdict: status, detail: ["ignored (#{status})", detail].compact.join(": ")
         )
-      end
-
-      def waiver
-        { status: :ignored, verdict: status, detail: ["ignored (#{status})", detail].compact.join(": ") }
       end
 
       def covered?

@@ -64,7 +64,7 @@ class Kimera::CLI
   def registry(argv)
     defaults = { output: nil, operators: Kimera::Operators.build.map(&:key), quiet: false }
     paths, options = REGISTRY_OPTIONS.parse(argv, Kimera::Config.parse(argv).scope(defaults))
-    set = Kimera::FileSet.from_options(paths, options)
+    set = Kimera::FileSet.from_options(paths, **options)
     files = set.files
     return missing(set) if files.empty?
     build(files, options)

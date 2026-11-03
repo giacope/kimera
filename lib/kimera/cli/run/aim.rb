@@ -24,7 +24,7 @@ class Kimera::CLI::Run::Aim
     @_lines ||= Hash(@options[:lines]).transform_keys { |path| Kimera::FileSet::Root.new(root).relative(path) }
   end
 
-  def root = File.expand_path(@options.fetch(:source_root))
+  def root = File.expand_path(@options.to_h.fetch(:source_root))
 
   def methods = Array(@options[:methods])
 

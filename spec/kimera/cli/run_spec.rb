@@ -70,7 +70,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       }
     end
 
-    def parsed(*arguments) = cli.__send__(:parse, arguments)
+    def parsed(*arguments) = cli.__send__(:parse, arguments).to_h
 
     def unit_config = File.write("custom.yml", %(attribution: unit\nunit_tests:\n  "lib/**/*.rb": "t/{name}_t.rb"\n))
 
@@ -141,7 +141,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
     # Exact equality, so a dropped or drifted default fails.
     it "applies exactly the documented defaults" do
-      expect(cli.__send__(:parse, [])).to(eq(defaults))
+      expect(cli.__send__(:parse, []).to_h).to(eq(defaults))
     end
 
     it "reads --max-errors as the unjudged-mutant budget" do
@@ -518,10 +518,12 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     def sources = Kimera::CLI::Run::Sources.new
 
     def options(**over)
-      {
-        paths: ["calc.rb"], exclude: [], operators: Kimera::Operators::CATALOG.keys,
-        source_root: ".", registry: nil
-      }.merge(over)
+      Kimera::CLI::Run::Settings.new(
+        {
+          paths: ["calc.rb"], exclude: [], operators: Kimera::Operators::CATALOG.keys,
+          source_root: ".", registry: nil
+        }.merge(over)
+      )
     end
 
     it "names the files relative to the source root" do
@@ -619,7 +621,9 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     it "prints resolved settings in verbose mode" do
       io = StringIO.new
       Kimera::CLI::Run::Digest.new(io: io, emission: nil).verbose(
-        framework: "rspec", jobs: 4, paths: ["app/**/*.rb"], tests: ["spec/**/*_spec.rb"], format: "json"
+        Kimera::CLI::Run::Settings.new(
+          framework: "rspec", jobs: 4, paths: ["app/**/*.rb"], tests: ["spec/**/*_spec.rb"], format: "json"
+        )
       )
       expect(io.string).to(include("framework=rspec", "jobs=4", "format=json"))
     end
@@ -649,7 +653,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
     # What the CLI stamps a session with when no flag changes the settings.
     def stamp(registry)
-      settings = Kimera::CLI::Run::Arguments.new.parse([]).slice(*Kimera::CLI::Run::Cycle::SETTINGS, :require)
+      settings = Kimera::CLI::Run::Arguments.new.parse([]).to_h.slice(*Kimera::CLI::Run::Cycle::SETTINGS, :require)
       Kimera::Incremental::Stamp.new(root: ".", sources: registry.files, settings: settings).to_s
     end
 
@@ -1129,7 +1133,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       File.write(File.join(dir, "a.rb"), "class A; end\n")
       errors = StringIO.new
       sources = Kimera::CLI::Run::Sources.new(errors: errors)
-      sources.load({ paths: ["a.rb"], exclude: ["typo/**/*.rb"], operators: [], source_root: "." })
+      sources.load(Kimera::CLI::Run::Settings.new(paths: ["a.rb"], exclude: ["typo/**/*.rb"], source_root: "."))
       sources.tests(["a.rb"], ["typo/**/*.rb"])
       errors.string
     end

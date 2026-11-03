@@ -50,7 +50,7 @@ class Kimera::CLI::Run
   private
 
   def machine?(options, streams)
-    options.fetch(:format, "text") != "text" && streams.standard?(@io) && @io.is_a?(IO)
+    options.to_h.fetch(:format, "text") != "text" && streams.standard?(@io) && @io.is_a?(IO)
   end
 
   def pid_file(path, &)
@@ -66,7 +66,7 @@ class Kimera::CLI::Run
   end
 
   def guarded(options, &)
-    ignored = options.values_at(:report, :session, :pidfile, :log)
+    ignored = options.to_h.values_at(:report, :session, :pidfile, :log)
     code, warning = Kimera::WorkTree.new(options[:source_root] || ".", ignored: ignored).watch(&)
     warning ? Kimera::CLI::Outcome::Failed.new(1, warning) : Kimera::CLI::Outcome::Ended.new(code)
   end
@@ -74,8 +74,8 @@ class Kimera::CLI::Run
   def parse(argv) = @arguments.parse(argv)
 
   def cycle(options)
-    Kimera::Plugins.new(options[:require], root: options[:source_root]).load!
-    change = @bench.change(options[:since], options[:source_root])
+    options.plugins.load!
+    change = options.change(@bench)
     registry = Kimera::CLI::Run::Sources.new(errors: @errors).load(options, change)
     built(options, change.narrowed(registry)).call(change, @bench)
   end
@@ -87,8 +87,8 @@ class Kimera::CLI::Run
   end
 
   def digest(options = {})
-    narration = options.fetch(:format, "text") == "text" ? @io : @errors
-    emission = Kimera::CLI::Run::Emission.new(io: narration, output: @io, **options.slice(:color, :quiet))
+    narration = options.to_h.fetch(:format, "text") == "text" ? @io : @errors
+    emission = Kimera::CLI::Run::Emission.new(io: narration, output: @io, **options.to_h.slice(:color, :quiet))
     Kimera::CLI::Run::Digest.new(io: narration, emission: emission)
   end
 end

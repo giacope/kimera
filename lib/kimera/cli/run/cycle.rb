@@ -69,7 +69,7 @@ class Kimera::CLI::Run::Cycle
   def conclude(todo, ignored, loaded)
     report = narrowed(loaded.report(todo, ignored, @registry)).counting(counted)
     @digest.emit(report, @registry, **emission)
-    @options[:gate] == false ? 0 : @alerts.gate(report, @options.merge(narrowed: narrowing.narrowed?))
+    @options[:gate] == false ? 0 : @alerts.gate(report, @options.to_h.merge(narrowed: narrowing.narrowed?))
   end
 
   def narrowed(report)
@@ -78,13 +78,13 @@ class Kimera::CLI::Run::Cycle
   end
 
   def emission
-    { path: @options[:report], format: @options.fetch(:format, "text"), metadata: provenance }
+    { path: @options[:report], format: @options.to_h.fetch(:format, "text"), metadata: provenance }
       .merge(coverage: coverage, log: @options[:log], scope: narrowing.notes, summary: @options[:summary])
   end
 
   def stamp
     return unless @options[:session]
-    settings = @options.slice(*SETTINGS, :require)
+    settings = @options.to_h.slice(*SETTINGS, :require)
     Kimera::Incremental::Stamp.new(root: @options[:source_root], sources: @registry.files, settings: settings).to_s
   end
 
@@ -105,7 +105,7 @@ class Kimera::CLI::Run::Cycle
 
   def provenance
     route = Kimera::CLI::Run::Route.new(@registry, @options)
-    @options.slice(*SETTINGS, :jobs, :since, :count_no_coverage).transform_keys(&:to_s).merge(narrowing.provenance)
+    @options.to_h.slice(*SETTINGS, :jobs, :since, :count_no_coverage).transform_keys(&:to_s).merge(narrowing.provenance)
       .merge("judge_isolated_only" => route.judging?, "confirm_survivors" => route.confirming?)
   end
 

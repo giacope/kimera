@@ -44,13 +44,13 @@ class Kimera::CLI::Run::Pass
   def filter
     @_filter ||=
       if @options[:attribution] == "unit"
-        Kimera::Execution::TestFilter.from_rules(@options[:unit_tests], **sourcing)
+        filters.from_rules(@options[:unit_tests], registry: @registry, adapter: @adapter, root: @options[:source_root])
       else
-        Kimera::Execution::TestFilter.build(**sourcing)
+        filters.build(registry: @registry, adapter: @adapter, root: @options[:source_root])
       end
   end
 
-  def sourcing = { registry: @registry, adapter: @adapter, root: @options[:source_root] }
+  def filters = Kimera::Execution::TestFilter
 
   def harness = @_harness ||= @bench.harness(**settings)
 
@@ -64,7 +64,7 @@ class Kimera::CLI::Run::Pass
     { registry: @registry, adapter: @adapter, source_root: @options[:source_root] }
       .merge(soft_timeout: @options[:soft_timeout], jobs: @options[:jobs])
       .merge(isolate_db: @options[:isolate_db], progress: progress, filter: filter)
-      .merge(@options.slice(:relative_timeout, :timeout_factor, :timeout_slack, :seed, :flaky_runs, :test_quality))
+      .merge(@options.to_h.slice(:relative_timeout, :timeout_factor, :timeout_slack, :seed, :flaky_runs, :test_quality))
       .merge(confirm_survivors: route.confirming?, measured: cache.method(:measured))
   end
 
@@ -137,5 +137,5 @@ class Kimera::CLI::Run::Pass
     @options[:framework] == "minitest" ? Kimera::Frameworks::TestTask.new(@options[:source_root]).flags : []
   end
 
-  def limits = @options.slice(:seed, :test_quality).merge({ hard_timeout: @options[:hard_timeout] }.compact)
+  def limits = @options.to_h.slice(:seed, :test_quality).merge({ hard_timeout: @options[:hard_timeout] }.compact)
 end

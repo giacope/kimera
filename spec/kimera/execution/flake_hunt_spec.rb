@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "kimera/execution/flake_hunt"
+require "kimera/execution/flake_runs"
 require "kimera/execution/null_progress"
 require "kimera/execution/test_filter"
 require "kimera/frameworks/suite"
@@ -36,9 +37,12 @@ RSpec.describe(Kimera::Execution::FlakeHunt, :aggregate_failures) do
     end.new
   end
 
+  # Reruns under SEED, FLAKY_RUNS times, that flag what they find on FILTER.
+  def runs(seed: nil, flaky_runs: nil, filter: nil) = Kimera::Execution::FlakeRuns.new(seed, flaky_runs, filter)
+
   def hunt(log, **settings)
     described_class.new(adapter, driver(log), progress, env: env).call(
-      { 1 => %w[t2 t1], 2 => %w[t3], 3 => %w[t4] }, [1, 2], settings
+      { 1 => %w[t2 t1], 2 => %w[t3], 3 => %w[t4] }, [1, 2], runs(**settings)
     )
   end
 
@@ -58,7 +62,8 @@ RSpec.describe(Kimera::Execution::FlakeHunt, :aggregate_failures) do
 
   it "covers every mutant when no scope is given" do
     log = []
-    described_class.new(adapter, driver(log), progress, env: env).call({ 3 => %w[t2] }, nil, seed: 1, flaky_runs: 1)
+    described_class.new(adapter, driver(log), progress, env: env)
+      .call({ 3 => %w[t2] }, nil, runs(seed: 1, flaky_runs: 1))
     expect(log).to(eq([[2, %w[t2], :channel]]))
   end
 
@@ -95,7 +100,8 @@ RSpec.describe(Kimera::Execution::FlakeHunt, :aggregate_failures) do
       define_method(:tick) { |*| events << :tick }
       define_method(:finish) { events << :finish }
     end.new
-    described_class.new(adapter, driver([]), journal, env: env).call({ 1 => %w[t1] }, nil, seed: 12, flaky_runs: 1)
+    described_class.new(adapter, driver([]), journal, env: env)
+      .call({ 1 => %w[t1] }, nil, runs(seed: 12, flaky_runs: 1))
     expect(events).to(eq([[:start, 1, "flaky check 1/1 (seed 13)"], :tick, :tick, :finish]))
   end
 end

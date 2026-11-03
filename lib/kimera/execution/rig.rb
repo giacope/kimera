@@ -16,9 +16,9 @@ class Kimera::Execution::Rig
 
   def schedule = @_schedule ||= plan
 
-  def hunt(coverage, scope, settings)
+  def hunt(coverage, scope, runs)
     Kimera::Execution::FlakeHunt.new(@options.fetch(:adapter), driver, @options.fetch(:progress))
-      .call(coverage, scope, settings)
+      .call(coverage, scope, runs)
   end
 
   private

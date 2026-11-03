@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "gate"
+require_relative "stale_anchor"
 
 class Kimera::CLI::Run::Alerts
   MOVED = "kimera: warning: ignore entry re-anchored: %s (update the entry to silence this)"
@@ -13,15 +14,7 @@ class Kimera::CLI::Run::Alerts
 
   def anchors(resolution) = resolution.alert(self)
 
-  def stale(rule) = @errors.puts(anchor(rule))
+  def stale(rule) = @errors.puts(Kimera::CLI::Run::StaleAnchor.new(rule))
 
   def moved(shift) = @errors.puts(format(MOVED, shift))
-
-  private
-
-  def anchor(rule)
-    kind = rule[:starts] ? "kimera:disable comment" : "ignore entry"
-    spot = [rule[:file], rule[:line] || rule[:starts]].compact.join(":")
-    "kimera: warning: #{kind} matches no mutant (stale anchor?): #{spot} #{rule[:label]}".rstrip
-  end
 end

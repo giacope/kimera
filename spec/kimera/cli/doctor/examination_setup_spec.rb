@@ -6,8 +6,10 @@ require "kimera/cli/doctor"
 require "stringio"
 require "tmpdir"
 
-RSpec.describe(Kimera::CLI::Doctor, :aggregate_failures) do
-  def doctor(root = ".") = described_class.new(io: StringIO.new, errors: StringIO.new, root: root)
+RSpec.describe(Kimera::CLI::Doctor::Examination, :aggregate_failures) do
+  def doctor(root = ".")
+    described_class.new({}, root, Kimera::CLI::Instruments.new, Kimera::CLI::Checklist.new(StringIO.new))
+  end
 
   # K3-1: on an engine doctor said no Rails-specific parallel setup was needed.
   # The root, holding an engine and its dummy app.

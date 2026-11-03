@@ -61,7 +61,7 @@ RSpec.describe(Kimera::Flag) do
     it "writes only keys the defaults declare" do
       declared = Dir.mktmpdir do |dir|
         Dir.chdir(dir) { Kimera::CLI::Run.new.__send__(:parse, []) }
-      end.keys
+      end.to_h.keys
 
       # resolve_globs consumes :cli_tests, and attribution :cli_unit_tests.
       keys = Kimera::CLI::RunOptions::OPTIONS.to_a.map { it.to_h[:key] }

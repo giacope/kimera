@@ -11,6 +11,7 @@ require_relative "baseline_screen"
 require_relative "baseline_pass"
 require_relative "baseline_stall"
 require_relative "boot"
+require_relative "flake_runs"
 require_relative "child_process"
 require_relative "isolated"
 require_relative "isolation"
@@ -136,8 +137,10 @@ class Kimera::Execution::Harness
   def sift!(scope)
     trace.quarantine!(coverage)
     Kimera::Execution::OrderTrace.new(registry).follow!(baseline, coverage, scope: scope, progress: progress)
-    options[:flakes] = rig.hunt(coverage, scope, options)
+    options[:flakes] = rig.hunt(coverage, scope, reruns)
   end
+
+  def reruns = Kimera::Execution::FlakeRuns.new(*options.values_at(:seed, :flaky_runs, :filter))
 
   def arm(timings) = driver.arm(coverage: coverage, budget: budget(timings), timings: timings)
 

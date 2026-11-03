@@ -36,7 +36,7 @@ class Kimera::CLI::Run::Narrowing
   def counts = @_counts ||= measure
 
   def measure
-    tests, configured = @options.values_at(:tests, :configured_tests)
+    tests, configured = @options.to_h.values_at(:tests, :configured_tests)
     return [0, 0] if tests == configured
     all = files(configured)
     [(all & files(tests)).size, all.size]

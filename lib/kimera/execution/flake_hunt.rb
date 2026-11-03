@@ -5,8 +5,6 @@ require_relative "flake_record"
 require_relative "worker_pool"
 
 class Kimera::Execution::FlakeHunt
-  RANGE = 2**31
-
   def initialize(adapter, driver, progress, env: ENV)
     @adapter = adapter
     @driver = driver
@@ -14,11 +12,11 @@ class Kimera::Execution::FlakeHunt
     @env = env
   end
 
-  def call(coverage, scope, settings)
-    seeds = series(settings[:seed], Integer(settings[:flaky_runs] || 0))
+  def call(coverage, scope, runs)
+    seeds = runs.seeds
     return if seeds.empty?
     hunt(@adapter.test_ids & (scope ? coverage.slice(*scope) : coverage).values.flatten, seeds).tap do |record|
-      settings[:filter]&.flag!(record.flaky)
+      runs.flag(record)
     end
   end
 
@@ -30,10 +28,6 @@ class Kimera::Execution::FlakeHunt
         Kimera::Execution::SuiteEnv.new(env).seeded(seed) { sweep(tests, seed, record, "flaky check #{round}/#{seeds.size}") }
       end
     end
-  end
-
-  def series(seed, runs, random = Random.new)
-    Array.new(runs) { |index| seed ? (seed + index + 1) % RANGE : random.rand(RANGE) }
   end
 
   def sweep(tests, seed, record, label)

@@ -281,8 +281,9 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
     it "records verbose paths and tests, including empty lists" do
       Kimera::CLI::Run::Digest.new(io: out, emission: nil).verbose(
-        framework: "rspec", jobs: 1, paths: ["app/**/*.rb"],
-        tests: ["spec/x_spec.rb"], format: "text"
+        Kimera::CLI::Run::Settings.new(
+          framework: "rspec", jobs: 1, paths: ["app/**/*.rb"], tests: ["spec/x_spec.rb"], format: "text"
+        )
       )
       expect(out.string).to(include("sources=app/**/*.rb tests=spec/x_spec.rb format=text"))
     end
@@ -453,6 +454,14 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         examining(suite)
       end
 
+      # The tests doctor looks for in a FRAMEWORK project that configures none.
+      def defaults(framework)
+        examination = Kimera::CLI::Doctor::Examination.new(
+          { framework: framework }, dir, Kimera::CLI::Instruments.new(suite: suite), Kimera::CLI::Checklist.new(out)
+        )
+        examination.__send__(:tests_for)
+      end
+
       # The suite ran the configured tests, not only a dry run of them.
       def baselined? = suite.commands.any? { |command| !command.include?("--dry-run") }
 
@@ -468,8 +477,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       end
 
       it "discovers each framework's default tests" do
-        expect(doctor.__send__(:tests_for, framework: "minitest")).to(eq(["test/**/*_test.rb"]))
-        expect(doctor.__send__(:tests_for, framework: "rspec")).to(eq(["spec/**/*_spec.rb"]))
+        expect(defaults("minitest")).to(eq(["test/**/*_test.rb"]))
+        expect(defaults("rspec")).to(eq(["spec/**/*_spec.rb"]))
       end
     end
 
@@ -675,13 +684,11 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
   end
 
   describe "previously uncovered CLI paths" do
-    def doctor(dir, suite)
-      FileUtils.mkdir_p(File.join(dir, "test"))
-      FileUtils.mkdir_p(File.join(dir, "spec"))
-      File.write(File.join(dir, "test", "x_test.rb"), "# test\n")
-      File.write(File.join(dir, "spec", "x_spec.rb"), "# spec\n")
+    # Doctor's examination of a project in dir configured with SETTINGS, holding a test and a spec.
+    def examination(suite, settings)
+      project("test/x_test.rb" => "# test\n", "spec/x_spec.rb" => "# spec\n")
       instruments = Kimera::CLI::Instruments.new(suite: suite)
-      Kimera::CLI::Doctor.new(io: StringIO.new, errors: StringIO.new, root: dir, instruments: instruments)
+      Kimera::CLI::Doctor::Examination.new(settings, dir, instruments, Kimera::CLI::Checklist.new(StringIO.new))
     end
 
     describe "the command wrappers" do
@@ -712,7 +719,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     # The baseline checks doctor's suite makes for a project configured with SETTINGS.
-    def baselined(suite, **settings) = doctor(dir, suite).__send__(:test_command, settings).baselines(1)
+    def baselined(suite, **settings) = examination(suite, settings).__send__(:test_command).baselines(1)
 
     it "builds and diagnoses a successful minitest baseline command" do
       command = [

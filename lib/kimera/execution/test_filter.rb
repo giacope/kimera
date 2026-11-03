@@ -45,7 +45,7 @@ class Kimera::Execution::TestFilter
     file = @registry.index[id]&.file
     return if tests.empty? || keep(file, tests).any?
     steady = tests.reject { |test| @flaky.include?(test) }
-    Kimera::MutantResult.new(mutant_id: id, file: file, **(steady.empty? ? unsteady(tests) : foreign(file, steady)))
+    steady.empty? ? unsteady(id, file, tests) : foreign(id, file, steady)
   end
 
   private
@@ -57,13 +57,15 @@ class Kimera::Execution::TestFilter
 
   def located = @_located ||= {}
 
-  def unsteady(tests) = { status: :no_coverage, detail: "#{UNSTEADY}#{tests.join(", ")}" }
+  def unsteady(id, file, tests)
+    Kimera::MutantResult.new(mutant_id: id, file: file, status: :no_coverage, detail: "#{UNSTEADY}#{tests.join(", ")}")
+  end
 
-  def foreign(file, tests)
-    {
-      status: :uncovered_by_unit, covering_tests: tests,
+  def foreign(id, file, tests)
+    Kimera::MutantResult.new(
+      mutant_id: id, file: file, status: :uncovered_by_unit, covering_tests: tests,
       detail: "reached only by other units' tests (attribution: unit); none of its own tests " \
         "(#{@attribution.expected(file.to_s).join(", ")}, or a unit_tests rule) runs it"
-    }
+    )
   end
 end

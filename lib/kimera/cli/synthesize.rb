@@ -35,15 +35,14 @@ class Kimera::CLI::Synthesize
     defaults = Kimera::Config.parse(argv).scope({ out: nil, registry: nil, operators: operators })
     paths, options = OPTIONS.parse(argv, defaults)
     out = options[:out]
-    out ? synthesize(paths, options, out) : missing
+    out ? synthesize(load(paths, **options), out) : missing
   end
 
   private
 
   def missing = Kimera::CLI::Outcome::Failed.new(1, MISSING)
 
-  def synthesize(paths, options, out)
-    registry = load(paths, options)
+  def synthesize(registry, out)
     manifest = Kimera::Synthesis::Project.new(registry).write(out)
     Kimera::CLI::Outcome::Said.new(*report(registry, manifest, out))
   end
@@ -55,11 +54,10 @@ class Kimera::CLI::Synthesize
     ["Synthesized #{registry.files.size} files to #{out}.", schema, *routed]
   end
 
-  def load(paths, options)
-    stored = options[:registry]
-    return Kimera::Registry.from_file(stored) if stored
-    operators = Kimera::Operators.build(keys: options[:operators])
-    files = Kimera::FileSet.from_options(paths, options).files
-    Kimera::RegistryScan.new(operators: operators).build(files)
+  def load(paths, registry:, operators:, **scope)
+    return Kimera::Registry.from_file(registry) if registry
+    files = Kimera::FileSet.from_options(paths, **scope).files
+    chosen = Kimera::Operators.build(keys: operators)
+    Kimera::RegistryScan.new(operators: chosen).build(files)
   end
 end

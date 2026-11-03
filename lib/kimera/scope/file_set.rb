@@ -24,8 +24,8 @@ module Kimera
       attr_reader :path
     end
 
-    def self.from_options(from_cli, options)
-      new(Config::Precedence.new(from_cli, options[:paths]).chosen(DEFAULT_GLOBS), exclude: options[:exclude])
+    def self.from_options(from_cli, paths: nil, exclude: nil, **)
+      new(Config::Precedence.new(from_cli, paths).chosen(DEFAULT_GLOBS), exclude: exclude)
     end
 
     def self.default = new(DEFAULT_GLOBS)

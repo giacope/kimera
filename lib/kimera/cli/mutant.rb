@@ -27,7 +27,9 @@ class Kimera::CLI::Mutant
 
   def run(argv)
     (id,), options = OPTIONS.parse(argv, { report: Kimera::CLI::ReportFile.default.to_s, rerun: false })
-    show(identify(id), options)
+    chosen = identify(id)
+    report = options[:report]
+    options[:rerun] ? rerun(chosen, report) : @survivors.run([report, "--id", chosen])
   end
 
   private
@@ -35,12 +37,6 @@ class Kimera::CLI::Mutant
   def identify(id)
     raise(Kimera::UsageError, "mutant ID is required") unless id
     id
-  end
-
-  def show(id, options)
-    report = options[:report]
-    return rerun(id, report) if options[:rerun]
-    @survivors.run([report, "--id", id])
   end
 
   def rerun(id, report)
