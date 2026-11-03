@@ -4,6 +4,7 @@ require_relative "../scribe"
 require_relative "ast_walk"
 require_relative "conditions"
 require_relative "directive"
+require_relative "fit"
 require_relative "numbered_params"
 
 class Kimera::Rewrite::Outcomes
@@ -28,10 +29,8 @@ class Kimera::Rewrite::Outcomes
   private
 
   def misread?(node, directive)
-    applied = Kimera::Rewrite::Directive.new(directive).apply(node)
+    applied = Kimera::Rewrite::Fit.new(directive).applied(node) { return false }
     Kimera::Rewrite::Conditions.new(applied, tested: tested[node]).misread?
-  rescue StandardError
-    false
   end
 
   def tested = @_tested ||= Kimera::Rewrite::Conditions.new(tree).places
