@@ -35,8 +35,7 @@ module Kimera
 
       def confirmed(result, slot = nil)
         control = with_mirror { |mirror| verdict(mirror, result.covering_tests, slot: slot) }
-        return result if control.survived?
-        result.unjudged(control.contradiction)
+        control.confirmed(result) { |contradiction| result.unjudged(contradiction) }
       end
 
       def bake(trial, point)
@@ -61,14 +60,12 @@ module Kimera
       end
 
       def settle(trial, tests)
-        outcome = verdict(trial.mirror, tests, first: !plan.quality?, slot: trial.slot)
-        outcome.outside? ? verdict(trial.mirror, tests, first: !plan.quality?, slot: trial.slot) : outcome
+        verdict(trial.mirror, tests, first: !plan.quality?, slot: trial.slot)
+          .retried { verdict(trial.mirror, tests, first: !plan.quality?, slot: trial.slot) }
       end
 
       def cleared(trial, tests, outcome)
-        return outcome unless outcome.outside?
-        control = with_mirror { |mirror| verdict(mirror, tests, slot: trial.slot) }
-        control.survived? ? outcome.recurred : outcome.environmental(control)
+        outcome.cleared { with_mirror { |mirror| verdict(mirror, tests, slot: trial.slot) } }
       end
 
       def with_mutant(trial)
@@ -83,7 +80,7 @@ module Kimera
           ledger = File.join(dir, LEDGER)
           seconds = patience(locations)
           exit = launch(mirror, plan.command(mirror, locations, ledger, first: first, slot: slot), dir, seconds)
-          rulings.new(exit, ledger, captured(File.join(dir, STDERR_LOG))).outcome.timed(seconds)
+          rulings.new(exit, ledger, captured(File.join(dir, STDERR_LOG)), seconds).outcome
         end
       end
 

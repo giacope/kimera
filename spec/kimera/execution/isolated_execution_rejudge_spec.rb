@@ -135,7 +135,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
   end
 
   it "names the timeout of a control that ran past --hard-timeout" do
-    slow = Kimera::Execution::IsolatedOutcome.new(:timeout).timed(9)
+    slow = Kimera::Execution::IsolatedOutcome.new(:timeout, nil, "timed out after 9s without a test finishing")
     results, = test_rejudge(isolated: { ids.first => [:killed, nil] }, control: slow, **test_quiet)
     expect(results.first.detail).to(
       eq(

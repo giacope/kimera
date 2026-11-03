@@ -88,21 +88,27 @@ RSpec.describe(Kimera::Execution::IsolatedOutcome) do
   end
 
   it "turns an outside error that recurred into a kill that says so", :aggregate_failures do
-    recurred = described_class.new(:outside, [], "an error outside every test: x").recurred
+    clean = described_class.new(:survived)
+    recurred = described_class.new(:outside, [], "an error outside every test: x").cleared { clean }
     expect(recurred.to_h.values_at(:status, :failing_tests)).to(eq([:killed, []]))
     expect(recurred.to_h[:detail])
       .to(eq("an error outside every test: x (it recurred with the mutant on; a fresh mirror without it runs clean)"))
-    expect([recurred.outside?, described_class.new(:outside).outside?]).to(eq([false, true]))
+    expect([recurred.retried { :again }, described_class.new(:outside).retried { :again }]).to(eq([recurred, :again]))
   end
 
-  describe "#explain" do
+  it "rules a child the watchdog stopped as timed out after its allowance" do
+    expect(described_class::Ruling.new(:timeout, "no ledger", "", 30).outcome.to_s)
+      .to(eq("timed out after 30s without a test finishing"))
+  end
+
+  describe "#to_s" do
     it "says why a red isolated baseline is red" do
       outcomes = [
-        described_class.new(:timeout).timed(30), described_class.new(:timeout),
+        described_class::Ruling.new(:timeout, "no ledger", "", 30).outcome, described_class.new(:timeout),
         described_class.new(:killed, %w[a b], "Error: why"), described_class.new(:killed, %w[a b]),
         described_class.new(:killed, [], "LoadError: x"), described_class.new(:harness_error)
       ]
-      expect(outcomes.map(&:explain)).to(
+      expect(outcomes.map(&:to_s)).to(
         eq(
           [
             "timed out after 30s without a test finishing", "timed out", "failing: a, b (Error: why)",

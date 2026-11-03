@@ -231,7 +231,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end
 
     it "aborts with the reason and the mirror layout when the unmutated suite is red", :aggregate_failures do
-      red = Kimera::Execution::IsolatedOutcome.new(:timeout).timed(7)
+      red = Kimera::Execution::IsolatedOutcome.new(:timeout, nil, "timed out after 7s without a test finishing")
       expect { test_baseline(red, progress: test_recording_bar([])) }.to(
         raise_error(Kimera::Execution::BaselineFailure) do |error|
           expect(error.message).to(
