@@ -10,20 +10,29 @@ module KimeraEval
     JOBS = 4
     SKIPPED = %w[tmp/ log/ .git/ storage/].freeze
 
-    Runner = Data.define(:command, :env)
+    class Suite
+      def initialize(command, env)
+        @command = command
+        @env = env
+      end
+
+      def run(dir, timeout) = Shell.new(env: @env, chdir: dir, timeout: timeout).run(*@command)
+
+      def to_s = @command.join(" ")
+    end
 
     LOCK = Mutex.new
 
-    def initialize(project, runner:, sandbox:)
+    def initialize(project, suite:, sandbox:)
       @project = project
-      @runner = runner
+      @suite = suite
       @sandbox = sandbox
     end
 
     def baseline!
-      result = shell(copies.first).run(*@runner.command)
-      return if result.ok?
-      raise(SetupError, "oracle baseline is red in #{@project}:\n#{result.output.lines.last(40).join}")
+      exit, printed = @suite.run(copies.first, LIMIT)
+      return if exit.ok?
+      raise(SetupError, "oracle baseline is red in #{@project}:\n#{printed.output.lines.last(40).join}")
     end
 
     def verdicts(baked)
@@ -62,17 +71,14 @@ module KimeraEval
 
     def ran(copy, path, source)
       File.write(path, source)
-      verdict(shell(copy).run(*@runner.command))
+      exit, = @suite.run(copy, LIMIT)
+      exit.ok? ? "survived" : "killed"
     end
-
-    def verdict(result) = result.late? || !result.ok? ? "killed" : "survived"
-
-    def shell(dir) = Shell.new(env: @runner.env, chdir: dir, timeout: LIMIT)
 
     def copies = @_copies ||= Array.new(JOBS) { @sandbox.copy(@project, "oracle") }
 
     def key(bake)
-      Digest::SHA256.hexdigest([signature, @runner.command.join(" "), bake["file"], bake["source"]].join("\0"))
+      Digest::SHA256.hexdigest([signature, @suite.to_s, bake["file"], bake["source"]].join("\0"))
     end
 
     def signature = @_signature ||= Digest::SHA256.hexdigest(files.map { |file| "#{file}\0#{digest(file)}" }.join("\n"))

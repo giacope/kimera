@@ -22,8 +22,8 @@ module KimeraEval
     def judged(dir)
       copy = sandbox.copy(dir)
       report = File.join(sandbox.root, "#{File.basename(dir)}.json")
-      result = checkout.cli(*ARGS, "--report", report, chdir: copy)
-      File.exist?(report) ? scored(copy, report) : { "error" => result.unreported }
+      exit, = checkout.cli(*ARGS, "--report", report, chdir: copy)
+      File.exist?(report) ? scored(copy, report) : { "error" => exit.unreported }
     end
 
     def scored(copy, report)

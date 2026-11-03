@@ -20,14 +20,14 @@ module KimeraEval
     DISPOSABLE = %w[storage tmp log Gemfile.lock].freeze
 
     def call
-      bench = measure(sandbox.copy(File.join(ROOT, "examples", "rails_app"), "rails_app"))
-      seconds = bench.stdout[/seconds=([\d.]+)/, 1].to_f
-      warnings = bench.stderr.scan(/DEPRECATION WARNING.*Aliases/).size
+      exit, printed = measure(sandbox.copy(File.join(ROOT, "examples", "rails_app"), "rails_app"))
+      seconds = printed.to_s[/seconds=([\d.]+)/, 1].to_f
+      warnings = printed.output.scan(/DEPRECATION WARNING.*Aliases/).size
       summary = { "scan_s" => seconds.round(3), "deprecation_warnings" => warnings }
-      { "pass" => warnings.zero? && seconds < 1.0, "summary" => summary }.merge(scanned(bench))
+      { "pass" => warnings.zero? && seconds < 1.0, "summary" => summary }.merge(scanned(exit, printed))
     end
 
-    def scanned(bench) = { "modules" => bench.stdout[/modules=(\d+)/, 1].to_i }.merge(bench.exited)
+    def scanned(exit, printed) = { "modules" => printed.to_s[/modules=(\d+)/, 1].to_i }.merge(exit.exited)
 
     private
 
@@ -37,7 +37,7 @@ module KimeraEval
     end
 
     def bench(app)
-      env = { "BUNDLE_GEMFILE" => File.join(app, "Gemfile"), "KIMERA_PATH" => checkout.path }
+      env = { "BUNDLE_GEMFILE" => File.join(app, "Gemfile"), "KIMERA_PATH" => checkout.to_s }
       shell = Shell.new(env: env, chdir: app)
       shell.run("bundle", "install")
       shell.run("bundle", "exec", "ruby", "-e", BENCH)

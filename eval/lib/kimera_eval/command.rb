@@ -3,16 +3,14 @@
 require "optparse"
 
 module KimeraEval
-  Settings = Struct.new(:kimera, :out, :only, :quick, :keep, :baseline, keyword_init: true)
-
   class Command
     FLAGS = [
-      ["--kimera PATH", "kimera checkout to evaluate", ->(settings, path) { settings.kimera = path }],
-      ["--only IDS", "comma-separated gap ids", ->(settings, ids) { settings.only = ids.split(",") }],
-      ["--out FILE", "where to write the JSON scoreboard", ->(settings, file) { settings.out = file }],
-      ["--quick", "skip the slow corpora and the deep checks", ->(settings, on) { settings.quick = on }],
-      ["--keep", "keep the sandbox for inspection", ->(settings, on) { settings.keep = on }],
-      ["--baseline FILE", "exit 1 on a failure FILE does not record", ->(settings, file) { settings.baseline = file }]
+      ["--kimera PATH", "kimera checkout to evaluate"],
+      ["--only IDS", "comma-separated gap ids", ->(ids) { ids.split(",") }],
+      ["--out FILE", "where to write the JSON scoreboard"],
+      ["--quick", "skip the slow corpora and the deep checks"],
+      ["--keep", "keep the sandbox for inspection"],
+      ["--baseline FILE", "exit 1 on a failure FILE does not record"]
     ].freeze
 
     def initialize(out: $stdout, errors: $stderr)
@@ -21,37 +19,33 @@ module KimeraEval
     end
 
     def run(argv)
-      settings = parse(argv)
-      checkout = Checkout.new(settings.kimera)
+      given = parse(argv)
+      checkout = Checkout.new(given.fetch(:kimera))
       checkout.prepare!
-      finish(evaluate(checkout, settings), settings)
+      board = evaluate(checkout, Selection.new(given[:only], given[:quick]), given[:keep])
+      Record.new(given.fetch(:out), given[:baseline]).finished(board, @out, @errors)
     end
 
     private
 
     def parse(argv)
-      settings = Settings.new(out: File.join(RESULTS, "latest.json"))
-      parser(settings).parse!(argv)
-      settings.kimera ? settings : abort("eval/run: --kimera PATH is required")
+      given = { out: File.join(RESULTS, "latest.json") }
+      parser.parse!(argv, into: given)
+      given[:kimera] ? given : abort("eval/run: --kimera PATH is required")
     end
 
-    def parser(settings)
+    def parser
       OptionParser.new("Usage: eval/run --kimera PATH [options]") do |parser|
-        FLAGS.each { |flag, help, set| parser.on(flag, help) { |value| set.call(settings, value) } }
+        FLAGS.each { |flag, help, read = :itself.to_proc| parser.on(flag, help) { |value| read.call(value) } }
       end
     end
 
-    def evaluate(checkout, settings)
+    def evaluate(checkout, selection, keep)
       sandbox = Sandbox.new
-      context = Context.new(checkout, sandbox, settings)
-      Scoreboard.new(checkout).tap { |board| selected(settings).each { |kind| measure(board, kind, context) } }
+      context = Context.new(checkout, sandbox, selection)
+      Scoreboard.new(checkout).tap { |board| selection.each { |kind| measure(board, kind, context) } }
     ensure
-      settings.keep ? @errors.puts("eval: sandbox kept at #{sandbox.root}") : sandbox.remove!
-    end
-
-    def selected(settings)
-      only = settings.only
-      only ? CASES.select { |kind| only.include?(kind::ID) } : CASES
+      keep ? @errors.puts("eval: sandbox kept at #{sandbox.root}") : sandbox.remove!
     end
 
     def measure(board, kind, context)
@@ -65,20 +59,9 @@ module KimeraEval
     def clock(now = Process.clock_gettime(Process::CLOCK_MONOTONIC)) = now
 
     def attempt(kind, context)
-      kind.new(context).call
+      context.judged(kind)
     rescue StandardError => error
       { "pass" => false, "error" => "#{error.class}: #{error.message}\n#{error.backtrace.first(5).join("\n")}" }
     end
-
-    def finish(board, settings)
-      baseline = settings.baseline
-      worse = baseline ? board.failing - recorded(board, baseline) : []
-      board.write(settings.out)
-      @out.puts(board.markdown)
-      @errors.puts("eval: worse than #{baseline}: #{worse.join(" ")}") unless worse.empty?
-      worse.empty? ? 0 : 1
-    end
-
-    def recorded(board, path) = board.failing(JSON.parse(File.read(path, encoding: Encoding::UTF_8)).fetch("cases"))
   end
 end

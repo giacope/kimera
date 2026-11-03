@@ -9,34 +9,33 @@ module KimeraEval
   RSPEC = %w[bundle exec rspec].freeze
   COUNTS = /(\d+) examples?, (\d+) failures?/
 
-  Specs =
-    Data.define(:ok, :examples, :failures, :wall_s) do
-      def self.of(result)
-        examples, failures = result.stdout.scan(COUNTS).last
-        new(result.ok?, examples.to_i, failures.to_i, result.wall.round(1))
-      end
-
-      def to_h = super.transform_keys(&:to_s)
+  class Specs
+    def initialize(exit, printed, usage)
+      @exit = exit
+      @printed = printed
+      @usage = usage
     end
 
-  Context = Data.define(:checkout, :sandbox, :settings)
+    def to_h
+      examples, failures = @printed.to_s.scan(COUNTS).last
+      { "ok" => @exit.ok?, "examples" => examples.to_i, "failures" => failures.to_i }.merge(@usage.timed(1))
+    end
+  end
 
   class Case
     TOTALS = %w[mutants agree false_survived false_killed abstained unbakeable].freeze
 
-    def initialize(context)
-      @context = context
+    def initialize(checkout, sandbox, selection)
+      @checkout = checkout
+      @sandbox = sandbox
+      @selection = selection
     end
 
     private
 
-    attr_reader :context
+    attr_reader :checkout, :sandbox
 
-    def checkout = context.checkout
-
-    def sandbox = context.sandbox
-
-    def quick? = context.settings.quick
+    def quick? = @selection.quick?
 
     def fixture(*parts) = File.join(FIXTURES, *parts)
 
@@ -49,17 +48,17 @@ module KimeraEval
 
     def command(dir) = framework(dir) == "minitest" ? MINITEST : RSPEC
 
-    def oracle(dir, runner = Oracle::Runner.new(command(dir), TOOLCHAIN))
-      Oracle.new(dir, runner: runner, sandbox: sandbox).tap(&:baseline!)
+    def oracle(dir, suite = Oracle::Suite.new(command(dir), TOOLCHAIN))
+      Oracle.new(dir, suite: suite, sandbox: sandbox).tap(&:baseline!)
     end
 
     def target(dir, arguments: [], env: {}) = Differential::Target.new(dir, arguments, env)
 
-    def differential(target, modes, truth = oracle(target.project))
-      modes.to_h { |mode| [mode.join(" "), Differential.new(checkout, copied(target), oracle: truth).call(mode)] }
+    def differential(target, modes, truth)
+      modes.to_h do |mode|
+        [mode.join(" "), Differential.new(checkout, target.copied(sandbox), oracle: truth).call(mode)]
+      end
     end
-
-    def copied(target) = target.with(project: sandbox.copy(target.project))
 
     def totals(runs)
       errors = runs.count { |run| run["error"] }
@@ -70,7 +69,7 @@ module KimeraEval
       total.slice("mutants", "false_survived", "false_killed", "abstained").merge(Differential::Agreement.new(total).to_h)
     end
 
-    def specs(result) = Specs.of(result).to_h
+    def specs(...) = Specs.new(...).to_h
   end
 end
 

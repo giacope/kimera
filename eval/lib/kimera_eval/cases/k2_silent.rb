@@ -18,13 +18,14 @@ module KimeraEval
 
     def scan(dir)
       path = File.join(dir, "tmp", "silent.json")
-      result = checkout.cli("run", "--report", path, "--no-progress", chdir: dir)
-      return "#{result.unreported}: #{result.output.lines.last(5).join}" unless File.exist?(path)
+      exit, printed = checkout.cli("run", "--report", path, "--no-progress", chdir: dir)
+      return "#{exit.unreported}: #{printed.output.lines.last(5).join}" unless File.exist?(path)
       JSON.parse(File.read(path, encoding: Encoding::UTF_8))
     end
 
     def verdicts
-      run = differential(target(fixture("silent")), [%w[--jobs 1]]).values.first
+      dir = fixture("silent")
+      run = differential(target(dir), [%w[--jobs 1]], oracle(dir)).values.first
       { "differential" => run.except("disagreements"), "disagreements" => run["disagreements"] }
     end
 

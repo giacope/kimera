@@ -18,8 +18,7 @@ module KimeraEval
     end
 
     def to_h
-      { "kimera" => @checkout.path, "revision" => @checkout.revision, "ruby" => RUBY_VERSION }
-        .merge("at" => @clock.now.utc.iso8601, "cases" => @cases)
+      @checkout.to_h.merge("ruby" => RUBY_VERSION, "at" => @clock.now.utc.iso8601, "cases" => @cases)
     end
 
     def write(path)

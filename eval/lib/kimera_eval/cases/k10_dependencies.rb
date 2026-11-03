@@ -9,7 +9,7 @@ module KimeraEval
 
     def call
       closure = resolve
-      readme = File.read(File.join(checkout.path, "README.md"))
+      readme = File.read(File.join(checkout.to_s, "README.md"))
       missing = closure.reject { |name| readme.match?(/\b#{Regexp.escape(name)}\b/i) }
       { "pass" => missing.empty?, "summary" => { "closure" => closure.size, "unnamed" => missing.join(" ") } }
         .merge("closure" => closure)
@@ -25,7 +25,7 @@ module KimeraEval
 
     def locked(dir, gemfile)
       FileUtils.mkdir_p(dir)
-      File.write(gemfile, "source 'https://rubygems.org'\ngem 'kimera', path: #{checkout.path.dump}")
+      File.write(gemfile, "source 'https://rubygems.org'\ngem 'kimera', path: #{checkout.to_s.dump}")
       Shell.new(env: { "BUNDLE_GEMFILE" => gemfile }, chdir: dir).run("bundle", "lock")
     end
 

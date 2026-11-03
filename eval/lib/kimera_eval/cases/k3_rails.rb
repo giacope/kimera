@@ -18,13 +18,14 @@ module KimeraEval
 
     private
 
-    def environment = { "BUNDLE_GEMFILE" => nil, "KIMERA_PATH" => checkout.path, "PARALLEL_WORKERS" => "1" }
+    def environment = { "BUNDLE_GEMFILE" => nil, "KIMERA_PATH" => checkout.to_s, "PARALLEL_WORKERS" => "1" }
 
     def bundled(app) = environment.merge("BUNDLE_GEMFILE" => File.join(app, "Gemfile"))
 
     def prepare(app, env)
       FileUtils.rm_rf(DISPOSABLE.map { |entry| File.join(app, entry) })
-      install(app, env).then { |result| result.ok? ? app : raise(SetupError, "bundle install failed in #{app}") }
+      exit, = install(app, env)
+      exit.ok? ? app : raise(SetupError, "bundle install failed in #{app}")
     end
 
     def install(app, env)
@@ -35,7 +36,7 @@ module KimeraEval
     def suite(app, arguments, command)
       env = bundled(app)
       @truth ||= {}
-      truth = @truth[command] ||= oracle(app, Oracle::Runner.new(command, env))
+      truth = @truth[command] ||= oracle(app, Oracle::Suite.new(command, env))
       differential(target(app, arguments: arguments, env: env.merge("BUNDLE_GEMFILE" => "Gemfile")), MODES, truth)
     end
 
@@ -55,7 +56,7 @@ module KimeraEval
     end
 
     def link(entry, tree)
-      source = File.join(checkout.path, entry)
+      source = File.join(checkout.to_s, entry)
       FileUtils.mkdir_p(File.join(tree, "examples"))
       FileUtils.ln_s(source, File.join(tree, entry)) if File.exist?(source)
     end

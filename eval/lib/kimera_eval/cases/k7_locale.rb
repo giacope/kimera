@@ -29,7 +29,7 @@ module KimeraEval
     def commands(env)
       dir = sandbox.copy(fixture("locale"))
       steps(File.join(dir, "tmp", "locale.json")).to_h do |name, arguments|
-        [name, step(name, checkout.cli(*arguments, chdir: dir, env: env))]
+        [name, step(name, *checkout.cli(*arguments, chdir: dir, env: env))]
       end
     end
 
@@ -38,19 +38,16 @@ module KimeraEval
         .merge("mutant" => ["mutant", "1", "--report", report], "doctor" => ["doctor"])
     end
 
-    def step(name, result)
-      text = result.output
-      { "ok" => result.exited?(EXPECTED.fetch(name)) && !text.match?(BROKEN) && intact?(name, text) }
-        .merge(result.exited).merge("tail" => text.lines.last(3).join)
+    def step(name, exit, printed, _usage)
+      text = printed.output
+      { "ok" => exit.exited?(EXPECTED.fetch(name)) && !text.match?(BROKEN) && intact?(name, text) }
+        .merge(exit.exited).merge("tail" => text.lines.last(3).join)
     end
 
     def intact?(name, text) = name == "doctor" || text.include?("é")
 
     def suite(env)
-      specs(
-        Shell.new(env: { "BUNDLE_GEMFILE" => checkout.gemfile }.merge(env), chdir: checkout.path, timeout: 900)
-          .run("bundle", "exec", "ruby", "bin/spec", *SPECS)
-      )
+      specs(*checkout.shell(env: env, timeout: 900).run("bundle", "exec", "ruby", "bin/spec", *SPECS))
     end
   end
 end

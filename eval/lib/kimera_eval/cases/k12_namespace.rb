@@ -8,7 +8,8 @@ module KimeraEval
 
     def call
       added = constants
-      run = differential(target(fixture("collision")), [%w[--jobs 1]]).values.first
+      dir = fixture("collision")
+      run = differential(target(dir), [%w[--jobs 1]], oracle(dir)).values.first
       summary = { "top_level" => added.join(" "), "collision_run" => run["error"] ? "error" : "ok" }
       { "pass" => added == ["Kimera"] && run["error"].nil? && run["agree"] == run["mutants"], "summary" => summary }
         .merge("run" => run)
@@ -17,7 +18,8 @@ module KimeraEval
     private
 
     def constants
-      Shell.new(chdir: checkout.path).run("ruby", "-I", File.join(checkout.path, "lib"), "-e", PROBE).stdout.split
+      _, printed = Shell.new(chdir: checkout.to_s).run("ruby", "-I", File.join(checkout.to_s, "lib"), "-e", PROBE)
+      printed.to_s.split
     end
   end
 end

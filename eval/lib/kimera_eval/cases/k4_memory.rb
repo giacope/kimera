@@ -18,8 +18,9 @@ module KimeraEval
 
     def measure(mode)
       dir = sandbox.copy(fixture("loop"))
-      result = checkout.cli("run", *mode, "--report", File.join(dir, "tmp", "loop.json"), "--no-progress", chdir: dir)
-      result.rss.merge(result.timed(2)).merge("tail" => result.output.lines.last(2).join)
+      report = File.join(dir, "tmp", "loop.json")
+      exit, printed, usage = checkout.cli("run", *mode, "--report", report, "--no-progress", chdir: dir)
+      usage.to_h.merge(usage.timed(2)).merge(exit.exited).merge("tail" => printed.output.lines.last(2).join)
     end
   end
 end

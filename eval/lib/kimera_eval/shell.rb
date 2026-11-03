@@ -4,22 +4,42 @@ require "open3"
 
 module KimeraEval
   class Shell
-    Result =
-      Data.define(:status, :stdout, :stderr, :wall, :rss, :late) do
-        def ok? = !late && status.success?
-
-        def exited = { "exit" => late ? nil : status.exitstatus }
-
-        def timed(digits) = { "wall_s" => wall.round(digits) }.merge(exited)
-
-        def exited?(code) = !late && status.exitstatus == code
-
-        def unreported = "no report (exit #{exited.fetch("exit")})"
-
-        def output = stdout + stderr
-
-        def late? = late
+    class Exit
+      def initialize(status, late)
+        @status = status
+        @late = late
       end
+
+      def ok? = !@late && @status.success?
+
+      def exited = { "exit" => @late ? nil : @status.exitstatus }
+
+      def exited?(code) = !@late && @status.exitstatus == code
+
+      def unreported = "no report (exit #{exited.fetch("exit")})"
+    end
+
+    class Printed
+      def initialize(stdout, stderr)
+        @stdout = stdout
+        @stderr = stderr
+      end
+
+      def output = @stdout + @stderr
+
+      def to_s = @stdout
+    end
+
+    class Usage
+      def initialize(wall, rss)
+        @wall = wall
+        @rss = rss
+      end
+
+      def timed(digits) = { "wall_s" => @wall.round(digits) }
+
+      def to_h = @rss
+    end
 
     INTERVAL = 0.05
     PAGE = 4096
@@ -55,8 +75,10 @@ module KimeraEval
       sampler = Thread.new { peak.sample until waiter.join(INTERVAL) }
       status, late = wait(waiter)
       sampler.join
-      Result.new(status, *readers.map { |reader| text(reader.value) }, clock - started, peak.to_h, late)
+      [Exit.new(status, late), printed(readers), Usage.new(clock - started, peak.to_h)]
     end
+
+    def printed(readers) = Printed.new(*readers.map { |reader| text(reader.value) })
 
     def text(bytes) = bytes.to_s.force_encoding(Encoding::UTF_8).scrub
 

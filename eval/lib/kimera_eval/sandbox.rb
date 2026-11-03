@@ -2,12 +2,10 @@
 
 require "fileutils"
 require "tmpdir"
+require_relative "repository"
 
 module KimeraEval
   class Sandbox
-    IDENTITY = %w[AUTHOR COMMITTER]
-      .flat_map { |role| [["GIT_#{role}_NAME", "eval"], ["GIT_#{role}_EMAIL", "eval@example.com"]] }.to_h.freeze
-
     def initialize(dirs = Dir)
       @dirs = dirs
     end
@@ -21,19 +19,7 @@ module KimeraEval
       target
     end
 
-    def shell(dir) = Shell.new(chdir: dir, env: IDENTITY)
-
-    def git(dir)
-      shell = shell(dir)
-      shell.run("git", "init", "-q", "-b", "main")
-      commit(shell, "fixture")
-      dir
-    end
-
-    def commit(shell, message)
-      shell.run("git", "add", "-A")
-      shell.run("git", "commit", "-q", "-m", message)
-    end
+    def repository(dir) = Repository.new(dir).started
 
     def remove! = FileUtils.rm_rf(root)
 

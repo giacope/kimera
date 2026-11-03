@@ -8,7 +8,26 @@ module KimeraEval
     SURVIVALS = %w[survived no_coverage].freeze
     VERDICTS = %w[agree false_survived false_killed abstained unbakeable].freeze
 
-    Target = Data.define(:project, :args, :env)
+    class Target
+      def initialize(project, arguments, env)
+        @project = project
+        @arguments = arguments
+        @env = env
+      end
+
+      def ran(checkout, mode)
+        report = File.join(@project, "tmp", "eval-#{mode.join.delete("-")}.json")
+        arguments = ["run", *@arguments, *mode, "--report", report, "--no-progress"]
+        [report, *checkout.cli(*arguments, chdir: @project, env: @env)]
+      end
+
+      def baked(checkout, script, ids)
+        _, printed = checkout.script(script, *@arguments, chdir: @project, stdin: JSON.generate(ids))
+        JSON.parse(printed.to_s)
+      end
+
+      def copied(sandbox) = self.class.new(sandbox.copy(@project), @arguments, @env)
+    end
 
     def initialize(checkout, target, oracle:)
       @checkout = checkout
@@ -17,33 +36,29 @@ module KimeraEval
     end
 
     def call(mode)
-      report = File.join(@target.project, "tmp", "eval-#{mode.join.delete("-")}.json")
-      arguments = ["run", *@target.args, *mode, "--report", report, "--no-progress"]
-      run = @checkout.cli(*arguments, chdir: @target.project, env: @target.env)
-      return failed(run, mode) unless File.exist?(report)
-      compare(JSON.parse(File.read(report, encoding: Encoding::UTF_8)), run)
+      report, *run = @target.ran(@checkout, mode)
+      return failed(*run, mode) unless File.exist?(report)
+      compare(JSON.parse(File.read(report, encoding: Encoding::UTF_8)), *run)
     end
 
     private
 
-    def failed(run, mode)
-      { "mode" => mode.join(" "), "error" => "#{run.unreported}: #{run.output.lines.last(8).join}" }
+    def failed(exit, printed, _usage, mode)
+      { "mode" => mode.join(" "), "error" => "#{exit.unreported}: #{printed.output.lines.last(8).join}" }
     end
 
-    def compare(report, run)
+    def compare(report, exit, _printed, usage)
       results = report.fetch("results")
       truth = @oracle.verdicts(bake(results.map { |result| result["mutant_id"] }))
-      summary(results.map { |result| row(result, truth.fetch(result["mutant_id"].to_s)) }, run).merge(notes(report))
+      summary(results.map { |result| row(result, truth.fetch(result["mutant_id"].to_s)) }, exit, usage)
+        .merge(notes(report))
     end
 
     def notes(report)
       { "leaks" => Array(report["leaks"]).size, "rejudged" => report.fetch("results").count { |row| row["note"] } }
     end
 
-    def bake(ids)
-      script = File.join(__dir__, "bake.rb")
-      JSON.parse(@checkout.script(script, *@target.args, chdir: @target.project, stdin: JSON.generate(ids)).stdout)
-    end
+    def bake(ids) = @target.baked(@checkout, File.join(__dir__, "bake.rb"), ids)
 
     def row(result, oracle)
       result.slice("file", "line", "label").merge("id" => result["mutant_id"], "kimera" => result["status"])
@@ -57,13 +72,13 @@ module KimeraEval
       KILLS.include?(status) ? "false_killed" : "false_survived"
     end
 
-    def summary(rows, run)
-      counts(rows.map { |row| row["verdict"] }.tally, rows.size).merge(measured(run))
+    def summary(rows, exit, usage)
+      counts(rows.map { |row| row["verdict"] }.tally, rows.size).merge(measured(exit, usage))
         .merge("statuses" => rows.map { |row| row["kimera"] }.tally)
         .merge("disagreements" => rows.reject { |row| row["verdict"] == "agree" })
     end
 
-    def measured(run) = run.timed(2).merge("rss" => run.rss)
+    def measured(exit, usage) = usage.timed(2).merge(exit.exited).merge("rss" => usage.to_h)
 
     def counts(tally, total)
       { "mutants" => total }.merge(VERDICTS.to_h { |verdict| [verdict, tally.fetch(verdict, 0)] })
