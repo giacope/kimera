@@ -19,5 +19,8 @@ Kimera::Execution::BaselineLosses =
     end
     def recovered(failed) = stalled_stacks.reject { |test_id, _stacks| failed.key?(test_id) }
 
-    def told(test_id, message) = stacks[test_id] ? [message, stacks[test_id]] : message
+    def told(test_id, message)
+      found = stacks.fetch(test_id, [])
+      found.empty? ? message : [message, *found]
+    end
   end

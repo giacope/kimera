@@ -75,7 +75,7 @@ class Kimera::Execution::IsolatedPlan
   def candidates(id, point)
     return if point.unloaded?
     return @tests if everything?(point)
-    whole?(point) ? kin.tests(point.file) : selection.recorded(id)
+    whole?(point) ? kin.tests(point.file) : selection.recorded(id) { return }
   end
 
   def everything?(point, protection = Kimera::SelfProtection)
@@ -88,13 +88,13 @@ class Kimera::Execution::IsolatedPlan
 
   def selection = @_selection ||= @options.fetch(:selection) { selected }
 
-  def selected = TestSelection.new(all_tests: @tests, coverage: @options.fetch(:coverage, {}))
+  def selected = TestSelection.new(coverage: @options.fetch(:coverage, {}))
 
   def kin = @_kin ||= @options.fetch(:kin) { kindred }
 
   def kindred
     Kin.new(
-      all: @tests, coverage: @options[:coverage] || {}, registry: @registry,
+      all: @tests, coverage: @options.fetch(:coverage, {}).to_h, registry: @registry,
       locate: @options[:test_paths] || ->(_test) { "" }
     )
   end

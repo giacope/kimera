@@ -6,6 +6,7 @@ require_relative "../results/result"
 require_relative "../runtime"
 require_relative "isolation"
 require_relative "patience"
+require_relative "unmeasured"
 require_relative "zygote"
 
 class Kimera::Execution::Shift
@@ -26,7 +27,7 @@ class Kimera::Execution::Shift
     attr_reader :requests, :responses
   end
 
-  def initialize(adapter:, registry:, coverage: Unmapped.new(adapter), **options)
+  def initialize(adapter:, registry:, coverage: Kimera::Execution::Unmeasured.new(adapter), **options)
     @adapter = adapter
     @registry = registry
     @coverage = coverage
@@ -138,5 +139,4 @@ require_relative "shift/coverage_channel"
 require_relative "shift/killer_memory"
 require_relative "shift/subject"
 require_relative "shift/suspect"
-require_relative "shift/unmapped"
 require_relative "shift/unmask"

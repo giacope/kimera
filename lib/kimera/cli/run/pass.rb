@@ -20,7 +20,7 @@ class Kimera::CLI::Run::Pass
   end
 
   def call(remaining)
-    with_adapter { perform(remaining).then { |judged| judged.annotate(flaky: harness.flakes&.to_h, **suite) } }
+    with_adapter { harness.noted(perform(remaining)).annotate(**suite) }
       .then { |judged| judged.described(@adapter.catalog(judged.test_ids)) }
   end
 

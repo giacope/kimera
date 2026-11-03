@@ -88,7 +88,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     let(:verdicts) { described_class.new(registry) }
 
     it "adds the worker's stacks to a hard-timeout verdict", :aggregate_failures do
-      expect(verdicts.timeout(ids.first, 2.0, "threads: main").detail).to(eq("hard watchdog timeout\nthreads: main"))
+      expect(verdicts.timeout(ids.first, 2.0, ["threads: main"]).detail).to(eq("hard watchdog timeout\nthreads: main"))
       expect(verdicts.timeout(ids.first, 2.0).detail).to(eq("hard watchdog timeout"))
     end
 

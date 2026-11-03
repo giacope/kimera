@@ -32,7 +32,7 @@ class Kimera::Execution::WorkerPool
     worker.offer(id, recheck: fleet.recheck?(id))
   end
 
-  def lost(id, reason, stacks = nil) = listeners.lost.call(id, reason, stacks)
+  def lost(id, reason, stacks = []) = listeners.lost.call(id, reason, stacks)
 
   private
 

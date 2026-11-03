@@ -26,6 +26,7 @@ require_relative "schemata"
 require_relative "verdicts"
 require_relative "shift"
 require_relative "time_budget"
+require_relative "unmeasured"
 require_relative "worker_pool"
 
 class Kimera::Execution::Harness
@@ -67,13 +68,13 @@ class Kimera::Execution::Harness
 
   def run(ids: mutants, label: "mutants") = schedule.run(ids, coverage: coverage, label: label)
 
-  def coverage = options[:coverage]
+  def coverage = options.fetch(:coverage) { Kimera::Execution::Unmeasured.new(adapter) }
 
   def isolated(executions = Kimera::Execution::IsolatedExecution, **) = executions.new(coverage:, timings:, **)
 
   def timings = options.fetch(:timings, {})
 
-  def flakes = options[:flakes]
+  def noted(report) = report.annotate(flaky: options[:flakes]&.to_h)
 
   def skipped = state.skipped
 

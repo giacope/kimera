@@ -8,7 +8,13 @@ module KimeraEval
       Data.define(:status, :stdout, :stderr, :wall, :rss, :late) do
         def ok? = !late && status.success?
 
-        def code = late ? nil : status.exitstatus
+        def exited = { "exit" => late ? nil : status.exitstatus }
+
+        def timed(digits) = { "wall_s" => wall.round(digits) }.merge(exited)
+
+        def exited?(code) = !late && status.exitstatus == code
+
+        def unreported = "no report (exit #{exited.fetch("exit")})"
 
         def output = stdout + stderr
 

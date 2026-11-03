@@ -96,12 +96,12 @@ class Kimera::Execution::BaselinePass
     progress.tick
   end
 
-  def lost(test_id, reason, stacks = nil)
+  def lost(test_id, reason, stacks = [])
     return losses.stall(test_id, stacks) if reason == :timeout
     relapse(test_id, reason, stacks)
   end
 
-  def relapse(test_id, reason, stacks = nil)
+  def relapse(test_id, reason, stacks = [])
     tally.messages[test_id] = losses.charge(test_id, reason, stacks)
     tally.failures << test_id
     progress.tick

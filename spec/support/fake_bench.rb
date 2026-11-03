@@ -47,7 +47,7 @@ end
 # tier, and writes down what it was asked, in order, and the settings it was
 # built with.
 class FakeHarness
-  attr_reader :settings, :asked, :coverage, :flakes
+  attr_reader :settings, :asked, :coverage
 
   def initialize(
     report = Kimera::RunReport.new(results: []), coverage: nil, flakes: nil, isolation: FakeIsolation.new, &answer
@@ -74,6 +74,8 @@ class FakeHarness
   end
 
   def isolated(**settings) = @isolation.built(settings)
+
+  def noted(report) = report.annotate(flaky: @flakes&.to_h)
 end
 
 # A warm harness whose suite is not green: its warm pass raises the failure it

@@ -31,7 +31,7 @@ RSpec.describe(Kimera::Execution::StackDump) do
   # A thread as the dump reads one: its name, its frames and its status.
   def thread(name, frames: [], status: "sleep") = Struct.new(:name, :backtrace, :status).new(name, frames, status)
 
-  def interrupted = armed { dump.take(Process.pid) }
+  def interrupted = armed { dump.take(Process.pid) }.fetch(0)
 
   it "answers the signal with the interrupted thread's own frames", :aggregate_failures do
     lines = interrupted.lines(chomp: true)
@@ -99,7 +99,7 @@ RSpec.describe(Kimera::Execution::StackDump) do
     grace = described_class::GRACE
     silent = patient([0.0, grace / 2, grace, grace * 2], pauses)
 
-    expect(trapped("IGNORE") { silent.take(Process.pid) }).to(eq(described_class::UNANSWERED))
+    expect(trapped("IGNORE") { silent.take(Process.pid) }).to(eq([described_class::UNANSWERED]))
     expect(pauses).to(eq([described_class::POLL]))
   end
 
@@ -114,7 +114,7 @@ RSpec.describe(Kimera::Execution::StackDump) do
     stub_const("#{described_class}::GRACE", 0.05)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-    expect(trapped("IGNORE") { dump.take(Process.pid) }).to(eq(described_class::UNANSWERED))
+    expect(trapped("IGNORE") { dump.take(Process.pid) }).to(eq([described_class::UNANSWERED]))
     expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to(be_between(0.05, 1.0))
   end
 
@@ -138,15 +138,15 @@ RSpec.describe(Kimera::Execution::StackDump) do
     end
   end
 
-  it "returns nil for a worker that already exited" do
+  it "takes no dump from a worker that already exited" do
     pid = fork { exit!(0) }
     Process.wait(pid)
-    expect(dump.take(pid)).to(be_nil)
+    expect(dump.take(pid)).to(eq([]))
   end
 
   it "reads a dump as UTF-8, replacing invalid bytes" do
     File.binwrite(File.join(dir, "#{Process.pid}.txt"), "caf\xC3\xA9 \xFF")
-    expect(trapped("IGNORE") { dump.take(Process.pid) }).to(eq("café �"))
+    expect(trapped("IGNORE") { dump.take(Process.pid) }).to(eq(["café �"]))
   end
 
   # A worker in the pool's own process group gets the signal alone; only a

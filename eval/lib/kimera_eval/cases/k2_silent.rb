@@ -19,7 +19,7 @@ module KimeraEval
     def scan(dir)
       path = File.join(dir, "tmp", "silent.json")
       result = checkout.cli("run", "--report", path, "--no-progress", chdir: dir)
-      return "no report (exit #{result.code}): #{result.output.lines.last(5).join}" unless File.exist?(path)
+      return "#{result.unreported}: #{result.output.lines.last(5).join}" unless File.exist?(path)
       JSON.parse(File.read(path, encoding: Encoding::UTF_8))
     end
 

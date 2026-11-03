@@ -27,7 +27,7 @@ module KimeraEval
       { "pass" => warnings.zero? && seconds < 1.0, "summary" => summary }.merge(scanned(bench))
     end
 
-    def scanned(bench) = { "modules" => bench.stdout[/modules=(\d+)/, 1].to_i, "exit" => bench.code }
+    def scanned(bench) = { "modules" => bench.stdout[/modules=(\d+)/, 1].to_i }.merge(bench.exited)
 
     private
 

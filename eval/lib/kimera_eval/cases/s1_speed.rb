@@ -31,8 +31,7 @@ module KimeraEval
 
     def timed(mode)
       copy = sandbox.copy(File.join(ROOT, "examples", "sample_app"))
-      result = checkout.cli("run", "app", "--tests", "spec/**/*_spec.rb", *mode, "--no-progress", chdir: copy)
-      { "wall_s" => result.wall.round(2), "exit" => result.code }
+      checkout.cli("run", "app", "--tests", "spec/**/*_spec.rb", *mode, "--no-progress", chdir: copy).timed(2)
     end
 
     def inflector
@@ -63,7 +62,7 @@ module KimeraEval
       arguments = ["run", *SELF, "--jobs", "4", "--no-progress", "--report", report]
       result = checkout.cli(*arguments, chdir: checkout.path, timeout: 3600)
       tail = result.output.lines.grep(/mutants=/).last.to_s.strip
-      { "wall_s" => result.wall.round(1), "exit" => result.code, "tail" => tail }
+      result.timed(1).merge("tail" => tail)
     end
   end
 end

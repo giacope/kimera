@@ -51,7 +51,7 @@ class Kimera::Execution::WorkerPool::Fleet
     guard.progress!
   end
 
-  def remove(pipe, reason: :crash, stacks: nil)
+  def remove(pipe, reason: :crash, stacks: [])
     worker = workers.delete(pipe)
     slots.push(worker.slot)
     close(worker)

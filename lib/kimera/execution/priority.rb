@@ -10,14 +10,11 @@ class Kimera::Execution::Priority
     @coverage = coverage
   end
 
-  def order(ids)
-    return ids unless @coverage
-    ids.sort_by { |id| -count(id) }
-  end
+  def order(ids) = ids.sort_by { |id| -count(id) }
 
   private
 
-  def count(id)
-    @coverage.fetch(id) { @coverage.fetch(id.to_s, []) }.size
-  end
+  def count(id) = recorded.fetch(id) { recorded.fetch(id.to_s, []) }.size
+
+  def recorded = @_recorded ||= @coverage.to_h
 end

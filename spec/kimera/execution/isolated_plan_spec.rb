@@ -100,7 +100,8 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
 
     # --no-coverage measured nothing, so every test covers every mutant, as warm.
     it "runs the whole suite when no coverage was measured" do
-      expect(plan(coverage: nil).tests(mutant_id, point)).to(eq(%w[t1 t2 t3]))
+      unmeasured = Kimera::Execution::Unmeasured.new(FakeSuite.new(%w[t1 t2 t3]))
+      expect(plan(coverage: unmeasured).tests(mutant_id, point)).to(eq(%w[t1 t2 t3]))
     end
 
     it "runs a schema-unsafe point against the whole suite (a safe superset)" do

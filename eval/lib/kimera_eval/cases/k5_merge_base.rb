@@ -16,7 +16,7 @@ module KimeraEval
       dir = history(sandbox.git(sandbox.copy(fixture("diff"))))
       path = File.join(dir, "tmp", "since.json")
       result = checkout.cli("run", "--since", "main", "--report", path, "--no-progress", chdir: dir)
-      judge(File.exist?(path) ? methods(path) : []).merge("exit" => result.code)
+      judge(File.exist?(path) ? methods(path) : []).merge(result.exited)
     end
 
     private

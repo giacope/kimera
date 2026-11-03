@@ -23,7 +23,7 @@ class Kimera::Execution::BaselineFailure::Summary
 
     def breakdown(failed) = Kimera::Execution::BaselineFailure::Breakdown.new(failed, @workers).to_s
 
-    def stack(id) = @stacks.slice(id).values.compact
+    def stack(id) = @stacks.fetch(id, [])
 
     def advice(failed) = "#{order}#{shared(failed)}"
 

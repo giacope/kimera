@@ -76,21 +76,21 @@ RSpec.describe Kimera::Execution::WorkerPool::Worker do
 
     it "says how the worker died, then what it said last", :aggregate_failures do
       worker = described_class.new(last_words: "SignalException: SIGTERM")
-      expect(worker.obituary(status(:signal))).to(eq("died on signal 15 (SIGTERM)\nSignalException: SIGTERM"))
-      expect(described_class.new.obituary(status(:exit))).to(eq("exited 3"))
+      expect(worker.obituary(status(:signal))).to(eq(["died on signal 15 (SIGTERM)\nSignalException: SIGTERM"]))
+      expect(described_class.new.obituary(status(:exit))).to(eq(["exited 3"]))
     end
 
     it "has only the last words for a worker that could not be reaped, and nothing without them", :aggregate_failures do
-      expect(described_class.new(last_words: "Boom: x").obituary(nil)).to(eq("Boom: x"))
-      expect(described_class.new.obituary(nil)).to(be_nil)
+      expect(described_class.new(last_words: "Boom: x").obituary(nil)).to(eq(["Boom: x"]))
+      expect(described_class.new.obituary(nil)).to(eq([]))
     end
   end
 
   it "takes an autopsy only from an armed worker", :aggregate_failures do
     stacks = Object.new
-    stacks.define_singleton_method(:take) { |pid| "dump #{pid}" }
+    stacks.define_singleton_method(:take) { |pid| ["dump #{pid}"] }
 
-    expect(described_class.new(pid: 42, stacks: stacks).autopsy).to(eq("dump 42"))
-    expect(described_class.new(pid: 42).autopsy).to(be_nil)
+    expect(described_class.new(pid: 42, stacks: stacks).autopsy).to(eq(["dump 42"]))
+    expect(described_class.new(pid: 42).autopsy).to(eq([]))
   end
 end

@@ -34,7 +34,7 @@ Kimera::Execution::WorkerPool::Worker =
     end
 
     def autopsy
-      stacks&.take(pid)
+      Array(stacks&.take(pid))
     end
 
     def halt
@@ -63,7 +63,7 @@ Kimera::Execution::WorkerPool::Worker =
 
     def obituary(status)
       words = [demise(status), last_words].compact
-      words.join("\n") unless words.empty?
+      words.empty? ? [] : [words.join("\n")]
     end
 
     def demise(status)

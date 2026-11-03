@@ -125,6 +125,11 @@ RSpec.describe(Kimera::Execution::Harness) do
     end.new
   end
 
+  # Before its warm pass measures anything, every test may cover any mutant.
+  it "answers unmeasured coverage until its warm pass measures it" do
+    expect(harness(adapter(coverage: { "t1" => [], "t2" => [] })).coverage.fetch(ids.first)).to(eq(%w[t1 t2]))
+  end
+
   describe "hard_timeout default" do
     it "derives from soft_timeout when not given" do
       h = harness(adapter, soft_timeout: 5.0)
@@ -1496,7 +1501,8 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "reruns the covering tests under other seeds and names the test that changed its result" do
       h, = shaken
-      expect([h.flakes.flaky, h.flakes.to_h["seeds"]]).to(eq([["shaky"], [6]]))
+      flaky = h.noted(Kimera::RunReport.new(results: [])).notes.flaky
+      expect([flaky["flaky"].map { |flake| flake["test"] }, flaky["seeds"]]).to(eq([["shaky"], [6]]))
     end
 
     it "lets no test that changed its result kill" do

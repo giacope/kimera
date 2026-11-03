@@ -27,7 +27,7 @@ module KimeraEval
     private
 
     def failed(run, mode)
-      { "mode" => mode.join(" "), "error" => "no report (exit #{run.code}): #{run.output.lines.last(8).join}" }
+      { "mode" => mode.join(" "), "error" => "#{run.unreported}: #{run.output.lines.last(8).join}" }
     end
 
     def compare(report, run)
@@ -63,11 +63,11 @@ module KimeraEval
         .merge("disagreements" => rows.reject { |row| row["verdict"] == "agree" })
     end
 
-    def measured(run) = { "wall_s" => run.wall.round(2), "exit" => run.code, "rss" => run.rss }
+    def measured(run) = run.timed(2).merge("rss" => run.rss)
 
     def counts(tally, total)
       { "mutants" => total }.merge(VERDICTS.to_h { |verdict| [verdict, tally.fetch(verdict, 0)] })
-        .merge("agreement_pct" => Agreement.new(tally).percent)
+        .merge(Agreement.new(tally).to_h)
     end
 
     class Agreement
@@ -75,9 +75,9 @@ module KimeraEval
         @tally = tally
       end
 
-      def percent
+      def to_h
         judged = verdicts.sum { |verdict, count| %w[abstained unbakeable].include?(verdict) ? 0 : count }
-        judged.zero? ? nil : (100.0 * verdicts.fetch("agree", 0) / judged).round(1)
+        { "agreement_pct" => judged.zero? ? nil : (100.0 * verdicts.fetch("agree", 0) / judged).round(1) }
       end
 
       private

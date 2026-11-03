@@ -60,9 +60,9 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     when :pass then resolve.call(passed(id))
     when :fail then resolve.call(failed(id))
     when :stray then resolve.call(failed(id, []))
-    when :timeout then lost.call(id, :timeout, "stacks of #{id}")
-    when :crash then lost.call(id, :crash, nil)
-    when :died then lost.call(id, :crash, "exited 1\nworker 0's after-fork setup raised RuntimeError: no index")
+    when :timeout then lost.call(id, :timeout, ["stacks of #{id}"])
+    when :crash then lost.call(id, :crash, [])
+    when :died then lost.call(id, :crash, ["exited 1\nworker 0's after-fork setup raised RuntimeError: no index"])
     end
   end
 
@@ -83,7 +83,7 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
   it "keeps a test that passes alone, with its stacks, and its coverage", :aggregate_failures do
     result, = measure({ "t2" => :timeout })
 
-    expect(result.recovered).to(eq("t2" => "stacks of t2"))
+    expect(result.recovered).to(eq("t2" => ["stacks of t2"]))
     expect(result.coverage[ids.first]).to(contain_exactly("t1", "t2", "t3"))
   end
 
@@ -103,10 +103,10 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
 
   it "keeps the stacks of the run that lost the test", :aggregate_failures do
     pass = described_class.new(adapter: adapter, registry: registry)
-    pass.__send__(:lost, "t1", :timeout, "parallel stacks")
-    pass.__send__(:relapse, "t1", :timeout, "stacks alone")
+    pass.__send__(:lost, "t1", :timeout, ["parallel stacks"])
+    pass.__send__(:relapse, "t1", :timeout, ["stacks alone"])
     pass.__send__(:relapse, "t2", :crash)
-    expect(pass.__send__(:losses).stacks).to(eq("t1" => "stacks alone", "t2" => nil))
+    expect(pass.__send__(:losses).stacks).to(eq("t1" => ["stacks alone"], "t2" => []))
   end
 
   # A failure that covers no mutant in scope gates nothing, but didn't pass either.

@@ -27,10 +27,10 @@ class Kimera::Execution::Verdicts
     Kimera::MutantResult.from_h(message.transform_keys(WIRE).merge("file" => path(message["id"])))
   end
 
-  def timeout(id, duration, stacks = nil)
+  def timeout(id, duration, stacks = [])
     Kimera::MutantResult.new(
       mutant_id: id, status: :timeout, file: path(id),
-      duration: duration, detail: ["hard watchdog timeout", stacks].compact.join("\n")
+      duration: duration, detail: ["hard watchdog timeout", *stacks].join("\n")
     )
   end
 

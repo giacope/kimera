@@ -32,8 +32,8 @@ class Kimera::Execution::BaselineStall
   end
 
   def stacks
-    @recovered.first(MAX_STACKS).filter_map do |test_id, stacks|
-      "  #{test_id}:\n    #{stacks.gsub("\n", "\n    ")}" if stacks
+    @recovered.first(MAX_STACKS).flat_map do |test_id, stacks|
+      stacks.map { |stack| "  #{test_id}:\n    #{stack.gsub("\n", "\n    ")}" }
     end
   end
 end

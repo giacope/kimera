@@ -67,8 +67,7 @@ module KimeraEval
     end
 
     def headline(total)
-      agreement = Differential::Agreement.new(total).percent
-      total.slice("mutants", "false_survived", "false_killed", "abstained").merge("agreement_pct" => agreement)
+      total.slice("mutants", "false_survived", "false_killed", "abstained").merge(Differential::Agreement.new(total).to_h)
     end
 
     def specs(result) = Specs.of(result).to_h

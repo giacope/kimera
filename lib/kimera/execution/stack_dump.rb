@@ -31,9 +31,9 @@ class Kimera::Execution::StackDump
 
   def take(pid)
     ask(pid)
-    collect(path(pid))
+    [collect(path(pid))]
   rescue Errno::ESRCH
-    nil
+    []
   end
 
   private

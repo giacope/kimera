@@ -82,7 +82,7 @@ module PoolTrace
   module Fleet
     def self.install = Kimera::Execution::WorkerPool::Fleet.prepend(self)
 
-    def remove(pipe, reason: :crash, stacks: nil)
+    def remove(pipe, reason: :crash, stacks: [])
       worker = workers.fetch(pipe)
       act, kind = reason == :timeout ? ["expire", ""] : %w[read eof]
       PoolTrace.recorder&.log(act, worker.slot, kind: kind, id: worker.inflight)

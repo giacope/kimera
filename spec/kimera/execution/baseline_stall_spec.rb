@@ -11,7 +11,7 @@ RSpec.describe(Kimera::Execution::BaselineStall) do
   end
 
   it "names the stalled tests, the limit and the load, then advises", :aggregate_failures do
-    lines = text({ "A#t" => nil, "B#t" => nil }).lines(chomp: true)
+    lines = text({ "A#t" => [], "B#t" => [] }).lines(chomp: true)
 
     expect(lines.first).to(
       eq(
@@ -28,11 +28,11 @@ RSpec.describe(Kimera::Execution::BaselineStall) do
   end
 
   it "indents each test's stacks under it" do
-    expect(text({ "A#t" => "threads:\nmain" })).to(end_with("\n  A#t:\n    threads:\n    main"))
+    expect(text({ "A#t" => ["threads:\nmain"] })).to(end_with("\n  A#t:\n    threads:\n    main"))
   end
 
   it "shows at most three tests' stacks", :aggregate_failures do
-    recovered = (1..5).to_h { |i| ["T#{i}", "stack #{i}"] }
+    recovered = (1..5).to_h { |i| ["T#{i}", ["stack #{i}"]] }
     shown = text(recovered)
 
     expect(shown).to(include("stack 3"))

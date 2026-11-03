@@ -40,8 +40,8 @@ module KimeraEval
 
     def step(name, result)
       text = result.output
-      { "ok" => result.code == EXPECTED.fetch(name) && !text.match?(BROKEN) && intact?(name, text) }
-        .merge("exit" => result.code, "tail" => text.lines.last(3).join)
+      { "ok" => result.exited?(EXPECTED.fetch(name)) && !text.match?(BROKEN) && intact?(name, text) }
+        .merge(result.exited).merge("tail" => text.lines.last(3).join)
     end
 
     def intact?(name, text) = name == "doctor" || text.include?("é")
