@@ -120,7 +120,7 @@ class Kimera::Execution::Aliases
 
   def moved(orphan, displaced)
     ancestors = orphan.holder.ancestors
-    displaced.select { |held| held.name == orphan.target && ancestors.include?(held.holder) }.first(1).map(&:definition)
+    displaced.flat_map { |held| held.replacing(orphan.target, ancestors) }.first(1)
   end
 
   def lookup(holder, name)

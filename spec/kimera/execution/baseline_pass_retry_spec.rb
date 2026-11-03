@@ -51,18 +51,18 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
 
   def round(queue, jobs, listeners, scripts, rounds)
     script = scripts.fetch(rounds.size)
-    rounds << { queue: queue, jobs: jobs, trace: listeners.trace }
-    queue.each { |id| play(id, script.fetch(id, :pass), listeners.resolve, listeners.lost) }
+    rounds << { queue: queue, jobs: jobs, trace: listeners.instance_variable_get(:@trace) }
+    queue.each { |id| play(id, script.fetch(id, :pass), listeners) }
   end
 
-  def play(id, outcome, resolve, lost)
+  def play(id, outcome, listeners)
     case outcome
-    when :pass then resolve.call(passed(id))
-    when :fail then resolve.call(failed(id))
-    when :stray then resolve.call(failed(id, []))
-    when :timeout then lost.call(id, :timeout, ["stacks of #{id}"])
-    when :crash then lost.call(id, :crash, [])
-    when :died then lost.call(id, :crash, ["exited 1\nworker 0's after-fork setup raised RuntimeError: no index"])
+    when :pass then listeners.resolved(passed(id))
+    when :fail then listeners.resolved(failed(id))
+    when :stray then listeners.resolved(failed(id, []))
+    when :timeout then listeners.lost(id, :timeout, ["stacks of #{id}"])
+    when :crash then listeners.lost(id, :crash, [])
+    when :died then listeners.lost(id, :crash, ["exited 1\nworker 0's after-fork setup raised RuntimeError: no index"])
     end
   end
 

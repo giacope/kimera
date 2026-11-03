@@ -41,12 +41,20 @@ RSpec.describe(Kimera::Execution::Overrides) do
 
   def overlay(overrides) = overrides.keep { evaluate(Object, source.gsub(":own", ":again"), own) }
 
+  # The files of the definitions the displaced methods hold, for each name on its holder.
+  def replaced(displaced, **holders)
+    holders.to_h do |name, holder|
+      [name, displaced.flat_map { |held| held.replacing(name, [holder]) }.map { |kept| kept.source_location.first }]
+    end
+  end
+
   it "puts back what a later file defined, and hands over the overlaid version", :aggregate_failures do
     boot
     _, displaced = overlay(described_class.new(own, source))
     expect([OverridesOrder.new.total, OverridesOrder.make, OverridesOrder.build]).to(eq([2, :later, :later]))
-    expect(displaced.map { |held| [held.name, held.definition.source_location.first] })
-      .to(contain_exactly([:total, own], [:make, own], [:build, own]))
+    singleton = OverridesOrder.singleton_class
+    expect(replaced(displaced, total: OverridesOrder, make: singleton, build: singleton))
+      .to(eq(total: [own], make: [own], build: [own]))
   end
 
   # A method the file defines on another object is that object's: the class's
@@ -72,18 +80,18 @@ RSpec.describe(Kimera::Execution::Overrides) do
 
     def spanning(lines) = Data.define(:start_line, :end_line).new(lines.first, lines.last)
 
-    def kept(lines) = described_class::Held.new(nil, :total, nil, :public, spanning(lines))
+    def kept(lines) = described_class::Held.new(nil, nil, :public, spanning(lines))
 
     it "judges again the mutants on the lines of a method another file keeps", :aggregate_failures do
       boot
       _, displaced = overlay(described_class.new(own, source))
-      expect(displaced.map { |held| held.span.start_line }).to(contain_exactly(2, 4, 7))
-      expect(revisits(displaced)).to(eq([described_class::WRAPPED, nil]))
+      expect(displaced.map { |held| held.instance_variable_get(:@span).start_line }).to(contain_exactly(2, 4, 7))
+      expect(revisits(displaced)).to(eq([described_class::Held::WRAPPED, nil]))
     end
 
     it "leaves a point already set aside, and every point when nothing is kept", :aggregate_failures do
       found = points.tap { |each| each.first.unsafe!("set aside") }
-      expect(revisits([kept(2..10)], found)).to(eq([nil, described_class::WRAPPED]))
+      expect(revisits([kept(2..10)], found)).to(eq([nil, described_class::Held::WRAPPED]))
       expect(revisits([kept(3..9)])).to(eq([nil, nil]))
     end
   end
@@ -91,7 +99,7 @@ RSpec.describe(Kimera::Execution::Overrides) do
   it "hands over only what the overlay redefined" do
     boot
     _, displaced = described_class.new(own, source).keep { evaluate(OverridesOrder, "def total = 9", own) }
-    expect(displaced.map(&:name)).to(eq([:total]))
+    expect([displaced.size, replaced(displaced, total: OverridesOrder)]).to(eq([1, { total: [own] }]))
   end
 
   describe "a later file's top-level method" do
@@ -101,7 +109,8 @@ RSpec.describe(Kimera::Execution::Overrides) do
       { own => :own, later => :later }.each { |file, value| evaluate(Object, "def overrides_top = :#{value}", file) }
       overrides = described_class.new(own, "def overrides_top = :own\n")
       _, displaced = overrides.keep { evaluate(Object, "def overrides_top = :again", own) }
-      expect([overrides_top, displaced.map(&:name)]).to(eq([:later, [:overrides_top]]))
+      expect([overrides_top, displaced.size, replaced(displaced, overrides_top: Object)])
+        .to(eq([:later, 1, { overrides_top: [own] }]))
     end
   end
 

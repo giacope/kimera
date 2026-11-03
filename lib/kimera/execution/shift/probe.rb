@@ -10,14 +10,10 @@ class Kimera::Execution::Shift::Probe
   end
 
   def sweep(lineup)
-    active = lineup.active
-    lineup.tests.each_with_index.lazy.flat_map { |test, index| finding(test, *run(active, test), index) }.first(1)
+    lineup.each_with_index.lazy.flat_map { |(active, test), index| finding(test, *run(active, test), index) }.first(1)
   end
 
-  def replay(lineup)
-    active = lineup.active
-    lineup.tests.map { |test| report(test, *run(active, test)) }.fetch(-1)
-  end
+  def replay(lineup) = lineup.map { |active, test| report(test, *run(active, test)) }.fetch(-1)
 
   def explain(test, runs, control) = deadline.explain(test, runs, control)
 

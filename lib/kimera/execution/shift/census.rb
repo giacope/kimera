@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../zygote"
-require_relative "finding"
+require_relative "lineup"
 
 class Kimera::Execution::Shift::Census
   DETECTED = [Timeout::Error, Kimera::Execution::Zygote::Died, Kimera::Execution::Zygote::Raised].freeze

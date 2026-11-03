@@ -97,7 +97,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
 
   it "judges again the mutants of a method another file's wrapper holds", :aggregate_failures do
     registry = memoized
-    expect(registry.points.map(&:revisit).uniq).to(eq([Kimera::Execution::Overrides::WRAPPED]))
+    expect(registry.points.map(&:revisit).uniq).to(eq([Kimera::Execution::Overrides::Held::WRAPPED]))
     expect(flipped(registry) { SchemataMemo.new.gt(2, 1) }).to(be(true))
   end
 

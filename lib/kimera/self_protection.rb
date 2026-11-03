@@ -33,8 +33,16 @@ module Kimera
       kimera/execution/shift/lapse.rb
       kimera/execution/shift/subject.rb
       kimera/execution/shift/suspect.rb
+      kimera/execution/shift/doubt.rb
+      kimera/execution/shift/lag.rb
+      kimera/execution/shift/kill.rb
+      kimera/execution/shift/lineup.rb
       kimera/execution/shift/probe.rb
       kimera/execution/shift/finding.rb
+      kimera/execution/shift/failure.rb
+      kimera/execution/shift/hang.rb
+      kimera/execution/shift/slowdown.rb
+      kimera/execution/shift/inconclusive.rb
       kimera/execution/shift/coverage_channel.rb
       kimera/execution/shift/killer_memory.rb
       kimera/execution/shift/unmask.rb

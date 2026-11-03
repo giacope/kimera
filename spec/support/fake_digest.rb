@@ -15,9 +15,12 @@ class FakeDigest
 
   def evaluating(ignored) = @said.push([:evaluating, ignored])
 
-  def emit(report, registry, **emission) = @said.push([:emit, report, registry, emission])
+  def emit(report, registry, delivery)
+    heard = FakeEmission.new.tap { |emission| delivery.deliver(report, registry, emission) }.heard
+    @said.push([:emit, report, registry, heard])
+  end
 
-  # Each report it emitted, with the registry and the settings it emitted it with.
+  # Each report it emitted, with the registry and what its delivery asked of the emission.
   def emitted = @said.filter_map { |kind, *heard| heard if kind == :emit }
 end
 

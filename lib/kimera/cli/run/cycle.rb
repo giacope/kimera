@@ -68,7 +68,7 @@ class Kimera::CLI::Run::Cycle
 
   def conclude(todo, ignored, loaded)
     report = narrowed(loaded.report(todo, ignored, @registry)).counting(counted)
-    @digest.emit(report, @registry, **emission)
+    @digest.emit(report, @registry, emission)
     @options[:gate] == false ? 0 : @alerts.gate(report, @options.to_h.merge(narrowed: narrowing.narrowed?))
   end
 
@@ -78,8 +78,12 @@ class Kimera::CLI::Run::Cycle
   end
 
   def emission
-    { path: @options[:report], format: @options.to_h.fetch(:format, "text"), metadata: provenance }
-      .merge(coverage: coverage, log: @options[:log], scope: narrowing.notes, summary: @options[:summary])
+    path = @options[:report]
+    Kimera::CLI::Run::Emission::Delivery.new(
+      Kimera::CLI::Run::Emission::Page.new(path, narrowing.notes, coverage),
+      Kimera::CLI::Run::Emission::Copies.new(path, @options[:log], @options[:summary]),
+      @options.to_h.fetch(:format, "text"), provenance
+    )
   end
 
   def stamp

@@ -570,7 +570,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     def emitted(json)
       report = Kimera::RunReport.new(results: [], registry: registry)
       captured do
-        Kimera::CLI::Run::Emission.new.emit(report, registry, path: json)
+        Kimera::CLI::Run::Emission.new.emit(report, registry, delivery(path: json))
       end
     end
 
@@ -582,7 +582,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     it "prints the hints of an unsaved report when no path is given" do
       survived = Kimera::MutantResult.new(mutant_id: registry.each.first.first.id, status: :survived, file: "x.rb")
       report = Kimera::RunReport.new(results: [survived], registry: registry)
-      out = captured { Kimera::CLI::Run::Emission.new.emit(report, registry, format: "text") }
+      out = captured { Kimera::CLI::Run::Emission.new.emit(report, registry, delivery(format: "text")) }
       expect(out).to(include("run without --no-report to save one"))
     end
 
@@ -606,7 +606,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     def quietly_logged(log)
       io = StringIO.new
       report = Kimera::RunReport.new(results: [], registry: registry)
-      Kimera::CLI::Run::Emission.new(io: io, quiet: true).emit(report, registry, log: log)
+      Kimera::CLI::Run::Emission.new(io: io, quiet: true).emit(report, registry, delivery(log: log))
       io.string
     end
 

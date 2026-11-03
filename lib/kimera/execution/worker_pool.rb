@@ -32,7 +32,7 @@ class Kimera::Execution::WorkerPool
     worker.offer(id, recheck: fleet.recheck?(id))
   end
 
-  def lost(id, reason, stacks = []) = listeners.lost.call(id, reason, stacks)
+  def lost(id, reason, stacks = []) = listeners.lost(id, reason, stacks)
 
   private
 
@@ -85,7 +85,7 @@ class Kimera::Execution::WorkerPool
     end
   end
 
-  def relay(message) = listeners.resolve.call(message)
+  def relay(message) = listeners.resolved(message)
 
   def requeue(worker, message)
     relay(message)
@@ -100,7 +100,7 @@ class Kimera::Execution::WorkerPool
     worker.idle!
   end
 
-  def trace(slot, id) = listeners.trace&.call(slot, id)
+  def trace(slot, id) = listeners.traced(slot, id)
 
   def close(worker) = shut(worker.retire(limit))
 

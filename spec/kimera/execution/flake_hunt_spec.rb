@@ -25,8 +25,8 @@ RSpec.describe(Kimera::Execution::FlakeHunt, :aggregate_failures) do
     seed = Integer(env.fetch("KIMERA_SEED"), 10)
     log << [seed, tests, spawner.call]
     failing = { 12 => %w[t2], 13 => %w[t2 t1] }.fetch(seed, [])
-    tests.each { |test| listeners.resolve.call("id" => test, "passed" => !failing.include?(test)) }
-    listeners.lost.call("t3", :timeout, []) if seed == 13
+    tests.each { |test| listeners.resolved("id" => test, "passed" => !failing.include?(test)) }
+    listeners.lost("t3", :timeout, []) if seed == 13
   end
 
   def driver(log)

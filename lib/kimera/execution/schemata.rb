@@ -113,7 +113,7 @@ class Kimera::Execution::Schemata
 
   def settle(displaced, path)
     aliases.witness(displaced)
-    displaced.reject { |held| aliases.reaches?(held.definition) }.each { it.revisit!(@registry.at(path)) }
+    displaced.reject { |held| held.reached?(aliases) }.each { it.revisit!(@registry.at(path)) }
   end
 
   def skip(path, reason) = skipped.store(path, reason)

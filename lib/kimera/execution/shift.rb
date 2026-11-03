@@ -51,7 +51,7 @@ class Kimera::Execution::Shift
   end
 
   def evaluate(id)
-    tally(safely(Subject.new(id, @registry.index[id]&.file)))
+    tally(safely(id, Subject.new(id, @registry.index[id]&.file)))
   ensure
     Kimera::RUNTIME.active = nil
     isolation.reset!
@@ -98,24 +98,24 @@ class Kimera::Execution::Shift
     emit(responses, t: "ready")
   end
 
-  def safely(subject)
-    covered(subject)
+  def safely(id, subject)
+    covered(id, subject)
   rescue Kimera::Execution::Zygote::Died
     raise
   rescue StandardError, ScriptError => error
     subject.crashed(error, timeout)
   end
 
-  def covered(subject)
-    tests = available(subject.id)
+  def covered(id, subject)
+    tests = available(id)
     return subject.verdict(:no_coverage).unreached if tests.empty?
-    outcome(subject, tests)
+    outcome(id, subject, tests)
   end
 
-  def outcome(subject, tests)
+  def outcome(id, subject, tests)
     started = monotonic
-    found = attempt.run(subject.id, tests)
-    subject.judged(found.empty? ? unmasked(subject.id, tests) : found, tests, monotonic - started)
+    found = attempt.run(id, tests)
+    subject.judged(found.empty? ? unmasked(id, tests) : found, tests, monotonic - started)
   end
 
   def unmasked(id, tests)

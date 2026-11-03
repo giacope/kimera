@@ -116,7 +116,9 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     end
 
     it "stops at the first killing test" do
-      expect(attempt.run(9, %w[a b c]).map(&:to_h)).to(eq([{ failed_ids: ["b"], failures: { "b" => "boom" } }]))
+      subject = Kimera::Execution::Shift::Subject.new(9, "x.rb")
+      verdicts = attempt.run(9, %w[a b c]).map { |verdict| verdict.ruling(subject, {}) }
+      expect(verdicts).to(match([have_attributes(status: :killed, failing_tests: ["b"], detail: "boom")]))
     end
 
     it "records only the first killing test in the attempt memory" do

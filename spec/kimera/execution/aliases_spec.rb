@@ -19,6 +19,11 @@ RSpec.describe(Kimera::Execution::Aliases) do
 
   def overlay(mod, file = path) = define(mod, 3, file)
 
+  # A method the overlay displaced from +holder+, as Overrides hands it over.
+  def held(holder, name, method)
+    Kimera::Execution::Overrides::Held.new(Kimera::Execution::Redefinition.new(holder, name), method, :public, nil)
+  end
+
   def holder(origin, &) = Class.new { include origin }.tap { |klass| klass.class_eval(&) }
 
   # A module declaring price in the watched file, and a class that aliases it as cost.
@@ -50,7 +55,7 @@ RSpec.describe(Kimera::Execution::Aliases) do
     origin = costing.first.tap { |declaring| declaring.remove_method(:price) }
     aliases = described_class.new([path]).tap { |tracker| tracker.follow { overlay(origin) } }
     definition = origin.instance_method(:price)
-    aliases.witness([Kimera::Execution::Overrides::Held.new(origin, :price, definition, :public, nil)])
+    aliases.witness([held(origin, :price, definition)])
     expect(aliases.reaches?(definition)).to(be(false))
   end
 
@@ -185,7 +190,7 @@ RSpec.describe(Kimera::Execution::Aliases) do
       klass.instance_method(:price).tap { wrap(klass) }
     end
 
-    def held(name, method) = Kimera::Execution::Overrides::Held.new(klass, name, method, :public, 1..1)
+    def held(name, method) = super(klass, name, method)
 
     it "follows the overlaid original it is handed" do
       aliases.follow { aliases.witness([held(:price, rewrapped)]) }

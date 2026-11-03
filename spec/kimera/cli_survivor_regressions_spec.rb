@@ -207,7 +207,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     def emission(coverage)
-      { coverage: coverage, path: nil, format: "text", metadata: anything, log: nil, scope: [], summary: nil }
+      { coverage: coverage, path: nil, format: "text", metadata: anything, scope: [] }
     end
 
     it "rejects an invalid output format before running" do
@@ -223,7 +223,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     it "sends machine formats to the output stream and text formats to the narration stream" do
       output = StringIO.new
       emission = Kimera::CLI::Run::Emission.new(io: out, output: output)
-      emission.emit(report, tiny, format: "json", metadata: { "framework" => "rspec" })
+      emission.emit(report, tiny, delivery(format: "json", metadata: { "framework" => "rspec" }))
       expect(out.string).to(eq(""))
       expect(JSON.parse(output.string).fetch("run")).to(eq("framework" => "rspec"))
     end
@@ -262,7 +262,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
     def emitted(name, **settings)
       path = File.join(dir, name)
-      Kimera::CLI::Run::Emission.new(io: StringIO.new).emit(report, tiny, path: path, **settings)
+      Kimera::CLI::Run::Emission.new(io: StringIO.new).emit(report, tiny, delivery(path: path, **settings))
       JSON.parse(File.read(path))
     end
 

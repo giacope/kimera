@@ -22,7 +22,7 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     pass = described_class.new(adapter: adapter, registry: registry, progress: meter, **)
     pass.parallel!(1) do |queue, _jobs, listeners|
       seen << queue
-      queue.each { |id| listeners.resolve.call("t" => "result", "id" => id, "passed" => true, "touched" => []) }
+      queue.each { |id| listeners.resolved("t" => "result", "id" => id, "passed" => true, "touched" => []) }
     end
     seen
   end
