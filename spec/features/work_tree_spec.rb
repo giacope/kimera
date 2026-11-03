@@ -8,9 +8,13 @@ RSpec.describe("kimera run on a suite that deletes a project file (end-to-end)",
     "spec/calc_spec.rb" => <<~RUBY
       require_relative "../app/calc"
       RSpec.describe(Calc) do
+        after do
+          fixture = File.expand_path("../fixture.rb", __dir__)
+          File.delete(fixture) if Calc.big?(5) && File.exist?(fixture)
+        end
+
         it("is big") { expect(Calc.big?(11)).to be(true) }
         it("is small") { expect(Calc.big?(10)).to be(false) }
-        it("cleans up") { File.delete(File.expand_path("../fixture.rb", __dir__)) if Calc.big?(5) }
       end
     RUBY
   }
