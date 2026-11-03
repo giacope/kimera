@@ -6,22 +6,26 @@ module Kimera
 end
 
 class Kimera::Frameworks::ClassHooks
-  Reporter =
-    Struct.new(:results, :prepare) do
-      def prerecord(*) = prepare.call
-
-      def record(result)
-        results << result
-      end
-
-      def passed? = results.all? { |result| result.passed? || result.skipped? }
-
-      def reporters = []
-
-      def synchronize = yield
-
-      def outcome = results.find { |result| !result.passed? && !result.skipped? } || results.last
+  class Transcript
+    def initialize(prepare, results = [])
+      @prepare = prepare
+      @results = results
     end
+
+    def prerecord(*) = @prepare.call
+
+    def record(result)
+      @results << result
+    end
+
+    def passed? = @results.all? { |result| result.passed? || result.skipped? }
+
+    def reporters = []
+
+    def synchronize = yield
+
+    def outcome = @results.find { |result| !result.passed? && !result.skipped? } || @results.last
+  end
 
   Serial =
     Data.define do
@@ -37,7 +41,7 @@ class Kimera::Frameworks::ClassHooks
   end
 
   def test(name, &prepare)
-    reporter = Reporter.new([], prepare || proc {})
+    reporter = Transcript.new(prepare || proc {})
     serially { suite(reporter, /\A#{Regexp.escape(name)}\z/) }
     reporter.outcome
   end

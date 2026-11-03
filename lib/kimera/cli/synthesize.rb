@@ -44,14 +44,7 @@ class Kimera::CLI::Synthesize
 
   def synthesize(registry, out)
     manifest = Kimera::Synthesis::Project.new(registry).write(out)
-    Kimera::CLI::Outcome::Said.new(*report(registry, manifest, out))
-  end
-
-  def report(registry, manifest, out)
-    unsafe = manifest.unsafe_mutants
-    routed = unsafe.empty? ? [] : ["  #{unsafe.size} mutants routed to reload fallback (memoization)."]
-    schema = "  #{manifest.mutant_files.size} mutants on the schema path."
-    ["Synthesized #{registry.files.size} files to #{out}.", schema, *routed]
+    Kimera::CLI::Outcome::Said.new(*manifest.summary(registry.files.size, out))
   end
 
   def load(paths, registry:, operators:, **scope)

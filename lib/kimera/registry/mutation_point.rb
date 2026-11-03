@@ -185,8 +185,8 @@ class Kimera::MutationPoint
 
   def taint!(ranges)
     return self unless safe?
-    hit = ranges.find { |range| range.contains?(location.start_offset, location.finish) }
-    unsafe!(hit.reason) if hit
+    hit = ranges.lazy.flat_map { |range| range.reasons(location.start_offset, location.finish) }.first(1)
+    hit.each { |reason| unsafe!(reason) }
     self
   end
 

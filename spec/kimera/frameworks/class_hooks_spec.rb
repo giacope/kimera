@@ -94,7 +94,7 @@ RSpec.describe(Kimera::Frameworks::ClassHooks) do
   # Minitest's info handler asks the reporter whether it passed when it prints
   # results on SIGINFO, and for its reporters.
   it "hands the suite a reporter that has passed until a result fails", :aggregate_failures do
-    reporter = described_class::Reporter.new([], proc {})
+    reporter = described_class::Transcript.new(proc {})
     passing = Minitest::Result.from(Minitest::Test.new("x"))
     expect([reporter.passed?, reporter.tap { it.record(passing) }.passed?, reporter.reporters]).to(eq([true, true, []]))
     reporter.record(Minitest::Result.from(Minitest::Test.new("y").tap { it.failures << Minitest::Assertion.new }))
