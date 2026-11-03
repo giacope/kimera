@@ -61,6 +61,13 @@ RSpec.describe(Kimera::Execution::Pool::Duty) do
     [duty, JSON.parse(duty.pipes.res_r.read)]
   end
 
+  it "dies of SIGKILL when the test process it ran was killed, though no process may trap that signal" do
+    duty = duty()
+    pid = fork { duty.retire(database, Kimera::Execution::Zygote::Died.new("killed", signal: 9)) }
+    duty.pipes.res_w.close
+    expect(Process.wait2(pid).last.termsig).to(eq(9))
+  end
+
   it "exits with the code the test process it ran exited with, after saying why", :aggregate_failures do
     duty, message = retired(Kimera::Execution::Zygote::Died.new("gone", code: 3))
     expect(message).to(include("t" => "crash", "detail" => "gone"))

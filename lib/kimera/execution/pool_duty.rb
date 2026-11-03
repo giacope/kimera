@@ -44,9 +44,11 @@ Kimera::Execution::Pool::Duty =
     def echo(error) = error&.echo(self)
 
     def die_of(signal)
-      Signal.trap(signal, "SYSTEM_DEFAULT")
+      Signal.trap(signal, "SYSTEM_DEFAULT") if trappable?(signal)
       Process.kill(signal, Process.pid)
     end
+
+    def trappable?(signal) = !%w[KILL STOP].include?(Signal.signame(signal))
 
     def exit_with(code) = exit!(code)
 
