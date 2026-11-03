@@ -46,7 +46,7 @@ module Kimera
       end
 
       def apply(node)
-        operation(node).public_send(handler)
+        operation(node).call(handler)
       end
 
       def kind?(name) = @directive[TYPE] == name
