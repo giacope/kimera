@@ -45,14 +45,6 @@ class Kimera::Guardrail
     [Kimera::LinePad.new(node.slice).fits(Kimera::Scribe.new(woven), Kimera::Readback.new(woven)), activated(woven)]
   end
 
-  def activated(node)
-    found = []
-    Kimera::Rewrite::AstWalk.new(node).visit { |visited| found << activation(visited) }
-    found.compact
-  end
-
-  def transform(node) = weave(node).fetch(0)
-
   def bake(point, directive)
     target = target(point)
     overlay(target, directive) if anchors.include?(target)
@@ -70,6 +62,14 @@ class Kimera::Guardrail
   end
 
   private
+
+  def activated(node)
+    found = []
+    Kimera::Rewrite::AstWalk.new(node).visit { |visited| found << activation(visited) }
+    found.compact
+  end
+
+  def transform(node) = weave(node).fetch(0)
 
   def target(point)
     location = point.location

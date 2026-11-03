@@ -149,20 +149,27 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     end
   end
 
-  describe "ChildCommand#argv" do
+  describe "ChildCommand#command" do
     def child(framework: "rspec", test_files: [])
       described_class::ChildCommand.new(framework: framework, test_files: test_files, root: "/project")
     end
 
-    let(:files) { ["ledger.json", "ledger.json.request", "ledger.json.pulse"] }
+    # The ruby command line the child runs for a ledger in +mirror+, with nothing else on the load path.
+    def launched(child, mirror)
+      child.command(mirror, child.request([]), ledger: File.join(mirror, "l.json"), paths: []).last
+    end
+
+    def handed(child) = Dir.mktmpdir { |mirror| launched(child, mirror).last(4).map { |part| File.basename(part) } }
+
+    let(:files) { ["l.json", "l.json.request", "l.json.pulse"] }
 
     it "passes only the ledger, its request file and its pulse to the rspec child" do
-      expect(child.argv("ledger.json")).to(eq([described_class::ChildCommand::CHILD, *files]))
+      expect(handed(child)).to(eq([File.basename(described_class::ChildCommand::CHILD), *files]))
     end
 
     it "passes only the ledger, its request file and its pulse to the minitest child" do
-      minitest = child(framework: "minitest")
-      expect(minitest.argv("ledger.json")).to(eq([described_class::ChildCommand::MINITEST_CHILD, *files]))
+      minitest = File.basename(described_class::ChildCommand::MINITEST_CHILD)
+      expect(handed(child(framework: "minitest"))).to(eq([minitest, *files]))
     end
 
     it "requests the test ids and the test files" do
@@ -178,12 +185,12 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       expect([child.request(["a"], slot: 2)["slot"], child.request(["a"]).key?("slot")]).to(eq([2, false]))
     end
 
-    # The same load path the warm run and doctor use, read in the mirror.
+    # The same load path the warm run and doctor use, read in the mirror: what stands between ruby and the child.
     it "puts the test files' folders and the mirror's test and spec on the load path", :aggregate_failures do
       Dir.mktmpdir do |mirror|
         FileUtils.mkdir_p(File.join(mirror, "test"))
         nested = child(framework: "minitest", test_files: %w[lib/x/test/a_test.rb])
-        expect([nested.helpers(mirror), child.helpers(mirror)])
+        expect([launched(nested, mirror)[1...-4], launched(child, mirror)[1...-4]])
           .to(eq([["-I", "lib/x/test", "-I", "test"], ["-I", "test"]]))
       end
     end

@@ -135,8 +135,7 @@ RSpec.describe(Kimera::SpliceDiff) do
   end
 
   describe Kimera::Scribe::Place do
-    def locals(source, slice)
-      root = Kimera::Scribe.parse(source)
+    def find(root, slice)
       node = nil
       visit =
         proc { |each|
@@ -144,8 +143,18 @@ RSpec.describe(Kimera::SpliceDiff) do
           each.compact_child_nodes.each(&visit)
         }
       visit.call(root)
-      described_class.of(root, node || read(slice)).locals.to_a.sort
+      node || read(slice)
     end
+
+    # The names of the source a bare call written where the node stands reads
+    # as locals there: it takes parentheses so as not to read the local.
+    def locals(source, slice)
+      root = Kimera::Scribe.parse(source)
+      names = source.scan(/[a-z_]\w*/).map(&:to_sym).uniq
+      names.select { |name| called(name, root, find(root, slice)) == "#{name}()" }.sort
+    end
+
+    def called(name, root, original) = Kimera::Scribe.new(read("call").copy(name: name)).at(root, original).text
 
     it "binds a write's name after it, not at it, and an embedded part's binding just before", :aggregate_failures do
       expect(locals("def m\n  y = 2\nend\n", "y = 2")).to(eq([]))
@@ -153,11 +162,11 @@ RSpec.describe(Kimera::SpliceDiff) do
       expect(locals("x = 1\n", "zzzzzzzzzzzzzz")).to(eq([]))
     end
 
-    it "keeps as written only what reads the same anywhere", :aggregate_failures do
+    it "keeps as written only what reads the same anywhere" do
       root = Kimera::Scribe.parse("def m(a)\n  [a .b, f(a,  1), a  +  b, yield(a,  1)]\nend\n")
       list = root.statements.body.first.body.body.first
-      kept = described_class.of(root, list).slices.values
-      expect(kept).to(include("a .b", "f(a,  1)", "a  +  b", "yield(a,  1)"))
+      written = Kimera::Scribe.new(list.copy).at(root, list).text
+      expect(written).to(eq("[a .b, f(a,  1), a  +  b, yield(a,  1)]"))
     end
   end
 end

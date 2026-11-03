@@ -23,7 +23,7 @@ module Kimera
 
       def level = BINARY.fetch(@node.name)
 
-      def text = "#{left} #{@node.name} #{operand(Shape.new(@node).arguments.first, power? ? level : level + 1)}"
+      def text = "#{left} #{@node.name} #{operand(Operands.new(@node).to_a.first, power? ? level : level + 1)}"
 
       private
 
@@ -32,7 +32,7 @@ module Kimera
       def left
         receiver = @node.receiver
         written = leading(receiver, power? || NONASSOCIATIVE.include?(level) ? level + 1 : level)
-        power? && Shape.new(receiver).numeral? && written.start_with?("-") ? "(#{written})" : written
+        power? && Token.new(receiver).numeral? && written.start_with?("-") ? "(#{written})" : written
       end
     end
 
@@ -55,7 +55,7 @@ module Kimera
     end
 
     class Negation < Form
-      def fits? = Shape.new(@node).prefix? && Shape.new(@node).spelled?("not")
+      def fits? = Shape.new(@node).prefix? && Token.new(@node).spelled?("not")
 
       def level = EXPRESSION
 
@@ -78,7 +78,7 @@ module Kimera
       def level = ASSIGNMENT
 
       def text
-        value = Shape.new(@node).arguments.last
+        value = Operands.new(@node).to_a.last
         dot = @node.safe_navigation? ? "&." : "."
         owner = @node.receiver ? receiver_part(@node.receiver) : "self"
         "#{owner}#{dot}#{@node.name.to_s.delete_suffix("=")} = #{part(value, value_floor(value))}"
@@ -91,7 +91,7 @@ module Kimera
       def level = @node.name == :[] ? PRIMARY : ASSIGNMENT
 
       def text
-        *keys, value = Shape.new(@node).arguments
+        *keys, value = Operands.new(@node).to_a
         return "#{head(keys)} = #{part(value, value_floor(value))}" unless @node.name == :[]
         "#{head([*keys, value].compact)}#{Block.new(@node.block, @pen).suffix if literal_block}"
       end

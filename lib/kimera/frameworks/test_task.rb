@@ -36,12 +36,12 @@ class Kimera::Frameworks::TestTask
     Warning[:deprecated] = true
   end
 
+  private
+
   def warning?
     task = tasks.find { |each| named(each) == NAMED } || tasks.first
     !task.nil? && !quiet?(task.block)
   end
-
-  private
 
   def tasks
     rakefile = FILES.map { |name| File.join(@root, name) }.find { |path| File.file?(path) }

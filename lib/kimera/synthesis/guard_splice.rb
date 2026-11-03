@@ -63,7 +63,9 @@ class Kimera::GuardSplice
     yield
   end
 
-  def written(site, mutated) = Kimera::Scribe.new(mutated).at(@map.ast, site).after(site).unbroken.text
+  def written(site, mutated)
+    Kimera::Scribe.new(mutated).at(@map.ast, site) { |place| place.after(site).unbroken }.text
+  end
 
   def fits?(text) = !Kimera::Rewrite::NumberedParams::Spelling.new(text).renamed? && !text.include?("\n")
 end

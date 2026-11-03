@@ -26,10 +26,12 @@ RSpec.describe(Kimera::Scribe) do
   def read(source) = tree(source).statements.body.first
 
   describe "locals where a node stands" do
+    # Every name in the source the place's pen reads as a local.
     def locals(source, slice, after: false)
       root = tree(source)
       place = Kimera::Scribe::Place.of(root, find(root, slice))
-      (after ? place.after(find(root, slice)) : place).locals.to_a.sort
+      pen = (after ? place.after(find(root, slice)) : place).pen
+      source.scan(/[a-z_]\w*/).map(&:to_sym).uniq.select { |name| pen.local?(name) }.sort
     end
 
     it "reads earlier writes, parameters and block parameters, and not later ones" do
@@ -93,7 +95,8 @@ RSpec.describe(Kimera::Scribe) do
     def shadowed(slice)
       root = tree(shadowing)
       original = find(root, slice)
-      described_class.new(listed(original)).at(root, original).after(find(root, "(brand ||= 1)")).text
+      place = Kimera::Scribe::Place.of(root, original).after(find(root, "(brand ||= 1)"))
+      described_class.new(listed(original), place).text
     end
 
     it "writes afresh a kept text whose bare call reads as a local where it stands", :aggregate_failures do
@@ -123,11 +126,13 @@ RSpec.describe(Kimera::Scribe) do
         .to(eq("class A; def a; 1; end; def b; 2; end; end"))
     end
 
+    def unbroken(root, slice) = Kimera::Scribe::Place.of(root, find(root, slice)).unbroken
+
     it "writes afresh each kept text that breaks a line when unbroken", :aggregate_failures do
       root = tree(source)
-      kept = ->(slice) { described_class.new(listed(find(root, slice))).at(root, find(root, slice)) }
-      expect(kept.call("call(a, # why\n       2)").unbroken.text).to(eq("[call(a, 2)]"))
-      expect(kept.call("a ? f(1) : 'q'").unbroken.text).to(eq("[a ? f(1) : 'q']"))
+      kept = ->(slice) { described_class.new(listed(find(root, slice)), unbroken(root, slice)) }
+      expect(kept.call("call(a, # why\n       2)").text).to(eq("[call(a, 2)]"))
+      expect(kept.call("a ? f(1) : 'q'").text).to(eq("[a ? f(1) : 'q']"))
     end
 
     it "indents a written node to its line" do

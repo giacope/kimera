@@ -54,7 +54,7 @@ class Kimera::BakeSplice
   end
 
   def laid(node, rebuilt)
-    scribe = Kimera::Scribe.new(rebuilt).over(@map.ast, node)
+    scribe = Kimera::Scribe.new(rebuilt).at(@map.ast, node, node.location.end_line)
     texts = [scribe, scribe.joined].map(&:text).uniq
     cleared = cleared(node, rebuilt)
     texts.lazy.flat_map { |text| attempts(node, text) }.flat_map { |attempt| read(attempt, cleared) }.first(1)

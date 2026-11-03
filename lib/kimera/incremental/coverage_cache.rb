@@ -51,12 +51,9 @@ class Kimera::Incremental::CoverageCache
   end
 
   def chosen(stored, ids)
-    changed = stored.changed(fingerprint["sources"])
-    stored.tests(changed | @registry.files, ids).tap do |picked|
-      @errors.puts(
-        "kimera: reusing the coverage map from #{stored.commit} (#{changed.size} source file(s) changed since): " \
-          "the baseline runs #{picked.size} of #{ids.size} tests"
-      )
+    sources = fingerprint["sources"]
+    stored.picked(sources, @registry.files, ids).tap do |picked|
+      @errors.puts(stored.reused(sources, picked.size, ids.size))
     end
   end
 

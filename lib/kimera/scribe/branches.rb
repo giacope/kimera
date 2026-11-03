@@ -121,14 +121,14 @@ module Kimera
       private
 
       def keyword?
-        Shape.new(@node).spelled?(WORDS.fetch(type)) || [@node.left, @node.right].any? { |child| carrying?(child) }
+        Token.new(@node).spelled?(WORDS.fetch(type)) || [@node.left, @node.right].any? { |child| carrying?(child) }
       end
 
       def carrying?(child) = FLOWS.include?(child.type) && child.arguments
 
       def right(floor)
         node = @node.right
-        bare = FLOWS.include?(node.type) || (keyword? && Shape.new(node).spelled?("not"))
+        bare = FLOWS.include?(node.type) || (keyword? && Token.new(node).spelled?("not"))
         bare ? part(node) : trailing(node, floor)
       end
     end

@@ -34,8 +34,7 @@ module Kimera
       end
 
       def operand(child, floor)
-        shape = Shape.new(child)
-        shape.prefix? && !shape.spelled?("not") ? part(child) : trailing(child, floor)
+        Shape.new(child).prefix? && !Token.new(child).spelled?("not") ? part(child) : trailing(child, floor)
       end
 
       def receiver_part(child) = pen_of(child).closed.head(child)

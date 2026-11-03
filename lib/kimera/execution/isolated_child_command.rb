@@ -28,12 +28,9 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
   def command(mirror, request, ledger:, paths:)
     File.write(request_path(ledger), JSON.generate(request))
     includes = paths.flat_map { |path| ["-I", path] }
-    ruby = ["ruby", *request["warnings"], *includes, *helpers(mirror), *argv(ledger)]
+    helpers = Kimera::Frameworks::LoadPath.new(@test_files, root: mirror).flags
+    ruby = ["ruby", *request["warnings"], *includes, *helpers, *argv(ledger)]
     bundled(mirror, environment(request["slot"]), ruby)
-  end
-
-  def argv(ledger)
-    [minitest? ? MINITEST_CHILD : CHILD, ledger, request_path(ledger), "#{ledger}#{PULSE}"]
   end
 
   def request(locations, first: false, slot: nil, warnings: [])
@@ -42,11 +39,13 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
       .merge(warnings.empty? ? {} : { "warnings" => warnings })
   end
 
-  def helpers(mirror) = Kimera::Frameworks::LoadPath.new(@test_files, root: mirror).flags
+  private
+
+  def argv(ledger)
+    [minitest? ? MINITEST_CHILD : CHILD, ledger, request_path(ledger), "#{ledger}#{PULSE}"]
+  end
 
   def request_path(ledger) = "#{ledger}.request"
-
-  private
 
   def environment(slot, suite_env = Kimera::Execution::SuiteEnv.new, databases = Kimera::Execution::ParallelDatabases.new)
     suite_env.to_h.merge(slot ? databases.numbered(slot) : {})

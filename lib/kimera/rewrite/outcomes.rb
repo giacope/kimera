@@ -81,7 +81,7 @@ class Kimera::Rewrite::Outcomes
   end
 
   def values(node)
-    return [node.value] if Kimera::Scribe::Shape.new(node).numeral?
+    return [node.value] if Kimera::Scribe::Token.new(node).numeral?
     negated?(node) ? values(bare(node.receiver)).map(&:-@) : []
   end
 

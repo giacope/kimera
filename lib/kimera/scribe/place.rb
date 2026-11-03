@@ -5,8 +5,6 @@ module Kimera
     class Place
       SCOPES = %i[program_node def_node class_node module_node singleton_class_node].freeze
 
-      attr_reader :locals, :slices, :margin
-
       def self.top = new(NO_NAMES, {}.compare_by_identity, Pen::Margin.new(depth: 0, flat: false))
 
       def self.of(root, node, ends = Float::INFINITY)
@@ -27,6 +25,12 @@ module Kimera
       def joined = Place.new(@locals, @slices, @margin.flattened, @binders)
 
       def unbroken = Place.new(@locals, @slices.reject { |_, text| text.include?("\n") }, @margin.flattened, @binders)
+
+      def pen = Pen.new(binders, @margin, @locals)
+
+      private
+
+      def binders = Binders.new(Texts.new(@slices))
 
       class Seen
         def initialize(node, binders = Binders.new)
