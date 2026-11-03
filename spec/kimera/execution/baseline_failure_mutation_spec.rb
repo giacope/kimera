@@ -332,17 +332,26 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
       result = ->(id) { Kimera::MutantResult.new(mutant_id: id, status: :killed) }
       leaks = [kept, 999].map { |id| Kimera::LeakReport.new(mutant_id: id, detail: id.to_s) }
       results = { kept => result.call(kept), 999 => result.call(999) }
-      Kimera::Incremental::Session.new(results: results, leaks: leaks).fingerprinted(registry)
+      Dir.mktmpdir do |dir|
+        path = File.join(dir, "session.json")
+        Kimera::Incremental::Session.new(results: results, leaks: leaks).save(path, registry)
+        Kimera::Incremental::Session.from(path)
+      end
+    end
+
+    # The mutants a session holds results for, and those its leaks name.
+    def held(session)
+      report = session.report([kept, 999], [], registry)
+      [report.results.map(&:mutant_id), report.leaks.map(&:mutant_id)]
     end
 
     it "drops stale results and the leak records whose result is gone" do
-      pruned = session.pruned(registry)
-      expect([pruned.results.keys, pruned.leaks.map(&:mutant_id)]).to(eq([[kept], [kept]]))
+      expect(held(session.pruned(registry))).to(eq([[kept], [kept]]))
     end
 
     it "leaves the session itself whole" do
       session.pruned(registry)
-      expect(session.results.keys).to(eq([kept, 999]))
+      expect(held(session).first).to(eq([kept, 999]))
     end
   end
 

@@ -59,10 +59,9 @@ class Kimera::CLI::Run::Cycle
   end
 
   def perform(todo, loaded, bench)
-    remaining = todo.reject { |id| loaded.done?(id) }
-    judged = remaining.empty? ? loaded : loaded.merged(harness(remaining, bench))
+    judged = loaded.judged(todo) { |remaining| harness(remaining, bench) }
     path = @options[:session]
-    judged.fingerprinted(@registry).save(path, meta: { "since" => @options[:since] }) if path
+    judged.save(path, @registry, meta: { "since" => @options[:since] }) if path
     judged
   end
 

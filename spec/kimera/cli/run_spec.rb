@@ -492,7 +492,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
 
     def session(id)
-      Kimera::Incremental::Session.new.merged(Kimera::RunReport.new(results: [killed(id)]))
+      Kimera::Incremental::Session.new.judged([id]) { Kimera::RunReport.new(results: [killed(id)]) }
     end
 
     it "combines evaluated session results with synthetic ignored results" do
@@ -662,8 +662,8 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         registry.each.map do |mutant, point|
           Kimera::MutantResult.new(mutant_id: mutant.id, status: status, file: point.file, duration: 0.0)
         end
-      Kimera::Incremental::Session.new.stamped(stamp(registry))
-        .merged(Kimera::RunReport.new(results: results)).fingerprinted(registry).save(path)
+      Kimera::Incremental::Session.new(meta: { "stamp" => stamp(registry) })
+        .judged(results.map(&:mutant_id)) { Kimera::RunReport.new(results: results) }.save(path, registry)
       results
     end
 
