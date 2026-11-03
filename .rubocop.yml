@@ -20,3 +20,18 @@ AllCops:
     - spec/property/corpus/**/*
     # CI installs the bundle here; replacing Exclude drops RuboCop's default.
     - vendor/**/*
+
+Kata/FrozenState:
+  inherit_mode:
+    merge:
+      - Exclude
+  Exclude:
+    # Kimera::Operators.register is the plugin API (examples/operators/README.md, "Wire them up"): a plugin file
+    # named under `require:` registers its operator classes when kimera loads it, into the one roster every run
+    # builds its operators from, and reset! puts back the built-ins. Nothing else hands kimera a plugin's
+    # operators, so the roster changes after construction (plugin contract).
+    - lib/kimera/operators/catalog.rb
+    # Minitest runs a class's tests by handing each result to the reporter it is given, through #record, and
+    # keeps nothing kimera can read after: the transcript a single test runs with has to collect what it is
+    # handed (framework hook).
+    - lib/kimera/frameworks/class_hooks.rb

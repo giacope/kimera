@@ -5,7 +5,7 @@ require "kimera/operators/audit"
 require_relative "../../../examples/operators/kimera_plugin"
 
 # Loading the plugin registers its operators; reset so other specs see only built-ins.
-Kimera::Operators::CATALOG.reset!
+Kimera::Operators::ROSTER.reset!
 
 # Unrenderable and identity directives hide in a report: one scores as an error or kill, the other survives.
 RSpec.describe(Kimera::Operators::Audit) do
@@ -45,30 +45,39 @@ RSpec.describe(Kimera::Operators::Audit) do
     it "flags a directive that no handler can render" do
       operator = proposing("bogus_type", :sum, "nonsense", "no_such_directive")
       faults = described_class.new([operator]).faults("def total = xs.sum")
-      expect(faults.map(&:verdict)).to(eq([Kimera::Operators::Audit::UNRENDERABLE]))
+      expect(faults.map(&:to_s)).to(eq(["bogus_type: nonsense\n  xs.sum\n  -> nil (unrenderable)"]))
     end
 
     it "flags a directive that rebuilds the original source as written" do
       operator = proposing("no_change", :select, "select => select", "selector_swap", to: "select")
       faults = described_class.new([operator]).faults("def kept = xs.select { |x| x }")
-      expect(faults.map(&:verdict)).to(eq([Kimera::Operators::Audit::IDENTICAL]))
+      expect(faults.map(&:to_s)).to(eq([<<~TEXT.chomp]))
+        no_change: select => select
+          xs.select { |x| x }
+          -> "xs.select { |x| x }" (identical)
+      TEXT
     end
 
     it "flags a directive that rebuilds the original source as Kimera writes it" do
       operator = proposing("no_change", :select, "select => select", "selector_swap", to: "select")
       faults = described_class.new([operator]).faults("def kept\n  xs.select x\nend")
-      expect(faults.map(&:verdict)).to(eq([Kimera::Operators::Audit::IDENTICAL]))
+      expect(faults.map(&:to_s)).to(eq([<<~TEXT.chomp]))
+        no_change: select => select
+          xs.select x
+          -> "xs.select(x)" (identical)
+      TEXT
     end
   end
 
   describe ".audit" do
     it "renders every mutant the example operators produce" do
-      rendered = described_class.new(operators).audit(controller).map(&:rendered)
-      expect(rendered).to(include("Order.create(order_params)", "BillingJob.perform_now(order.id)"))
+      rendered = described_class.new(operators).audit(controller).map { |finding| finding.to_s.lines.last.strip }
+      kept = [%(-> "Order.create(order_params)" (ok)), %(-> "BillingJob.perform_now(order.id)" (ok))]
+      expect(rendered).to(include(*kept))
     end
 
     it "prints a finding as its operator, label, original and rendering" do
-      finding = described_class.new(operators).audit(controller).find { |f| f.operator == "bang_call" }
+      finding = described_class.new(operators).audit(controller).find { |f| f.to_s.start_with?("bang_call: ") }
       expect(finding.to_s).to(eq(<<~TEXT.chomp))
         bang_call: create! => create
           Order.create!(order_params)
@@ -77,8 +86,8 @@ RSpec.describe(Kimera::Operators::Audit) do
     end
 
     it "reports the operator key and label alongside each rendering" do
-      finding = described_class.new(operators).audit(controller).find { |f| f.operator == "http_status" }
-      expect([finding.label, finding.rendered]).to(eq(["drop `status:`", "render(json: order)"]))
+      finding = described_class.new(operators).audit(controller).find { |f| f.to_s.start_with?("http_status: ") }
+      expect(finding.to_s).to(start_with("http_status: drop `status:`\n").and(end_with(%("render(json: order)" (ok)))))
     end
   end
 end
