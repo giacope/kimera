@@ -79,7 +79,7 @@ RSpec.describe(Kimera::Execution::FlakeHunt, :aggregate_failures) do
   it "does nothing without reruns" do
     log = []
     expect([hunt(log, seed: 11, flaky_runs: 0, filter: filter), hunt(log, filter: filter), log]).to(eq([nil, nil, []]))
-    expect(filter.active?).to(be(false))
+    expect(screens?(filter)).to(be(false))
   end
 
   it "wraps the seed past the top of the range" do

@@ -12,6 +12,7 @@ require_relative "isolated_scheduling"
 require_relative "isolated_verdict"
 require_relative "isolated_watchdog"
 require_relative "macro_lambdas"
+require_relative "mirror_layout"
 require_relative "mirror_slots"
 require_relative "null_progress"
 
@@ -33,12 +34,13 @@ class Kimera::Execution::IsolatedExecution
   end
 
   def verify!(ids)
-    tests = needed(ids)
+    tests = plan.needed(ids)
     return if tests.empty?
     progress.note("isolated baseline (unmutated mirror)")
-    outcome = with_mirror { |mirror| verdict(mirror, tests) }
+    outcome = with_mirror { |mirror| verdict(Kimera::Execution::Bay.new(mirror), tests) }
     outcome.confirmed(ids) do
-      raise(Kimera::Execution::BaselineFailure, Kimera::Execution::BaselineFailure::Mirror.new(outcome.to_s, plan).to_s)
+      failure = Kimera::Execution::BaselineFailure::Mirror.new(outcome.to_s, layout)
+      raise(Kimera::Execution::BaselineFailure, failure.to_s)
     end
   end
 
@@ -56,6 +58,8 @@ class Kimera::Execution::IsolatedExecution
   end
 
   private
+
+  attr_reader :registry
 
   def with_mirror(&)
     ready!
@@ -81,10 +85,11 @@ class Kimera::Execution::IsolatedExecution
 
   def rulings = @options.fetch(:rulings, Kimera::Execution::IsolatedOutcome::Ruling)
 
-  def needed(ids)
-    index = plan.registry.index
-    plan.suite & ids.flat_map { |id| index.key?(id) ? Array(plan.tests(id, index[id])) : [] }
-  end
+  def layout = @_layout ||= @options.fetch(:layout) { Kimera::Execution::MirrorLayout.new(@root, @registry) }
+
+  def quality? = @options[:test_quality] == true
+
+  def timings = @options.fetch(:timings, {})
 
   def jobs = @_jobs ||= [Integer(@options.fetch(:jobs, 1)), 1].max
 
@@ -92,11 +97,10 @@ class Kimera::Execution::IsolatedExecution
 
   def planned
     Kimera::Execution::IsolatedPlan.new(
-      registry: @registry, root: @root, tests: @tests,
-      coverage: @options.fetch(:coverage, {}), timings: @options.fetch(:timings, {}),
-      framework: @options.fetch(:framework, "rspec"),
+      registry: @registry, layout: layout, tests: @tests,
+      coverage: @options.fetch(:coverage, {}), framework: @options.fetch(:framework, "rspec"),
       test_files: @options.fetch(:test_files, []), filter: @options[:filter], seed: @options[:seed],
-      quality: @options[:test_quality], test_paths: @options[:test_paths], warnings: @options.fetch(:warnings, [])
+      test_paths: @options[:test_paths], warnings: @options.fetch(:warnings, [])
     )
   end
 
@@ -105,7 +109,7 @@ class Kimera::Execution::IsolatedExecution
     judged.tap { judged.note = "judged in a fresh isolated mirror; the warm pass could not: #{warm.detail}" }
   end
 
-  def covered?(warm) = plan.registry.index.fetch(warm.mutant_id).warm_covered?
+  def covered?(warm) = @registry.index.fetch(warm.mutant_id).warm_covered?
 
   def covered(result, warm)
     kept = result.killed? || warm.status == :survived ? result : warm.dup
@@ -115,7 +119,7 @@ class Kimera::Execution::IsolatedExecution
   def report(ids, tick)
     Kimera::RunReport.new(
       results: (jobs > 1 ? concurrently(ids, tick) : serially(ids, tick)),
-      leaks: [], registry: plan.registry
+      leaks: [], registry: @registry
     )
   end
 end

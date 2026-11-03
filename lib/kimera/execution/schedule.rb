@@ -3,6 +3,7 @@
 require_relative "priority"
 require_relative "kinship"
 require_relative "reload"
+require_relative "triage"
 require_relative "verdicts"
 
 class Kimera::Execution::Schedule
@@ -35,17 +36,17 @@ class Kimera::Execution::Schedule
   def filters = Array(@options[:filter])
 
   def screened(coverage)
-    active = filters.select(&:active?)
-    return [coverage, {}] if active.empty?
-    active.fetch(0).screen(coverage).tap { |kept, _settled| @driver.narrow(kept) }
+    filters.map { |filter| filter.screen(coverage) { |kept| @driver.narrow(kept) } }.fetch(0) { [coverage, {}] }
   end
 
   def hard = @options.fetch(:hard)
 
   def verdicts = @_verdicts ||= @options.fetch(:verdicts) { Kimera::Execution::Verdicts.new(@registry) }
 
+  def triage = Kimera::Execution::Triage.new(verdicts)
+
   def plan(ids, coverage, ledger = Ledger.new({}, []))
-    safe, reloadable, deferred = verdicts.tiers(ids)
+    safe, reloadable, deferred = triage.tiers(ids)
     Batch.new(prioritized(safe, coverage), reloadable, deferred, ledger, coverage)
   end
 
@@ -59,7 +60,7 @@ class Kimera::Execution::Schedule
   end
 
   def finish(ledger)
-    results = verdicts.reclassified(ledger.results).values
+    results = triage.reclassified(ledger.results).values
     Kimera::RunReport.new(results: results, leaks: ledger.leaks, registry: @registry)
   end
 
@@ -79,11 +80,11 @@ class Kimera::Execution::Schedule
   end
 
   def settled(filter, id, tests)
-    filter.settle(id, tests) || reloader.run(id, deadline: hard, tests: filter.keep(verdicts.path(id), tests))
+    filter.settle(id, tests) || reloader.run(id, deadline: hard, tests: filter.keep(verdicts.point(id).file, tests))
   end
 
   def defer(ids, ledger, tick)
-    ids.each { |id| record(ledger, id, verdicts.quarantine(id), tick) }
+    ids.each { |id| record(ledger, id, triage.quarantine(id), tick) }
   end
 
   def pool(queue, ledger, tick)

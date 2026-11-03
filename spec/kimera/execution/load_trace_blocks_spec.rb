@@ -4,6 +4,7 @@ require "fileutils"
 require "kimera/execution/definitions"
 require "kimera/execution/isolated_plan"
 require "kimera/execution/load_trace"
+require "kimera/execution/triage"
 require "kimera/execution/verdicts"
 require "kimera/registry/builder"
 require "tmpdir"
@@ -142,7 +143,7 @@ RSpec.describe(Kimera::Execution::LoadTrace, :aggregate_failures) do
   it "reports a never-loaded point uncovered, not isolated, and never reloads it" do
     found = point("val >= 0")
     found.unloaded!
-    result = Kimera::Execution::Verdicts.new(registry).quarantine(found.ids.first)
+    result = Kimera::Execution::Triage.new(Kimera::Execution::Verdicts.new(registry)).quarantine(found.ids.first)
     expect(result).to(have_attributes(status: :no_coverage, detail: Kimera::MutationPoint::NEVER_LOADED))
     expect(found.reloadable?).to(be(false))
   end
@@ -150,7 +151,8 @@ RSpec.describe(Kimera::Execution::LoadTrace, :aggregate_failures) do
   it "gives a never-loaded point no test to run in a mirror" do
     found = point("val >= 0")
     plan = Kimera::Execution::IsolatedPlan.new(
-      registry: registry, root: dir, tests: ["t1"], framework: "rspec", test_files: [], coverage: {}
+      registry: registry, layout: Kimera::Execution::MirrorLayout.new(dir, registry), tests: ["t1"],
+      framework: "rspec", test_files: [], coverage: {}
     )
     steps = [-> {}, -> { found.unsafe!(Kimera::MutationPoint::LOAD_REASON) }, -> { found.unloaded! }]
     expect(steps.map { |step| step.call.then { plan.tests(found.ids.first, found) } }).to(eq([nil, ["t1"], nil]))

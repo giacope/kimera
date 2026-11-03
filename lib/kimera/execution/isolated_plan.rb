@@ -5,7 +5,7 @@ require_relative "baseline_failure"
 require_relative "isolated_child_command"
 require_relative "isolated_kin"
 require_relative "isolated_test_selection"
-require_relative "pace"
+require_relative "mirror_layout"
 
 module Kimera
   module Execution
@@ -13,25 +13,12 @@ module Kimera
 end
 
 class Kimera::Execution::IsolatedPlan
-  MIRROR_SKIP = %w[coverage].freeze
-  MIRROR_EMPTY = %w[tmp log].freeze
-  MIRROR_LINK = %w[vendor node_modules .bundle].freeze
-  MIRROR_GIT = ".git"
-  MIRROR_HINT =
-    "  the mirror copies the project except #{MIRROR_SKIP.join(", ")} " \
-      "(#{MIRROR_EMPTY.join(", ")} start empty; #{MIRROR_LINK.join(", ")} are symlinked; " \
-      ".git is a private snapshot of the index and refs that reads the project's objects)".freeze
-
-  attr_reader :registry
-
-  def initialize(registry:, root:, tests:, **options)
+  def initialize(registry:, layout:, tests:, **options)
     @registry = registry
-    @given = root
+    @layout = layout
     @tests = tests
     @options = options
   end
-
-  def root = @_root ||= File.expand_path(@given)
 
   def tests(id, point)
     found = candidates(id, point)
@@ -43,31 +30,14 @@ class Kimera::Execution::IsolatedPlan
     Array(@options[:filter]).filter_map { |screen| screen.settle(id, Array(candidates(id, point))) }
   end
 
+  def needed(ids)
+    index = @registry.index
+    @tests & ids.flat_map { |id| index.key?(id) ? Array(tests(id, index[id])) : [] }
+  end
+
   def command(mirror, locations, ledger, **)
     request = child.request(locations, warnings: @options.fetch(:warnings, []), **)
-    child.command(mirror, request, ledger: ledger, paths: mutables)
-  end
-
-  def suite = @tests
-
-  def to_s = MIRROR_HINT
-
-  def quality? = @options[:quality] == true
-
-  def fastest(tests) = Kimera::Execution::Pace.new(timings).fastest(tests)
-
-  def timings = @options.fetch(:timings, {})
-
-  def mutables
-    @registry.files.map { |f| f.split(File::SEPARATOR).first }.uniq
-  end
-
-  def placement(entry)
-    return :copy if mutables.include?(entry)
-    return :git if entry == MIRROR_GIT
-    return :skip if MIRROR_SKIP.include?(entry)
-    return :empty if MIRROR_EMPTY.include?(entry)
-    MIRROR_LINK.include?(entry) ? :link : :copy
+    child.command(mirror, request, ledger: ledger, paths: @layout.mutables)
   end
 
   private
@@ -79,7 +49,7 @@ class Kimera::Execution::IsolatedPlan
   end
 
   def everything?(point, protection = Kimera::SelfProtection)
-    point.ordered? || protection.new(File.join(root, point.file)).protected?
+    point.ordered? || protection.new(File.join(@layout.root, point.file)).protected?
   end
 
   def whole?(point)
@@ -103,7 +73,8 @@ class Kimera::Execution::IsolatedPlan
 
   def commanded
     ChildCommand.new(
-      framework: @options.fetch(:framework), test_files: @options.fetch(:test_files), root: root, seed: @options[:seed]
+      framework: @options.fetch(:framework), test_files: @options.fetch(:test_files), root: @layout.root,
+      seed: @options[:seed]
     )
   end
 end

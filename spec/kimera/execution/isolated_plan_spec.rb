@@ -2,6 +2,7 @@
 
 require "fileutils"
 require "kimera/execution/isolated_plan"
+require "kimera/execution/pace"
 require "kimera/execution/test_filter"
 require "kimera/registry/builder"
 require "kimera/runtime"
@@ -21,11 +22,12 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
   let(:point) { registry.points.first }
   let(:mutant_id) { point.mutants.first.id }
 
-  def plan(**over)
+  def plan(root: ".", **over)
+    scanned = over.fetch(:registry, registry)
     described_class.new(
-      registry: registry, root: ".", tests: %w[t1 t2 t3],
+      registry: scanned, layout: Kimera::Execution::MirrorLayout.new(root, scanned), tests: %w[t1 t2 t3],
       coverage: {}, framework: "rspec", test_files: [],
-      **over
+      **over.except(:registry)
     )
   end
 
@@ -326,14 +328,18 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     end
   end
 
-  describe "#fastest" do
+  describe "Pace#fastest" do
+    def fastest(tests, timings = {}) = Kimera::Execution::Pace.new(timings).fastest(tests)
+
     it "orders tests by their baseline time, keeping the given order without one", :aggregate_failures do
-      expect(plan(timings: { "t1" => 2.0, "t3" => 0.1 }).fastest(%w[t1 t2 t3])).to(eq(%w[t3 t1 t2]))
-      expect(plan.fastest(%w[t2 t1])).to(eq(%w[t2 t1]))
+      expect(fastest(%w[t1 t2 t3], { "t1" => 2.0, "t3" => 0.1 })).to(eq(%w[t3 t1 t2]))
+      expect(fastest(%w[t2 t1])).to(eq(%w[t2 t1]))
     end
   end
 
-  describe "#mutables" do
+  def layout(over = registry) = Kimera::Execution::MirrorLayout.new(".", over)
+
+  describe "MirrorLayout#mutables" do
     def nested
       code = "def a(x, y)\n  x > y\nend\n"
       Kimera::Registry.new(
@@ -344,13 +350,13 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     end
 
     it "is the distinct first path segment of every mutated file" do
-      expect(plan(registry: nested).mutables).to(eq(%w[lib app]))
+      expect(layout(nested).mutables).to(eq(%w[lib app]))
     end
   end
 
-  describe "#placement" do
+  describe "MirrorLayout#placement" do
     def placements(entries)
-      entries.to_h { |entry| [entry, plan.placement(entry)] }
+      entries.to_h { |entry| [entry, layout.placement(entry)] }
     end
 
     # A boot that needs node_modules/ or a vendored bundle must load in the
@@ -365,7 +371,7 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     it "copies a would-be link that holds a mutated file, so no mutant writes through it" do
       code = "def a(x, y)\n  x > y\nend\n"
       inside = Kimera::Registry.new(points: Kimera::RegistryScan.new.source(code, file: "vendor/a.rb").points)
-      expect(plan(registry: inside).placement("vendor")).to(eq(:copy))
+      expect(layout(inside).placement("vendor")).to(eq(:copy))
     end
   end
 end

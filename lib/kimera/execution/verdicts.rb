@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require_relative "../results/result"
-require_relative "../self_protection"
 
 module Kimera
   module Execution
@@ -9,67 +8,28 @@ module Kimera
 end
 
 class Kimera::Execution::Verdicts
-  SELF_SUSPECT = %i[timeout error survived].freeze
   WIRE = { "id" => "mutant_id", "ms" => "duration", "fails" => "failing_tests", "cover" => "covering_tests" }.freeze
 
   def initialize(registry)
     @registry = registry
   end
 
-  def tiers(ids)
-    safe, unsafe = ids.partition { |id| point(id).safe? }
-    [safe, *unsafe.partition { |id| point(id).reloadable? }]
-  end
-
-  def reclassified(results) = results.transform_values { |result| reclassify(result) }
-
   def parse(message)
-    Kimera::MutantResult.from_h(message.transform_keys(WIRE).merge("file" => path(message["id"])))
+    Kimera::MutantResult.from_h(message.transform_keys(WIRE).merge("file" => point(message["id"]).file))
   end
 
   def timeout(id, duration, stacks = [])
     Kimera::MutantResult.new(
-      mutant_id: id, status: :timeout, file: path(id),
+      mutant_id: id, status: :timeout, file: point(id).file,
       duration: duration, detail: ["hard watchdog timeout", *stacks].join("\n")
     )
   end
 
   def unjudged(id, detail)
-    Kimera::MutantResult.new(mutant_id: id, status: :harness_error, file: path(id), detail: detail)
-  end
-
-  def quarantine(id)
-    found = point(id)
-    Kimera::MutantResult.new(mutant_id: id, status: held(found), file: found.file, detail: found.unsafe_reason)
+    Kimera::MutantResult.new(mutant_id: id, status: :harness_error, file: point(id).file, detail: detail)
   end
 
   def point(id)
     @registry.index[id] || Kimera::MutationPoint.none
-  end
-
-  def path(id)
-    point(id).file
-  end
-
-  private
-
-  def held(point)
-    return :unmutatable if point.unmutatable?
-    point.unloaded? ? :no_coverage : :isolated_only
-  end
-
-  def reclassify(result) = suspect?(result) ? result.isolated(detail(result.status)) : result
-
-  def suspect?(result)
-    SELF_SUSPECT.include?(result.status) && harness?(result)
-  end
-
-  def harness?(result)
-    Kimera::SelfProtection.new(result.file).critical?
-  end
-
-  def detail(status)
-    "#{status == :survived ? "unfalsifiable warm survivor" : "self-crash"} in the in-process runner " \
-      "(warm #{status}); evaluate with --isolated"
   end
 end

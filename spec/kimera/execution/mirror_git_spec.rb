@@ -86,9 +86,9 @@ RSpec.describe(Kimera::Execution::MirrorGit, :aggregate_failures) do
     def populated
       Dir.mktmpdir do |root|
         test_project(root)
-        runner = Kimera::Execution::IsolatedExecution.new(registry: registry, root: root, tests: ["t1"])
+        layout = Kimera::Execution::MirrorLayout.new(root, registry)
         Dir.mktmpdir do |mirror|
-          runner.__send__(:populate, mirror)
+          layout.populate(mirror)
           alternates = File.read(File.join(mirror, ".git", "objects", "info", "alternates"))
           [File.realpath(File.join(root, ".git", "objects")), alternates, test_git(mirror, "ls-files")]
         end

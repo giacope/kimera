@@ -59,6 +59,7 @@ module Kimera
       kimera/execution/overlaying.rb
       kimera/execution/worker_databases.rb
       kimera/execution/verdicts.rb
+      kimera/execution/triage.rb
       kimera/execution/worker_pool.rb
       kimera/execution/worker_pool/fleet.rb
       kimera/execution/child_process.rb

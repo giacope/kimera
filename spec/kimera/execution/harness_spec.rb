@@ -115,6 +115,8 @@ RSpec.describe(Kimera::Execution::Harness) do
   # Progress double that records events instead of drawing.
   def journal = ProgressJournal.new
 
+  def triage(registry) = Kimera::Execution::Triage.new(Kimera::Execution::Verdicts.new(registry))
+
   # Before its warm pass measures anything, every test may cover any mutant.
   it "answers unmeasured coverage until its warm pass measures it" do
     expect(harness(adapter(coverage: { "t1" => [], "t2" => [] })).coverage.fetch(ids.first)).to(eq(%w[t1 t2]))
@@ -1153,10 +1155,9 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
   end
 
-  describe "Verdicts#tiers, the safe tier" do
+  describe "Triage#tiers, the safe tier" do
     it "holds an ordinary point and an unknown id" do
-      verdicts = Kimera::Execution::Verdicts.new(registry)
-      expect(verdicts.tiers([ids.first, 999_999]).first).to(eq([ids.first, 999_999]))
+      expect(triage(registry).tiers([ids.first, 999_999]).first).to(eq([ids.first, 999_999]))
     end
 
     it "is false for a memoized (schema-unsafe) point" do
@@ -1166,7 +1167,7 @@ RSpec.describe(Kimera::Execution::Harness) do
         end
       RUBY
       unsafe = memo.each.first.first.id
-      expect(Kimera::Execution::Verdicts.new(memo).tiers([unsafe]).first).to(be_empty)
+      expect(triage(memo).tiers([unsafe]).first).to(be_empty)
     end
   end
 
@@ -1229,7 +1230,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   # On Kimera's own runner a warm error is a self-crash, and a warm survivor
   # is unfalsifiable: a mutant that disables the runner passes every test.
-  describe "Verdicts#reclassified" do
+  describe "Triage#reclassified" do
     def result(id, status, file)
       Kimera::MutantResult.new(mutant_id: id, status: status, file: file, duration: 0.0)
     end
@@ -1245,7 +1246,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       }
     end
 
-    let(:reclassified) { Kimera::Execution::Verdicts.new(registry).reclassified(results) }
+    let(:reclassified) { triage(registry).reclassified(results) }
 
     it "downgrades a runner error/timeout to isolated_only", :aggregate_failures do
       expect(reclassified[1].status).to(eq(:isolated_only))
@@ -1287,7 +1288,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
   end
 
-  describe "Verdicts#tiers, the reload tier" do
+  describe "Triage#tiers, the reload tier" do
     let(:mixed_registry) do
       Kimera::RegistryScan.new(
         operators: Kimera::Operators.build(keys: %w[comparison rails_validation])
@@ -1302,23 +1303,21 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     it "is false for a class-body point and true for a method-body point", :aggregate_failures do
-      verdicts = Kimera::Execution::Verdicts.new(mixed_registry)
       body = mixed_registry.each.find { |_m, p| p.body? }.first.id
       method = mixed_registry.each.find { |_m, p| !p.body? }.first.id
       mixed_registry.index.fetch(method).unsafe!("memoized")
-      expect(verdicts.tiers([body, method]).drop(1)).to(eq([[method], [body]]))
+      expect(triage(mixed_registry).tiers([body, method]).drop(1)).to(eq([[method], [body]]))
     end
 
     it "puts an unknown id (no registry point) in the safe tier" do
-      expect(Kimera::Execution::Verdicts.new(registry).tiers([10_000_000])).to(eq([[10_000_000], [], []]))
+      expect(triage(registry).tiers([10_000_000])).to(eq([[10_000_000], [], []]))
     end
 
     # Reload bakes the same source the overlay could not emit.
     it "is false for an unmutatable method-body point" do
-      verdicts = Kimera::Execution::Verdicts.new(mixed_registry)
       mutant, point = mixed_registry.each.find { |_m, p| !p.body? }
       point.unmutatable!("kimera could not write its guard")
-      expect(verdicts.tiers([mutant.id]).last).to(eq([mutant.id]))
+      expect(triage(mixed_registry).tiers([mutant.id]).last).to(eq([mutant.id]))
     end
   end
 

@@ -875,7 +875,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
     # A screen that keeps the unit's own tests, by either path, and drops the other.
     def screening
-      satisfy { |filter| [filter.active?, filter.keep("x.rb", %w[own absolute other])] == [true, %w[own absolute]] }
+      satisfy { |filter| [screens?(filter), filter.keep("x.rb", %w[own absolute other])] == [true, %w[own absolute]] }
     end
 
     it "hands the warm harness and the isolated tier one screen of the unit's own tests under --attribution unit" do
@@ -914,7 +914,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     it "hands the harness an inactive screen by default" do
       harness = FakeHarness.new
       pass(registry, settings(unit_tests: { "x.rb" => ["t"] }), [1, 2], harness: harness)
-      expect(harness.settings).to(include(filter: having_attributes(active?: false)))
+      expect(harness.settings).to(include(filter: satisfy { |filter| !screens?(filter) }))
     end
 
     it "hands the relative timeout settings to the warm harness" do

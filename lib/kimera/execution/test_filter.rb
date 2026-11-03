@@ -30,15 +30,11 @@ class Kimera::Execution::TestFilter
 
   def flag!(tests) = @flaky.merge(tests)
 
-  def active? = @attribution.strict? || @flaky.any?
-
   def keep(file, tests) = tests.select { |test| eligible?(test, file) }
 
   def screen(coverage)
-    coverage.each_with_object([{}, {}]) do |(id, tests), (kept, settled)|
-      verdict = settle(id, tests)
-      verdict ? settled[id] = verdict : kept[id] = keep(@registry.index[id]&.file, tests)
-    end
+    return [coverage, {}] unless active?
+    screened(coverage).tap { |kept, _settled| yield kept }
   end
 
   def settle(id, tests)
@@ -49,6 +45,15 @@ class Kimera::Execution::TestFilter
   end
 
   private
+
+  def active? = @attribution.strict? || @flaky.any?
+
+  def screened(coverage)
+    coverage.each_with_object([{}, {}]) do |(id, tests), (kept, settled)|
+      verdict = settle(id, tests)
+      verdict ? settled[id] = verdict : kept[id] = keep(@registry.index[id]&.file, tests)
+    end
+  end
 
   def eligible?(test, file)
     return false if @flaky.include?(test)

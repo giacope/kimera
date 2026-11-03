@@ -15,11 +15,13 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#evaluate", :aggregate_fai
   let(:id) { registry.each.map { |mutant, _point| mutant.id }.first }
   let(:outside) { Kimera::Execution::IsolatedOutcome.new(:outside, [], "an error outside every test: boom") }
 
-  def test_trial(mirror) = Kimera::Execution::Trial.new(id, mirror, Kimera::Overlay.new(registry), nil, 3)
+  def test_bay(mirror) = Kimera::Execution::Bay.new(mirror, 3, Kimera::Overlay.new(registry))
 
   def test_runner(root, outcomes, seen)
+    seated = method(:seat)
     Class.new(described_class) do
-      define_method(:verdict) do |mirror, _tests, slot: nil, first: false|
+      define_method(:verdict) do |bay, _tests, first: false|
+        mirror, slot = seated.call(bay)
         seen << [slot, File.basename(mirror).start_with?("kimera-isolated"), first]
         outcomes.shift
       end
@@ -33,7 +35,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#evaluate", :aggregate_fai
       runner = test_runner(root, outcomes, seen)
       Dir.mktmpdir do |mirror|
         FileUtils.cp(File.join(root, "calc.rb"), mirror)
-        [runner.__send__(:evaluate, test_trial(mirror)), seen]
+        [runner.__send__(:evaluate, id, test_bay(mirror)), seen]
       end
     end
   end
