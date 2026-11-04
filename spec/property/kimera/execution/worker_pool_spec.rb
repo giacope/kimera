@@ -7,7 +7,7 @@ require "kimera/execution/worker_pool"
 require_relative "../../property_helper"
 
 # Fault injection for the real pool, with scripts drawn from the child
-# actions in formal/WorkerPool.tla. The real parent (WorkerPool, Fleet,
+# actions in formal/WorkerPool.tla. The real parent (WorkerPool, Fleet, Backlog,
 # Worker, StillbornGuard) drives forked children that follow a random script,
 # either speaking Shift's pipe protocol themselves or running the real Shift
 # over an adapter that injects the faults, and the run must keep the model's
@@ -28,12 +28,12 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   let(:warm) { Pbt.one_of(:result, :result, :result, :leak, :tainted, :requeue, :requeue, :crash, :hang, :partial) }
   let(:recheck) { Pbt.one_of(:result, :leak, :tainted, :crash, :hang, :partial) }
   let(:scripts) { Pbt.array(Pbt.tuple(warm, recheck), min: 1, max: 6) }
-  # Fleet#take with its sources swapped: a fresh worker serves the queue
+  # Backlog#take with its sources swapped: a fresh worker serves the queue
   # before a recheck. Every verdict is still right and every recheck still
   # runs on a fresh worker, so only the trace shows the change.
   let(:mutant) do
     Module.new do
-      def take(worker) = following || (worker.fresh? && rechecks.shift)
+      def chosen(worker) = following || (worker.fresh? && rechecks.shift)
     end
   end
 
@@ -109,9 +109,9 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   end
 
   # Runs inside the supervisor: the pool, a log of what it reported, and its
-  # trace. A mutant module, if given, is prepended to Fleet first.
+  # trace. A mutant module, if given, is prepended to Backlog first.
   def run(script, jobs, log, mutant)
-    Kimera::Execution::WorkerPool::Fleet.prepend(mutant) if mutant
+    Kimera::Execution::WorkerPool::Backlog.prepend(mutant) if mutant
     grandchildren = witness
     tally = { events: [], slots: [], error: nil, grandchildren: grandchildren }
     PoolTrace.record((1..script.size).to_a, jobs) { judge(tally, script, jobs, log) }

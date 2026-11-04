@@ -50,6 +50,7 @@ module Kimera
       kimera/execution/pace.rb
       kimera/execution/zygote.rb
       kimera/execution/harness.rb
+      kimera/execution/survey.rb
       kimera/execution/baseline_pass.rb
       kimera/execution/baseline_tally.rb
       kimera/execution/stopwatch.rb
@@ -62,6 +63,7 @@ module Kimera
       kimera/execution/triage.rb
       kimera/execution/worker_pool.rb
       kimera/execution/worker_pool/fleet.rb
+      kimera/execution/worker_pool/backlog.rb
       kimera/execution/child_process.rb
       kimera/execution/rig.rb
       kimera/registry/builder.rb

@@ -156,9 +156,9 @@ The model abstracts away:
 | TLA+ | Ruby |
 | --- | --- |
 | `Init`, `RefillStep` | `Fleet#bootstrap`, `Fleet#refill`, `Fleet#replace`, `Fleet#spawn` |
-| `Assign`, `Take`, `Following` | `WorkerPool#assign`, `Fleet#take`, `Fleet#following`, `Worker#claim`, `Worker#offer`, `WorkerPool#close` |
-| `Service` | `WorkerPool#service`, `Worker#lines`, `#hangup` and `#dispatch`: `#finish`, `#relay`, `Fleet#requeue` |
-| `Remove` | `Fleet#remove`, `ChildProcess#bury`, `Fleet#charge`, `StillbornGuard#track` |
+| `Assign`, `Take`, `Following` | `WorkerPool#assign`, `Backlog#take`, `Backlog#following`, `Worker#claim`, `Worker#offer`, `WorkerPool#close` |
+| `Service` | `WorkerPool#service`, `Worker#lines`, `#hangup` and `#dispatch`: `#finish`, `#relay`, `Backlog#requeue` |
+| `Remove` | `Fleet#remove`, `Fleet#retire`, `ChildProcess#bury`, `Fleet#charge`, `StillbornGuard#track` |
 | `Expire` | `WorkerPool#watch`, `Worker#halt` (`ChildProcess#kill`) |
 | `ChildRead` | `Shift::Channel#ids` (EOF means retired) |
 | `ChildResult`, `ChildTainted` | `Shift#judging`, `Shift#process`, `Shift#tainted?`, `Shift::LeakGuard#check` |
@@ -220,7 +220,7 @@ the code and the model diverge:
 
 | Change to the code | Outcome checks | Trace validation |
 | --- | --- | --- |
-| `Fleet#take` serves the queue before a recheck | pass | rejected (a spawn offers 2, the model offers the recheck of 1) |
+| `Backlog#take` serves the queue before a recheck | pass | rejected (a spawn offers 2, the model offers the recheck of 1) |
 | `Fleet#remove` returns a slot to the front of `Fleet#slots` | pass | rejected (a spawn takes the wrong slot) |
 | `StillbornGuard` aborts one crash early | fail | rejected (an abort the model doesn't take) |
 | a `leak` message closes the worker | fail | rejected (a read that sends a close) |

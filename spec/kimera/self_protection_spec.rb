@@ -64,10 +64,12 @@ RSpec.describe(Kimera::SelfProtection) do
         lib/kimera/exits/test_exit.rb
         lib/kimera/execution/shift.rb
         lib/kimera/execution/harness.rb
+        lib/kimera/execution/survey.rb
         lib/kimera/execution/stopwatch.rb
         lib/kimera/execution/time_budget.rb
         lib/kimera/execution/worker_pool.rb
         lib/kimera/execution/worker_pool/fleet.rb
+        lib/kimera/execution/worker_pool/backlog.rb
         lib/kimera/execution/child_process.rb
         lib/kimera/execution/rig.rb
         lib/kimera/registry/builder.rb
