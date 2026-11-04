@@ -100,7 +100,7 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
 
   describe Kimera::Incremental::Selection do
     def expected(registry, touched)
-      registry.points.select { |point| point.location.range.any? { touched.include?(it) } }.flat_map(&:ids)
+      registry.to_a.select { |point| point.location.range.any? { touched.include?(it) } }.flat_map(&:ids)
     end
 
     it "selects, in registry order, exactly the mutants on a changed line" do

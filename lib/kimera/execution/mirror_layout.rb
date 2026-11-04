@@ -26,7 +26,7 @@ class Kimera::Execution::MirrorLayout
   def root = @_root ||= File.expand_path(@given)
 
   def mutables
-    @registry.files.map { |f| f.split(File::SEPARATOR).first }.uniq
+    @registry.to_h.keys.map { |f| f.split(File::SEPARATOR).first }.uniq
   end
 
   def placement(entry)

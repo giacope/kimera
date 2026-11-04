@@ -110,8 +110,9 @@ class Kimera::CLI::Run::Pass
   end
 
   def revisited(report)
+    reason = ->(result) { result.from(@registry.index).reasons(Kimera::Reason.revisiting).first }
     %i[survived no_coverage].flat_map { |status| report.select { |result| result.status?(status) } }
-      .filter_map { |result| result.from(@registry.index).revisit&.then { |reason| result.with(detail: reason) } }
+      .filter_map { |result| reason.call(result)&.then { result.with(detail: it) } }
   end
 
   def judge(ids)

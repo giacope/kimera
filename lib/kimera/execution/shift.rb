@@ -45,15 +45,12 @@ class Kimera::Execution::Shift
       memory
     end
     emit(io, t: "done")
-  ensure
-    Kimera::RUNTIME.active = nil
   end
 
   def judged(id, memory)
     result, memory = safely(id, Subject.new(id, @registry.index[id]&.file), memory)
     [tally(result), memory]
   ensure
-    Kimera::RUNTIME.active = nil
     isolation.reset!
   end
 

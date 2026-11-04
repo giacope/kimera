@@ -17,7 +17,7 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     RUBY
   end
 
-  let(:ids) { registry.each.map { |m, _p| m.id } }
+  let(:ids) { registry.each.map { |m, _p| m.to_i } }
 
   let(:adapter) do
     tests = %w[t1 t2 t3]

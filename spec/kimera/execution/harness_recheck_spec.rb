@@ -19,7 +19,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     RUBY
   end
 
-  let(:ids) { registry.each.map { |m, _p| m.id } }
+  let(:ids) { registry.each.map { |m, _p| m.to_i } }
 
   def harness(adapter, **)
     described_class.build(registry: registry, adapter: adapter, **)

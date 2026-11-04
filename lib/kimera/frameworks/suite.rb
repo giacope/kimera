@@ -9,7 +9,7 @@ module Kimera
     RunOutcome =
       Data.define(:passed, :failed_ids, :failures) do
         def initialize(passed:, failed_ids:, failures: {}) = super
-
+        private(*members)
         def passed?
           passed
         end
@@ -21,7 +21,6 @@ module Kimera
         def expired? = false
 
         def to_h = { "passed" => passed?, "failed_ids" => failed_ids, "failures" => failures }
-        private(*members)
       end
 
     Unhooked =

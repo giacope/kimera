@@ -105,7 +105,7 @@ class Kimera::Execution::IsolatedExecution
   end
 
   def noted(result, warm)
-    judged = warm.from(@registry.index).warm_covered? ? warm.merged(result) : result
+    judged = warm.from(@registry.index).reasons(Kimera::Reason.warm).any? ? warm.merged(result) : result
     warm.noting(judged, "judged in a fresh isolated mirror; the warm pass could not: ")
   end
 

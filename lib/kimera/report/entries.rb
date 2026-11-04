@@ -72,12 +72,12 @@ class Kimera::Report::Entries
 
   def resolved(result)
     id = result.to_h["mutant_id"]
-    pair = @registry.point(id) { return }
+    pair = @registry[id] { return }
     yield(id, *pair)
   end
 
   def diff(point, mutant)
-    variants = Kimera::Rewrite::MutantText.new(point, mutant, root: @registry.root).texts
+    variants = @registry.texts(point, mutant, Kimera::Rewrite::MutantText)
     source(@palette.red("-"), point.original_source)
     source(@palette.green("+"), Kimera::MutatedText.new(variants).to_s)
   end
@@ -104,7 +104,7 @@ class Kimera::Report::Entries
   def place(point)
     location = point.location
     method = point.method_name
-    "#{point.file}:#{location.start_line}:#{location.start_column + 1}#{"  in #{method}" if method}"
+    "#{point.file}:#{location}#{"  in #{method}" if method}"
   end
 
   def uncovered(result)
@@ -113,6 +113,6 @@ class Kimera::Report::Entries
   end
 
   def spotted(status, id, mutant, point)
-    @io.puts("  #{@palette.yellow(status)} ##{id}  #{place(point)}  [#{mutant.label}]")
+    @io.puts("  #{@palette.yellow(status)} ##{id}  #{place(point)}  [#{mutant}]")
   end
 end

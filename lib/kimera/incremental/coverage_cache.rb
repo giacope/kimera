@@ -52,7 +52,7 @@ class Kimera::Incremental::CoverageCache
 
   def chosen(stored, ids)
     sources = fingerprint["sources"]
-    stored.picked(sources, @registry.files, ids).tap do |picked|
+    stored.picked(sources, @registry.to_h.keys, ids).tap do |picked|
       @errors.puts(stored.reused(sources, picked.size, ids.size))
     end
   end

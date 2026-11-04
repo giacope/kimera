@@ -16,7 +16,7 @@ RSpec.describe(Kimera::Execution::Shift::Unmask) do
     Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n", file: "calc.rb")
   end
 
-  let(:target) { registry.each.first.first.id }
+  let(:target) { registry.each.first.first.to_i }
 
   # +script+ maps a test to the outcomes of its successive runs; unscripted
   # runs pass.

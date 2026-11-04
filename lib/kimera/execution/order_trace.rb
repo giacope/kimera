@@ -25,7 +25,7 @@ class Kimera::Execution::OrderTrace
   def mark!(baseline, coverage)
     reached(baseline) { [] }.each do |id|
       point = @registry.index[id]
-      point.ordered! if point&.safe? && uncovered?(id, coverage)
+      point.mark!(Kimera::Reason.ordered) if point&.safe? && uncovered?(id, coverage)
     end
   end
 

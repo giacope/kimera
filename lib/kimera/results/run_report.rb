@@ -41,7 +41,8 @@ class Kimera::RunReport
     tally = score
     { "schema_version" => SCHEMA_VERSION, "counts" => tally.to_h, "mutation_score" => tally.to_f }
       .merge("results" => @results.map { |result| rows.of(result) }, "leaks" => @leaks.map(&:to_h))
-      .merge("unmutated" => @registry.unmutated.map(&:to_h)).merge(noted).merge({ "run" => @context[:run] }.compact)
+      .merge("unmutated" => @registry.regions { |found| found.map(&:to_h) })
+      .merge(noted).merge({ "run" => @context[:run] }.compact)
   end
 
   private

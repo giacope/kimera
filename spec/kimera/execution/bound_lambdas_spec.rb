@@ -21,7 +21,9 @@ RSpec.describe(Kimera::Execution::BoundLambdas, :aggregate_failures) do
     Kimera::RegistryScan.new(root: dir).build([path])
   end
 
-  def reasons(registry) = registry.points.to_h { |point| [point.location.start_line, point.unsafe_reason] }
+  def reasons(registry)
+    registry.to_a.to_h { |point| [point.location.range.begin, PointVerdict.new(point).unsafe_reason] }
+  end
 
   it "judges a lambda or proc a constant holds in the isolated tier, and leaves other code alone" do
     registry = scanned(<<~RUBY)
@@ -34,9 +36,9 @@ RSpec.describe(Kimera::Execution::BoundLambdas, :aggregate_failures) do
       end
     RUBY
     described_class.new(registry, dir).hold!("bound_lookup.rb")
-    held = Kimera::MutationPoint::BOUND_REASON
+    held = Kimera::Reason::BOUND_REASON
     expect(reasons(registry)).to(eq(2 => held, 3 => held, 4 => held, 5 => nil, 6 => nil))
-    expect(registry.points.find { |point| point.location.start_line == 2 }.reloadable?).to(be(false))
+    expect(registry.to_a.find { |point| point.location.range.begin == 2 }.reasons(Kimera::Reason.unreloadable).empty?).to(be(false))
   end
 
   # action_policy's INFER_FROM_CLASS: `strict_namespace: false => true` was judged by reloading the file, which
@@ -56,7 +58,7 @@ RSpec.describe(Kimera::Execution::BoundLambdas, :aggregate_failures) do
     expect(reasons(registry)).to(eq(2 => held, 3 => held, 5 => nil))
   end
 
-  def held = Kimera::MutationPoint::BOUND_REASON
+  def held = Kimera::Reason::BOUND_REASON
 
   # The registry of a chain built at load, after the overlay: the lambda the chain took, and its first mutant.
   def chained
@@ -70,7 +72,7 @@ RSpec.describe(Kimera::Execution::BoundLambdas, :aggregate_failures) do
 
   def verdict(registry)
     triage = Kimera::Execution::Triage.new(Kimera::Execution::Verdicts.new(registry))
-    triage.quarantine(registry.points.first.ids.first).status
+    triage.quarantine(registry.to_a.first.ids.first).status
   end
 
   it "keeps the constant bound to the lambda the suite took, and calls its mutants isolated_only" do

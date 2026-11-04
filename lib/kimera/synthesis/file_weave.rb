@@ -32,14 +32,14 @@ class Kimera::Overlay
     def finish(viable, io)
       dropped = @safe - viable
       notice(dropped, io)
-      dropped.each { |point| point.unmutatable!(UNGUARDABLE) }
+      dropped.each { |point| point.mark!(Kimera::Reason.unmutatable(UNGUARDABLE)) }
       attempt(viable).fetch(0).tap { |result| result.skipped_unsafe.concat(dropped.flat_map(&:ids)) }
     end
 
     def notice(dropped, io)
       io.puts(
         "kimera: #{@file}: #{dropped.size} mutation point(s) at " \
-          "#{dropped.map { |p| "line #{p.location.start_line}" }.uniq.join(", ")} " \
+          "#{dropped.map { |p| "line #{p.location.range.begin}" }.uniq.join(", ")} " \
           "are unguardable (kimera could not write them); their mutants are reported unmutatable"
       )
     end

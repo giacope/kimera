@@ -15,19 +15,20 @@ RSpec.describe(Kimera::Registry) do
   def render(program) = RubyPrograms.render(program)
 
   def anchored?(point, source)
-    location = point.location
-    source.byteslice(location.start_offset, location.span) == point.original_source &&
-      source.byteslice(0, location.start_offset).count("\n") + 1 == location.start_line
+    location = point.location.to_h
+    start = location.fetch("start_offset")
+    source.byteslice(start, location.fetch("length")) == point.original_source &&
+      source.byteslice(0, start).count("\n") + 1 == location.fetch("start_line")
   end
 
   # The scan's numbering and anchoring, then what they must be.
   def numbering(source)
     registry = scan(source)
     facts = {
-      mutant_ids: registry.each.map { |mutant, _| mutant.id }, point_ids: registry.points.map(&:point_id),
-      unanchored: registry.points.reject { |point| anchored?(point, source) }
+      mutant_ids: registry.each.map { |mutant, _| mutant.to_i }, point_ids: registry.to_a.map(&:point_id),
+      unanchored: registry.to_a.reject { |point| anchored?(point, source) }
     }
-    [facts, { mutant_ids: (1..registry.count).to_a, point_ids: (1..registry.size).to_a, unanchored: [] }]
+    [facts, { mutant_ids: (1..registry.each.count).to_a, point_ids: (1..registry.to_a.size).to_a, unanchored: [] }]
   end
 
   it "numbers mutants and points 1..n in scan order and anchors each point at its exact source" do
@@ -40,14 +41,14 @@ RSpec.describe(Kimera::Registry) do
   it "round-trips through its JSON form" do
     for_all(programs, runs: 150) do |program|
       registry = scan(render(program))
-      expect(described_class.from_h(JSON.parse(registry.to_json)).to_h).to(eq(registry.to_h))
+      expect(JSON.parse(described_class.parse(registry.to_json).to_json)).to(eq(JSON.parse(registry.to_json)))
     end
   end
 
   # How many distinct keys the mutants have and where each resolves, then what they must be.
   def keying(registry)
-    keys = registry.keys
-    ids = registry.each.map { |mutant, _| mutant.id }
+    keys = Kimera::MutantKeys.of(registry)
+    ids = registry.each.map { |mutant, _| mutant.to_i }
     facts = { distinct: ids.map { |id| keys[id] }.uniq.size, resolved: ids.map { |id| keys.id(keys[id]) } }
     [facts, { distinct: ids.size, resolved: ids }]
   end
@@ -59,7 +60,10 @@ RSpec.describe(Kimera::Registry) do
     end
   end
 
-  def keyed(registry, file) = registry.at(file).flat_map(&:ids).map { |id| registry.keys[id] }
+  def keyed(registry, file)
+    keys = Kimera::MutantKeys.of(registry)
+    registry.to_h.fetch(file, []).flat_map(&:ids).map { |id| keys[id] }
+  end
 
   def written(dir, sources)
     sources.each_with_index.map { |program, i| File.join(dir, "f#{i}.rb").tap { File.write(it, render(program)) } }
@@ -91,10 +95,14 @@ RSpec.describe(Kimera::Registry) do
     before = scan(render(program))
     after = scan(("\n" * shift) + render(program))
     moved = unlined_keys(after)
-    before.each.to_h { |mutant, _| [mutant.id, landing(before.keys[mutant.id], moved, after.keys)] }
+    earlier, later = [before, after].map { Kimera::MutantKeys.of(it) }
+    before.each.to_h { |mutant, _| [mutant.to_i, landing(earlier[mutant.to_i], moved, later)] }
   end
 
-  def unlined_keys(registry) = registry.each.map { |mutant, _| unlined(registry.keys[mutant.id]) }
+  def unlined_keys(registry)
+    keys = Kimera::MutantKeys.of(registry)
+    registry.each.map { |mutant, _| unlined(keys[mutant.to_i]) }
+  end
 
   def landing(key, moved, keys) = { unlined: moved.count(unlined(key)), resolved: keys.id(key) }
 
@@ -116,8 +124,9 @@ RSpec.describe(Kimera::Registry) do
 
   # The embedded values a statement deletion would delete.
   def deleted_embeds(source)
-    deletions = scan(source).points.select { |point| point.operator.include?("statement_deletion") }
-    deletions.map { |point| [point.location.start_offset, point.location.span] } & embeds(Prism.parse(source).value)
+    deletions = scan(source).to_a.select { |point| point.operator.include?("statement_deletion") }
+    spans = deletions.map { |point| point.location.to_h.values_at("start_offset", "length") }
+    spans & embeds(Prism.parse(source).value)
   end
 
   # README: statement_deletion deletes side-effecting statements; the
@@ -168,14 +177,14 @@ RSpec.describe(Kimera::Registry) do
   # Per point (its source and labels): whether a bake is the original, how
   # many bakes repeat, and which Ruby misreads.
   def baked(schemata)
-    folded = "#{Kimera::MutationPoint::UNMUTATABLE}#{unmatched}"
-    schemata.registry.points.reject { |point| point.unsafe_reason == folded }.map do |point|
-      ["#{point.original_source}: #{point.mutants.map(&:label)}", bake_facts(point, schemata)]
+    folded = "#{Kimera::Reason::UNMUTATABLE}#{unmatched}"
+    schemata.registry.to_a.reject { |point| point.reasons(Kimera::Reason.unsafety).first == folded }.map do |point|
+      ["#{point.original_source}: #{point.mutants.map(&:to_s)}", bake_facts(point, schemata)]
     end
   end
 
   def bake_facts(point, schemata)
-    bakes = point.mutants.map { |mutant| schemata.baked(mutant.id) }
+    bakes = point.mutants.map { |mutant| schemata.baked(mutant.to_i) }
     misread = bakes.map(&:inspect).grep(/flipflop|match_current_line/)
     { original: bakes.include?(schemata.original), repeated: bakes.size - bakes.uniq.size, misread: misread }
   end

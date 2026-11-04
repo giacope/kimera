@@ -46,7 +46,7 @@ module Kimera
         settled = plan.settled(id, point)
         return settled.fetch(0) unless settled.empty?
         tests = plan.tests(id, point)
-        return result(id, file, status: :no_coverage, detail: point.unsafe_reason) unless tests
+        return result(id, file, status: :no_coverage, detail: point.reasons(Kimera::Reason.unsafety).first) unless tests
         outcome, duration = measure(id, bay, tests, point)
         result(id, file, duration: duration, covering_tests: tests, **outcome.to_h, **outcome.killing(quality?))
       end
@@ -56,7 +56,7 @@ module Kimera
         ordered = Kimera::Execution::Pace.new(timings).fastest(tests)
         [cleared(bay, ordered, with_mutant(id, bay, point.file) { settle(bay, ordered) }), now - started]
       rescue Kimera::Overlay::Unbakeable => error
-        [IsolatedOutcome.new(:unmutatable, nil, point.unmutatable(error.message)), nil]
+        [IsolatedOutcome.new(:unmutatable, nil, Kimera::Reason.unmutatable(error.message).to_s), nil]
       end
 
       def settle(bay, tests)

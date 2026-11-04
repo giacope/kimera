@@ -32,9 +32,8 @@ class Kimera::Execution::Shift::Probe
       .merge("limit" => deadline.limit(test))
   end
 
-  def run(active, test)
-    Kimera::RUNTIME.active = active
-    deadline.guard(test) { adapter.run([test]) }
+  def run(active, test, runtime = Kimera::RUNTIME)
+    runtime.during(active) { deadline.guard(test) { adapter.run([test]) } }
   rescue Timeout::Error => error
     [Kimera::Execution::Shift::Expiry.new(test: test, message: error.message), deadline.limit(test)]
   end

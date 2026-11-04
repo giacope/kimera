@@ -10,16 +10,16 @@ RSpec.describe(Kimera::Execution::OrderTrace) do
     Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n\ndef b(x, y)\n  x < y\nend\n", file: "calc.rb")
   end
 
-  let(:ids) { registry.each.map { |mutant, point| [mutant.id, point] }.uniq(&:last).map(&:first) }
+  let(:ids) { registry.each.map { |mutant, point| [mutant.to_i, point] }.uniq(&:last).map(&:first) }
 
-  def reasons = registry.points.map(&:revisit)
+  def reasons = registry.to_a.map { it.reasons(Kimera::Reason.revisiting).first }
 
   def ran(touched) = Struct.new(:sequence).new({ "touched" => touched })
 
   it "marks a point the ordered run reached that no test covers" do
     first, last = ids
     described_class.new(registry).mark!(ran([first, last]), { first => ["t1"], last.to_s => [] })
-    expect(reasons).to(eq([nil, Kimera::MutationPoint::ORDER_REASON]))
+    expect(reasons).to(eq([nil, Kimera::Reason::ORDER_REASON]))
   end
 
   it "leaves a point the ordered run did not reach, or a test covers" do
@@ -29,14 +29,14 @@ RSpec.describe(Kimera::Execution::OrderTrace) do
   end
 
   it "leaves a point that only the isolated tier judges" do
-    registry.points.last.unsafe!("class body")
+    registry.to_a.last.mark!(Kimera::Reason.unsafe("class body"))
     described_class.new(registry).mark!(ran([ids.last]), {})
     expect(reasons.last).to(be_nil)
   end
 
   describe "#wanted?" do
     let(:trace) { described_class.new(registry) }
-    let(:mutants) { registry.points.map(&:ids) }
+    let(:mutants) { registry.to_a.map(&:ids) }
 
     it "wants the run when no scope narrows it" do
       expect(trace.wanted?(nil, {})).to(be(true))
@@ -52,7 +52,7 @@ RSpec.describe(Kimera::Execution::OrderTrace) do
 
     it "skips the run when every point in scope is covered, unsafe, or unknown", :aggregate_failures do
       first, second = mutants
-      registry.points.last.unsafe!("class body")
+      registry.to_a.last.mark!(Kimera::Reason.unsafe("class body"))
       coverage = first.to_h { |id| [id, ["t1"]] }
       expect([trace.wanted?(first + second, coverage), trace.wanted?([999], {}), trace.wanted?([], {})])
         .to(eq([false, false, false]))

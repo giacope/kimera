@@ -192,7 +192,8 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
   end
 
   it "requires a location to lie inside a method span, ending no later than it (endless defs)" do
-    within = [11, 9, 19, 16, 10].map { |start| Kimera::Location.new(start_offset: start, span: 4).within?(10, 20) }
+    method = Struct.new(:start_offset, :end_offset).new(10, 20)
+    within = [11, 9, 19, 16, 10].map { |start| Kimera::Location.new(start_offset: start, span: 4).within?([method]) }
     expect(within).to(eq([true, false, false, true, false]))
   end
 
@@ -288,7 +289,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     registry = Kimera::RegistryScan.new.source(
       "def call\n  true\nend\n", file: "lib/kimera/execution/harness.rb"
     )
-    id = registry.each.first.first.id
+    id = registry.each.first.first.to_i
     route = Kimera::CLI::Run::Route.new(registry, { isolate_when_covered_by: [] })
 
     expect(route.split([id]) { {} }).to(eq([[id], []]))
@@ -329,7 +330,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
   # Mutant 1 of the registry, and 999, which it no longer has: the session saved a result and a leak for each.
   describe "a session's pruning" do
     let(:registry) { Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n", file: "calc.rb") }
-    let(:kept) { registry.each.first.first.id }
+    let(:kept) { registry.each.first.first.to_i }
     let(:session) do
       result = ->(id) { Kimera::MutantResult.new(mutant_id: id, status: :killed) }
       leaks = [kept, 999].map { |id| Kimera::LeakReport.new(mutant_id: id, detail: id.to_s) }

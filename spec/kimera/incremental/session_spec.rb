@@ -69,7 +69,7 @@ RSpec.describe(Kimera::Incremental::Session) do
   # The tests or sources changed since: a kill may no longer stand.
   it "drops verdicts saved under another stamp, and keeps those saved under the same", :aggregate_failures do
     registry = Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n", file: "x.rb")
-    id = registry.each.first.first.id
+    id = registry.each.first.first.to_i
     path = File.join(dir, "session.json")
     judged(report([result(id, :killed)]), stamped("one")).save(path, registry)
     expect(%w[two one].map { |stamp| done?(described_class.from(path, stamp: stamp).pruned(registry), id) })
@@ -79,7 +79,7 @@ RSpec.describe(Kimera::Incremental::Session) do
   # A run starts its session from no file under the run's stamp; saved, the stamp lets the next run resume it.
   it "stamps the session a run starts, so the next run under the same stamp keeps its verdicts" do
     registry = Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n", file: "x.rb")
-    id = registry.each.first.first.id
+    id = registry.each.first.first.to_i
     path = File.join(dir, "session.json")
     judged(report([result(id, :killed)]), described_class.from(path, stamp: "one")).save(path, registry)
     expect(done?(described_class.from(path, stamp: "one").pruned(registry), id)).to(be(true))
@@ -122,7 +122,7 @@ RSpec.describe(Kimera::Incremental::Session) do
   describe "ignored mutants" do
     let(:registry) { Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n", file: "calc.rb") }
 
-    def ids = registry.each.map { |mutant, _point| mutant.id }
+    def ids = registry.each.map { |mutant, _point| mutant.to_i }
 
     def waived(session) = session.report([], ids, registry).to_a
 
@@ -145,7 +145,7 @@ RSpec.describe(Kimera::Incremental::Session) do
     end
 
     def first(registry)
-      registry.each.first.first.id
+      registry.each.first.first.to_i
     end
 
     it "reuses results when the source (and thus fingerprint) is unchanged" do

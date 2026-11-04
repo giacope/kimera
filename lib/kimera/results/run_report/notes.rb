@@ -21,7 +21,7 @@ class Kimera::RunReport::Notes
   def quality = @context[:suite]&.then { |suite| Kimera::TestQuality.new(@results, suite).to_h }
 
   def remark(remarks)
-    remarks.regions(@registry.unmutated)
+    @registry.regions { |found| remarks.regions(found) }
     remarks.leaks(@leaks)
   end
 

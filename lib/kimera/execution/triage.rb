@@ -17,12 +17,12 @@ class Kimera::Execution::Triage
 
   def tiers(ids)
     safe, unsafe = ids.partition { |id| @verdicts.point(id).safe? }
-    [safe, *unsafe.partition { |id| @verdicts.point(id).reloadable? }]
+    [safe, *unsafe.partition { |id| @verdicts.point(id).reasons(Kimera::Reason.unreloadable).empty? }]
   end
 
   def quarantine(id)
     found = @verdicts.point(id)
-    Kimera::MutantResult.new(mutant_id: id, status: held(found), file: found.file, detail: found.unsafe_reason)
+    Kimera::MutantResult.new(mutant_id: id, status: held(found), file: found.file, detail: found.reasons(Kimera::Reason.unsafety).first)
   end
 
   def reclassified(results) = results.transform_values { |result| reclassify(result) }
@@ -30,8 +30,8 @@ class Kimera::Execution::Triage
   private
 
   def held(point)
-    return :unmutatable if point.unmutatable?
-    point.unloaded? ? :no_coverage : :isolated_only
+    return :unmutatable if point.reasons(Kimera::Reason.unmutatable).any?
+    point.reasons(Kimera::Reason.unloaded).any? ? :no_coverage : :isolated_only
   end
 
   def reclassify(result) = result.suspected(SELF_SUSPECT) { |status, file| harness?(file) && detail(status) }

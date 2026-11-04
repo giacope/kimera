@@ -44,7 +44,7 @@ class Kimera::CLI::Synthesize
 
   def synthesize(registry, out)
     manifest = Kimera::Synthesis::Project.new(registry).write(out)
-    Kimera::CLI::Outcome::Said.new(*manifest.summary(registry.files.size, out))
+    Kimera::CLI::Outcome::Said.new(*manifest.summary(registry.to_h.size, out))
   end
 
   def load(paths, registry:, operators:, **scope)

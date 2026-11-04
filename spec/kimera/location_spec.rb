@@ -9,9 +9,7 @@ RSpec.describe(Kimera::Location) do
 
   it "round-trips every field through to_h / from_h" do
     reloaded = described_class.from_h(sample.to_h)
-    expect(reloaded).to(
-      have_attributes(start_offset: 10, span: 5, start_line: 2, start_column: 4, end_line: 3, end_column: 6)
-    )
+    expect(reloaded).to(eq(sample))
   end
 
   def encoded
@@ -31,6 +29,31 @@ RSpec.describe(Kimera::Location) do
 
   it "spans an inclusive line range" do
     expect(sample.range).to(eq(2..3))
+  end
+
+  it "anchors a node of a type at its offsets" do
+    expect(sample.anchor(:call_node)).to(eq([10, 15, :call_node]))
+  end
+
+  it "covers the offsets it spans, and starts between the bounds it is given", :aggregate_failures do
+    expect([9, 10, 14, 15].map { sample.covers?(it) }).to(eq([false, true, true, false]))
+    expect([[0, 9], [0, 10], [10, 20], [11, 20]].map { sample.starts_between?(*it) }).to(eq([false, true, true, false]))
+  end
+
+  it "starts on its line, at its offset and column counted from one", :aggregate_failures do
+    expect([1, 2, 3].map { sample.starts_on?(it) }).to(eq([false, true, false]))
+    expect([9, 10, 11].map { sample.starts_at?(it) }).to(eq([false, true, false]))
+    expect([4, 5, 6].map { sample.column?(it) }).to(eq([false, true, false]))
+  end
+
+  it "prints itself as its line and column" do
+    expect(sample.to_s).to(eq("2:5"))
+  end
+
+  it "tells whether some range holds it strictly inside", :aggregate_failures do
+    span = Struct.new(:start_offset, :end_offset)
+    expect(sample.within?([span.new(9, 15)])).to(be(true))
+    expect(sample.within?([span.new(10, 15), span.new(9, 14)])).to(be(false))
   end
 
   it "builds from a prism location" do

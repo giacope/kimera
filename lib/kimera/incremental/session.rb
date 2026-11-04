@@ -72,7 +72,7 @@ class Kimera::Incremental::Session
 
   def stale?(id, registry)
     stored = @fingerprints[id]
-    !stored || stored != fingerprint(registry.point(id) { return true })
+    !stored || stored != fingerprint(registry[id] { return true })
   end
 
   def payload(meta, fingerprints)
@@ -84,12 +84,12 @@ class Kimera::Incremental::Session
   end
 
   def fingerprints(registry)
-    @results.keys.select { |id| registry.index.key?(id) }.to_h { |id| [id, fingerprint(registry.point(id))] }
+    @results.keys.select { |id| registry.index.key?(id) }.to_h { |id| [id, fingerprint(registry[id])] }
   end
 
   def fingerprint(pair)
     mutant, point = pair
-    [point.file, point.location.start_line, point.original_source, mutant.label].join(" ")
+    [point.file, point.location.range.begin, point.original_source, mutant.to_s].join(" ")
   end
 end
 

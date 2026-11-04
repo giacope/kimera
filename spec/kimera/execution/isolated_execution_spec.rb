@@ -28,11 +28,11 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
   end
 
   def test_all_ids
-    registry.each.map { |m, _p| m.id }
+    registry.each.map { |m, _p| m.to_i }
   end
 
   def first
-    registry.each.first.first.id
+    registry.each.first.first.to_i
   end
 
   def test_source_fixture
@@ -478,7 +478,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     it "settles a mutant whose tests the screen drops, without staging or running it", :aggregate_failures do
       given = []
-      registry.index.fetch(first).revisit!(Kimera::MutationPoint::BOOT_REASON)
+      registry.index.fetch(first).mark!(Kimera::Reason.revisit(Kimera::Reason::BOOT_REASON))
       r = test_paced(given).new(
         registry: registry, root: ".", tests: %w[t1],
         filter: Kimera::Execution::TestFilter.new(registry: registry, flaky: %w[t1])

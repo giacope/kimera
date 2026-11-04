@@ -117,7 +117,7 @@ RSpec.describe(Kimera::Runtime) do
     it "keeps one entry per mutant however often its guard runs" do
       ledger = runtime.start!
       100_000.times { runtime.active?(7) }
-      expect(ledger.ids.size).to(eq(1))
+      expect(ledger.__send__(:ids).size).to(eq(1))
     ensure
       runtime.stop!(ledger)
     end
@@ -220,7 +220,7 @@ RSpec.describe(Kimera::Runtime) do
     def forked(&)
       ledger = Kimera::RUNTIME.start!
       Process.wait(fork(&))
-      [ledger.drain!, ledger.spill]
+      [ledger.drain!, ledger.__send__(:spill)]
     ensure
       Kimera::RUNTIME.stop!(ledger)
     end
@@ -258,7 +258,7 @@ RSpec.describe(Kimera::Runtime) do
       Dir.mktmpdir do |dir|
         spill = described_class::Spill.new(File.join(dir, "spill"), {})
         [3, 3, 4].each { spill.push(it) }
-        expect(File.read(spill.leak)).to(eq("3\n4\n"))
+        expect(File.read(spill.__send__(:leak))).to(eq("3\n4\n"))
       end
     end
   end

@@ -10,7 +10,7 @@ module Kimera
       end
 
       def applied(node)
-        Kimera::Rewrite::Directive.new(@directive).apply(node)
+        @directive.apply(node)
       rescue StandardError
         yield
       end

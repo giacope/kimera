@@ -16,10 +16,10 @@ module Kimera
       end
       private
       def line?(value) = point.location.range.include?(Integer(value))
-      def starts?(value) = point.location.start_line == Integer(value)
+      def starts?(value) = point.location.starts_on?(Integer(value))
       def operator?(value) = Array(value).map(&:to_s).include?(point.operator)
-      def column?(value) = point.location.start_column + 1 == Integer(value)
-      def label?(value) = value == mutant.label
+      def column?(value) = point.location.column?(Integer(value))
+      def label?(value) = value == mutant.to_s
       def method?(value) = value.to_s == point.method_name
       def original?(value) = squeeze(value) == squeeze(point.original_source)
       def squeeze(source) = source.to_s.split.join(" ")
@@ -90,8 +90,8 @@ module Kimera
     end
 
     def pairs(registry, glob)
-      files = glob ? registry.files.select { |file| File.fnmatch?(glob, file, File::FNM_PATHNAME) } : []
-      files.flat_map { |file| registry.at(file).flat_map { |point| point.mutants.map { |mutant| [mutant, point] } } }
+      matched = registry.to_h.select { |file, _| glob && File.fnmatch?(glob, file, File::FNM_PATHNAME) }
+      matched.values.flatten.flat_map { |point| point.mutants.map { |mutant| [mutant, point] } }
     end
   end
 end

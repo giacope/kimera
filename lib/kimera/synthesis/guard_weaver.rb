@@ -25,7 +25,7 @@ class Kimera::Guardrail
 
     def apply(rebuilt, original)
       return rebuilt unless ANCHOR.call(original) == anchor
-      Kimera::Rewrite::Directive.new(directive).apply(rebuilt)
+      directive.apply(rebuilt)
     end
 
     private
@@ -72,8 +72,7 @@ class Kimera::Guardrail
   def transform(node) = weave(node).fetch(0)
 
   def target(point)
-    location = point.location
-    [location.start_offset, location.finish, point.node_type]
+    point.location.anchor(point.node_type)
   end
 
   def activation(node)
