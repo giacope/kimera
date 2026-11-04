@@ -745,7 +745,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def database(name)
-      stub_const("ActiveRecord::Base", Class.new)
+      FakeRails.unconnected(self)
       inline(registry: catalog(name), adapter: green, source_root: dir, isolate_db: true)
     end
 
@@ -786,14 +786,14 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   describe "#isolate!" do
     it "wraps isolation in a rolled-back transaction when isolate_db is on" do
-      stub_const("ActiveRecord::Base", Class.new)
+      FakeRails.unconnected(self)
       h = harness(adapter, isolate_db: true)
       h.isolate!
       expect(h.__send__(:isolation)).to(be_a(Kimera::Execution::CompositeIsolation))
     end
 
     it "leaves isolation alone by default even with ActiveRecord loaded", :aggregate_failures do
-      stub_const("ActiveRecord::Base", Class.new)
+      FakeRails.unconnected(self)
       h = harness(adapter)
       h.isolate!
       expect(h.__send__(:isolation)).to(be_a(Kimera::Execution::Isolation))
@@ -980,7 +980,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     def registration
       parallelization(true)
       stub(after: [])
-      stub_const("ActiveRecord::Base", Class.new)
+      FakeRails.unconnected(self)
       registered = fake_feature("active_record/test_databases")
       yield(database(jobs: 2))
       loaded?(registered).tap { $LOADED_FEATURES.delete(registered) }

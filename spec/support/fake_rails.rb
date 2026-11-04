@@ -122,6 +122,12 @@ module FakeRails
     example.stub_const("ActiveRecord::ExclusiveConnectionTimeoutError", Class.new(root))
   end
 
+  # Active Record loaded, its errors with it, before the suite connects.
+  def self.unconnected(example)
+    errors(example)
+    example.stub_const("ActiveRecord::Base", Unconnected.new)
+  end
+
   # ActiveRecord::Tasks::DatabaseTasks: the schema dump each database loads
   # from (or the error working it out raises), and each database it rebuilt.
   class Tasks

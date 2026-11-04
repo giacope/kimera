@@ -126,7 +126,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     end
 
     it "report unavailable per-worker database support with exception detail" do
-      stub_const("ActiveRecord::Base", Class.new)
+      FakeRails.unconnected(self)
       parallelization('LoadError, "missing helper"')
       databases.__send__(:register!)
       expect(errors.string).to(eq(unavailable))
