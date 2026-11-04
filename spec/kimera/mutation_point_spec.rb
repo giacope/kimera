@@ -49,12 +49,13 @@ RSpec.describe(Kimera::MutationPoint) do
 
   def unsafe
     point = sample
-    point.unsafe!(described_class::CLASS_BODY_REASON)
+    point.mark!(Kimera::Reason.class_body)
     point
   end
 
   it "carries the class-body unsafe reason through the round-trip" do
     reloaded = described_class.from_h(unsafe.to_h)
-    expect(reloaded).to(have_attributes(safe?: false, unsafe_reason: described_class::CLASS_BODY_REASON, body?: true))
+    reasons = [Kimera::Reason.unsafety, Kimera::Reason.class_body].map { reloaded.reasons(it) }
+    expect([reloaded.safe?, *reasons]).to(eq([false, [Kimera::Reason::CLASS_BODY_REASON]] + [[Kimera::Reason::CLASS_BODY_REASON]]))
   end
 end

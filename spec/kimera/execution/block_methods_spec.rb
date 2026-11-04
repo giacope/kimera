@@ -75,8 +75,8 @@ RSpec.describe(Kimera::Execution::BlockMethods) do
   def made(index = 0) = BlockMethodsDsl.made.fetch(index)
 
   def flipped(label, line, &)
-    found = registry.each.find { |mutant, point| mutant.label == label && point.location.start_line == line }
-    Kimera::RUNTIME.during(found.first.id, &)
+    found = registry.each.find { |mutant, point| mutant.to_s == label && point.location.range.begin == line }
+    Kimera::RUNTIME.during(found.first.to_i, &)
   end
 
   def blocks(woven = source, text = source) = described_class.new(file, text, woven, registry.each.map { _2.location })

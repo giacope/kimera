@@ -17,7 +17,7 @@ RSpec.describe(Kimera::Execution::Shift) do
     RUBY
   end
 
-  let(:target) { registry.each.first.first.id }
+  let(:target) { registry.each.first.first.to_i }
   let(:clock) { [0.0] }
 
   before { stub_const("Kimera::Execution::Stopwatch::CLOCK", -> { clock.first }) }

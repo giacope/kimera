@@ -18,16 +18,13 @@ module Kimera
     private
 
     def group(points)
-      points.group_by do |point|
-        location = point.location
-        [location.start_offset, location.finish, point.node_type]
-      end
+      points.group_by { |point| point.location.anchor(point.node_type) }
     end
 
     def dispatch(rebuilt, bare, points)
       mutants = points.flat_map(&:mutants).reverse
       return parameter(rebuilt, mutants) if PARAMETERS.key?(rebuilt.type)
-      hidden, shown = mutants.partition { |mutant| Kimera::Rewrite::Directive.new(mutant.directive).kind?(PRIVATIZE) }
+      hidden, shown = mutants.partition { |mutant| mutant.rewrite(Kimera::Rewrite::Directive).kind?(PRIVATIZE) }
       guard(shown, hidden.empty? ? rebuilt : privatized(rebuilt, hidden)) { |mutant| variant(bare, mutant) }
     end
 
@@ -39,11 +36,11 @@ module Kimera
     def probe(mutants) = guard(mutants, snippet("nil")) { snippet("nil") }
 
     def registrations(name, mutants)
-      mutants.map { |mutant| snippet("::Kimera::RUNTIME.privatize(#{Integer(mutant.id)}, self, :#{name})") }
+      mutants.map { |mutant| snippet("::Kimera::RUNTIME.privatize(#{Integer(mutant)}, self, :#{name})") }
     end
 
     def variant(bare, mutant)
-      Kimera::Rewrite::Directive.new(mutant.directive).apply(bare)
+      mutant.rewrite(Kimera::Rewrite::Directive).apply(bare)
     end
 
     def parameter(original, mutants)
@@ -53,7 +50,7 @@ module Kimera
     end
 
     def guard(mutants, seed)
-      mutants.reduce(seed) { |chain, mutant| branched(active(mutant.id), yield(mutant), chain) }
+      mutants.reduce(seed) { |chain, mutant| branched(active(mutant.to_i), yield(mutant), chain) }
     end
 
     def active(id) = snippet("::Kimera::RUNTIME.active?(#{Integer(id)})")

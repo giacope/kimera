@@ -77,7 +77,7 @@ class Kimera::CLI
   def build(files, options)
     built = scan(options).build(files)
     out = options[:output]
-    built.write(out) if out
+    File.write(out, JSON.pretty_generate(built)) if out
     emit(built, options)
   end
 
@@ -91,7 +91,7 @@ class Kimera::CLI
     options[:quiet] ? Kimera::CLI::Outcome::Ended.new(0) : Kimera::CLI::Outcome::Said.new(*announced(built, out))
   end
 
-  def announced(built, out) = [built.summary, *(out ? ["Wrote registry to #{out}"] : [])]
+  def announced(built, out) = [built.to_s, *(out ? ["Wrote registry to #{out}"] : [])]
 
   def version(*) = Kimera::CLI::Outcome::Said.new("kimera #{Kimera::VERSION}")
 

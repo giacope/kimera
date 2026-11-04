@@ -35,5 +35,6 @@ class Kimera::Frameworks::GroupScope
     adopt(kept)
   end
 
+  # rubocop:disable-next Kata/NoReflection -- RSpec runs a group's children from this field and offers no way to narrow them to the examples a mutant's tests need
   def adopt(families) = families.each { |group, children| group.instance_variable_set(:@children, children) }
 end

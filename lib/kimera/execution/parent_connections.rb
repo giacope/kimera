@@ -4,13 +4,18 @@ require_relative "memory_databases"
 
 class Kimera::Execution::ParentConnections
   def release!(databases = Kimera::Execution::MemoryDatabases.new)
-    return if databases.current?
-    pools.each(&:disconnect!)
-  rescue StandardError
-    nil
+    return [] if !defined?(ActiveRecord::Base) || databases.current?
+    pools.select { |pool| let_go(pool) }
   end
 
   private
+
+  def let_go(pool)
+    pool.disconnect!
+    true
+  rescue ActiveRecord::ExclusiveConnectionTimeoutError
+    false
+  end
 
   def pools
     handler = ActiveRecord::Base.connection_handler

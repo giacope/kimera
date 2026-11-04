@@ -95,26 +95,25 @@ class Kimera::Execution::Reload
     return failed.fetch(0).verdict unless failed.empty?
     errand.covered? ? [:survived, []] : [:no_coverage, [], UNCALLED]
   rescue Kimera::Overlay::Unbakeable => error
-    [:unmutatable, [], verdicts.point(id).unmutatable(error.message)]
+    [:unmutatable, [], Kimera::Reason.unmutatable(error.message).to_s]
   rescue StandardError, ScriptError => error
     Failure.new(error).verdict
   end
 
-  def mutate(id, errand)
+  def mutate(id, errand, runtime = Kimera::RUNTIME)
     file = verdicts.point(id).file
     watch = overlay(file, @workspace.path(file), id)
-    Kimera::RUNTIME.active = nil
-    @isolation.around { hunt(errand, watch) }
+    runtime.during(nil) { @isolation.around { hunt(errand, watch) } }
   end
 
   def hunt(errand, watch)
     errand.failures { |test| trial(test, errand, watch) }
   end
 
-  def trial(test, errand, watch)
+  def trial(test, errand, watch, runtime = Kimera::RUNTIME)
     errand.tick(test)
-    ledger = Kimera::RUNTIME.start!
-    @adapter.run([test]).tap { errand.reach(test) if watch.reached?(Kimera::RUNTIME.stop!(ledger)) }
+    ledger = Kimera::Runtime::Ledger.new
+    runtime.during(nil, ledger) { @adapter.run([test]) }.tap { errand.reach(test) if watch.reached?(ledger.drain!) }
   end
 
   def overlay(file, path, id) = watched(file, path, id).tap { |watch| install(watch.source, path) }
@@ -122,7 +121,7 @@ class Kimera::Execution::Reload
   def watched(file, path, id, trims = Kimera::BodyTrim)
     location = verdicts.point(id).location
     source = trims.new(File.read(path, encoding: Encoding::UTF_8), [location]).trim(path)
-    Kimera::Execution::CallWatch.new(Kimera::Overlay.new(@registry).bake(file, source, id), location.start_offset, id)
+    Kimera::Execution::CallWatch.new(Kimera::Overlay.new(@registry).bake(file, source, id), location, id)
   end
 
   def install(source, path, guards = Kimera::Execution::OverlayGuards.new)

@@ -13,9 +13,9 @@ class Kimera::MutantKeys
       @mutant = mutant
     end
 
-    def key(repeat) = "#{point.file}:#{point.location.start_line}:#{digest(repeat)}"
+    def key(repeat) = "#{point.file}:#{point.location.range.begin}:#{digest(repeat)}"
 
-    def facts = [point.file, point.method_name, point.operator, point.original_source.split.join(" "), mutant.label]
+    def facts = [point.file, point.method_name, point.operator, point.original_source.split.join(" "), mutant.to_s]
     private
     def digest(repeat) = Digest::SHA256.hexdigest([*facts, repeat].join("\n"))[0, 8]
 
@@ -27,7 +27,7 @@ class Kimera::MutantKeys
     new(
       registry.each.to_h do |mutant, point|
         fingerprint = Fingerprint.new(point, mutant)
-        [mutant.id, fingerprint.key(repeats[fingerprint.facts] += 1)]
+        [mutant.to_i, fingerprint.key(repeats[fingerprint.facts] += 1)]
       end
     )
   end

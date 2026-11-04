@@ -46,12 +46,11 @@ module Kimera
       private
 
       def skipping(names)
-        thread = Thread.current
-        previous = thread[SLOT]
-        thread[SLOT] = [@klass, names]
+        previous = Thread.current[SLOT]
+        Thread.current[SLOT] = [@klass, names]
         yield
       ensure
-        thread[SLOT] = previous
+        Thread.current[SLOT] = previous
       end
 
       def declared

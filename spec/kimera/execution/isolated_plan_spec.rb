@@ -19,8 +19,8 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     RUBY
   end
 
-  let(:point) { registry.points.first }
-  let(:mutant_id) { point.mutants.first.id }
+  let(:point) { registry.to_a.first }
+  let(:mutant_id) { point.mutants.first.to_i }
 
   def plan(root: ".", **over)
     scanned = over.fetch(:registry, registry)
@@ -38,7 +38,7 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
 
   describe "#tests" do
     it "runs the whole suite for a point whose method also ran while the suite loaded" do
-      point.revisit!(Kimera::MutationPoint::BOOT_REASON)
+      point.mark!(Kimera::Reason.revisit(Kimera::Reason::BOOT_REASON))
       expect(plan(coverage: { mutant_id => ["spec/a_spec.rb[1:1]"] }).tests(mutant_id, point)).to(eq(%w[t1 t2 t3]))
     end
 
@@ -48,15 +48,15 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       :aggregate_failures do
       suite = %w[./spec/a_spec.rb[1:1] ./spec/b_spec.rb[1:1]]
       coverage = { mutant_id => ["./spec/a_spec.rb[1:1]"] }
-      point.revisit!(Kimera::MutationPoint::BOOT_REASON)
+      point.mark!(Kimera::Reason.revisit(Kimera::Reason::BOOT_REASON))
       expect(plan(tests: suite, coverage: coverage).tests(mutant_id, point)).to(eq(["./spec/a_spec.rb[1:1]"]))
-      point.revisit!(Kimera::MutationPoint::ORDER_REASON)
+      point.mark!(Kimera::Reason.revisit(Kimera::Reason::ORDER_REASON))
       expect(plan(tests: suite, coverage: coverage).tests(mutant_id, point)).to(eq(suite))
     end
 
     it "runs only the tests a screen keeps of the whole suite, and settles a point it leaves none",
       :aggregate_failures do
-      point.revisit!(Kimera::MutationPoint::BOOT_REASON)
+      point.mark!(Kimera::Reason.revisit(Kimera::Reason::BOOT_REASON))
       keeps = plan(filter: Kimera::Execution::TestFilter.new(registry: registry, flaky: %w[t2]))
       expect([keeps.tests(mutant_id, point), keeps.settled(mutant_id, point)]).to(eq([%w[t1 t3], []]))
       none = plan(filter: Kimera::Execution::TestFilter.new(registry: registry, flaky: %w[t1 t2 t3]))
@@ -112,9 +112,9 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
           @total ||= compute(a > b)
         end
       RUBY
-      pt = unsafe.points.find { |x| !x.safe? }
+      pt = unsafe.to_a.find { |x| !x.safe? }
       p = plan(registry: unsafe)
-      expect(p.tests(pt.mutants.first.id, pt)).to(eq(%w[t1 t2 t3]))
+      expect(p.tests(pt.mutants.first.to_i, pt)).to(eq(%w[t1 t2 t3]))
     end
 
     # An unsafe point has no live guard, so a touch recorded for its id
@@ -125,8 +125,8 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
           @total ||= compute(a > b)
         end
       RUBY
-      pt = unsafe.points.find { |x| !x.safe? }
-      id = pt.mutants.first.id
+      pt = unsafe.to_a.find { |x| !x.safe? }
+      id = pt.mutants.first.to_i
       p = plan(registry: unsafe, coverage: { id => ["spec/other_spec.rb[1:1]"] })
       expect(p.tests(id, pt)).to(eq(%w[t1 t2 t3]))
     end
@@ -134,9 +134,9 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     it "runs a mutant in an instrumentation-excluded (protected) file against the whole suite", :aggregate_failures do
       # The runtime selector can't be instrumented, so it has no coverage.
       protected, root = runtime
-      pt = protected.points.find(&:safe?)
+      pt = protected.to_a.find(&:safe?)
       p = plan(registry: protected, root: root)
-      expect(p.tests(pt.mutants.first.id, pt)).to(eq(%w[t1 t2 t3]))
+      expect(p.tests(pt.mutants.first.to_i, pt)).to(eq(%w[t1 t2 t3]))
       expect(pt.file).to(eq("lib/kimera/runtime.rb"))
     end
 
@@ -144,8 +144,8 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     # self-hosting spec calling Runtime.active? with a literal id.
     it "ignores recorded coverage for a protected file (self-host contamination)" do
       protected, root = runtime
-      pt = protected.points.find(&:safe?)
-      id = pt.mutants.first.id
+      pt = protected.to_a.find(&:safe?)
+      id = pt.mutants.first.to_i
       p = plan(registry: protected, root: root, coverage: { id => ["spec/kimera/runtime_spec.rb[1:2:1]"] })
       expect(p.tests(id, pt)).to(eq(%w[t1 t2 t3]))
     end
@@ -298,8 +298,8 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     def mixed
       code = "def a(x, y)\n  x > y\nend\n"
       Kimera::Registry.new(
-        points: Kimera::RegistryScan.new.source(code, file: "lib/x.rb").points +
-          Kimera::RegistryScan.new.source(code, file: "app/y.rb").points
+        points: Kimera::RegistryScan.new.source(code, file: "lib/x.rb").to_a +
+          Kimera::RegistryScan.new.source(code, file: "app/y.rb").to_a
       )
     end
 
@@ -343,9 +343,9 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     def nested
       code = "def a(x, y)\n  x > y\nend\n"
       Kimera::Registry.new(
-        points: Kimera::RegistryScan.new.source(code, file: "lib/a.rb").points +
-          Kimera::RegistryScan.new.source(code, file: "lib/deep/b.rb").points +
-          Kimera::RegistryScan.new.source(code, file: "app/c.rb").points
+        points: Kimera::RegistryScan.new.source(code, file: "lib/a.rb").to_a +
+          Kimera::RegistryScan.new.source(code, file: "lib/deep/b.rb").to_a +
+          Kimera::RegistryScan.new.source(code, file: "app/c.rb").to_a
       )
     end
 
@@ -370,7 +370,7 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
 
     it "copies a would-be link that holds a mutated file, so no mutant writes through it" do
       code = "def a(x, y)\n  x > y\nend\n"
-      inside = Kimera::Registry.new(points: Kimera::RegistryScan.new.source(code, file: "vendor/a.rb").points)
+      inside = Kimera::Registry.new(points: Kimera::RegistryScan.new.source(code, file: "vendor/a.rb").to_a)
       expect(layout(inside).placement("vendor")).to(eq(:copy))
     end
   end

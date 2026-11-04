@@ -20,10 +20,6 @@ class Kimera::Operators::Visibility < Kimera::Operators::Base
 
   def key = "visibility"
 
-  def body? = true
-
-  def toggles? = true
-
   def survey(root) = self.class.new(Kimera::Operators::PublicMethods.new(root))
 
   def variants(node, **)
@@ -32,6 +28,10 @@ class Kimera::Operators::Visibility < Kimera::Operators::Base
   end
 
   private
+
+  def body? = true
+
+  def toggles? = true
 
   def named?(name) = name.match?(NAMED) && !PROTOCOL.include?(name)
 end

@@ -153,7 +153,7 @@ RSpec.describe(Kimera::GuardClause) do
     result = nil
     expect { result = Kimera::Overlay.new(catalog).synthesize("c.rb", code) }
       .to(output(/1 mutation point\(s\) at line 2 are unguardable/).to_stderr)
-    [result, catalog.points.find { |point| point.mutants.first.label == "drop `ensure`" }]
+    [result, catalog.to_a.find { |point| point.mutants.first.to_s == "drop `ensure`" }]
   end
 
   it "leaves unguarded the empty ensure of a loop's begin, which still runs once" do

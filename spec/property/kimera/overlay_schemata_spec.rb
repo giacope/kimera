@@ -16,7 +16,7 @@ RSpec.describe(Kimera::Overlay) do
     "mutant #{id} reduces to\n#{got.inspect}\nbut its bake is\n#{want.inspect}"
   end
 
-  def every_id(registry) = registry.each.map { |mutant, _| mutant.id }
+  def every_id(registry) = registry.each.map { |mutant, _| mutant.to_i }
 
   # Every mutant is applied once and guarded, or skipped: none twice, none lost.
   # Each mutant reduces to its bake, and the program with none active to the original.

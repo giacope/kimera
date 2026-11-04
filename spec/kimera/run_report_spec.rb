@@ -212,17 +212,17 @@ RSpec.describe(Kimera::RunReport) do
       let(:mutant_and_point) { registry.each.first }
       let(:enriched) do
         mutant = mutant_and_point.first
-        described_class.new(results: [result(mutant.id, :survived)], registry: registry).to_h["results"].first
+        described_class.new(results: [result(mutant.to_i, :survived)], registry: registry).to_h["results"].first
       end
 
       after { FileUtils.remove_entry(dir) }
 
       it "carries key, line, operator, and label", :aggregate_failures do
         mutant, point = mutant_and_point
-        expect(enriched["key"]).to(eq(registry.keys[mutant.id]).and(match(/\Acmp\.rb:3:\h{8}\z/)))
-        expect(enriched["line"]).to(eq(point.location.start_line))
+        expect(enriched["key"]).to(eq(Kimera::MutantKeys.of(registry)[mutant.to_i]).and(match(/\Acmp\.rb:3:\h{8}\z/)))
+        expect(enriched["line"]).to(eq(point.location.range.begin))
         expect(enriched["operator"]).to(eq(point.operator))
-        expect(enriched["label"]).to(eq(mutant.label))
+        expect(enriched["label"]).to(eq(mutant.to_s))
       end
 
       it "places the mutant by 1-based column, end and enclosing method", :aggregate_failures do

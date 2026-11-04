@@ -14,7 +14,7 @@ RSpec.describe(Kimera::DefaultRemoval) do
   end
 
   def verdicts(source)
-    scan(source).points.to_h { |point| [point.original_source, point.safe? ? :warm : point.unsafe_reason] }
+    scan(source).to_a.to_h { |point| [point.original_source, point.safe? ? :warm : point.reasons(Kimera::Reason.unsafety).first] }
   end
 
   it "never emits a removal whose signature would not parse" do

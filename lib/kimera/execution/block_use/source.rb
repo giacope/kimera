@@ -24,9 +24,9 @@ class Kimera::Execution::BlockUse::Source
   end
 
   def drops?(point)
-    node, holder = nodes[[point.location.start_offset, point.location.finish, point.node_type.to_sym]]
+    node, holder = nodes[point.location.anchor(point.node_type.to_sym)]
     return false unless holder && taker?(holder)
-    point.mutants.any? { |mutant| dropped?(holder, node, mutant.directive) }
+    point.mutants.any? { |mutant| dropped?(holder, node, mutant.rewrite(Kimera::Rewrite::Directive)) }
   end
 
   private

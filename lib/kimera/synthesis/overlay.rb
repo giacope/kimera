@@ -22,7 +22,8 @@ class Kimera::Overlay
       end
 
       def settle!(points, detail)
-        skipped_unsafe.concat(points.flat_map { |point| point.orphan!(mutant_ids, detail) })
+        orphan = Kimera::Reason::Guarded.orphaned(mutant_ids, detail)
+        skipped_unsafe.concat(points.flat_map { |point| point.mark!(orphan) })
       end
 
       def skip!(points) = skipped_unsafe.concat(points.flat_map(&:ids))
@@ -48,14 +49,14 @@ class Kimera::Overlay
   end
 
   def synthesize(file, source)
-    safe, unsafe = @registry.at(file).partition(&:safe?)
+    safe, unsafe = @registry.to_h.fetch(file, []).partition(&:safe?)
     return unsafe(file, source, unsafe) if safe.empty?
     map = Kimera::SourceMap.new(source)
     Kimera::Overlay::FileWeave.new(file, map, safe, unsafe).result
   end
 
   def bake(_file, source, id)
-    pair = @registry.point(id) { return source }
+    pair = @registry[id] { return source }
     map = Kimera::SourceMap.new(source)
     checked(map, pair.last, spliced(map, *pair).fetch(0) { write(map, baked(map, *pair), pair.last) })
   end
@@ -63,7 +64,7 @@ class Kimera::Overlay
   private
 
   def spliced(map, mutant, point)
-    changed = Kimera::Guardrail.new(map, []).changes(point, mutant.directive)
+    changed = Kimera::Guardrail.new(map, []).changes(point, mutant.rewrite(Kimera::Rewrite::Directive))
     expected, original = changed && expectation(changed.last&.last || map.ast, map.ast) { return [] }
     return [] unless expected
     raise(Unbakeable, "#{UNWRITTEN} (the mutant reads as the original)") if expected == original
@@ -83,7 +84,7 @@ class Kimera::Overlay
   end
 
   def baked(map, mutant, point)
-    Kimera::Guardrail.new(map, []).bake(point, mutant.directive) ||
+    Kimera::Guardrail.new(map, []).bake(point, mutant.rewrite(Kimera::Rewrite::Directive)) ||
       raise(Unbakeable, UNMATCHED)
   end
 

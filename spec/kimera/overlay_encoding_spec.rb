@@ -57,16 +57,16 @@ RSpec.describe(Kimera::Overlay) do
 
   def test_expect_toggle(registry, object)
     expect(object.gt(2, 1)).to(be(true))
-    Kimera::RUNTIME.during(registry.each.find { |m, _p| m.label == "> => <" }.first.id) do
+    Kimera::RUNTIME.during(registry.each.find { |m, _p| m.to_s == "> => <" }.first.to_i) do
       expect(object.gt(2, 1)).to(be(false))
     end
   end
 
   it "builds a registry from a UTF-8 file regardless of default_external", :aggregate_failures do
     test_write_source("widget.rb")
-    point = test_registry_for("widget.rb").points.find { |p| p.original_source == "a > b" }
+    point = test_registry_for("widget.rb").to_a.find { |p| p.original_source == "a > b" }
     expect(point).not_to(be_nil)
-    expect(point.mutants.map(&:label)).to(contain_exactly("> => >=", "> => <"))
+    expect(point.mutants.map(&:to_s)).to(contain_exactly("> => >=", "> => <"))
   end
 
   it "synthesizes a UTF-8 file to a mirror tree without an EncodingError", :aggregate_failures do
@@ -91,7 +91,7 @@ RSpec.describe(Kimera::Overlay) do
   it "round-trips a registry with non-ASCII source snippets through disk" do
     test_write_source("widget.rb")
     registry = test_registry_for("widget.rb")
-    path = File.join(dir, "reg.json").tap { |p| registry.write(p) }
-    expect(Kimera::Registry.from_file(path).count).to(eq(registry.count))
+    path = File.join(dir, "reg.json").tap { |p| File.write(p, JSON.pretty_generate(registry)) }
+    expect(Kimera::Registry.from_file(path).each.count).to(eq(registry.each.count))
   end
 end

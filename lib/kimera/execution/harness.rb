@@ -114,7 +114,7 @@ class Kimera::Execution::Harness
     isolate!
   end
 
-  def mutants = registry.each.map { |mutant, _path| mutant.id }
+  def mutants = registry.index.keys
 
   def measure!
     parallel(baseline).tap do |measured|

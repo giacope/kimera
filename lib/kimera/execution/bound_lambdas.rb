@@ -22,7 +22,7 @@ class Kimera::Execution::BoundLambdas
 
   def hold!(file)
     ranges = held(Kimera::Syntax::Document.new(@root, file).result.value)
-    @registry.at(file).each { |point| point.bound! if point.reloadable? && point.inside?(ranges) }
+    @registry.to_h.fetch(file, []).each { |point| point.mark!(Kimera::Reason.bound) if open?(point, ranges) }
   end
 
   private
@@ -30,6 +30,10 @@ class Kimera::Execution::BoundLambdas
   def held(node)
     return [node.value.location] if bound?(node)
     node.compact_child_nodes.flat_map { |child| held(child) }
+  end
+
+  def open?(point, ranges)
+    point.reasons(Kimera::Reason.unreloadable).empty? && point.location.within?(ranges)
   end
 
   def bound?(node) = WRITES.any? { |kind| node.is_a?(kind) } && callable?(node.value)

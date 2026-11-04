@@ -50,9 +50,15 @@ class Kimera::Execution::DatabaseCopies
   end
 
   def pick
+    return [] unless connected?
     @engines.select { |pattern, _| config.adapter.to_s.match?(pattern) }.first(1).map { |(_, kind)| kind.new(config) }
-  rescue StandardError
-    []
+  end
+
+  def connected?
+    config
+    true
+  rescue ActiveRecord::ActiveRecordError
+    false
   end
 
   def attempt(action, index)

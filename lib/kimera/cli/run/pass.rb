@@ -111,7 +111,7 @@ class Kimera::CLI::Run::Pass
 
   def revisited(report)
     (report.survived + report.uncovered).filter_map do |result|
-      reason = @registry.index.fetch(result.mutant_id).revisit
+      reason = @registry.index.fetch(result.mutant_id).reasons(Kimera::Reason.revisiting).first
       result.dup.tap { |copy| copy.detail = reason } if reason
     end
   end

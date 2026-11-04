@@ -38,9 +38,8 @@ class Kimera::PointLines
 
   def held?(node)
     return false unless node.respond_to?(:heredoc?) && node.heredoc?
-    from = @location.start_offset
-    node.location.start_offset.between?(from, @location.finish - 1) ||
-      (Kimera::PartSplice.new(node).body.start_offset..node.closing_loc.start_offset).cover?(from)
+    @location.covers?(node.location.start_offset) ||
+      @location.starts_between?(Kimera::PartSplice.new(node).body.start_offset, node.closing_loc.start_offset)
   end
 
   def body(heredoc)

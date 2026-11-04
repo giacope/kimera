@@ -40,7 +40,7 @@ class Kimera::Synthesis::Project
 
   def write(outdir)
     target = File.expand_path(outdir)
-    @registry.files.reduce(@manifest) do |manifest, file|
+    @registry.to_h.keys.reduce(@manifest) do |manifest, file|
       source = File.join(root, file)
       next manifest unless File.file?(source)
       result = @synth.synthesize(file, File.read(source, encoding: Encoding::UTF_8))
