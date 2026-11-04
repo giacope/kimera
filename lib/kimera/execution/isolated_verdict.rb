@@ -26,18 +26,20 @@ module Kimera
       def single(id, slot = nil)
         synth = Overlay.new(registry)
         result = with_mirror { |mirror| evaluate(id, Kimera::Execution::Bay.new(mirror, slot, synth)) }
-        return unstaged(result) if result.status == :error
+        return unstaged(result) if result.status?(:error)
         result.killed? ? confirmed(result, slot) : result
       end
 
       def unstaged(result)
-        result.unjudged("the isolated tier could not stage it: #{result.detail}")
+        result.unstaged("the isolated tier could not stage it: ")
       end
 
       def confirmed(result, slot = nil)
-        control = with_mirror { |mirror| verdict(Kimera::Execution::Bay.new(mirror, slot), result.covering_tests) }
+        control = result.covering { |tests| control(tests, slot) }
         control.confirmed(result) { |contradiction| result.unjudged(contradiction) }
       end
+
+      def control(tests, slot) = with_mirror { |mirror| verdict(Kimera::Execution::Bay.new(mirror, slot), tests) }
 
       def bake(id, bay, point)
         file = point.file

@@ -19,14 +19,14 @@ class Kimera::Report::Entries
   end
 
   def survived(report, tests)
-    section("Surviving mutants", report.survived) { |result| survivor(result, tests) }
-    section("Reached only by other units' tests", report.unattributed) { |result| unowned(result, tests) }
+    section("Surviving mutants", having(report, :survived)) { |result| survivor(result, tests) }
+    section("Reached only by other units' tests", having(report, :uncovered_by_unit)) { |r| unowned(r, tests) }
   end
 
-  def unjudged(report) = section("Mutants Kimera could not judge", report.errors) { |r| unjudge(r) }
+  def unjudged(report) = section("Mutants Kimera could not judge", having(report, :harness_error)) { |r| unjudge(r) }
 
   def hint(report, saved, narrowed:)
-    count = report.uncovered.size
+    count = report.count { |result| result.status?(:no_coverage) }
     return if count.zero?
     @io.puts
     @io.puts("#{count} mutant(s) #{narrowed ? NARROWED : "have no covering test"}; #{saved.listing}")
@@ -34,13 +34,15 @@ class Kimera::Report::Entries
 
   def missing(report, _saved, narrowed:)
     title = narrowed ? "Mutants #{NARROWED}" : "Mutants with no covering test"
-    section(title, report.uncovered) { |result| uncovered(result) }
+    section(title, having(report, :no_coverage)) { |result| uncovered(result) }
   end
 
   private
 
+  def having(report, status) = report.select { |result| result.status?(status) }
+
   def section(title, results, &)
-    listed = results.sort_by(&:mutant_id)
+    listed = results.sort
     heading(title, listed.size) unless listed.empty?
     listed.each(&)
   end
@@ -56,19 +58,20 @@ class Kimera::Report::Entries
 
   def unowned(result, tests)
     survivor(result, tests)
-    @io.puts("    #{result.detail}")
+    @io.puts("    #{result.to_h["detail"]}")
   end
 
   def display(mutant, point, result, covering)
     @io.puts
-    spotted(result.status.to_s, result.mutant_id, mutant, point)
+    row = result.to_h
+    spotted(row["status"], row["mutant_id"], mutant, point)
     diff(point, mutant)
     covering.each { |line| @io.puts("    #{line}") }
     annotate(result)
   end
 
   def resolved(result)
-    id = result.mutant_id
+    id = result.to_h["mutant_id"]
     pair = @registry.point(id) { return }
     yield(id, *pair)
   end
@@ -82,18 +85,21 @@ class Kimera::Report::Entries
   def source(sign, text) = @io.puts(Kimera::Readout.new(text).quoted(sign, "    "))
 
   def unjudge(result)
-    id = result.mutant_id
-    @io.puts("  #{@palette.red("unjudged")} ##{id}  #{where(@registry.index[id], result)}")
-    Kimera::Readout.new(result.detail).lines.each { |line| @io.puts("    #{line}") }
+    row = result.to_h
+    id = row["mutant_id"]
+    @io.puts("  #{@palette.red("unjudged")} ##{id}  #{where(@registry.index[id], row)}")
+    Kimera::Readout.new(row["detail"]).lines.each { |line| @io.puts("    #{line}") }
     annotate(result)
   end
 
-  def annotate(result)
-    note = result.note
-    @io.puts("    note: #{note}") if note
+  def annotate(result) = remark(result, "note", "note: ")
+
+  def remark(result, key, label)
+    text = result.to_h[key]
+    @io.puts("    #{label}#{text}") if text
   end
 
-  def where(point, result) = point ? place(point) : result.file.to_s
+  def where(point, row) = point ? place(point) : row["file"].to_s
 
   def place(point)
     location = point.location
@@ -103,8 +109,7 @@ class Kimera::Report::Entries
 
   def uncovered(result)
     resolved(result) { |id, mutant, point| spotted("no coverage", id, mutant, point) }
-    reason = result.detail
-    @io.puts("    #{reason}") if reason
+    remark(result, "detail", "")
   end
 
   def spotted(status, id, mutant, point)

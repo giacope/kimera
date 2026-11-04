@@ -2,6 +2,8 @@
 
 require "kimera/results/result"
 
+using ResultFields
+
 RSpec.describe(Kimera::MutantResult) do
   def result(status)
     described_class.new(mutant_id: 1, status: status, file: "x.rb", duration: 0.1)
@@ -65,7 +67,7 @@ RSpec.describe(Kimera::MutantResult) do
   describe "#note" do
     it "is written only when set, and read back", :aggregate_failures do
       expect(result(:killed).to_h).not_to(have_key("note"))
-      noted = result(:killed).tap { |killed| killed.note = "judged in a fresh isolated mirror" }
+      noted = result(:killed).with(note: "judged in a fresh isolated mirror")
       expect(noted.to_h).to(include("note" => "judged in a fresh isolated mirror"))
       expect(described_class.from_h(noted.to_h)).to(eq(noted))
     end
@@ -80,7 +82,7 @@ RSpec.describe(Kimera::MutantResult) do
           end
         )
       )
-      counted = result(:killed).tap { |killed| killed.killing_tests = %w[t1 t2] }
+      counted = result(:killed).with(killing_tests: %w[t1 t2])
       expect(counted.to_h).to(include("killing_tests" => %w[t1 t2]))
       expect(counted.message).to(include(kills: %w[t1 t2]))
       expect(counted.waive.killing_tests).to(eq(%w[t1 t2]))
@@ -89,7 +91,7 @@ RSpec.describe(Kimera::MutantResult) do
 
   describe "#unjudged" do
     it "keeps only the identity, with the reason as detail" do
-      judged = result(:killed).tap { |killed| killed.failing_tests = ["t1"] }.unjudged("its tests fail")
+      judged = result(:killed).with(failing_tests: ["t1"]).unjudged("its tests fail")
       expected = described_class.new(mutant_id: 1, status: :harness_error, file: "x.rb", detail: "its tests fail")
       expect(judged).to(eq(expected))
     end
@@ -97,8 +99,8 @@ RSpec.describe(Kimera::MutantResult) do
 
   describe "#waive" do
     it "keeps the evaluation but reports the mutant as ignored with its verdict", :aggregate_failures do
-      waived = result(:killed).tap { |killed| killed.detail = "Calc spec failed" }.waive
-      expect(waived).to(have_attributes(mutant_id: 1, status: :ignored, verdict: :killed, file: "x.rb", duration: 0.1))
+      waived = result(:killed).with(detail: "Calc spec failed").waive
+      expect(waived).to(have_fields(mutant_id: 1, status: :ignored, verdict: :killed, file: "x.rb", duration: 0.1))
       expect(waived.detail).to(eq("ignored (killed): Calc spec failed"))
       expect(result(:survived).waive.detail).to(eq("ignored (survived)"))
     end

@@ -30,7 +30,7 @@ class Kimera::Incremental::Session
   def pruned(registry)
     kept = @results.reject { |id, _| stale?(id, registry) }
     self.class.new(
-      results: kept, leaks: @leaks.select { |leak| kept.key?(leak.mutant_id) }, meta: @meta, fingerprints: @fingerprints
+      results: kept, leaks: @leaks.select { |leak| leak.among?(kept) }, meta: @meta, fingerprints: @fingerprints
     )
   end
 
@@ -59,15 +59,14 @@ class Kimera::Incremental::Session
   end
 
   def merged(report)
-    named = report.tests
+    noted = report.notes.to_h
+    named = noted.fetch("tests")
     meta = named.empty? ? @meta : @meta.merge("tests" => tests.merge(named))
     self.class.new(
-      results: @results.merge(report.results.to_h { |result| [result.mutant_id, result] }),
-      leaks: @leaks + report.leaks, meta: meta.merge(noted(report.notes)), fingerprints: @fingerprints
+      results: @results.merge(report.to_a.to_h(&:entry)),
+      leaks: @leaks + noted.fetch("leaks"), meta: meta.merge(noted.slice("flaky", "suite")), fingerprints: @fingerprints
     )
   end
-
-  def noted(notes) = { "flaky" => notes.flaky, "suite" => notes.suite }.compact
 
   def tests = @meta.fetch("tests", {})
 

@@ -66,14 +66,15 @@ class Kimera::CLI::Run::Cycle
   end
 
   def conclude(todo, ignored, loaded)
-    report = narrowed(loaded.report(todo, ignored, @registry)).counting(counted)
+    report = narrowed(loaded.report(todo, ignored, @registry)).annotate(counted: counted)
     @digest.emit(report, @registry, emission)
     @options[:gate] == false ? 0 : @alerts.gate(report, @options.to_h.merge(narrowed: narrowing.narrowed?))
   end
 
   def narrowed(report)
     return report unless narrowing.narrowed?
-    report.revise(report.uncovered.map { |result| result.narrowed(NARROWED) })
+    uncovered = report.select { |result| result.status?(:no_coverage) }
+    report.revise(uncovered.map { |result| result.narrowed(NARROWED) })
   end
 
   def emission

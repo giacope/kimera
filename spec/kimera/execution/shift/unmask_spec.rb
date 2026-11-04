@@ -4,6 +4,8 @@ require "kimera/execution/shift"
 require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 
+using ResultFields
+
 # A survivor's covering tests ran together in one process, where an earlier
 # test can load what the mutant broke and hide it. Under confirm_survivors
 # each test then runs alone in a fresh process with the mutant on, fastest

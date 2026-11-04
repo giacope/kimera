@@ -21,7 +21,7 @@ RSpec.describe(Kimera::Frameworks) do
   # so a project constant one of them defines at top level cannot load.
   describe "a test file that clashes with a dependency's constant" do
     def loaded(error)
-      Kimera::Frameworks::Suite.new.__send__(:load_test_file, "test/x_test.rb") { raise(error) }
+      Kimera::Frameworks::Suite.new.__send__(:guarded, "test/x_test.rb") { raise(error) }
     rescue Kimera::Error => error
       error.message
     end
@@ -62,15 +62,15 @@ RSpec.describe(Kimera::Frameworks) do
 
     it "reproduces the known failing ids with rspec in defined order" do
       adapter = Class.new(described_class) { def test_ids = %w[a b] }.new
-      expect(adapter.reproduce(%w[b ghost a])).to(eq("rspec b a --order defined"))
+      expect(adapter[*%w[b ghost a]].to_s).to(eq("rspec b a --order defined"))
     end
 
     it "describes an id as itself by default" do
-      expect(described_class.new.describe("Foo#bar")).to(eq("Foo#bar"))
+      expect(described_class.new["Foo#bar"].name).to(eq("Foo#bar"))
     end
 
     it "knows no test's file by default" do
-      expect(described_class.new.test_file("Foo#bar")).to(eq(""))
+      expect(described_class.new["Foo#bar"].file).to(eq(""))
     end
   end
 

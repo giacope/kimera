@@ -65,13 +65,13 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
   end
 
   def ids
-    adapter.test_ids.select { |id| adapter.describe(id).start_with?("KimeraDemo") }
+    adapter.test_ids.select { |id| adapter[id].name.start_with?("KimeraDemo") }
   end
 
   def flag(value, &) = steer(value, &)
 
   it "indexes loaded examples, including nested groups" do
-    descriptions = ids.map { |id| adapter.describe(id) }
+    descriptions = ids.map { |id| adapter[id].name }
     expect(descriptions).to(include("KimeraDemo passes", "KimeraDemo is conditional", "KimeraDemo nested also passes"))
   end
 
@@ -84,8 +84,8 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
   end
 
   it "catalogs known examples by description and file:line, leaving unknown ids out", :aggregate_failures do
-    passing = ids.find { |id| adapter.describe(id) == "KimeraDemo passes" }
-    catalog = adapter.catalog([passing, "no/such[1:1]"])
+    passing = ids.find { |id| adapter[id].name == "KimeraDemo passes" }
+    catalog = adapter[passing, "no/such[1:1]"].to_h
     expect(catalog.keys).to(eq([passing]))
     expect(catalog.fetch(passing))
       .to(include("name" => "KimeraDemo passes", "location" => match(%r{\A(?!\./).*demo_spec\.rb:2\z})))
@@ -93,21 +93,21 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
 
   # Strict attribution maps each test to the spec file that declares it.
   it "names the spec file each example runs from, and parses an unknown id's", :aggregate_failures do
-    passing = ids.find { |id| adapter.describe(id) == "KimeraDemo passes" }
-    expect(adapter.test_file(passing)).to(end_with("demo_spec.rb"))
-    expect(adapter.test_file("./spec/models/order_spec.rb[1:2]")).to(eq("./spec/models/order_spec.rb"))
-    expect(adapter.test_file("unknown")).to(be_nil)
+    passing = ids.find { |id| adapter[id].name == "KimeraDemo passes" }
+    expect(adapter[passing].file).to(end_with("demo_spec.rb"))
+    expect(adapter["./spec/models/order_spec.rb[1:2]"].file).to(eq("./spec/models/order_spec.rb"))
+    expect(adapter["unknown"].file).to(eq(""))
   end
 
   it "seeds a run's random numbers from the run's seed and its first example's id", :aggregate_failures do
-    passing = ids.find { |id| adapter.describe(id) == "KimeraDemo passes" }
+    passing = ids.find { |id| adapter[id].name == "KimeraDemo passes" }
     seeded(9) { quietly { adapter.run([passing]) } }
     seed = Kimera::Seed.new("KIMERA_SEED" => "9").for(passing).fetch(0)
     expect(rand(1_000_000)).to(eq(Random.new(seed).rand(1_000_000)))
   end
 
   it "describes an unknown id as itself" do
-    expect(adapter.describe("no/such[1:1]")).to(eq("no/such[1:1]"))
+    expect(adapter["no/such[1:1]"].name).to(eq("no/such[1:1]"))
   end
 
   def guarded
@@ -125,7 +125,7 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
   # Backend-gated suites use `if: ENV["DB_URL"]`; running them anyway fails the baseline on skipped setup.
   it "does not index examples the real runner would filter out (:if false)" do
     filtered = quietly { described_class.build.source([guarded]) }
-    indexed = filtered.test_ids.select { |id| filtered.describe(id).start_with?("KimeraGuarded") }
+    indexed = filtered.test_ids.select { |id| filtered[id].name.start_with?("KimeraGuarded") }
     expect(indexed).to(be_empty)
   end
 
@@ -139,14 +139,14 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
   # Running groups directly skips suite hooks, where e.g. webmock/rspec calls WebMock.enable!.
   it "does not fire suite hooks merely from finishing without starting" do
     ran = recorder
-    described_class.build.finish
+    described_class.build.hooks.finish
     expect(ran).to(be_empty)
   end
 
   def twice
     fresh = described_class.build
-    2.times { fresh.start }
-    fresh.finish
+    2.times { fresh.hooks.start }
+    fresh.hooks.finish
   end
 
   it "fires before(:suite) once and after(:suite) only once starting has happened" do
@@ -158,11 +158,11 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
   it "propagates a raising before(:suite) hook instead of running the suite" do
     RSpec.configuration.before(:suite) { raise(RuntimeError, "backend unavailable") }
 
-    expect { described_class.build.start }.to(raise_error(RuntimeError, "backend unavailable"))
+    expect { described_class.build.hooks.start }.to(raise_error(RuntimeError, "backend unavailable"))
   end
 
   it "passes when running a green example" do
-    id = ids.find { |i| adapter.describe(i) == "KimeraDemo passes" }
+    id = ids.find { |i| adapter[i].name == "KimeraDemo passes" }
     expect(adapter.run([id]).passed?).to(be(true))
   end
 
@@ -173,17 +173,17 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
   end
 
   it "reports a failing example as a kill" do
-    id = ids.find { |i| adapter.describe(i) == "KimeraDemo is conditional" }
+    id = ids.find { |i| adapter[i].name == "KimeraDemo is conditional" }
     expect(outcome(id).passed?).to(be(false))
   end
 
   it "carries the failing example's id in failed_ids" do
-    id = ids.find { |i| adapter.describe(i) == "KimeraDemo is conditional" }
-    expect(outcome(id).failed_ids).to(eq([id]))
+    id = ids.find { |i| adapter[i].name == "KimeraDemo is conditional" }
+    expect(outcome(id).to_h.fetch("failed_ids")).to(eq([id]))
   end
 
   it "re-runs the same example reliably across changing state" do
-    id = ids.find { |i| adapter.describe(i) == "KimeraDemo is conditional" }
+    id = ids.find { |i| adapter[i].name == "KimeraDemo is conditional" }
     results = [true, false, true].map { |value| flag(value) { adapter.run([id]).passed? } }
     expect(results).to(eq([true, false, true]))
   end
@@ -197,7 +197,7 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
 
   # --fail-fast sets wants_to_quit; left set, later runs skip every example and kills become survivals.
   it "clears a stuck fail-fast quit flag so a killing example still runs" do
-    id = ids.find { |i| adapter.describe(i) == "KimeraDemo is conditional" }
+    id = ids.find { |i| adapter[i].name == "KimeraDemo is conditional" }
     outcome = quitting { flag(false) { adapter.run([id]) } }
     expect(outcome.passed?).to(be(false))
   end
@@ -211,21 +211,21 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
 
   # A raising suite hook sets this; left set, the outer runner exits red although every example passed.
   it "clears a stuck non-example failure flag before each run" do
-    id = ids.find { |i| adapter.describe(i) == "KimeraDemo passes" }
+    id = ids.find { |i| adapter[i].name == "KimeraDemo passes" }
     failure { adapter.run([id]) }
     expect(RSpec.world.non_example_failure).to(be(false))
   end
 
   it "runs examples across sibling and nested groups together" do
     wanted = ["KimeraDemo passes", "KimeraDemo nested also passes"]
-    selected = ids.select { |i| wanted.include?(adapter.describe(i)) }
+    selected = ids.select { |i| wanted.include?(adapter[i].name) }
     expect(adapter.run(selected).passed?).to(be(true))
   end
 
   # Separate examples for the same reason as #outcome.
   def message
-    id = ids.find { |i| adapter.describe(i) == "KimeraDemo is conditional" }
-    flag(false) { adapter.run([id]).failures[id] }
+    id = ids.find { |i| adapter[i].name == "KimeraDemo is conditional" }
+    flag(false) { adapter.run([id]).to_h.fetch("failures")[id] }
   end
 
   it "formats a failure message as ExceptionClass: message" do
@@ -268,7 +268,7 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
   # The filtered-examples override, set through the whole tree, is what keeps siblings from running.
   it "executes only the selected example, not its group or nested siblings" do
     ad = prepared
-    id = ad.test_ids.find { |i| ad.describe(i) == "KimeraCounted inner c" }
+    id = ad.test_ids.find { |i| ad[i].name == "KimeraCounted inner c" }
     ran = executions { ad.run([id]) }
     expect(ran).to(eq([:c]))
   end
@@ -290,7 +290,7 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
 
   def sequenced(*descriptions)
     ad = quietly { described_class.build.source([contextual]) }
-    runs = descriptions.map { |text| ad.test_ids.find { |i| ad.describe(i) == "KimeraContextual #{text}" } }
+    runs = descriptions.map { |text| ad.test_ids.find { |i| ad[i].name == "KimeraContextual #{text}" } }
     executions { runs.each { |id| ad.run([id]) } }
   end
 
@@ -313,7 +313,7 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
   # Under self-hosting a leftover override would corrupt the outer suite's runs.
   it "removes its filtered-examples overrides once the run finishes" do
     ad = prepared
-    id = ad.test_ids.find { |i| ad.describe(i) == "KimeraCounted inner c" }
+    id = ad.test_ids.find { |i| ad[i].name == "KimeraCounted inner c" }
     executions { ad.run([id]) }
     expect(overrides("KimeraCounted")).to(be_empty)
   end

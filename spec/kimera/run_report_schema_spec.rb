@@ -6,6 +6,8 @@ require "kimera/cli/run"
 require "kimera/registry/builder"
 require "kimera/results/run_report"
 
+using ResultFields
+
 # The report schema documents what `kimera run` writes for scripts and agents,
 # so every key a report can carry must be described there, and no other.
 RSpec.describe(Kimera::RunReport, :aggregate_failures) do
@@ -16,11 +18,11 @@ RSpec.describe(Kimera::RunReport, :aggregate_failures) do
   let(:document) do
     rich =
       result(:ignored, verdict: :killed, failing_tests: ["t1"], covering_tests: ["t1"], detail: "d", note: "n")
-        .tap { |row| row.killing_tests = ["t1"] }
+        .with(killing_tests: ["t1"])
     report = described_class.new(results: [rich], registry: registry, tests: { "t1" => { "name" => "one" } })
     flake = { "test" => "t1", "failed_runs" => 1, "seeds" => [2], "failure" => "f" }
     flaky = { "runs" => 1, "seeds" => [2], "tests" => 1, "flaky" => [flake] }
-    JSON.parse(JSON.generate(report.annotate(flaky: flaky, suite: ["t1"]).document("jobs" => 1)))
+    JSON.parse(JSON.generate(report.annotate(flaky: flaky, suite: ["t1"]).annotate(run: { "jobs" => 1 }).to_h))
   end
 
   def result(status, **fields)
@@ -33,7 +35,7 @@ RSpec.describe(Kimera::RunReport, :aggregate_failures) do
   end
 
   it "names every count, and every status a count or result can hold" do
-    statuses = (Kimera::RunReport::REPORTED + [:killed]).map(&:to_s)
+    statuses = (Kimera::RunReport::Score::REPORTED + [:killed]).map(&:to_s)
     expect(properties.dig("counts", "properties").keys).to(match_array(document.fetch("counts").keys))
     expect(properties.dig("results", "items", "properties", "status", "enum")).to(match_array(statuses))
   end

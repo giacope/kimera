@@ -10,7 +10,7 @@ module Kimera
 
     def of(result)
       base = result.to_h
-      id = result.mutant_id
+      id = base["mutant_id"]
       pair = @registry.point(id) { return base }
       base.merge("key" => @registry.keys[id]).merge(rewritten(pair))
     end

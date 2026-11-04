@@ -34,14 +34,10 @@ class Kimera::Execution::Triage
     point.unloaded? ? :no_coverage : :isolated_only
   end
 
-  def reclassify(result) = suspect?(result) ? result.isolated(detail(result.status)) : result
+  def reclassify(result) = result.suspected(SELF_SUSPECT) { |status, file| harness?(file) && detail(status) }
 
-  def suspect?(result)
-    SELF_SUSPECT.include?(result.status) && harness?(result)
-  end
-
-  def harness?(result)
-    Kimera::SelfProtection.new(result.file).critical?
+  def harness?(file)
+    Kimera::SelfProtection.new(file).critical?
   end
 
   def detail(status)

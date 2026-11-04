@@ -9,6 +9,8 @@ require "kimera/execution/verdicts"
 require "kimera/registry/builder"
 require "tmpdir"
 
+using ResultFields
+
 # R3K2: a lambda a class body calls to build a constant ran only while the
 # file loaded, before warm coverage starts, and read as "no covering test".
 RSpec.describe(Kimera::Execution::LoadTrace, :aggregate_failures) do
@@ -144,7 +146,7 @@ RSpec.describe(Kimera::Execution::LoadTrace, :aggregate_failures) do
     found = point("val >= 0")
     found.unloaded!
     result = Kimera::Execution::Triage.new(Kimera::Execution::Verdicts.new(registry)).quarantine(found.ids.first)
-    expect(result).to(have_attributes(status: :no_coverage, detail: Kimera::MutationPoint::NEVER_LOADED))
+    expect(result).to(have_fields(status: :no_coverage, detail: Kimera::MutationPoint::NEVER_LOADED))
     expect(found.reloadable?).to(be(false))
   end
 

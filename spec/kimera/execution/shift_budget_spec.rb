@@ -6,6 +6,8 @@ require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 require "stringio"
 
+using ResultFields
+
 # A covering test that passes but runs past its relative budget (baseline ×
 # factor + slack) makes the mutant a timeout, once the same test ran within
 # budget with the mutant switched off and past it again with it on. A single

@@ -12,7 +12,7 @@ class Kimera::CLI::Run::Emission::Delivery
 
   def deliver(report, registry, emission)
     text = @page.text(report, registry, emission)
-    document = report.document(@metadata)
+    document = report.annotate(run: @metadata).to_h
     emission.present(text, @format, document)
     @copies.keep(text, document)
   end

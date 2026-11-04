@@ -72,8 +72,7 @@ class Kimera::Execution::Shift
 
   def tally(result)
     return result unless @options[:quality] && result.killed?
-    killers = census.killers(result.mutant_id, available(result.mutant_id), Array(result.failing_tests))
-    result.tap { |found| found.killing_tests = killers }
+    result.credit { |id, failing| census.killers(id, available(id), failing) }
   end
 
   def census = @_census ||= staged(self.class::Census)

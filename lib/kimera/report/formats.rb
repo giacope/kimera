@@ -24,7 +24,7 @@ class Kimera::Report::Formats
     @io = io
   end
 
-  def emit(name, report, metadata: nil) = render(name, report.document(metadata))
+  def emit(name, report, metadata: nil) = render(name, report.annotate(run: metadata).to_h)
 
   def render(name, document) = __send__(normalize(name), document)
 

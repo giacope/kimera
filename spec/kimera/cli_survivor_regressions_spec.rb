@@ -17,6 +17,8 @@ require "kimera/scope/config"
 require "stringio"
 require "tmpdir"
 
+using ResultFields
+
 RSpec.describe Kimera::CLI, :aggregate_failures do
   let(:dir) { Dir.mktmpdir }
   let(:out) { StringIO.new }
@@ -188,6 +190,9 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
   end
 
   describe "run argument, cycle, and digest boundaries" do
+    # A report that counts +statuses+ in its score, as count_no_coverage asks.
+    def counting(statuses) = satisfy { |report| report.instance_variable_get(:@context).fetch(:counted) == statuses }
+
     let(:tiny) { Kimera::RegistryScan.new.source("def x; 1; end\n", file: "x.rb") }
     let(:digest) { FakeDigest.new }
 
@@ -247,7 +252,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
     it "lists and scores uncovered mutants under count_no_coverage" do
       concluded(options.merge(count_no_coverage: true))
-      expect(digest.emitted).to(match([[having_attributes(counted: [:no_coverage]), tiny, emission(:list)]]))
+      expect(digest.emitted).to(match([[counting([:no_coverage]), tiny, emission(:list)]]))
     end
 
     it "records count_no_coverage in the report metadata" do
@@ -257,7 +262,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
     it "neither lists nor scores them without count_no_coverage" do
       concluded(options.merge(count_no_coverage: false))
-      expect(digest.emitted).to(match([[having_attributes(counted: []), tiny, emission(:hint)]]))
+      expect(digest.emitted).to(match([[counting([]), tiny, emission(:hint)]]))
     end
 
     def emitted(name, **settings)

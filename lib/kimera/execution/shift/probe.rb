@@ -27,7 +27,7 @@ class Kimera::Execution::Shift::Probe
   end
 
   def report(test, outcome, elapsed)
-    { "passed" => outcome.passed?, "failed_ids" => outcome.failed_ids, "failures" => outcome.failures }
+    outcome.to_h
       .merge("elapsed" => elapsed, "overran" => deadline.overran?(test, elapsed), "expired" => outcome.expired?)
       .merge("limit" => deadline.limit(test))
   end

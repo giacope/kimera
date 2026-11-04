@@ -45,7 +45,7 @@ module Kimera
       def alone(ids, tick)
         sweep = Kimera::Execution::Sweep.new(ids, Mutex.new, tick)
         Array.new(jobs) { |slot| Thread.new { solo(sweep, jobs > 1 ? slot : nil) } }.each(&:join)
-        sweep.results.to_h { |result| [result.mutant_id, result] }
+        sweep.results.to_h(&:entry)
       end
 
       def solo(sweep, slot)

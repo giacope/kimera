@@ -7,6 +7,8 @@ require "kimera/report/progress"
 require "stringio"
 require "tmpdir"
 
+using ResultFields
+
 # The warm pass hands over what it could not judge; each mutant is judged
 # again in a mirror of its own, and a kill stands only if its tests pass in
 # another fresh mirror without the mutant.
