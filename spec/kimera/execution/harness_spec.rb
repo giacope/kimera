@@ -1656,9 +1656,10 @@ RSpec.describe(Kimera::Execution::Harness) do
   end
 
   describe "#evaluate_reload (reload fallback child logic, run in-process)" do
-    # An in-process errand: the tests it names, and ticks that go nowhere.
+    # The mutant an in-process errand runs, and the errand: the tests it names, and ticks that go nowhere.
     def errand(id, tests = ["t1"])
-      Kimera::Execution::Reload::Errand.new(id, tests, nil, nil).tap { |e| e.define_singleton_method(:tick) { |test| ran << test } }
+      silent = Kimera::Execution::Reload::Errand.new(id, tests, nil, nil)
+      [id, silent.tap { |e| e.define_singleton_method(:tick) { |test| ran << test } }]
     end
 
     let(:dir) { Dir.mktmpdir }
@@ -1672,7 +1673,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       # The constant must exist before the bake is overlaid.
       load(File.join(dir, "harnessreload.rb"))
       reloading = reloader(observer("HarnessReload"), catalog: registry, root: dir)
-      reloading.__send__(:evaluate, errand(unsafe_id(registry, "< => >")))
+      reloading.__send__(:evaluate, *errand(unsafe_id(registry, "< => >")))
     end
 
     it "bakes the mutation, reloads, and classifies the outcome" do
@@ -1693,7 +1694,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "re-runs only the reloaded method of a file that was already required", :aggregate_failures do
       registry = required
       status, = reloader(observer("HarnessRequired"), catalog: registry, root: dir)
-        .__send__(:evaluate, errand(unsafe_id(registry, "< => >")))
+        .__send__(:evaluate, *errand(unsafe_id(registry, "< => >")))
       expect(status).to(eq(:killed))
       expect(HarnessRequired.instance_variable_get(:@loads)).to(eq(1))
     end
@@ -1701,7 +1702,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     def aliased_verdict(registry)
       aliases = Kimera::Execution::Aliases.new([File.join(dir, "harnessaliased.rb")]).tap { |a| a.follow { :captured } }
       runner = reloader(observer("HarnessAliasing"), catalog: registry, root: dir, aliases: aliases)
-      runner.__send__(:evaluate, errand(unsafe_id(registry, "< => >")))
+      runner.__send__(:evaluate, *errand(unsafe_id(registry, "< => >")))
     end
 
     it "reaches the reloaded method through an alias declared in another file" do
@@ -1738,7 +1739,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry, unsafe = reload("HarnessReselGreen")
       suite = plain(passed: true, reach: calling("HarnessReselGreen"))
       runner = reloader(suite, catalog: registry, root: dir, isolation: reselection)
-      expect(runner.__send__(:evaluate, errand(unsafe))).to(eq([:survived, []]))
+      expect(runner.__send__(:evaluate, *errand(unsafe))).to(eq([:survived, []]))
     end
 
     # The reload child watches the method that holds the mutant: a green suite
@@ -1747,7 +1748,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry, unsafe = reload("HarnessReloadUncalled")
       runner = reloader(plain(passed: true), catalog: registry, root: dir, isolation: reselection)
       uncalled = Kimera::Execution::Reload::UNCALLED
-      expect(runner.__send__(:evaluate, errand(unsafe))).to(eq([:no_coverage, [], uncalled]))
+      expect(runner.__send__(:evaluate, *errand(unsafe))).to(eq([:no_coverage, [], uncalled]))
     end
 
     def counting(tests, failing, calls, reach: {})
@@ -1767,7 +1768,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry, unsafe = reload("HarnessReloadFast")
       calls = []
       runner = reloader(counting(%w[t1 t2 t3], ["t2"], calls), catalog: registry, root: dir, isolation: reselection)
-      expect(runner.__send__(:evaluate, errand(unsafe, %w[t1 t2 t3]))).to(eq([:killed, ["t2"]]))
+      expect(runner.__send__(:evaluate, *errand(unsafe, %w[t1 t2 t3]))).to(eq([:killed, ["t2"]]))
       expect(calls).to(eq([["t1"], ["t2"]]))
     end
 
@@ -1778,7 +1779,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry, unsafe = reload("HarnessReloadReport")
       suite = counting(%w[t1 t2 t3 t4], ["t3"], [], reach: { "t2" => calling("HarnessReloadReport") })
       runner = reloader(suite, catalog: registry, root: dir, isolation: reselection)
-      report = JSON.parse(runner.__send__(:report, errand(unsafe, %w[t1 t2 t3 t4])))
+      report = JSON.parse(runner.__send__(:report, *errand(unsafe, %w[t1 t2 t3 t4])))
       expect(report.values_at("status", "fails", "cover", "ms")).to(match(["killed", ["t3"], ["t2"], be >= 0]))
     end
 
@@ -1788,7 +1789,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       reader, writer = IO.pipe
       errand = Kimera::Execution::Reload::Errand.new(unsafe, %w[t1 t2 t3], reader, writer)
       reloader(counting(%w[t1 t2 t3], [], []), catalog: registry, root: dir, isolation: reselection)
-        .__send__(:evaluate, errand)
+        .__send__(:evaluate, unsafe, errand)
       writer.close
       [errand.ran, reader.read.lines.size]
     end
@@ -1814,7 +1815,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "classifies a failing re-selecting suite as killed with its failures" do
       registry, unsafe = reload("HarnessReselRed")
       runner = reloader(plain(passed: false), catalog: registry, root: dir, isolation: reselection)
-      expect(runner.__send__(:evaluate, errand(unsafe))).to(eq([:killed, ["t1"]]))
+      expect(runner.__send__(:evaluate, *errand(unsafe))).to(eq([:killed, ["t1"]]))
     end
 
     def cold
@@ -1885,7 +1886,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry = writing(dir, "HarnessBoom")
       load(File.join(dir, "harnessboom.rb"))
       reloading = reloader(boom, catalog: registry, root: dir, isolation: reselection)
-      reloading.__send__(:evaluate, errand(unsafe_id(registry)))
+      reloading.__send__(:evaluate, *errand(unsafe_id(registry)))
     end
 
     it "captures an exception during reload as an :error result, saying where it happened", :aggregate_failures do

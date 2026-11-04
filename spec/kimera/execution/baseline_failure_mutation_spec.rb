@@ -316,11 +316,11 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
 
   it "serializes a reload verdict at its process boundary", :aggregate_failures do
     verdicts = [[:killed, ["t1"]], [:unmutatable, [], "why"]]
-    reload = Class.new(Kimera::Execution::Reload) { define_method(:evaluate) { |_errand| verdicts.shift } }.allocate
+    reload = Class.new(Kimera::Execution::Reload) { define_method(:evaluate) { |*| verdicts.shift } }.allocate
     errand = Kimera::Execution::Reload::Errand.new(7, [], nil, nil)
-    expect(JSON.parse(reload.__send__(:report, errand)))
+    expect(JSON.parse(reload.__send__(:report, 7, errand)))
       .to(match("id" => 7, "status" => "killed", "fails" => ["t1"], "detail" => nil, "ms" => Float, "cover" => []))
-    expect(JSON.parse(reload.__send__(:report, errand)))
+    expect(JSON.parse(reload.__send__(:report, 7, errand)))
       .to(match("id" => 7, "status" => "unmutatable", "fails" => [], "detail" => "why", "ms" => Float, "cover" => []))
   end
 
