@@ -90,17 +90,24 @@ RSpec.describe(Kimera::Frameworks) do
       expect(registry.load(:demo)).to(eq(:built))
     end
 
-    it "loads a built-in adapter in a fresh Ruby process", :aggregate_failures do
+    # Whether a fresh Ruby process, loading only kimera's suite base, builds the named built-in adapter: the
+    # registry requires the adapter's file, and the adapter what it runs on (the minitest gem).
+    def fresh(name)
       lib = File.expand_path("../../lib", __dir__)
-      script = 'require "kimera/frameworks/suite"; Kimera::Frameworks::SUITES.load(:rspec)'
-      expect(Kimera::Frameworks::SUITES.load(:rspec)).to(be_a(Kimera::Frameworks::RSpecSuite))
-      expect(system("ruby", "-I#{lib}", "-e", script, out: File::NULL, err: File::NULL)).to(be(true))
+      script = "require 'kimera/frameworks/suite'; Kimera::Frameworks::SUITES.load(:#{name}).then { exit(0) }"
+      system("ruby", "-I#{lib}", "-e", script, out: File::NULL, err: File::NULL)
+    end
+
+    it "loads a built-in adapter, here and in a fresh Ruby process", :aggregate_failures do
+      expect(%i[rspec minitest].map { |name| Kimera::Frameworks::SUITES.load(name).class })
+        .to(eq([Kimera::Frameworks::RSpecSuite, Kimera::Frameworks::MinitestSuite]))
+      expect(%i[rspec minitest].map { |name| fresh(name) }).to(eq([true, true]))
     end
 
     it "turns a framework missing from the bundle into a Kimera::Error that names the fix" do
-      missing = described_class.new("rspec" => -> { raise(LoadError, "cannot load such file -- rspec/core") })
+      missing = described_class.new("rspec" => "no_such_adapter")
       expect { missing.load(:rspec) }
-        .to(raise_error(Kimera::Error, %r{framework rspec .* rspec/core.*set framework: rspec or minitest}))
+        .to(raise_error(Kimera::Error, /framework rspec .*no_such_adapter.*set framework: rspec or minitest/))
     end
 
     it "raises a Kimera::Error for an unknown adapter name" do
