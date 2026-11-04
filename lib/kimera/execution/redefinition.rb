@@ -21,6 +21,7 @@ class Kimera::Execution::Redefinition
 
   def redefine(method, visibility = self.visibility)
     Kimera::Warnings.silenced.during { @holder.define_method(@name, method) }
+    # rubocop:disable-next Kata/NoReflection -- a woven method takes the visibility its original had in the project's class, which only the class's private visibility methods set
     @holder.__send__(visibility, @name)
   end
 
@@ -30,6 +31,7 @@ class Kimera::Execution::Redefinition
 
   def reinstall(definer, visibility)
     Kimera::Warnings.silenced.during { @holder.class_exec(&definer) }
+    # rubocop:disable-next Kata/NoReflection -- a woven method takes the visibility its original had in the project's class, which only the class's private visibility methods set
     @holder.__send__(visibility, @name)
   end
 
