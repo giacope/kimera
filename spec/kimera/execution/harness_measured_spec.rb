@@ -35,6 +35,6 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   it "builds coverage from the tests its measured option picks" do
     stub_const("Measuredcalc", Class.new)
-    expect(harness.tap { |warmed| warmed.warm!(["t1"]) }.coverage.values.uniq).to(eq([%w[t2]]))
+    expect(harness.tap { |warmed| warmed.warm!(["t1"]) }.survey.coverage.values.uniq).to(eq([%w[t2]]))
   end
 end

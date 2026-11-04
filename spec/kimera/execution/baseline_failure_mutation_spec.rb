@@ -259,7 +259,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
       warm = Kimera::Execution::Harness.build(
         registry: registry, adapter: adapter, coverage: { 1 => ["t1"] }, timings: { "t1" => 0.5 }
       )
-      expect(warm.isolated(FakeExecutions.new, registry: registry, jobs: 3))
+      expect(warm.survey.isolated(FakeExecutions.new, registry: registry, jobs: 3))
         .to(eq(coverage: { 1 => ["t1"] }, timings: { "t1" => 0.5 }, registry: registry, jobs: 3))
     end
 

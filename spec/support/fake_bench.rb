@@ -73,6 +73,8 @@ class FakeHarness
     @answer.call(ids)
   end
 
+  def survey = self
+
   def isolated(**settings) = @isolation.built(settings)
 
   def noted(report) = report.annotate(flaky: @flakes&.to_h)

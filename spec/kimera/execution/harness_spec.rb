@@ -119,7 +119,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   # Before its warm pass measures anything, every test may cover any mutant.
   it "answers unmeasured coverage until its warm pass measures it" do
-    expect(harness(adapter(coverage: { "t1" => [], "t2" => [] })).coverage.fetch(ids.first)).to(eq(%w[t1 t2]))
+    expect(harness(adapter(coverage: { "t1" => [], "t2" => [] })).survey.coverage.fetch(ids.first)).to(eq(%w[t1 t2]))
   end
 
   describe "hard_timeout default" do
@@ -143,8 +143,8 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "builds a mutant => covering-tests map from the touch-log", :aggregate_failures do
       h = harness(adapter(coverage: { "t1" => [ids.first], "t2" => ids }))
       h.__send__(:measure!)
-      expect(h.coverage[ids.first]).to(contain_exactly("t1", "t2"))
-      expect(h.coverage[ids.last]).to(contain_exactly("t2"))
+      expect(h.survey.coverage[ids.first]).to(contain_exactly("t1", "t2"))
+      expect(h.survey.coverage[ids.last]).to(contain_exactly("t2"))
     end
 
     it "raises BaselineFailure listing failing tests that cover an in-scope mutant" do
@@ -215,29 +215,29 @@ RSpec.describe(Kimera::Execution::Harness) do
     # An unrelated red spec gates nothing, so it must not abort a scoped run.
     it "excludes a failing test that covers no in-scope mutant from the baseline", :aggregate_failures do
       h = harness(adapter(coverage: { "t1" => [ids.first], "t2" => [] }, failing: ["t2"]))
-      expect { h.__send__(:measure!) }.not_to(raise_error)
-      expect do
-        h.__send__(:notice, h.__send__(:screen))
-      end.to(output(/1 test\(s\) fail in the baseline.*excluded/).to_stderr)
-      expect(h.coverage[ids.first]).to(include("t1"))
+      measured = nil
+      expect { measured = h.__send__(:measure!) }.not_to(raise_error)
+      expect { noticed(h, measured) }.to(output(/1 test\(s\) fail in the baseline.*excluded/).to_stderr)
+      expect(h.survey.coverage[ids.first]).to(include("t1"))
     end
 
-    # Seven failing tests, each failing with a two-line message.
+    # What the harness says of the baseline it measured: the tests it excluded, and the ones that stalled.
+    def noticed(harness, measured) = harness.__send__(:notice, measured.screened(harness.__send__(:screen)), measured)
+
+    # Seven failing tests, each failing with a two-line message: the harness, and what it measured.
     def crowded
       failing = %w[t2 t3 t4 t5 t6 t7 t8]
       coverage = failing.to_h { |id| [id, []] }.merge("t1" => [ids.first])
-      harness(adapter(coverage: coverage, failing: failing, message: "boom\nframe")).tap { |h| h.__send__(:measure!) }
+      h = harness(adapter(coverage: coverage, failing: failing, message: "boom\nframe"))
+      [h, h.__send__(:measure!)]
     end
 
     it "names each excluded failing test with its failure" do
-      h = crowded
-      expect { h.__send__(:notice, h.__send__(:screen)) }.to(output(/coverage is unknown.*:\n  t2: boom\n/).to_stderr)
+      expect { noticed(*crowded) }.to(output(/coverage is unknown.*:\n  t2: boom\n/).to_stderr)
     end
 
     it "names failing tests up to a limit, then counts the rest and gives their plain run" do
-      h = crowded
-      expect { h.__send__(:notice, h.__send__(:screen)) }
-        .to(output(/\n  t6: boom\n  … and 2 more\n  plain run: rspec t2 /).to_stderr)
+      expect { noticed(*crowded) }.to(output(/\n  t6: boom\n  … and 2 more\n  plain run: rspec t2 /).to_stderr)
     end
 
     it "closes its own ledger afterward" do
@@ -267,8 +267,8 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "keeps coverage recorded by an example that resets the runtime", :aggregate_failures do
       h = harness(resetting)
       h.__send__(:measure!)
-      expect(h.coverage[42]).to(contain_exactly("t_reset"))
-      expect(h.coverage[99]).to(contain_exactly("t_after"))
+      expect(h.survey.coverage[42]).to(contain_exactly("t_reset"))
+      expect(h.survey.coverage[99]).to(contain_exactly("t_after"))
     end
 
     # Kimera's own harness specs measure coverage inside the measured suite.
@@ -289,7 +289,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "keeps coverage for an example that runs its own nested measurement" do
       h = harness(nested)
       h.__send__(:measure!)
-      expect(h.coverage[7]).to(contain_exactly("t_nested"))
+      expect(h.survey.coverage[7]).to(contain_exactly("t_nested"))
     end
 
     # The loop deselects at the top of each iteration; the suite undoes that.
@@ -297,7 +297,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       progress = journal
       h = harness(reselecting(coverage: { "t1" => [ids.first], "t2" => [] }), progress: progress)
       expect { h.__send__(:measure!) }.not_to(change { Array(Kimera::RUNTIME.instance_variable_get(:@ledgers)).size })
-      expect(h.coverage[ids.first]).to(eq(["t1"]))
+      expect(h.survey.coverage[ids.first]).to(eq(["t1"]))
       expect(progress.events).to(eq([[:start, 2, "baseline"], [:tick, nil], [:tick, nil], [:finish]]))
     end
 
@@ -323,7 +323,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "discards touches recorded between examples" do
       h = harness(adapter(coverage: { "t1" => [], "t2" => [] }), progress: ticker)
       h.__send__(:measure!)
-      expect(h.coverage).not_to(have_key(9_999_991))
+      expect(h.survey.coverage).not_to(have_key(9_999_991))
     end
 
     # The workers fork from a process no test has run in, so no test's
@@ -348,7 +348,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       before = Array(Kimera::RUNTIME.instance_variable_get(:@ledgers)).size
 
       expect { h.__send__(:measure!) }.not_to(raise_error)
-      [before, Array(Kimera::RUNTIME.instance_variable_get(:@ledgers)).size, h.coverage, progress.events]
+      [before, Array(Kimera::RUNTIME.instance_variable_get(:@ledgers)).size, h.survey.coverage, progress.events]
     end
 
     it "passes trivially on an empty suite: no raise, no coverage, balanced ledger", :aggregate_failures do
@@ -371,14 +371,14 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "banks a failing test that covers an in-scope mutant as a failure", :aggregate_failures do
       tally = banked("t1", [ids.first])
-      expect(tally.failures).to(eq(["t1"]))
-      expect(tally.irrelevant).to(be_empty)
+      expect(tally.to_h.fetch(:failures)).to(eq(["t1"]))
+      expect(tally.to_h.fetch(:irrelevant)).to(be_empty)
     end
 
     it "routes a failing test touching no in-scope mutant to irrelevant", :aggregate_failures do
       tally = banked("t2", [])
-      expect(tally.failures).to(be_empty)
-      expect(tally.irrelevant).to(eq(["t2"]))
+      expect(tally.to_h.fetch(:failures)).to(be_empty)
+      expect(tally.to_h.fetch(:irrelevant)).to(eq(["t2"]))
     end
 
     it "charges a lost parallel test and advances progress", :aggregate_failures do
@@ -386,7 +386,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       lost = Kimera::Execution::BaselinePass.new(adapter: adapter, registry: registry)
       lost.__send__(:lost, ->(status = nil) { ticks << status }, "t2", :crash)
 
-      expect(lost.__send__(:tally).failures).to(eq(["t2"]))
+      expect(lost.__send__(:tally).to_h.fetch(:failures)).to(eq(["t2"]))
       expect(ticks).to(eq([nil]))
     end
 
@@ -397,7 +397,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       lost.__send__(:lost, tick, "t1", :timeout, nil)
       lost.__send__(:relapse, tick, "t1", :timeout)
       lost.__send__(:lost, tick, "t2", :crash, nil)
-      lost.__send__(:tally).messages
+      lost.__send__(:tally).to_h.fetch(:messages)
     end
 
     it "explains a test whose worker hit the hard timeout twice" do
@@ -418,7 +418,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     def measurement(coverage)
       h = described_class.build(registry: registry, adapter: adapter(coverage: coverage), jobs: 2)
       h.__send__(:measure!)
-      h.coverage
+      h.survey.coverage
     end
 
     it "fans the coverage pass across the pool and matches the serial map", :aggregate_failures do
@@ -725,7 +725,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       mid = registry.each.map { |m, _p| m.id }.first
       h = inline(registry: registry, adapter: active(mid), source_root: dir)
       h.warm!(["t1"])
-      [mid, h.coverage]
+      [mid, h.survey.coverage]
     end
 
     it "measures coverage by default when no flag is given" do
@@ -788,14 +788,14 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "wraps isolation in a rolled-back transaction when isolate_db is on" do
       stub_const("ActiveRecord::Base", Class.new)
       h = harness(adapter, isolate_db: true)
-      h.isolate!
+      h.__send__(:isolate!)
       expect(h.__send__(:isolation)).to(be_a(Kimera::Execution::CompositeIsolation))
     end
 
     it "leaves isolation alone by default even with ActiveRecord loaded", :aggregate_failures do
       stub_const("ActiveRecord::Base", Class.new)
       h = harness(adapter)
-      h.isolate!
+      h.__send__(:isolate!)
       expect(h.__send__(:isolation)).to(be_a(Kimera::Execution::Isolation))
       expect(h.__send__(:isolation)).not_to(be_a(Kimera::Execution::CompositeIsolation))
     end
@@ -803,7 +803,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "stays a no-op when isolate_db is on but ActiveRecord is absent", :aggregate_failures do
       hide_const("ActiveRecord") if defined?(ActiveRecord)
       h = harness(adapter, isolate_db: true)
-      expect { h.isolate! }.not_to(raise_error)
+      expect { h.__send__(:isolate!) }.not_to(raise_error)
       expect(h.__send__(:isolation)).not_to(be_a(Kimera::Execution::CompositeIsolation))
     end
   end
@@ -1387,7 +1387,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry = fixture("WarmTarget")
       ids = registry.each.map { |m, _p| m.id }
       h = inline(registry: registry, adapter: touching(ids), source_root: dir)
-      [h.warm!(["t1"]), ids, h.coverage]
+      [h.warm!(["t1"]), ids, h.survey.coverage]
     end
 
     it "loads the suite, overlays schemata, and returns the live mutant ids", :aggregate_failures do
@@ -1424,7 +1424,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       h = inline(registry: registry, adapter: ordered(ids), source_root: dir, progress: progress)
       h.warm!(%w[t1 t2])
       revisits = registry.points.map(&:revisit).uniq
-      { events: progress.events, covered: h.coverage.slice(*ids).values.flatten, revisits: revisits }
+      { events: progress.events, covered: h.survey.coverage.slice(*ids).values.flatten, revisits: revisits }
     end
 
     it "notes the baseline run of the whole suite in order" do
@@ -1491,7 +1491,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "reruns the covering tests under other seeds and names the test that changed its result" do
       h, = shaken
-      flaky = h.noted(Kimera::RunReport.new(results: [])).notes.flaky
+      flaky = h.survey.noted(Kimera::RunReport.new(results: [])).notes.flaky
       expect([flaky["flaky"].map { |flake| flake["test"] }, flaky["seeds"]]).to(eq([["shaky"], [6]]))
     end
 
@@ -1527,7 +1527,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry, ids = stubbed("WarmRacing")
       h = inline(registry: registry, adapter: racing(ids), source_root: dir, soft_timeout: nil)
       h.warm!(%w[t1], scope: ids)
-      expect(h.timings.fetch("slow")).to(be > h.timings.fetch("fast"))
+      expect(h.survey.__send__(:timings).fetch("slow")).to(be > h.survey.__send__(:timings).fetch("fast"))
       expect(h.run(ids: ids).results.map(&:failing_tests).uniq).to(eq([["fast"]]))
     end
 

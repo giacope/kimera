@@ -89,11 +89,9 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     expect(silenced_output).to(eq("before|"))
   end
 
-  it "exposes the harness skip map and hands the rig the spawner it was given" do
+  it "hands the rig the spawner it was given" do
     token = Object.new
     harness = Kimera::Execution::Harness.build(registry: Object.new, adapter: Object.new, spawner: token)
-
-    expect(harness.skipped).to(eq({}))
     expect(harness.__send__(:rig).spawner).to(equal(token))
   end
 

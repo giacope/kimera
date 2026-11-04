@@ -20,7 +20,7 @@ class Kimera::CLI::Run::Pass
   end
 
   def call(remaining)
-    with_adapter { harness.noted(perform(remaining)).annotate(**suite) }
+    with_adapter { harness.survey.noted(perform(remaining)).annotate(**suite) }
       .then { |judged| judged.described(@adapter.catalog(judged.test_ids)) }
   end
 
@@ -71,7 +71,7 @@ class Kimera::CLI::Run::Pass
   def warm(remaining)
     if @options[:isolated] || @options[:coverage]
       harness.warm!(files, scope: remaining)
-      cache.keep(harness, @adapter)
+      cache.keep(harness.survey, @adapter)
     else
       harness.without_coverage!(files)
     end
@@ -84,7 +84,7 @@ class Kimera::CLI::Run::Pass
   end
 
   def pooled(remaining, isolated)
-    apart, together = route.split(remaining) { harness.coverage }
+    apart, together = route.split(remaining) { harness.survey.coverage }
     return deferred(rejudged(harness.run(ids: together, label: "mutants"))) if apart.empty?
     deferred(rejudged(harness.run(ids: together, label: "mutants (warm)"))).merge(isolated.call(apart))
   end
@@ -122,7 +122,7 @@ class Kimera::CLI::Run::Pass
   end
 
   def isolation
-    @_isolation ||= harness.isolated(**core, **limits)
+    @_isolation ||= harness.survey.isolated(**core, **limits)
   end
 
   def core

@@ -30,7 +30,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   it "wraps the mutant run in a rolled-back transaction when enabled" do
     h = harness(isolation: true)
-    h.isolate!
+    h.__send__(:isolate!)
 
     h.__send__(:isolation).around { events << :ran }
     expect(events).to(eq(%i[begin ran rollback]))
@@ -38,7 +38,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   it "leaves isolation untouched when disabled" do
     h = harness(isolation: false)
-    h.isolate!
+    h.__send__(:isolate!)
 
     h.__send__(:isolation).around { events << :ran }
     expect(events).to(eq([:ran]))

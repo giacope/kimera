@@ -46,9 +46,8 @@ class Kimera::Execution::BaselinePass
 
   def settle(jobs)
     yield
-    failures = tally.failures
-    red!(failures, jobs) { ordered(failures) } unless failures.empty?
-    tally.measured(losses.recovered(tally.messages))
+    tally.failing { |failures, messages| red!(failures, jobs, messages) { ordered(failures) } }
+    tally.measured(losses)
   end
 
   def ordered(failures) = Kimera::Execution::BaselineOrder.new(self).of(failures, zygote) { [] }
@@ -100,21 +99,17 @@ class Kimera::Execution::BaselinePass
   end
 
   def relapse(tick, test_id, reason, stacks = [])
-    tally.messages[test_id] = losses.charge(test_id, reason, stacks)
-    tally.failures << test_id
+    tally.charge(test_id, losses.charge(test_id, reason, stacks))
     tick.call
   end
 
   def bank(test_id, touched, message: nil)
-    tally.messages[test_id] = message
-    bucket(touched) << test_id
+    relevant?(touched) ? tally.charge(test_id, message) : tally.excuse(test_id, message)
   end
 
-  def bucket(touched)
-    Array(touched).any? { |id| @registry.index.key?(id) } ? tally.failures : tally.irrelevant
-  end
+  def relevant?(touched) = Array(touched).any? { |id| @registry.index.key?(id) }
 
-  def red!(failed, jobs, messages = tally.messages)
+  def red!(failed, jobs, messages)
     roots.each { |root| screen(jobs, root).plainly!(failed.to_h { |id| [id, losses.told(id, messages[id])] }) }
     failure!(failed, jobs, yield, messages: messages)
   end
@@ -125,10 +120,10 @@ class Kimera::Execution::BaselinePass
 
   def quietly(streams = Kimera::Execution::StandardStreams.new, &) = streams.quietly(&)
 
-  def failure!(failed, jobs, ordered = [], messages: tally.messages)
+  def failure!(failed, jobs, ordered, messages:)
     summary = Kimera::Execution::BaselineFailure::Summary
     command = @adapter.reproduce(failed.first(summary::MAX_DETAILS))
-    context = summary::Context.new(workers: journal, stacks: losses.stacks, jobs: jobs, ordered: ordered)
+    context = losses.context(workers: journal, jobs: jobs, ordered: ordered)
     raise(Kimera::Execution::BaselineFailure, summary.new(failed, messages, command, context).to_s)
   end
 end
