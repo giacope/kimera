@@ -163,4 +163,11 @@ RSpec.describe(Kimera::Execution::BlockUse) do
     tree = Kimera::Execution::BlockUse::Source.new(Kimera::Syntax.parse(source).value)
     expect(tree.drops?(Kimera::MutationPoint.from_h(odd))).to(be(true))
   end
+
+  it "leaves alone a point whose node the tree no longer holds" do
+    join = registry.to_a.find { |point| point.location.range.begin == 3 }
+    odd = join.to_h.merge("mutants" => [{ "id" => 1, "label" => "odd", "directive" => { "type" => "odd" } }])
+    tree = Kimera::Execution::BlockUse::Source.new(Kimera::Syntax.parse("x = 1\n").value)
+    expect(tree.drops?(Kimera::MutationPoint.from_h(odd))).to(be(false))
+  end
 end

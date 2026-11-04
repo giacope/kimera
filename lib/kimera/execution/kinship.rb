@@ -14,7 +14,8 @@ class Kimera::Execution::Kinship
   end
 
   def order(id, tests)
-    (related(@registry.index.fetch(id) { Kimera::MutationPoint.none }, @registry[id] { [] }.last) & tests) | tests
+    _mutant, point, file = @registry[id] { return tests.uniq }
+    (related(point, file) & tests) | tests
   end
 
   private
