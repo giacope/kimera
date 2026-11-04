@@ -1935,6 +1935,26 @@ RSpec.describe(Kimera::Execution::Harness) do
       [yield, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started]
     end
 
+    # A suite whose test leaves an exit hook behind in the process it runs in, as Minitest's autorun does.
+    def hooking(marker)
+      Class.new(Kimera::Frameworks::Suite) do
+        def source(_files) = self
+        def test_ids = ["t1"]
+        define_method(:run) do |_ids|
+          at_exit { File.write(marker, "ran") }
+          Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+        end
+      end.new
+    end
+
+    # Ended through the exit hooks it holds, a reload child would run the project's suite once more from
+    # Minitest's autorun, and the parent would wait for it.
+    it "ends a reload child without running the exit hooks it holds" do
+      marker = File.join(dir, "exit-hook")
+      timing("HarnessExitHook", hooking(marker), deadline: 30)
+      expect(File).not_to(exist(marker))
+    end
+
     # Without the SIGKILL, reaping blocks until the child's sleep ends.
     it "hard-kills a reload child whose test overruns the deadline, as a timeout", :aggregate_failures do
       result, elapsed = timing("HarnessHang", hanging, deadline: 0.3)
