@@ -32,7 +32,7 @@ RSpec.describe(Kimera::Execution::FlakeHunt, :aggregate_failures) do
   def driver(log)
     drive = method(:drive).curry[log]
     Class.new do
-      define_method(:channel) { :channel }
+      define_method(:spawner) { |entry| -> { entry } }
       define_method(:drive) { |tests, spawner, listeners| drive.call(tests, spawner, listeners) }
     end.new
   end
@@ -49,7 +49,7 @@ RSpec.describe(Kimera::Execution::FlakeHunt, :aggregate_failures) do
   it "reruns the tests that cover the mutants in scope, once per seed after the run's own, in suite order" do
     log = []
     hunt(log, seed: 11, flaky_runs: 2, filter: filter)
-    expect(log).to(eq([[12, %w[t1 t2 t3], :channel], [13, %w[t1 t2 t3], :channel]]))
+    expect(log).to(eq([[12, %w[t1 t2 t3], :coverage], [13, %w[t1 t2 t3], :coverage]]))
     expect(env).to(eq("KIMERA_SEED" => "11"))
   end
 
@@ -64,7 +64,7 @@ RSpec.describe(Kimera::Execution::FlakeHunt, :aggregate_failures) do
     log = []
     described_class.new(adapter, driver(log), progress, env: env)
       .call({ 3 => %w[t2] }, nil, runs(seed: 1, flaky_runs: 1))
-    expect(log).to(eq([[2, %w[t2], :channel]]))
+    expect(log).to(eq([[2, %w[t2], :coverage]]))
   end
 
   it "draws fresh seeds without a run seed, and leaves the environment unseeded after" do

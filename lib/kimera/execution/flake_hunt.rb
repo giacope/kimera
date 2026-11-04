@@ -36,7 +36,7 @@ class Kimera::Execution::FlakeHunt
         resolve: ->(message) { record.note(message, seed).then { tick.call } },
         lost: ->(test, reason, _stacks) { record.lose(test, reason, seed).then { tick.call } }, trace: nil
       )
-      @driver.drive(tests, @driver.method(:channel), listeners)
+      @driver.drive(tests, @driver.spawner(:coverage), listeners)
     end
   end
 end

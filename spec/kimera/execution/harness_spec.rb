@@ -1012,7 +1012,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       parallelization(true)
       stub(before: -> { before << :before }, after: ->(_i) {})
       driver = described_class.build(registry: registry, adapter: adapter, jobs: 2).__send__(:driver)
-      reap(*driver.worker(0).first(3))
+      reap(*driver.spawner(:serve).call(0).first(3))
       [before.dup, fleet(driver, before)]
     end
 
@@ -1025,7 +1025,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     def fleet(driver, before)
       listeners = Kimera::Execution::WorkerPool::Listeners.new(resolve: ->(_m) {}, lost: ->(*) {}, trace: nil)
-      driver.drive([], driver.method(:worker), listeners)
+      driver.drive([], driver.spawner(:serve), listeners)
       before
     end
 
