@@ -21,7 +21,7 @@ RSpec.describe(Kimera::CLI::Run::Aim) do
 
   def aimed(**options) = described_class.new(registry, { source_root: "." }.merge(options)).restrict(all)
 
-  def lines_of(ids) = ids.map { |id| registry.index.fetch(id).location.start_line }.uniq
+  def lines_of(ids) = ids.map { |id| registry.index.fetch(id).location.range.begin }.uniq
 
   it "keeps every mutant when nothing is aimed at" do
     expect(aimed).to(eq(all))

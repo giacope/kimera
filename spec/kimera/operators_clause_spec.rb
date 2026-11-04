@@ -13,16 +13,16 @@ RSpec.describe(Kimera::Operators) do
     Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(code, file: "c.rb")
   end
 
-  def labels(code, *keys) = scan(code, *keys).each.map { |m, _p| m.label }
+  def labels(code, *keys) = scan(code, *keys).each.map { |m, _p| m.to_s }
 
   def rendered(code, *keys)
-    scan(code, *keys).each.map { |m, p| Kimera::Rewrite::Directive.new(m.directive).render(p.original_source).first }
+    scan(code, *keys).each.map { |m, p| m.rewrite(Kimera::Rewrite::Directive).render(p.original_source).first }
   end
 
   def live(code, *keys)
     catalog = scan(code, *keys)
     Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("c.rb", code).source).evaluate("c.rb")
-    yield(catalog.each.to_h { |m, _p| [m.label, m.id] })
+    yield(catalog.each.to_h { |m, _p| [m.to_s, m.to_i] })
   end
 
   def active(id, &) = Kimera::RUNTIME.during(id, &)
@@ -216,7 +216,7 @@ RSpec.describe(Kimera::Operators) do
       source = Kimera::Overlay.new(scan(code, "rescue_clause")).synthesize("c.rb", code).source
       guarded = /\A  rescue \*\(::Kimera::RUNTIME\.active\?\(\d+\) \? \[\] : \[ArgumentError\]\)\n\z/
       expect(source.lines).to(match([*code.lines.first(3), guarded, *code.lines.drop(4)]))
-      expect(Kimera::BodyTrim.new(code, [scan(code, "rescue_clause").points.first.location]).trimmed)
+      expect(Kimera::BodyTrim.new(code, [scan(code, "rescue_clause").to_a.first.location]).trimmed)
         .to(include("def m(v)"))
     end
 

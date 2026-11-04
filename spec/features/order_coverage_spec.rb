@@ -52,7 +52,7 @@ RSpec.describe("kimera run on code only an earlier test's state reaches (end-to-
   it "says why it has no covering test when it is not judged again" do
     run = judged("--no-rejudge")
     uncovered = run.results.select { |row| row["status"] == "no_coverage" }.map { |row| [row["line"], row["detail"]] }
-    expect(uncovered.uniq).to(eq([[5, Kimera::MutationPoint::ORDER_REASON]]), run.output)
+    expect(uncovered.uniq).to(eq([[5, Kimera::Reason::ORDER_REASON]]), run.output)
   end
 
   it "names the tests that pass only in order when the baseline is order-dependent" do

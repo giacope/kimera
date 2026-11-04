@@ -12,7 +12,7 @@ RSpec.describe(Kimera::RunReport, :aggregate_failures) do
   let(:schema) { JSON.parse(File.read(File.expand_path("../../schema/report.schema.json", __dir__))) }
   let(:properties) { schema.fetch("properties") }
   let(:registry) { Kimera::RegistryScan.new.source("def gt(a, b)\n  a > b\nend\n", file: "cmp.rb") }
-  let(:id) { registry.each.first.first.id }
+  let(:id) { registry.each.first.first.to_i }
   let(:document) do
     rich =
       result(:ignored, verdict: :killed, failing_tests: ["t1"], covering_tests: ["t1"], detail: "d", note: "n")

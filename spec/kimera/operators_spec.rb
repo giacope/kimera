@@ -66,12 +66,20 @@ RSpec.describe(Kimera::Operators) do
       expect { described_class.new.key }.to(raise_error(NotImplementedError, /must define #key/))
     end
 
-    it "is neither a statement nor a class-body operator unless a subclass says so" do
-      expect(described_class.new).to(have_attributes(statement?: false, body?: false, toggles?: false))
+    it "is neither a statement nor a class-body operator unless a subclass says so", :aggregate_failures do
+      reach = described_class.new.reach
+      expect([reach.admits?(true, nil), reach.admits?(false, true)]).to(eq([true, false]))
+      expect([reach.withheld?, reach.toggles?]).to(eq([true, false]))
     end
 
     it "is a statement operator when it deletes assignments" do
-      expect(Kimera::Operators::AssignmentDeletion.new.statement?).to(be(true))
+      reach = Kimera::Operators::AssignmentDeletion.new.reach
+      expect([reach.admits?(true, nil), reach.admits?(true, true), reach.withheld?]).to(eq([false, true, false]))
+    end
+
+    it "reaches into class bodies and toggles when it changes visibility" do
+      reach = Kimera::Operators::Visibility.new.reach
+      expect([reach.admits?(false, nil), reach.withheld?, reach.toggles?]).to(eq([true, false, true]))
     end
 
     it "needs no survey of the file unless a subclass says so" do
@@ -81,7 +89,7 @@ RSpec.describe(Kimera::Operators) do
 
     it "requires subclasses to define #variants" do
       klass = Class.new(described_class) { def key = "demo" }
-      expect { klass.new.variants(nil, position: false) }.to(raise_error(NotImplementedError, /must define #variants/))
+      expect { klass.new.pairs(nil, position: false) }.to(raise_error(NotImplementedError, /must define #variants/))
     end
   end
 end

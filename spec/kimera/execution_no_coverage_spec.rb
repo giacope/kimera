@@ -338,7 +338,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     node = Kimera::Syntax.parse("true").value.statements.body.first
 
     expect(operator.key).to(eq("boolean_literal"))
-    expect(operator.variants(node).map(&:label)).to(eq(["true => false"]))
+    expect(operator.variants(node).map { it.to_h.fetch(:label) }).to(eq(["true => false"]))
   end
 
   it "builds frozen directive lookup tables from alternating entries" do

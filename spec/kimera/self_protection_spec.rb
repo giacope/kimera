@@ -88,32 +88,32 @@ RSpec.describe(Kimera::SelfProtection) do
   describe "integration with the registry builder" do
     it "builds no mutation points for the runtime selector" do
       registry = Kimera::RegistryScan.new(root: ".").build([Kimera::Runtime::SOURCE_PATH])
-      expect(registry.count).to(eq(0))
+      expect(registry.each.count).to(eq(0))
     end
 
     it "builds no warm mutation points for the Minitest child entrypoint" do
       child = described_class::OUT_OF_PROCESS_ENTRYPOINTS.find { |path| path.end_with?("isolated_child_minitest.rb") }
       registry = Kimera::RegistryScan.new(root: ".").build([child])
-      expect(registry.count).to(eq(0))
+      expect(registry.each.count).to(eq(0))
     end
 
     # An instrumented runtime.rb makes Runtime.active? recurse into itself.
     it "keeps the runtime out of a whole-lib registry" do
       lib = File.expand_path("../../lib", __dir__)
       registry = Kimera::RegistryScan.new(root: lib).build(Dir["#{lib}/**/*.rb"])
-      expect(registry.files).not_to(include(a_string_matching(/runtime\.rb\z/)))
+      expect(registry.to_h.keys).not_to(include(a_string_matching(/runtime\.rb\z/)))
     end
 
     # The isolated oracle bakes mutants into source, so it has no selector to recurse through.
     it "includes the runtime when shielding is disabled" do
       registry = Kimera::RegistryScan.new(root: ".", shielded: false).build([Kimera::Runtime::SOURCE_PATH])
-      expect(registry.count).to(be > 0)
+      expect(registry.each.count).to(be > 0)
     end
 
     it "includes the Minitest child entrypoint when shielding is disabled" do
       child = described_class::OUT_OF_PROCESS_ENTRYPOINTS.find { |path| path.end_with?("isolated_child_minitest.rb") }
       registry = Kimera::RegistryScan.new(root: ".", shielded: false).build([child])
-      expect(registry.count).to(be > 0)
+      expect(registry.each.count).to(be > 0)
     end
   end
 end

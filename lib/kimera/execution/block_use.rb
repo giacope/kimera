@@ -17,9 +17,9 @@ class Kimera::Execution::BlockUse
 
   def revisit!
     return unless warned?
-    @registry.files.each do |file|
+    @registry.to_h.each do |file, points|
       source = Kimera::Execution::BlockUse::Source.new(tree(file))
-      @registry.at(file).each { |point| point.blocked! if open?(point) && source.drops?(point) }
+      points.each { |point| point.mark!(Kimera::Reason.blocked) if open?(point) && source.drops?(point) }
     end
   end
 
@@ -33,5 +33,5 @@ class Kimera::Execution::BlockUse
     params.new(Kimera::Syntax::Document.new(root, file).result.value).normalize
   end
 
-  def open?(point) = point.safe? && !point.revisit
+  def open?(point) = point.safe? && point.reasons(Kimera::Reason.revisiting).empty?
 end

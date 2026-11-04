@@ -22,7 +22,7 @@ RSpec.describe(Kimera::Execution::Shift) do
     RUBY
   end
 
-  let(:ids) { registry.each.map { |m, _p| m.id } }
+  let(:ids) { registry.each.map { |m, _p| m.to_i } }
 
   # +script+ maps a test to the outcomes of its successive runs, consumed in
   # order; unscripted runs pass.

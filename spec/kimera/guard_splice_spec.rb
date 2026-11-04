@@ -10,7 +10,7 @@ RSpec.describe(Kimera::GuardSplice) do
   let(:map) { Kimera::SourceMap.new(source) }
   let(:points) do
     comparisons = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: %w[comparison]))
-    comparisons.source(source, file: "x.rb").points
+    comparisons.source(source, file: "x.rb").to_a
   end
 
   # An index that finds the node of the first point only, as when a later point's node is gone.

@@ -9,9 +9,9 @@ RSpec.describe(Kimera::Mutant) do
 
   it "round-trips every field through to_h / from_h", :aggregate_failures do
     reloaded = described_class.from_h(sample.to_h)
-    expect(reloaded.id).to(eq(7))
-    expect(reloaded.label).to(eq("> => <"))
-    expect(reloaded.directive).to(eq("type" => "comparison"))
+    expect(reloaded.to_i).to(eq(7))
+    expect(reloaded.to_s).to(eq("> => <"))
+    expect(reloaded.to_h.fetch("directive")).to(eq("type" => "comparison"))
   end
 
   it "serializes each field under its own key" do

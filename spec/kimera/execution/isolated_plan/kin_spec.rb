@@ -11,7 +11,7 @@ RSpec.describe(Kimera::Execution::IsolatedPlan::Kin) do
     Kimera::RegistryScan.new.source("class User\n  def adult?(age) = age > 17\nend\n", file: "app/models/user.rb")
   end
 
-  let(:id) { registry.each.first.first.id }
+  let(:id) { registry.each.first.first.to_i }
 
   let(:users) { %w[./spec/models/user_spec.rb[1:1] ./spec/models/user_spec.rb[1:2] ./spec/requests/user_spec.rb[1:1]] }
   let(:all) { [*users, "./spec/models/order_spec.rb[1:1]", "./spec/lib/report_spec.rb[1:1]"] }

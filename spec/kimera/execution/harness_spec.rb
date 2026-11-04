@@ -18,7 +18,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       end
     RUBY
   end
-  let(:ids) { registry.each.map { |m, _p| m.id } }
+  let(:ids) { registry.each.map { |m, _p| m.to_i } }
 
   # Running a test touches the mutant ids it covers, like a synthesized guard.
   def adapter(coverage: {}, failing: [], message: nil)
@@ -508,7 +508,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       progress = journal
       [
         described_class.build(registry: registry, adapter: adapter, progress: progress)
-          .run(ids: [registry.each.first.first.id]),
+          .run(ids: [registry.each.first.first.to_i]),
         progress
       ]
     end
@@ -517,7 +517,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       report, progress = body
       result = report.results.first
       expect(result.status).to(eq(:isolated_only))
-      expect(result.detail).to(eq(Kimera::MutationPoint::CLASS_BODY_REASON))
+      expect(result.detail).to(eq(Kimera::Reason::CLASS_BODY_REASON))
       expect(progress.events).to(include(%i[tick isolated_only]))
     end
 
@@ -557,7 +557,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       stub_const("HarnessMacro", Module.new)
       results = warmed
       expect(results.map(&:status).uniq).to(eq([:isolated_only]))
-      expect(results.first.detail).to(eq(Kimera::MutationPoint::LOAD_REASON))
+      expect(results.first.detail).to(eq(Kimera::Reason::LOAD_REASON))
     end
   end
 
@@ -722,7 +722,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     def default(name)
       registry = catalog(name)
-      mid = registry.each.map { |m, _p| m.id }.first
+      mid = registry.each.map { |m, _p| m.to_i }.first
       h = inline(registry: registry, adapter: active(mid), source_root: dir)
       h.warm!(["t1"])
       [mid, h.coverage]
@@ -756,7 +756,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(h.__send__(:isolation)).to(be_a(Kimera::Execution::CompositeIsolation))
     end
 
-    def first(registry) = registry.each.map { |m, _p| m.id }.first
+    def first(registry) = registry.each.map { |m, _p| m.to_i }.first
 
     def ungated(name)
       registry = catalog(name)
@@ -1166,7 +1166,7 @@ RSpec.describe(Kimera::Execution::Harness) do
           @t ||= compute(a > b)
         end
       RUBY
-      unsafe = memo.each.first.first.id
+      unsafe = memo.each.first.first.to_i
       expect(triage(memo).tiers([unsafe]).first).to(be_empty)
     end
   end
@@ -1303,9 +1303,9 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     it "is false for a class-body point and true for a method-body point", :aggregate_failures do
-      body = mixed_registry.each.find { |_m, p| p.body? }.first.id
-      method = mixed_registry.each.find { |_m, p| !p.body? }.first.id
-      mixed_registry.index.fetch(method).unsafe!("memoized")
+      body = mixed_registry.each.find { |_m, p| p.reasons(Kimera::Reason.class_body).any? }.first.to_i
+      method = mixed_registry.each.find { |_m, p| p.reasons(Kimera::Reason.class_body).none? }.first.to_i
+      mixed_registry.index.fetch(method).mark!(Kimera::Reason.unsafe("memoized"))
       expect(triage(mixed_registry).tiers([body, method]).drop(1)).to(eq([[method], [body]]))
     end
 
@@ -1315,18 +1315,18 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     # Reload bakes the same source the overlay could not emit.
     it "is false for an unmutatable method-body point" do
-      mutant, point = mixed_registry.each.find { |_m, p| !p.body? }
-      point.unmutatable!("kimera could not write its guard")
-      expect(triage(mixed_registry).tiers([mutant.id]).last).to(eq([mutant.id]))
+      mutant, point = mixed_registry.each.find { |_m, p| p.reasons(Kimera::Reason.class_body).none? }
+      point.mark!(Kimera::Reason.unmutatable("kimera could not write its guard"))
+      expect(triage(mixed_registry).tiers([mutant.to_i]).last).to(eq([mutant.to_i]))
     end
   end
 
   describe "unmutatable mutants" do
     def unmutatable
       registry = Kimera::RegistryScan.new.source("def gt(a, b)\n  a > b\nend\n", file: "u.rb")
-      registry.points.each { |point| point.unmutatable!("schemata setup failed (boom)") }
+      registry.to_a.each { |point| point.mark!(Kimera::Reason.unmutatable("schemata setup failed (boom)")) }
       progress = journal
-      ids = registry.each.map { |mutant, _point| mutant.id }
+      ids = registry.each.map { |mutant, _point| mutant.to_i }
       [described_class.build(registry: registry, adapter: adapter, progress: progress).run(ids: ids), progress]
     end
 
@@ -1357,7 +1357,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     def stubbed(name)
       stub_const(name, Class.new)
       registry = fixture(name)
-      [registry, registry.each.map { |m, _p| m.id }]
+      [registry, registry.each.map { |m, _p| m.to_i }]
     end
 
     def fixture(name)
@@ -1385,7 +1385,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     def mutants
       registry = fixture("WarmTarget")
-      ids = registry.each.map { |m, _p| m.id }
+      ids = registry.each.map { |m, _p| m.to_i }
       h = inline(registry: registry, adapter: touching(ids), source_root: dir)
       [h.warm!(["t1"]), ids, h.coverage]
     end
@@ -1418,13 +1418,14 @@ RSpec.describe(Kimera::Execution::Harness) do
       end.new(mids)
     end
 
+    def revisits(registry) = registry.to_a.map { PointVerdict.new(it).revisit }.uniq
+
     def in_order
       registry, ids = stubbed("WarmOrdered")
       progress = journal
       h = inline(registry: registry, adapter: ordered(ids), source_root: dir, progress: progress)
       h.warm!(%w[t1 t2])
-      revisits = registry.points.map(&:revisit).uniq
-      { events: progress.events, covered: h.coverage.slice(*ids).values.flatten, revisits: revisits }
+      { events: progress.events, covered: h.coverage.slice(*ids).values.flatten, revisits: revisits(registry) }
     end
 
     it "notes the baseline run of the whole suite in order" do
@@ -1432,7 +1433,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     it "sends a mutant only the suite run in order reaches to a second look" do
-      expect(in_order).to(include(covered: [], revisits: [Kimera::MutationPoint::ORDER_REASON]))
+      expect(in_order).to(include(covered: [], revisits: [Kimera::Reason::ORDER_REASON]))
     end
 
     # Both tests kill every mutant; "slow" comes first in coverage order.
@@ -1453,7 +1454,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     def screening(name, flaky)
       stub_const(name, Class.new)
       registry = fixture(name)
-      ids = registry.each.map { |m, _p| m.id }
+      ids = registry.each.map { |m, _p| m.to_i }
       progress = journal
       h = inline(registry: registry, adapter: racing(ids), **screened(registry, flaky, progress))
       h.warm!(%w[t1], scope: ids)
@@ -1534,24 +1535,24 @@ RSpec.describe(Kimera::Execution::Harness) do
     def scoped(name, adapter, scope)
       registry = fixture(name)
       progress = journal
-      ids = registry.each.map { |m, _p| m.id }
+      ids = registry.each.map { |m, _p| m.to_i }
       described_class
         .build(registry: registry, adapter: adapter.call(ids), source_root: dir, progress: progress)
         .warm!(%w[t1 t2], scope: scope.call(registry))
-      [progress.events, registry.points.map(&:revisit).uniq]
+      [progress.events, revisits(registry)]
     end
 
     it "runs the suite in order when a mutant in scope has no single test's coverage", :aggregate_failures do
       stub_const("WarmScoped", Class.new)
-      events, reasons = scoped("WarmScoped", method(:ordered), ->(registry) { registry.each.map { |m, _p| m.id } })
+      events, reasons = scoped("WarmScoped", method(:ordered), ->(registry) { registry.each.map { |m, _p| m.to_i } })
       expect(events).to(include([:note, "baseline (whole suite, in order)"]))
-      expect(reasons).to(eq([Kimera::MutationPoint::ORDER_REASON]))
+      expect(reasons).to(eq([Kimera::Reason::ORDER_REASON]))
     end
 
     # Its marks would reach no mutant the run judges, so it could change no verdict.
     it "skips the run in order when every mutant in scope is covered", :aggregate_failures do
       stub_const("WarmCovered", Class.new)
-      events, reasons = scoped("WarmCovered", method(:touching), ->(registry) { registry.each.map { |m, _p| m.id } })
+      events, reasons = scoped("WarmCovered", method(:touching), ->(registry) { registry.each.map { |m, _p| m.to_i } })
       expect(events).not_to(include([:note, "baseline (whole suite, in order)"]))
       expect(reasons).to(eq([nil]))
     end
@@ -1585,7 +1586,7 @@ RSpec.describe(Kimera::Execution::Harness) do
           x > y
         end
       RUBY
-      rid = registry.each.map { |m, _p| m.id }.first
+      rid = registry.each.map { |m, _p| m.to_i }.first
       report =
         described_class.build(registry: registry, adapter: adapter, spawner: responder(status: "survived"))
           .run(ids: [rid])
@@ -1601,7 +1602,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   # One schema-safe comparison and one memoized (schema-unsafe) one.
   def unsafe_id(registry, label = nil)
-    registry.each.find { |mutant, point| !point.safe? && (label.nil? || mutant.label == label) }.first.id
+    registry.each.find { |mutant, point| !point.safe? && (label.nil? || mutant.to_s == label) }.first.to_i
   end
 
   def writing(dir, klass)
@@ -1716,7 +1717,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       stub_const(name, Class.new)
       registry = writing(dir, name)
       load(File.join(dir, "#{name.downcase}.rb"))
-      [registry, registry.each.map { |m, _p| m.id }.find { |id| !registry.index[id].safe? }]
+      [registry, registry.each.map { |m, _p| m.to_i }.find { |id| !registry.index[id].safe? }]
     end
 
     # A test of +name+ that calls its memoized method, as one that reaches the mutant does.
@@ -1800,7 +1801,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "orders tests covering the mutant's method, then its file, before the rest" do
       registry, unsafe = reload("HarnessReloadOrder")
       point = registry.index[unsafe]
-      other = registry.at(point.file).find { |p| p.method_name != point.method_name }
+      other = registry.to_h.fetch(point.file, []).find { |p| p.method_name != point.method_name }
       kinship = Kimera::Execution::Kinship.new(registry, { other.ids.first => ["t4"], point.ids.first => %w[t3 t9] })
       expect(kinship.order(unsafe, %w[t1 t2 t3 t4])).to(eq(%w[t3 t4 t1 t2]))
     end
@@ -2001,7 +2002,7 @@ RSpec.describe(Kimera::Execution::Harness) do
         registry: registry, adapter: observer("HarnessReaching"), source_root: dir, soft_timeout: nil, leak_every: 0
       )
       h.warm!(["t1"])
-      unsafe = registry.each.find { |m, p| !p.safe? && m.label == "< => >" }.first.id
+      unsafe = registry.each.find { |m, p| !p.safe? && m.to_s == "< => >" }.first.to_i
       h.run(ids: [unsafe]).results.first.status
     end
 

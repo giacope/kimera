@@ -109,7 +109,7 @@ class Kimera::Execution::IsolatedExecution
     judged.tap { judged.note = "judged in a fresh isolated mirror; the warm pass could not: #{warm.detail}" }
   end
 
-  def covered?(warm) = @registry.index.fetch(warm.mutant_id).warm_covered?
+  def covered?(warm) = @registry.index.fetch(warm.mutant_id).reasons(Kimera::Reason.warm).any?
 
   def covered(result, warm)
     kept = result.killed? || warm.status == :survived ? result : warm.dup

@@ -19,7 +19,7 @@ RSpec.describe(Kimera::Execution::Shift) do
     RUBY
   end
 
-  let(:target) { registry.each.first.first.id }
+  let(:target) { registry.each.first.first.to_i }
   let(:clock) { [0.0] }
   let(:budget) { Kimera::Execution::TimeBudget.new({ "t1" => 0.01, "t2" => 0.01 }, factor: 10.0, slack: 1.0) }
 

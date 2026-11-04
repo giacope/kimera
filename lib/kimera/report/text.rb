@@ -46,7 +46,7 @@ class Kimera::Report::Text
 
   def footer(report, coverage, saved, narrowed:)
     entries.public_send(COVERAGE_SECTIONS.fetch(coverage), report, saved, narrowed: narrowed)
-    remarks.regions(report.unmutated)
+    report.regions { |found| remarks.regions(found) }
     remarks.leaks(report.leaks)
     health.flaky(report)
     health.quality(report)

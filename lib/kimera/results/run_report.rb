@@ -64,7 +64,7 @@ class Kimera::RunReport
 
   def test(id) = tests.fetch(id, {})
 
-  def unmutated = @registry.unmutated
+  def regions(&) = @registry.regions(&)
 
   def by_file = @results.group_by { |result| result.file.to_s }.transform_values { |part| rebuilt(results: part) }
 
@@ -121,7 +121,7 @@ class Kimera::RunReport
     rows = Kimera::ReportRows.new(@registry)
     { "schema_version" => SCHEMA_VERSION, "counts" => counts, "mutation_score" => score }
       .merge("results" => @results.map { |result| rows.of(result) }, "leaks" => @leaks.map(&:to_h))
-      .merge("unmutated" => unmutated.map(&:to_h)).merge(catalog).merge(flakes)
+      .merge("unmutated" => regions { |found| found.map(&:to_h) }).merge(catalog).merge(flakes)
   end
 
   private
