@@ -15,6 +15,7 @@ require_relative "superclass_pin"
 class Kimera::Overlay
   Result =
     Struct.new(:file, :source, :mutant_ids, :skipped_unsafe, keyword_init: true) do
+      private(*members)
       def install(path)
         Kimera::Overlay::Source.new(source).evaluate(path)
         mutant_ids
@@ -23,6 +24,16 @@ class Kimera::Overlay
       def settle!(points, detail)
         skipped_unsafe.concat(points.flat_map { |point| point.orphan!(mutant_ids, detail) })
       end
+
+      def skip!(points) = skipped_unsafe.concat(points.flat_map(&:ids))
+
+      def empty? = mutant_ids.empty?
+
+      def write(path) = File.write(path, source)
+
+      def record(manifest, destination) = manifest.recorded(file, destination, mutant_ids, skipped_unsafe)
+
+      def to_s = source
     end
 
   class Unbakeable < Kimera::Error; end

@@ -89,9 +89,9 @@ class Kimera::Execution::Schemata
   def overlay(path, file)
     loaded = trimmed(path, file)
     result = synth.synthesize(path, loaded)
-    return [] if result.mutant_ids.empty?
-    blocks = Kimera::Execution::BlockMethods.new(file, loaded, result.source, locations(path))
-    apply(result, file, blocks).tap { preempt(file) }
+    return [] if result.empty?
+    blocks = Kimera::Execution::BlockMethods.new(file, loaded, result.to_s, locations(path))
+    apply(result, path, file, blocks).tap { preempt(file) }
   rescue StandardError, ScriptError, SystemExit => error
     skip(path, "#{error.class}: #{error.message}")
     []
@@ -105,10 +105,10 @@ class Kimera::Execution::Schemata
 
   def locations(path) = @registry.at(path).select(&:safe?).map(&:location)
 
-  def apply(result, file, blocks)
-    overrides = Kimera::Execution::Overrides.new(file, result.source)
+  def apply(result, path, file, blocks)
+    overrides = Kimera::Execution::Overrides.new(file, result.to_s)
     installed, displaced = silence { overrides.keep { blocks.adopt { result.install(file) } } }
-    installed.tap { settle(displaced, result.file) }
+    installed.tap { settle(displaced, path) }
   end
 
   def settle(displaced, path)

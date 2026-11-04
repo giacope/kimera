@@ -46,11 +46,11 @@ class Kimera::Execution::BaselinePass
 
   def settle(jobs)
     yield
-    tally.failing { |failures, messages| red!(failures, jobs, messages) { ordered(failures) } }
+    tally.failing do |failures, messages|
+      red!(failures, jobs, messages) { Kimera::Execution::BaselineOrder.new(self).of(failures, zygote) { [] } }
+    end
     tally.measured(losses)
   end
-
-  def ordered(failures) = Kimera::Execution::BaselineOrder.new(self).of(failures, zygote) { [] }
 
   def tests = @_tests ||= @options.fetch(:measured, EVERY).call(@adapter.test_ids)
 
@@ -104,10 +104,9 @@ class Kimera::Execution::BaselinePass
   end
 
   def bank(test_id, touched, message: nil)
-    relevant?(touched) ? tally.charge(test_id, message) : tally.excuse(test_id, message)
+    relevant = Array(touched).any? { |id| @registry.index.key?(id) }
+    relevant ? tally.charge(test_id, message) : tally.excuse(test_id, message)
   end
-
-  def relevant?(touched) = Array(touched).any? { |id| @registry.index.key?(id) }
 
   def red!(failed, jobs, messages)
     roots.each { |root| screen(jobs, root).plainly!(failed.to_h { |id| [id, losses.told(id, messages[id])] }) }

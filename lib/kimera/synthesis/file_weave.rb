@@ -33,7 +33,7 @@ class Kimera::Overlay
       dropped = @safe - viable
       notice(dropped, io)
       dropped.each { |point| point.unmutatable!(UNGUARDABLE) }
-      attempt(viable).fetch(0).tap { |result| result.skipped_unsafe.concat(dropped.flat_map(&:ids)) }
+      attempt(viable).fetch(0).tap { |result| result.skip!(dropped) }
     end
 
     def notice(dropped, io)

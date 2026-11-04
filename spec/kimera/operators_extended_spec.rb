@@ -84,7 +84,7 @@ RSpec.describe(Kimera::Operators) do
 
   def evaluated(catalog, code, file)
     synthesized = Kimera::Overlay.new(catalog).synthesize(file, code)
-    Kimera::Overlay::Source.new(synthesized.source).evaluate(file)
+    Kimera::Overlay::Source.new(synthesized.to_s).evaluate(file)
   end
 
   def pick(catalog, wanted) = catalog.each.find { |m, p| m.label == wanted || p.original_source == wanted }.first.id
@@ -95,7 +95,7 @@ RSpec.describe(Kimera::Operators) do
     stub_const("ExtOps", Class.new)
     catalog = built(key)
     overlay = Kimera::Overlay.new(catalog).synthesize("ext_ops.rb", ext_source)
-    Kimera::Warnings.silenced.during { TOPLEVEL_BINDING.eval(overlay.source, "ext_ops.rb") }
+    Kimera::Warnings.silenced.during { TOPLEVEL_BINDING.eval(overlay.to_s, "ext_ops.rb") }
     active(wanted && pick(catalog, wanted)) { yield(ExtOps.new) }
   end
 
@@ -148,12 +148,12 @@ RSpec.describe(Kimera::Operators) do
       stub_const("Linker", Class.new)
       catalog = scan("conditional", linker, "linker.rb")
       result = Kimera::Overlay.new(catalog).synthesize("linker.rb", linker)
-      TOPLEVEL_BINDING.eval(result.source, "linker.rb")
+      TOPLEVEL_BINDING.eval(result.to_s, "linker.rb")
       [result, catalog.each.to_h { |m, p| [[p.method_name, m.label], m.id] }]
     end
 
     it "is overlaid, not skipped as unsafe" do
-      expect(linked.first.skipped_unsafe).to(be_empty)
+      expect(linked.first.to_h.fetch(:skipped_unsafe)).to(be_empty)
     end
 
     it "keeps the assignment when pinned true" do

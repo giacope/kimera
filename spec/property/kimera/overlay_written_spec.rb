@@ -252,7 +252,7 @@ RSpec.describe(Kimera::Overlay) do
   def unlike(path, source)
     catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["all"])).source(source, file: "x.rb")
     overlay = described_class.new(catalog)
-    weave = overlay.synthesize("x.rb", source).source
+    weave = overlay.synthesize("x.rb", source).to_s
     woven = woven(weave, source)
     baked =
       catalog.each.filter_map do |mutant, point|

@@ -84,7 +84,7 @@ RSpec.describe(Kimera::Operators) do
   end
 
   def overlaid(catalog, code)
-    Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("r.rb", code).source).evaluate("r.rb")
+    Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("r.rb", code).to_s).evaluate("r.rb")
   end
 
   # Whether the overlaid RegexpOps#code? accepts the text, with the labelled

@@ -21,7 +21,7 @@ RSpec.describe(Kimera::Operators) do
 
   def live(code, *keys)
     catalog = scan(code, *keys)
-    Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("c.rb", code).source).evaluate("c.rb")
+    Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("c.rb", code).to_s).evaluate("c.rb")
     yield(catalog.each.to_h { |m, _p| [m.label, m.id] })
   end
 
@@ -213,7 +213,7 @@ RSpec.describe(Kimera::Operators) do
     # alone, so no line of the method moves, with its mutant off or on.
     it "guards a method's own clause inside its body, on the method's lines", :aggregate_failures do
       code = "class Plain\n  def m(v)\n    Integer(v)\n  rescue ArgumentError\n    0\n  end\nend\n"
-      source = Kimera::Overlay.new(scan(code, "rescue_clause")).synthesize("c.rb", code).source
+      source = Kimera::Overlay.new(scan(code, "rescue_clause")).synthesize("c.rb", code).to_s
       guarded = /\A  rescue \*\(::Kimera::RUNTIME\.active\?\(\d+\) \? \[\] : \[ArgumentError\]\)\n\z/
       expect(source.lines).to(match([*code.lines.first(3), guarded, *code.lines.drop(4)]))
       expect(Kimera::BodyTrim.new(code, [scan(code, "rescue_clause").points.first.location]).trimmed)

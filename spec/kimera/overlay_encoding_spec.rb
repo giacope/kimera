@@ -51,7 +51,7 @@ RSpec.describe(Kimera::Overlay) do
     registry = Kimera::RegistryScan.new.source(source, file: "u.rb")
     result = Kimera::Overlay.new(registry).synthesize("u.rb", source)
     mod = Module.new
-    mod.module_eval(result.source)
+    mod.module_eval(result.to_s)
     [registry, result, Object.new.extend(mod)]
   end
 
@@ -84,7 +84,7 @@ RSpec.describe(Kimera::Overlay) do
   # byte offsets.
   it "synthesizes a working guard for a point after a multibyte character", :aggregate_failures do
     registry, result, object = test_synthesized_module
-    expect(result.mutant_ids).not_to(be_empty)
+    expect(result.to_h.fetch(:mutant_ids)).not_to(be_empty)
     test_expect_toggle(registry, object)
   end
 

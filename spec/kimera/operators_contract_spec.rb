@@ -48,7 +48,7 @@ RSpec.describe(Kimera::Operators) do
 
   def overlaid(catalog, code, file)
     synthesized = Kimera::Overlay.new(catalog).synthesize(file, code)
-    Kimera::Overlay::Source.new(synthesized.source).evaluate(File.expand_path(file))
+    Kimera::Overlay::Source.new(synthesized.to_s).evaluate(File.expand_path(file))
   end
 
   # What the block answers for a Contracts under the key's overlay, with the
@@ -251,7 +251,7 @@ RSpec.describe(Kimera::Operators) do
       expect(catalog.each.map { |_m, p| p.original_source }).to(contain_exactly(":silver", "copper", ":tin"))
 
       result = Kimera::Overlay.new(catalog).synthesize("s.rb", code)
-      expect(result.mutant_ids.size).to(eq(catalog.each.count))
+      expect(result.to_h.fetch(:mutant_ids).size).to(eq(catalog.each.count))
     end
 
     it "carries the renamed value and leaves an empty symbol alone", :aggregate_failures do
@@ -364,8 +364,8 @@ RSpec.describe(Kimera::Operators) do
     it "are all applied by the overlay, into source that parses", :aggregate_failures do
       catalog = scan(contract_keys, awkward, "awkward.rb")
       result = Kimera::Overlay.new(catalog).synthesize("awkward.rb", awkward)
-      expect(result.mutant_ids).to(match_array(safe(catalog)))
-      expect { RubyVM::AbstractSyntaxTree.parse(result.source) }.not_to(raise_error)
+      expect(result.to_h.fetch(:mutant_ids)).to(match_array(safe(catalog)))
+      expect { RubyVM::AbstractSyntaxTree.parse(result.to_s) }.not_to(raise_error)
     end
   end
 

@@ -47,7 +47,7 @@ RSpec.describe(Kimera::Operators) do
     def controller(catalog)
       stub_const("UsersController", Class.new)
       overlay = Kimera::Overlay.new(catalog).synthesize("app.rb", permit_src)
-      Kimera::Warnings.silenced.during { TOPLEVEL_BINDING.eval(overlay.source, "app.rb") }
+      Kimera::Warnings.silenced.during { TOPLEVEL_BINDING.eval(overlay.to_s, "app.rb") }
       params = fake_params
       UsersController.new.tap { |users| users.define_singleton_method(:params) { params.new } }
     end
@@ -230,7 +230,7 @@ RSpec.describe(Kimera::Operators) do
 
     it "runs a lambda body's mutant live" do
       catalog = pricing
-      evaluated(Kimera::Overlay.new(catalog).synthesize("pricing.rb", pricing_code).source)
+      evaluated(Kimera::Overlay.new(catalog).synthesize("pricing.rb", pricing_code).to_s)
       plain = Pricing::DISCOUNT.call(100)
       expect([plain, flipped(catalog, "> => >=") { Pricing::DISCOUNT.call(100) }]).to(eq([0, 10]))
     end

@@ -88,7 +88,7 @@ RSpec.describe(Kimera::Operators::Visibility) do
 
     before do
       stub_const("VisibilityOps", Class.new)
-      Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("vis.rb", code).source).evaluate("vis.rb")
+      Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("vis.rb", code).to_s).evaluate("vis.rb")
     end
 
     after do
@@ -120,7 +120,7 @@ RSpec.describe(Kimera::Operators::Visibility) do
       id = ids.fetch("part")
       runtime = "::Kimera::RUNTIME"
       probe = /def part = \(#{runtime}\.active\?\(#{id}\); 1\); #{runtime}\.privatize\(#{id}, self, :part\)$/
-      expect(Kimera::Overlay.new(catalog).synthesize("vis.rb", code).source).to(match(probe))
+      expect(Kimera::Overlay.new(catalog).synthesize("vis.rb", code).to_s).to(match(probe))
     end
   end
 

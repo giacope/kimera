@@ -13,7 +13,7 @@ RSpec.describe(Kimera::Operators) do
 
   def overlaid(catalog, code)
     synthesized = Kimera::Overlay.new(catalog).synthesize("p.rb", code)
-    Object.new.extend(Module.new.tap { |m| m.module_eval(synthesized.source) })
+    Object.new.extend(Module.new.tap { |m| m.module_eval(synthesized.to_s) })
   end
 
   # What the block answers on the code's overlay with no mutant active, then

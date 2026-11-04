@@ -19,7 +19,7 @@ RSpec.describe(Kimera::Operators) do
   def live(code, *keys)
     stub_const("ValueOps", Class.new)
     catalog = scan(code, *keys)
-    Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("v.rb", code).source).evaluate("v.rb")
+    Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("v.rb", code).to_s).evaluate("v.rb")
     yield(catalog.each.to_h { |m, p| [p.original_source, m.id] })
   end
 

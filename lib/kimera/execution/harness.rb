@@ -116,11 +116,11 @@ class Kimera::Execution::Harness
 
   def mutants = registry.each.map { |mutant, _path| mutant.id }
 
-  def measure! = parallel(baseline).tap { |measured| learn(measured) }
-
-  def learn(measured)
-    options.update(measured.to_h.slice(:coverage, :timings))
-    arm(options.fetch(:timings))
+  def measure!
+    parallel(baseline).tap do |measured|
+      options.update(measured.to_h.slice(:coverage, :timings))
+      arm(options.fetch(:timings))
+    end
   end
 
   def sift!(scope)
