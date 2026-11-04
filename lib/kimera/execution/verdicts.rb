@@ -8,7 +8,10 @@ module Kimera
 end
 
 class Kimera::Execution::Verdicts
-  WIRE = { "id" => "mutant_id", "ms" => "duration", "fails" => "failing_tests", "cover" => "covering_tests" }.freeze
+  WIRE = {
+    "id" => "mutant_id", "ms" => "duration", "fails" => "failing_tests", "cover" => "covering_tests",
+    "kills" => "killing_tests"
+  }.freeze
 
   def initialize(registry)
     @registry = registry

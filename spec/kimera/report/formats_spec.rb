@@ -6,6 +6,8 @@ require "kimera/report/formats"
 require "kimera/results/run_report"
 require "stringio"
 
+using ResultFields
+
 RSpec.describe(Kimera::Report::Formats, :aggregate_failures) do
   let(:registry) { Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n", file: "app/calc.rb") }
   let(:mutant) { registry.each.first.first }
@@ -64,7 +66,7 @@ RSpec.describe(Kimera::Report::Formats, :aggregate_failures) do
     let(:report) do
       status = ->(point) { point.location.range.begin == 2 ? :survived : :no_coverage }
       results = registry.each.map { |found, point| Kimera::MutantResult.new(mutant_id: found.to_i, status: status.call(point)) }
-      Kimera::RunReport.new(registry: registry, results: results.each { |result| result.file = "app/calc.rb" })
+      Kimera::RunReport.new(registry: registry, results: results.map { |result| result.with(file: "app/calc.rb") })
     end
 
     it "folds the mutants on one line into one annotation, a warning for uncovered ones", :aggregate_failures do
@@ -76,7 +78,7 @@ RSpec.describe(Kimera::Report::Formats, :aggregate_failures) do
     end
 
     it "annotates a mutant only other units' tests reach as an error, like a survivor", :aggregate_failures do
-      results = report.results.map { |result| result.dup.tap { |copy| copy.status = :uncovered_by_unit } }
+      results = report.to_a.map { |result| result.with(status: :uncovered_by_unit) }
       lines = emitted("github", Kimera::RunReport.new(registry: registry, results: results)).lines
       title = "title=Kimera%3A 2 unit-uncovered mutant(s)"
       expect(lines.first).to(start_with("::error file=app/calc.rb,line=2,col=3,#{title}"))

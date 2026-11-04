@@ -6,6 +6,8 @@ require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 require "stringio"
 
+using ResultFields
+
 # Each covering test runs alone, in a fresh zygote, with the mutant on.
 RSpec.describe(Kimera::Execution::Shift::Census) do
   let(:registry) { Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n", file: "calc.rb") }

@@ -4,6 +4,8 @@ require "kimera/execution/baseline_pass"
 require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 
+using ResultFields
+
 # A baseline test whose worker hits the hard timeout under parallel load runs
 # once more, alone, before it can turn the baseline red.
 RSpec.describe(Kimera::Execution::BaselinePass) do
@@ -21,7 +23,7 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     tests = %w[t1 t2 t3]
     Class.new(Kimera::Frameworks::Suite) do
       define_method(:test_ids) { tests }
-      define_method(:reproduce) { |failed| "rspec #{failed.join(" ")}" }
+      define_method(:[]) { |*failed| "rspec #{failed.join(" ")}" }
     end.new
   end
 

@@ -61,11 +61,7 @@ class Kimera::Execution::BaselinePass
   def whole(runtime = Kimera::RUNTIME)
     ledger = Kimera::Runtime::Ledger.new
     outcome = runtime.during(nil, ledger) { quietly { @adapter.run(@adapter.test_ids) } }
-    summary(outcome).merge("touched" => ledger.drain!)
-  end
-
-  def summary(outcome)
-    { "passed" => outcome.passed?, "failed_ids" => outcome.failed_ids, "failures" => outcome.failures }
+    outcome.to_h.merge("touched" => ledger.drain!)
   end
 
   def dispatch(tick)
@@ -119,7 +115,7 @@ class Kimera::Execution::BaselinePass
 
   def failure!(failed, jobs, ordered, messages:)
     summary = Kimera::Execution::BaselineFailure::Summary
-    command = @adapter.reproduce(failed.first(summary::MAX_DETAILS))
+    command = @adapter[*failed.first(summary::MAX_DETAILS)].to_s
     context = losses.context(workers: journal, jobs: jobs, ordered: ordered)
     raise(Kimera::Execution::BaselineFailure, summary.new(failed, messages, command, context).to_s)
   end

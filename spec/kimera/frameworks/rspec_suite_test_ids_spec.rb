@@ -41,23 +41,23 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite, "#test_ids") do
     RSpec.configuration.filter_run_including(focus: true)
     RSpec.configuration.run_all_when_everything_filtered = fallback
     adapter = described_class.new.source([fixture(focus: focus)])
-    [adapter, adapter.test_ids.select { |id| adapter.describe(id).start_with?("KimeraFiltered") }]
+    [adapter, adapter.test_ids.select { |id| adapter[id].name.start_with?("KimeraFiltered") }]
   end
 
   it "selects every example when the focus filter matches none and the suite asks for that" do
     adapter, ids = filtered(fallback: true)
-    expect(ids.map { |id| adapter.describe(id) }).to(eq(["KimeraFiltered passes", "KimeraFiltered fails"]))
+    expect(ids.map { |id| adapter[id].name }).to(eq(["KimeraFiltered passes", "KimeraFiltered fails"]))
   end
 
   # Not under aggregate_failures: the outer example would catch the inner one's failure.
   it "runs an example the fallback selected" do
     adapter, ids = filtered(fallback: true)
-    expect(adapter.run([ids.last]).failed_ids).to(eq([ids.last]))
+    expect(adapter.run([ids.last]).to_h.fetch("failed_ids")).to(eq([ids.last]))
   end
 
   it "keeps only the focused examples when the filter matches some" do
     adapter, ids = filtered(fallback: true, focus: true)
-    expect(ids.map { |id| adapter.describe(id) }).to(eq(["KimeraFiltered fails"]))
+    expect(ids.map { |id| adapter[id].name }).to(eq(["KimeraFiltered fails"]))
   end
 
   it "selects nothing when the filter matches none and the suite does not ask for the fallback" do
@@ -77,8 +77,8 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite, "#test_ids") do
 
   it "forgets the examples the filter had selected before it fell back" do
     adapter = unfocused
-    failing = adapter.test_ids.find { |id| adapter.describe(id) == "KimeraFiltered fails" }
-    expect(adapter.run([failing]).failed_ids).to(eq([failing]))
+    failing = adapter.test_ids.find { |id| adapter[id].name == "KimeraFiltered fails" }
+    expect(adapter.run([failing]).to_h.fetch("failed_ids")).to(eq([failing]))
   end
 
   it "selects nothing, and stops, when there is no example and no filter" do

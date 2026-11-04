@@ -13,15 +13,10 @@ module Kimera
 end
 
 class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
-  INSTALLED = true
-  CONSTANT = /\A[A-Z]\w*(?:::[A-Z]\w*)*\z/
-  PLAIN = %r{\A[\w./@:+-]+\z}
-  FAILED = /^\s*(?:\d+\) )?(?:Failure|Error):\n(.+?)(?: \[[^\]]*\])?:$/
-
   class << self
-    def build
+    def build(hooks = Hooks.new(Set.new))
       require("minitest")
-      new.disarmed
+      hooks.disarmed.then { new }
     end
   end
 
@@ -29,13 +24,6 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
     super(**)
     @loaders = Set.new
     @task = task
-  end
-
-  def disarmed
-    Minitest.seed ||= 1
-    Minitest::Test.prepend(Kimera::TestExit::Test)
-    disarm
-    self
   end
 
   def source(files)
@@ -48,12 +36,6 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
     self
   end
 
-  def finish
-    return unless @loaders.delete?(Process.pid)
-    hooks = Minitest.class_variable_get(:@@after_run)
-    Kimera::Frameworks::AfterRun.new(hooks).call
-  end
-
   def test_ids
     indexed.keys
   end
@@ -62,49 +44,11 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
     outcome(ids.flat_map { |id| record(id) })
   end
 
-  def locate(id) = { "location" => definition(*indexed.fetch(id)).join(":") }
+  def hooks = Hooks.new(@loaders)
 
-  def test_file(id) = indexed[id]&.then { |klass, name| declared(klass.name) || definition(klass, name).first }
-
-  def plain(ids, _out) = ["sh", "-c", reproduce(ids)]
-
-  def failed_plainly(output, _out) = output.scan(FAILED).flatten
-
-  def reproduce(ids)
-    "bundle exec ruby #{[*@task.flags, includes(ids)].join(" ")} " \
-      "-rminitest/autorun -e #{quote(loads(ids))} " \
-      "-- -n #{quote("/^(?:#{ids.map { |id| Regexp.escape(id) }.join("|")})$/")} --seed #{Minitest.seed}"
-  end
+  def [](*ids) = Selection.new(ids, indexed, @task)
 
   private
-
-  def disarm
-    Minitest.class_variable_set(:@@installed_at_exit, INSTALLED)
-  rescue NameError, ArgumentError
-    Minitest.define_singleton_method(:run) { |*| true }
-  end
-
-  def includes(ids)
-    flags = Kimera::Frameworks::LoadPath.new(ids.filter_map { |id| origin(id) }).flags
-    flags.each_slice(2).map { |flag, dir| "#{flag}#{shell(dir)}" }.join(" ")
-  end
-
-  def shell(word) = word.match?(PLAIN) ? word : quote(word)
-
-  def loads(ids)
-    ids.filter_map { |id| origin(id) }.uniq.map { |file| "require File.expand_path(#{file.dump})" }.join("; ")
-  end
-
-  def origin(id) = indexed[id]&.then { |found| definition(*found).first }
-
-  def declared(named) = named&.match?(CONSTANT) && Object.const_source_location(named)&.first
-
-  def definition(klass, name, here = Dir.pwd)
-    path, line = klass.instance_method(name).source_location
-    [path.delete_prefix("#{here}#{File::SEPARATOR}"), line]
-  end
-
-  def quote(text) = "'#{text.gsub("'") { "'\\''" }}'"
 
   def record(id)
     klass, name = indexed[id]
@@ -135,3 +79,6 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
     "#{kind}: #{error.class}: #{error.message}"
   end
 end
+
+require_relative "minitest_suite/hooks"
+require_relative "minitest_suite/selection"

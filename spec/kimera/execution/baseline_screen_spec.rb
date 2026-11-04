@@ -4,6 +4,8 @@ require "kimera/execution/baseline_screen"
 require "kimera/frameworks/suite"
 require "tmpdir"
 
+using ResultFields
+
 RSpec.describe(Kimera::Execution::BaselineScreen) do
   # Reruns ids "plainly": the ids in `red` fail; `ran` records each argv.
   def suite(red: [], output: "", ran: [])
@@ -14,12 +16,19 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
     end
   end
 
-  def adapter(plain: true)
+  # A suite of three tests whose selections rerun plainly, if +plain+, as this +selection+ does.
+  def adapter(plain: true, selection: rerunning(plain))
     Class.new(Kimera::Frameworks::Suite) do
       def test_ids = %w[t1 t2 t3]
-      define_method(:plain) { |ids, out| plain ? ["plain", *ids, out] : [] }
-      def failed_plainly(_output, out) = File.read(out).split("\n")
+      define_method(:[]) { |*ids| selection.new(ids, self) }
     end.new
+  end
+
+  def rerunning(plain)
+    Class.new(Kimera::Frameworks::BareSelection) do
+      define_method(:plain) { |out| plain ? ["plain", *@ids, out] : [] }
+      def failed(_output, out) = File.read(out).split("\n")
+    end
   end
 
   def screen(jobs: 1, root: "/project", **options)
@@ -124,11 +133,12 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
 
   # A plain run whose report at its out path plus this suffix does not parse, or is not there.
   def unreadable(suffix)
-    Class.new(Kimera::Frameworks::Suite) do
-      def test_ids = %w[t1 t2 t3]
-      def plain(ids, out) = ["plain", *ids, out]
-      define_method(:failed_plainly) { |_output, out| JSON.parse(File.read("#{out}#{suffix}")) }
-    end.new
+    selection =
+      Class.new(Kimera::Frameworks::BareSelection) do
+        def plain(out) = ["plain", *@ids, out]
+        define_method(:failed) { |_output, out| JSON.parse(File.read("#{out}#{suffix}")) }
+      end
+    adapter(selection: selection)
   end
 
   it "counts every test as failing plainly when the plain run's report cannot be read", :aggregate_failures do

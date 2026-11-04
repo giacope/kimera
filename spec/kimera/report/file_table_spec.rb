@@ -4,6 +4,8 @@ require "kimera/report/file_table"
 require "kimera/results/run_report"
 require "stringio"
 
+using ResultFields
+
 RSpec.describe(Kimera::Report::FileTable) do
   def table(files)
     results = (1..files).map { |n| Kimera::MutantResult.new(mutant_id: n, status: :killed, file: "f#{n}.rb") }

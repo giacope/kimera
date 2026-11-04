@@ -6,6 +6,8 @@ require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 require "stringio"
 
+using ResultFields
+
 # No fork needed: feed a fake adapter, read the newline-JSON from a StringIO.
 RSpec.describe(Kimera::Execution::Shift) do
   # A test fails when the active mutant is in its catch set. Runs with no
@@ -204,7 +206,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       target = ids.first
       adapter = test_adapter_class.new(catches: { "t1" => [] }, timeout: target)
       result = worker(adapter: adapter, coverage: { target => ["t1"] }, soft_timeout: 0.2).evaluate(target)
-      expect(result).to(have_attributes(status: :timeout, duration: be >= 0.2, file: "calc.rb"))
+      expect(result).to(have_fields(status: :timeout, duration: be >= 0.2, file: "calc.rb"))
     end
 
     it "records the point's file on a normal verdict" do

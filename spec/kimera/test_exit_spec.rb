@@ -77,7 +77,7 @@ RSpec.describe(Kimera::TestExit) do
 
     def run(loaded, name, group: "KimeraExits")
       PROBE.clear
-      id = loaded.test_ids.find { |test| loaded.describe(test) == "#{group} #{name}" }
+      id = loaded.test_ids.find { |test| loaded[test].name == "#{group} #{name}" }
       [id, loaded.run([id])]
     rescue SystemExit => error
       [id, error]
@@ -85,8 +85,8 @@ RSpec.describe(Kimera::TestExit) do
 
     it "fails the example that exits, after its after hooks ran", :aggregate_failures do
       id, outcome = run(adapter, "exits")
-      expect(outcome).to(be_a(Kimera::Frameworks::RunOutcome).and(have_attributes(failed_ids: [id])))
-      expect(outcome.failures[id].lines(chomp: true).first(2)).to(
+      expect(outcome).to(be_a(Kimera::Frameworks::RunOutcome).and(have_attributes(to_h: include("failed_ids" => [id]))))
+      expect(outcome.to_h.fetch("failures")[id].lines(chomp: true).first(2)).to(
         match(
           [
             eq("SystemExit: exit(4) called from #{dir}/exits_spec.rb:4:in 'Kernel#exit'"),
@@ -138,8 +138,8 @@ RSpec.describe(Kimera::TestExit) do
     it "fails the test that aborts, after its teardown ran", :aggregate_failures do
       id = "KimeraExitsTest#test_aborts"
       outcome = run(id)
-      expect(outcome).to(be_a(Kimera::Frameworks::RunOutcome).and(have_attributes(failed_ids: [id])))
-      expect(outcome.failures[id].lines(chomp: true).first(2)).to(
+      expect(outcome).to(be_a(Kimera::Frameworks::RunOutcome).and(have_attributes(to_h: include("failed_ids" => [id]))))
+      expect(outcome.to_h.fetch("failures")[id].lines(chomp: true).first(2)).to(
         eq(
           [
             "UnexpectedError: SystemExit: exit(1) called from #{dir}/exits_test.rb:4:in 'Kernel#abort': no such task",

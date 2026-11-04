@@ -49,8 +49,8 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
 
   it "follows the exception with the example's own frames" do
     loaded = adapter
-    id = loaded.test_ids.find { |test| loaded.describe(test) == "KimeraFrames raises" }
-    lines = loaded.run([id]).failures[id].lines(chomp: true)
+    id = loaded.test_ids.find { |test| loaded[test].name == "KimeraFrames raises" }
+    lines = loaded.run([id]).to_h.fetch("failures")[id].lines(chomp: true)
     expect(lines.first(3)).to(
       match(
         [

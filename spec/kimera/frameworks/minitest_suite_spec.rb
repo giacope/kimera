@@ -58,7 +58,7 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
       ran = []
       Minitest.after_run { ran << :first }
       Minitest.after_run { ran << :second }
-      2.times { adapter.finish }
+      2.times { adapter.hooks.finish }
       expect(ran).to(eq(%i[second first]))
     end
 
@@ -78,7 +78,7 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     it "goes on past a hook that exits or raises, and says which", :aggregate_failures do
       ran = []
       troubled(ran)
-      expect { adapter.finish }.to(output(told).to_stderr)
+      expect { adapter.hooks.finish }.to(output(told).to_stderr)
       expect(ran).to(eq([:last]))
     end
 
@@ -94,7 +94,7 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
       probe = stub_const("KimeraCoverageProbe", [])
       coverage_hook
       Minitest.after_run { probe << :suite }
-      adapter.finish
+      adapter.hooks.finish
       expect(probe).to(eq([:suite]))
     end
 
@@ -103,7 +103,7 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     def forked_finish(loaded)
       Process.wait(
         fork do
-          loaded.finish
+          loaded.hooks.finish
         ensure
           exit!(0)
         end
@@ -155,14 +155,14 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
   it "names the file that declares a test's class", :aggregate_failures do
     stub_const("KimeraDeclared", Module.new)
     sourced = described_class.build.source([declared])
-    expect(sourced.test_file("KimeraDeclared::FileTest#test_it")).to(eq(File.join(dir, "declared_test.rb")))
-    expect(sourced.test_file("NoSuchTest#test_x")).to(be_nil)
+    expect(sourced["KimeraDeclared::FileTest#test_it"].file).to(eq(File.join(dir, "declared_test.rb")))
+    expect(sourced["NoSuchTest#test_x"].file).to(eq(""))
   end
 
   it "falls back to the test method's file for a class with no constant name" do
     anonymous = Class.new(Minitest::Test) { define_method(:test_it) { true } }
     adapter.instance_variable_get(:@_indexed)["anon#test_it"] = [anonymous, :test_it]
-    expect(adapter.test_file("anon#test_it")).to(eq(__FILE__.delete_prefix("#{Dir.pwd}/")))
+    expect(adapter["anon#test_it"].file).to(eq(__FILE__.delete_prefix("#{Dir.pwd}/")))
   ensure
     Minitest::Runnable.runnables.delete(anonymous)
   end
@@ -177,7 +177,7 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
 
     it "falls back to the test method's file" do
       adapter.instance_variable_get(:@_indexed)["named#test_it"] = [named, :test_it]
-      expect(adapter.test_file("named#test_it")).to(eq(__FILE__.delete_prefix("#{Dir.pwd}/")))
+      expect(adapter["named#test_it"].file).to(eq(__FILE__.delete_prefix("#{Dir.pwd}/")))
     end
   end
 
@@ -205,7 +205,7 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
       stub_const("DemoKimeraTest", Class.new(Minitest::Test))
       seeded(77) { described_class.build.source([testfile]) }
       expect(Minitest.seed).to(eq(77))
-      expect(adapter.reproduce(["DemoKimeraTest#test_passes"])).to(end_with("--seed 77"))
+      expect(adapter["DemoKimeraTest#test_passes"].to_s).to(end_with("--seed 77"))
     end
   end
 
@@ -218,18 +218,18 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
   it "reports a passing run as passed with no failures", :aggregate_failures do
     outcome = adapter.run(["DemoKimeraTest#test_passes"])
     expect(outcome.passed?).to(be(true))
-    expect(outcome.failed_ids).to(be_empty)
+    expect(outcome.to_h.fetch("failed_ids")).to(be_empty)
   end
 
   it "reports a failing test as a kill", :aggregate_failures do
     outcome = state(false) { adapter.run(["DemoKimeraTest#test_conditional"]) }
     expect(outcome.passed?).to(be(false))
-    expect(outcome.failed_ids).to(eq(["DemoKimeraTest#test_conditional"]))
+    expect(outcome.to_h.fetch("failed_ids")).to(eq(["DemoKimeraTest#test_conditional"]))
   end
 
   it "formats a failure message as AssertionClass: message", :aggregate_failures do
     id = "DemoKimeraTest#test_conditional"
-    message = state(false) { adapter.run([id]).failures[id] }
+    message = state(false) { adapter.run([id]).to_h.fetch("failures")[id] }
     expect(message).to(be_a(String))
     expect(message).to(start_with("Assertion: "))
     expect(message).to(include("Expected"))
@@ -238,14 +238,15 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
   # A warm kill's detail says where the test failed, not just that it did.
   it "follows an assertion's message with the test's own frame", :aggregate_failures do
     id = "DemoKimeraTest#test_conditional"
-    message = state(false) { adapter.run([id]).failures[id] }
+    message = state(false) { adapter.run([id]).to_h.fetch("failures")[id] }
     lines = message.lines(chomp: true)
     expect(lines.first).to(eq("Assertion: Expected: true"))
     expect(lines.last).to(eq("    #{dir}/demo_test.rb:7:in 'DemoKimeraTest#test_conditional'"))
   end
 
   it "names an unexpected error's class once, then where it was raised" do
-    lines = adapter.run(["DemoKimeraTest#test_raises"]).failures["DemoKimeraTest#test_raises"].lines(chomp: true)
+    failures = adapter.run(["DemoKimeraTest#test_raises"]).to_h.fetch("failures")
+    lines = failures["DemoKimeraTest#test_raises"].lines(chomp: true)
     expect(lines).to(
       eq(
         [
@@ -260,7 +261,7 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
   it "treats a skip as neither a pass signal nor a kill", :aggregate_failures do
     outcome = adapter.run(["DemoKimeraTest#test_skipped"])
     expect(outcome.passed?).to(be(true))
-    expect(outcome.failed_ids).to(be_empty)
+    expect(outcome.to_h.fetch("failed_ids")).to(be_empty)
   end
 
   it "re-runs reliably across changing state (fresh instance per run)" do
@@ -275,7 +276,7 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
 
   it "reproduces failing ids with a plain Minitest command, not rspec" do
     FileUtils.mkdir_p(File.join(dir, "test"))
-    command = Dir.chdir(dir) { adapter.reproduce(["DemoKimeraTest#test_passes", "Nope#test_x"]) }
+    command = Dir.chdir(dir) { adapter["DemoKimeraTest#test_passes", "Nope#test_x"].to_s }
     expect(command).to(
       eq(
         "bundle exec ruby -Itest -rminitest/autorun -e 'require File.expand_path(\"demo_test.rb\")' " \
@@ -303,27 +304,27 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
   it "puts every folder kimera loaded tests from on the reproduce command's load path" do
     stub_const("NestedKimeraTest", Class.new(Minitest::Test))
     file = nested_test
-    command = Dir.chdir(dir) { described_class.build.source([file]).reproduce(["NestedKimeraTest#test_it"]) }
+    command = Dir.chdir(dir) { described_class.build.source([file])["NestedKimeraTest#test_it"].to_s }
     expect(command).to(start_with("bundle exec ruby -I'lib/my tool/test' -Itest -rminitest/autorun -e "))
   end
 
   it "shell-quotes single quotes and names files relative to the working directory", :aggregate_failures do
     Dir.chdir(dir) do
-      expect(adapter.reproduce(["It's#test"])).to(include("-n '/^(?:It'\\''s\\#test)$/'"))
-      expect(adapter.reproduce(["DemoKimeraTest#test_passes"])).to(include("File.expand_path(\"demo_test.rb\")"))
+      expect(adapter["It's#test"].to_s).to(include("-n '/^(?:It'\\''s\\#test)$/'"))
+      expect(adapter["DemoKimeraTest#test_passes"].to_s).to(include("File.expand_path(\"demo_test.rb\")"))
     end
   end
 
   it "catalogs a test by its id and the file:line that defines it", :aggregate_failures do
     Dir.chdir(dir) do
-      catalog = adapter.catalog(["DemoKimeraTest#test_passes", "Nope#test_x"])
+      catalog = adapter["DemoKimeraTest#test_passes", "Nope#test_x"].to_h
       named = { "name" => "DemoKimeraTest#test_passes", "location" => "demo_test.rb:3" }
       expect(catalog).to(eq("DemoKimeraTest#test_passes" => named))
     end
   end
 
   it "describes an id as itself" do
-    expect(adapter.describe("DemoKimeraTest#test_passes")).to(eq("DemoKimeraTest#test_passes"))
+    expect(adapter["DemoKimeraTest#test_passes"].name).to(eq("DemoKimeraTest#test_passes"))
   end
 
   # A Minitest without the autorun internal, and no run of its own, in place of the real one for the example.
@@ -388,12 +389,12 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
 
     it "runs each test inside its class's info handler", :aggregate_failures do
       outcome = hooked.run(["HookedKimeraTest#test_ok", "HookedKimeraTest#test_bad"])
-      expect(outcome.failures.keys).to(eq(["HookedKimeraTest#test_bad"]))
+      expect(outcome.to_h.fetch("failures").keys).to(eq(["HookedKimeraTest#test_bad"]))
     end
 
     it "fails a test whose class hook failed before it ran" do
       outcome = hooked(before_all: "false").run(["HookedKimeraTest#test_ok"])
-      expect(outcome.failures["HookedKimeraTest#test_ok"]).to(include("before_all failed"))
+      expect(outcome.to_h.fetch("failures")["HookedKimeraTest#test_ok"]).to(include("before_all failed"))
     end
   end
 

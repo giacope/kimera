@@ -4,6 +4,8 @@ require "kimera/execution/shift"
 require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 
+using ResultFields
+
 # A covering test that runs past the soft timeout with the mutant on counts
 # as detected only when, alone and with the mutant off, it passes in well
 # under that timeout. A test that is slow without the mutant too cannot tell

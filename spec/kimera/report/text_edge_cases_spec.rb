@@ -5,6 +5,8 @@ require "kimera/report/text"
 require "kimera/results/run_report"
 require "stringio"
 
+using ResultFields
+
 RSpec.describe(Kimera::Report::Text) do
   let(:registry) do
     Kimera::RegistryScan.new.source(<<~RUBY, file: "calc.rb")

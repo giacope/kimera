@@ -4,6 +4,8 @@ require "kimera/execution/isolated"
 require "kimera/registry/builder"
 require "tmpdir"
 
+using ResultFields
+
 # An error raised outside every test (a load error, a hook) is not taken for
 # a kill on its first sighting: the mutant runs once more, and only an error
 # that recurs kills it.

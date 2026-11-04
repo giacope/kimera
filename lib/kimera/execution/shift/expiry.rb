@@ -12,9 +12,7 @@ class Kimera::Execution::Shift::Expiry
 
   def expired? = true
 
-  def failed_ids = [test]
-
-  def failures = { test => message }
+  def to_h = { "passed" => passed?, "failed_ids" => [test], "failures" => { test => message } }
 
   private
 

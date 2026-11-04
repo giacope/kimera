@@ -9,6 +9,8 @@ require "kimera/runtime"
 require "json"
 require "tmpdir"
 
+using ResultFields
+
 # The mirror-and-bake subprocess flow is covered by the integration suite.
 RSpec.describe(Kimera::Execution::IsolatedPlan) do
   let(:registry) do

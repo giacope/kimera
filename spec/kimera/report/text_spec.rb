@@ -5,6 +5,8 @@ require "kimera/report/text"
 require "kimera/results/run_report"
 require "stringio"
 
+using ResultFields
+
 RSpec.describe(Kimera::Report::Text) do
   let(:registry) do
     Kimera::RegistryScan.new.source(<<~RUBY, file: "calc.rb")
@@ -91,7 +93,7 @@ RSpec.describe(Kimera::Report::Text) do
   end
 
   it "lists the mutants only other units' tests reach, with those tests and why", :aggregate_failures do
-    unowned = survivor.dup.tap { |result| result.status = :uncovered_by_unit }.tap { |result| result.detail = "why" }
+    unowned = survivor.with(status: :uncovered_by_unit).with(detail: "why")
     out = render(unowned)
     expect(out).to(
       include(
@@ -130,10 +132,7 @@ RSpec.describe(Kimera::Report::Text) do
 
   def judged(suite)
     io = StringIO.new
-    counted =
-      killed.tap do |result|
-        result.covering_tests = %w[t1 t2]
-      end.tap { |result| result.killing_tests = %w[t1 t2] }
+    counted = killed.with(covering_tests: %w[t1 t2]).with(killing_tests: %w[t1 t2])
     report = Kimera::RunReport.new(
       results: [counted],
       tests: { "t1" => { "name" => "one", "location" => "a_spec.rb:3" } }
@@ -159,7 +158,7 @@ RSpec.describe(Kimera::Report::Text) do
   def idle_tests = Array.new(12) { |index| "idle#{index}" }
 
   def idle_mutant
-    killed.tap { |result| result.covering_tests = idle_tests }.tap { |result| result.killing_tests = [] }
+    killed.with(covering_tests: idle_tests).with(killing_tests: [])
   end
 
   def idle_report
@@ -209,7 +208,7 @@ RSpec.describe(Kimera::Report::Text) do
   end
 
   it "gives the reason under an uncovered mutant that has one", :aggregate_failures do
-    reached = uncovered.tap { |result| result.detail = Kimera::Reason::ORDER_REASON }
+    reached = uncovered.with(detail: Kimera::Reason::ORDER_REASON)
     expect(render(reached, coverage: :list)).to(include("]\n    #{Kimera::Reason::ORDER_REASON}\n"))
     expect(render(uncovered, coverage: :list)).not_to(include(Kimera::Reason::ORDER_REASON, "]\n    \n"))
   end
@@ -249,7 +248,7 @@ RSpec.describe(Kimera::Report::Text) do
   end
 
   def rejudged(result)
-    result.tap { |judged| judged.note = "judged in a fresh isolated mirror; the warm pass could not: t1" }
+    result.with(note: "judged in a fresh isolated mirror; the warm pass could not: t1")
   end
 
   def rendered(results)

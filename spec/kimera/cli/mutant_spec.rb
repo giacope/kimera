@@ -5,6 +5,8 @@ require "kimera/cli/mutant"
 require "stringio"
 require "tmpdir"
 
+using ResultFields
+
 RSpec.describe(Kimera::CLI::Mutant, :aggregate_failures) do
   let(:sample) { File.expand_path("../../../examples/sample_app", __dir__) }
   let(:provenance) do
@@ -14,7 +16,7 @@ RSpec.describe(Kimera::CLI::Mutant, :aggregate_failures) do
 
   def reported(registry, mutant, point)
     row = Kimera::MutantResult.new(mutant_id: mutant.to_i, status: :no_coverage, file: point.file)
-    Kimera::RunReport.new(results: [row], registry: registry).document(provenance)
+    Kimera::RunReport.new(results: [row], registry: registry).annotate(run: provenance).to_h
   end
 
   # The arguments of the run a --rerun of mutant +id+ in +document+ asks for.

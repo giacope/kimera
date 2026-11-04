@@ -73,7 +73,7 @@ class Kimera::Execution::Schedule
 
   def record(ledger, id, result, tick)
     ledger.record(id, result)
-    tick.call(result.status)
+    result.tick(tick)
   end
 
   def reload(ids, coverage, ledger, tick)
@@ -110,8 +110,7 @@ class Kimera::Execution::Schedule
   end
 
   def parse(message, ledger, tick)
-    result = verdicts.parse(message).tap { |parsed| parsed.killing_tests = message["kills"] }
-    record(ledger, result.mutant_id, result, tick)
+    record(ledger, *verdicts.parse(message).entry, tick)
   end
 
   def lost(id, reason, stacks) = __send__(LOSSES.fetch(reason, :crashed), id, stacks)

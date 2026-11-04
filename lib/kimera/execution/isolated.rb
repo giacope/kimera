@@ -52,8 +52,8 @@ class Kimera::Execution::IsolatedExecution
     count = warm.size
     progress.note("re-judging #{count} mutant(s) the warm pass could not judge, each in a fresh mirror")
     progress.during(count, label) do |tick|
-      verdicts = alone(warm.map(&:mutant_id), tick)
-      warm.map { |result| noted(verdicts.fetch(result.mutant_id), result) }
+      verdicts = alone(warm.to_h(&:entry).keys, tick)
+      warm.map { |result| noted(result.from(verdicts), result) }
     end
   end
 
@@ -105,15 +105,8 @@ class Kimera::Execution::IsolatedExecution
   end
 
   def noted(result, warm)
-    judged = covered?(warm) ? covered(result, warm) : result
-    judged.tap { judged.note = "judged in a fresh isolated mirror; the warm pass could not: #{warm.detail}" }
-  end
-
-  def covered?(warm) = @registry.index.fetch(warm.mutant_id).reasons(Kimera::Reason.warm).any?
-
-  def covered(result, warm)
-    kept = result.killed? || warm.status == :survived ? result : warm.dup
-    kept.tap { kept.covering_tests = [*warm.covering_tests, *result.failing_tests].uniq }
+    judged = warm.from(@registry.index).reasons(Kimera::Reason.warm).any? ? warm.merged(result) : result
+    warm.noting(judged, "judged in a fresh isolated mirror; the warm pass could not: ")
   end
 
   def report(ids, tick)

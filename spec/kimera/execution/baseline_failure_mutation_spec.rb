@@ -15,6 +15,8 @@ require "kimera/results/result"
 require "stringio"
 require "tmpdir"
 
+using ResultFields
+
 RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
   describe "the baseline summary" do
     def summary = Kimera::Execution::BaselineFailure::Summary
@@ -112,7 +114,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
       subject = Kimera::Execution::Shift::Subject.new(9, "x.rb")
       verdicts, = attempt.run(9, %w[a b c], memory)
       expect(verdicts.map { |verdict| verdict.ruling(subject, {}) })
-        .to(match([have_attributes(status: :killed, failing_tests: ["b"], detail: "boom")]))
+        .to(match([have_fields(status: :killed, failing_tests: ["b"], detail: "boom")]))
     end
 
     it "records only the first killing test in the attempt memory" do
@@ -127,7 +129,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
       Object.new.tap do |adapter|
         adapter.define_singleton_method(:run) do |_ids|
           Kimera::RUNTIME.active?(7)
-          Struct.new(:passed?, :failures).new(false, { "t" => "boom" })
+          Kimera::Frameworks::RunOutcome.new(passed: false, failed_ids: ["t"], failures: { "t" => "boom" })
         end
       end
     end
@@ -343,7 +345,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     # The mutants a session holds results for, and those its leaks name.
     def held(session)
       report = session.report([kept, 999], [], registry)
-      [report.results.map(&:mutant_id), report.leaks.map(&:mutant_id)]
+      [report.to_a.map(&:mutant_id), report.notes.to_h["leaks"].map(&:mutant_id)]
     end
 
     it "drops stale results and the leak records whose result is gone" do

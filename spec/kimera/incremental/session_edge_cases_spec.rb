@@ -4,8 +4,10 @@ require "kimera/incremental/session"
 require "kimera/registry/registry"
 require "tmpdir"
 
+using ResultFields
+
 RSpec.describe(Kimera::Incremental::Session) do
-  def stored(session) = session.report([1, 2, 3], [], Kimera::Registry.new).results
+  def stored(session) = session.report([1, 2, 3], [], Kimera::Registry.new).to_a
 
   it "loads a fresh empty session when the path is nil or missing", :aggregate_failures do
     expect(stored(described_class.from(nil))).to(eq([]))
@@ -16,7 +18,7 @@ RSpec.describe(Kimera::Incremental::Session) do
     Dir.mktmpdir do |dir|
       path = File.join(dir, "s.json").tap { |p| File.write(p, JSON.generate("version" => 1, "meta" => {})) }
       report = described_class.from(path).report([1], [], Kimera::Registry.new)
-      expect([report.results, report.leaks]).to(eq([[], []]))
+      expect([report.to_a, report.notes.to_h["leaks"]]).to(eq([[], []]))
     end
   end
 
@@ -24,7 +26,7 @@ RSpec.describe(Kimera::Incremental::Session) do
     result = Kimera::MutantResult.new(mutant_id: 1, status: :killed, file: "x.rb", duration: 0.0)
     leak = Kimera::LeakReport.new(mutant_id: 2, detail: "leak")
     report = described_class.new(results: { 1 => result }, leaks: [leak]).report([1], [], Kimera::Registry.new)
-    expect([report.results.map(&:killed?), report.leaks]).to(eq([[true], [leak]]))
+    expect([report.to_a.map(&:killed?), report.notes.to_h["leaks"]]).to(eq([[true], [leak]]))
   end
 
   # Saves at +path+, then saves again what it resumed from there: the meta the second save found.

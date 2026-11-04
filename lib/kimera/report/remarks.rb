@@ -16,14 +16,14 @@ class Kimera::Report::Remarks
   def leaks(leaks) = listing(@palette.yellow("State-leak warnings (#{leaks.size}):"), leaks)
 
   def waivers(report)
-    judged = report.statuses(:ignored).select(&:verdict)
+    judged = report.select { |result| result.status?(:ignored) && result.to_h.key?("verdict") }
     return if judged.empty?
     @io.puts
     @io.puts(verdicts(judged))
   end
 
   def rejudged(report)
-    judged = report.results.select(&:note)
+    judged = report.select { |result| result.to_h.key?("note") }
     return if judged.empty?
     @io.puts
     @io.puts("#{judged.size} mutant(s) the warm pass could not judge, judged again in fresh mirrors: #{tally(judged)}.")
@@ -40,15 +40,16 @@ class Kimera::Report::Remarks
 
   def verdicts(judged)
     lapsed = judged.count(&:lapsed?)
-    surviving = judged.count { |result| result.verdict == :survived }
+    surviving = judged.count { |result| result.to_h["verdict"] == "survived" }
     other = judged.size - lapsed - surviving
     line = "#{lapsed} ignored mutant(s) are now killed (their entries can be pruned); #{surviving} still survive"
     other.zero? ? "#{line}." : "#{line}; #{other} could not be judged."
   end
 
   def tally(judged)
-    judged.group_by(&:status).map { |status, results| "#{results.size} #{named(status)}" }.join(", ")
+    judged.group_by { |result| result.to_h["status"] }
+      .map { |status, results| "#{results.size} #{named(status)}" }.join(", ")
   end
 
-  def named(status) = status == :harness_error ? "unjudged" : status
+  def named(status) = status == "harness_error" ? "unjudged" : status
 end

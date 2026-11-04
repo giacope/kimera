@@ -14,7 +14,7 @@ class Kimera::Execution::TestFilter
   class << self
     def build(registry:, adapter:, root: ".", attribution: Kimera::Execution::OpenAttribution.new)
       base = "#{File.expand_path(root)}/"
-      locate = ->(test) { File.expand_path(adapter.test_file(test).to_s).delete_prefix(base) }
+      locate = ->(test) { File.expand_path(adapter[test].file).delete_prefix(base) }
       new(registry: registry, attribution: attribution, locate: locate)
     end
 

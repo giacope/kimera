@@ -14,7 +14,7 @@ class Kimera::Execution::Boot
   def suite(test_files)
     @adapter.source(test_files)
     found!(test_files)
-    @adapter.start
+    @adapter.hooks.start
     load!
     keep!
   end
