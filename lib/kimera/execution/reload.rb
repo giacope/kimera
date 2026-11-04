@@ -101,22 +101,21 @@ class Kimera::Execution::Reload
     Failure.new(error).verdict
   end
 
-  def mutate(errand)
+  def mutate(errand, runtime = Kimera::RUNTIME)
     id = errand.id
     file = verdicts.point(id).file
     watch = overlay(file, @workspace.path(file), id)
-    Kimera::RUNTIME.active = nil
-    @isolation.around { hunt(errand, watch) }
+    runtime.during(nil) { @isolation.around { hunt(errand, watch) } }
   end
 
   def hunt(errand, watch)
     errand.tests.lazy.map { |test| trial(test, errand, watch) }.reject(&:passed?).first(1)
   end
 
-  def trial(test, errand, watch)
+  def trial(test, errand, watch, runtime = Kimera::RUNTIME)
     errand.tick(test)
-    ledger = Kimera::RUNTIME.start!
-    @adapter.run([test]).tap { errand.reach(test) if watch.reached?(Kimera::RUNTIME.stop!(ledger)) }
+    ledger = Kimera::Runtime::Ledger.new
+    runtime.during(nil, ledger) { @adapter.run([test]) }.tap { errand.reach(test) if watch.reached?(ledger.drain!) }
   end
 
   def overlay(file, path, id) = watched(file, path, id).tap { |watch| install(watch.source, path) }

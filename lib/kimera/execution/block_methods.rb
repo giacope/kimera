@@ -18,7 +18,7 @@ class Kimera::Execution::BlockMethods
 
   def adopt
     held = holders
-    yield.tap { held.each { |entry| install(entry) } }
+    yield.tap { held.each { |entry| entry.install(@file) } }
   end
 
   private
@@ -39,11 +39,5 @@ class Kimera::Execution::BlockMethods
       theirs = woven.fetch(name, [])
       theirs.size == mine.size ? mine.zip(theirs) : []
     end
-  end
-
-  def install(entry)
-    entry.install(@file)
-  rescue StandardError, ScriptError
-    nil
   end
 end

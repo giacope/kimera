@@ -34,7 +34,7 @@ class Kimera::Execution::BaselinePass
 
   def sequence(cell = zygote) = cell.call { whole }
 
-  def alone?(test) = Kimera::RUNTIME.during(nil) { quietly { @adapter.run([test]) } }.passed?
+  def alone?(test, runtime = Kimera::RUNTIME) = runtime.during(nil) { quietly { @adapter.run([test]) } }.passed?
 
   private
 
@@ -59,12 +59,10 @@ class Kimera::Execution::BaselinePass
     @_tally ||= @options.fetch(:tally) { Kimera::Execution::BaselineTally.new(Hash.new { |h, k| h[k] = [] }, [], [], {}, {}) }
   end
 
-  def whole
-    Kimera::RUNTIME.active = nil
-    ledger = Kimera::RUNTIME.start!
-    summary(quietly { @adapter.run(@adapter.test_ids) }).merge("touched" => ledger.drain!)
-  ensure
-    Kimera::RUNTIME.stop!(ledger)
+  def whole(runtime = Kimera::RUNTIME)
+    ledger = Kimera::Runtime::Ledger.new
+    outcome = runtime.during(nil, ledger) { quietly { @adapter.run(@adapter.test_ids) } }
+    summary(outcome).merge("touched" => ledger.drain!)
   end
 
   def summary(outcome)

@@ -104,7 +104,22 @@ module FakeRails
 
   # A connection pool whose connection is busy and will not let go.
   class BusyPool
-    def disconnect! = raise(RuntimeError, "busy")
+    def disconnect! = raise(ActiveRecord::ExclusiveConnectionTimeoutError, "busy")
+  end
+
+  # ActiveRecord::Base before the suite establishes a connection.
+  class Unconnected
+    def connection_db_config = raise(ActiveRecord::ConnectionNotEstablished, "No connection pool")
+  end
+
+  # Active Record's errors that kimera rescues, put in place with stub_const
+  # under their real names: the root of its errors, a connection the suite
+  # never established, and a pool whose connection will not let go in time.
+  def self.errors(example)
+    root = Class.new(StandardError)
+    example.stub_const("ActiveRecord::ActiveRecordError", root)
+    example.stub_const("ActiveRecord::ConnectionNotEstablished", Class.new(root))
+    example.stub_const("ActiveRecord::ExclusiveConnectionTimeoutError", Class.new(root))
   end
 
   # ActiveRecord::Tasks::DatabaseTasks: the schema dump each database loads

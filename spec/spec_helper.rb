@@ -36,7 +36,7 @@ RSpec.configure do |config|
   # spec/property), and the Shift children of worker_pool_spec missed its
   # watchdog.
   config.around do |example|
-    flips = Kimera::RUNTIME.__send__(:hidden).flips
+    flips = Kimera::RUNTIME.__send__(:hidden).__send__(:flips)
     kept = flips.dup
     example.run
   ensure
