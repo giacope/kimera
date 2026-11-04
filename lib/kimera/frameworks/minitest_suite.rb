@@ -135,5 +135,3 @@ class Kimera::Frameworks::MinitestSuite < Kimera::Frameworks::Suite
     "#{kind}: #{error.class}: #{error.message}"
   end
 end
-
-Kimera::Frameworks::SUITES.register(:minitest, Kimera::Frameworks::MinitestSuite)

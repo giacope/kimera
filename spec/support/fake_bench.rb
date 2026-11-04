@@ -117,7 +117,7 @@ class FakeSuite
   def finished? = @finished
 end
 
-# The suites of the frameworks, as Kimera::Frameworks::SUITES holds them: each
+# The suites of the frameworks, as Kimera::Frameworks::SuiteRegistry builds them: each
 # framework loads the one suite it was given.
 class FakeSuites
   def initialize(suite = FakeSuite.new)

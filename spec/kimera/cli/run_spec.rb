@@ -437,21 +437,21 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
   describe "framework suites" do
     it "builds the RSpec suite" do
       # In-process, RSpec warns when the suite re-points its streams.
-      built = hushed { Kimera::Frameworks::SUITES.load("rspec") }
+      built = hushed { Kimera::Frameworks::SuiteRegistry.new.load("rspec") }
       expect(built).to(be_a(Kimera::Frameworks::RSpecSuite))
     end
 
     it "builds the Minitest suite" do
-      expect(Kimera::Frameworks::SUITES.load("minitest")).to(be_a(Kimera::Frameworks::MinitestSuite))
+      expect(Kimera::Frameworks::SuiteRegistry.new.load("minitest")).to(be_a(Kimera::Frameworks::MinitestSuite))
     end
 
     # The spec run already loaded the suites, so a fresh process, which has
-    # not, shows the registry loading each framework's file before it fetches
-    # the suite the file registers.
+    # not, shows the registry loading each framework's file before it builds
+    # the suite the file defines.
     def fresh
       fresh_lines(<<~RUBY)
         require "kimera/frameworks/suite"
-        %w[rspec minitest].each { puts Kimera::Frameworks::SUITES.load(it).class }
+        %w[rspec minitest].each { puts Kimera::Frameworks::SuiteRegistry.new.load(it).class }
       RUBY
     end
 

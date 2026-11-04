@@ -130,5 +130,3 @@ class Kimera::Frameworks::RSpecSuite < Kimera::Frameworks::Suite
     index.narrow { index.tops.each { |top| top.run(reporter) } }
   end
 end
-
-Kimera::Frameworks::SUITES.register(:rspec, Kimera::Frameworks::RSpecSuite)
