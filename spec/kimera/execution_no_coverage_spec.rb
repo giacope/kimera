@@ -298,9 +298,10 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     # The reload child of the errand: whether the parent's writer is closed, what the child wrote (until the
     # pipe closes, or 10 s), and how it exited.
     def worked
-      pid = reload.__send__(:child, errand)
-      said = Timeout.timeout(10) { errand.reader.readlines(chomp: true) }
-      [errand.writer.closed?, said, Process.wait2(pid).last.exitstatus]
+      pid = reload.__send__(:child, 9, errand)
+      _, _, reader, writer = errand.to_a
+      said = Timeout.timeout(10) { reader.readlines(chomp: true) }
+      [writer.closed?, said, Process.wait2(pid).last.exitstatus]
     end
 
     it "leads its process group before it takes the child's pipe ends" do

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "json"
+
 module Kimera
   module Execution
   end
@@ -10,6 +12,7 @@ class Kimera::Execution::Reload; end
 Kimera::Execution::Reload::Errand =
   Struct.new(:id, :tests, :reader, :writer) do
     tick = "tick\n"
+    private(*members)
     def parent!
       writer.close
     end
@@ -24,9 +27,13 @@ Kimera::Execution::Reload::Errand =
     end
     def ran = @_ran ||= []
 
-    def reached = @_reached ||= []
-
     def reach(test) = reached << test
+
+    def covered? = !reached.empty?
+
+    def failures(&) = tests.lazy.map(&).reject(&:passed?).first(1)
+
+    def report(**fields) = JSON.generate(id: id, **fields, cover: reached)
 
     def emit(payload)
       writer.puts(payload)
@@ -45,4 +52,6 @@ Kimera::Execution::Reload::Errand =
       end
       :timeout
     end
+    private
+    def reached = @_reached ||= []
   end
