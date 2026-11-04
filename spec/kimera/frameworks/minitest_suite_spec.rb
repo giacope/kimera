@@ -245,7 +245,8 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
   end
 
   it "names an unexpected error's class once, then where it was raised" do
-    lines = adapter.run(["DemoKimeraTest#test_raises"]).to_h.fetch("failures")["DemoKimeraTest#test_raises"].lines(chomp: true)
+    failures = adapter.run(["DemoKimeraTest#test_raises"]).to_h.fetch("failures")
+    lines = failures["DemoKimeraTest#test_raises"].lines(chomp: true)
     expect(lines).to(
       eq(
         [

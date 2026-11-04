@@ -175,13 +175,19 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect { h.__send__(:measure!) }.to(raise_error(Kimera::Execution::BaselineFailure, /rspec t2 --order defined/))
     end
 
-    it "asks the adapter for its framework's reproduce command, first ids only", :aggregate_failures do
-      fake = adapter(coverage: { "t2" => [ids.first] }, failing: ["t2"])
-      asked = []
-      fake.define_singleton_method(:[]) do |*shown|
-        Class.new(Kimera::Frameworks::BareSelection) { define_method(:to_s) { (asked << shown) && "ruby -n t2" } }
-          .new(shown, self)
+    # An adapter whose selections write down the ids each was asked for.
+    def reproducing(asked)
+      adapter(coverage: { "t2" => [ids.first] }, failing: ["t2"]).tap do |fake|
+        fake.define_singleton_method(:[]) do |*shown|
+          Class.new(Kimera::Frameworks::BareSelection) { define_method(:to_s) { (asked << shown) && "ruby -n t2" } }
+            .new(shown, self)
+        end
       end
+    end
+
+    it "asks the adapter for its framework's reproduce command, first ids only", :aggregate_failures do
+      asked = []
+      fake = reproducing(asked)
       expect { harness(fake).__send__(:measure!) }
         .to(raise_error(Kimera::Execution::BaselineFailure, /reproduce without kimera: ruby -n t2\z/))
       expect(asked).to(eq([["t2"]]))

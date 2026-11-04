@@ -861,7 +861,12 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       named = { "t1" => { "name" => "M compares", "location" => "spec/m_spec.rb:3" } }
       cited = Kimera::RunReport.new(results: [verdict(1, :killed).with(killing_tests: ["t1"])])
       suite = FakeSuite.new(%w[t1 t2], catalog: named.merge("t2" => { "name" => "M cites nothing" }))
-      expect(pass(registry, settings, [1, 2], harness: FakeHarness.new(cited), suite: suite).notes.to_h["tests"]).to(eq(named))
+      expect(
+        pass(
+          registry, settings, [1, 2], harness: FakeHarness.new(cited),
+          suite: suite
+        ).notes.to_h["tests"]
+      ).to(eq(named))
     end
 
     def routing
@@ -898,7 +903,11 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     it "reports the flaky tests the warm pass found, naming them from the adapter" do
       harness = FakeHarness.new(flakes: flaky_record)
       suite = FakeSuite.new(catalog: { "t9" => { "name" => "nine" } })
-      expect(pass(registry, settings, [1, 2], harness: harness, suite: suite).then { [it.notes.to_h["flaky"], it.notes.to_h["tests"]] })
+      expect(
+        pass(registry, settings, [1, 2], harness: harness, suite: suite).then do
+          [it.notes.to_h["flaky"], it.notes.to_h["tests"]]
+        end
+      )
         .to(eq([flaky_record.to_h, { "t9" => { "name" => "nine" } }]))
     end
 
@@ -906,7 +915,12 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       harness = FakeHarness.new
       report = pass(registry, settings(test_quality: true), [1, 2], harness: harness, suite: both)
       expect(harness.settings).to(include(test_quality: true))
-      expect([report.notes.to_h["suite"], pass(registry, settings, [1, 2], suite: both).notes.to_h["suite"]]).to(eq([%w[t1 t2], nil]))
+      expect(
+        [
+          report.notes.to_h["suite"],
+          pass(registry, settings, [1, 2], suite: both).notes.to_h["suite"]
+        ]
+      ).to(eq([%w[t1 t2], nil]))
     end
 
     it "reports no flaky tests section when none were looked for" do

@@ -132,8 +132,7 @@ RSpec.describe(Kimera::Report::Text) do
 
   def judged(suite)
     io = StringIO.new
-    counted =
-      killed.with(covering_tests: %w[t1 t2]).with(killing_tests: %w[t1 t2])
+    counted = killed.with(covering_tests: %w[t1 t2]).with(killing_tests: %w[t1 t2])
     report = Kimera::RunReport.new(
       results: [counted],
       tests: { "t1" => { "name" => "one", "location" => "a_spec.rb:3" } }

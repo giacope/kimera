@@ -20,7 +20,6 @@ RSpec.describe("synthesized baseline") do
     script = <<~RUBY
       $LOAD_PATH.unshift(#{File.join(test_repository_root, "lib").inspect})
       require "kimera/runtime"
-      Kimera::RUNTIME.active = nil
       require "rspec/core"
       Dir.glob(#{dir.inspect} + "/spec/**/*_spec.rb").sort.each { |f| require f }
       exit RSpec::Core::Runner.run([])

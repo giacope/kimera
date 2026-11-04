@@ -82,6 +82,7 @@ class Kimera::Frameworks::RSpecSuite < Kimera::Frameworks::Suite
   end
 
   def clear(examples)
+    # rubocop:disable-next Kata/NoReflection -- an RSpec example keeps the last run's failure in this field and offers no way to clear it before it runs again in a warm worker
     examples.each { |ex| ex.instance_variable_set(:@exception, nil) }
   end
 

@@ -93,16 +93,19 @@ RSpec.describe(Kimera::Frameworks::ClassHooks) do
 
   # Minitest's info handler asks the reporter whether it passed when it prints
   # results on SIGINFO, and for its reporters; a parallel executor holds its lock.
-  it "hands the suite a reporter that has passed until a result fails" do
-    asked = []
-    klass = noted([]) do
+  def asking(asked)
+    noted([]) do
       define_singleton_method(:with_info_handler) do |reporter, &block|
         asked.push(reporter.passed?, reporter.reporters.grep(Minitest::SummaryReporter))
         block.call
         asked.push(reporter.passed?, reporter.synchronize { :held })
       end
     end
-    described_class.new(klass).test("test_bad")
+  end
+
+  it "hands the suite a reporter that has passed until a result fails" do
+    asked = []
+    described_class.new(asking(asked)).test("test_bad")
     expect(asked).to(eq([true, [], false, :held]))
   end
 

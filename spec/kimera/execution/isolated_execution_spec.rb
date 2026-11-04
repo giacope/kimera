@@ -529,8 +529,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     it "bakes the mutant, takes the verdict, and restores the file afterward", :aggregate_failures do
       result, baked, restored = test_baking_evaluate(first)
-      expect(result)
-        .to(have_fields(status: :killed, duration: 2.5, covering_tests: ["t1"], failing_tests: ["t1[1:1]"]))
+      expect(result).to(have_fields(status: :killed, duration: 2.5, covering_tests: ["t1"], failing_tests: ["t1[1:1]"]))
       expect(baked.first).not_to(eq(test_source_fixture))
       expect(restored).to(eq(test_source_fixture))
     end

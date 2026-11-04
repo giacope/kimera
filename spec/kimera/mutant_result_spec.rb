@@ -164,12 +164,15 @@ RSpec.describe(Kimera::MutantResult) do
       suspected = judged.suspected(%i[timeout survived]) { |status, file| reasons.push([status, file]) && "why" }
       expect([suspected.status, suspected.detail, reasons]).to(eq([:isolated_only, "why", [[:survived, "x.rb"]]]))
       expect(judged.suspected(%i[timeout survived]) { false }).to(be(judged))
-      expect(judged.suspected([:timeout]) { raise("not asked") }).to(be(judged))
+      expect(judged.suspected([:timeout]) { raise(KeyError, "not asked") }).to(be(judged))
     end
 
-    it "merges a fresh verdict, keeping a kill or its own survival, and both sides' tests", :aggregate_failures do
+    it "merges a fresh verdict, keeping both sides' tests" do
       fresh = result(:killed).with(failing_tests: %w[f2 c1])
       expect(judged.merged(fresh)).to(eq(fresh.with(covering_tests: %w[c1 f2])))
+    end
+
+    it "merges an unjudged verdict, keeping a kill or its own survival", :aggregate_failures do
       unjudged = result(:harness_error).with(failing_tests: ["f3"])
       expect(judged.merged(unjudged)).to(eq(unjudged.with(covering_tests: %w[c1 f3])))
       uncovered = judged.with(status: :no_coverage)
@@ -200,7 +203,12 @@ RSpec.describe(Kimera::MutantResult) do
     it "prints its line, tells whether a table holds its mutant, and keeps its fields", :aggregate_failures do
       expect(leak.line).to(eq("- #3  state"))
       expect([leak.among?(3 => :kept), leak.among?(4 => :kept)]).to(eq([true, false]))
-      expect([leak.public_methods.intersect?(%i[mutant_id detail]), leak.to_h]).to(eq([false, { mutant_id: 3, detail: "state" }]))
+      expect(
+        [
+          leak.public_methods.intersect?(%i[mutant_id detail]),
+          leak.to_h
+        ]
+      ).to(eq([false, { mutant_id: 3, detail: "state" }]))
     end
   end
 end
