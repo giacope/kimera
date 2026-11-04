@@ -11,7 +11,11 @@ require "tmpdir"
 # pre_check) on top of what the first load left.
 RSpec.describe(Kimera::BodyTrim) do
   def live(source, snippets)
-    snippets.map { |text| Kimera::Location.new(start_offset: source.b.index(text.b), span: text.bytesize) }
+    snippets.map { |text| at(source.b.index(text.b), text.bytesize) }
+  end
+
+  def at(offset, span)
+    Kimera::MutationPoint.new(location: Kimera::Location.new(start_offset: offset, span: span), mutants: [])
   end
 
   def trim(source, *snippets) = described_class.new(source, live(source, snippets)).trimmed
@@ -313,7 +317,7 @@ RSpec.describe(Kimera::BodyTrim) do
 
   it "counts a mutant ending where its statement ends as live, and one reaching past it as not" do
     source = "class Pair\n  track :a\n  track :b\nend\n"
-    reaching = Kimera::Location.new(start_offset: source.index(":b"), span: ":b\n".bytesize)
+    reaching = at(source.index(":b"), ":b\n".bytesize)
     trimmed = described_class.new(source, [*live(source, [":a"]), reaching]).trimmed
     expect(lines(trimmed)).to(eq(["class Pair", "track :a", "end"]))
   end

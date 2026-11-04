@@ -20,7 +20,7 @@ RSpec.describe(Kimera::CLI::ConfigTemplate, :aggregate_failures) do
 
   it "describes every ignore anchor, and requires the file and the reason" do
     entry = properties.dig("ignore", "items")
-    anchors = Kimera::IgnoreList::ANCHORS.keys.map(&:to_s)
+    anchors = Kimera::IgnoreList::ANCHORS.map(&:to_s)
     expect(entry.fetch("properties").keys).to(match_array(anchors + %w[file reason]))
     expect(entry.fetch("required")).to(eq(%w[file reason]))
   end

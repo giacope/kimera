@@ -33,5 +33,5 @@ class Kimera::Execution::BlockUse
     params.new(Kimera::Syntax::Document.new(root, file).result.value).normalize
   end
 
-  def open?(point) = point.safe? && point.reasons(Kimera::Reason.revisiting).empty?
+  def open?(point) = point.fits?(safe: true) && point.reasons(Kimera::Reason.revisiting).empty?
 end

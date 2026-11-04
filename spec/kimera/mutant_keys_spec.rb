@@ -2,6 +2,8 @@
 
 require "kimera/registry/builder"
 
+using PointFields
+
 RSpec.describe(Kimera::MutantKeys, :aggregate_failures) do
   let(:sample) { File.expand_path("../../examples/sample_app", __dir__) }
 
@@ -15,12 +17,12 @@ RSpec.describe(Kimera::MutantKeys, :aggregate_failures) do
   def digests(registry) = keys(registry).map { |key| key[/\h{8}\z/] }
 
   def point(**changes)
-    facts = { file: "a.rb", method_name: "a", operator: "comparison", original_source: "x > 1" }
+    facts = { file: "a.rb", method_name: "a", operator: "comparison", original_source: "x > 1", mutants: [] }
     Kimera::MutationPoint.new(**facts, location: Kimera::Location.new(start_line: 2), **changes)
   end
 
   def key(changed = point, label: "> => >=")
-    described_class::Fingerprint.new(changed, Kimera::Mutant.new(label: label)).key(1)
+    described_class::Fingerprint.new(changed.to_h, Kimera::Mutant.new(label: label)).key(1)
   end
 
   it "names a mutant the same whether its file was scanned alone or with others" do

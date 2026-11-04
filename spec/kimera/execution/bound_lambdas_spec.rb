@@ -7,6 +7,7 @@ require "kimera/registry/builder"
 require "tmpdir"
 
 using ResultFields
+using PointFields
 
 # R5-KL7: action_policy's LookupChain keeps the lambdas its constants held at
 # load; the overlay bound new, guarded ones that the chain never called.

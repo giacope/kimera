@@ -17,12 +17,8 @@ module Kimera
 
     private
 
-    def group(points)
-      points.group_by { |point| point.location.anchor(point.node_type) }
-    end
-
     def dispatch(rebuilt, bare, points)
-      mutants = points.flat_map(&:mutants).reverse
+      mutants = points.flat_map { |point| point.each.to_a }.reverse
       return parameter(rebuilt, mutants) if PARAMETERS.key?(rebuilt.type)
       hidden, shown = mutants.partition { |mutant| mutant.rewrite(Kimera::Rewrite::Directive).kind?(PRIVATIZE) }
       guard(shown, hidden.empty? ? rebuilt : privatized(rebuilt, hidden)) { |mutant| variant(bare, mutant) }

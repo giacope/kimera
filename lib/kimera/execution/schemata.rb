@@ -62,7 +62,7 @@ class Kimera::Execution::Schemata
     kind.new(File.read(File.join(root, path), encoding: Encoding::UTF_8)).only?
   end
 
-  def unload(path, &) = points(path).select(&:safe?).each(&)
+  def unload(path, &) = safe(path).each(&)
 
   def weave(paths) = paths.flat_map { |path| load(path) }
 
@@ -90,7 +90,7 @@ class Kimera::Execution::Schemata
     loaded = trimmed(path, file)
     result = synth.synthesize(path, loaded)
     return [] if result.empty?
-    blocks = Kimera::Execution::BlockMethods.new(file, loaded, result.to_s, locations(path))
+    blocks = Kimera::Execution::BlockMethods.new(file, loaded, result.to_s, safe(path))
     apply(result, path, file, blocks).tap { preempt(file) }
   rescue StandardError, ScriptError, SystemExit => error
     skip(path, "#{error.class}: #{error.message}")
@@ -100,10 +100,10 @@ class Kimera::Execution::Schemata
   def preempt(file) = $LOADED_FEATURES.concat([file, File.realpath(file)].uniq - $LOADED_FEATURES)
 
   def trimmed(path, file, trims = Kimera::BodyTrim)
-    trims.new(File.read(file, encoding: Encoding::UTF_8), locations(path)).trim(file)
+    trims.new(File.read(file, encoding: Encoding::UTF_8), safe(path)).trim(file)
   end
 
-  def locations(path) = points(path).select(&:safe?).map(&:location)
+  def safe(path) = points(path).select { |point| point.fits?(safe: true) }
 
   def apply(result, path, file, blocks)
     overrides = Kimera::Execution::Overrides.new(file, result.to_s)

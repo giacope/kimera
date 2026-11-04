@@ -28,8 +28,12 @@ class Kimera::Execution::IsolatedPlan::Kin
   private
 
   def covering(file)
-    ids = @registry.to_h.fetch(file, []).select(&:safe?).flat_map(&:ids)
-    ids.flat_map { |id| Array(@coverage[id] || @coverage[id.to_s]) }.map { |test| path(test) }.uniq - [""]
+    ids(file).flat_map { |id| Array(@coverage[id] || @coverage[id.to_s]) }.map { |test| path(test) }.uniq - [""]
+  end
+
+  def ids(file)
+    safe = @registry.to_h.fetch(file, []).select { |point| point.fits?(safe: true) }
+    safe.flat_map { |point| point.each.map(&:to_i) }
   end
 
   def conventional(file)

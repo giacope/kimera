@@ -5,6 +5,8 @@ require "kimera/frameworks/rspec_suite"
 require "stringio"
 require "tmpdir"
 
+using PointFields
+
 RSpec.describe(Kimera::Frameworks::RSpecSuite) do
   # Hides RSpec's warning about re-pointing already-initialized streams.
   def quietly

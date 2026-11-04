@@ -9,6 +9,7 @@ require "kimera/registry/builder"
 require "tmpdir"
 
 using ResultFields
+using PointFields
 
 RSpec::Matchers.define_negated_matcher(:not_output, :output)
 
@@ -1823,7 +1824,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "keeps the suite order for an unknown mutant or missing coverage", :aggregate_failures do
       registry, unsafe = reload("HarnessReloadAlone")
       expect(Kimera::Execution::Kinship.new(registry, nil).order(unsafe, %w[t2 t1])).to(eq(%w[t2 t1]))
-      expect(Kimera::Execution::Kinship.new(registry, {}).order(10_000_000, %w[t2 t1])).to(eq(%w[t2 t1]))
+      expect(Kimera::Execution::Kinship.new(registry, {}).order(10_000_000, %w[t2 t1 t2])).to(eq(%w[t2 t1]))
     end
 
     it "classifies a failing re-selecting suite as killed with its failures" do

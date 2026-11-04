@@ -39,7 +39,7 @@ class Kimera::Overlay
     def notice(dropped, io)
       io.puts(
         "kimera: #{@file}: #{dropped.size} mutation point(s) at " \
-          "#{dropped.map { |p| "line #{p.location.range.begin}" }.uniq.join(", ")} " \
+          "#{dropped.map { |point| "line #{point.to_h.dig("location", "start_line")}" }.uniq.join(", ")} " \
           "are unguardable (kimera could not write them); their mutants are reported unmutatable"
       )
     end

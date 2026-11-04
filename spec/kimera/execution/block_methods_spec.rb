@@ -5,6 +5,8 @@ require "kimera/execution/schemata"
 require "kimera/registry/builder"
 require "tmpdir"
 
+using PointFields
+
 # R4-KL10: dry-types' `RSpec.shared_examples_for … do def be_boolean …`: the
 # block defines its method on each example group that includes it, which the
 # source cannot name, so the overlay's copy reached none of them and every
@@ -79,7 +81,7 @@ RSpec.describe(Kimera::Execution::BlockMethods) do
     Kimera::RUNTIME.during(found.first.to_i, &)
   end
 
-  def blocks(woven = source, text = source) = described_class.new(file, text, woven, registry.each.map { _2.location })
+  def blocks(woven = source, text = source) = described_class.new(file, text, woven, registry.each.map { _2 })
 
   it "defines the woven method on each module the block ran on", :aggregate_failures do
     overlay!
@@ -226,7 +228,7 @@ RSpec.describe(Kimera::Execution::BlockMethods) do
   def searched(*texts)
     walks do
       texts.each do |text|
-        located = Kimera::RegistryScan.new.source(text, file: "x.rb").each.map { _2.location }
+        located = Kimera::RegistryScan.new.source(text, file: "x.rb").each.map { _2 }
         described_class.new(file, text, text, located).adopt { :installed }
       end
     end

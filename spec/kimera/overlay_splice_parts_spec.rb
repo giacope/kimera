@@ -3,6 +3,8 @@
 require "kimera/registry/builder"
 require "kimera/synthesis/overlay"
 
+using PointFields
+
 # The spliced text for each shape of point.
 RSpec.describe(Kimera::Overlay) do
   def unmatched = "no node to guard: kimera found nothing of its kind where the point was scanned"

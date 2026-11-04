@@ -34,7 +34,7 @@ class Kimera::Execution::Overrides::Held
 
   def revisit!(points)
     lines = @span.start_line..@span.end_line
-    covered = points.select { |point| point.safe? && lines.cover?(point.location.range.begin) }
+    covered = points.select { |point| point.fits?(safe: true, opening: lines) }
     covered.each { |point| point.mark!(Kimera::Reason.revisit(WRAPPED)) }
   end
 

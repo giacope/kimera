@@ -11,9 +11,9 @@ module Kimera
 end
 
 class Kimera::Execution::CallWatch
-  def initialize(source, location, id, probes = Kimera::GuardProbe)
+  def initialize(source, point, id, probes = Kimera::GuardProbe)
     @source = source
-    @location = location
+    @point = point
     @id = id
     @probes = probes
   end
@@ -43,7 +43,7 @@ class Kimera::Execution::CallWatch
 
   def tree = Kimera::Syntax.parse(@source).value
 
-  def holds?(node) = node.type == :def_node && @location.starts_between?(*span(node.location))
+  def holds?(node) = node.type == :def_node && @point.fits?(entered: span(node.location))
 
   def span(place) = [place.start_offset, place.end_offset - 1]
 end

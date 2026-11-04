@@ -304,7 +304,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
     def shift(script, offers)
       Kimera::Execution::Shift.new(
-        adapter: FaultySuite.new(script, offers), registry: Struct.new(:index).new({}),
+        adapter: FaultySuite.new(script, offers), registry: Kimera::Registry.new,
         coverage: (1..script.size).to_h { [it, ["t"]] }, soft_timeout: soft
       )
     end

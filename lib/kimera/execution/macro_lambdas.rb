@@ -27,7 +27,7 @@ class Kimera::Execution::MacroLambdas
   def root = @_root ||= File.expand_path(@given)
 
   def open?(point, ranges)
-    point.safe? && point.reasons(Kimera::Reason.revisiting).empty? && point.location.within?(ranges)
+    point.fits?(safe: true, within: ranges) && point.reasons(Kimera::Reason.revisiting).empty?
   end
 
   def handed(file) = lambdas(Kimera::Syntax::Document.new(root, file).result.value, argument: false)

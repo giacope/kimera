@@ -13,8 +13,8 @@ class Kimera::Overlay::MethodBake
     @tree = tree
   end
 
-  def source(location)
-    definitions(@map.ast).lazy.select { |node| location.inside?(*span(node)) }.first(1).flat_map do |definition|
+  def source(point)
+    definitions(@map.ast).lazy.select { |node| point.fits?(inside: span(node)) }.first(1).flat_map do |definition|
       counterparts(definition).flat_map { |node| written(definition, node) { [] } }.flat_map { graft(definition, it) }
     end
   end

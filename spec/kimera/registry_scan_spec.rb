@@ -3,6 +3,8 @@
 require "kimera/registry/builder"
 require "tmpdir"
 
+using PointFields
+
 RSpec.describe(Kimera::RegistryScan) do
   subject(:registry) { described_class.new.source(source, file: "account.rb") }
 

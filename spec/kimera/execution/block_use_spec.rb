@@ -5,6 +5,8 @@ require "kimera/execution/block_use"
 require "kimera/registry/builder"
 require "tmpdir"
 
+using PointFields
+
 # R6B2-M3: Ruby settles whether a method uses the block passed to it as it
 # compiles the method, and the warm overlay compiles every mutant of a method
 # into one. A mutant that leaves the method no `yield` warns, under a suite that
@@ -160,5 +162,12 @@ RSpec.describe(Kimera::Execution::BlockUse) do
     odd = join.to_h.merge("mutants" => [{ "id" => 1, "label" => "odd", "directive" => { "type" => "odd" } }])
     tree = Kimera::Execution::BlockUse::Source.new(Kimera::Syntax.parse(source).value)
     expect(tree.drops?(Kimera::MutationPoint.from_h(odd))).to(be(true))
+  end
+
+  it "leaves alone a point whose node the tree no longer holds" do
+    join = registry.to_a.find { |point| point.location.range.begin == 3 }
+    odd = join.to_h.merge("mutants" => [{ "id" => 1, "label" => "odd", "directive" => { "type" => "odd" } }])
+    tree = Kimera::Execution::BlockUse::Source.new(Kimera::Syntax.parse("x = 1\n").value)
+    expect(tree.drops?(Kimera::MutationPoint.from_h(odd))).to(be(false))
   end
 end

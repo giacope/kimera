@@ -9,8 +9,8 @@ class Kimera::Registry
   FORMAT_VERSION = 1
   ROWS = ->(list, kind) { Array(list).map { |row| kind.from_h(row) } }
 
-  def initialize(points: [], operators: [], root: ".", unmutated: [])
-    @points = points
+  def initialize(files: {}, operators: [], root: ".", unmutated: [])
+    @files = files
     @operators = operators
     @root = root
     @unmutated = unmutated
@@ -20,29 +20,32 @@ class Kimera::Registry
     @_index ||= by_mutant_id { |_mutant, point| point }
   end
 
-  def texts(point, mutant, kind) = kind.new(point, mutant, root: @root).texts
+  def texts(id, kind)
+    mutant, point, file = paired.fetch(id)
+    kind.new(point, mutant, file: file, root: @root).texts
+  end
 
   def regions = yield(@unmutated)
 
   def narrowed(changed)
     kept = @unmutated.select { |region| region.touched?(changed) }
-    self.class.new(points: @points, operators: @operators, root: @root, unmutated: kept)
+    self.class.new(files: @files, operators: @operators, root: @root, unmutated: kept)
   end
 
   def [](id, &) = paired.fetch(id, &)
 
   def each
     return enum_for(:each) unless block_given?
-    @points.each do |point|
-      point.mutants.each { |m| yield(m, point) }
+    @files.each do |file, points|
+      points.each { |point| point.each { |mutant| yield(mutant, point, file) } }
     end
   end
 
-  def to_a = @points.dup
+  def to_a = @files.values.flatten(1)
 
-  def to_h = groups
+  def to_h = @files
 
-  def to_s = "Found #{count} mutants at #{@points.size} mutation points across #{groups.size} files."
+  def to_s = "Found #{count} mutants at #{to_a.size} mutation points across #{@files.size} files."
 
   def to_json(*)
     JSON.generate(identity.merge(stats), *)
@@ -50,9 +53,9 @@ class Kimera::Registry
 
   class << self
     def from_h(hash)
-      points = ROWS.call(hash["points"], Kimera::MutationPoint)
+      files = Array(hash["points"]).group_by { |row| row["file"] }.transform_values { ROWS.call(it, Kimera::MutationPoint) }
       unmutated = ROWS.call(hash["unmutated"], Kimera::Unmutated)
-      new(root: hash["root"] || ".", operators: hash["operators"] || [], points: points, unmutated: unmutated)
+      new(root: hash["root"] || ".", operators: hash["operators"] || [], files: files, unmutated: unmutated)
     end
 
     def parse(json) = from_h(JSON.parse(json))
@@ -62,7 +65,7 @@ class Kimera::Registry
 
   private
 
-  def count = @points.sum { |p| p.mutants.size }
+  def count = each.count
 
   def identity
     { "format_version" => FORMAT_VERSION, "root" => @root, "operators" => @operators }
@@ -70,20 +73,16 @@ class Kimera::Registry
 
   def stats
     {
-      "stats" => { "files" => groups.size, "points" => @points.size, "mutants" => count },
-      "points" => @points.map(&:to_h), "unmutated" => @unmutated.map(&:to_h)
+      "stats" => { "files" => @files.size, "points" => to_a.size, "mutants" => count },
+      "points" => to_a.map(&:to_h), "unmutated" => @unmutated.map(&:to_h)
     }
   end
 
-  def groups
-    @_groups ||= @points.group_by(&:file)
-  end
-
   def paired
-    @_paired ||= by_mutant_id { |mutant, point| [mutant, point] }
+    @_paired ||= by_mutant_id { |mutant, point, file| [mutant, point, file] }
   end
 
   def by_mutant_id
-    each.with_object({}) { |(mutant, point), hash| hash[mutant.to_i] = yield(mutant, point) }
+    each.with_object({}) { |(mutant, point, file), hash| hash[mutant.to_i] = yield(mutant, point, file) }
   end
 end

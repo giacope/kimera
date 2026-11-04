@@ -4,6 +4,8 @@ require "kimera/registry/builder"
 require "kimera/registry/registry"
 require "tmpdir"
 
+using PointFields
+
 RSpec.describe(Kimera::Registry) do
   let(:registry) do
     Kimera::RegistryScan.new.source(<<~RUBY, file: "calc.rb")
@@ -42,7 +44,7 @@ RSpec.describe(Kimera::Registry) do
   describe "#[] and #index" do
     it "looks up a mutant and its hosting point by id", :aggregate_failures do
       mutant, point = registry.each.first
-      expect(registry[mutant.to_i]).to(eq([mutant, point]))
+      expect(registry[mutant.to_i]).to(eq([mutant, point, "calc.rb"]))
       expect(registry.index[mutant.to_i]).to(eq(point))
     end
 
@@ -76,7 +78,7 @@ RSpec.describe(Kimera::Registry) do
     it "renders a mutant against the source under its root" do
       Dir.mktmpdir do |dir|
         registry = rooted(dir)
-        texts = registry.each.map { |mutant, point| registry.texts(point, mutant, Kimera::Rewrite::MutantText) }
+        texts = registry.each.map { |mutant, _point| registry.texts(mutant.to_i, Kimera::Rewrite::MutantText) }
         expect(texts).to(eq([[":fast__kimera__"], [":slow__kimera__"]]))
       end
     end
@@ -93,7 +95,7 @@ RSpec.describe(Kimera::Registry) do
     end
 
     it "keeps only the regions a change touches, and every point", :aggregate_failures do
-      narrowed = described_class.new(points: registry.to_a, unmutated: regions).narrowed("b.rb" => [7])
+      narrowed = described_class.new(files: registry.to_h, unmutated: regions).narrowed("b.rb" => [7])
       expect(narrowed.regions(&:itself).map(&:place)).to(eq(["b.rb:7"]))
       expect(narrowed.to_a).to(eq(registry.to_a))
     end

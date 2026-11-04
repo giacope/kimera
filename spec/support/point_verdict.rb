@@ -7,7 +7,7 @@ class PointVerdict
     @point = point
   end
 
-  def safe? = @point.safe?
+  def safe? = @point.fits?(safe: true)
 
   def unsafe_reason = @point.reasons(Kimera::Reason.unsafety).first
 

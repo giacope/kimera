@@ -30,7 +30,7 @@ class Kimera::Overlay::MethodSplice
   def built(applied, dropped, source)
     Kimera::Overlay::Result.new(
       file: @file, source: source, mutant_ids: applied,
-      skipped_unsafe: (@unsafe + dropped).flat_map(&:ids)
+      skipped_unsafe: (@unsafe + dropped).flat_map { |point| point.each.map(&:to_i) }
     )
   end
 
@@ -67,7 +67,7 @@ class Kimera::Overlay::MethodSplice
     io.puts(
       "kimera: #{@file}: could not write the whole file; " \
         "#{applied.size} mutant(s) spliced per method, " \
-        "#{dropped.flat_map(&:ids).size} reported unmutatable"
+        "#{dropped.sum { |point| point.each.count }} reported unmutatable"
     )
   end
 
@@ -86,6 +86,6 @@ class Kimera::Overlay::MethodSplice
 
   def points(definition, claimed)
     from, to = span(definition)
-    @safe.select { |point| !claimed.include?(point) && point.location.inside?(from, to) }
+    @safe.select { |point| !claimed.include?(point) && point.fits?(inside: [from, to]) }
   end
 end

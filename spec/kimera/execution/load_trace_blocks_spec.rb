@@ -10,6 +10,7 @@ require "kimera/registry/builder"
 require "tmpdir"
 
 using ResultFields
+using PointFields
 
 # R3K2: a lambda a class body calls to build a constant ran only while the
 # file loaded, before warm coverage starts, and read as "no covering test".

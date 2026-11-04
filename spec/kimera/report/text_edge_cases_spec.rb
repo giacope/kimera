@@ -6,6 +6,7 @@ require "kimera/results/run_report"
 require "stringio"
 
 using ResultFields
+using PointFields
 
 RSpec.describe(Kimera::Report::Text) do
   let(:registry) do
@@ -115,7 +116,7 @@ RSpec.describe(Kimera::Report::Text) do
 
   def mixed
     other = Kimera::RegistryScan.new.source("def b(x)\n  x > 1\nend\n", file: "b.rb")
-    both = Kimera::Registry.new(points: registry.to_a + other.to_a)
+    both = PointRegistry.of(registry.to_a + other.to_a)
     results = mixed_results(both)
     io = StringIO.new
     described_class.new(both, io: io, color: false).report(Kimera::RunReport.new(results: results))
@@ -219,7 +220,7 @@ RSpec.describe(Kimera::Report::Text) do
 
   def output
     io = StringIO.new
-    described_class.new(Kimera::Registry.new(points: [point]), io: io, color: false)
+    described_class.new(PointRegistry.of([point]), io: io, color: false)
       .report(Kimera::RunReport.new(results: [unknown]))
     io.string
   end

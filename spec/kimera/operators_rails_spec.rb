@@ -6,6 +6,8 @@ require "kimera/runtime"
 require "kimera/support/warnings"
 require "kimera/synthesis/overlay"
 
+using PointFields
+
 # Class-body DSL runs once at load, so its points must go to the isolated oracle.
 RSpec.describe(Kimera::Operators) do
   def registry(code, keys)

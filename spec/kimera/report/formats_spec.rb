@@ -7,6 +7,7 @@ require "kimera/results/run_report"
 require "stringio"
 
 using ResultFields
+using PointFields
 
 RSpec.describe(Kimera::Report::Formats, :aggregate_failures) do
   let(:registry) { Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n", file: "app/calc.rb") }

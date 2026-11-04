@@ -3,6 +3,8 @@
 require "kimera/cli/run/null_selection"
 require "kimera/registry/builder"
 
+using PointFields
+
 RSpec.describe(Kimera::CLI::Run::NullSelection) do
   let(:registry) { Kimera::RegistryScan.new.source("def a(x, y) = x > y\n", file: "calc.rb") }
 

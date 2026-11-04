@@ -30,7 +30,8 @@ class Kimera::Overlay::Stitch
   def stitched(whole, rewritten)
     source = spliced(whole, rewritten)
     return [] unless source
-    applied = weave.applied - whole.flat_map(&:last).flat_map(&:ids) + rewritten.flat_map(&:last)
+    held = whole.flat_map(&:last).flat_map { |point| point.each.map(&:to_i) }
+    applied = weave.applied - held + rewritten.flat_map(&:last)
     splicer.woven(applied, source, whole.map(&:first))
   end
 
@@ -47,11 +48,11 @@ class Kimera::Overlay::Stitch
 
   def enclosing(points)
     holders = [*definitions(@map.ast), *@map.ast.statements.body]
-    owners = points.map { |point| holders.find { |holder| holds?(holder, point.location) } }
-    owners.uniq.map { |owner| [owner, @safe.select { |point| holds?(owner, point.location) }] } if owners.all?
+    owners = points.map { |point| holders.find { |holder| holds?(holder, point) } }
+    owners.uniq.map { |owner| [owner, @safe.select { |point| holds?(owner, point) }] } if owners.all?
   end
 
-  def holds?(definition, location) = location.inside?(*span(definition))
+  def holds?(definition, point) = point.fits?(inside: span(definition))
 
   def covers?(definition, edit) = Range.new(*span(definition)).cover?(edit.first..edit[1])
 end

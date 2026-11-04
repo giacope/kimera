@@ -55,7 +55,7 @@ class Kimera::Incremental::Session
   private
 
   def waiver(id, registry)
-    @results[id]&.waive || Kimera::MutantResult.from_waiver(id, registry.index[id]&.file)
+    @results[id]&.waive || Kimera::MutantResult.from_waiver(id, registry[id] { [] }.last)
   end
 
   def merged(report)
@@ -87,9 +87,10 @@ class Kimera::Incremental::Session
     @results.keys.select { |id| registry.index.key?(id) }.to_h { |id| [id, fingerprint(registry[id])] }
   end
 
-  def fingerprint(pair)
-    mutant, point = pair
-    [point.file, point.location.range.begin, point.original_source, mutant.to_s].join(" ")
+  def fingerprint(entry)
+    mutant, point, file = entry
+    row = point.to_h
+    [file, row.dig("location", "start_line"), row["original_source"], mutant.to_s].join(" ")
   end
 end
 

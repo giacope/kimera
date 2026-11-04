@@ -7,6 +7,7 @@ require "kimera/registry/builder"
 require "stringio"
 
 using ResultFields
+using PointFields
 
 # No fork needed: feed a fake adapter, read the newline-JSON from a StringIO.
 RSpec.describe(Kimera::Execution::Shift) do

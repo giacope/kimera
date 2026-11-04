@@ -5,6 +5,8 @@ require "kimera/execution/load_trace"
 require "kimera/registry/builder"
 require "tmpdir"
 
+using PointFields
+
 RSpec.describe(Kimera::Execution::LoadTrace) do
   # A macro a class body calls while it loads, a method it never calls, and a
   # memoized (schema-unsafe) method the macro calls too.

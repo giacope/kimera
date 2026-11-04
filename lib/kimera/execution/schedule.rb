@@ -87,7 +87,7 @@ class Kimera::Execution::Schedule
   end
 
   def settled(filter, id, tests)
-    filter.settle(id, tests) || reloader.run(id, deadline: hard, tests: filter.keep(verdicts.point(id).file, tests))
+    filter.settle(id, tests) || reloader.run(id, deadline: hard, tests: filter.keep(@registry[id] { [] }.last, tests))
   end
 
   def defer(ids, ledger, tick)

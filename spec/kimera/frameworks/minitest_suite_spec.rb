@@ -7,6 +7,8 @@ require "kimera/frameworks/minitest_suite"
 require "minitest"
 require "tmpdir"
 
+using PointFields
+
 RSpec.describe(Kimera::Frameworks::MinitestSuite) do
   subject(:adapter) { described_class.build.source([testfile]) }
 

@@ -48,7 +48,7 @@ class Kimera::Execution::Shift
   end
 
   def judged(id, memory)
-    result, memory = safely(id, Subject.new(id, @registry.index[id]&.file), memory)
+    result, memory = safely(id, Subject.new(id, @registry[id] { [] }.last), memory)
     [tally(result), memory]
   ensure
     isolation.reset!

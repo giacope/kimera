@@ -3,6 +3,8 @@
 require "kimera/cli/run"
 require "kimera/registry/builder"
 
+using PointFields
+
 RSpec.describe(Kimera::CLI::Run::Aim) do
   let(:registry) do
     Kimera::RegistryScan.new.source(<<~RUBY, file: "calc.rb")
