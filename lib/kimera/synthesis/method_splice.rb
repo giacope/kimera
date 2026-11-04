@@ -59,7 +59,7 @@ class Kimera::Overlay::MethodSplice
   def report(io, edits, dropped, source)
     applied = edits.flat_map(&:last)
     announce(io, applied, dropped)
-    dropped.each { |point| point.unmutatable!("kimera could not write its method") }
+    dropped.each { |point| point.mark!(Kimera::Reason.unmutatable("kimera could not write its method")) }
     built(applied, dropped, source)
   end
 

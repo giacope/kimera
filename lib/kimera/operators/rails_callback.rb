@@ -16,7 +16,7 @@ class Kimera::Operators::RailsCallback < Kimera::Operators::RailsDeclaration
   private
 
   def narrowed(node)
-    keywords(node)&.elements.to_a.flat_map { |assoc| scope(node, assoc) }
+    keywords(node).elements.flat_map { |assoc| scope(node, assoc) }
   end
 
   def scope(node, assoc)

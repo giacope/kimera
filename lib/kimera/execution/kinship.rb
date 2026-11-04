@@ -20,7 +20,7 @@ class Kimera::Execution::Kinship
   private
 
   def related(point)
-    siblings = @registry.at(point.file).sort_by { |other| other.method_name == point.method_name ? 0 : 1 }
+    siblings = @registry.to_h.fetch(point.file, []).sort_by { |other| other.method_name == point.method_name ? 0 : 1 }
     known = @coverage.to_h
     siblings.flat_map { |other| other.ids.flat_map { |mutant| Array(known[mutant]) } }
   end

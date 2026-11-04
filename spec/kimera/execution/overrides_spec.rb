@@ -73,10 +73,12 @@ RSpec.describe(Kimera::Execution::Overrides) do
   describe "a kept method's revisit" do
     def points
       text = "class Revisited\n  def total = a > b\n\n\n\n\n\n\n\n  def kept = a > b\nend\n"
-      Kimera::RegistryScan.new.source(text, file: "x.rb").at("x.rb")
+      Kimera::RegistryScan.new.source(text, file: "x.rb").to_h.fetch("x.rb")
     end
 
-    def revisits(held, found = points) = found.tap { |each| held.each { it.revisit!(each) } }.map(&:revisit)
+    def revisits(held, found = points)
+      found.tap { |each| held.each { it.revisit!(each) } }.map { it.reasons(Kimera::Reason.revisiting).first }
+    end
 
     def spanning(lines) = Data.define(:start_line, :end_line).new(lines.first, lines.last)
 
@@ -90,7 +92,7 @@ RSpec.describe(Kimera::Execution::Overrides) do
     end
 
     it "leaves a point already set aside, and every point when nothing is kept", :aggregate_failures do
-      found = points.tap { |each| each.first.unsafe!("set aside") }
+      found = points.tap { |each| each.first.mark!(Kimera::Reason.unsafe("set aside")) }
       expect(revisits([kept(2..10)], found)).to(eq([nil, described_class::Held::WRAPPED]))
       expect(revisits([kept(3..9)])).to(eq([nil, nil]))
     end

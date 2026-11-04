@@ -49,7 +49,7 @@ class Kimera::CLI::Run::Cycle
 
   def notify(change, selected, ignored, resolution)
     @alerts.anchors(resolution)
-    @digest.announce(change, selected, ignored, files: @registry.files.size)
+    @digest.announce(change, selected, ignored, files: @registry.to_h.size)
     @digest.evaluating(ignored) if @options[:evaluate_ignored]
   end
 
@@ -88,7 +88,7 @@ class Kimera::CLI::Run::Cycle
   def stamp
     return unless @options[:session]
     settings = @options.to_h.slice(*SETTINGS, :require)
-    Kimera::Incremental::Stamp.new(root: @options[:source_root], sources: @registry.files, settings: settings).to_s
+    Kimera::Incremental::Stamp.new(root: @options[:source_root], sources: @registry.to_h.keys, settings: settings).to_s
   end
 
   def inline = Kimera::CLI::Run::InlineIgnores.new(@registry, root: @options[:source_root]).rules
@@ -100,7 +100,8 @@ class Kimera::CLI::Run::Cycle
   def counted = @options[:count_no_coverage] && !narrowing.narrowed? ? [:no_coverage] : []
 
   def focus(eligible)
-    ids = Array(@options[:focus]).map { |token| @registry.keys.id(token) }
+    keys = Kimera::MutantKeys.of(@registry)
+    ids = Array(@options[:focus]).map { |token| keys.id(token) }
     return eligible if ids.empty?
     missing = ids - eligible
     missing.empty? ? ids : raise(Kimera::UsageError, "focused mutant(s) not in scope: #{missing.join(", ")}")

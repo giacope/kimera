@@ -15,7 +15,7 @@ class Kimera::Incremental::Selection
     @since = since
   end
 
-  def ids(registry) = registry.points.flat_map { |point| touched(point) }
+  def ids(registry) = registry.to_a.flat_map { |point| touched(point) }
 
   def files(found) = found.select { |file| @changes.key?(yield(file)) }
 

@@ -341,13 +341,13 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       def keyed = Kimera::RegistryScan.new.source("def x(a)\n  a > 1\nend\n", file: "x.rb")
 
       it "focuses by ordinal or key" do
-        key = keyed.keys[1]
+        key = Kimera::MutantKeys.of(keyed)[1]
         expect(key).to(start_with("x.rb:2:"))
         expect(focused({ focus: [key, "2"] }, [1, 2, 3], keyed)).to(eq([1, 2]))
       end
 
       it "follows a key whose line moved, and rejects an unknown key" do
-        expect(focused({ focus: [keyed.keys[1].sub(":2:", ":7:")] }, [1, 2, 3], keyed)).to(eq([1]))
+        expect(focused({ focus: [Kimera::MutantKeys.of(keyed)[1].sub(":2:", ":7:")] }, [1, 2, 3], keyed)).to(eq([1]))
         expect { focused({ focus: ["x.rb:2:ffffffff", "3"] }, [1, 2, 3], keyed) }
           .to(raise_error(Kimera::UsageError, "focused mutant(s) not in scope: x.rb:2:ffffffff"))
       end
@@ -675,7 +675,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
     it "includes report actions in textual output" do
       registry = Kimera::RegistryScan.new.source("def x(a, b)\n a > b\nend\n", file: "x.rb")
-      id = registry.each.first.first.id
+      id = registry.each.first.first.to_i
       Kimera::Report::Text.new(registry, io: out, color: false)
         .saved(Kimera::RunReport.new(results: [result(id, :survived)]), "report.json")
       expect(out.string).to(include("Next actions:", "kimera mutant #{id} --report report.json"))

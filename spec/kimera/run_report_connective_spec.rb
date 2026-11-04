@@ -15,19 +15,19 @@ RSpec.describe(Kimera::RunReport, :aggregate_failures) do
   end
 
   def row(label)
-    mutant = registry.each.find { |found, _point| found.label == label }.first
-    result = Kimera::MutantResult.new(mutant_id: mutant.id, status: :survived, file: "cond.rb")
+    mutant = registry.each.find { |found, _point| found.to_s == label }.first
+    result = Kimera::MutantResult.new(mutant_id: mutant.to_i, status: :survived, file: "cond.rb")
     described_class.new(results: [result], registry: registry).to_h["results"].first
   end
 
   it "shows a swapped connective in parentheses, as kimera mutated it" do
-    swapped = registry.each.map { |found, _point| found.label }.grep(/&& => \|\|/)
+    swapped = registry.each.map { |found, _point| found.to_s }.grep(/&& => \|\|/)
     expect(swapped).not_to(be_empty)
     expect(swapped.map { |label| row(label)["mutated"] }).to(all(start_with("(").and(end_with(")"))))
   end
 
   it "leaves other replacements as they are" do
-    other = registry.each.map { |found, _point| found.label }.grep_v(/&& => \|\|/).first
+    other = registry.each.map { |found, _point| found.to_s }.grep_v(/&& => \|\|/).first
     expect(row(other)["mutated"]).not_to(start_with("("))
   end
 end

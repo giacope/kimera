@@ -68,7 +68,7 @@ RSpec.describe(Kimera::Operators::Visibility) do
 
   it "renders the method followed by its private call" do
     mutant, point = scan("class A\n  def shown\n    1\n  end\nend\n").each.first
-    expect(Kimera::Rewrite::Directive.new(mutant.directive).render(point.original_source).first)
+    expect(mutant.rewrite(Kimera::Rewrite::Directive).render(point.original_source).first)
       .to(eq("def shown\n    1\n  end\nprivate(:shown)\n"))
   end
 
@@ -83,7 +83,7 @@ RSpec.describe(Kimera::Operators::Visibility) do
       end
     RUBY
     let(:catalog) { scan(code) }
-    let(:ids) { catalog.each.to_h { |m, p| [p.method_name, m.id] } }
+    let(:ids) { catalog.each.to_h { |m, p| [p.method_name, m.to_i] } }
     let!(:ledger) { Kimera::RUNTIME.start! }
 
     before do

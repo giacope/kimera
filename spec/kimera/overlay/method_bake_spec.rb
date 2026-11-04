@@ -10,7 +10,7 @@ RSpec.describe(Kimera::Overlay::MethodBake) do
   let(:map) { Kimera::SourceMap.new(source) }
   let(:point) do
     comparisons = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: %w[comparison]))
-    comparisons.source(source, file: "x.rb").points.first
+    comparisons.source(source, file: "x.rb").to_a.first
   end
 
   # A source map whose splices do not parse, as a graft that breaks the file around it.

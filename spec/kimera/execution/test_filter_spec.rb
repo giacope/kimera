@@ -8,7 +8,7 @@ RSpec.describe(Kimera::Execution::TestFilter, :aggregate_failures) do
   let(:registry) do
     Kimera::RegistryScan.new.source("def big?(total)\n  total > 50\nend\n", file: "app/models/order.rb")
   end
-  let(:id) { registry.each.first.first.id }
+  let(:id) { registry.each.first.first.to_i }
   let(:files) do
     {
       "own" => "spec/models/order_spec.rb", "request" => "spec/requests/orders_spec.rb",

@@ -7,7 +7,7 @@ class Kimera::Operators::KeywordDrop < Kimera::Operators::Base
 
   def variants(node, **)
     return unless identifier?(node)
-    keywords(node)&.elements.to_a.filter_map { |assoc| drop(assoc) }
+    keywords(node).elements.filter_map { |assoc| drop(assoc) }
   end
 
   private

@@ -43,7 +43,7 @@ RSpec.describe(Kimera::Execution::Shift) do
     RUBY
   end
 
-  let(:ids) { registry.each.map { |m, _p| m.id } }
+  let(:ids) { registry.each.map { |m, _p| m.to_i } }
   let(:io) { StringIO.new }
   let(:response) { StringIO.new }
 

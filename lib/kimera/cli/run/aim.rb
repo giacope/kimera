@@ -42,9 +42,12 @@ class Kimera::CLI::Run::Aim
   end
 
   def hints
-    found = lines.keys.map { |file| "mutated lines in #{file}: #{listed(@registry.start_lines(file))}" }
-    methods.empty? ? found : found << "methods with mutants: #{listed(@registry.method_names)}"
+    found =
+      lines.keys.map do |file|
+        "mutated lines in #{file}: #{listed(@registry.to_h.fetch(file, []).map { it.location.range.begin })}"
+      end
+    methods.empty? ? found : found << "methods with mutants: #{listed(@registry.to_a.filter_map(&:method_name))}"
   end
 
-  def listed(values) = values.empty? ? "none" : values.join(", ")
+  def listed(values) = values.empty? ? "none" : values.uniq.sort.join(", ")
 end

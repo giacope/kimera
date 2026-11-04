@@ -41,7 +41,7 @@ class Kimera::GuardSplice
   def placements = @_placements ||= @points.map { |point| @index.anchored(point).flat_map { placement(point, it) } }
 
   def placement(point, node)
-    hidden, shown = point.mutants.partition { |mutant| Kimera::Rewrite::Directive.new(mutant.directive).kind?("privatize") }
+    hidden, shown = point.mutants.partition { |mutant| mutant.rewrite(Kimera::Rewrite::Directive).kind?("privatize") }
     clauses, sited = clauses(node, shown)
     guards = sited.map { |mutant, _| guarded(node, mutant) { [] } }
     guards.all?(&:any?) ? [[guards.flatten(1), probed(node, hidden) + clauses.flat_map(&:last)]] : []
@@ -51,14 +51,14 @@ class Kimera::GuardSplice
     mutants.map { |mutant| [mutant, Kimera::GuardClause.new(node, mutant).edits] }.partition(&:last)
   end
 
-  def probed(node, hidden) = hidden.empty? ? [] : Kimera::GuardProbe.new(node, hidden.map(&:id)).edits
+  def probed(node, hidden) = hidden.empty? ? [] : Kimera::GuardProbe.new(node, hidden.map(&:to_i)).edits
 
   def guarded(node, mutant)
     parameter = Kimera::GuardrailDispatch::Parameter.new(node)
-    return [[node.value, mutant.id, parameter.missing]] if parameter.optional?
-    site, mutated = @sites.of(node, Kimera::Rewrite::Directive.new(mutant.directive).apply(node))
+    return [[node.value, mutant.to_i, parameter.missing]] if parameter.optional?
+    site, mutated = @sites.of(node, mutant.rewrite(Kimera::Rewrite::Directive).apply(node))
     text = written(site, mutated)
-    fits?(text) ? [[site, mutant.id, text]] : []
+    fits?(text) ? [[site, mutant.to_i, text]] : []
   rescue StandardError
     yield
   end

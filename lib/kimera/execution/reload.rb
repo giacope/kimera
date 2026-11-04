@@ -96,7 +96,7 @@ class Kimera::Execution::Reload
     return failed.fetch(0).verdict unless failed.empty?
     errand.reached.empty? ? [:no_coverage, [], UNCALLED] : [:survived, []]
   rescue Kimera::Overlay::Unbakeable => error
-    [:unmutatable, [], verdicts.point(errand.id).unmutatable(error.message)]
+    [:unmutatable, [], Kimera::Reason.unmutatable(error.message).to_s]
   rescue StandardError, ScriptError => error
     Failure.new(error).verdict
   end
@@ -124,7 +124,7 @@ class Kimera::Execution::Reload
   def watched(file, path, id, trims = Kimera::BodyTrim)
     location = verdicts.point(id).location
     source = trims.new(File.read(path, encoding: Encoding::UTF_8), [location]).trim(path)
-    Kimera::Execution::CallWatch.new(Kimera::Overlay.new(@registry).bake(file, source, id), location.start_offset, id)
+    Kimera::Execution::CallWatch.new(Kimera::Overlay.new(@registry).bake(file, source, id), location, id)
   end
 
   def install(source, path, guards = Kimera::Execution::OverlayGuards.new)

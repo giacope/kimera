@@ -44,7 +44,7 @@ RSpec.describe("kimera run on code that runs while the suite loads (end-to-end)"
     run = loaded
     expect(%w[app/flags.rb app/limits.rb app/setup.rb].map { |file| run.statuses(file) } << run.status)
       .to(eq([["isolated_only"], ["isolated_only"], ["no_coverage"], 2]), run.output)
-    expect(run.rows("app/setup.rb").map { |r| r["detail"] }.uniq).to(eq([Kimera::MutationPoint::NEVER_LOADED]))
+    expect(run.rows("app/setup.rb").map { |r| r["detail"] }.uniq).to(eq([Kimera::Reason::NEVER_LOADED]))
   end
 
   it "kills the load-time mutants a test can see when judged in mirrors" do

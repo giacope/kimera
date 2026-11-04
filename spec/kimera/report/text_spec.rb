@@ -16,7 +16,7 @@ RSpec.describe(Kimera::Report::Text) do
     RUBY
   end
 
-  let(:mutant) { registry.each.find { |m, _| m.label == "<= => <" }.first }
+  let(:mutant) { registry.each.find { |m, _| m.to_s == "<= => <" }.first }
 
   def listing
     "\n\n1 mutant(s) have no covering test; list them with: " \
@@ -41,23 +41,23 @@ RSpec.describe(Kimera::Report::Text) do
   end
 
   def killed
-    Kimera::MutantResult.new(mutant_id: mutant.id, status: :killed, file: "calc.rb", duration: 0.1)
+    Kimera::MutantResult.new(mutant_id: mutant.to_i, status: :killed, file: "calc.rb", duration: 0.1)
   end
 
   def uncovered
-    Kimera::MutantResult.new(mutant_id: mutant.id, status: :no_coverage, file: "calc.rb", duration: 0.0)
+    Kimera::MutantResult.new(mutant_id: mutant.to_i, status: :no_coverage, file: "calc.rb", duration: 0.0)
   end
 
   def survivor
     Kimera::MutantResult.new(
-      mutant_id: mutant.id, status: :survived, file: "calc.rb", duration: 0.1,
+      mutant_id: mutant.to_i, status: :survived, file: "calc.rb", duration: 0.1,
       covering_tests: ["./spec/calc_spec.rb[1:1]"]
     )
   end
 
   def error
     Kimera::MutantResult.new(
-      mutant_id: mutant.id, status: :harness_error, file: "calc.rb",
+      mutant_id: mutant.to_i, status: :harness_error, file: "calc.rb",
       detail: "worker crashed before result"
     )
   end
@@ -79,14 +79,14 @@ RSpec.describe(Kimera::Report::Text) do
 
   def multiple(multiline)
     Kimera::MutantResult.new(
-      mutant_id: multiline.each.find { |entry, _| entry.label == "condition => true" }.first.id,
+      mutant_id: multiline.each.find { |entry, _| entry.to_s == "condition => true" }.first.to_i,
       status: :survived, file: "multi.rb", duration: 0.1
     )
   end
 
   it "prints location, original-vs-mutation diff, and covering tests for survivors", :aggregate_failures do
     output = render(survivor)
-    expect(output).to(include("survived ##{mutant.id}", "calc.rb:3", "[<= => <]", "- x <= y", "+ x < y"))
+    expect(output).to(include("survived ##{mutant.to_i}", "calc.rb:3", "[<= => <]", "- x <= y", "+ x < y"))
     expect(output).to(include("covered by 1 test(s):\n      ./spec/calc_spec.rb[1:1]\n"))
   end
 
@@ -96,7 +96,7 @@ RSpec.describe(Kimera::Report::Text) do
     expect(out).to(
       include(
         "Reached only by other units' tests (1):\n\n  " \
-          "uncovered_by_unit ##{mutant.id}  calc.rb:3:5  in a  [<= => <]\n    " \
+          "uncovered_by_unit ##{mutant.to_i}  calc.rb:3:5  in a  [<= => <]\n    " \
           "- x <= y\n    + x < y\n    covered by 1 test(s):\n      ./spec/calc_spec.rb[1:1]\n    why\n"
       )
     )
@@ -194,7 +194,7 @@ RSpec.describe(Kimera::Report::Text) do
     expect(render(uncovered)).not_to(include("Mutants with no covering test"))
     shown = render(uncovered, coverage: :list)
     expect(shown).to(match(/\n\nMutants with no covering test \(1\):/))
-    expect(shown).to(include("no coverage ##{mutant.id}", "calc.rb:3", "[<= => <]"))
+    expect(shown).to(include("no coverage ##{mutant.to_i}", "calc.rb:3", "[<= => <]"))
   end
 
   it "heads a narrowed run's uncovered mutants as not covered by the narrowed tests", :aggregate_failures do
@@ -209,9 +209,9 @@ RSpec.describe(Kimera::Report::Text) do
   end
 
   it "gives the reason under an uncovered mutant that has one", :aggregate_failures do
-    reached = uncovered.tap { |result| result.detail = Kimera::MutationPoint::ORDER_REASON }
-    expect(render(reached, coverage: :list)).to(include("]\n    #{Kimera::MutationPoint::ORDER_REASON}\n"))
-    expect(render(uncovered, coverage: :list)).not_to(include(Kimera::MutationPoint::ORDER_REASON, "]\n    \n"))
+    reached = uncovered.tap { |result| result.detail = Kimera::Reason::ORDER_REASON }
+    expect(render(reached, coverage: :list)).to(include("]\n    #{Kimera::Reason::ORDER_REASON}\n"))
+    expect(render(uncovered, coverage: :list)).not_to(include(Kimera::Reason::ORDER_REASON, "]\n    \n"))
   end
 
   # Uncovered mutants are listed only under a --fail-on-no-coverage gate.
@@ -237,7 +237,7 @@ RSpec.describe(Kimera::Report::Text) do
   it "always lists mutants the harness could not judge, with the reason", :aggregate_failures do
     output = render(error)
     expect(output).to(match(/\n\nMutants Kimera could not judge \(1\):/))
-    expect(output).to(include("unjudged ##{mutant.id}", "calc.rb:3", "worker crashed before result", "unjudged=1"))
+    expect(output).to(include("unjudged ##{mutant.to_i}", "calc.rb:3", "worker crashed before result", "unjudged=1"))
   end
 
   it "falls back to the result's own file for an unjudged mutant off-registry" do
@@ -311,6 +311,6 @@ RSpec.describe(Kimera::Report::Text) do
   end
 
   it "stays silent about ignored mutants that were not evaluated" do
-    expect(render(Kimera::MutantResult.from_waiver(mutant.id, "calc.rb"))).not_to(include("ignored mutant(s)"))
+    expect(render(Kimera::MutantResult.from_waiver(mutant.to_i, "calc.rb"))).not_to(include("ignored mutant(s)"))
   end
 end

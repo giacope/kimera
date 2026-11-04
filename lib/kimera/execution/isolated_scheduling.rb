@@ -9,7 +9,7 @@ module Kimera
       private
 
       def ids
-        registry.each.map { |m, _p| m.id }
+        registry.index.keys
       end
 
       def serially(ids, tick)
