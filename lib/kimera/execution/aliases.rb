@@ -8,6 +8,12 @@ end
 require_relative "redefinition"
 
 class Kimera::Execution::Aliases
+  OWN = Module.instance_method(:instance_methods)
+  HIDDEN = Module.instance_method(:private_instance_methods)
+  LOOKUP = Module.instance_method(:instance_method)
+  SINGLETON = Kernel.instance_method(:singleton_class)
+  INHERITED = false
+
   module Repointing
     def repointed
       fresh = current
@@ -24,37 +30,76 @@ class Kimera::Execution::Aliases
     end
   end
 
-  Entry = Data.define(:holder, :name, :origin, :target, :body)
-
-  class Entry
-    include Repointing
-
-    def current = origin.instance_method(target)
-
-    def orphaned(file) = Kimera::Execution::Aliases::Orphan.new(holder, name, file, target, body, nil)
-
-    def resolved = holder.ancestors.find { |mod| defines?(mod) }&.then { |found| with(origin: found) }
-
+  module Provenance
     private
 
-    def defines?(mod)
-      (mod.method_defined?(target) || mod.private_method_defined?(target)) &&
-        RubyVM::InstructionSequence.of(mod.instance_method(target)).equal?(body)
+    def lookup(holder, name)
+      LOOKUP.bind_call(holder, name)
+    rescue NameError
+      yield
     end
+
+    def from?(method, file) = sources(method).any? { |path| alike?(path, file) }
+
+    def sources(method) = Array(method.source_location).first(1)
+
+    def alike?(one, other) = [one, other].map { |path| Kimera::Execution::Origin.new(path).canonical }.uniq.one?
+
+    def compiled(method) = RubyVM::InstructionSequence.of(method)
   end
+
+  Entry =
+    Data.define(:holder, :name, :origin, :target, :body) do
+      include Repointing
+      include Provenance
+      private(*members)
+      def orphaned(file) = Orphan.new(holder, name, file, target, body, nil)
+      def resolved = holder.ancestors.find { |mod| defines?(mod) }&.then { |found| with(origin: found) }
+      def wrapped?(file)
+        found = lookup(holder, target) { return false }
+        !from?(found, file)
+      end
+      private
+      def current = origin.instance_method(target)
+      def defines?(mod)
+        (mod.method_defined?(target) || mod.private_method_defined?(target)) &&
+          RubyVM::InstructionSequence.of(mod.instance_method(target)).equal?(body)
+      end
+    end
 
   Orphan =
     Data.define(:holder, :name, :file, :target, :body, :fresh) do
       include Repointing
+      include Provenance
+      private(*members)
+      def adopted(displaced)
+        found = moved(displaced).fetch(0) { lookup(holder, target) { return self } }
+        return self unless from?(found, file) && !compiled(found).equal?(body)
+        with(fresh: found)
+      end
+      def reaches?(definition) = fresh == definition
+      private
       def current = fresh
+      def moved(displaced)
+        ancestors = holder.ancestors
+        displaced.flat_map { |held| held.replacing(target, ancestors) }.first(1)
+      end
     end
-  OWN = Module.instance_method(:instance_methods)
-  HIDDEN = Module.instance_method(:private_instance_methods)
-  LOOKUP = Module.instance_method(:instance_method)
-  SINGLETON = Kernel.instance_method(:singleton_class)
-  INHERITED = false
 
-  Tracked = Struct.new(:resolved, :orphans)
+  Tracked =
+    Struct.new(:resolved, :orphans) do
+      private(*members)
+      def enter(entry, file)
+        found = entry.resolved
+        return resolved << found if found
+        orphans << entry.orphaned(file) if entry.wrapped?(file)
+      end
+      def repoint = [resolved, orphans].each { |held| held.map!(&:repointed) }
+      def witness(displaced) = orphans.map! { |orphan| orphan.adopted(displaced) }
+      def reaches?(definition) = orphans.any? { |orphan| orphan.reaches?(definition) }
+    end
+
+  include Provenance
 
   def initialize(files, tracked = Tracked.new([], []))
     @files = files
@@ -67,18 +112,14 @@ class Kimera::Execution::Aliases
   end
 
   def again
-    yield.tap { tracked.each { |held| held.map!(&:repointed) } }
+    yield.tap { @tracked.repoint }
   end
 
-  def witness(displaced = [])
-    tracked.orphans.map! { |orphan| adopt(orphan, displaced) }
-  end
+  def witness(displaced = []) = @tracked.witness(displaced)
 
-  def reaches?(definition) = tracked.orphans.any? { |orphan| orphan.fresh == definition }
+  def reaches?(definition) = @tracked.reaches?(definition)
 
   private
-
-  attr_reader :tracked
 
   def watched
     @_watched ||= @files.flat_map { |file| [file, *(File.realpath(file) if File.exist?(file))] }
@@ -96,44 +137,8 @@ class Kimera::Execution::Aliases
   def track(holder, method)
     files = sources(method)
     return unless renamed?(method) && files.any? { |file| watched.include?(file) }
-    enter(Entry.new(holder, method.name, nil, method.original_name, compiled(method)), files.fetch(0))
+    @tracked.enter(Entry.new(holder, method.name, nil, method.original_name, compiled(method)), files.fetch(0))
   end
-
-  def enter(entry, file)
-    resolved = entry.resolved
-    return tracked.resolved << resolved if resolved
-    tracked.orphans << entry.orphaned(file) if wrapped?(entry, file)
-  end
-
-  def wrapped?(entry, file)
-    found = lookup(entry.holder, entry.target) { return false }
-    !from?(found, file)
-  end
-
-  def adopt(orphan, displaced)
-    found = moved(orphan, displaced).fetch(0) { lookup(orphan.holder, orphan.target) { return orphan } }
-    return orphan unless from?(found, orphan.file) && !compiled(found).equal?(orphan.body)
-    orphan.with(fresh: found)
-  end
-
-  def from?(method, file) = sources(method).any? { |path| alike?(path, file) }
-
-  def moved(orphan, displaced)
-    ancestors = orphan.holder.ancestors
-    displaced.flat_map { |held| held.replacing(orphan.target, ancestors) }.first(1)
-  end
-
-  def lookup(holder, name)
-    LOOKUP.bind_call(holder, name)
-  rescue NameError
-    yield
-  end
-
-  def sources(method) = Array(method.source_location).first(1)
-
-  def alike?(one, other) = [one, other].map { |path| Kimera::Execution::Origin.new(path).canonical }.uniq.one?
 
   def renamed?(method) = method.original_name != method.name
-
-  def compiled(method) = RubyVM::InstructionSequence.of(method)
 end
