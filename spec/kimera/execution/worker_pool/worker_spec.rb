@@ -94,4 +94,42 @@ RSpec.describe Kimera::Execution::WorkerPool::Worker do
     expect(described_class.new(pid: 42, stacks: stacks).autopsy).to(eq(["dump 42"]))
     expect(described_class.new(pid: 42).autopsy).to(eq([]))
   end
+
+  it "traces the mutant it takes under its slot" do
+    traced = []
+    listeners = Kimera::Execution::WorkerPool::Listeners.new(resolve: nil, lost: nil, trace: ->(*at) { traced << at })
+    described_class.new(slot: 3).trace(listeners, 7)
+    expect(traced).to(eq([[3, 7]]))
+  end
+
+  it "forfeits the mutant in flight, and nothing once idle" do
+    forfeited = []
+    worker = described_class.new(inflight: 5)
+    2.times { worker.tap { |held| held.forfeit { |id| forfeited << id } }.idle! }
+    expect(forfeited).to(eq([5]))
+  end
+
+  it "tells the stillborn guard how it died, with its last words" do
+    guard = Class.new { define_method(:track) { |*told| told } }.new
+    expect(described_class.new(last_words: "Boom: x").inform(guard, :status)).to(eq([:status, "Boom: x"]))
+  end
+
+  it "closes both its pipes when it disconnects", :aggregate_failures do
+    request, response = IO.pipe.reverse
+    described_class.new(request: request, response: response).disconnect
+    expect([request.closed?, response.closed?]).to(eq([true, true]))
+  end
+
+  it "is buried with how it exited" do
+    pid = fork { exit!(4) }
+    expect(described_class.new(pid: pid).buried.exitstatus).to(eq(4))
+  end
+
+  it "is dismissed: its pipes closed, its process killed and reaped", :aggregate_failures do
+    pid = fork { sleep(60) }
+    request, response = IO.pipe.reverse
+    described_class.new(pid: pid, request: request, response: response).dismiss
+    expect([request.closed?, response.closed?]).to(eq([true, true]))
+    expect { Process.kill(0, pid) }.to(raise_error(Errno::ESRCH))
+  end
 end
