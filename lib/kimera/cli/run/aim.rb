@@ -33,7 +33,7 @@ class Kimera::CLI::Run::Aim
     !wanted || point.fits?(lines: wanted)
   end
 
-  def method?(point) = methods.empty? || point.fits?(method: methods)
+  def method?(point) = methods.empty? || point.fits?(methods: methods)
 
   def miss
     aimed = lines.map { |file, wanted| "#{file}:#{wanted.minmax.uniq.join("-")}" }

@@ -84,9 +84,8 @@ RSpec.describe(Kimera::MutationPoint) do
       expect([fits?(operator: "comparison"), fits?(operator: :comparison), fits?(operator: %w[a comparison])])
         .to(eq([true, true, true]))
       expect([fits?(operator: "arithmetic"), fits?(operator: [])]).to(eq([false, false]))
-      expect([fits?(method: "compare"), fits?(method: :compare), fits?(method: %w[a compare])])
-        .to(eq([true, true, true]))
-      expect([fits?(method: "other"), fits?(method: [])]).to(eq([false, false]))
+      expect([fits?(method: "compare"), fits?(method: :compare), fits?(method: "other")]).to(eq([true, true, false]))
+      expect([fits?(methods: %w[a compare]), fits?(methods: %w[a]), fits?(methods: [])]).to(eq([true, false, false]))
     end
 
     it "matches its original source whatever the spacing", :aggregate_failures do

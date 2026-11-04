@@ -82,7 +82,7 @@ class Kimera::MutationPoint
   FIELDS = %i[point_id file operator node_type location original_source method_name mutants].freeze
   CRITERIA = {
     safe: :safe?, line: :line?, starts: :starts?, column: :column?, operator: :operator?, method: :method?,
-    original: :original?, lines: :lines?, opening: :opening?, within: :within?, inside: :inside?,
+    methods: :methods?, original: :original?, lines: :lines?, opening: :opening?, within: :within?, inside: :inside?,
     covers: :covers?, entered: :entered?, node: :node?, kin: :kin?
   }.freeze
   private_constant(:CRITERIA)
@@ -158,7 +158,9 @@ class Kimera::MutationPoint
 
   def operator?(names) = Array(names).map(&:to_s).include?(operator)
 
-  def method?(names) = Array(names).map(&:to_s).include?(method_name)
+  def method?(name) = name.to_s == method_name
+
+  def methods?(names) = names.include?(method_name)
 
   def original?(text) = squeezed(text) == squeezed(original_source)
 

@@ -21,7 +21,9 @@ RSpec.describe(Kimera::Execution::CallWatch) do
 
   let(:probe) { "::Kimera::RUNTIME.active?(7)" }
 
-  def at(text, held = source) = Kimera::Location.new(start_offset: held.byteindex(text))
+  def at(text, held = source)
+    Kimera::MutationPoint.new(location: Kimera::Location.new(start_offset: held.byteindex(text)), mutants: [])
+  end
 
   def watched(text, held = source) = described_class.new(held, at(text, held), 7)
 
