@@ -63,8 +63,8 @@ module PoolTrace
 
     def deliver(worker, line)
       trace = PoolTrace.recorder
-      message = trace && parse(line)
-      return super unless message
+      return super unless trace
+      message = parse(line) { return super }
       trace.sent = ["none"]
       super.tap { trace.log("read", worker.slot, kind: message["t"], id: message["id"], reply: trace.sent) }
     end
@@ -82,7 +82,7 @@ module PoolTrace
   module Fleet
     def self.install = Kimera::Execution::WorkerPool::Fleet.prepend(self)
 
-    def remove(pipe, reason: :crash, stacks: nil)
+    def remove(pipe, reason: :crash, stacks: [])
       worker = workers.fetch(pipe)
       act, kind = reason == :timeout ? ["expire", ""] : %w[read eof]
       PoolTrace.recorder&.log(act, worker.slot, kind: kind, id: worker.inflight)

@@ -13,17 +13,17 @@ module Kimera
 
       def variant
         @_variant ||= [Negation, Operation, Unary, Setting, Indexing, Message].map do |kind|
-          kind.new(@node, @pen)
-        end.find(&:fits?)
+          kind.new(@node, @pen, @scope, @mode)
+        end.lazy.select(&:fits?).first(1).fetch(0)
       end
     end
 
     class Operation < Form
       def fits? = Shape.new(@node).binary?
 
-      def level = Level::BINARY.fetch(@node.name)
+      def level = BINARY.fetch(@node.name)
 
-      def text = "#{left} #{@node.name} #{operand(Shape.new(@node).arguments.first, power? ? level : level + 1)}"
+      def text = "#{left} #{@node.name} #{operand(Operands.new(@node).to_a.first, power? ? level : level + 1)}"
 
       private
 
@@ -31,8 +31,8 @@ module Kimera
 
       def left
         receiver = @node.receiver
-        written = leading(receiver, power? || Level::NONASSOCIATIVE.include?(level) ? level + 1 : level)
-        power? && Shape.new(receiver).numeral? && written.start_with?("-") ? "(#{written})" : written
+        written = leading(receiver, power? || NONASSOCIATIVE.include?(level) ? level + 1 : level)
+        power? && Token.new(receiver).numeral? && written.start_with?("-") ? "(#{written})" : written
       end
     end
 
@@ -42,7 +42,7 @@ module Kimera
 
       def fits? = Shape.new(@node).prefix?
 
-      def level = Level::PREFIX.fetch(@node.name)
+      def level = PREFIX.fetch(@node.name)
 
       def text
         written = operand(@node.receiver, level)
@@ -55,9 +55,9 @@ module Kimera
     end
 
     class Negation < Form
-      def fits? = Shape.new(@node).prefix? && Shape.new(@node).spelled?("not")
+      def fits? = Shape.new(@node).prefix? && Token.new(@node).spelled?("not")
 
-      def level = Level::EXPRESSION
+      def level = EXPRESSION
 
       def text
         receiver = @node.receiver
@@ -68,18 +68,17 @@ module Kimera
       private
 
       def unbraced(receiver)
-        keyword = pen_of(receiver).level(receiver) == Level::KEYWORD
-        keyword ? part(receiver, Level::TERNARY) : trailing(receiver, Level::ASSIGNMENT)
+        form_of(receiver).level == KEYWORD ? part(receiver, TERNARY) : trailing(receiver, ASSIGNMENT)
       end
     end
 
     class Setting < Form
       def fits? = Shape.new(@node).setter?
 
-      def level = Level::ASSIGNMENT
+      def level = ASSIGNMENT
 
       def text
-        value = Shape.new(@node).arguments.last
+        value = Operands.new(@node).to_a.last
         dot = @node.safe_navigation? ? "&." : "."
         owner = @node.receiver ? receiver_part(@node.receiver) : "self"
         "#{owner}#{dot}#{@node.name.to_s.delete_suffix("=")} = #{part(value, value_floor(value))}"
@@ -89,12 +88,12 @@ module Kimera
     class Indexing < Form
       def fits? = %i[[] []=].include?(@node.name) && @node.receiver && !@node.call_operator_loc
 
-      def level = @node.name == :[] ? Level::PRIMARY : Level::ASSIGNMENT
+      def level = @node.name == :[] ? PRIMARY : ASSIGNMENT
 
       def text
-        *keys, value = Shape.new(@node).arguments
+        *keys, value = Operands.new(@node).to_a
         return "#{head(keys)} = #{part(value, value_floor(value))}" unless @node.name == :[]
-        "#{head([*keys, value].compact)}#{Block.new(@node.block, @pen).suffix if literal_block}"
+        "#{head([*keys, value].compact)}#{Block.new(@node.block, @pen, @scope, @mode).suffix if literal_block}"
       end
 
       private
@@ -107,7 +106,7 @@ module Kimera
 
       def fits? = true
 
-      def text = "#{head}#{arguments}#{Block.new(literal_block, pen_of(literal_block)).suffix if literal_block}"
+      def text = "#{head}#{arguments}#{attached(literal_block) if literal_block}"
 
       private
 
@@ -128,7 +127,7 @@ module Kimera
       def bare?
         name = @node.name
         return true if @node.receiver
-        return false if @pen.local?(name) || name.match?(CAPITAL)
+        return false if @scope.local?(name) || name.match?(CAPITAL)
         @node.variable_call? || literal_block || name.end_with?("?", "!")
       end
     end
@@ -139,7 +138,7 @@ module Kimera
 
       def text
         return "super#{suffix}" if type == :forwarding_super_node
-        return "defined?(#{part(@node.value, Level::ASSIGNMENT)})" if type == :defined_node
+        return "defined?(#{part(@node.value, ASSIGNMENT)})" if type == :defined_node
         listing.empty? && type == :yield_node ? "yield" : "#{WORDS.fetch(type)}(#{listed_parts})#{suffix}"
       end
 
@@ -153,7 +152,7 @@ module Kimera
 
       def suffix
         block = @node.block if @node.respond_to?(:block)
-        block&.type == :block_node ? Block.new(block, pen_of(block)).suffix : ""
+        block&.type == :block_node ? attached(block) : ""
       end
     end
   end

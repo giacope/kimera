@@ -9,12 +9,33 @@ class Kimera::Report::FileTable
   MAX_ROWS = 15
   COLUMNS = { "survived" => 8, "uncovered" => 9, "killed" => 6, "score" => 6 }.freeze
 
-  Row =
-    Data.define(:file, :report) do
-      def cells = [report.survived.size, report.uncovered.size, report.killed.size, report.percent]
+  class Line
+    def to_s = "  #{cells.zip(COLUMNS.values).map { |cell, width| cell.to_s.rjust(width) }.join("  ")}  #{label}"
+  end
 
-      def rank = [-report.survived.size, -report.uncovered.size, file]
+  class Heading < Line
+    private
+
+    def cells = COLUMNS.keys
+
+    def label = "file"
+  end
+
+  class Row < Line
+    def initialize(file, report)
+      super()
+      @file = file
+      @report = report
     end
+
+    def rank = [-@report.survived.size, -@report.uncovered.size, @file]
+
+    private
+
+    def cells = [@report.survived.size, @report.uncovered.size, @report.killed.size, @report.percent]
+
+    def label = @file
+  end
 
   def initialize(io:)
     @io = io
@@ -29,12 +50,8 @@ class Kimera::Report::FileTable
 
   def table(rows)
     count = rows.size
-    @io.puts("", "Files (#{count}, most survivors first):", line(COLUMNS.keys, "file"))
-    rows.first(MAX_ROWS).each { |row| @io.puts(line(row.cells, row.file)) }
+    @io.puts("", "Files (#{count}, most survivors first):", Heading.new)
+    rows.first(MAX_ROWS).each { |row| @io.puts(row) }
     @io.puts("  (+#{count - MAX_ROWS} more files)") if count > MAX_ROWS
-  end
-
-  def line(cells, file)
-    "  #{cells.zip(COLUMNS.values).map { |cell, width| cell.to_s.rjust(width) }.join("  ")}  #{file}"
   end
 end

@@ -8,11 +8,11 @@ module Kimera
       def text
         "#{leading(
           @node.value,
-          Level::KEYWORD + 1
+          KEYWORD + 1
         )} #{type == :match_required_node ? "=>" : "in"} #{patterned(@node.pattern)}"
       end
 
-      def level = Level::EXPRESSION
+      def level = EXPRESSION
     end
 
     class Alternatives < Form
@@ -31,7 +31,7 @@ module Kimera
 
       def text
         constant = @node.constant
-        constant ? "#{part(constant, Level::PRIMARY)}(#{items})" : "[#{items}]"
+        constant ? "#{part(constant, PRIMARY)}(#{items})" : "[#{items}]"
       end
 
       private
@@ -48,7 +48,7 @@ module Kimera
 
       def text
         constant = @node.constant
-        return "#{part(constant, Level::PRIMARY)}(#{items})" if constant
+        return "#{part(constant, PRIMARY)}(#{items})" if constant
         items.empty? ? "{}" : "{ #{items} }"
       end
 
@@ -62,8 +62,7 @@ module Kimera
 
       def text
         return "^#{part(@node.variable)}" if type == :pinned_variable_node
-        expression = @node.expression
-        "^(#{pen_of(expression).opened.write(expression)})"
+        "^(#{form_of(@node.expression, OPEN).written(STATEMENT)})"
       end
     end
   end

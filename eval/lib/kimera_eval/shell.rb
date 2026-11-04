@@ -4,22 +4,48 @@ require "open3"
 
 module KimeraEval
   class Shell
-    Result =
-      Data.define(:status, :stdout, :stderr, :wall, :rss, :late) do
-        def ok? = !late && status.success?
-
-        def code = late ? nil : status.exitstatus
-
-        def output = stdout + stderr
-
-        def late? = late
+    class Exit
+      def initialize(status, late)
+        @status = status
+        @late = late
       end
+
+      def ok? = !@late && @status.success?
+
+      def exited = { "exit" => @late ? nil : @status.exitstatus }
+
+      def exited?(code) = !@late && @status.exitstatus == code
+
+      def unreported = "no report (exit #{exited.fetch("exit")})"
+    end
+
+    class Printed
+      def initialize(stdout, stderr)
+        @stdout = stdout
+        @stderr = stderr
+      end
+
+      def output = @stdout + @stderr
+
+      def to_s = @stdout
+    end
+
+    class Usage
+      def initialize(wall, rss)
+        @wall = wall
+        @rss = rss
+      end
+
+      def timed(digits) = { "wall_s" => @wall.round(digits) }
+
+      def to_h = @rss
+    end
 
     INTERVAL = 0.05
     PAGE = 4096
     CLEARED = %w[BUNDLE_GEMFILE RUBYOPT BUNDLER_SETUP BUNDLE_BIN_PATH].to_h { |name| [name, nil] }.freeze
 
-    def initialize(chdir:, env: {}, timeout: 600, input: nil)
+    def initialize(chdir:, env: {}, timeout: 600, input: "")
       @env = env
       @chdir = chdir
       @timeout = timeout
@@ -37,7 +63,7 @@ module KimeraEval
     private
 
     def feed(stdin)
-      stdin.write(@input) if @input
+      stdin.write(@input)
     rescue Errno::EPIPE
       nil
     ensure
@@ -49,15 +75,18 @@ module KimeraEval
       sampler = Thread.new { peak.sample until waiter.join(INTERVAL) }
       status, late = wait(waiter)
       sampler.join
-      Result.new(status, *readers.map { |reader| text(reader.value) }, clock - started, peak.to_h, late)
+      [Exit.new(status, late), printed(readers), Usage.new(clock - started, peak.to_h)]
     end
+
+    def printed(readers) = Printed.new(*readers.map { |reader| text(reader.value) })
 
     def text(bytes) = bytes.to_s.force_encoding(Encoding::UTF_8).scrub
 
-    def wait(waiter)
-      done = waiter.join(@timeout)
-      stop(waiter) unless done
-      [waiter.value, !done]
+    def wait(waiter) = waiter.join(@timeout) ? [waiter.value, false] : [killed(waiter), true]
+
+    def killed(waiter)
+      stop(waiter)
+      waiter.value
     end
 
     def stop(waiter)
@@ -69,12 +98,13 @@ module KimeraEval
     def clock(now = Process.clock_gettime(Process::CLOCK_MONOTONIC)) = now
 
     class Peak
-      def initialize(root)
+      def initialize(root, proc = "/proc")
         @root = root
+        @proc = proc
       end
 
       def sample
-        sizes = tree.to_h { |pid| [pid, rss(pid)] }
+        sizes = tree.to_h { |pid| [pid, rss(pid) { 0 }] }
         sizes.each { |pid, bytes| seen[pid] = [seen[pid], bytes].max }
         totals << sizes.values.sum
       end
@@ -100,23 +130,23 @@ module KimeraEval
       end
 
       def table
-        Dir.glob("/proc/[0-9]*/stat").each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |path, children|
-          fields = stat(path)
-          children[Integer(fields[1])] << Integer(fields[0]) if fields
+        pairs = Dir.glob(File.join(@proc, "[0-9]*", "stat")).flat_map { |path| stat(path) { [] } }
+        pairs.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |(pid, parent), children|
+          children[Integer(parent)] << Integer(pid)
         end
       end
 
       def stat(path)
         text = File.read(path)
-        [text[/\A\d+/], text[(text.rindex(")") + 2)..].split[1]]
+        [[text[/\A\d+/], text[(text.rindex(")") + 2)..].split[1]]]
       rescue SystemCallError, NoMethodError
-        nil
+        yield
       end
 
       def rss(pid)
-        Integer(File.read("/proc/#{pid}/statm").split[1]) * PAGE
+        Integer(File.read(File.join(@proc, pid.to_s, "statm")).split[1]) * PAGE
       rescue SystemCallError, ArgumentError
-        0
+        yield
       end
     end
   end

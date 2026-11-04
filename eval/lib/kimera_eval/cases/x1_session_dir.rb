@@ -7,9 +7,9 @@ module KimeraEval
 
     def call
       dir = sandbox.copy(fixture("session"))
-      result = checkout.cli("run", "--session", "tmp/new/session.json", "--no-progress", "--no-report", chdir: dir)
+      exit, = checkout.cli("run", "--session", "tmp/new/session.json", "--no-progress", "--no-report", chdir: dir)
       saved = File.exist?(File.join(dir, "tmp", "new", "session.json"))
-      { "pass" => saved && result.code != 1, "summary" => { "saved" => saved, "exit" => result.code } }
+      { "pass" => saved && !exit.exited?(1), "summary" => { "saved" => saved }.merge(exit.exited) }
     end
   end
 end

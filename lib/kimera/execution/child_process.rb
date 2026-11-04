@@ -17,8 +17,8 @@ module Kimera
 
       def lead
         Process.setpgid(0, 0)
-      rescue SystemCallError
-        nil
+      rescue Errno::EPERM
+        Process.getpgrp
       end
 
       def kill(pid)
@@ -41,10 +41,10 @@ module Kimera
         reap(pid).tap { signal(-pid) }
       end
 
-      def signal(target)
-        Process.kill("KILL", target)
-      rescue Errno::ESRCH, Errno::EPERM
-        nil
+      def signal(target, processes = Process)
+        processes.kill("KILL", target)
+      rescue Errno::ESRCH, Errno::EPERM => error
+        error
       end
 
       def shut(io)
@@ -56,7 +56,7 @@ module Kimera
       def parse(line)
         JSON.parse(line.dup.force_encoding(Encoding::UTF_8).scrub)
       rescue JSON::ParserError
-        nil
+        yield
       end
 
       def now(reading = Process.clock_gettime(Process::CLOCK_MONOTONIC)) = reading

@@ -2,6 +2,7 @@
 
 require "prism"
 require_relative "branches"
+require_relative "rescues"
 
 module Kimera
   module Syntax
@@ -33,46 +34,54 @@ module Kimera
       InstanceVariableOperatorWriteNode, LocalVariableOperatorWriteNode
     ].freeze
 
-    View =
-      Data.define(:node) do
-        def collection(splats)
-          [node.elements, splats[node.class]] if splats.key?(node.class)
-        end
-
-        def unwrap(names)
-          return unless node.is_a?(CallNode) && node.receiver && names.include?(node.name)
-          node.name unless node.arguments || node.block
-        end
-
-        def operator
-          node.binary_operator if OPERATOR_WRITES.any? { |kind| node.is_a?(kind) }
-        end
-
-        def diagnostic?(names, loggers)
-          receiver = node.receiver
-          return names.include?(node.name) unless receiver
-          logger?(receiver, loggers)
-        end
-        private
-        def logger?(receiver, loggers)
-          while receiver
-            return true if named?(receiver, loggers)
-            receiver = receiver.is_a?(CallNode) ? receiver.receiver : nil
-          end
-          false
-        end
-
-        def named?(receiver, names)
-          receiver.class.method_defined?(:name) && names.include?(receiver.name)
-        end
+    class View
+      def initialize(node)
+        @node = node
       end
+
+      def collections(splats) = splats.key?(node.class) ? [[node.elements, splats.fetch(node.class)]] : []
+
+      def unwrap(names)
+        return unless node.is_a?(CallNode) && node.receiver && names.include?(node.name)
+        node.name unless node.arguments || node.block
+      end
+
+      def operator
+        node.binary_operator if OPERATOR_WRITES.any? { |kind| node.is_a?(kind) }
+      end
+
+      def diagnostic?(names, loggers)
+        receiver = node.receiver
+        return names.include?(node.name) unless receiver
+        logger?(receiver, loggers)
+      end
+      private
+      def logger?(receiver, loggers)
+        while receiver
+          return true if named?(receiver, loggers)
+          receiver = receiver.is_a?(CallNode) ? receiver.receiver : nil
+        end
+        false
+      end
+
+      def named?(receiver, names)
+        receiver.class.method_defined?(:name) && names.include?(receiver.name)
+      end
+
+      attr_reader :node
+    end
 
     def self.parse(source, **) = Prism.parse(source, **)
 
     FORWARDING = Prism.scope(forwarding: %i[* ** & ...])
+    private_constant(:FORWARDING)
 
-    BRANCHES = ->(conditional) { Kimera::Branches.new(conditional).bodies }
+    class Fragment
+      def initialize(source)
+        @source = source
+      end
 
-    RESCUES = ->(clause) { clause ? [clause, *RESCUES.call(clause.subsequent)] : [] }
+      def tree = Prism.parse(@source, partial_script: true, scopes: [FORWARDING])
+    end
   end
 end

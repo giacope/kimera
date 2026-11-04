@@ -118,18 +118,23 @@ RSpec.describe(Kimera::FileSet) do
     end
   end
 
-  describe "#resolve" do
-    it "returns [] for a pattern that matches nothing" do
-      expect(described_class.new([]).__send__(:resolve, "nope/*.rb")).to(eq([]))
+  describe Kimera::FileSet::Glob do
+    it "finds nothing for a pattern that matches nothing" do
+      expect(described_class.new("nope/*.rb").found).to(eq([]))
+    end
+
+    it "covers a file only when the pattern matches its path", :aggregate_failures do
+      expect(described_class.new("app/legacy/**/*.rb").covers?("app/legacy/x.rb")).to(be(true))
+      expect(described_class.new("app/legacy/**/*.rb").covers?("app/models/x.rb")).to(be(false))
     end
   end
 
-  describe "#matches?" do
-    def matches?(file, patterns) = described_class.new([]).__send__(:matches?, file, patterns)
-
-    it "is true only when a pattern matches the file path", :aggregate_failures do
-      expect(matches?("app/legacy/x.rb", ["app/legacy/**/*.rb"])).to(be(true))
-      expect(matches?("app/models/x.rb", ["app/legacy/**/*.rb"])).to(be(false))
+  describe Kimera::FileSet::Exclusion do
+    it "drops only the given files its patterns cover", :aggregate_failures do
+      touch("app/legacy/y.rb")
+      files = ["app/legacy/y.rb", "app/notes.txt", "app/x.rb"]
+      expect(described_class.new(["app/legacy"]).without(files)).to(eq(["app/notes.txt", "app/x.rb"]))
+      expect(described_class.new([]).without(files)).to(eq(files))
     end
   end
 end

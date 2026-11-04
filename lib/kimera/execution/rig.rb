@@ -16,15 +16,15 @@ class Kimera::Execution::Rig
 
   def schedule = @_schedule ||= plan
 
-  def hunt(coverage, scope, settings)
+  def hunt(coverage, scope, runs)
     Kimera::Execution::FlakeHunt.new(@options.fetch(:adapter), driver, @options.fetch(:progress))
-      .call(coverage, scope, settings)
+      .call(coverage, scope, runs)
   end
 
   private
 
   def parallel
-    @_parallel ||= Kimera::Execution::WorkerDatabases.new(jobs: @options.fetch(:jobs))
+    @_parallel ||= @options.fetch(:databases) { Kimera::Execution::WorkerDatabases.new(jobs: @options.fetch(:jobs)) }
   end
 
   def pool
@@ -32,7 +32,7 @@ class Kimera::Execution::Rig
       adapter: @options.fetch(:adapter), registry: @options.fetch(:registry),
       isolation: @options.fetch(:isolation), jobs: @options.fetch(:jobs), hard: @options.fetch(:hard),
       soft: @options.fetch(:soft), paralleldb: parallel, coverage: @options[:coverage],
-      quality: @options[:test_quality], confirm: @options[:confirm_survivors]
+      quality: @options[:test_quality], confirm: @options[:confirm_survivors], **@options.slice(:zygote)
     )
   end
 

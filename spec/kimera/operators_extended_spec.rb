@@ -95,7 +95,7 @@ RSpec.describe(Kimera::Operators) do
     stub_const("ExtOps", Class.new)
     catalog = built(key)
     overlay = Kimera::Overlay.new(catalog).synthesize("ext_ops.rb", ext_source)
-    Kimera::Warnings::SILENCED.during { TOPLEVEL_BINDING.eval(overlay.source, "ext_ops.rb") }
+    Kimera::Warnings.silenced.during { TOPLEVEL_BINDING.eval(overlay.source, "ext_ops.rb") }
     active(wanted && pick(catalog, wanted)) { yield(ExtOps.new) }
   end
 
@@ -302,7 +302,7 @@ RSpec.describe(Kimera::Operators) do
 
     def rendered(catalog)
       catalog.each.map do |m, p|
-        Kimera::Rewrite::Directive.new(m.directive).render(p.original_source)
+        Kimera::Rewrite::Directive.new(m.directive).render(p.original_source).first
       end
     end
 

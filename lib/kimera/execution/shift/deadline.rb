@@ -6,18 +6,15 @@ require_relative "../time_budget"
 require_relative "../patience"
 
 class Kimera::Execution::Shift::Deadline
-  CLOCK = Kimera::Execution::Stopwatch::CLOCK
   SILENT = -> {}
 
-  attr_reader :budget
-
   class << self
-    def build(seconds, clock: CLOCK, patience: Kimera::Execution::Patience.new(seconds), **)
-      new(patience, watch: Kimera::Execution::Stopwatch.new(clock), **)
+    def build(seconds, watch: Kimera::Execution::Stopwatch.new, patience: Kimera::Execution::Patience.new(seconds), **)
+      new(patience, watch: watch, **)
     end
   end
 
-  def initialize(patience, watch:, beat: SILENT, budget: Kimera::Execution::TimeBudget::NONE)
+  def initialize(patience, watch:, beat: SILENT, budget: Kimera::Execution::TimeBudget.new({}))
     @patience = patience
     @watch = watch
     @beat = beat
@@ -33,6 +30,8 @@ class Kimera::Execution::Shift::Deadline
   end
 
   def overran?(testid, elapsed) = @budget.exceeded?(testid, elapsed)
+
+  def explain(test, runs, control) = @budget.explain(test, runs, control)
 
   private
 

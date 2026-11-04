@@ -51,7 +51,7 @@ class Kimera::Execution::WorkerPool::Fleet
     guard.progress!
   end
 
-  def remove(pipe, reason: :crash, stacks: nil)
+  def remove(pipe, reason: :crash, stacks: [])
     worker = workers.delete(pipe)
     slots.push(worker.slot)
     close(worker)
@@ -87,7 +87,7 @@ class Kimera::Execution::WorkerPool::Fleet
 
   def slots = @_slots ||= (0...@jobs).to_a
 
-  def guard = @_guard ||= Kimera::Execution::WorkerPool::StillbornGuard.new(@jobs)
+  def guard(guards = Kimera::Execution::WorkerPool::StillbornGuard) = @_guard ||= guards.new(@jobs)
 
   def spawn
     slot = slots.shift

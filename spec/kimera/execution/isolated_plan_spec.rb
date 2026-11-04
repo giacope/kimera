@@ -2,6 +2,7 @@
 
 require "fileutils"
 require "kimera/execution/isolated_plan"
+require "kimera/execution/pace"
 require "kimera/execution/test_filter"
 require "kimera/registry/builder"
 require "kimera/runtime"
@@ -21,11 +22,12 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
   let(:point) { registry.points.first }
   let(:mutant_id) { point.mutants.first.id }
 
-  def plan(**over)
+  def plan(root: ".", **over)
+    scanned = over.fetch(:registry, registry)
     described_class.new(
-      registry: registry, root: ".", tests: %w[t1 t2 t3],
+      registry: scanned, layout: Kimera::Execution::MirrorLayout.new(root, scanned), tests: %w[t1 t2 t3],
       coverage: {}, framework: "rspec", test_files: [],
-      **over
+      **over.except(:registry)
     )
   end
 
@@ -56,26 +58,27 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       :aggregate_failures do
       point.revisit!(Kimera::MutationPoint::BOOT_REASON)
       keeps = plan(filter: Kimera::Execution::TestFilter.new(registry: registry, flaky: %w[t2]))
-      expect([keeps.tests(mutant_id, point), keeps.settled(mutant_id, point)]).to(eq([%w[t1 t3], nil]))
+      expect([keeps.tests(mutant_id, point), keeps.settled(mutant_id, point)]).to(eq([%w[t1 t3], []]))
       none = plan(filter: Kimera::Execution::TestFilter.new(registry: registry, flaky: %w[t1 t2 t3]))
-      expect([none.tests(mutant_id, point), none.settled(mutant_id, point).status]).to(eq([[], :no_coverage]))
+      expect([none.tests(mutant_id, point), none.settled(mutant_id, point).map(&:status)]).to(eq([[], [:no_coverage]]))
     end
 
     def flaky_t2 = Kimera::Execution::TestFilter.new(registry: registry, flaky: %w[t2])
 
     it "screens the measured covering set too" do
       screened = plan(coverage: { mutant_id => %w[t1 t2] }, filter: flaky_t2)
-      expect([screened.tests(mutant_id, point), screened.settled(mutant_id, point)]).to(eq([["t1"], nil]))
+      expect([screened.tests(mutant_id, point), screened.settled(mutant_id, point)]).to(eq([["t1"], []]))
     end
 
     it "settles a point only screened tests cover as no_coverage" do
       flaky = plan(coverage: { mutant_id => ["t2"] }, filter: flaky_t2)
-      expect([flaky.tests(mutant_id, point), flaky.settled(mutant_id, point).status]).to(eq([[], :no_coverage]))
+      expect([flaky.tests(mutant_id, point), flaky.settled(mutant_id, point).map(&:status)])
+        .to(eq([[], [:no_coverage]]))
     end
 
     it "leaves an uncovered point to no_coverage" do
       uncovered = plan(filter: flaky_t2)
-      expect([uncovered.tests(mutant_id, point), uncovered.settled(mutant_id, point)]).to(eq([nil, nil]))
+      expect([uncovered.tests(mutant_id, point), uncovered.settled(mutant_id, point)]).to(eq([nil, []]))
     end
 
     it "returns the measured covering set (integer-keyed) when present" do
@@ -99,7 +102,8 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
 
     # --no-coverage measured nothing, so every test covers every mutant, as warm.
     it "runs the whole suite when no coverage was measured" do
-      expect(plan(coverage: nil).tests(mutant_id, point)).to(eq(%w[t1 t2 t3]))
+      unmeasured = Kimera::Execution::Unmeasured.new(FakeSuite.new(%w[t1 t2 t3]))
+      expect(plan(coverage: unmeasured).tests(mutant_id, point)).to(eq(%w[t1 t2 t3]))
     end
 
     it "runs a schema-unsafe point against the whole suite (a safe superset)" do
@@ -147,20 +151,27 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     end
   end
 
-  describe "ChildCommand#argv" do
+  describe "ChildCommand#command" do
     def child(framework: "rspec", test_files: [])
-      described_class::ChildCommand.new(framework: framework, test_files: test_files)
+      described_class::ChildCommand.new(framework: framework, test_files: test_files, root: "/project")
     end
 
-    let(:files) { ["ledger.json", "ledger.json.request", "ledger.json.pulse"] }
+    # The ruby command line the child runs for a ledger in +mirror+, with nothing else on the load path.
+    def launched(child, mirror)
+      child.command(mirror, child.request([]), ledger: File.join(mirror, "l.json"), paths: []).last
+    end
+
+    def handed(child) = Dir.mktmpdir { |mirror| launched(child, mirror).last(4).map { |part| File.basename(part) } }
+
+    let(:files) { ["l.json", "l.json.request", "l.json.pulse"] }
 
     it "passes only the ledger, its request file and its pulse to the rspec child" do
-      expect(child.argv("ledger.json")).to(eq([described_class::ChildCommand::CHILD, *files]))
+      expect(handed(child)).to(eq([File.basename(described_class::ChildCommand::CHILD), *files]))
     end
 
     it "passes only the ledger, its request file and its pulse to the minitest child" do
-      minitest = child(framework: "minitest")
-      expect(minitest.argv("ledger.json")).to(eq([described_class::ChildCommand::MINITEST_CHILD, *files]))
+      minitest = File.basename(described_class::ChildCommand::MINITEST_CHILD)
+      expect(handed(child(framework: "minitest"))).to(eq([minitest, *files]))
     end
 
     it "requests the test ids and the test files" do
@@ -176,12 +187,12 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       expect([child.request(["a"], slot: 2)["slot"], child.request(["a"]).key?("slot")]).to(eq([2, false]))
     end
 
-    # The same load path the warm run and doctor use, read in the mirror.
+    # The same load path the warm run and doctor use, read in the mirror: what stands between ruby and the child.
     it "puts the test files' folders and the mirror's test and spec on the load path", :aggregate_failures do
       Dir.mktmpdir do |mirror|
         FileUtils.mkdir_p(File.join(mirror, "test"))
         nested = child(framework: "minitest", test_files: %w[lib/x/test/a_test.rb])
-        expect([nested.helpers(mirror), child.helpers(mirror)])
+        expect([launched(nested, mirror)[1...-4], launched(child, mirror)[1...-4]])
           .to(eq([["-I", "lib/x/test", "-I", "test"], ["-I", "test"]]))
       end
     end
@@ -246,10 +257,7 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
 
     # R6B5-M4: bullet's CI runs its suite under Gemfile.rails-8.1, and the
     # mirror ran its children under ./Gemfile, which tracks Rails main.
-    def running(gemfile)
-      allow(ENV).to(receive(:fetch).and_call_original)
-      allow(ENV).to(receive(:fetch).with("BUNDLE_GEMFILE", "Gemfile").and_return(gemfile))
-    end
+    def running(gemfile) = stub_const("ENV", ENV.to_h.merge("BUNDLE_GEMFILE" => gemfile))
 
     def appraised(root)
       running(File.join(root, "Gemfile.ci"))
@@ -320,14 +328,18 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     end
   end
 
-  describe "#fastest" do
+  describe "Pace#fastest" do
+    def fastest(tests, timings = {}) = Kimera::Execution::Pace.new(timings).fastest(tests)
+
     it "orders tests by their baseline time, keeping the given order without one", :aggregate_failures do
-      expect(plan(timings: { "t1" => 2.0, "t3" => 0.1 }).fastest(%w[t1 t2 t3])).to(eq(%w[t3 t1 t2]))
-      expect(plan.fastest(%w[t2 t1])).to(eq(%w[t2 t1]))
+      expect(fastest(%w[t1 t2 t3], { "t1" => 2.0, "t3" => 0.1 })).to(eq(%w[t3 t1 t2]))
+      expect(fastest(%w[t2 t1])).to(eq(%w[t2 t1]))
     end
   end
 
-  describe "#mutables" do
+  def layout(over = registry) = Kimera::Execution::MirrorLayout.new(".", over)
+
+  describe "MirrorLayout#mutables" do
     def nested
       code = "def a(x, y)\n  x > y\nend\n"
       Kimera::Registry.new(
@@ -338,13 +350,13 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     end
 
     it "is the distinct first path segment of every mutated file" do
-      expect(plan(registry: nested).mutables).to(eq(%w[lib app]))
+      expect(layout(nested).mutables).to(eq(%w[lib app]))
     end
   end
 
-  describe "#placement" do
+  describe "MirrorLayout#placement" do
     def placements(entries)
-      entries.to_h { |entry| [entry, plan.placement(entry)] }
+      entries.to_h { |entry| [entry, layout.placement(entry)] }
     end
 
     # A boot that needs node_modules/ or a vendored bundle must load in the
@@ -359,7 +371,7 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     it "copies a would-be link that holds a mutated file, so no mutant writes through it" do
       code = "def a(x, y)\n  x > y\nend\n"
       inside = Kimera::Registry.new(points: Kimera::RegistryScan.new.source(code, file: "vendor/a.rb").points)
-      expect(plan(registry: inside).placement("vendor")).to(eq(:copy))
+      expect(layout(inside).placement("vendor")).to(eq(:copy))
     end
   end
 end

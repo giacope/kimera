@@ -9,50 +9,55 @@ module Kimera
 end
 
 class Kimera::Synthesis::Project
-  Manifest =
-    Struct.new(:files, :mutant_files, :unsafe_mutants, keyword_init: true) do
-      def record(file, destination, result)
-        files[file] = destination
-        result.mutant_ids.each { |id| mutant_files[id] = file }
-        unsafe_mutants.concat(result.skipped_unsafe)
-      end
+  class Manifest
+    def initialize(files = {}.freeze, mutant_files = {}.freeze, unsafe_mutants = [].freeze)
+      @files = files
+      @mutant_files = mutant_files
+      @unsafe_mutants = unsafe_mutants
     end
 
-  def initialize(registry, root: ".")
+    def recorded(file, destination, result)
+      placed = result.mutant_ids.to_h { |id| [id, file] }
+      self.class.new(
+        @files.merge(file => destination).freeze, @mutant_files.merge(placed).freeze,
+        [*@unsafe_mutants, *result.skipped_unsafe].freeze
+      )
+    end
+
+    def summary(written, out)
+      unsafe = @unsafe_mutants.size
+      routed = unsafe.zero? ? [] : ["  #{unsafe} mutants routed to reload fallback (memoization)."]
+      ["Synthesized #{written} files to #{out}.", "  #{@mutant_files.size} mutants on the schema path.", *routed]
+    end
+  end
+
+  def initialize(registry, root: ".", manifest: Manifest.new, synth: Kimera::Overlay.new(registry))
     @registry = registry
     @root = root
+    @manifest = manifest
+    @synth = synth
   end
 
   def write(outdir)
-    outdir = File.expand_path(outdir)
-    @registry.files.each { |file| copy(file, outdir) }
-    manifest
+    target = File.expand_path(outdir)
+    @registry.files.reduce(@manifest) do |manifest, file|
+      source = File.join(root, file)
+      next manifest unless File.file?(source)
+      result = @synth.synthesize(file, File.read(source, encoding: Encoding::UTF_8))
+      destination = File.join(target, file)
+      emit(destination, result)
+      manifest.recorded(file, destination, result)
+    end
   end
 
   private
-
-  def manifest
-    @_manifest ||= Manifest.new(files: {}, mutant_files: {}, unsafe_mutants: [])
-  end
-
-  def copy(file, outdir)
-    source = File.join(root, file)
-    return unless File.file?(source)
-    emit(file, outdir, synth.synthesize(file, File.read(source, encoding: Encoding::UTF_8)))
-  end
 
   def root
     @_root ||= File.expand_path(@root)
   end
 
-  def synth
-    @_synth ||= Kimera::Overlay.new(@registry)
-  end
-
-  def emit(file, outdir, result)
-    destination = File.join(outdir, file)
+  def emit(destination, result)
     FileUtils.mkdir_p(File.dirname(destination))
     File.write(destination, result.source)
-    manifest.record(file, destination, result)
   end
 end

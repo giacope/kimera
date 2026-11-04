@@ -17,8 +17,6 @@ class Kimera::Execution::Zygote
   FRAMES = 40
 
   class Died < StandardError
-    attr_reader :signal, :code
-
     def initialize(message, signal: nil, code: nil)
       super(message)
       @signal = signal
@@ -28,32 +26,50 @@ class Kimera::Execution::Zygote
     def last_words = message
 
     def echo(duty) = signal ? duty.die_of(signal) : duty.exit_with(code || 1)
+
+    private
+
+    attr_reader :signal, :code
   end
 
   class Raised < StandardError
-    attr_reader :kind
-
     def initialize(kind, message)
       super(message)
       @kind = kind
     end
 
     def headline = "#{kind}: #{message}"
+
+    private
+
+    attr_reader :kind
   end
 
-  Pipe =
-    Data.define(:reader, :writer) do
-      def post(text)
-        reader.close
-        writer.write(text)
-        writer.close
-      end
-
-      def take
-        writer.close
-        reader.read.tap { reader.close }
-      end
+  class Pipe
+    def initialize(reader, writer)
+      @reader = reader
+      @writer = writer
     end
+
+    def post(text)
+      reader.close
+      writer.write(text)
+      writer.close
+    end
+
+    def take
+      writer.close
+      reader.read.tap { reader.close }
+    end
+
+    private
+
+    attr_reader :reader, :writer
+  end
+
+  def initialize(exits = Kernel)
+    @exits = exits
+  end
 
   def call(&)
     pipe = Pipe.new(*IO.pipe(Encoding::UTF_8))
@@ -70,7 +86,7 @@ class Kimera::Execution::Zygote
   def spawned(pipe, saved, &)
     restore(saved)
     pipe.post(JSON.generate(outcome(&)))
-    exit!(0)
+    @exits.exit!(0)
   end
 
   def collect(pipe, pid) = settle(pipe.take, reap(pid))
@@ -91,10 +107,10 @@ class Kimera::Execution::Zygote
   end
 
   def settle(text, status)
-    payload = parse(text) || { "died" => "", "signal" => status&.termsig, "code" => status&.exitstatus }
+    payload = parse(text) { { "died" => "", "signal" => status&.termsig, "code" => status&.exitstatus } }
     raise(Died.new(payload["died"], signal: payload["signal"], code: payload["code"])) if payload.key?("died")
     raise(rebuilt(payload)) if payload.key?("raised")
-    payload["value"]
+    payload.fetch("value")
   end
 
   def rebuilt(payload)

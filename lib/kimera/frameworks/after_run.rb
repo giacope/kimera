@@ -27,8 +27,8 @@ class Kimera::Frameworks::AfterRun
     note(hook, "raised #{error.class}: #{error.message}")
   end
 
-  def note(hook, what)
-    place = where(hook).delete_prefix("#{Dir.pwd}#{File::SEPARATOR}")
+  def note(hook, what, here = Dir.pwd)
+    place = where(hook).delete_prefix("#{here}#{File::SEPARATOR}")
     @errors.puts("kimera: the suite's Minitest.after_run hook at #{place} #{what}; kimera went on")
   end
 

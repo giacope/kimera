@@ -10,7 +10,7 @@ require "kimera/results/run_report"
 require_relative "../property_helper"
 
 RSpec.describe(Kimera::RunReport) do
-  let(:statuses) { Pbt.one_of(:killed, *Kimera::Status::REPORTED) }
+  let(:statuses) { Pbt.one_of(:killed, *Kimera::RunReport::REPORTED) }
   let(:results) { Pbt.array(statuses, max: 30) }
 
   def report(outcomes)
@@ -35,7 +35,7 @@ RSpec.describe(Kimera::RunReport) do
     counts = run.counts
     facts = {
       score: run.score, total: counts[:total],
-      counted: counts.slice(*Kimera::Status::REPORTED).values.sum + outcomes.count(:killed),
+      counted: counts.slice(*Kimera::RunReport::REPORTED).values.sum + outcomes.count(:killed),
       reloaded: reloaded(run).map(&:status)
     }
     [facts, { score: score(outcomes), total: outcomes.size, counted: outcomes.size, reloaded: outcomes }]
@@ -86,7 +86,7 @@ RSpec.describe(Kimera::RunReport) do
     # More bad news never makes a failing gate pass. A kill is good news: it
     # is the evaluation an all-isolated_only run was missing.
     it "never passes once another result lands on a failing gate" do
-      bad = Pbt.one_of(*(Kimera::Status::REPORTED - Kimera::Status::KILLING))
+      bad = Pbt.one_of(*(Kimera::RunReport::REPORTED - Kimera::Status::KILLING))
       for_all(results, options, bad, runs: 300) do |outcomes, options, extra|
         next unless status(outcomes, options) == 2
         expect(status(outcomes + [extra], options)).to(eq(2), "#{extra} turned the gate green")
@@ -118,7 +118,7 @@ RSpec.describe(Kimera::RunReport) do
     def widths(total, ticks)
       tally = described_class.new(total, "mutants", 0.0)
       ticks.first(total).each_with_index.map do |status, i|
-        tally.count!(status)
+        tally = tally.counted(status)
         tally.line(i + 1.5)[/\[[^\]]*\]/].size
       end
     end

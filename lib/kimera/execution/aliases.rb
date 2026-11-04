@@ -56,8 +56,9 @@ class Kimera::Execution::Aliases
 
   Tracked = Struct.new(:resolved, :orphans)
 
-  def initialize(files)
+  def initialize(files, tracked = Tracked.new([], []))
     @files = files
+    @tracked = tracked
   end
 
   def follow(&)
@@ -77,7 +78,7 @@ class Kimera::Execution::Aliases
 
   private
 
-  def tracked = @_tracked ||= Tracked.new([], [])
+  attr_reader :tracked
 
   def watched
     @_watched ||= @files.flat_map { |file| [file, *(File.realpath(file) if File.exist?(file))] }
@@ -93,9 +94,9 @@ class Kimera::Execution::Aliases
   end
 
   def track(holder, method)
-    file = source(method)
-    return unless renamed?(method) && watched.include?(file)
-    enter(Entry.new(holder, method.name, nil, method.original_name, compiled(method)), file)
+    files = sources(method)
+    return unless renamed?(method) && files.any? { |file| watched.include?(file) }
+    enter(Entry.new(holder, method.name, nil, method.original_name, compiled(method)), files.fetch(0))
   end
 
   def enter(entry, file)
@@ -105,28 +106,30 @@ class Kimera::Execution::Aliases
   end
 
   def wrapped?(entry, file)
-    found = lookup(entry.holder, entry.target)
-    found && !alike?(source(found), file)
+    found = lookup(entry.holder, entry.target) { return false }
+    !from?(found, file)
   end
 
   def adopt(orphan, displaced)
-    found = moved(orphan, displaced) || lookup(orphan.holder, orphan.target)
-    return orphan unless found && alike?(source(found), orphan.file) && !compiled(found).equal?(orphan.body)
+    found = moved(orphan, displaced).fetch(0) { lookup(orphan.holder, orphan.target) { return orphan } }
+    return orphan unless from?(found, orphan.file) && !compiled(found).equal?(orphan.body)
     orphan.with(fresh: found)
   end
 
+  def from?(method, file) = sources(method).any? { |path| alike?(path, file) }
+
   def moved(orphan, displaced)
     ancestors = orphan.holder.ancestors
-    displaced.find { |held| held.name == orphan.target && ancestors.include?(held.holder) }&.definition
+    displaced.flat_map { |held| held.replacing(orphan.target, ancestors) }.first(1)
   end
 
   def lookup(holder, name)
     LOOKUP.bind_call(holder, name)
   rescue NameError
-    nil
+    yield
   end
 
-  def source(method) = method.source_location&.first
+  def sources(method) = Array(method.source_location).first(1)
 
   def alike?(one, other) = [one, other].map { |path| Kimera::Execution::Origin.new(path).canonical }.uniq.one?
 

@@ -6,10 +6,16 @@ module Kimera
 end
 
 class Kimera::Execution::FlakeRecord
-  Flake =
-    Data.define(:test, :failed_runs, :seeds, :failure) do
-      def to_h = super.transform_keys(&:to_s)
+  class Flake
+    def initialize(test, failed_runs, seeds, failure)
+      @test = test
+      @failed_runs = failed_runs
+      @seeds = seeds
+      @failure = failure
     end
+
+    def to_h = { "test" => @test, "failed_runs" => @failed_runs, "seeds" => @seeds, "failure" => @failure }
+  end
 
   LOST = { timeout: "timed out (--hard-timeout)" }.freeze
   CRASH = "its worker died"

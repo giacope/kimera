@@ -8,13 +8,20 @@ module Kimera
       MACROS = %i[scope has_many has_one belongs_to has_and_belongs_to_many].freeze
       SLOT = :kimera_concern_overrides
 
-      Skipping =
-        Data.define(:klass) do
-          def include?(name)
-            held, names = Thread.current[SLOT]
-            held.equal?(klass) && names.include?(name.to_s)
-          end
+      class Skipping
+        def initialize(klass)
+          @klass = klass
         end
+
+        def include?(name)
+          held, names = Thread.current[SLOT]
+          held.equal?(klass) && names.include?(name.to_s)
+        end
+
+        private
+
+        attr_reader :klass
+      end
 
       GUARD =
         Module.new do
@@ -33,7 +40,7 @@ module Kimera
 
       def reapply(block)
         @klass.singleton_class.prepend(GUARD)
-        skipping(declared) { @klass.class_eval(&block) }
+        skipping(declared { [] }) { @klass.class_eval(&block) }
       end
 
       private
@@ -51,10 +58,10 @@ module Kimera
         tree = Kimera::Syntax.parse(File.read(source, encoding: Encoding::UTF_8), filepath: source)
         after(calls(tree.value), @concern.name.split("::").last)
       rescue StandardError
-        []
+        yield
       end
 
-      def source = Object.const_source_location(@klass.name).first
+      def source = Object.const_source_location(@klass.name).fetch(0)
 
       def after(calls, tail)
         calls.drop_while { |call| !mixin?(call, tail) }.drop(1).filter_map { |call| declaration(call) }

@@ -10,11 +10,6 @@ module Kimera
 end
 
 class Kimera::Execution::BlockUse
-  REASON =
-    "its mutant leaves its method no use of the block passed to it, which Ruby settles as it compiles the " \
-      "method, and the warm overlay compiles every mutant of the method into one; the suite reports an ignored " \
-      "block, so a warm survivor is judged again in a fresh mirror against the tests near its file"
-
   def initialize(registry, root)
     @registry = registry
     @given = root
@@ -24,7 +19,7 @@ class Kimera::Execution::BlockUse
     return unless warned?
     @registry.files.each do |file|
       source = Kimera::Execution::BlockUse::Source.new(tree(file))
-      @registry.at(file).each { |point| point.revisit!(REASON) if open?(point) && source.drops?(point) }
+      @registry.at(file).each { |point| point.blocked! if open?(point) && source.drops?(point) }
     end
   end
 
@@ -34,7 +29,9 @@ class Kimera::Execution::BlockUse
 
   def root = @_root ||= File.expand_path(@given)
 
-  def tree(file) = Kimera::Rewrite::NumberedParams.new(Kimera::Syntax::Document.new(root, file).result.value).normalize
+  def tree(file, params = Kimera::Rewrite::NumberedParams)
+    params.new(Kimera::Syntax::Document.new(root, file).result.value).normalize
+  end
 
   def open?(point) = point.safe? && !point.revisit
 end

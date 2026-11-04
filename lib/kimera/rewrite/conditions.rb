@@ -13,6 +13,7 @@ module Kimera
       end
 
       def places
+        return {}.compare_by_identity unless @root
         marks(@root, @tested).each_with_object({}.compare_by_identity) { |(node, test), found| found[node] = test }
       end
 

@@ -1,11 +1,13 @@
 # frozen_string_literal: true
 
+require "json"
 require "kimera/execution/child_process"
+require "tmpdir"
 
 RSpec.describe(Kimera::Execution::ChildProcess) do
   let(:reader) { Object.new.extend(described_class) }
 
-  def parse(line) = reader.__send__(:parse, line)
+  def parse(line, &) = reader.__send__(:parse, line, &)
 
   # A pipe read under a C locale tags the worker's UTF-8 bytes as US-ASCII.
   it "parses a worker's UTF-8 line whatever encoding the pipe tagged it with" do
@@ -24,18 +26,25 @@ RSpec.describe(Kimera::Execution::ChildProcess) do
     expect(line.encoding).to(eq(Encoding::BINARY))
   end
 
-  # A stream that closed its descriptor when collected would free 1 or 2 for
-  # the next pipe the child opens.
-  it "points a descriptor at the null device through a stream that never closes it", :aggregate_failures do
-    stream = instance_double(IO, reopen: :discarded)
-    allow(IO).to(receive(:for_fd).and_return(stream))
-    expect(reader.__send__(:discard, 2)).to(eq(:discarded))
-    expect(IO).to(have_received(:for_fd).with(2, autoclose: false))
-    expect(stream).to(have_received(:reopen).with(File::NULL, "w"))
+  # The descriptor itself moves, so code that writes to 1 or 2 without Ruby's
+  # streams (a C extension, a subshell) writes to the null device too.
+  # A file's descriptor, discarded: whether the stream answered is on it, where it then points, and what a
+  # write to the stream took.
+  def discarded
+    Dir.mktmpdir do |dir|
+      File.open(File.join(dir, "out.txt"), "w") do |file|
+        stream = reader.__send__(:discard, file.fileno)
+        [stream.fileno == file.fileno, File.readlink("/proc/self/fd/#{file.fileno}"), stream.write("x")]
+      end
+    end
   end
 
-  it "skips a line that isn't JSON" do
-    expect(parse("!!not json!!")).to(be_nil)
+  it "points the descriptor itself at the null device, and answers a stream on it" do
+    expect(discarded).to(eq([true, File::NULL, 1]))
+  end
+
+  it "hands a line that isn't JSON to its caller's block" do
+    expect(parse("!!not json!!") { :unparsed }).to(eq(:unparsed))
   end
 
   describe "process groups" do
@@ -61,11 +70,23 @@ RSpec.describe(Kimera::Execution::ChildProcess) do
       expect(group).to(eq(pid))
     end
 
-    # The fork above records no coverage for `lead`; this runs it in-process.
-    it "leaves a child in its parent's group when it can't lead one of its own", :aggregate_failures do
-      allow(Process).to(receive(:setpgid).and_raise(Errno::EPERM))
-      expect(call(:lead)).to(be_nil)
-      expect(Process).to(have_received(:setpgid).with(0, 0))
+    # A session leader may not move to another group: what lead answers in a forked one, and its group.
+    def unmoved
+      said, told = IO.pipe
+      pid =
+        fork do
+          Process.setsid
+          told.puts(JSON.generate([call(:lead), Process.getpgrp]))
+        ensure
+          exit!(0)
+        end
+      told.close
+      JSON.parse(said.read).tap { Process.wait(pid) }
+    end
+
+    it "leaves a child in the group it is in when it can't lead one of its own" do
+      led, group = unmoved
+      expect(led).to(eq(group))
     end
 
     it "kills a child and everything it started", :aggregate_failures do
@@ -89,11 +110,16 @@ RSpec.describe(Kimera::Execution::ChildProcess) do
       expect(witness.outlived?).to(be(false))
     end
 
-    it "shrugs off a group that is gone or out of reach", :aggregate_failures do
-      allow(Process).to(receive(:kill).and_raise(Errno::ESRCH))
-      expect(call(:signal, 12_345)).to(be_nil)
-      allow(Process).to(receive(:kill).and_raise(Errno::EPERM))
-      expect(call(:signal, 12_345)).to(be_nil)
+    it "shrugs off a process that is gone, answering why it could not signal it" do
+      gone = fork { exit!(0) }.tap { |pid| Process.wait(pid) }
+      expect(call(:signal, gone)).to(be_a(Errno::ESRCH))
+    end
+
+    # Processes as a user may not signal one they do not own.
+    def foreign = Class.new { def kill(_signal, target) = raise(Errno::EPERM, target.to_s) }.new
+
+    it "shrugs off a process out of reach, answering why it could not signal it" do
+      expect(call(:signal, 12_345, foreign)).to(be_a(Errno::EPERM))
     end
   end
 end

@@ -2,18 +2,18 @@
 
 require_relative "../pace"
 
-Kimera::Execution::Shift::KillerMemory =
-  Struct.new(:pace, :recent) do
-    limit = 16
-    def initialize(pace = Kimera::Execution::Pace::STILL, recent = []) = super
+class Kimera::Execution::Shift::KillerMemory
+  LIMIT = 16
 
-    def order(tests)
-      likely = recent & tests
-      likely + pace.fastest(tests - likely)
-    end
-    define_method(:remember) do |testid|
-      recent.delete(testid)
-      recent.unshift(testid)
-      recent.pop while recent.size > limit
-    end
+  def initialize(pace = Kimera::Execution::Pace.new({}), recent = [].freeze)
+    @pace = pace
+    @recent = recent
   end
+
+  def order(tests)
+    likely = @recent & tests
+    likely + @pace.fastest(tests - likely)
+  end
+
+  def remembered(test) = self.class.new(@pace, [test, *(@recent - [test])].first(LIMIT).freeze)
+end

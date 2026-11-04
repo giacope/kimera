@@ -3,8 +3,8 @@
 require_relative "memory_databases"
 
 class Kimera::Execution::ParentConnections
-  def release!
-    return if Kimera::Execution::MemoryDatabases.new.current?
+  def release!(databases = Kimera::Execution::MemoryDatabases.new)
+    return if databases.current?
     pools.each(&:disconnect!)
   rescue StandardError
     nil

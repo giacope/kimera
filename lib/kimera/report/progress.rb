@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "phase"
 require_relative "screen"
-require_relative "tally"
 
 module Kimera
   module Report
@@ -10,31 +10,24 @@ end
 
 class Kimera::Report::Progress
   MONOTONIC = ->(reading = Process.clock_gettime(Process::CLOCK_MONOTONIC)) { reading }
+  PACED = lambda(&:cadence)
+  UNSEEN = ->(_status = nil) {}
 
-  def initialize(io: $stderr, enabled: nil, interval: nil, clock: MONOTONIC)
+  def initialize(io: $stderr, enabled: nil, cadence: PACED, clock: MONOTONIC)
     @io = io
     @enabled = enabled
-    @redraw = interval
+    @cadence = cadence
     @clock = clock
   end
 
-  def start(total, label = "mutants")
-    phases << Kimera::Report::Tally.new(Integer(total), label, @clock.call)
-    emit if visible?
-  end
-
-  def tick(status = nil)
-    tally.count!(status)
-    emit if visible? && (tally.complete? || due?)
-  end
-
-  def finish
-    return surface.clear unless phases.last.complete?
-    surface.commit
+  def during(total, label = "mutants", &)
+    count = Integer(total)
+    return yield(UNSEEN) unless enabled? && count.positive?
+    shown(Kimera::Report::Phase.new(surface, Kimera::Report::Tally.new(count, label, @clock.call), frame), &)
   end
 
   def note(text)
-    surface.note(text) if enabled? && !screen.interactive?
+    write(["kimera: #{text}\n"]) if enabled? && !screen.interactive?
   end
 
   private
@@ -45,20 +38,26 @@ class Kimera::Report::Progress
 
   def surface = @_surface ||= screen.surface
 
-  def tally = phases.last
+  def frame = Kimera::Report::Frame.new(@cadence.call(surface))
 
-  def phases = @_phases ||= [Kimera::Report::Tally.new(0, nil, 0.0)]
-
-  def visible? = enabled? && tally.running?
-
-  def due? = surface.due?(@clock.call, cadence)
-
-  def cadence = @redraw || surface.cadence
-
-  def emit
-    now = @clock.call
-    surface.paint(frame(now), now)
+  def shown(phase, &)
+    painted, ink = phase.painted(@clock.call)
+    write(ink)
+    ticking(painted, &)
   end
 
-  def frame(now) = screen.interactive? ? tally.line(now) : tally.plain(now)
+  def ticking(phase)
+    lock = Mutex.new
+    step = ->(status) { phase.ticked(status, @clock).tap { |_ticked, ink| write(ink) }.first }
+    yield(->(status = nil) { lock.synchronize { phase = step.call(status) } })
+  ensure
+    write(phase.finished)
+  end
+
+  def write(ink)
+    ink.each do |text|
+      @io.print(text)
+      @io.flush
+    end
+  end
 end

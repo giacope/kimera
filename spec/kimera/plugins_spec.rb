@@ -7,10 +7,10 @@ require "kimera/plugins"
 require_relative "../../examples/operators/kimera_plugin"
 
 # The example plugin registers on load; reset so each example starts from the built-ins.
-Kimera::Operators::CATALOG.reset!
+Kimera::Operators::ROSTER.reset!
 
 RSpec.describe(Kimera::Plugins) do
-  after { Kimera::Operators::CATALOG.reset! }
+  after { Kimera::Operators::ROSTER.reset! }
 
   def plugin(dir, body)
     File.join(dir, "plugin.rb").tap { |path| File.write(path, body) }
@@ -69,7 +69,7 @@ RSpec.describe(Kimera::Plugins) do
     end
 
     it "registers one operator per example file" do
-      expect(Kimera::Operators::CATALOG.custom.map { it.new.key }).to(match_array(keys))
+      expect(Kimera::Operators::ROSTER.custom.map { it.new.key }).to(match_array(keys))
     end
 
     it "builds host operators alongside the built-ins under 'custom'" do

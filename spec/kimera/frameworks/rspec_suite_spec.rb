@@ -102,7 +102,8 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
   it "seeds a run's random numbers from the run's seed and its first example's id", :aggregate_failures do
     passing = ids.find { |id| adapter.describe(id) == "KimeraDemo passes" }
     seeded(9) { quietly { adapter.run([passing]) } }
-    expect(rand(1_000_000)).to(eq(Random.new(Kimera::Seed.new("KIMERA_SEED" => "9").for(passing)).rand(1_000_000)))
+    seed = Kimera::Seed.new("KIMERA_SEED" => "9").for(passing).fetch(0)
+    expect(rand(1_000_000)).to(eq(Random.new(seed).rand(1_000_000)))
   end
 
   it "describes an unknown id as itself" do
@@ -348,13 +349,20 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
     end
   end
 
+  # The load path of a fresh process that built the suite and sourced no file in the project at +dir+.
+  def sourced_load_path
+    fresh_lines(<<~RUBY, dir)
+      require "kimera/frameworks/rspec_suite"
+      Kimera::Frameworks::RSpecSuite.build.source([])
+      puts($LOAD_PATH)
+    RUBY
+  end
+
   # rspec puts lib and the spec folder on the load path whatever .rspec says.
+  # In this process RSpec's project root is kimera's own, so a fresh one shows it.
   it "puts the project's lib folder on the load path before loading test files" do
-    FileUtils.mkdir_p([File.join(dir, "lib"), File.join(dir, "spec")])
-    added = []
-    allow(RSpec::Core::RubyProject).to(receive(:add_to_load_path) { |*dirs| added.concat(dirs) })
-    Dir.chdir(dir) { quietly { described_class.build.source([]) } }
-    expect(added).to(include("lib"))
+    lib = File.join(dir, "lib").tap { |folder| FileUtils.mkdir_p([folder, File.join(dir, "spec")]) }
+    expect(sourced_load_path.any? { |path| File.exist?(path) && File.identical?(path, lib) }).to(be(true))
   end
 
   it "returns passed for an empty / unknown selection", :aggregate_failures do
@@ -401,7 +409,7 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
 
   describe "narrowing the filtered-example table" do
     def narrow(filtered, wanted, &)
-      world = instance_double(RSpec::Core::World, filtered_examples: filtered)
+      world = Struct.new(:filtered_examples).new(filtered)
       Kimera::Frameworks::GroupScope.new(wanted, world).narrow(&)
     end
 

@@ -34,8 +34,8 @@ RSpec.describe(Kimera::Location) do
   end
 
   it "builds from a prism location" do
-    prism = double(start_offset: 10, length: 5, start_line: 2, start_column: 4, end_line: 3, end_column: 6)
-    location = described_class.parse(prism)
+    span = Data.define(:start_offset, :length, :start_line, :start_column, :end_line, :end_column)
+    location = described_class.parse(span.new(10, 5, 2, 4, 3, 6))
     expect(location.to_h).to(eq(sample.to_h))
   end
 end

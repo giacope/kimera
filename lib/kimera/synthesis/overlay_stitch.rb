@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
 require_relative "guard_splice"
+require_relative "method_splice"
 require_relative "overlay_splice"
+require_relative "splice_reopening"
 
 class Kimera::Overlay::Stitch
   include Kimera::OverlaySplice
@@ -13,27 +15,33 @@ class Kimera::Overlay::Stitch
     @unsafe = unsafe
   end
 
-  def result
+  def results
     whole = enclosing(weave.rest)
-    rewritten = whole&.map { |definition, mine| rewrite(definition, mine) }
-    stitched(whole, rewritten) if rewritten&.all?
+    rewritten = whole&.map { |held| splicer.rewrite(*held) { [] } }
+    rewritten&.all?(&:any?) ? stitched(whole, rewritten.flatten(1)) : []
   end
 
   private
 
-  def weave = @_weave ||= Kimera::GuardSplice.new(@map, @safe)
+  def weave(splices = Kimera::GuardSplice) = @_weave ||= splices.new(@map, @safe)
+
+  def splicer = Kimera::Overlay::MethodSplice.new(@file, @map, @safe, @unsafe)
 
   def stitched(whole, rewritten)
     source = spliced(whole, rewritten)
+    return [] unless source
     applied = weave.applied - whole.flat_map(&:last).flat_map(&:ids) + rewritten.flat_map(&:last)
-    build(applied, [], source) if source && unwoven?(source, whole.map(&:first))
+    splicer.woven(applied, source, whole.map(&:first))
   end
 
   def spliced(whole, rewritten)
     kept = weave.edits.reject { |edit| whole.any? { |definition, _| covers?(definition, edit) } }
-    edits = (kept + rewritten.map { |edit| edit.first(3) } + reopenings).sort_by { |from, to, _| [from, to] }
-    @map.splice(edits) if disjoint?(edits) && @map.lines_kept?(edits)
+    edits = [*kept, *rewritten.map { |edit| edit.first(3) }, *Kimera::SpliceReopening.new(@map).edits]
+    ordered = edits.sort_by { |from, to, _| [from, to] }
+    @map.splice(ordered) if disjoint?(ordered) && kept?(ordered)
   end
+
+  def kept?(edits) = edits.all? { |from, to, text| Kimera::LinePad.new(@map.slice(from, to)).kept?(text) }
 
   def disjoint?(edits) = edits.each_cons(2).all? { |left, right| left[1] <= right.first }
 

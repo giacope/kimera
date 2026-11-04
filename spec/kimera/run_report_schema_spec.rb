@@ -33,7 +33,7 @@ RSpec.describe(Kimera::RunReport, :aggregate_failures) do
   end
 
   it "names every count, and every status a count or result can hold" do
-    statuses = (Kimera::Status::REPORTED + [:killed]).map(&:to_s)
+    statuses = (Kimera::RunReport::REPORTED + [:killed]).map(&:to_s)
     expect(properties.dig("counts", "properties").keys).to(match_array(document.fetch("counts").keys))
     expect(properties.dig("results", "items", "properties", "status", "enum")).to(match_array(statuses))
   end

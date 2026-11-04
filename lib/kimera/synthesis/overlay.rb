@@ -29,6 +29,8 @@ class Kimera::Overlay
 
   UNWRITTEN = "kimera could not write it"
   MISREAD = "what it wrote reads back as another program"
+  UNMATCHED = "no node to guard: kimera found nothing of its kind where the point was scanned"
+  private_constant(:UNMATCHED)
 
   def initialize(registry)
     @registry = registry
@@ -37,22 +39,22 @@ class Kimera::Overlay
   def synthesize(file, source)
     safe, unsafe = @registry.at(file).partition(&:safe?)
     return unsafe(file, source, unsafe) if safe.empty?
-    Kimera::Overlay::FileWeave.new(file, Kimera::SourceMap.new(source), safe, unsafe).result
+    map = Kimera::SourceMap.new(source)
+    Kimera::Overlay::FileWeave.new(file, map, safe, unsafe).result
   end
 
   def bake(_file, source, id)
-    pair = @registry.point(id)
-    return source unless pair
+    pair = @registry.point(id) { return source }
     map = Kimera::SourceMap.new(source)
-    checked(map, pair.last, spliced(map, *pair) || write(map, baked(map, *pair), pair.last))
+    checked(map, pair.last, spliced(map, *pair).fetch(0) { write(map, baked(map, *pair), pair.last) })
   end
 
   private
 
   def spliced(map, mutant, point)
     changed = Kimera::Guardrail.new(map, []).changes(point, mutant.directive)
-    expected, original = changed && expectation(changed.last&.last || map.ast, map.ast)
-    return unless expected
+    expected, original = changed && expectation(changed.last&.last || map.ast, map.ast) { return [] }
+    return [] unless expected
     raise(Unbakeable, "#{UNWRITTEN} (the mutant reads as the original)") if expected == original
     Kimera::BakeSplice.new(map, changed, expected).source
   end
@@ -60,7 +62,7 @@ class Kimera::Overlay
   def expectation(*trees)
     trees.map { |tree| Kimera::Scribe.new(tree).source }
   rescue StandardError
-    nil
+    yield
   end
 
   def checked(map, point, text)
@@ -71,7 +73,7 @@ class Kimera::Overlay
 
   def baked(map, mutant, point)
     Kimera::Guardrail.new(map, []).bake(point, mutant.directive) ||
-      raise(Unbakeable, Kimera::Overlay::FileWeave::UNMATCHED)
+      raise(Unbakeable, UNMATCHED)
   end
 
   def write(map, tree, point)
@@ -82,8 +84,9 @@ class Kimera::Overlay
   end
 
   def grafted(map, tree, point, cause)
-    Kimera::Overlay::MethodBake.new(map, tree).source(point.location) ||
+    Kimera::Overlay::MethodBake.new(map, tree).source(point.location).fetch(0) do
       raise(Unbakeable, "kimera could not write its bake (#{cause})")
+    end
   end
 
   def unsafe(file, source, points)

@@ -11,8 +11,8 @@ class Kimera::Operators::RegexpQuantifier < Kimera::Operators::RegexpSyntax
   private
 
   def rewrites(source, token)
-    return [] unless token.kind == :quantifier
-    text = token.text
+    return [] unless token.kind?(:quantifier)
+    text = token.to_s
     replacements(text).map { |replacement| rewrite(source, token, replacement, "`#{text}` => `#{replacement}`") }
   end
 

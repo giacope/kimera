@@ -7,6 +7,13 @@ class Kimera::GuardSite
   OPENED = %i[string_node symbol_node x_string_node interpolated_string_node interpolated_symbol_node array_node].freeze
   ENCLOSING = %i[defined_node match_write_node alias_method_node alias_global_variable_node undef_node].freeze
   NESTED = %w[_target_node _parameter_node _pattern_node].freeze
+  HELD = %i[
+    statements_node arguments_node parameters_node block_parameters_node block_node embedded_statements_node
+    embedded_variable_node else_node when_node in_node rescue_node ensure_node implicit_node implicit_rest_node
+    keyword_hash_node multi_target_node begin_node def_node flip_flop_node match_last_line_node
+    interpolated_match_last_line_node block_argument_node assoc_node assoc_splat_node splat_node
+    class_node module_node singleton_class_node program_node
+  ].freeze
   LOOPS = %i[while_node until_node].freeze
 
   def initialize(index)
@@ -43,7 +50,7 @@ class Kimera::GuardSite
 
   def placeable?(node)
     type = node.type
-    return false if Kimera::SpliceDiff::HELD.include?(type) || type.end_with?(*NESTED)
+    return false if HELD.include?(type) || type.end_with?(*NESTED)
     return false if OPENED.include?(type) && !opened?(node)
     parent = @index.parent(node)
     !ENCLOSING.include?(parent.type) && !parent.type.start_with?("interpolated_") && !captured?(node, parent)

@@ -21,7 +21,7 @@ RSpec.describe(Kimera::Execution::TimeBudget) do
   end
 
   it "has no baselines at all when none were measured" do
-    expect(described_class::NONE.exceeded?("t1", 1e9)).to(be(false))
+    expect(described_class.new({}).exceeded?("t1", 1e9)).to(be(false))
   end
 
   it "explains a verdict with the runs, the budget and how it was set" do

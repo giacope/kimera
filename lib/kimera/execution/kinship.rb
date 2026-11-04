@@ -14,7 +14,7 @@ class Kimera::Execution::Kinship
   end
 
   def order(id, tests)
-    (related(@registry.index.fetch(id, Kimera::MutationPoint::NONE)) & tests) | tests
+    (related(@registry.index.fetch(id) { Kimera::MutationPoint.none }) & tests) | tests
   end
 
   private

@@ -9,9 +9,14 @@ RSpec.describe(Kimera::Execution::BaselineFailure::Summary) do
 
   let(:workers) { failed.each_slice(20).with_index.to_h { |ids, slot| [slot, ids] } }
 
+  # The circumstances of a red baseline: a serial run unless told otherwise.
+  def context(workers: {}, jobs: 1, ordered: [])
+    described_class::Context.new(workers: workers, stacks: {}, jobs: jobs, ordered: ordered)
+  end
+
   def message(jobs: 4)
-    context = described_class::SERIAL.with(workers: workers, jobs: jobs)
-    described_class.new(failed, failed.to_h { |id| [id, "Errno::ENOENT"] }, "cmd", context).to_s
+    messages = failed.to_h { |id| [id, "Errno::ENOENT"] }
+    described_class.new(failed, messages, "cmd", context(workers: workers, jobs: jobs)).to_s
   end
 
   it "lists the first ten failing tests, one per line, then how many more", :aggregate_failures do
@@ -35,12 +40,12 @@ RSpec.describe(Kimera::Execution::BaselineFailure::Summary) do
     expect(message.lines.last).to(eq("  ran on 4 workers: #{described_class::SHARED}"))
     expect(message(jobs: 1).lines.last).to(eq("  reproduce without kimera: cmd"))
     shared = "\n  ran on 2 workers: #{described_class::SHARED}"
-    expect(described_class.new(%w[t1], {}, "cmd", described_class::SERIAL.with(jobs: 2)).to_s)
+    expect(described_class.new(%w[t1], {}, "cmd", context(jobs: 2)).to_s)
       .to(eq("baseline suite is not green: t1\n  reproduce without kimera: cmd#{shared}"))
   end
 
   def ordered(failed, ordered, jobs: 1)
-    described_class.new(failed, {}, "cmd", described_class::SERIAL.with(ordered: ordered, jobs: jobs)).to_s
+    described_class.new(failed, {}, "cmd", context(ordered: ordered, jobs: jobs)).to_s
   end
 
   it "calls a suite order-dependent when every failing test passes in order, and names them", :aggregate_failures do

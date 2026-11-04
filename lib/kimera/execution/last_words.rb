@@ -1,13 +1,11 @@
 # frozen_string_literal: true
 
 require_relative "fault"
-require_relative "stack_dump"
+require_relative "frames"
 
 using Kimera::Execution::Fault
 
 class Kimera::Execution::LastWords
-  HARNESS = Kimera::Execution::StackDump::HARNESS
-  MAX_FRAMES = Kimera::Execution::StackDump::MAX_FRAMES
   UNTRAPPED = "nothing trapped %s: a test that signals its own process must trap the signal first, " \
     "or be left out with --exclude-test"
 
@@ -21,8 +19,8 @@ class Kimera::Execution::LastWords
 
   def frames
     trace = Array(@error.backtrace)
-    own = trace.take_while { |frame| !frame.start_with?(HARNESS) }
-    (own.empty? ? trace : own).first(MAX_FRAMES).map { |frame| "  #{frame.delete_prefix("#{Dir.pwd}/")}" }
+    own = Kimera::Execution::Frames.new(trace).own
+    Kimera::Execution::Frames.new(own.empty? ? trace : own).lines
   end
 
   def advice = @error.is_a?(SignalException) ? [format(UNTRAPPED, @error.message)] : []

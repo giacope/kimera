@@ -11,7 +11,9 @@ require_relative "baseline_screen"
 require_relative "baseline_pass"
 require_relative "baseline_stall"
 require_relative "boot"
+require_relative "flake_runs"
 require_relative "child_process"
+require_relative "isolated"
 require_relative "isolation"
 require_relative "load_trace"
 require_relative "order_trace"
@@ -25,20 +27,22 @@ require_relative "schemata"
 require_relative "verdicts"
 require_relative "shift"
 require_relative "time_budget"
+require_relative "unmeasured"
 require_relative "worker_pool"
 
 class Kimera::Execution::Harness
   include Kimera::Execution::ChildProcess
 
-  Context = Data.define(:registry, :adapter, :options)
   State = Struct.new(:skipped, :irrelevant, :isolation, :recovered, :aliases)
 
   class << self
-    def build(registry:, adapter:, **options) = new(Context.new(registry, adapter, options), State.new({}, {}, nil, {}))
+    def build(registry:, adapter:, **options) = new(registry, adapter, options, State.new({}, {}, nil, {}))
   end
 
-  def initialize(context, state)
-    @context = context
+  def initialize(registry, adapter, options, state)
+    @registry = registry
+    @adapter = adapter
+    @options = options
     @state = state
   end
 
@@ -63,29 +67,25 @@ class Kimera::Execution::Harness
 
   def isolate! = (state.isolation = boot.isolate(isolation))
 
-  def run(ids: mutants, label: "mutants")
-    schedule.run(ids, coverage: coverage, label: label)
-  end
+  def run(ids: mutants, label: "mutants") = schedule.run(ids, coverage: coverage, label: label)
 
-  def coverage = options[:coverage]
+  def coverage = options.fetch(:coverage) { Kimera::Execution::Unmeasured.new(adapter) }
+
+  def isolated(executions = Kimera::Execution::IsolatedExecution, **) = executions.new(coverage:, timings:, **)
 
   def timings = options.fetch(:timings, {})
 
-  def flakes = options[:flakes]
+  def noted(report) = report.annotate(flaky: options[:flakes]&.to_h)
 
   def skipped = state.skipped
 
   private
 
-  attr_reader :context, :state
-
-  def registry = context.registry
-  def adapter = context.adapter
-  def options = context.options
+  attr_reader :registry, :adapter, :options, :state
 
   def root = options.fetch(:source_root, ".")
 
-  def errors = options.fetch(:errio, $stderr)
+  def errors(standard = $stderr) = options.fetch(:errio, standard)
 
   def isolation = state.isolation ||= options.fetch(:isolation) { Kimera::Execution::Isolation.new }
 
@@ -95,25 +95,27 @@ class Kimera::Execution::Harness
 
   def jobs = @_jobs ||= [Integer(options.fetch(:jobs, 1)), 1].max
 
-  def progress = options.fetch(:progress, Kimera::Execution::NullProgress::NONE)
+  def progress = options.fetch(:progress) { Kimera::Execution::NullProgress.new }
 
   def driver = rig.driver
 
-  def spawner = rig.spawner
-
   def schedule = rig.schedule
 
-  def rig
-    @_rig ||= Kimera::Execution::Rig.new(
+  def rig = @_rig ||= options.fetch(:rig) { rigged }
+
+  def rigged
+    Kimera::Execution::Rig.new(
       registry: registry, adapter: adapter, isolation: isolation, root: root, soft: soft, hard: hard, jobs: jobs,
       coverage: coverage, spawner: options[:spawner], progress: progress, aliases: state.aliases,
-      **options.slice(:filter, :test_quality, :confirm_survivors)
+      **options.slice(:filter, :test_quality, :confirm_survivors, :zygote)
     )
   end
 
-  def trace = @_trace ||= Kimera::Execution::LoadTrace.new(registry, root)
+  def trace = @_trace ||= options.fetch(:trace) { Kimera::Execution::LoadTrace.new(registry, root) }
 
-  def boot = @_boot ||= Kimera::Execution::Boot.new(adapter: adapter, isolate: options[:isolate_db], errors: errors)
+  def boot = @_boot ||= options.fetch(:boot) { booted }
+
+  def booted = Kimera::Execution::Boot.new(adapter: adapter, isolate: options[:isolate_db], errors: errors)
 
   def complete(loader)
     state.skipped = loader.skipped
@@ -135,12 +137,12 @@ class Kimera::Execution::Harness
   def sift!(scope)
     trace.quarantine!(coverage)
     Kimera::Execution::OrderTrace.new(registry).follow!(baseline, coverage, scope: scope, progress: progress)
-    options[:flakes] = rig.hunt(coverage, scope, options)
+    options[:flakes] = rig.hunt(coverage, scope, reruns)
   end
 
-  def arm(timings)
-    driver.arm(coverage: coverage, budget: budget(timings), timings: timings)
-  end
+  def reruns = Kimera::Execution::FlakeRuns.new(*options.values_at(:seed, :flaky_runs, :filter))
+
+  def arm(timings) = driver.arm(coverage: coverage, budget: budget(timings), timings: timings)
 
   def parallel(pass)
     pass.parallel!(jobs) do |ids, width, listeners|
@@ -154,13 +156,15 @@ class Kimera::Execution::Harness
   end
 
   def budget(timings)
-    return Kimera::Execution::TimeBudget::NONE if options[:relative_timeout] == false
+    return Kimera::Execution::TimeBudget.new({}) if options[:relative_timeout] == false
     Kimera::Execution::TimeBudget.new(timings, **tuning)
   end
 
   def tuning = { factor: options[:timeout_factor], slack: options[:timeout_slack] }.compact
 
-  def baseline = Kimera::Execution::BaselinePass.new(adapter:, registry:, root:, **options.slice(:progress, :measured))
+  def baseline
+    Kimera::Execution::BaselinePass.new(adapter:, registry:, root:, **options.slice(:progress, :measured, :zygote))
+  end
 
   def screen = Kimera::Execution::BaselineScreen.new(adapter: adapter, root: root, jobs: jobs).call(state.irrelevant)
 

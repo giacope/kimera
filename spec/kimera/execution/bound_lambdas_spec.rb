@@ -2,7 +2,7 @@
 
 require "fileutils"
 require "kimera/execution/schemata"
-require "kimera/execution/verdicts"
+require "kimera/execution/triage"
 require "kimera/registry/builder"
 require "tmpdir"
 
@@ -66,7 +66,10 @@ RSpec.describe(Kimera::Execution::BoundLambdas, :aggregate_failures) do
     [taken, verdict(registry)]
   end
 
-  def verdict(registry) = Kimera::Execution::Verdicts.new(registry).quarantine(registry.points.first.ids.first).status
+  def verdict(registry)
+    triage = Kimera::Execution::Triage.new(Kimera::Execution::Verdicts.new(registry))
+    triage.quarantine(registry.points.first.ids.first).status
+  end
 
   it "keeps the constant bound to the lambda the suite took, and calls its mutants isolated_only" do
     taken, status = chained

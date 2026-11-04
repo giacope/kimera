@@ -2,22 +2,19 @@
 
 require_relative "surface"
 
-class Kimera::Report::Log
-  include Kimera::Report::Surface
-
+class Kimera::Report::Log < Kimera::Report::Surface
   HEARTBEAT_EVERY = 30.0
-
-  def initialize(io)
-    @io = io
-  end
 
   def cadence = HEARTBEAT_EVERY
 
-  def commit = clear
+  def painted(frame, tally, now)
+    line = tally.plain(now)
+    [frame.over(line, now), ["#{line}\n"]]
+  end
 
   private
 
-  def frame(text) = "#{text}\n"
+  def commit(frame) = wipe(frame)
 
-  def wipe = @io.flush
+  def wipe(_frame) = ""
 end

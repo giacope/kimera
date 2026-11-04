@@ -15,7 +15,5 @@ module Kimera
     class EmptySurvey
       def include?(_node) = false
     end
-
-    Survey::NONE = EmptySurvey.new
   end
 end

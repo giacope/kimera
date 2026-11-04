@@ -19,8 +19,6 @@ end
 # For a spec that drives the harness but is not about forking: a zygote
 # mutant then fails the zygote's own specs instead of ending this process.
 RSpec.shared_context("with an inline zygote") do
-  before do
-    inline = InlineZygote.new
-    allow(Kimera::Execution::Zygote).to(receive(:new).and_return(inline))
-  end
+  # The harness of +options+, whose zygotes run their blocks in this process.
+  def inline(**) = Kimera::Execution::Harness.build(zygote: InlineZygote.new, **)
 end

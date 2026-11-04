@@ -26,7 +26,7 @@ RSpec.describe(Kimera::IgnoreList) do
   end
 
   def ids(rule)
-    described_class.new([rule]).ids(registry)
+    described_class.new([rule]).resolve(registry).to_h[:ids]
   end
 
   it "matches by file + line + label" do
@@ -42,8 +42,8 @@ RSpec.describe(Kimera::IgnoreList) do
 
   it "matches only points that start on the line given as starts:, not ones spanning it", :aggregate_failures do
     multi = Kimera::RegistryScan.new.source("def m(a)\n  if a\n    a > 1\n  end\nend\n", file: "m.rb")
-    starting = described_class.new([{ file: "m.rb", starts: 3 }]).ids(multi)
-    spanning = described_class.new([{ file: "m.rb", line: 3 }]).ids(multi)
+    starting = described_class.new([{ file: "m.rb", starts: 3 }]).resolve(multi).to_h[:ids]
+    spanning = described_class.new([{ file: "m.rb", line: 3 }]).resolve(multi).to_h[:ids]
     expect(starting.map { |id| multi.index[id].location.start_line }.uniq).to(eq([3]))
     expect(spanning.size).to(be > starting.size)
   end
@@ -83,7 +83,7 @@ RSpec.describe(Kimera::IgnoreList) do
 
   it "returns nothing for a non-matching rule", :aggregate_failures do
     expect(ids(file: "calc.rb", line: 999)).to(be_empty)
-    expect(described_class.new([]).ids(registry)).to(be_empty)
+    expect(described_class.new([]).resolve(registry).to_h[:ids]).to(be_empty)
   end
 
   it "matches nothing for a rule that omits the file field", :aggregate_failures do
@@ -115,30 +115,30 @@ RSpec.describe(Kimera::IgnoreList) do
     expect(ids(file: "calc.rb", line: 3, column: 999)).to(be_empty)
   end
 
-  describe ".stale" do
+  describe "stale rules" do
     it "flags a rule whose file is in the registry but whose anchor drifted" do
       drifted = { file: "calc.rb", line: 999, label: "> => <", original: "x >= y" }
-      expect(described_class.new([drifted]).stale(registry)).to(eq([drifted]))
+      expect(described_class.new([drifted]).resolve(registry).to_h[:stale]).to(eq([drifted]))
     end
 
     it "does not flag a matching rule" do
       live = { file: "calc.rb", line: 3, label: "> => <" }
-      expect(described_class.new([live]).stale(registry)).to(be_empty)
+      expect(described_class.new([live]).resolve(registry).to_h[:stale]).to(be_empty)
     end
 
     it "does not flag a rule for a file outside this run's scope" do
       ignored = { file: "lib/kimera.rb", line: 3 }
-      expect(described_class.new([ignored]).stale(registry)).to(be_empty)
+      expect(described_class.new([ignored]).resolve(registry).to_h[:stale]).to(be_empty)
     end
 
     it "flags a rule whose file no longer exists, which no scope can hold", :aggregate_failures do
       gone = { file: "lib/kimera/gone.rb", line: 3, label: "> => <" }
-      expect(described_class.new([gone]).stale(registry)).to(eq([gone]))
-      expect(described_class.new([{ file: "lib/**/gone_*.rb", line: 3 }]).stale(registry)).to(be_empty)
+      expect(described_class.new([gone]).resolve(registry).to_h[:stale]).to(eq([gone]))
+      expect(described_class.new([{ file: "lib/**/gone_*.rb", line: 3 }]).resolve(registry).to_h[:stale]).to(be_empty)
     end
 
     it "ignores rules without a file field" do
-      expect(described_class.new([{ line: 3 }]).stale(registry)).to(be_empty)
+      expect(described_class.new([{ line: 3 }]).resolve(registry).to_h[:stale]).to(be_empty)
     end
   end
 
@@ -170,51 +170,52 @@ RSpec.describe(Kimera::IgnoreList) do
     it "re-anchors a drifted line when the label singles out one mutant", :aggregate_failures do
       rule = { file: "calc.rb", line: 2, label: "> => <" }
       resolution = resolve(rule)
-      expect(resolution.ids).to(eq([labeled("> => <", 3)]))
-      expect(resolution.moved).to(eq([Kimera::IgnoreList::Shift.new(rule, 3)]))
-      expect(resolution.stale).to(be_empty)
+      expect(resolution.to_h[:ids]).to(eq([labeled("> => <", 3)]))
+      expect(resolution.to_h[:moved]).to(eq([Kimera::IgnoreList::Shift.new(rule, 3).to_s]))
+      expect(resolution.to_h[:stale]).to(be_empty)
     end
 
     it "leaves a rule stale when its label matches several mutants in the file" do
       rule = { file: "calc.rb", line: 2, label: "< => >" }
       resolution = resolve(rule)
-      expect([resolution.ids, resolution.moved, resolution.stale]).to(eq([[], [], [rule]]))
+      expect(resolution.to_h.values_at(:ids, :moved, :stale)).to(eq([[], [], [rule]]))
     end
 
     it "still requires the original snippet and the method when re-anchoring", :aggregate_failures do
-      expect(resolve({ file: "calc.rb", line: 2, label: "> => <", original: "x < y" }).ids).to(be_empty)
-      expect(resolve({ file: "calc.rb", line: 2, label: "< => >", method: "c" }).ids).to(eq([labeled("< => >", 11)]))
+      expect(resolve({ file: "calc.rb", line: 2, label: "> => <", original: "x < y" }).to_h[:ids]).to(be_empty)
+      expect(resolve({ file: "calc.rb", line: 2, label: "< => >", method: "c" }).to_h[:ids])
+        .to(eq([labeled("< => >", 11)]))
     end
 
     it "re-anchors only rules that carry both a line and a label", :aggregate_failures do
-      expect(resolve({ file: "calc.rb", line: 2 }).ids).to(be_empty)
-      expect(resolve({ file: "calc.rb", label: "> => <" }).moved).to(be_empty)
+      expect(resolve({ file: "calc.rb", line: 2 }).to_h[:ids]).to(be_empty)
+      expect(resolve({ file: "calc.rb", label: "> => <" }).to_h[:moved]).to(be_empty)
     end
 
     it "keeps a label-less rule stale even when its file holds a single mutant", :aggregate_failures do
       lone = Kimera::RegistryScan.new.source("def m(a)\n  !a\nend\n", file: "lone.rb")
       rule = { file: "lone.rb", line: 9 }
       expect(lone.count).to(eq(1))
-      expect(described_class.new([rule]).resolve(lone).then { |found| [found.ids, found.stale] }).to(eq([[], [rule]]))
+      expect(described_class.new([rule]).resolve(lone).to_h.values_at(:ids, :stale)).to(eq([[], [rule]]))
     end
 
     it "leaves stale, rather than re-anchors, rules drifting onto a mutant another rule claims", :aggregate_failures do
       twins = [{ file: "calc.rb", line: 2, label: "> => <" }, { file: "calc.rb", line: 4, label: "> => <" }]
-      expect(resolve(*twins).then { [it.ids, it.moved, it.stale] }).to(eq([[], [], twins]))
+      expect(resolve(*twins).to_h.values_at(:ids, :moved, :stale)).to(eq([[], [], twins]))
       exact = { file: "calc.rb", line: 3, label: "> => <" }
       resolution = resolve(twins.first, exact)
-      expect([resolution.ids, resolution.stale]).to(eq([[labeled("> => <", 3)], [twins.first]]))
+      expect(resolution.to_h.values_at(:ids, :stale)).to(eq([[labeled("> => <", 3)], [twins.first]]))
     end
 
     it "reports no move for a rule that still matches at its line" do
-      expect(resolve({ file: "calc.rb", line: 3, label: "> => <" }).moved).to(be_empty)
+      expect(resolve({ file: "calc.rb", line: 3, label: "> => <" }).to_h[:moved]).to(be_empty)
     end
 
     it "unions the ids of several rules on the same file, in id order" do
       first = labeled("> => <", 3)
       last = labeled("< => >", 11)
       rules = [{ file: "calc.rb", line: 11, label: "< => >" }, { file: "calc.rb", line: 3, label: "> => <" }]
-      expect(resolve(*rules, rules.first).ids).to(eq([first, last]))
+      expect(resolve(*rules, rules.first).to_h[:ids]).to(eq([first, last]))
     end
   end
 end

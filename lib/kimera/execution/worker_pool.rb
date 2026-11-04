@@ -7,13 +7,14 @@ require_relative "child_process"
 class Kimera::Execution::WorkerPool
   include Kimera::Execution::ChildProcess
 
-  Context = Data.define(:queue, :spawner, :listeners, :options)
-
   POLL_INTERVAL = 0.2
   CHUNK = 65_536
 
-  def initialize(context)
-    @context = context
+  def initialize(queue, spawner, listeners, options)
+    @queue = queue
+    @spawner = spawner
+    @listeners = listeners
+    @options = options
   end
 
   def run
@@ -31,19 +32,19 @@ class Kimera::Execution::WorkerPool
     worker.offer(id, recheck: fleet.recheck?(id))
   end
 
-  def lost(id, reason, stacks = nil) = listeners.lost.call(id, reason, stacks)
+  def lost(id, reason, stacks = []) = listeners.lost(id, reason, stacks)
 
   private
 
-  attr_reader :context
+  attr_reader :listeners
 
-  def listeners = context.listeners
+  def limit = @options.fetch(:hard_timeout)
 
-  def limit = context.options.fetch(:hard_timeout)
+  def fleet = @_fleet ||= @options.fetch(:fleet) { manned }
 
-  def fleet
-    @_fleet ||= Kimera::Execution::WorkerPool::Fleet.new(
-      queue: context.queue, spawner: context.spawner, jobs: context.options.fetch(:jobs), pool: self
+  def manned
+    Kimera::Execution::WorkerPool::Fleet.new(
+      queue: @queue, spawner: @spawner, jobs: @options.fetch(:jobs), pool: self
     )
   end
 
@@ -62,7 +63,7 @@ class Kimera::Execution::WorkerPool
     worker = fleet.fetch(pipe)
     chunk = pipe.read_nonblock(CHUNK, exception: false)
     return hangup(pipe, worker) unless chunk
-    worker.lines(chunk).each { |line| deliver(worker, line) } unless chunk == :wait_readable
+    worker.feed(chunk) { |line| deliver(worker, line) } unless chunk == :wait_readable
   end
 
   def hangup(pipe, worker)
@@ -71,33 +72,35 @@ class Kimera::Execution::WorkerPool
   end
 
   def deliver(worker, line)
-    message = parse(line)
-    dispatch(worker.heard(message, limit), message) if message
+    message = parse(line) { return }
+    dispatch(worker.heard(message, limit), message)
   end
 
   def dispatch(worker, message)
     case message["t"]
     when "result" then finish(worker, message)
     when "ready" then assign(worker)
-    when "leak", "requeue" then close(worker) if relay(message)
+    when "leak" then relay(message)
+    when "requeue" then requeue(worker, message)
     end
   end
 
-  def relay(message)
-    listeners.resolve.call(message)
-    requeue = message["t"] == "requeue"
-    fleet.requeue(message["id"]) if requeue
-    requeue
+  def relay(message) = listeners.resolved(message)
+
+  def requeue(worker, message)
+    relay(message)
+    fleet.requeue(message["id"])
+    close(worker)
   end
 
   def finish(worker, message)
     fleet.done!(message["id"])
     fleet.progress!
-    listeners.resolve.call(message)
+    relay(message)
     worker.idle!
   end
 
-  def trace(slot, id) = listeners.trace&.call(slot, id)
+  def trace(slot, id) = listeners.traced(slot, id)
 
   def close(worker) = shut(worker.retire(limit))
 

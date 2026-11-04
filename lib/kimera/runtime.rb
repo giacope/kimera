@@ -8,7 +8,6 @@ end
 # rubocop:disable-next Kata/FrozenState, Kata/NoSetter -- the process-wide mutation switch every thread and Ractor reads
 class Kimera::Runtime < Module
   SOURCE_PATH = File.expand_path(__FILE__)
-  BELOW = Module.instance_method(:<)
 
   Ledger =
     Struct.new(:ids, :spill) do
@@ -23,7 +22,9 @@ class Kimera::Runtime < Module
         touched
       end
 
-      def leak = self.spill ||= File.join(Dir.tmpdir, "kimera-ledger-#{Process.pid}-#{object_id}-#{rand(1 << 32)}")
+      def leak(dir = Dir.tmpdir, random = Random)
+        self.spill ||= File.join(dir, "kimera-ledger-#{Process.pid}-#{object_id}-#{random.rand(1 << 32)}")
+      end
 
       def absorb
         return unless spill && File.exist?(spill)
@@ -48,7 +49,6 @@ class Kimera::Runtime < Module
   def initialize
     super
     @active = nil
-    @overlaying = false
     @ledgers = NONE
     @spills = NONE
   end
@@ -88,15 +88,6 @@ class Kimera::Runtime < Module
     self.active = previous
   end
 
-  def overlaying? = @overlaying
-
-  def overlay
-    @overlaying = true
-    yield
-  ensure
-    @overlaying = false
-  end
-
   def privatize(id, owner, name)
     hidden.register(Integer(id), Flip.new(owner, owner.instance_method(name), []), @active)
     self
@@ -128,7 +119,7 @@ class Kimera::Runtime < Module
 
   def publish = @spills = Ractor.make_shareable(leaks)
 
-  def hidden = @_hidden ||= Hidden.new({}, [])
+  def hidden(kind = Hidden) = @_hidden ||= kind.new({}, [])
 end
 
 Kimera::Runtime::Hidden =
@@ -149,6 +140,7 @@ Kimera::Runtime::Hidden =
 
 Kimera::Runtime::Survey =
   Data.define(:flips) do
+    inherits = Module.instance_method(:<)
     def run
       return if flips.empty?
       found = below
@@ -161,9 +153,8 @@ Kimera::Runtime::Survey =
       ObjectSpace.each_object(Module) { |each| place(owners, found, each) }
       found
     end
-
-    def place(owners, found, each)
-      owners.each { |owner| found[owner] << each if Kimera::Runtime::BELOW.bind_call(each, owner) }
+    define_method(:place) do |owners, found, each|
+      owners.each { |owner| found[owner] << each if inherits.bind_call(each, owner) }
     end
   end
 

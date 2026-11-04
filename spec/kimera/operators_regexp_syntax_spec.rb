@@ -11,10 +11,10 @@ RSpec.describe(Kimera::Operators) do
   end
 
   def patterns(code, *keys)
-    scan(code, *keys).each.map { |m, p| Kimera::Rewrite::Directive.new(m.directive).render(p.original_source) }
+    scan(code, *keys).each.map { |m, p| Kimera::Rewrite::Directive.new(m.directive).render(p.original_source).first }
   end
 
-  def tokens(source) = Kimera::Operators::RegexpTokens.new(source).tokens.map { [it.kind, it.text] }
+  def tokens(source) = Kimera::Operators::RegexpTokens.new(source).tokens.map(&:to_a)
 
   describe Kimera::Operators::RegexpTokens do
     it "finds anchors and quantifiers with their modifiers", :aggregate_failures do

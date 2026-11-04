@@ -11,11 +11,11 @@ module Kimera
       def text
         value = @node.value
         target = type == :constant_path_write_node ? part(@node.target) : @node.name.to_s
-        own = type == :local_variable_write_node ? Set[@node.name] : Binders::NONE
-        "#{target} = #{pen_of(value).bound(own).write(value, value_floor(value))}"
+        own = type == :local_variable_write_node ? Set[@node.name] : NO_NAMES
+        "#{target} = #{bound(value, own, value_floor(value))}"
       end
 
-      def level = Level::ASSIGNMENT
+      def level = ASSIGNMENT
     end
 
     class Compound < Form
@@ -32,10 +32,10 @@ module Kimera
 
       def text
         value = @node.value
-        "#{target} #{operator}= #{pen_of(value).bound(Set[*own]).write(value, value_floor(value))}"
+        "#{target} #{operator}= #{bound(value, Set[*own], value_floor(value))}"
       end
 
-      def level = Level::ASSIGNMENT
+      def level = ASSIGNMENT
 
       private
 
@@ -69,9 +69,9 @@ module Kimera
     class Multiple < Form
       TYPES = %i[multi_write_node].freeze
 
-      def text = "#{Targets.new(@node, @pen).items} = #{part(@node.value, value_floor(@node.value))}"
+      def text = "#{Targets.new(@node, @pen, @scope, @mode).items} = #{part(@node.value, value_floor(@node.value))}"
 
-      def level = Level::STATEMENT
+      def level = STATEMENT
     end
 
     class Attribute < Form

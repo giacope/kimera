@@ -75,6 +75,19 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
     expect(point(registry, "reach_optional.rb").unsafe_reason).to(eq("#{Kimera::MutationPoint::NEVER} #{failed}"))
   end
 
+  # A file whose class the suite reaches through an autoload that raises on load.
+  def broken_autoload
+    stub_const("ReachLazy", Module.new).autoload(:Broken, write("reach_broken.rb", "raise \"broken on load\"\n"))
+    "module ReachLazy\n  class Broken\n    def self.big?(n) = n > 1\n  end\nend\nReachLazy::Broken.big?(1)\n"
+  end
+
+  it "reports a file whose autoload raises, uncovered with the error" do
+    registry, loader = unasked("reach_lazy.rb", broken_autoload)
+    loader.overlay!
+    failed = "(nor could kimera load it: RuntimeError: broken on load)"
+    expect(point(registry, "reach_lazy.rb").unsafe_reason).to(eq("#{Kimera::MutationPoint::NEVER} #{failed}"))
+  end
+
   # R5-KL5: kramdown's parser registry (`@@parsers = {}` in an autoloaded class body) was emptied.
   it "loads an autoloaded file as the suite would, then trims it, so its class body runs once", :aggregate_failures do
     stub_const("ReachReg", Module.new)

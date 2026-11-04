@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "frames"
+
 module Kimera
   module Execution
   end
@@ -10,8 +12,6 @@ class Kimera::Execution::StackDump
   GRACE = 1.0
   POLL = 0.02
   MAX_THREADS = 8
-  MAX_FRAMES = 12
-  HARNESS = File.expand_path("..", __dir__)
   HEADER = "threads in the worker when it was killed:"
   PAUSE = Kernel.method(:sleep)
   CLOCK = ->(reading = Process.clock_gettime(Process::CLOCK_MONOTONIC)) { reading }
@@ -31,9 +31,9 @@ class Kimera::Execution::StackDump
 
   def take(pid)
     ask(pid)
-    collect(path(pid))
+    [collect(path(pid))]
   rescue Errno::ESRCH
-    nil
+    []
   end
 
   private
@@ -71,15 +71,15 @@ class Kimera::Execution::StackDump
 
   def describe(thread)
     frames = own(Array(thread.backtrace))
-    shown = frames.first(MAX_FRAMES).map { |frame| "  #{frame.delete_prefix("#{Dir.pwd}/")}" }
-    ["#{label(thread)} (#{thread.status || "dead"}):", *shown, *more(frames.size - MAX_FRAMES, "  … %d more frame(s)")]
+    ["#{label(thread)} (#{thread.status || "dead"}):", *frames.lines, *more(frames.hidden, "  … %d more frame(s)")]
       .join("\n")
   end
 
   def more(hidden, text) = hidden.positive? ? [format(text, hidden)] : []
 
   def own(frames)
-    frames.drop_while { |frame| frame.start_with?(__FILE__) }.take_while { |frame| !frame.start_with?(HARNESS) }
+    outer = frames.drop_while { |frame| frame.start_with?(__FILE__) }
+    Kimera::Execution::Frames.new(Kimera::Execution::Frames.new(outer).own)
   end
 
   def label(thread)

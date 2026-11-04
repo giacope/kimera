@@ -8,7 +8,7 @@ class Kimera::Overlay::Source
   end
 
   def evaluate(path)
-    Kimera::Warnings::SILENCED.during { compiled(path).eval }
+    Kimera::Warnings.silenced.during { compiled(path).eval }
   end
 
   private

@@ -54,7 +54,7 @@ RSpec.describe(Kimera::Execution::Shift) do
   def worker(coverage: nil, catches: {}, adapter: nil, **settings)
     described_class.new(
       adapter: adapter || test_adapter_class.new(catches: catches),
-      registry: registry, coverage: coverage,
+      registry: registry, **{ coverage: coverage }.compact,
       soft_timeout: nil, zygote: InlineZygote.new, **settings
     )
   end
@@ -142,7 +142,7 @@ RSpec.describe(Kimera::Execution::Shift) do
     def evaluate(id, coverage:, **)
       described_class.new(
         adapter: test_adapter_class.new(**),
-        registry: registry, coverage: coverage,
+        registry: registry, **{ coverage: coverage }.compact,
         soft_timeout: nil, zygote: InlineZygote.new
       ).evaluate(id)
     end
@@ -266,26 +266,22 @@ RSpec.describe(Kimera::Execution::Shift) do
     # The walk stops at the first failure, so order decides how many tests run.
     it "tries the most recent killer first on the next mutant", :aggregate_failures do
       adapter, shift = killer_pair
-      shift.evaluate(ids.first)
-      adapter.runs.clear
-      expect(shift.evaluate(ids[1]).status).to(eq(:killed))
-      expect(adapter.runs).to(eq([["killer"]])) # slow skipped this time
+      shift.run(ids.first(2), io)
+      expect(messages(io).first(2).map { |message| message["status"] }).to(eq(%w[killed killed]))
+      expect(adapter.runs.drop(3)).to(eq([["killer"]])) # slow skipped this time
     end
 
     # A duplicate would take a RECENT_KILLERS slot and evict "x" one kill early.
     it "keeps a re-killed test from consuming ledger capacity" do
-      memory = Kimera::Execution::Shift::KillerMemory.new
-      %w[x a b].each { |t| memory.remember(t) }
-      memory.remember("a") # re-kill: move, not append
-      13.times { |i| memory.remember("c#{i}") }
+      memory = %w[x a b a].reduce(Kimera::Execution::Shift::KillerMemory.new) { |known, t| known.remembered(t) }
+      memory = 13.times.reduce(memory) { |known, i| known.remembered("c#{i}") } # the second a moves, not appends
 
       # x is the 16th most recent distinct killer, so still kept.
       expect(memory.order(%w[z x])).to(eq(%w[x z]))
     end
 
     it "retains exactly RECENT_KILLERS killers, evicting oldest-first", :aggregate_failures do
-      memory = Kimera::Execution::Shift::KillerMemory.new
-      (1..17).each { |i| memory.remember("k#{i}") }
+      memory = (1..17).reduce(Kimera::Execution::Shift::KillerMemory.new) { |known, i| known.remembered("k#{i}") }
 
       # k2 is the 16th most recent, so kept. k1 was evicted.
       expect(memory.order(%w[z k2])).to(eq(%w[k2 z]))
@@ -299,9 +295,21 @@ RSpec.describe(Kimera::Execution::Shift) do
       expect(memory.order(%w[slow untimed mid fast tie])).to(eq(%w[fast mid tie slow untimed]))
     end
 
+    # A timeout or a doubt names no killer; the memory folds past it unchanged.
+    it "keeps the killers it knew across verdicts that kill nothing" do
+      memory = Kimera::Execution::Shift::KillerMemory.new.remembered("killer")
+      verdicts = [
+        Kimera::Execution::Shift::Stall.new("t", "expired", 0.1),
+        Kimera::Execution::Shift::Doubt.new("t", "boom", contradicted: false),
+        Kimera::Execution::Shift::Lag.new("t", "crawled", contradicted: true)
+      ]
+      known = verdicts.reduce(memory) { |held, verdict| verdict.taught(held) }
+      expect(known.order(%w[other killer])).to(eq(%w[killer other]))
+    end
+
     it "still tries a recent killer before a faster test" do
       memory = Kimera::Execution::Shift::KillerMemory.new(Kimera::Execution::Pace.new({ "slow" => 2.0, "fast" => 0.1 }))
-      memory.remember("slow")
+        .remembered("slow")
       expect(memory.order(%w[fast slow])).to(eq(%w[slow fast]))
     end
 

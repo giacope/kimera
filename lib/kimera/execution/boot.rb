@@ -5,7 +5,7 @@ require_relative "isolation"
 require_relative "memory_databases"
 
 class Kimera::Execution::Boot
-  def initialize(adapter:, isolate:, errors: nil)
+  def initialize(adapter:, isolate:, errors: $stderr)
     @adapter = adapter
     @isolate = isolate
     @errors = errors
@@ -20,9 +20,9 @@ class Kimera::Execution::Boot
   end
 
   def load!
-    loader&.call
+    eager.each(&:eager_load!)
   rescue StandardError => error
-    (@errors || $stderr).puts(failure(error))
+    @errors.puts(failure(error))
   end
 
   def isolate(isolation)
@@ -51,16 +51,9 @@ class Kimera::Execution::Boot
     SQLite3::ForkSafety.singleton_class.prepend(memory::SPARED) if defined?(SQLite3::ForkSafety)
   end
 
-  def application
-    Rails.application
-  rescue NameError
-    nil
-  end
-
-  def loader
-    application&.method(:eager_load!)
-  rescue NameError
-    nil
+  def eager
+    return [] unless defined?(Rails.application)
+    [Rails.application].select { |application| application.respond_to?(:eager_load!) }
   end
 
   def failure(error)

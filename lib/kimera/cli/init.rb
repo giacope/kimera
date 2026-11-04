@@ -7,6 +7,7 @@ require_relative "../scope/config"
 require_relative "../scope/file_set"
 require_relative "config_template"
 require_relative "flag"
+require_relative "outcome"
 require_relative "rails_layout"
 require_relative "rspec_options"
 require_relative "test_definitions"
@@ -15,7 +16,7 @@ class Kimera::CLI::Init
   OPTIONS = Kimera::FlagTable.new(
     banner: "Usage: kimera init [options]",
     flags: [
-      Kimera::FORCE_FLAG.with(help: "Replace an existing .kimera.yml"),
+      Kimera::Flag.build("--force", :force, "Replace an existing .kimera.yml"),
       Kimera::Flag.build("--dry-run", :dry_run, "Print the detected configuration without writing it")
     ]
   )
@@ -27,56 +28,39 @@ class Kimera::CLI::Init
     "rspec" => %w[spec/system/**/*_spec.rb spec/features/**/*_spec.rb]
   }.freeze
   JOBS = 4
+  FURTHER = [Kimera::Operators::WhenClause, Kimera::Operators::AppendDeletion].freeze
   MINITEST = %r{minitest/autorun|Minitest::Test|ActiveSupport::TestCase}
   LOCKS = %w[Gemfile.lock gems.locked].freeze
   LOCKED = { "rspec" => /^    rspec-core \(/, "minitest" => /^    minitest \(/ }.freeze
   DOCUMENT = ->(**fields) { fields.transform_keys(&:to_s) }
+  NEXT = "Next: kimera doctor"
 
-  def initialize(io: $stdout, errors: $stderr, root: ".")
-    @io = io
-    @errors = errors
+  def initialize(root: ".", processors: Etc.nprocessors, **)
     @root = root
+    @processors = processors
   end
 
   def run(argv)
     _, options = OPTIONS.parse(argv, { force: false, dry_run: false })
     options[:dry_run] ? preview : write(options)
-  rescue Kimera::UsageError => error
-    usage(error)
   end
 
   private
 
-  def usage(error)
-    @errors.puts("kimera: #{error.message}")
-    1
-  end
-
-  def preview
-    @io.write(template)
-    0
-  end
+  def preview = Kimera::CLI::Outcome::Written.new(template)
 
   def write(options)
-    path = File.join(@root, Kimera::Config::DEFAULT_PATH)
-    overwrite(path) if File.exist?(path) && !options[:force]
-    File.write(path, template)
-    announce
+    config = Kimera::Config.of(@root)
+    config.create(options[:force]) { template }
+    Kimera::CLI::Outcome::Said.new("Created #{config} for #{framework}.", NEXT)
   end
 
   def template = Kimera::CLI::ConfigTemplate.new(detected).render
 
-  def overwrite(path) = raise(Kimera::UsageError, "#{path} already exists (use --force to replace it)")
-
-  def announce
-    @io.puts("Created #{Kimera::Config::DEFAULT_PATH} for #{framework}.", "Next: kimera doctor")
-    0
-  end
-
   def detected
     DOCUMENT.call(
       framework: framework, paths: sources, tests: tests, **left_out, operators: operators,
-      jobs: [Etc.nprocessors, JOBS].min, max_survivors: 0, max_errors: 0, count_no_coverage: true
+      jobs: [@processors, JOBS].min, max_survivors: 0, max_errors: 0, count_no_coverage: true
     )
   end
 
@@ -87,15 +71,14 @@ class Kimera::CLI::Init
 
   def rails_app? = Kimera::CLI::RailsLayout.new(@root).rails?
 
-  def operators = [*Kimera::Operators::INIT_KEYS, *("rails" if rails_app?)]
+  def operators = [*Kimera::Operators.build.map(&:key), *FURTHER.map { it.new.key }, *("rails" if rails_app?)]
 
-  def framework = @_framework ||= declared || bundled || layout
+  def framework = @_framework ||= declared.fetch(0) { bundled.fetch(0) { layout } }
 
   def declared
-    return "rspec" if File.file?(File.join(@root, ".rspec"))
-    return "minitest" if minitest_only?
-    helper = present(HELPERS)
-    helper && framework_named_in(File.read(helper, encoding: Encoding::UTF_8).scrub)
+    return ["rspec"] if File.file?(File.join(@root, ".rspec"))
+    return ["minitest"] if minitest_only?
+    present(HELPERS).flat_map { |helper| framework_named_in(File.read(helper, encoding: Encoding::UTF_8).scrub) }
   end
 
   def minitest_only?
@@ -106,20 +89,20 @@ class Kimera::CLI::Init
   def text(path) = File.read(path, encoding: Encoding::UTF_8).scrub
 
   def framework_named_in(text)
-    return "minitest" if text.match?(MINITEST)
-    return "rspec" if text.match?(/\bRSpec\b|require\s*\(?\s*["']rspec/)
-    "minitest" if text.match?(/minitest/i)
+    return ["minitest"] if text.match?(MINITEST)
+    return ["rspec"] if text.match?(/\bRSpec\b|require\s*\(?\s*["']rspec/)
+    text.match?(/minitest/i) ? ["minitest"] : []
   end
 
   def bundled
-    lock = present(LOCKS)
-    return unless lock
-    text = File.read(lock, encoding: Encoding::UTF_8).scrub
-    found = LOCKED.select { |_name, line| text.match?(line) }.keys
-    found.first if found.one?
+    present(LOCKS).flat_map do |lock|
+      text = File.read(lock, encoding: Encoding::UTF_8).scrub
+      found = LOCKED.select { |_name, line| text.match?(line) }.keys
+      found.one? ? found : []
+    end
   end
 
-  def present(names) = names.map { |name| File.join(@root, name) }.find { |path| File.file?(path) }
+  def present(names) = names.lazy.map { |name| File.join(@root, name) }.select { |path| File.file?(path) }.first(1)
 
   def layout
     File.directory?(File.join(@root, "test")) && !File.directory?(File.join(@root, "spec")) ? "minitest" : "rspec"
@@ -127,7 +110,7 @@ class Kimera::CLI::Init
 
   def sources
     paths = %w[app/**/*.rb lib/**/*.rb].select { |glob| Dir.glob(File.join(@root, glob)).any? }
-    paths.empty? ? Kimera::FileSet::DEFAULT_GLOBS : paths
+    paths.empty? ? Kimera::FileSet.default.to_a : paths
   end
 
   def tests

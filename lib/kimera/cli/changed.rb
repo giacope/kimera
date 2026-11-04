@@ -5,15 +5,14 @@ require_relative "argv"
 require_relative "run"
 
 class Kimera::CLI::Changed
-  def initialize(io: $stdout, errors: $stderr)
-    @io = io
-    @errors = errors
+  def initialize(io: $stdout, errors: $stderr, run: Kimera::CLI::Run.new(io: io, errors: errors))
+    @run = run
   end
 
   def run(argv)
     arguments = argv.dup
     arguments.unshift("--since", reference) unless Kimera::CLI::Argv.new(arguments).option?("--since")
-    Kimera::CLI::Run.new(io: @io, errors: @errors).run(arguments)
+    @run.run(arguments)
   end
 
   private

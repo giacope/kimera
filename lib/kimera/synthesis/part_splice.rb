@@ -23,6 +23,8 @@ class Kimera::PartSplice
 
   def body = parts.first&.location || @literal.content_loc
 
+  def verbatim? = @literal.opening_loc.slice.match?(VERBATIM)
+
   private
 
   def parts = @literal.respond_to?(:parts) ? @literal.parts : []
@@ -48,13 +50,13 @@ class Kimera::PartSplice
 
   def depth
     return 0 unless @literal.opening_loc.slice.start_with?(SQUIGGLY)
-    starts.filter_map { |text| width(text) }.min || 0
+    starts.flat_map { |text| widths(text) }.min || 0
   end
 
   def starts = parts.select { |part| part.location.start_column.zero? }.map { |part| part.location.slice }
 
-  def width(text)
+  def widths(text)
     indent = text[INDENT].size
-    indent unless text[indent] == "\n"
+    text[indent] == "\n" ? [] : [indent]
   end
 end

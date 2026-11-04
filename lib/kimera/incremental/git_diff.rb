@@ -25,7 +25,7 @@ class Kimera::Incremental::GitDiff
     end
 
     def feed(text)
-      text.each_line.reduce([nil, 0]) { |(file, pending), line| advance(line, file, pending) }
+      text.each_line.reduce([File::NULL, 0]) { |(file, pending), line| advance(line, file, pending) }
       @files
     end
 
@@ -34,20 +34,15 @@ class Kimera::Incremental::GitDiff
     def advance(line, file, pending)
       return [file, pending - 1] if pending.positive? && line.start_with?("+")
       header = line.match(FILE_HEADER)
-      return [named(header), pending] if header
+      return [header[1], pending] if header
       hunk = line.match(HUNK_HEADER)
       hunk ? collect(hunk, file) : [file, pending]
-    end
-
-    def named(header)
-      path = header[1]
-      path unless path == File::NULL
     end
 
     def collect(match, file)
       span = match[2]
       pending = span ? Integer(span, 10) : 1
-      range(file, Integer(match[1], 10), pending) if file && pending.positive?
+      range(file, Integer(match[1], 10), pending) if file != File::NULL && pending.positive?
       [file, pending]
     end
 
@@ -57,7 +52,7 @@ class Kimera::Incremental::GitDiff
     end
   end
 
-  def initialize(since:, root: ".", paths: nil)
+  def initialize(since:, root: ".", paths: [])
     @since = since
     @root = root
     @paths = paths
@@ -77,7 +72,7 @@ class Kimera::Incremental::GitDiff
 
   def failure
     Kimera::Incremental::DiffError.new(
-      "git diff against #{@since.inspect} failed (unknown ref, not a git repository, or git missing)#{shallow}"
+      "git diff against #{@since.inspect} failed (unknown ref, not a git repository, or git missing)#{shallow { "" }}"
     )
   end
 
@@ -85,7 +80,7 @@ class Kimera::Incremental::GitDiff
     out, = Open3.capture2("git", "-C", @root.to_s, "rev-parse", "--is-shallow-repository", err: File::NULL)
     out.strip == "true" ? "; this clone is shallow, so fetch the base ref (actions/checkout: fetch-depth: 0)" : ""
   rescue Errno::ENOENT
-    ""
+    yield
   end
 
   def read
@@ -97,7 +92,7 @@ class Kimera::Incremental::GitDiff
 
   def command
     invocation = ["git", "-C", @root.to_s, *BASEFLAGS, base]
-    invocation += ["--", *Array(@paths)] if @paths
+    invocation += ["--", *@paths] unless @paths.empty?
     invocation
   end
 

@@ -19,7 +19,7 @@ class Kimera::Registry
   end
 
   def narrowed(changed)
-    kept = @unmutated.select { |region| region.touches?(Array(changed[region.file])) }
+    kept = @unmutated.select { |region| region.touched?(changed) }
     self.class.new(points: @points, operators: @operators, root: @root, unmutated: kept)
   end
 
@@ -53,11 +53,11 @@ class Kimera::Registry
   end
 
   def mutant(id)
-    lookup[id]
+    lookup.fetch(id)
   end
 
-  def point(id)
-    paired[id]
+  def point(id, &)
+    paired.fetch(id, &)
   end
 
   def keys
@@ -92,7 +92,7 @@ class Kimera::Registry
 
   def write(path)
     File.write(path, JSON.pretty_generate(to_h))
-    path
+    self
   end
 
   class << self

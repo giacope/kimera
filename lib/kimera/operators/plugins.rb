@@ -12,7 +12,7 @@ module Kimera
 
     def load!
       Array(@paths).each { |path| pull(path) }
-      Kimera::Operators::CATALOG.custom
+      Kimera::Operators.custom
     end
 
     private

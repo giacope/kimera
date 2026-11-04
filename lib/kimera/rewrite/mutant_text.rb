@@ -6,32 +6,30 @@ require_relative "numbered_params"
 require_relative "../scribe"
 
 class Kimera::Rewrite::MutantText
-  UNWRITTEN = "(kimera could not write this mutant's text; its label says what changed)"
-
   def initialize(point, mutant, root: ".")
     @point = point
     @mutant = mutant
     @root = root
   end
 
-  def text = directive.render(@point.original_source) || placed
+  def texts = [-> { directive.render(@point.original_source) }, -> { placed { [] } }].lazy.flat_map(&:call).first(1)
 
   private
 
   def directive = Kimera::Rewrite::Directive.new(@mutant.directive)
 
   def placed
-    program = Kimera::Rewrite::NumberedParams.new(Kimera::Scribe.parse(source)).normalize
-    found(program)&.then { |node| Kimera::Scribe.new(directive.apply(node)).at(program, node).source }
+    program = Kimera::Rewrite::NumberedParams.of(source).normalize
+    found(program).map { |node| Kimera::Scribe.new(directive.apply(node)).at(program, node).source }
   rescue StandardError
-    nil
+    yield
   end
 
   def source = File.read(File.join(@root, @point.file), encoding: Encoding::UTF_8)
 
   def found(program)
     nodes = Kimera::Rewrite::AstWalk.new(program).to_enum(:visit)
-    nodes.find { |node| node.location.start_offset == @point.location.start_offset && same?(node) }
+    nodes.lazy.select { |node| node.location.start_offset == @point.location.start_offset && same?(node) }.first(1)
   end
 
   def same?(node) = node.type.to_s == @point.node_type && node.slice == @point.original_source

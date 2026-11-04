@@ -29,8 +29,7 @@ module Kimera
         public = true
         candidates =
           statements.select do |statement|
-            call = visibility(statement)
-            public = toggled(call, public) if call
+            visibilities(statement).each { |call| public = toggled(call, public) }
             public && method?(statement)
           end
         hidden = hidden(statements)
@@ -40,13 +39,13 @@ module Kimera
       def toggled(call, public) = call.arguments ? public : !HIDING.include?(call.name)
 
       def hidden(statements)
-        calls = statements.filter_map { |statement| visibility(statement) }.select { HIDING.include?(it.name) }
+        calls = statements.flat_map { |statement| visibilities(statement) }.select { HIDING.include?(it.name) }
         calls.flat_map { |call| Array(call.arguments&.arguments).map { |argument| named(argument) } }
       end
 
-      def visibility(statement)
-        return unless statement.is_a?(SyntaxTypes::CallNode) && !statement.receiver
-        statement if HIDING.include?(statement.name) || SHOWING.include?(statement.name)
+      def visibilities(statement)
+        return [] unless statement.is_a?(SyntaxTypes::CallNode) && !statement.receiver
+        HIDING.include?(statement.name) || SHOWING.include?(statement.name) ? [statement] : []
       end
 
       def named(argument)

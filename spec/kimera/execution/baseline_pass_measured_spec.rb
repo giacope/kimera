@@ -12,17 +12,14 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
   let(:adapter) { Class.new(Kimera::Frameworks::Suite) { def test_ids = %w[t1 t2 t3] }.new }
   let(:counted) { [] }
 
-  def meter
-    sink = counted
-    Class.new(Kimera::Execution::NullProgress) { define_method(:start) { |size, label| sink << [size, label] } }.new
-  end
+  def meter = ProgressJournal.new(counted)
 
   def queues(**)
     seen = []
     pass = described_class.new(adapter: adapter, registry: registry, progress: meter, **)
     pass.parallel!(1) do |queue, _jobs, listeners|
       seen << queue
-      queue.each { |id| listeners.resolve.call("t" => "result", "id" => id, "passed" => true, "touched" => []) }
+      queue.each { |id| listeners.resolved("t" => "result", "id" => id, "passed" => true, "touched" => []) }
     end
     seen
   end
@@ -30,7 +27,7 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
   it "measures the tests it is told to, asking once, and counts them" do
     asked = []
     expect([queues(measured: ->(ids) { (asked << ids) && ids.last(1) }), asked, counted])
-      .to(eq([[%w[t3]], [%w[t1 t2 t3]], [[1, "baseline"]]]))
+      .to(eq([[%w[t3]], [%w[t1 t2 t3]], [[:start, 1, "baseline"], [:tick, nil], [:finish]]]))
   end
 
   it "measures every test by default" do

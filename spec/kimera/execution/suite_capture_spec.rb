@@ -7,19 +7,17 @@ require "tmpdir"
 # K3-2: doctor waited forever on a suite that never exits.
 RSpec.describe(Kimera::Execution::SuiteCapture, :aggregate_failures) do
   let(:said) { StringIO.new }
-  let(:capture) { described_class.new(said) }
 
-  # Elapsed seconds since the start, one reading per poll.
-  def polled(*elapsed, limit:)
-    allow(capture).to(receive(:now).and_return(0.0, *elapsed))
-    allow(capture).to(receive(:sleep))
-    Dir.mktmpdir { |root| capture.call({}, "sleep", "30", chdir: root, limit: limit) }
+  # A suite that never exits, watched with +elapsed+ seconds since the start, one reading per poll.
+  def polled(*elapsed, limit:, clock: FakeClock.new(0.0, *elapsed))
+    capture = described_class.new(said, Kimera::Execution::SuiteEnv.new, clock)
+    Dir.mktmpdir { |root| capture.timed("sleep", "30", chdir: root, limit: limit) }
   end
 
   it "polls until the limit, sleeping between polls, then stops the suite" do
-    _output, status = polled(0.6, 0.7, limit: 0.6)
-    expect(status.success?).to(be(false))
-    expect(capture).to(have_received(:sleep).with(described_class::POLL).once)
+    clock = FakeClock.new(0.0, 0.6, 0.7)
+    _output, status = polled(limit: 0.6, clock: clock)
+    expect([status.success?, clock.paused]).to(eq([false, 1]))
   end
 
   it "says the suite is still running every 150 polls, half a minute of them" do
@@ -27,10 +25,16 @@ RSpec.describe(Kimera::Execution::SuiteCapture, :aggregate_failures) do
     expect(said.string).to(eq("kimera: the suite is still running (1 s)…\n" * 2))
   end
 
+  # Waits for the suite, or bounds it when given a limit.
+  def suite(said, limit, *command, chdir:)
+    capture = described_class.new(said)
+    limit ? capture.timed(*command, chdir: chdir, limit: limit) : capture.call(*command, chdir: chdir)
+  end
+
   # A suite's background child shares its process group.
   def orphan(limit)
     Dir.mktmpdir do |root|
-      output, = described_class.new(said).call({}, "sh", "-c", "sleep 30 & echo $!", chdir: root, limit: limit)
+      output, = suite(said, limit, "sh", "-c", "sleep 30 & echo $!", chdir: root)
       pid = Integer(output.lines.first)
       sleep(0.2)
       state = File.read("/proc/#{pid}/stat").split[2]
@@ -42,7 +46,7 @@ RSpec.describe(Kimera::Execution::SuiteCapture, :aggregate_failures) do
 
   it "kills a suite that outlives its limit" do
     Dir.mktmpdir do |root|
-      described_class.new(said).call({}, "sh", "-c", "echo $$ > #{root}/pid; exec sleep 30", chdir: root, limit: 0.5)
+      described_class.new(said).timed("sh", "-c", "echo $$ > #{root}/pid; exec sleep 30", chdir: root, limit: 0.5)
       expect(File.exist?("/proc/#{Integer(File.read(File.join(root, "pid")))}")).to(be(false))
     end
   end
@@ -63,7 +67,7 @@ RSpec.describe(Kimera::Execution::SuiteCapture, :aggregate_failures) do
       end
       begin
         script = "sleep 30 & echo $! > #{pidfile}; wait"
-        described_class.new(said).call({}, "sh", "-c", script, chdir: root, limit: limit)
+        suite(said, limit, "sh", "-c", script, chdir: root)
       rescue Interrupt
         return gone?(Integer(File.read(pidfile))) ? :stopped : :running
       end

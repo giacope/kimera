@@ -29,9 +29,9 @@ class Kimera::RegistryScan::Skipped
   end
 
   def nested(node)
-    body = deferred(node)
+    bodies = deferred(node)
     node.compact_child_nodes.flat_map do |child|
-      reexecuted?(child) || child.equal?(body) ? [child.location] : nested(child)
+      reexecuted?(child) || bodies.any? { child.equal?(it) } ? [child.location] : nested(child)
     end
   end
 end

@@ -9,9 +9,11 @@ module Kimera
       execution/isolated_child_minitest.rb
     ].map { |path| File.expand_path(path, __dir__) }.freeze
 
-    PATHS = [Runtime::SOURCE_PATH, *OUT_OF_PROCESS_ENTRYPOINTS].freeze
+    RUNTIME_PATH = File.expand_path("runtime.rb", File.dirname(File.expand_path(__FILE__)))
 
-    HOME = File.dirname(Runtime::SOURCE_PATH)
+    PATHS = [RUNTIME_PATH, *OUT_OF_PROCESS_ENTRYPOINTS].freeze
+
+    HOME = File.dirname(RUNTIME_PATH)
 
     HARNESS_CRITICAL_SUFFIXES = %w[
       kimera/frameworks/suite.rb
@@ -27,11 +29,21 @@ module Kimera
       kimera/execution/shift/deadline.rb
       kimera/execution/shift/overrun.rb
       kimera/execution/shift/expiry.rb
+      kimera/execution/shift/stall.rb
       kimera/execution/shift/lapse.rb
       kimera/execution/shift/subject.rb
       kimera/execution/shift/suspect.rb
+      kimera/execution/shift/doubt.rb
+      kimera/execution/shift/lag.rb
+      kimera/execution/shift/kill.rb
+      kimera/execution/shift/lineup.rb
+      kimera/execution/shift/interruption.rb
       kimera/execution/shift/probe.rb
       kimera/execution/shift/finding.rb
+      kimera/execution/shift/failure.rb
+      kimera/execution/shift/hang.rb
+      kimera/execution/shift/slowdown.rb
+      kimera/execution/shift/inconclusive.rb
       kimera/execution/shift/coverage_channel.rb
       kimera/execution/shift/killer_memory.rb
       kimera/execution/shift/unmask.rb
@@ -44,8 +56,10 @@ module Kimera
       kimera/execution/time_budget.rb
       kimera/execution/patience.rb
       kimera/execution/reload.rb
+      kimera/execution/overlaying.rb
       kimera/execution/worker_databases.rb
       kimera/execution/verdicts.rb
+      kimera/execution/triage.rb
       kimera/execution/worker_pool.rb
       kimera/execution/worker_pool/fleet.rb
       kimera/execution/child_process.rb

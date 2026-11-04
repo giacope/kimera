@@ -17,13 +17,21 @@ class Kimera::Guardrail
 
   ANCHOR = ->(node) { [node.location.start_offset, node.location.end_offset, node.type.to_s] }
 
-  Patch =
-    Data.define(:anchor, :directive) do
-      def apply(rebuilt, original)
-        return rebuilt unless ANCHOR.call(original) == anchor
-        Kimera::Rewrite::Directive.new(directive).apply(rebuilt)
-      end
+  class Patch
+    def initialize(anchor, directive)
+      @anchor = anchor
+      @directive = directive
     end
+
+    def apply(rebuilt, original)
+      return rebuilt unless ANCHOR.call(original) == anchor
+      Kimera::Rewrite::Directive.new(directive).apply(rebuilt)
+    end
+
+    private
+
+    attr_reader :anchor, :directive
+  end
 
   def initialize(map, points)
     @map = map
@@ -34,16 +42,8 @@ class Kimera::Guardrail
 
   def rewrite(node)
     woven = transform(node)
-    [Kimera::LinePad.new(node.slice).fitted(Kimera::Scribe.new(woven), Kimera::Readback.new(woven)), activated(woven)]
+    [Kimera::LinePad.new(node.slice).fits(Kimera::Scribe.new(woven), Kimera::Readback.new(woven)), activated(woven)]
   end
-
-  def activated(node)
-    found = []
-    Kimera::Rewrite::AstWalk.new(node).visit { |visited| found << activation(visited) }
-    found.compact
-  end
-
-  def transform(node) = weave(node).first
 
   def bake(point, directive)
     target = target(point)
@@ -62,6 +62,14 @@ class Kimera::Guardrail
   end
 
   private
+
+  def activated(node)
+    found = []
+    Kimera::Rewrite::AstWalk.new(node).visit { |visited| found << activation(visited) }
+    found.compact
+  end
+
+  def transform(node) = weave(node).fetch(0)
 
   def target(point)
     location = point.location

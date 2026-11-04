@@ -14,7 +14,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     loss = ->(id, reason, stacks) { lost << [id, reason, stacks] }
     listeners = described_class::Listeners.new(resolve: resolve, lost: loss, trace: nil)
     options = { jobs: jobs, hard_timeout: deadline }
-    described_class.new(described_class::Context.new(queue, spawner, listeners, options)).run
+    described_class.new(queue, spawner, listeners, options).run
     [resolved, lost]
   end
 
@@ -79,13 +79,13 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   end
 
   # Stacks for any pid.
-  def stacks = Object.new.tap { |taker| taker.define_singleton_method(:take) { |pid| "stacks of #{pid}" } }
+  def stacks = Object.new.tap { |taker| taker.define_singleton_method(:take) { |pid| ["stacks of #{pid}"] } }
 
   it "hands a timed-out worker's stacks to the loss" do
     worker = nil
     spawner = ->(_slot) { worker = forked { sleep(30) }.push(stacks) }
     _, lost = Timeout.timeout(10) { pool(queue: [1], spawner: spawner, deadline: 0.3) }
-    expect(lost).to(eq([[1, :timeout, "stacks of #{worker.first}"]]))
+    expect(lost).to(eq([[1, :timeout, ["stacks of #{worker.first}"]]]))
   end
 
   describe "a crash" do
@@ -100,7 +100,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
     it "is lost with how the worker died, never its stacks, even from an armed worker" do
       _, lost = pool(queue: [1], spawner: ->(_slot) { forked { exit!(1) }.push(untouchable) })
-      expect(lost).to(eq([[1, :crash, "exited 1"]]))
+      expect(lost).to(eq([[1, :crash, ["exited 1"]]]))
     end
   end
 end

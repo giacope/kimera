@@ -5,18 +5,17 @@ module KimeraEval
     ID = "K5"
     TITLE = "--since diffs against the merge-base, keeping uncommitted work"
     EXPECTED = %w[alpha gamma].freeze
-    Step = Data.define(:switch, :from, :to, :message)
     STEPS = [
-      Step.new(%w[checkout -q -b feature], "x > 1", "x >= 2", "feature: alpha"),
-      Step.new(%w[checkout -q main], "x < 2", "x <= 1", "main: beta"),
-      Step.new(%w[checkout -q feature], "x == 3", "3 == x", nil)
+      [%w[checkout -q -b feature], "x > 1", "x >= 2", "feature: alpha"],
+      [%w[checkout -q main], "x < 2", "x <= 1", "main: beta"],
+      [%w[checkout -q feature], "x == 3", "3 == x"]
     ].freeze
 
     def call
-      dir = history(sandbox.git(sandbox.copy(fixture("diff"))))
+      dir = history(sandbox.copy(fixture("diff")))
       path = File.join(dir, "tmp", "since.json")
-      result = checkout.cli("run", "--since", "main", "--report", path, "--no-progress", chdir: dir)
-      judge(File.exist?(path) ? methods(path) : []).merge("exit" => result.code)
+      exit, = checkout.cli("run", "--since", "main", "--report", path, "--no-progress", chdir: dir)
+      judge(File.exist?(path) ? methods(path) : []).merge(exit.exited)
     end
 
     private
@@ -27,15 +26,18 @@ module KimeraEval
     end
 
     def history(dir)
-      git = Shell.new(chdir: dir, env: Sandbox::IDENTITY)
-      STEPS.each { |step| apply(git, File.join(dir, "lib", "calc.rb"), step) }
+      repository = sandbox.repository(dir)
+      path = File.join(dir, "lib", "calc.rb")
+      STEPS.each do |switch, from, to, *message|
+        apply(repository, path, switch, [from, to])
+        message.each { |text| repository.commit(text) }
+      end
       dir
     end
 
-    def apply(git, path, step)
-      git.run("git", *step.switch)
-      File.write(path, File.read(path).sub(step.from, step.to))
-      sandbox.commit(git, step.message) if step.message
+    def apply(repository, path, switch, edit)
+      repository.git(*switch)
+      File.write(path, File.read(path).sub(*edit))
     end
 
     def methods(path) = JSON.parse(File.read(path))["results"].map { |row| row["method"] }.uniq.sort

@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 require_relative "../../execution/suite_env"
-require_relative "../../frameworks/load_path"
-require_relative "../../incremental/selection"
+require_relative "bench"
+require_relative "null_selection"
 require_relative "../../incremental/session"
 require_relative "../../incremental/stamp"
 require_relative "aim"
@@ -13,7 +13,6 @@ require_relative "digest"
 require_relative "narrowing"
 require_relative "pass"
 require_relative "route"
-require_relative "../../frameworks/name_exclusion"
 require_relative "sources"
 
 class Kimera::CLI::Run::Cycle
@@ -32,69 +31,69 @@ class Kimera::CLI::Run::Cycle
     @alerts = alerts
   end
 
-  def call(changed = nil)
+  def call(change = Kimera::CLI::Run::NullSelection.new, bench = Kimera::CLI::Run::Bench.new)
     @digest.verbose(@options) if @options[:verbose]
-    scope(changed && Kimera::Incremental::Selection.new(changed).ids(@registry))
+    todo, ignored = scope(change, change.ids(@registry))
+    conclude(todo, ignored, session(todo, ignored, bench))
   end
 
   private
 
-  def scope(selected)
-    eligible = focus(Kimera::CLI::Run::Aim.new(@registry, @options).restrict(selected || @registry.index.keys))
+  def scope(change, selected)
+    eligible = focus(Kimera::CLI::Run::Aim.new(@registry, @options).restrict(selected))
     resolution = Kimera::IgnoreList.new(@options[:ignore] + inline).resolve(@registry)
-    ignored = resolution.ids & eligible
-    notify(selected, ignored, resolution)
-    session(eligible - ignored, ignored)
+    ignored = resolution.ignored(eligible)
+    notify(change, selected, ignored, resolution)
+    [eligible - ignored, ignored]
   end
 
-  def notify(selected, ignored, resolution)
+  def notify(change, selected, ignored, resolution)
     @alerts.anchors(resolution)
-    @digest.announce(selected, ignored, files: @registry.files.size, since: @options[:since])
+    @digest.announce(change, selected, ignored, files: @registry.files.size)
     @digest.evaluating(ignored) if @options[:evaluate_ignored]
   end
 
-  def session(todo, ignored)
-    loaded = Kimera::Incremental::Session.from(@options[:session], registry: @registry, stamp: stamp)
-    conclude(todo, ignored, perform(@options[:evaluate_ignored] ? todo + ignored : todo, loaded))
+  def session(todo, ignored, bench)
+    loaded = Kimera::Incremental::Session.from(@options[:session], stamp: stamp).pruned(@registry)
+    perform(@options[:evaluate_ignored] ? todo + ignored : todo, loaded, bench)
   end
 
-  def perform(todo, loaded)
-    remaining = todo.reject { |id| loaded.done?(id) }
-    judged = remaining.empty? ? loaded : loaded.merged(harness(remaining))
+  def perform(todo, loaded, bench)
+    judged = loaded.judged(todo) { |remaining| harness(remaining, bench) }
     path = @options[:session]
-    judged.save(path, registry: @registry, meta: { "since" => @options[:since] }) if path
+    judged.save(path, @registry, meta: { "since" => @options[:since] }) if path
     judged
   end
 
   def conclude(todo, ignored, loaded)
     report = narrowed(loaded.report(todo, ignored, @registry)).counting(counted)
-    @digest.emit(report, @registry, **emission)
-    @options[:gate] == false ? 0 : @alerts.gate(report, @options.merge(narrowed: narrowing.narrowed?))
+    @digest.emit(report, @registry, emission)
+    @options[:gate] == false ? 0 : @alerts.gate(report, @options.to_h.merge(narrowed: narrowing.narrowed?))
   end
 
   def narrowed(report)
     return report unless narrowing.narrowed?
-    report.revise(report.uncovered.map { |result| result.dup.tap { |copy| copy.detail = narrow(copy.detail) } })
-  end
-
-  def narrow(detail)
-    detail.nil? || detail == Kimera::MutationPoint::UNEXECUTED ? NARROWED : detail
+    report.revise(report.uncovered.map { |result| result.narrowed(NARROWED) })
   end
 
   def emission
-    { path: @options[:report], format: @options.fetch(:format, "text"), metadata: provenance }
-      .merge(coverage: coverage, log: @options[:log], scope: narrowing.note, summary: @options[:summary])
+    path = @options[:report]
+    Kimera::CLI::Run::Emission::Delivery.new(
+      Kimera::CLI::Run::Emission::Page.new(path, narrowing.notes, coverage),
+      Kimera::CLI::Run::Emission::Copies.new(path, @options[:log], @options[:summary]),
+      @options.to_h.fetch(:format, "text"), provenance
+    )
   end
 
   def stamp
     return unless @options[:session]
-    settings = @options.slice(*SETTINGS, :require)
+    settings = @options.to_h.slice(*SETTINGS, :require)
     Kimera::Incremental::Stamp.new(root: @options[:source_root], sources: @registry.files, settings: settings).to_s
   end
 
   def inline = Kimera::CLI::Run::InlineIgnores.new(@registry, root: @options[:source_root]).rules
 
-  def narrowing = @_narrowing ||= Kimera::CLI::Run::Narrowing.new(@options)
+  def narrowing(kind = Kimera::CLI::Run::Narrowing) = @_narrowing ||= kind.new(@options)
 
   def coverage = @options[:fail_on_no_coverage] || @options[:count_no_coverage] ? :list : :hint
 
@@ -109,21 +108,13 @@ class Kimera::CLI::Run::Cycle
 
   def provenance
     route = Kimera::CLI::Run::Route.new(@registry, @options)
-    @options.slice(*SETTINGS, :jobs, :since, :count_no_coverage).transform_keys(&:to_s).merge(narrowing.provenance)
+    @options.to_h.slice(*SETTINGS, :jobs, :since, :count_no_coverage).transform_keys(&:to_s).merge(narrowing.provenance)
       .merge("judge_isolated_only" => route.judging?, "confirm_survivors" => route.confirming?)
   end
 
-  def harness(remaining, env: ENV)
-    env.update(Kimera::Execution::SUITE_ENV)
-    seed = @options[:seed]
-    seed ? env.store(Kimera::Execution::SEED_ENV, seed.to_s) : env.delete(Kimera::Execution::SEED_ENV)
-    env.store(Kimera::Frameworks::LoadPath::VARIABLE, Array(@options[:load_path]).join(File::PATH_SEPARATOR))
-    Kimera::CLI::Run::Pass.new(@registry, @options, adapter).call(remaining)
-  end
-
-  def adapter
-    loaded = Kimera::Frameworks::SUITES.load(@options[:framework])
-    names = Array(@options[:exclude_test_names])
-    names.empty? ? loaded : Kimera::Frameworks::NameExclusion.new(loaded, names)
+  def harness(remaining, bench, env: ENV, suite_env: Kimera::Execution::SuiteEnv.new(env))
+    suite_env.install(@options[:seed], @options[:load_path])
+    suite = bench.suite(@options[:framework], Array(@options[:exclude_test_names]))
+    Kimera::CLI::Run::Pass.new(@registry, @options, suite, bench).call(remaining)
   end
 end

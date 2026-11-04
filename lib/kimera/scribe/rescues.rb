@@ -5,9 +5,9 @@ module Kimera
     class Bracketed < Form
       TYPES = %i[begin_node].freeze
 
-      def text = "begin#{Clauses.new(@node, @pen).structure}#{closing}"
+      def text = "begin#{Clauses.new(@node, @pen, @scope, @mode).structure}#{closing}"
 
-      def level = Level::KEYWORD
+      def level = KEYWORD
     end
 
     class Rescued < Form
@@ -15,11 +15,11 @@ module Kimera
 
       def text
         body = @node.expression
-        written = Jump::TYPES.include?(body.type) ? part(body) : leading(body, Level::TERNARY)
-        "#{written} rescue #{part(@node.rescue_expression, Level::EXPRESSION)}"
+        written = form_of(body).jump? ? part(body) : leading(body, TERNARY)
+        "#{written} rescue #{part(@node.rescue_expression, EXPRESSION)}"
       end
 
-      def level = Level::STATEMENT
+      def level = STATEMENT
     end
 
     class Exceptions < Form
@@ -28,8 +28,8 @@ module Kimera
       private
 
       def item(exception)
-        return pen_of(exception).form(exception).ternary if %i[if_node unless_node].include?(exception.type)
-        part(exception, Level::ASSIGNMENT)
+        return form_of(exception).ternary if %i[if_node unless_node].include?(exception.type)
+        part(exception, ASSIGNMENT)
       end
     end
 
@@ -41,11 +41,11 @@ module Kimera
       def head
         exceptions = @node.exceptions
         target = @node.reference
-        written = exceptions.any? ? "rescue #{Exceptions.new(@node, @pen).text}" : "rescue"
-        target ? "#{written} => #{@pen.with(exceptions).write(target)}" : written
+        written = exceptions.any? ? "rescue #{Exceptions.new(@node, @pen, @scope, @mode).text}" : "rescue"
+        target ? "#{written} => #{@pen.form(target, @scope.with(exceptions), @mode).written(STATEMENT)}" : written
       end
 
-      def body = Lines.new(@node.statements, @pen.with([*@node.exceptions, @node.reference]).deeper).text
+      def body = @pen.lines(@node.statements, @scope.with([*@node.exceptions, @node.reference]))
     end
 
     class Exchange < Form
@@ -56,7 +56,7 @@ module Kimera
         "alias #{part(@node.new_name)} #{part(@node.old_name)}"
       end
 
-      def level = Level::STATEMENT
+      def level = STATEMENT
     end
 
     class Hook < Form
@@ -64,7 +64,7 @@ module Kimera
 
       def text = "#{type == :pre_execution_node ? "BEGIN" : "END"} {#{lines(@node.statements)}#{closing("}")}"
 
-      def level = Level::STATEMENT
+      def level = STATEMENT
     end
 
     class Capture < Form
@@ -72,7 +72,7 @@ module Kimera
 
       def text = part(@node.call)
 
-      def level = Level::EQUALITY
+      def level = EQUALITY
     end
 
     class Shareable < Form
@@ -80,7 +80,7 @@ module Kimera
 
       def text = part(@node.write)
 
-      def level = Level::ASSIGNMENT
+      def level = ASSIGNMENT
     end
   end
 end

@@ -11,7 +11,7 @@ RSpec.describe(Kimera::Runtime) do
 
   it "keeps the runtime a second copy of this file finds already bound" do
     bound = Kimera::RUNTIME
-    Kimera::Warnings::SILENCED.during { load(described_class::SOURCE_PATH) }
+    Kimera::Warnings.silenced.during { load(described_class::SOURCE_PATH) }
     expect(Kimera::RUNTIME).to(equal(bound))
   end
 
@@ -86,13 +86,6 @@ RSpec.describe(Kimera::Runtime) do
 
     it "answers its block's value" do
       expect(runtime.during(nil) { :answer }).to(eq(:answer))
-    end
-  end
-
-  describe "#overlay" do
-    it "is overlaying only while its block runs" do
-      inside = runtime.overlay { runtime.overlaying? }
-      expect([runtime.overlaying?, inside, runtime.overlaying?]).to(eq([false, true, false]))
     end
   end
 
@@ -338,15 +331,6 @@ RSpec.describe(Kimera::Runtime) do
       owner.__send__(:public, :shown)
       runtime.active = 3
       expect(owner.public_method_defined?(:shown)).to(be(true))
-    end
-
-    # Counts the walks of the object space in the block.
-    def walks
-      count = 0
-      counted = ->(walk, *kinds, &each) { (count += 1) && walk.call(*kinds, &each) }
-      allow(ObjectSpace).to(receive(:each_object).and_wrap_original(&counted))
-      yield
-      count
     end
 
     it "finds the holders of a flip no fork has surveyed on its first switch, and keeps them" do

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../../rewrite/directive"
+require_relative "../../rewrite/fit"
 
 module Kimera
   module Execution
@@ -46,9 +46,8 @@ class Kimera::Execution::BlockUse::Source
   end
 
   def dropped?(holder, node, directive)
-    live(holder.body, { node => Kimera::Rewrite::Directive.new(directive).apply(node) }.compare_by_identity).zero?
-  rescue StandardError
-    true
+    applied = Kimera::Rewrite::Fit.new(directive).applied(node) { return true }
+    live(holder.body, { node => applied }.compare_by_identity).zero?
   end
 
   def live(node, swap)
@@ -79,11 +78,11 @@ class Kimera::Execution::BlockUse::Source
   def reached(node, swap)
     known = BRANCHES.include?(node.type) ? fixed(node.predicate, swap) : nil
     return node.compact_child_nodes if known.nil?
-    [node.predicate, known ^ (node.type == :unless_node) ? node.statements : other(node)]
+    [node.predicate, *(known ^ (node.type == :unless_node) ? [node.statements] : others(node))]
   end
 
-  def other(node)
-    node.compact_child_nodes.find { |child| !child.equal?(node.predicate) && !child.equal?(node.statements) }
+  def others(node)
+    node.compact_child_nodes.select { |child| !child.equal?(node.predicate) && !child.equal?(node.statements) }.first(1)
   end
 
   def fixed(node, swap)

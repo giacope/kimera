@@ -4,10 +4,10 @@ require_relative "../scribe"
 require_relative "ast_walk"
 require_relative "conditions"
 require_relative "directive"
+require_relative "fit"
 require_relative "numbered_params"
 
 class Kimera::Rewrite::Outcomes
-  NUMERIC = Kimera::Scribe::Numeral::TYPES
   FLAG = /\A(?!forced_).*\?\z/
   INCIDENTAL = %i[node_id location locals].freeze
   NOTHING = Kimera::Syntax.parse("nil").value.statements.body.first
@@ -29,15 +29,13 @@ class Kimera::Rewrite::Outcomes
   private
 
   def misread?(node, directive)
-    applied = Kimera::Rewrite::Directive.new(directive).apply(node)
+    applied = Kimera::Rewrite::Fit.new(directive).applied(node) { return false }
     Kimera::Rewrite::Conditions.new(applied, tested: tested[node]).misread?
-  rescue StandardError
-    false
   end
 
   def tested = @_tested ||= Kimera::Rewrite::Conditions.new(tree).places
 
-  def tree = @_tree ||= Kimera::Rewrite::NumberedParams.new(Kimera::Scribe.parse(@source)).normalize
+  def tree = @_tree ||= Kimera::Rewrite::NumberedParams.of(@source).normalize
 
   def rendered(node, directive)
     found = nodes[key(node)]
@@ -60,8 +58,7 @@ class Kimera::Rewrite::Outcomes
   def form(node) = (@_forms ||= {}.compare_by_identity)[node] ||= formed(bare(node))
 
   def formed(inner)
-    number = value(inner)
-    number ? [Numeric, number.inspect] : [inner.type, *flags(inner), *fields(inner)]
+    values(inner).map { |number| [Numeric, number.inspect] }.fetch(0) { [inner.type, *flags(inner), *fields(inner)] }
   end
 
   def flags(node) = predicates(node.class).map { |flag| node.public_send(flag) }
@@ -82,10 +79,9 @@ class Kimera::Rewrite::Outcomes
     end
   end
 
-  def value(node)
-    return node.value if NUMERIC.include?(node.type)
-    number = negated?(node) && value(bare(node.receiver))
-    -number if number
+  def values(node)
+    return [node.value] if Kimera::Scribe::Token.new(node).numeral?
+    negated?(node) ? values(bare(node.receiver)).map(&:-@) : []
   end
 
   def negated?(node) = node.type == :call_node && node.name == :-@ && node.receiver && !(node.arguments || node.block)

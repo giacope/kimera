@@ -5,7 +5,7 @@ require_relative "../../error"
 require_relative "../../operators"
 
 class Kimera::CLI::Run::InlineIgnores
-  MARKER = /\A#\s*kimera:disable(?<next>-next-line)?(?<rest>(?:[\s:].*)?)\z/
+  MARKER = /\A#\s*kimera:disable(?<following>-next-line)?(?<rest>(?:[\s:].*)?)\z/
   CLAUSE = /\A(?<operators>[\w\s,]*?)\s*:\s*(?<reason>.*)\z/
   FORM = "# kimera:disable[-next-line] [OPERATOR ...]: REASON"
 
@@ -29,16 +29,17 @@ class Kimera::CLI::Run::InlineIgnores
   end
 
   def entry(file, line, marker)
-    clause = CLAUSE.match(marker[:rest].strip)
+    marker => { rest:, following: }
+    clause = CLAUSE.match(rest.strip)
     reason = clause&.[](:reason).to_s.strip
     absent(file, line) if reason.empty?
-    { file: file, starts: line + (marker[:next] ? 1 : 0), reason: reason }.merge(operators(clause[:operators]))
+    { file: file, starts: line + (following ? 1 : 0), reason: reason }.merge(operators(clause[:operators]))
   end
 
   def operators(listed)
     keys = listed.split(/[\s,]+/).reject(&:empty?)
     return {} if keys.empty?
-    Kimera::Operators::CATALOG.validate!(keys)
+    Kimera::Operators.validate!(keys)
     { operator: keys }
   end
 

@@ -6,49 +6,61 @@ require_relative "../results/result"
 require_relative "../runtime"
 require_relative "isolation"
 require_relative "patience"
+require_relative "unmeasured"
 require_relative "zygote"
 
 class Kimera::Execution::Shift
-  Channel =
-    Data.define(:requests, :responses) do
-      def each_request
-        while (line = requests.gets)
-          yield(line, responses)
-        end
-      end
+  class Channel
+    def initialize(requests)
+      @requests = requests
     end
 
-  def initialize(adapter:, registry:, coverage: nil, **options)
+    def ids = Enumerator.produce { @requests.gets }.lazy.take_while(&:itself).map { |line| JSON.parse(line)["id"] }
+  end
+
+  def initialize(adapter:, registry:, coverage: Kimera::Execution::Unmeasured.new(adapter), **options)
     @adapter = adapter
     @registry = registry
     @coverage = coverage
     @options = options
   end
 
-  def serve(requests, responses)
-    Channel.new(requests, responses).each_request { |line, io| step(line, io) }
-    emit(responses, t: "done")
-  ensure
-    Kimera::RUNTIME.active = nil
-  end
+  def serve(requests, responses) = judging(Channel.new(requests).ids, responses, { t: "ready" })
 
   def coverage(requests, responses) = channel.serve(requests, responses)
 
-  def run(ids, io)
-    ids.each { |id| emit(io, **evaluate(id).message) }
+  def run(ids, io) = judging(ids, io)
+
+  def evaluate(id)
+    result, = judged(id, killers)
+    result
+  end
+
+  private
+
+  def judging(ids, io, *after)
+    ids.reduce(killers) do |memory, id|
+      result, memory = judged(id, memory)
+      [result.message, *after].each { |message| emit(io, **message) }
+      memory
+    end
     emit(io, t: "done")
   ensure
     Kimera::RUNTIME.active = nil
   end
 
-  def evaluate(id)
-    tally(safely(Subject.new(id, @registry.index[id]&.file)))
+  def judged(id, memory)
+    result, memory = safely(id, Subject.new(id, @registry.index[id]&.file), memory)
+    [tally(result), memory]
   ensure
     Kimera::RUNTIME.active = nil
     isolation.reset!
   end
 
-  private
+  def killers
+    pace = @options.fetch(:pace) { Kimera::Execution::Pace.new(@options.fetch(:timings, {})) }
+    self.class::KillerMemory.new(pace)
+  end
 
   def isolation = @_isolation ||= @options.fetch(:isolation) { Kimera::Execution::Isolation.new }
 
@@ -56,13 +68,7 @@ class Kimera::Execution::Shift
 
   def zygote = @options.fetch(:zygote) { Kimera::Execution::Zygote.new }
 
-  def attempt
-    kind = self.class
-    pace = Kimera::Execution::Pace.new(@options.fetch(:timings, {}))
-    @_attempt ||= kind::Attempt.new(
-      probe: probe, isolation: isolation, killers: kind::KillerMemory.new(pace), zygote: zygote
-    )
-  end
+  def attempt = @_attempt ||= staged(self.class::Attempt)
 
   def tally(result)
     return result unless @options[:quality] && result.killed?
@@ -70,9 +76,9 @@ class Kimera::Execution::Shift
     result.tap { |found| found.killing_tests = killers }
   end
 
-  def census
-    @_census ||= self.class::Census.new(probe: probe, isolation: isolation, zygote: zygote)
-  end
+  def census = @_census ||= staged(self.class::Census)
+
+  def staged(kind) = kind.new(probe: probe, isolation: isolation, zygote: zygote)
 
   def probe
     kind = self.class
@@ -80,45 +86,36 @@ class Kimera::Execution::Shift
     kind::Probe.new(@adapter, kind::Deadline.build(timeout, patience: patience, beat: beat, **@options.slice(:budget)))
   end
 
-  def patience = Kimera::Execution::Patience.new(timeout, **@options.slice(:timings, :ceiling))
+  def patience = Kimera::Execution::Patience.new(timeout, **@options.slice(:timings, :hard))
 
   def channel = @_channel ||= self.class::CoverageChannel.new(@adapter, zygote: zygote)
 
-  def step(line, responses)
-    emit(responses, **evaluate(JSON.parse(line)["id"]).message)
-    emit(responses, t: "ready")
-  end
-
-  def safely(subject)
-    covered(subject)
+  def safely(id, subject, memory)
+    tests = available(id)
+    return [subject.verdict(:no_coverage).unreached, memory] if tests.empty?
+    outcome(id, subject, tests, memory)
   rescue Kimera::Execution::Zygote::Died
     raise
+  rescue Kimera::Execution::Shift::Interruption => error
+    error.crashed(subject, timeout)
   rescue StandardError, ScriptError => error
-    subject.crashed(error, timeout)
+    [subject.crashed(error, timeout), memory]
   end
 
-  def covered(subject)
-    tests = available(subject.id)
-    return subject.verdict(:no_coverage, detail: Kimera::MutationPoint::UNEXECUTED) if tests.empty?
-    outcome(subject, tests)
-  end
-
-  def outcome(subject, tests)
+  def outcome(id, subject, tests, memory)
     started = monotonic
-    outcome = attempt.run(subject.id, tests) || unmasked(subject.id, tests)
-    subject.judged(outcome, tests, monotonic - started)
+    found, memory = attempt.run(id, tests, memory)
+    found, memory = unmasked(id, tests, memory) if found.empty?
+    [subject.judged(found, tests, monotonic - started), memory]
   end
 
-  def unmasked(id, tests)
-    return unless @options[:confirm]
+  def unmasked(id, tests, memory)
+    return [[], memory] unless @options[:confirm]
     pace = Kimera::Execution::Pace.new(@options.fetch(:timings, {}))
-    self.class::Unmask.new(attempt, pace).run(id, tests)
+    self.class::Unmask.new(attempt, pace).run(id, tests, memory)
   end
 
-  def available(id)
-    return @adapter.test_ids unless @coverage
-    @coverage.fetch(id) { @coverage.fetch(id.to_s, []) }
-  end
+  def available(id) = @coverage.fetch(id) { @coverage.fetch(id.to_s, []) }
 
   def emit(io, **message)
     io.puts(JSON.generate(message))

@@ -5,7 +5,7 @@ require_relative "failure_listing"
 class Kimera::Execution::BaselineExclusions
   LISTED = 5
 
-  def initialize(failures, command = nil)
+  def initialize(failures, command)
     @failures = failures
     @command = command
   end
@@ -16,7 +16,7 @@ class Kimera::Execution::BaselineExclusions
       "kimera: #{@failures.size} test(s) fail in the baseline, in a plain run too, and were excluded: their " \
         "coverage is unknown, so a mutant only they would reach reads uncovered or survived this run:",
       *Kimera::Execution::FailureListing.new(@failures).lines,
-      @command && "  plain run: #{@command}"
-    ].compact.join("\n")
+      "  plain run: #{@command}"
+    ].join("\n")
   end
 end

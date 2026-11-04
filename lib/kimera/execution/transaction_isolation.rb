@@ -22,8 +22,8 @@ class Kimera::Execution::TransactionIsolation
 
   def rollback(&)
     @owner.transaction(requires_new: true) { unwind(&) }
-  rescue Rollback
-    nil
+  rescue Rollback => error
+    error
   end
 
   def unwind

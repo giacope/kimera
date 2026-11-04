@@ -2,9 +2,17 @@
 
 require_relative "unmutated"
 
-Kimera::RegistryScan::Unread =
-  Data.define(:file, :cause) do
-    def points = []
-
-    def regions = [Kimera::Unmutated.new(file, 1, 1, "#{Kimera::Unmutated::UNREAD}#{cause}")]
+class Kimera::RegistryScan::Unread
+  def initialize(file, cause)
+    @file = file
+    @cause = cause
   end
+
+  def points = []
+
+  def regions = [Kimera::Unmutated.whole(file, 1, :unread, cause)]
+
+  private
+
+  attr_reader :file, :cause
+end

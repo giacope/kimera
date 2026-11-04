@@ -10,7 +10,6 @@ module Kimera
     RERUN = %i[require require_relative ruby2_keywords using].freeze
     CONDITIONS = [Prism::IfNode, Prism::UnlessNode].freeze
     DECLARATIONS = %i[included prepended class_methods concerning class_eval module_eval class_exec module_exec].freeze
-    FACTORIES = Kimera::GuardrailFactories::FACTORIES
     LOCALS = [
       Prism::LocalVariableWriteNode, Prism::LocalVariableOperatorWriteNode,
       Prism::LocalVariableOrWriteNode, Prism::LocalVariableAndWriteNode
@@ -57,7 +56,7 @@ module Kimera
     def kept?(node, defined)
       case node
       when Prism::CallNode then directive?(node, defined)
-      when Prism::AliasMethodNode then defined.include?(named(node.old_name))
+      when Prism::AliasMethodNode then names(node.old_name).any? { defined.include?(it) }
       else local?(node)
       end
     end
@@ -77,12 +76,13 @@ module Kimera
       name = call.name
       arguments = call.arguments&.arguments || []
       return arguments.none?(Prism::DefNode) if VISIBILITY.include?(name)
-      RERUN.include?(name) || (name == :alias_method && defined.include?(named(arguments[1])))
+      RERUN.include?(name) || (name == :alias_method && names(arguments[1]).any? { defined.include?(it) })
     end
 
-    def named(node)
+    def names(node)
       case node
-      when Prism::SymbolNode, Prism::StringNode then node.unescaped.to_sym
+      when Prism::SymbolNode, Prism::StringNode then [node.unescaped.to_sym]
+      else []
       end
     end
 
@@ -91,7 +91,7 @@ module Kimera
       when Prism::ClassNode, Prism::ModuleNode, Prism::SingletonClassNode then node.body
       when Prism::CallNode then declared(node)
       when Prism::ConstantWriteNode, Prism::ConstantPathWriteNode then declared(node.value)
-      when *CONDITIONS then Kimera::Syntax::BRANCHES.call(node)
+      when *CONDITIONS then Kimera::Branches.new(node).bodies
       end
     end
 
@@ -105,7 +105,9 @@ module Kimera
       DECLARATIONS.include?(name) || factory?(call.receiver, name) || Kimera::FactoryBlock.new(call.block).defining?
     end
 
-    def factory?(receiver, name) = receiver.is_a?(Prism::ConstantReadNode) && FACTORIES.include?([receiver.name, name])
+    def factory?(receiver, name)
+      receiver.is_a?(Prism::ConstantReadNode) && Kimera::Factory.new(receiver.name, name).named?
+    end
 
     def blank(nodes)
       text = @source.b

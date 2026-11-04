@@ -3,6 +3,7 @@
 require_relative "line_pad"
 require_relative "readback"
 require_relative "overlay_splice"
+require_relative "splice_reopening"
 
 class Kimera::Overlay::MethodBake
   include Kimera::OverlaySplice
@@ -13,23 +14,23 @@ class Kimera::Overlay::MethodBake
   end
 
   def source(location)
-    definition = definitions(@map.ast).find { |node| location.inside?(*span(node)) }
-    text = definition && written(definition, counterpart(definition))
-    text && graft(definition, text)
+    definitions(@map.ast).lazy.select { |node| location.inside?(*span(node)) }.first(1).flat_map do |definition|
+      counterparts(definition).flat_map { |node| written(definition, node) { [] } }.flat_map { graft(definition, it) }
+    end
   end
 
   private
 
   def written(definition, node)
-    Kimera::LinePad.new(definition.slice).fitted(Kimera::Scribe.new(node), Kimera::Readback.new(node))
+    Kimera::LinePad.new(definition.slice).fits(Kimera::Scribe.new(node), Kimera::Readback.new(node))
   rescue StandardError
-    nil
+    yield
   end
 
-  def graft(definition, text) = @map.splice([span(definition) + [text]] + reopenings)
+  def graft(definition, text) = [@map.splice([span(definition) + [text]] + Kimera::SpliceReopening.new(@map).edits)]
 
-  def counterpart(definition)
+  def counterparts(definition)
     span = span(definition)
-    definitions(@tree).find { |node| span(node) == span }
+    definitions(@tree).lazy.select { |node| span(node) == span }.first(1)
   end
 end

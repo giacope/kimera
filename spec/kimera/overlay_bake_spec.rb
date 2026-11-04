@@ -5,6 +5,8 @@ require "kimera/synthesis/overlay"
 
 # The reload fallback: one mutation baked into source, unguarded.
 RSpec.describe(Kimera::Overlay) do
+  def unmatched = "no node to guard: kimera found nothing of its kind where the point was scanned"
+
   def build(source, file: "x.rb")
     Kimera::RegistryScan.new.source(source, file: file)
   end
@@ -185,9 +187,9 @@ RSpec.describe(Kimera::Overlay) do
       program = "def m\n  1\nend\n"
       catalog = selected(%w[numeric_literal], program)
       point = catalog.points.first
-      allow(point).to(receive(:node_type).and_return("float_node"))
+      point.define_singleton_method(:node_type) { "float_node" }
       expect { described_class.new(catalog).bake("x.rb", program, point.ids.first) }.to(
-        raise_error(described_class::Unbakeable, Kimera::Overlay::FileWeave::UNMATCHED)
+        raise_error(described_class::Unbakeable, unmatched)
       )
     end
 
@@ -226,10 +228,9 @@ RSpec.describe(Kimera::Overlay) do
 
       # Kimera writes no tree but a method, and not the method named banner.
       def unwritable(method = nil)
-        allow(Kimera::Scribe).to(receive(:new).and_wrap_original) do |original, node, *place|
-          raise(RuntimeError, "unwritable") unless node.type == :def_node && node.name != :banner
-          method ? instance_double(Kimera::Scribe, text: method, joined: nil) : original.call(node, *place)
-        end
+        writer =
+          failing_scribe { |node| RuntimeError.new("unwritable") unless node.type == :def_node && node.name != :banner }
+        stub_const("Kimera::Scribe", Class.new(writer) { define_method(:text) { method } }) if method
       end
 
       def bake(needle)
@@ -269,7 +270,7 @@ RSpec.describe(Kimera::Overlay) do
 
     it "raises Unbakeable, naming the failure, when kimera can't write the bake" do
       mutant = registry.each.first.first
-      allow(Kimera::Scribe).to(receive(:new).and_raise(KeyError, "key not found: :lvar"))
+      failing_scribe { KeyError.new("key not found: :lvar") }
       expect { synth.bake("x.rb", source, mutant.id) }.to(
         raise_error(described_class::Unbakeable, "kimera could not write its bake (KeyError: key not found: :lvar)")
       )
@@ -283,8 +284,8 @@ RSpec.describe(Kimera::Overlay) do
     let(:registry) { build(source) }
 
     it "is refused, file and method alike" do
-      allow(Kimera::BakeSplice).to(receive(:new).and_return(instance_double(Kimera::BakeSplice, source: nil)))
-      allow(Kimera::Readback).to(receive(:new).and_return(instance_double(Kimera::Readback, faithful?: false)))
+      splicing
+      stub_const("Kimera::Readback", Class.new(Kimera::Readback) { def faithful?(_text) = false })
       mutant = registry.each.find { |m, _p| m.label == "> => <" }.first
       expect { described_class.new(registry).bake("x.rb", source, mutant.id) }
         .to(raise_error(described_class::Unbakeable, /reads back as another program/))

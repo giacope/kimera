@@ -15,22 +15,26 @@ class Kimera::Unwoven
   private
 
   def kept?(holder)
-    woven = woven(holder)
-    woven && Kimera::Outline.new(Kimera::Unguarded.new(woven).node).shape == Kimera::Outline.new(holder).shape
+    woven(holder).any? do |woven|
+      unguarded = Kimera::Unguarded.new(woven).node
+      Kimera::Outline.new(unguarded).shape == Kimera::Outline.new(holder).shape
+    end
   end
 
   def woven(holder)
     line = holder.location.start_line
     named = name(holder)
-    nodes.find { |node| node.type == holder.type && node.location.start_line == line && name(node) == named }
+    nodes.lazy.select { |node| node.type == holder.type && node.location.start_line == line && name(node) == named }
+      .first(1)
   end
 
-  def name(node) = node.deconstruct_keys(nil)[:name]
+  def name(node) = node.deconstruct_keys(nil).slice(:name)
 
   def nodes
     @_nodes ||=
-      [].tap do |found|
-        Kimera::Rewrite::AstWalk.new(Kimera::Rewrite::NumberedParams.new(@tree).normalize).visit { |node| found << node }
+      begin
+        normal = Kimera::Rewrite::NumberedParams.new(@tree).normalize
+        Kimera::Rewrite::AstWalk.new(normal).nodes
       end
   end
 end

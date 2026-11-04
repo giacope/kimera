@@ -5,11 +5,11 @@ module Kimera
     class Sequence < Form
       TYPES = %i[statements_node].freeze
 
-      def text = @node.body.map { |statement| pen_of(statement).opened.write(statement) }.join("; ")
+      def text = @node.body.map { |statement| form_of(statement, OPEN).written(STATEMENT) }.join("; ")
 
       def level
         body = @node.body
-        body.one? ? pen_of(body.first).level(body.first) : Level::STATEMENT
+        body.one? ? form_of(body.first).level : STATEMENT
       end
     end
 
@@ -28,7 +28,7 @@ module Kimera
 
       def text
         listed = "[#{listed(@node.elements)}]"
-        @pen.pattern? ? Words.new(@node, @pen).text || "^(#{listed})" : listed
+        @mode.pattern? ? Words.new(@node, @pen, @scope, @mode).text { "^(#{listed})" } : listed
       end
     end
 
@@ -37,14 +37,17 @@ module Kimera
       KIND = /\A(?:interpolated_)?(string|symbol)_node\z/
       BREAKS = "[] "
 
-      def initialize(node, pen)
+      def initialize(node, pen, scope, mode)
         @node = node
         @pen = pen
+        @scope = scope
+        @mode = mode
       end
 
       def text
         words = @node.elements.map { |element| word(element) }
-        "%#{sigils.first || "w"}[#{words.join(" ")}]" if sigils.size < 2 && words.all?
+        return yield unless sigils.size < 2 && words.all?(&:any?)
+        "%#{sigils.first || "w"}[#{words.flatten.join(" ")}]"
       end
 
       private
@@ -52,14 +55,15 @@ module Kimera
       def sigils = @node.elements.map { |element| SIGILS[element.type.to_s[KIND, 1]] }.uniq
 
       def word(element)
-        return unless element.type.match?(KIND)
+        return [] unless element.type.match?(KIND)
         text = (element.respond_to?(:parts) ? element.parts : [element]).sum("") { |part| piece(part) }
-        text unless text.empty?
+        text.empty? ? [] : [text]
       end
 
       def piece(part)
-        return "\#{#{@pen.write(part)}}" unless part.respond_to?(:unescaped)
-        Quote.new(Kimera::Unescaped.new(part).text, BREAKS).text
+        return "\#{#{@pen.form(part, @scope, @mode).written(STATEMENT)}}" unless part.respond_to?(:unescaped)
+        unescaped = Kimera::Unescaped.new(part).text
+        Quote.new(unescaped, BREAKS).text
       end
     end
 
@@ -82,14 +86,17 @@ module Kimera
         key = @node.key
         return "#{label(key)}#{" #{value}" unless shorthand?}" if key.type == :symbol_node
         return "#{part(key).delete_prefix(":")}: #{value}" if key.type == :interpolated_symbol_node
-        "#{leading(key, Level::RANGE)} => #{value}"
+        "#{leading(key, RANGE)} => #{value}"
       end
 
       private
 
-      def value = part(@node.value, Level::ASSIGNMENT)
+      def value = part(@node.value, ASSIGNMENT)
 
-      def label(key) = Name.new(Kimera::Unescaped.new(key).text.to_sym).label
+      def label(key)
+        name = Kimera::Unescaped.new(key).text.to_sym
+        Name.new(name).label
+      end
 
       def shorthand? = @node.value.nil? || @node.value.type == :implicit_node
     end
@@ -100,7 +107,7 @@ module Kimera
 
       def text
         inner = type == :assoc_splat_node ? @node.value : @node.expression
-        "#{PREFIXES.fetch(type)}#{part(inner, Level::ASSIGNMENT) if inner}"
+        "#{PREFIXES.fetch(type)}#{part(inner, ASSIGNMENT) if inner}"
       end
     end
 
@@ -110,11 +117,11 @@ module Kimera
       def text
         first = @node.left
         last = @node.right
-        floor = Level::RANGE + 1
+        floor = RANGE + 1
         "#{leading(first, floor) if first}#{@node.exclude_end? ? "..." : ".."}#{trailing(last, floor) if last}"
       end
 
-      def level = Level::RANGE
+      def level = RANGE
     end
   end
 end

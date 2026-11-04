@@ -7,9 +7,14 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite, :aggregate_failures) do
   describe "rerunning baseline failures without kimera" do
     let(:adapter) { described_class.allocate }
 
+    # A suite that reproduces each set of tests with a command naming them, past the loading this spec skips.
+    def reproducing
+      Class.new(described_class) { def reproduce(ids) = "bundle exec ruby -e 1 #{ids.join(" ")}" }.allocate
+    end
+
     it "reruns through its reproduce command in a shell" do
-      allow(adapter).to(receive(:reproduce).with(["CalcTest#test_a"]).and_return("bundle exec ruby -e 1"))
-      expect(adapter.plain(["CalcTest#test_a"], "/ignored")).to(eq(["sh", "-c", "bundle exec ruby -e 1"]))
+      expect(reproducing.plain(["CalcTest#test_a"], "/ignored"))
+        .to(eq(["sh", "-c", "bundle exec ruby -e 1 CalcTest#test_a"]))
     end
 
     it "reads the failures and errors Minitest printed" do

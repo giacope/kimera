@@ -16,7 +16,7 @@ RSpec.describe(Kimera::Operators) do
   def labels(code, *keys) = scan(code, *keys).each.map { |m, _p| m.label }
 
   def rendered(code, *keys)
-    scan(code, *keys).each.map { |m, p| Kimera::Rewrite::Directive.new(m.directive).render(p.original_source) }
+    scan(code, *keys).each.map { |m, p| Kimera::Rewrite::Directive.new(m.directive).render(p.original_source).first }
   end
 
   def live(code, *keys)

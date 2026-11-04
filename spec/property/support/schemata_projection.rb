@@ -222,9 +222,10 @@ module SchemataProjection
     clauses?(bare) ? tree(bare) : normal(bare.statements)
   end
 
+  def caught_clauses(node) = Kimera::Rescues.new(node.rescue_clause).to_a.filter_map { |clause| caught(clause) }
+
   def settled(node)
-    left = Kimera::Syntax::RESCUES.call(node.rescue_clause).filter_map { |clause| caught(clause) }
-    linked = left.reverse.reduce(nil) { |rest, clause| clause.copy(subsequent: rest) }
+    linked = caught_clauses(node).reverse.reduce(nil) { |rest, clause| clause.copy(subsequent: rest) }
     ensured = node.ensure_clause if ran?(node.ensure_clause)
     return node.copy(rescue_clause: linked, ensure_clause: ensured) if linked || !node.else_clause
     folded(node.copy(ensure_clause: ensured))

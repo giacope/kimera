@@ -13,6 +13,8 @@ module Kimera
 
       def visit(&) = visited(@root, &)
 
+      def nodes = [].tap { |found| visit { |node| found << node } }
+
       private
 
       def rebuilt(node, &)

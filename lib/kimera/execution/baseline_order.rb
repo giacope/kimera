@@ -16,6 +16,6 @@ class Kimera::Execution::BaselineOrder
     passed = failed - Array(@baseline.sequence(zygote)["failed_ids"])
     passed.reject { |test| zygote.call { @baseline.alone?(test) } }
   rescue Kimera::Execution::Zygote::Died, Kimera::Execution::Zygote::Raised, Timeout::Error
-    []
+    yield
   end
 end

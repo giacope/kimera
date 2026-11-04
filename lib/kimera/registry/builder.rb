@@ -8,48 +8,47 @@ require_relative "registry"
 class Kimera::RegistryScan
   OWN_FIRST = 1_000_001
 
-  def initialize(operators: nil, root: nil, shielded: true)
-    @chosen = operators
+  def initialize(operators: Kimera::Operators.build, root: ".", shielded: true, numbering: Numbering.new)
+    @operators = operators
     @base = root
     @shielded = shielded
+    @numbering = numbering
   end
 
   def build(paths)
     numbering = Kimera::RegistryScan::Numbering.new(paths.any? { |path| own?(path) } ? OWN_FIRST : 1)
-    scans = paths.sort.filter_map { |path| ingest(path, numbering) }
+    scans = paths.sort.flat_map { |path| ingest(path, numbering) { [] } }
     Kimera::Registry.new(
-      operators: operators.map(&:key), root: located,
+      operators: @operators.map(&:key), root: located,
       points: scans.flat_map(&:points), unmutated: scans.flat_map(&:regions)
     )
   end
 
   def source(source, file:)
-    scanned = scan(source, file, numbering)
+    scanned = scan(source, file, @numbering)
     Kimera::Registry.new(
-      operators: operators.map(&:key), root: located, points: scanned.points, unmutated: scanned.regions
+      operators: @operators.map(&:key), root: located, points: scanned.points, unmutated: scanned.regions
     )
   end
 
   private
 
-  def operators = @_operators ||= @chosen || Kimera::Operators.build
-  def root = @_root ||= File.expand_path(@base || Dir.pwd)
-  def located = root == Dir.pwd ? "." : root
-  def numbering = @_numbering ||= Kimera::RegistryScan::Numbering.new
+  def root = @_root ||= File.expand_path(@base)
+  def located(here = Dir.pwd) = root == here ? "." : root
 
   def own?(path) = Kimera::SelfProtection.new(path).own?
 
   def ingest(path, numbering)
-    return if @shielded && Kimera::SelfProtection.new(path).protected?
-    scan(File.read(path, encoding: Encoding::UTF_8), relative(path), numbering)
+    return [] if @shielded && Kimera::SelfProtection.new(path).protected?
+    [scan(File.read(path, encoding: Encoding::UTF_8), relative(path), numbering)]
   rescue Errno::ENOENT
-    nil
+    yield
   rescue SystemCallError, IOError => error
-    Kimera::RegistryScan::Unread.new(relative(path), error.message)
+    [Kimera::RegistryScan::Unread.new(relative(path), error.message)]
   end
 
   def scan(source, file, numbering)
-    Kimera::RegistryScan::SourceFile.new(source, file: file, operators: operators, numbering: numbering)
+    Kimera::RegistryScan::SourceFile.new(source, file: file, operators: @operators, numbering: numbering)
   end
 
   def relative(path)

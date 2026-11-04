@@ -12,7 +12,20 @@ class Kimera::MemoGuard
   WRITE = Kimera::SyntaxTypes::InstanceVariableWriteNode
   DEFINED = Kimera::SyntaxTypes::DefinedNode
 
-  Exemption = Data.define(:location, :operator)
+  class Exemption
+    def initialize(location, operator)
+      @location = location
+      @operator = operator
+    end
+
+    def self.conditional(location) = new(location, CONDITIONAL)
+
+    def self.deleted(location) = new(location, ASSIGNMENT_DELETION)
+
+    def covers?(node, key) = @location == node.location && @operator == key
+
+    def to_a = [@location.slice, @operator]
+  end
 
   def initialize(statements)
     @guard, @flag, *@rest = statements
@@ -35,7 +48,7 @@ class Kimera::MemoGuard
 
   def returns? = @guard.statements&.body&.one? && returned.is_a?(Kimera::SyntaxTypes::ReturnNode)
 
-  def returned = @guard.statements.body.first
+  def returned = @guard.statements.body.fetch(0)
 
   def value? = caches? && [@flag, *@rest].any? { named?(it, WRITE) }
 

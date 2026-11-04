@@ -14,7 +14,7 @@ RSpec.describe(Kimera::CLI::Run::Emission, :aggregate_failures) do
   let(:narration) { StringIO.new }
   let(:output) { StringIO.new }
 
-  def emit(**settings) = described_class.new(io: narration, output: output).emit(report, registry, **settings)
+  def emit(**settings) = described_class.new(io: narration, output: output).emit(report, registry, delivery(**settings))
 
   it "narrates the text report beside GitHub annotations, so the job log reads on its own" do
     emit(format: "github")
@@ -25,7 +25,7 @@ RSpec.describe(Kimera::CLI::Run::Emission, :aggregate_failures) do
   it "keeps the narration out of the other machine formats, and quiet silences it" do
     emit(format: "json")
     expect(narration.string).to(eq(""))
-    described_class.new(io: narration, output: output, quiet: true).emit(report, registry, format: "github")
+    described_class.new(io: narration, output: output, quiet: true).emit(report, registry, delivery(format: "github"))
     expect(narration.string).to(eq(""))
   end
 

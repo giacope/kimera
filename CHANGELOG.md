@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+Fixed while holding kimera to its own strict lint profiles:
+
+- **A progress bar cut short no longer erases the output above the next
+  one.** On a tty, a bar wider than the terminal wraps onto several rows,
+  and each new frame climbs those rows to erase the one before it. A phase
+  that ended short of its total wiped its bar but kept that row count, so
+  the next phase's first frame climbed again from the wiped bar's first
+  row and erased as many lines of earlier output. Wiping a bar now leaves
+  one row to erase, as finishing a phase already did.
+
 Field test round 6, batch 1: what kimera wrote, judged and said.
 
 - **A mutant's copy calls the method its point's own text shadows.** The

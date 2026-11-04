@@ -32,7 +32,7 @@ module Kimera
 
       def tail?(following) = following.is_a?(::String) && following.match?(TAIL)
 
-      def interpolation(node) = pen_of(node).opened.write(node)
+      def interpolation(node) = form_of(node, OPEN).written(STATEMENT)
     end
 
     class Embedded < Form
@@ -40,7 +40,7 @@ module Kimera
 
       def text
         return part(@node.variable) if type == :embedded_variable_node
-        @node.statements ? Sequence.new(@node.statements, @pen).text : ""
+        @node.statements ? @pen.form(@node.statements, @scope, @mode).text : ""
       end
     end
 

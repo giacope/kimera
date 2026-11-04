@@ -1,24 +1,21 @@
 # frozen_string_literal: true
 
 require_relative "../rewrite/mutant_text"
-require_relative "test_quality"
 
 module Kimera
-  module ReportRows
-    def quality = notes.suite&.then { |suite| Kimera::TestQuality.new(@results, suite).to_h }
-
-    private
-
-    def flakes
-      { "test_quality" => quality, "flaky_tests" => notes.flaky }.compact
+  class ReportRows
+    def initialize(registry)
+      @registry = registry
     end
 
-    def detailed(result)
+    def of(result)
       base = result.to_h
       id = result.mutant_id
-      pair = @registry&.point(id)
-      pair ? base.merge("key" => @registry.keys[id]).merge(rewritten(pair)) : base
+      pair = @registry.point(id) { return base }
+      base.merge("key" => @registry.keys[id]).merge(rewritten(pair))
     end
+
+    private
 
     def rewritten(pair)
       mutant, point = pair
@@ -26,8 +23,8 @@ module Kimera
     end
 
     def rendered(point, mutant)
-      mutated = Kimera::Rewrite::MutantText.new(point, mutant, root: @registry.root).text
-      { "original" => point.original_source, "mutated" => mutated && parenthesised(mutant, mutated) }
+      texts = Kimera::Rewrite::MutantText.new(point, mutant, root: @registry.root).texts
+      { "original" => point.original_source, "mutated" => texts.map { |text| parenthesised(mutant, text) }.first }
     end
 
     def parenthesised(mutant, mutated) = mutant.directive["type"] == "boolean_connective" ? "(#{mutated})" : mutated

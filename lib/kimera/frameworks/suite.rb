@@ -25,6 +25,10 @@ module Kimera
 end
 
 class Kimera::Frameworks::Suite
+  def initialize(seed: Kimera::Seed.new)
+    @seed = seed
+  end
+
   def source(files)
     raise(NotImplementedError)
   end
@@ -67,8 +71,7 @@ class Kimera::Frameworks::Suite
   private
 
   def reseed(test)
-    seed = Kimera::Seed.new
-    Kernel.srand(seed.for(test)) if seed.value
+    @seed.for(test).each { |seed| Kernel.srand(seed) }
   end
 
   def outcome(failed)
@@ -92,15 +95,17 @@ class Kimera::Frameworks::Suite
 
   def clash(error)
     name = error.message[KIND_CLASH, 1] if error.is_a?(TypeError)
-    gem = name && owner(name)
-    return "" unless gem
-    "\n  #{name} is a top-level constant that #{gem}, a gem kimera runs on, defines in the process that loads " \
-      "your suite, so the project's own #{name} cannot load beside it: put the project's #{name} in a namespace"
+    return "" unless name
+    owners(name).map do |gem|
+      "\n  #{name} is a top-level constant that #{gem}, a gem kimera runs on, defines in the process that loads " \
+        "your suite, so the project's own #{name} cannot load beside it: put the project's #{name} in a namespace"
+    end.join
   end
 
-  def owner(name)
+  def owners(name)
     path = Object.const_source_location(name)&.first.to_s
-    DEPENDENCIES.find { |gem| Gem.loaded_specs[gem]&.full_gem_path&.then { |root| path.start_with?("#{root}/") } }
+    DEPENDENCIES.lazy.select { |gem| Gem.loaded_specs[gem]&.full_gem_path&.then { path.start_with?("#{it}/") } }
+      .first(1)
   end
 end
 

@@ -85,7 +85,7 @@ RSpec.describe(Kimera::Frameworks) do
 
     it "constructs a registered extension without a built-in loader" do
       registry = described_class.new
-      klass = Class.new(Kimera::Frameworks::Suite).tap { |suite| allow(suite).to(receive(:build).and_return(:built)) }
+      klass = Class.new(Kimera::Frameworks::Suite) { def self.build = :built }
       registry.register(:demo, klass)
       expect(registry.load(:demo)).to(eq(:built))
     end
@@ -98,9 +98,8 @@ RSpec.describe(Kimera::Frameworks) do
     end
 
     it "turns a framework missing from the bundle into a Kimera::Error that names the fix" do
-      loader = described_class::LOADERS.fetch("rspec")
-      allow(loader).to(receive(:call).and_raise(LoadError, "cannot load such file -- rspec/core"))
-      expect { Kimera::Frameworks::SUITES.load(:rspec) }
+      missing = described_class.new("rspec" => -> { raise(LoadError, "cannot load such file -- rspec/core") })
+      expect { missing.load(:rspec) }
         .to(raise_error(Kimera::Error, %r{framework rspec .* rspec/core.*set framework: rspec or minitest}))
     end
 

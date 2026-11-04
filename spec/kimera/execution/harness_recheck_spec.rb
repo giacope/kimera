@@ -42,7 +42,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     report = Timeout.timeout(20) { harness(hanging, soft_timeout: nil, hard_timeout: 0.5).run(ids: [ids.first]) }
     detail = report.results.first.detail
 
-    expect(report.results.first.status).to(eq(:timeout))
+    expect([report.results.first.status, report.results.first.duration]).to(eq([:timeout, 0.5]))
     expect(detail).to(start_with("hard watchdog timeout\nthreads in the worker when it was killed:\nmain thread ("))
     expect(detail).to(match(/harness_recheck_spec\.rb:\d+:in '[^']*wedge'/))
   end
@@ -88,7 +88,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     let(:verdicts) { described_class.new(registry) }
 
     it "adds the worker's stacks to a hard-timeout verdict", :aggregate_failures do
-      expect(verdicts.timeout(ids.first, 2.0, "threads: main").detail).to(eq("hard watchdog timeout\nthreads: main"))
+      expect(verdicts.timeout(ids.first, 2.0, ["threads: main"]).detail).to(eq("hard watchdog timeout\nthreads: main"))
       expect(verdicts.timeout(ids.first, 2.0).detail).to(eq("hard watchdog timeout"))
     end
 

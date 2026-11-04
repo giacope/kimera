@@ -2,6 +2,7 @@
 
 require "fileutils"
 require "kimera/execution/stack_dump"
+require "timeout"
 require "tmpdir"
 
 # In-process: the spec arms its own process and signals itself, so the dump
@@ -27,11 +28,10 @@ RSpec.describe(Kimera::Execution::StackDump) do
     end
   end
 
-  def thread(name, frames: [], status: "sleep")
-    instance_double(Thread, backtrace: frames, status: status, name: name)
-  end
+  # A thread as the dump reads one: its name, its frames and its status.
+  def thread(name, frames: [], status: "sleep") = Struct.new(:name, :backtrace, :status).new(name, frames, status)
 
-  def interrupted = armed { dump.take(Process.pid) }
+  def interrupted = armed { dump.take(Process.pid) }.fetch(0)
 
   it "answers the signal with the interrupted thread's own frames", :aggregate_failures do
     lines = interrupted.lines(chomp: true)
@@ -47,22 +47,26 @@ RSpec.describe(Kimera::Execution::StackDump) do
   end
 
   it "stops a thread's frames at Kimera's own runner" do
-    frames = ["app/x.rb:1:in 'a'", "#{described_class::HARNESS}/execution/shift.rb:9:in 'b'", "app/y.rb:2:in 'c'"]
+    harness = Kimera::Execution::Frames::HARNESS
+    frames = ["app/x.rb:1:in 'a'", "#{harness}/execution/shift.rb:9:in 'b'", "app/y.rb:2:in 'c'"]
     text = dump.__send__(:describe, thread("w", frames: frames, status: "run"))
     expect(text).to(eq("thread w (run):\n  app/x.rb:1:in 'a'"))
   end
 
   it "skips the dump's own frames on the thread it interrupted" do
-    frames = ["#{described_class::HARNESS}/execution/stack_dump.rb:40:in 'write'", "app/x.rb:1:in 'a'"]
+    frames = ["#{Kimera::Execution::Frames::HARNESS}/execution/stack_dump.rb:40:in 'write'", "app/x.rb:1:in 'a'"]
     expect(dump.__send__(:describe, thread("w", frames: frames))).to(eq("thread w (sleep):\n  app/x.rb:1:in 'a'"))
   end
 
   it "shows frames relative to the project and caps them per thread", :aggregate_failures do
-    frames = Array.new(described_class::MAX_FRAMES + 2) { |i| "#{Dir.pwd}/app/m.rb:#{i}:in 'm'" }
+    frames = Array.new(Kimera::Execution::Frames::MAX_FRAMES + 2) { |i| "#{Dir.pwd}/app/m.rb:#{i}:in 'm'" }
     lines = dump.__send__(:describe, thread(nil, frames: frames)).lines(chomp: true)
     expect([lines.first, lines[1], lines.size, lines.last]).to(
       match(
-        [/\Athread \d+ \(sleep\):\z/, "  app/m.rb:0:in 'm'", described_class::MAX_FRAMES + 2, "  … 2 more frame(s)"]
+        [
+          /\Athread \d+ \(sleep\):\z/, "  app/m.rb:0:in 'm'", Kimera::Execution::Frames::MAX_FRAMES + 2,
+          "  … 2 more frame(s)"
+        ]
       )
     )
   end
@@ -95,7 +99,7 @@ RSpec.describe(Kimera::Execution::StackDump) do
     grace = described_class::GRACE
     silent = patient([0.0, grace / 2, grace, grace * 2], pauses)
 
-    expect(trapped("IGNORE") { silent.take(Process.pid) }).to(eq(described_class::UNANSWERED))
+    expect(trapped("IGNORE") { silent.take(Process.pid) }).to(eq([described_class::UNANSWERED]))
     expect(pauses).to(eq([described_class::POLL]))
   end
 
@@ -110,7 +114,7 @@ RSpec.describe(Kimera::Execution::StackDump) do
     stub_const("#{described_class}::GRACE", 0.05)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-    expect(trapped("IGNORE") { dump.take(Process.pid) }).to(eq(described_class::UNANSWERED))
+    expect(trapped("IGNORE") { dump.take(Process.pid) }).to(eq([described_class::UNANSWERED]))
     expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to(be_between(0.05, 1.0))
   end
 
@@ -134,31 +138,60 @@ RSpec.describe(Kimera::Execution::StackDump) do
     end
   end
 
-  it "returns nil for a worker that already exited" do
+  it "takes no dump from a worker that already exited" do
     pid = fork { exit!(0) }
     Process.wait(pid)
-    expect(dump.take(pid)).to(be_nil)
+    expect(dump.take(pid)).to(eq([]))
   end
 
   it "reads a dump as UTF-8, replacing invalid bytes" do
     File.binwrite(File.join(dir, "#{Process.pid}.txt"), "caf\xC3\xA9 \xFF")
-    expect(trapped("IGNORE") { dump.take(Process.pid) }).to(eq("café �"))
+    expect(trapped("IGNORE") { dump.take(Process.pid) }).to(eq(["café �"]))
   end
 
   # A worker in the pool's own process group gets the signal alone; only a
   # worker that leads its own group has the group signalled.
   describe "asking a worker" do
-    let!(:member) { fork { sleep(5) } }
-    let!(:leader) { fork { sleep(5) }.tap { |pid| Process.setpgid(pid, pid) } }
+    # Built before the forks, so every child writes to the parent's pipes.
+    let!(:ready) { IO.pipe }
+    let!(:heard) { IO.pipe }
 
-    after { [member, leader].each { |pid| Process.kill("KILL", pid) && Process.wait(pid) } }
+    after { Process.waitall }
 
-    it "signals a process in this group alone, and a group leader's whole group", :aggregate_failures do
-      allow(Process).to(receive(:kill).and_call_original)
-      allow(Process).to(receive(:kill).with(described_class::SIGNAL, anything))
-      [member, leader].each { |pid| dump.__send__(:ask, pid) }
-      expect(Process).to(have_received(:kill).with(described_class::SIGNAL, member))
-      expect(Process).to(have_received(:kill).with(described_class::SIGNAL, -leader))
+    # In a child: says +name+ on the heard pipe when the dump's signal comes, and exits; gives up after 10 s.
+    def listen(name)
+      Signal.trap(described_class::SIGNAL) do
+        heard.last.puts(name)
+        exit!(0)
+      end
+      ready.last.puts(name)
+      sleep(10)
+      exit!(1)
+    end
+
+    # In a child: leads a group of its own, with a child of its own in it.
+    def family
+      Process.setpgid(0, 0)
+      fork { listen("grandchild") }
+      listen("leader")
+    end
+
+    # A process in this group, and a group leader with a child of its own; the names of those that heard.
+    def asked
+      workers = [fork { listen("member") }, fork { family }]
+      3.times { ready.first.gets }
+      workers.each { |pid| dump.__send__(:ask, pid) }
+      names
+    end
+
+    # The names the listeners said, once every one has exited.
+    def names
+      heard.last.close
+      Timeout.timeout(15) { heard.first.readlines(chomp: true).sort }
+    end
+
+    it "signals a process in this group alone, and a group leader's whole group" do
+      expect(asked).to(eq(%w[grandchild leader member]))
     end
   end
 end

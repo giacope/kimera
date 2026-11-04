@@ -22,8 +22,8 @@ class Kimera::Incremental::CoverageCache
   def measured(ids)
     return ids unless @options[:reuse_coverage] && @options[:since]
     stored = Kimera::Incremental::CoverageMap.read(path)
-    reason = stored.mismatch(fingerprint)
-    reason ? everything(ids, reason) : chosen(stored, ids)
+    reasons = stored.mismatches(fingerprint)
+    reasons.empty? ? chosen(stored, ids) : everything(ids, reasons.fetch(0))
   rescue Errno::ENOENT
     everything(ids, MISSING)
   rescue JSON::ParserError
@@ -38,7 +38,7 @@ class Kimera::Incremental::CoverageCache
 
   private
 
-  def root = @options.fetch(:source_root)
+  def root = @options.to_h.fetch(:source_root)
 
   def path = File.expand_path(PATH, root)
 
@@ -47,17 +47,13 @@ class Kimera::Incremental::CoverageCache
   end
 
   def everything(ids, reason)
-    @errors.puts("kimera: not reusing the stored coverage map: #{reason}; the baseline runs every test")
-    ids
+    ids.tap { @errors.puts("kimera: not reusing the stored coverage map: #{reason}; the baseline runs every test") }
   end
 
   def chosen(stored, ids)
-    changed = stored.changed(fingerprint["sources"])
-    stored.tests(changed | @registry.files, ids).tap do |picked|
-      @errors.puts(
-        "kimera: reusing the coverage map from #{stored.commit} (#{changed.size} source file(s) changed since): " \
-          "the baseline runs #{picked.size} of #{ids.size} tests"
-      )
+    sources = fingerprint["sources"]
+    stored.picked(sources, @registry.files, ids).tap do |picked|
+      @errors.puts(stored.reused(sources, picked.size, ids.size))
     end
   end
 

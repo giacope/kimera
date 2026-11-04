@@ -3,7 +3,16 @@
 require_relative "../stopwatch"
 
 class Kimera::Execution::Shift::CoverageChannel
-  Reading = Data.define(:passed, :touched, :failure, :took)
+  class Reading
+    def initialize(passed, touched, failure, took)
+      @passed = passed
+      @touched = touched
+      @failure = failure
+      @took = took
+    end
+
+    def to_h = { passed: @passed, touched: @touched, failure: @failure, took: @took }
+  end
 
   def initialize(adapter, zygote:)
     @adapter = adapter
@@ -38,8 +47,8 @@ class Kimera::Execution::Shift::CoverageChannel
     Kimera::RUNTIME.stop!(ledger)
   end
 
-  def reading(testid, ledger)
-    outcome, took = Kimera::Execution::Stopwatch.new.lap { @adapter.run([testid]) }
+  def reading(testid, ledger, watch = Kimera::Execution::Stopwatch.new)
+    outcome, took = watch.lap { @adapter.run([testid]) }
     Reading.new(outcome.passed?, ledger.drain!, outcome.failures[testid], took)
   end
 

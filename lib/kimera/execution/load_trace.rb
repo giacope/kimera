@@ -12,14 +12,20 @@ module Kimera
 end
 
 class Kimera::Execution::LoadTrace
-  LOADED = Kimera::MutationPoint::LOAD_REASON
-  BOOTED = Kimera::MutationPoint::BOOT_REASON
   RAN = { call: [Prism::DefNode], b_call: [Prism::BlockNode, Prism::LambdaNode] }.freeze
 
-  Span =
-    Data.define(:range, :holes) do
-      def holds?(point) = point.inside?([range]) && !point.inside?(holes)
+  class Span
+    def initialize(range, holes)
+      @range = range
+      @holes = holes
     end
+
+    def holds?(point) = point.inside?([range]) && !point.inside?(holes)
+
+    private
+
+    attr_reader :range, :holes
+  end
 
   def initialize(registry, root)
     @registry = registry
@@ -35,7 +41,7 @@ class Kimera::Execution::LoadTrace
 
   def quarantine!(coverage)
     runs.each do |file, lines|
-      loaded(file, lines).each { |point| point.defer!(coverage, LOADED, BOOTED) }
+      loaded(file, lines).each { |point| point.loading!(coverage) }
     end
     Kimera::Execution::MacroLambdas.new(@registry, root).quarantine!(coverage)
     Kimera::Execution::BlockUse.new(@registry, root).revisit!

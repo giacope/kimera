@@ -9,7 +9,7 @@ RSpec.describe(Kimera::CLI::Mutant, :aggregate_failures) do
   let(:sample) { File.expand_path("../../../examples/sample_app", __dir__) }
   let(:provenance) do
     { "framework" => "rspec", "source_root" => ".", "tests" => ["spec/**/*_spec.rb"] }
-      .merge("operators" => Kimera::Operators::DEFAULT_KEYS, "coverage" => true, "isolated" => false)
+      .merge("operators" => Kimera::Operators.build.map(&:key), "coverage" => true, "isolated" => false)
   end
 
   def reported(registry, mutant, point)
@@ -17,20 +17,14 @@ RSpec.describe(Kimera::CLI::Mutant, :aggregate_failures) do
     Kimera::RunReport.new(results: [row], registry: registry).document(provenance)
   end
 
-  def recording(argv)
-    runner = instance_double(Kimera::CLI::Run)
-    allow(runner).to(receive(:run) { |arguments| argv.concat(arguments).size })
-    allow(Kimera::CLI::Run).to(receive(:new).and_return(runner))
-  end
-
+  # The arguments of the run a --rerun of mutant +id+ in +document+ asks for.
   def rerun(id, document)
-    [].tap do |argv|
-      recording(argv)
-      Dir.mktmpdir do |dir|
-        path = File.join(dir, "report.json").tap { |file| File.write(file, JSON.generate(document)) }
-        described_class.new(io: StringIO.new).run([id.to_s, "--report", path, "--rerun"])
-      end
+    run = FakeRun.new
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "report.json").tap { |file| File.write(file, JSON.generate(document)) }
+      described_class.new(io: StringIO.new, run: run).run([id.to_s, "--report", path, "--rerun"])
     end
+    run.runs.fetch(0)
   end
 
   def focused(options)

@@ -6,12 +6,21 @@ module Kimera
 end
 
 class Kimera::TestQuality
-  Standing =
-    Data.define(:covers, :kills, :unique) do
-      def to_h = super.transform_keys(&:to_s)
-
-      def redundant? = kills.positive? && unique.zero?
+  class Standing
+    def initialize(covers, kills, unique)
+      @covers = covers
+      @kills = kills
+      @unique = unique
     end
+
+    def to_h = { "covers" => @covers, "kills" => @kills, "unique" => @unique }
+
+    def redundant? = @kills.positive? && @unique.zero?
+
+    def idle? = @kills.zero?
+
+    def covering? = @covers.positive?
+  end
 
   def initialize(results, suite)
     @results = results
@@ -20,7 +29,7 @@ class Kimera::TestQuality
 
   def to_h
     standings = rank
-    { "tests" => @suite.size, "kills_nothing" => standings.select { |_test, standing| standing.kills.zero? }.keys }
+    { "tests" => @suite.size, "kills_nothing" => standings.select { |_test, standing| standing.idle? }.keys }
       .merge("redundant" => standings.select { |_test, standing| standing.redundant? }.keys)
       .merge("covers_nothing" => @suite - standings.keys, "standings" => standings.transform_values(&:to_h))
   end
@@ -30,7 +39,7 @@ class Kimera::TestQuality
   def rank
     covers, kills, unique = tallies(@results.select { |result| result.covered? && result.status != :uncovered_by_unit })
     @suite.to_h { |test| [test, Standing.new(covers[test], kills[test], unique[test])] }
-      .select { |_test, standing| standing.covers.positive? }
+      .select { |_test, standing| standing.covering? }
   end
 
   def tallies(judged)

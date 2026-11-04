@@ -3,34 +3,25 @@
 require_relative "../parsing/syntax"
 
 class Kimera::SpliceDiff
-  HELD = %i[
-    statements_node arguments_node parameters_node block_parameters_node block_node embedded_statements_node
-    embedded_variable_node else_node when_node in_node rescue_node ensure_node implicit_node implicit_rest_node
-    keyword_hash_node multi_target_node begin_node def_node flip_flop_node match_last_line_node
-    interpolated_match_last_line_node block_argument_node assoc_node assoc_splat_node splat_node
-    class_node module_node singleton_class_node program_node
-  ].freeze
-
   def initialize(original, mutated)
     @original = original
     @mutated = mutated
   end
 
-  def path
-    found = [[@original, @mutated]]
-    while (pair = differing(*found.last))
-      found << pair
-    end
-    found
-  end
+  def path = descended([[@original, @mutated]])
 
   private
 
+  def descended(found)
+    pairs = differing(*found.fetch(-1))
+    pairs.empty? ? found : descended([*found, *pairs])
+  end
+
   def differing(original, mutated)
-    return unless alike?(original, mutated)
+    return [] unless alike?(original, mutated)
     pairs = fields(original).zip(fields(mutated)).reject { |left, right| left == right }
-    pair = pairs.first if pairs.one? && pairs.first.all?(Kimera::Syntax::Node)
-    pair unless pair && receiving?(original, pair)
+    return [] unless pairs.one? && pairs.fetch(0).all?(Kimera::Syntax::Node)
+    receiving?(original, pairs.fetch(0)) ? [] : pairs
   end
 
   def alike?(original, mutated) = original.type == mutated&.type

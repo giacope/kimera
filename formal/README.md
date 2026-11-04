@@ -160,8 +160,8 @@ The model abstracts away:
 | `Service` | `WorkerPool#service`, `Worker#lines`, `#hangup` and `#dispatch`: `#finish`, `#relay`, `Fleet#requeue` |
 | `Remove` | `Fleet#remove`, `ChildProcess#bury`, `Fleet#charge`, `StillbornGuard#track` |
 | `Expire` | `WorkerPool#watch`, `Worker#halt` (`ChildProcess#kill`) |
-| `ChildRead` | `Shift::Channel#each_request` (EOF means retired) |
-| `ChildResult`, `ChildTainted` | `Shift#step`, `Shift#process`, `Shift#tainted?`, `Shift::LeakGuard#check` |
+| `ChildRead` | `Shift::Channel#ids` (EOF means retired) |
+| `ChildResult`, `ChildTainted` | `Shift#judging`, `Shift#process`, `Shift#tainted?`, `Shift::LeakGuard#check` |
 | `ChildRequeue` | `Shift::Suspect#message` (warm only: `Attempt#recheck` settles on a `Doubt`) |
 | `ChildTear` | a write cut short: the start of a line, flushed |
 | `ChildCrash`, `ChildHang` | a process that dies, or stops answering |

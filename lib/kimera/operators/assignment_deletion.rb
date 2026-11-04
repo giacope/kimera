@@ -7,7 +7,7 @@ require_relative "reassignments"
 class Kimera::Operators::AssignmentDeletion < Kimera::Operators::Base
   BLANK = ->(node) { node.is_a?(InstanceVariableWriteNode) && node.value.is_a?(NilNode) }
 
-  def initialize(rebinds = Kimera::Operators::Survey::NONE, blanks = Kimera::Operators::Survey::NONE)
+  def initialize(rebinds = Kimera::Operators::EmptySurvey.new, blanks = Kimera::Operators::EmptySurvey.new)
     super()
     @rebinds = rebinds
     @blanks = blanks

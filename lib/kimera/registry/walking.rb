@@ -21,11 +21,12 @@ module Kimera::RegistryWalking
       def holds?(node) = !inside_def && !block && node.is_a?(Kimera::SyntaxTypes::BlockNode)
     end
   Shape =
-    Data.define(:statements, :tail, :matchnode, :defbody, :insidedef, :embeds, :deferred) do
+    Data.define(:statements, :tail, :matchnodes, :defbodies, :insidedef, :embeds, :deferred) do
       def advance(child, cursor)
         cursor.with(
-          position: position(child), inside_def: insidedef || child.equal?(deferred),
-          in_pattern: cursor.in_pattern || child.equal?(matchnode), def_body: child.equal?(defbody),
+          position: position(child), inside_def: insidedef || deferred.any? { child.equal?(it) },
+          in_pattern: cursor.in_pattern || matchnodes.any? { child.equal?(it) },
+          def_body: defbodies.any? { child.equal?(it) },
           embedded: embeds
         )
       end
@@ -50,24 +51,24 @@ module Kimera::RegistryWalking
     statements = node.is_a?(Kimera::SyntaxTypes::StatementsNode) ? node.body : nil
     Shape.new(
       statements: deletable(statements, cursor), tail: cursor.def_body ? statements&.last : nil,
-      matchnode: pattern(node), defbody: body(node), insidedef: cursor.inside_def || reexecuted?(node),
+      matchnodes: patterns(node), defbodies: bodies(node), insidedef: cursor.inside_def || reexecuted?(node),
       embeds: node.is_a?(Kimera::SyntaxTypes::EmbeddedStatementsNode), deferred: deferred(node)
     )
   end
 
   def deletable(statements, cursor) = cursor.embedded ? statements[...-1] : statements
 
-  def pattern(node)
-    PATTERN_HOLDERS.any? { |k| node.is_a?(k) } ? node.pattern : nil
+  def patterns(node)
+    PATTERN_HOLDERS.any? { |k| node.is_a?(k) } ? [node.pattern] : []
   end
 
-  def body(node)
-    node.is_a?(Kimera::SyntaxTypes::DefNode) ? node.body : nil
+  def bodies(node)
+    node.is_a?(Kimera::SyntaxTypes::DefNode) ? [node.body] : []
   end
 
   def reexecuted?(node)
     node.is_a?(Kimera::SyntaxTypes::DefNode) || node.is_a?(Kimera::SyntaxTypes::LambdaNode)
   end
 
-  def deferred(node) = Kimera::Deferral.new(node).block
+  def deferred(node) = Kimera::Deferral.new(node).blocks
 end

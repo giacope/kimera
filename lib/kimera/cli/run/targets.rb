@@ -7,10 +7,10 @@ class Kimera::CLI::Run::Targets
     @arguments = arguments
   end
 
-  def paths = @arguments.map { |argument| aimed(argument)&.[](:path) || argument }
+  def paths = @arguments.map { |argument| aims(argument).map { |match| match[:path] }.fetch(0, argument) }
 
   def lines
-    @arguments.filter_map { |argument| aimed(argument) }.each_with_object({}) do |match, found|
+    @arguments.flat_map { |argument| aims(argument) }.each_with_object({}) do |match, found|
       from = match[:from]
       (found[match[:path]] ||= Set.new).merge(Integer(from, 10)..Integer(match[:to] || from, 10))
     end
@@ -18,8 +18,8 @@ class Kimera::CLI::Run::Targets
 
   private
 
-  def aimed(argument)
+  def aims(argument)
     match = PATTERN.match(argument)
-    match if match && File.file?(match[:path])
+    match && File.file?(match[:path]) ? [match] : []
   end
 end

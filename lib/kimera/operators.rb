@@ -61,16 +61,17 @@ module Kimera
       StatementDeletion, Negation, Conditional
     ].map { it.new.key }.freeze
 
-    INIT_KEYS = [*DEFAULT_KEYS, *[WhenClause, AppendDeletion].map { it.new.key }].freeze
-
     RAILS_KEYS = [RailsPermit, RailsValidation, RailsCallback, RailsAssociation].map { it.new.key }.freeze
 
-    CATALOG = Catalog.new(ALL, RAILS_KEYS)
+    ROSTER = Catalog::Roster.new(ALL)
+    CATALOG = Catalog.new(ROSTER, RAILS_KEYS)
+    private_constant(:DEFAULT_KEYS)
 
     def self.build(keys: DEFAULT_KEYS) = CATALOG.build(keys: keys)
 
     extend SingleForwardable
 
-    def_delegator "Kimera::Operators::CATALOG", :register
+    def_delegators "Kimera::Operators::ROSTER", :register, :custom
+    def_delegators "Kimera::Operators::CATALOG", :validate!
   end
 end

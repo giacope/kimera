@@ -27,13 +27,25 @@ module Kimera
       SyntaxTypes::GlobalVariableWriteNode => SyntaxTypes::GlobalVariableReadNode
     }.freeze
 
-    Range =
-      Struct.new(:start_offset, :end_offset, :reason, :holes) do
-        def contains?(start, finish)
-          return false unless start >= start_offset && finish <= end_offset
-          Array(holes).none? { |first, last| start >= first && finish <= last }
-        end
+    class Range
+      def initialize(start_offset, end_offset, reason, holes = [])
+        @start_offset = start_offset
+        @end_offset = end_offset
+        @reason = reason
+        @holes = holes
       end
+
+      def reasons(start, finish) = contains?(start, finish) ? [@reason] : []
+
+      def to_s = @reason
+
+      private
+
+      def contains?(start, finish)
+        return false unless start >= @start_offset && finish <= @end_offset
+        Array(@holes).none? { |first, last| start >= first && finish <= last }
+      end
+    end
 
     HOLE_NODES = [SyntaxTypes::DefNode, SyntaxTypes::LambdaNode].freeze
 
@@ -75,7 +87,7 @@ module Kimera
 
     def bare(node)
       inner = node.body&.body if node.is_a?(SyntaxTypes::ParenthesesNode)
-      inner&.size == 1 ? inner.first : node
+      inner&.size == 1 ? inner.fetch(0) : node
     end
 
     def cached(node)
@@ -103,8 +115,8 @@ module Kimera
 
     def holes(node)
       return [] unless node.is_a?(SyntaxTypes::Node)
-      hole = HOLE_NODES.any? { |kind| node.is_a?(kind) } ? node : Kimera::Deferral.new(node).block
-      return body(hole) if hole
+      found = HOLE_NODES.any? { |kind| node.is_a?(kind) } ? [node] : Kimera::Deferral.new(node).blocks
+      return found.flat_map { |hole| body(hole) } if found.any?
       node.compact_child_nodes.flat_map { |child| holes(child) }
     end
 

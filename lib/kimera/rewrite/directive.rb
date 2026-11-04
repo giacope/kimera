@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require_relative "../parsing/syntax"
-require_relative "../support/operator_protocol"
 require_relative "../scribe"
 
 require_relative "clause_handlers"
@@ -10,9 +9,10 @@ require_relative "numbered_params"
 
 module Kimera
   module Rewrite
-    TYPE = OperatorProtocol::TYPE
-    INDEX = OperatorProtocol::INDEX
-    STATEMENT_DELETION = OperatorProtocol::STATEMENT_DELETION
+    TYPE = "type"
+    INDEX = "index"
+    STATEMENT_DELETION = "statement_deletion"
+    private_constant(:TYPE, :INDEX, :STATEMENT_DELETION)
 
     class Directive
       TABLE = ->(*entries) { entries.each_slice(2).to_h.freeze }
@@ -42,26 +42,28 @@ module Kimera
       end
 
       def render(source)
-        shortcut || forced(source, condition) || attempt(source)
+        [-> { shortcuts }, -> { forced(source) { [] } }, -> { attempt(source) { [] } }].lazy.flat_map(&:call).first(1)
       end
 
       def apply(node)
-        operation(node).public_send(handler)
+        operation(node).call(handler)
       end
+
+      def kind?(name) = @directive[TYPE] == name
+
+      def position = Integer(@directive[INDEX])
 
       private
 
-      def condition
-        @directive["to"] if @directive[TYPE] == "condition"
-      end
+      def parsed(source) = Kimera::Syntax::Fragment.new(source).tree
 
-      def parsed(source) = Kimera::Syntax.parse(source, partial_script: true, scopes: [Kimera::Syntax::FORWARDING])
-
-      def forced(source, value)
+      def forced(source)
+        value = @directive["to"]
+        return [] unless kind?("condition") && value
         tree = parsed(source)
-        pinned(source, tree.value.statements.body.first.predicate, value) if value && tree.success?
+        tree.success? ? [pinned(source, tree.value.statements.body.first.predicate, value)] : []
       rescue NoMethodError
-        nil
+        yield
       end
 
       def pinned(source, predicate, value)
@@ -76,21 +78,21 @@ module Kimera
         source.byteslice(0, span.start_offset) + text + source.byteslice(span.end_offset..)
       end
 
-      def shortcut
+      def shortcuts
         type = @directive[TYPE]
-        return "(statement deleted)" if type == STATEMENT_DELETION
-        return String(@directive["value"]).inspect if type == "string_literal"
-        "#{@directive["name"]} (default removed)" if type == "required_argument"
+        return ["(statement deleted)"] if type == STATEMENT_DELETION
+        return [String(@directive["value"]).inspect] if type == "string_literal"
+        type == "required_argument" ? ["#{@directive["name"]} (default removed)"] : []
       end
 
       def attempt(source)
         tree = parsed(source)
-        return unless tree.success?
+        return [] unless tree.success?
         program = NumberedParams.new(tree.value).normalize
         node = program.statements.body.first
-        Kimera::Scribe.new(apply(node)).at(program, node).source
+        [Kimera::Scribe.new(apply(node)).at(program, node).source]
       rescue StandardError
-        nil
+        yield
       end
 
       def operation(node)

@@ -9,7 +9,10 @@ module Kimera
       include Kimera::Scribe::Nodes
 
       PREFIX = "__kimera_"
+      RENAMED = /\b#{PREFIX}(?:[1-9]|it)\b/
       SCOPES = %i[block_node lambda_node].freeze
+
+      def self.of(source) = new(Kimera::Scribe.parse(source))
 
       def initialize(tree)
         @tree = tree
@@ -17,6 +20,14 @@ module Kimera
 
       def normalize
         AstWalk.new(@tree).rebuild { |rebuilt, _original| dispatch(rebuilt) }
+      end
+
+      class Spelling
+        def initialize(text)
+          @text = text
+        end
+
+        def renamed? = @text.match?(RENAMED)
       end
 
       private

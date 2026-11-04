@@ -51,13 +51,10 @@ class Kimera::Execution::Pool
 
   def drive(queue, spawner, listeners, jobs: @options.fetch(:jobs))
     database.before_fork
-    Dir.mktmpdir("kimera-stacks") do |dir|
+    @options.fetch(:dirs, Dir).mktmpdir("kimera-stacks") do |dir|
       armed.stacks = Kimera::Execution::StackDump.new(dir)
-      Kimera::Execution::WorkerPool.new(
-        Kimera::Execution::WorkerPool::Context.new(
-          queue, spawner, listeners, { jobs: jobs, hard_timeout: @options.fetch(:hard) }
-        )
-      ).run
+      @options.fetch(:pools, Kimera::Execution::WorkerPool)
+        .new(queue, spawner, listeners, { jobs: jobs, hard_timeout: @options.fetch(:hard) }).run
     end
   end
 
@@ -75,7 +72,7 @@ class Kimera::Execution::Pool
 
   def stacks = armed.stacks
 
-  def armed = @_armed ||= Armed.new(*@options.values_at(:coverage, :budget, :timings))
+  def armed = @_armed ||= @options.fetch(:armed) { Armed.new(*@options.values_at(:coverage, :budget, :timings)) }
 
   def launch(entry, index)
     duty = Duty.new(entry, index, channels)
@@ -117,16 +114,14 @@ class Kimera::Execution::Pool
 
   def build(duty)
     Kimera::Execution::Shift.new(
-      adapter: @adapter, registry: @registry, coverage: coverage, isolation: @isolation,
-      soft_timeout: @options.fetch(:soft), pulse: pulse(duty), ceiling: soft_ceiling,
-      **@options.slice(:quality, :confirm), **{ budget: armed.budget, timings: armed.timings }.compact
+      adapter: @adapter, registry: @registry, isolation: @isolation,
+      soft_timeout: @options.fetch(:soft), pulse: pulse(duty), hard: hard,
+      **@options.slice(:quality, :confirm, :zygote),
+      **{ coverage: coverage, budget: armed.budget, timings: armed.timings }.compact
     )
   end
 
   def pulse(duty) = -> { duty.pulse }
 
-  def soft_ceiling
-    hard = @options[:hard]
-    hard && (hard - Kimera::Execution::Patience::SLACK)
-  end
+  def hard = @options[:hard] || Float::INFINITY
 end

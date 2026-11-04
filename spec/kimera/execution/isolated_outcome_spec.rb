@@ -29,80 +29,86 @@ RSpec.describe(Kimera::Execution::IsolatedOutcome) do
   end
 
   it "does not score a child that wrote no ledger as killed or survived", :aggregate_failures do
-    expect(test_judge(failed, nil).status).to(eq(:harness_error))
-    expect(test_judge(clean, nil).status).to(eq(:harness_error))
+    expect(test_judge(failed, nil).to_h[:status]).to(eq(:harness_error))
+    expect(test_judge(clean, nil).to_h[:status]).to(eq(:harness_error))
   end
 
   it "treats a ledger that is not an object as unreported", :aggregate_failures do
-    expect(test_judge(failed, "[]").status).to(eq(:harness_error))
-    expect(test_judge(clean, "[]").status).to(eq(:harness_error))
+    expect(test_judge(failed, "[]").to_h[:status]).to(eq(:harness_error))
+    expect(test_judge(clean, "[]").to_h[:status]).to(eq(:harness_error))
   end
 
   it "treats a failure count that is not an integer as unreported", :aggregate_failures do
-    expect(test_judge(failed, { failures: "0" }.to_json).status).to(eq(:harness_error))
-    expect(test_judge(clean, { failing: [] }.to_json).status).to(eq(:harness_error))
+    expect(test_judge(failed, { failures: "0" }.to_json).to_h[:status]).to(eq(:harness_error))
+    expect(test_judge(clean, { failing: [] }.to_json).to_h[:status]).to(eq(:harness_error))
   end
 
   it "treats a ledger that is not JSON as unreported" do
-    expect(test_judge(failed, "{not json").status).to(eq(:harness_error))
+    expect(test_judge(failed, "{not json").to_h[:status]).to(eq(:harness_error))
   end
 
   it "explains an unreported child with its exit status and both ends of a long stderr", :aggregate_failures do
     stderr = (1..30).map { |n| "line #{n}\n" }.join
     outcome = test_judge_unreported(failed, nil, stderr)
     kept = [*(1..5).map { |n| "line #{n}" }, "…", *(16..30).map { |n| "line #{n}" }]
-    expect(outcome.failing).to(be_nil)
-    expect(outcome.detail).to(eq("test child exited 1 without reporting results:\n#{kept.join("\n")}"))
+    expect(outcome.to_h[:failing_tests]).to(be_nil)
+    expect(outcome.to_h[:detail]).to(eq("test child exited 1 without reporting results:\n#{kept.join("\n")}"))
   end
 
   it "keeps a stderr of exactly twenty lines whole" do
     stderr = (1..20).map { |n| "line #{n}\n" }.join
-    expect(test_judge_unreported(failed, nil, stderr).detail)
+    expect(test_judge_unreported(failed, nil, stderr).to_h[:detail])
       .to(end_with(":\n#{(1..20).map { |n| "line #{n}" }.join("\n")}"))
   end
 
   it "names the signal and omits an empty stderr for an unreported child" do
     outcome = test_judge_unreported(test_exit("Process.kill(:KILL, Process.pid)"), nil, "  \n")
-    expect(outcome.detail).to(eq("test child died on signal 9 without reporting results"))
+    expect(outcome.to_h[:detail]).to(eq("test child died on signal 9 without reporting results"))
   end
 
   it "names the signal when a child with no failures dies on one", :aggregate_failures do
     outcome = test_judge(test_exit("Process.kill(:KILL, Process.pid)"), { failures: 0, failing: [] }.to_json)
-    expect(outcome.status).to(eq(:harness_error))
-    expect(outcome.detail).to(start_with("suite died on signal 9 with 0 failures"))
+    expect(outcome.to_h[:status]).to(eq(:harness_error))
+    expect(outcome.to_h[:detail]).to(start_with("suite died on signal 9 with 0 failures"))
   end
 
   # An error no test owns (a load error, a before(:suite) hook) may be the
   # environment's, so it is ruled apart: the caller runs the mutant again.
   it "rules an error outside every test apart from a kill, keeping it as the detail", :aggregate_failures do
     outcome = test_judge(failed, { failures: 1, failing: [], load_error: "ArgumentError: boom" }.to_json)
-    expect([outcome.status, outcome.failing]).to(eq([:outside, []]))
-    expect(outcome.detail).to(eq("an error outside every test: ArgumentError: boom"))
-    expect(test_judge(failed, { failures: 1, failing: [] }.to_json).detail)
+    expect(outcome.to_h.values_at(:status, :failing_tests)).to(eq([:outside, []]))
+    expect(outcome.to_h[:detail]).to(eq("an error outside every test: ArgumentError: boom"))
+    expect(test_judge(failed, { failures: 1, failing: [] }.to_json).to_h[:detail])
       .to(eq("an error outside every test: no test named"))
   end
 
   it "keeps the first failure's message as a kill's detail" do
     ledger = { failures: 1, failing: ["t1"], message: "RuntimeError: nope" }.to_json
-    expect(test_judge(failed, ledger).detail).to(eq("RuntimeError: nope"))
+    expect(test_judge(failed, ledger).to_h[:detail]).to(eq("RuntimeError: nope"))
   end
 
   it "turns an outside error that recurred into a kill that says so", :aggregate_failures do
-    recurred = described_class.new(:outside, [], "an error outside every test: x").recurred
-    expect([recurred.status, recurred.failing]).to(eq([:killed, []]))
-    expect(recurred.detail)
+    clean = described_class.new(:survived)
+    recurred = described_class.new(:outside, [], "an error outside every test: x").cleared { clean }
+    expect(recurred.to_h.values_at(:status, :failing_tests)).to(eq([:killed, []]))
+    expect(recurred.to_h[:detail])
       .to(eq("an error outside every test: x (it recurred with the mutant on; a fresh mirror without it runs clean)"))
-    expect([recurred.outside?, described_class.new(:outside).outside?]).to(eq([false, true]))
+    expect([recurred.retried { :again }, described_class.new(:outside).retried { :again }]).to(eq([recurred, :again]))
   end
 
-  describe "#explain" do
+  it "rules a child the watchdog stopped as timed out after its allowance" do
+    expect(described_class::Ruling.new(:timeout, "no ledger", "", 30).outcome.to_s)
+      .to(eq("timed out after 30s without a test finishing"))
+  end
+
+  describe "#to_s" do
     it "says why a red isolated baseline is red" do
       outcomes = [
-        described_class.new(:timeout).timed(30), described_class.new(:timeout),
+        described_class::Ruling.new(:timeout, "no ledger", "", 30).outcome, described_class.new(:timeout),
         described_class.new(:killed, %w[a b], "Error: why"), described_class.new(:killed, %w[a b]),
         described_class.new(:killed, [], "LoadError: x"), described_class.new(:harness_error)
       ]
-      expect(outcomes.map(&:explain)).to(
+      expect(outcomes.map(&:to_s)).to(
         eq(
           [
             "timed out after 30s without a test finishing", "timed out", "failing: a, b (Error: why)",
@@ -114,12 +120,12 @@ RSpec.describe(Kimera::Execution::IsolatedOutcome) do
   end
 
   it "treats a missing failing list on a kill as no named tests" do
-    expect(test_judge(failed, { failures: 2 }.to_json).failing).to(eq([]))
+    expect(test_judge(failed, { failures: 2 }.to_json).to_h[:failing_tests]).to(eq([]))
   end
 
   it "names its failing tests as killers only when asked and only for a kill", :aggregate_failures do
-    expect(described_class.new(:killed, ["t1"]).killers(true)).to(eq(["t1"]))
-    expect(described_class.new(:killed, ["t1"]).killers(false)).to(be_nil)
-    expect(described_class.new(:harness_error, ["t1"]).killers(true)).to(be_nil)
+    expect(described_class.new(:killed, ["t1"]).killing(true)).to(eq(killing_tests: ["t1"]))
+    expect(described_class.new(:killed, ["t1"]).killing(false)).to(eq({}))
+    expect(described_class.new(:harness_error, ["t1"]).killing(true)).to(eq({}))
   end
 end

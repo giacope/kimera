@@ -3,7 +3,7 @@
 require "kimera/execution/patience"
 
 # A test may run for the configured soft timeout, or for its own baseline
-# × 3 + 1s when that is longer, capped by the hard watchdog's ceiling.
+# × 3 + 1s when that is longer, capped a second under the hard watchdog.
 RSpec.describe(Kimera::Execution::Patience) do
   let(:timings) { { "fast" => 0.1, "slow" => 4.7 } }
 
@@ -16,9 +16,9 @@ RSpec.describe(Kimera::Execution::Patience) do
     expect(described_class.new(5.0, timings: timings).limit("slow")).to(be_within(1e-9).of(15.1))
   end
 
-  it "caps the raise at the ceiling but never lowers the configured limit", :aggregate_failures do
-    expect(described_class.new(5.0, timings: timings, ceiling: 12.0).limit("slow")).to(eq(12.0))
-    expect(described_class.new(5.0, timings: timings, ceiling: 3.0).limit("slow")).to(eq(5.0))
+  it "caps the raise a second under the hard watchdog but never lowers the configured limit", :aggregate_failures do
+    expect(described_class.new(5.0, timings: timings, hard: 13.0).limit("slow")).to(eq(12.0))
+    expect(described_class.new(5.0, timings: timings, hard: 4.0).limit("slow")).to(eq(5.0))
   end
 
   it "has no limit without a configured one" do

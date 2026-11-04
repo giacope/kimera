@@ -6,6 +6,7 @@ require_relative "../error"
 module Kimera
   class Config
     DEFAULT_PATH = ".kimera.yml"
+    private_constant(:DEFAULT_PATH)
 
     SCALAR_KEYS = %w[framework source_root soft_timeout hard_timeout
       jobs max_survivors max_ignored max_errors coverage isolate_db
@@ -19,56 +20,68 @@ module Kimera
     SCOPE_KEYS = %i[paths operators exclude].freeze
     ATTRIBUTIONS = %w[any unit].freeze
 
-    Precedence =
-      Data.define(:cli, :configured) do
-        def chosen(default)
-          given = Array(cli)
-          picked = given.empty? ? Array(configured) : given
-          picked.empty? ? default.dup : picked
-        end
+    class Attribution
+      def initialize(options)
+        @options = options
       end
 
-    Attribution =
-      Data.define(:options) do
-        def mode
-          mode = String(options[:attribution] || "any")
-          return mode if ATTRIBUTIONS.include?(mode)
-          raise(UsageError, "unknown attribution #{mode.inspect} (choose: #{ATTRIBUTIONS.join(", ")})")
-        end
-
-        def settings = { attribution: mode, unit_tests: rules }
-
-        def rules
-          given = Array(options[:cli_unit_tests])
-          return given.to_h { |text| pair(text) } unless given.empty?
-          Hash(options[:unit_tests]).to_h { |source, patterns| [String(source), Array(patterns).map(&:to_s)] }
-        end
-        private
-        def pair(text)
-          source, pattern = String(text).split("=", 2)
-          return [source, [pattern]] if pattern && !source.empty? && !pattern.empty?
-          raise(UsageError, "--unit-tests takes SOURCE_GLOB=TEST_PATTERN, got #{text.inspect}")
-        end
+      def mode
+        mode = String(options[:attribution] || "any")
+        return mode if ATTRIBUTIONS.include?(mode)
+        raise(UsageError, "unknown attribution #{mode.inspect} (choose: #{ATTRIBUTIONS.join(", ")})")
       end
 
-    Ignores =
-      Data.define(:options) do
-        def rules
-          local = Array(options[:ignore])
-          options[:baseline] ? local + Array(options[:baseline_ignore]) : local
-        end
+      def rules
+        given = Array(options[:cli_unit_tests])
+        return given.to_h { |text| pair(text) } unless given.empty?
+        Hash(options[:unit_tests]).to_h { |source, patterns| [String(source), Array(patterns).map(&:to_s)] }
       end
+      private
+      def pair(text)
+        source, pattern = String(text).split("=", 2)
+        return [source, [pattern]] if pattern && !source.empty? && !pattern.empty?
+        raise(UsageError, "--unit-tests takes SOURCE_GLOB=TEST_PATTERN, got #{text.inspect}")
+      end
+
+      attr_reader :options
+    end
+
+    class Ignores
+      def initialize(options)
+        @options = options
+      end
+
+      def rules
+        local = Array(options[:ignore])
+        options[:baseline] ? local + Array(options[:baseline_ignore]) : local
+      end
+
+      private
+
+      attr_reader :options
+    end
 
     def self.parse(argv)
       index = argv.index("--config")
-      return new(File.join(".", DEFAULT_PATH)) unless index
+      return of(".") unless index
       file = argv[index + 1]
       raise(UsageError, "no such config file: #{file}") unless file && File.exist?(file)
       new(file)
     end
 
+    def self.of(root) = new(File.join(root, DEFAULT_PATH))
+
     def initialize(file)
       @file = file
+    end
+
+    def to_s = File.basename(@file)
+
+    def file? = File.file?(@file)
+
+    def create(force)
+      raise(UsageError, "#{@file} already exists (use --force to replace it)") if File.exist?(@file) && !force
+      File.write(@file, yield)
     end
 
     def options
@@ -102,9 +115,7 @@ module Kimera
       end
     end
 
-    def symbolize(rule)
-      rule.transform_keys(&:to_sym)
-    end
+    def symbolize(rule) = rule.transform_keys(&:to_sym)
 
     def validate(rule)
       file = rule[:file]
@@ -118,8 +129,8 @@ module Kimera
       raise(UsageError, "ignore entry for #{file} needs a reason: (why is this mutant equivalent?)")
     end
 
-    def reasonless?(rule)
-      rule[:reason].to_s.strip.empty?
-    end
+    def reasonless?(rule) = rule[:reason].to_s.strip.empty?
   end
 end
+
+require_relative "precedence"

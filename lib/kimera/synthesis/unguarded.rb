@@ -58,9 +58,4 @@ class Kimera::Unguarded
   end
 end
 
-Kimera::Unguarded::Caught =
-  Data.define(:guarded) do
-    def clause = guarded.copy(exceptions: listed.type == :array_node ? listed.elements : [])
-
-    def listed = guarded.exceptions.first.expression.body.body.first
-  end
+require_relative "unguarded/caught"

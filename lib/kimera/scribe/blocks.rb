@@ -4,8 +4,8 @@ module Kimera
   class Scribe
     class Block < Form
       def suffix
-        kept = @pen.slice(@node)
-        kept ? " #{kept}" : braced(@node.body, @pen.with([@node.parameters]), bars)
+        kept = @pen.slice(@node, @scope) { return braced(@node.body, @scope.with([@node.parameters]), bars) }
+        " #{kept}"
       end
 
       private
@@ -22,7 +22,7 @@ module Kimera
       def text
         parameters = @node.parameters
         listed = parameters&.type == :block_parameters_node ? "(#{part(parameters)})" : ""
-        "->#{listed}#{braced(@node.body, @pen.with([parameters]))}"
+        "->#{listed}#{braced(@node.body, @scope.with([parameters]))}"
       end
     end
 
@@ -59,8 +59,7 @@ module Kimera
       private
 
       def default
-        value = @node.value
-        pen_of(value).bound(Set[@node.name]).write(value, Level::ASSIGNMENT)
+        bound(@node.value, Set[@node.name], ASSIGNMENT)
       end
     end
   end

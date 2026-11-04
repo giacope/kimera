@@ -44,7 +44,7 @@ class Kimera::PointLines
   end
 
   def body(heredoc)
-    verbatim = heredoc.opening_loc.slice.match?(Kimera::PartSplice::VERBATIM)
-    (verbatim ? heredoc.location : Kimera::PartSplice.new(heredoc).body).start_line..heredoc.closing_loc.start_line
+    part = Kimera::PartSplice.new(heredoc)
+    (part.verbatim? ? heredoc.location : part.body).start_line..heredoc.closing_loc.start_line
   end
 end

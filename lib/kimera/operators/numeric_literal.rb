@@ -3,15 +3,20 @@
 require_relative "base"
 
 class Kimera::Operators::NumericLiteral < Kimera::Operators::Base
-  IntegerTargets =
-    Data.define(:value) do
-      include Enumerable
-      def each(&) = targets.uniq.each(&)
-      private
-      def targets
-        [value - 1, value + 1].tap { |all| all << 0 unless value.zero? }
-      end
+  class IntegerTargets
+    def initialize(value)
+      @value = value
     end
+
+    include Enumerable
+    def each(&) = targets.uniq.each(&)
+    private
+    def targets
+      [value - 1, value + 1].tap { |all| all << 0 unless value.zero? }
+    end
+
+    attr_reader :value
+  end
   def key = "numeric_literal"
 
   def variants(node, **)

@@ -8,16 +8,12 @@ end
 class Kimera::Execution::IsolatedPlan; end
 
 class Kimera::Execution::IsolatedPlan::TestSelection
-  attr_reader :all
-
-  def initialize(all_tests:, coverage:)
-    @all = all_tests
+  def initialize(coverage:)
     @coverage = coverage
   end
 
   def recorded(id)
-    return @all unless @coverage
-    tests = @coverage[id] || @coverage[id.to_s]
-    tests unless Array(tests).empty?
+    tests = Array(@coverage.fetch(id) { @coverage.fetch(id.to_s, []) })
+    tests.empty? ? yield : tests
   end
 end

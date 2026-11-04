@@ -33,5 +33,5 @@ class Kimera::Execution::DatabaseCopies::Sqlite
 
   private
 
-  def path(name) = File.expand_path(name, (Rails.root if defined?(Rails.root)) || Dir.pwd)
+  def path(name, here = Dir.pwd) = File.expand_path(name, (Rails.root if defined?(Rails.root)) || here)
 end

@@ -3,6 +3,7 @@
 require_relative "priority"
 require_relative "kinship"
 require_relative "reload"
+require_relative "triage"
 require_relative "verdicts"
 
 class Kimera::Execution::Schedule
@@ -20,86 +21,83 @@ class Kimera::Execution::Schedule
 
   def run(ids, coverage:, label: "mutants")
     kept, settled = screened(coverage)
-    progress.start(ids.size, label)
-    batch = plan(ids - settled.keys, kept)
-    settled.slice(*ids).each { |id, result| record(batch.ledger, id, result) }
-    process(batch)
-    finish(batch.ledger)
-  ensure
-    progress.finish
+    progress.during(ids.size, label) do |tick|
+      batch = plan(ids - settled.keys, kept)
+      settled.slice(*ids).each { |id, result| record(batch.ledger, id, result, tick) }
+      process(batch, tick)
+      finish(batch.ledger)
+    end
   end
 
   private
 
   def progress = @options.fetch(:progress)
 
-  def filter = @options[:filter]
+  def filters = Array(@options[:filter])
 
   def screened(coverage)
-    return [coverage, {}] unless filter&.active?
-    filter.screen(coverage).tap { |kept, _settled| @driver.narrow(kept) }
+    filters.map { |filter| filter.screen(coverage) { |kept| @driver.narrow(kept) } }.fetch(0) { [coverage, {}] }
   end
 
-  def hard = @options[:hard]
+  def hard = @options.fetch(:hard)
 
-  def verdicts = @_verdicts ||= Kimera::Execution::Verdicts.new(@registry)
+  def verdicts = @_verdicts ||= @options.fetch(:verdicts) { Kimera::Execution::Verdicts.new(@registry) }
 
-  def plan(ids, coverage)
-    safe, unsafe = ids.partition { |id| verdicts.safe?(id) }
-    reloadable, deferred = unsafe.partition { |id| verdicts.reloadable?(id) }
-    Batch.new(prioritized(safe, coverage), reloadable, deferred, Ledger.new({}, []), coverage)
+  def triage = Kimera::Execution::Triage.new(verdicts)
+
+  def plan(ids, coverage, ledger = Ledger.new({}, []))
+    safe, reloadable, deferred = triage.tiers(ids)
+    Batch.new(prioritized(safe, coverage), reloadable, deferred, ledger, coverage)
   end
 
   def prioritized(safe, coverage) = Kimera::Execution::Priority.new(coverage).order(safe)
 
-  def process(batch)
+  def process(batch, tick)
     ledger = batch.ledger
-    pool(batch.safe, ledger)
-    reload(batch)
-    defer(batch.deferred, ledger)
+    pool(batch.safe, ledger, tick)
+    reload(batch, tick)
+    defer(batch.deferred, ledger, tick)
   end
 
   def finish(ledger)
-    results = verdicts.reclassified(ledger.results).values
+    results = triage.reclassified(ledger.results).values
     Kimera::RunReport.new(results: results, leaks: ledger.leaks, registry: @registry)
   end
 
-  def record(ledger, id, result)
+  def record(ledger, id, result, tick)
     ledger.results[id] = result
-    progress.tick(result.status)
+    tick.call(result.status)
   end
 
-  def reload(batch)
+  def reload(batch, tick)
     kinship = Kimera::Execution::Kinship.new(@registry, batch.coverage)
-    batch.reloadable.each { |id| record(batch.ledger, id, rerun(id, kinship)) }
+    batch.reloadable.each { |id| record(batch.ledger, id, rerun(id, kinship), tick) }
   end
 
   def rerun(id, kinship)
     tests = kinship.order(id, @options.fetch(:adapter).test_ids)
-    return reloader.run(id, deadline: hard, tests: tests) unless filter
-    filter.settle(id, tests) || reloader.run(id, deadline: hard, tests: filter.keep(verdicts.path(id), tests))
+    filters.map { |filter| settled(filter, id, tests) }.fetch(0) { reloader.run(id, deadline: hard, tests: tests) }
   end
 
-  def defer(ids, ledger)
-    ids.each { |id| record(ledger, id, verdicts.quarantine(id)) }
+  def settled(filter, id, tests)
+    filter.settle(id, tests) || reloader.run(id, deadline: hard, tests: filter.keep(verdicts.point(id).file, tests))
   end
 
-  def pool(queue, ledger)
-    listeners = Kimera::Execution::WorkerPool::Listeners.new(resolve: resolver(ledger), lost: loser(ledger), trace: nil)
+  def defer(ids, ledger, tick)
+    ids.each { |id| record(ledger, id, triage.quarantine(id), tick) }
+  end
+
+  def pool(queue, ledger, tick)
+    listeners = Kimera::Execution::WorkerPool::Listeners.new(
+      resolve: ->(message) { resolve(message, ledger, tick) },
+      lost: ->(id, reason, stacks) { record(ledger, id, lost(id, reason, stacks), tick) }, trace: nil
+    )
     @driver.drive(queue, @spawner, listeners)
   end
 
-  def resolver(ledger)
-    ->(message) { resolve(message, ledger) }
-  end
-
-  def loser(ledger)
-    ->(id, reason, stacks) { record(ledger, id, lost(id, reason, stacks)) }
-  end
-
-  def resolve(message, ledger)
+  def resolve(message, ledger, tick)
     case message["t"]
-    when "result" then parse(message, ledger)
+    when "result" then parse(message, ledger, tick)
     when "leak", "requeue" then ledger.leaks << Kimera::LeakReport.new(
       mutant_id: message["id"],
       detail: message["detail"]
@@ -107,19 +105,21 @@ class Kimera::Execution::Schedule
     end
   end
 
-  def parse(message, ledger)
+  def parse(message, ledger, tick)
     result = verdicts.parse(message).tap { |parsed| parsed.killing_tests = message["kills"] }
-    record(ledger, result.mutant_id, result)
+    record(ledger, result.mutant_id, result, tick)
   end
 
   def lost(id, reason, stacks) = __send__(LOSSES.fetch(reason, :crashed), id, stacks)
 
   def expired(id, stacks) = verdicts.timeout(id, hard, stacks)
 
-  def crashed(id, obituary) = verdicts.unjudged(id, ["worker crashed before result", obituary].compact.join(": "))
+  def crashed(id, obituary) = verdicts.unjudged(id, ["worker crashed before result", *obituary].join(": "))
 
-  def reloader
-    @_reloader ||= Kimera::Execution::Reload.new(
+  def reloader = @_reloader ||= @options.fetch(:reloader) { reloading }
+
+  def reloading
+    Kimera::Execution::Reload.new(
       registry: @registry, adapter: @options.fetch(:adapter), isolation: @options.fetch(:isolation),
       workspace: Kimera::Execution::Reload::Workspace.new(root: @options.fetch(:root), aliases: @options[:aliases])
     )

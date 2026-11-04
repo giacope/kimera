@@ -11,14 +11,14 @@ module Kimera
       @node = node
     end
 
-    def block
-      return unless @node.is_a?(SyntaxTypes::CallNode) && callable?
+    def blocks
+      return [] unless @node.is_a?(SyntaxTypes::CallNode) && callable?
       found = @node.block
-      found if found.is_a?(SyntaxTypes::BlockNode)
+      found.is_a?(SyntaxTypes::BlockNode) ? [found] : []
     end
 
     def name
-      return unless block && DEFINERS.include?(@node.name)
+      return unless blocks.any? && DEFINERS.include?(@node.name)
       named = @node.arguments&.arguments&.first
       named.unescaped if named.is_a?(SyntaxTypes::SymbolNode) || named.is_a?(SyntaxTypes::StringNode)
     end

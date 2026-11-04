@@ -6,9 +6,10 @@ module Kimera
 end
 
 class Kimera::Execution::Sweep
-  def initialize(ids, lock)
+  def initialize(ids, lock, tick)
     @ids = ids
     @lock = lock
+    @tick = tick
   end
 
   def results = @_results ||= []
@@ -23,6 +24,7 @@ class Kimera::Execution::Sweep
 
   def record(result)
     @lock.synchronize { results << result }
+    @tick.call(result.status)
   end
 
   private

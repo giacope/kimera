@@ -68,16 +68,22 @@ RSpec.describe(Kimera::SpliceDiff) do
       end
     end
 
+    def kept?(map, edits) = edits.all? { |from, to, text| Kimera::LinePad.new(map.slice(from, to)).kept?(text) }
+
     it "keeps the lines when every edit breaks as many lines as its span, whatever its bytes", :aggregate_failures do
       map = described_class.new("a(1,\n  2)\nb = \"\xFF\"\n")
-      expect(map.lines_kept?([[2, 9, "1, 2\n"], [15, 16, "\xFE"]])).to(be(true))
-      expect(map.lines_kept?([[2, 9, "1, 2\n"], [10, 11, "c\n"]])).to(be(false))
-      expect(map.lines_kept?([[2, 9, "1, 2"]])).to(be(false))
+      expect(kept?(map, [[2, 9, "1, 2\n"], [15, 16, "\xFE"]])).to(be(true))
+      expect(kept?(map, [[2, 9, "1, 2\n"], [10, 11, "c\n"]])).to(be(false))
+      expect(kept?(map, [[2, 9, "1, 2"]])).to(be(false))
+    end
+
+    it "slices its source by byte offsets" do
+      expect(described_class.new("é = 1\n").slice(3, 6)).to(eq("= 1"))
     end
   end
 
   describe Kimera::LinePad do
-    def texts(span, text) = described_class.new(span).texts(text)
+    def texts(span, text) = described_class.new(span).layouts(text)[...-1]
 
     it "lays a text out to the span's lines, after it or before its closing", :aggregate_failures do
       expect(texts("a(1,\n  2)", "a(1)")).to(eq(["a(1)\n", "a(1\n)"]))
@@ -87,8 +93,12 @@ RSpec.describe(Kimera::SpliceDiff) do
       expect([texts("[1,\n 2]", "[1]"), texts("backend", "backend")]).to(eq([["[1]\n", "[1\n]"], ["backend"]]))
     end
 
+    it "lays a text out last in parentheses, padded to the span's lines" do
+      expect(described_class.new("a(1,\n  2)").layouts("a(1)").last).to(eq("(a(1)\n)"))
+    end
+
     it "writes nothing over a span with fewer lines" do
-      expect([texts("a(1)", "a(1,\n2)"), described_class.new("a(1)").closed("a(1,\n2)")]).to(eq([[], nil]))
+      expect(described_class.new("a(1)").layouts("a(1,\n2)")).to(eq([]))
     end
 
     it "counts the line breaks of a text that is not valid in its encoding", :aggregate_failures do
@@ -97,22 +107,21 @@ RSpec.describe(Kimera::SpliceDiff) do
         .to(eq([2, true, false]))
     end
 
-    def fitted(span, node) = described_class.new(span).fitted(Kimera::Scribe.new(node), Kimera::Readback.new(node))
+    def fitted(span, node) = described_class.new(span).fits(Kimera::Scribe.new(node), Kimera::Readback.new(node))
 
     it "fits a node's writing as Scribe lays it out, else on one line", :aggregate_failures do
       node = Kimera::Scribe.parse("if a\n  b\nend").statements.body.first
-      expect(fitted("if a\n  b\nend", node)).to(eq("if a\n  b\nend"))
-      expect(fitted("if a then b end", node)).to(eq("if a; b; end"))
-      expect(fitted("/ab/x", Kimera::Scribe.parse("/a\nb/x").statements.body.first)).to(be_nil)
+      expect(fitted("if a\n  b\nend", node)).to(eq(["if a\n  b\nend"]))
+      expect(fitted("if a then b end", node)).to(eq(["if a; b; end"]))
+      expect(fitted("/ab/x", Kimera::Scribe.parse("/a\nb/x").statements.body.first)).to(eq([]))
     end
 
     # R6B4-M1: a writing that reads back as another tree is no fit.
     it "takes the first writing that reads back as the node" do
       node = Kimera::Scribe.parse("case v\nwhen 3.. then :big\nend").statements.body.first
-      readback = instance_double(Kimera::Readback)
-      allow(readback).to(receive(:faithful?)) { |text| text.start_with?("case v;") }
-      expect(described_class.new("case v\nwhen 3.. then :big\nend").fitted(Kimera::Scribe.new(node), readback))
-        .to(eq("case v; when 3..;; :big; \n\nend"))
+      readback = Class.new { def faithful?(text) = text.start_with?("case v;") }.new
+      expect(described_class.new("case v\nwhen 3.. then :big\nend").fits(Kimera::Scribe.new(node), readback))
+        .to(eq(["case v; when 3..;; :big; \n\nend"]))
     end
   end
 
@@ -120,13 +129,13 @@ RSpec.describe(Kimera::SpliceDiff) do
     it "writes a reopening's header on the lines of what it replaces" do
       source = "Point =\n  Struct.new(:x) do\n    def big? = x > 1\n  end\n"
       map = Kimera::SourceMap.new(source)
-      expect(map.lines_kept?(described_class.new(map).edits)).to(be(true))
+      kept = described_class.new(map).edits.all? { |from, to, text| Kimera::LinePad.new(map.slice(from, to)).kept?(text) }
+      expect(kept).to(be(true))
     end
   end
 
   describe Kimera::Scribe::Place do
-    def locals(source, slice)
-      root = Kimera::Scribe.parse(source)
+    def find(root, slice)
       node = nil
       visit =
         proc { |each|
@@ -134,8 +143,18 @@ RSpec.describe(Kimera::SpliceDiff) do
           each.compact_child_nodes.each(&visit)
         }
       visit.call(root)
-      described_class.of(root, node || read(slice)).locals.to_a.sort
+      node || read(slice)
     end
+
+    # The names of the source a bare call written where the node stands reads
+    # as locals there: it takes parentheses so as not to read the local.
+    def locals(source, slice)
+      root = Kimera::Scribe.parse(source)
+      names = source.scan(/[a-z_]\w*/).map(&:to_sym).uniq
+      names.select { |name| called(name, root, find(root, slice)) == "#{name}()" }.sort
+    end
+
+    def called(name, root, original) = Kimera::Scribe.new(read("call").copy(name: name)).at(root, original).text
 
     it "binds a write's name after it, not at it, and an embedded part's binding just before", :aggregate_failures do
       expect(locals("def m\n  y = 2\nend\n", "y = 2")).to(eq([]))
@@ -143,11 +162,11 @@ RSpec.describe(Kimera::SpliceDiff) do
       expect(locals("x = 1\n", "zzzzzzzzzzzzzz")).to(eq([]))
     end
 
-    it "keeps as written only what reads the same anywhere", :aggregate_failures do
+    it "keeps as written only what reads the same anywhere" do
       root = Kimera::Scribe.parse("def m(a)\n  [a .b, f(a,  1), a  +  b, yield(a,  1)]\nend\n")
       list = root.statements.body.first.body.body.first
-      kept = described_class.of(root, list).slices.values
-      expect(kept).to(include("a .b", "f(a,  1)", "a  +  b", "yield(a,  1)"))
+      written = Kimera::Scribe.new(list.copy).at(root, list).text
+      expect(written).to(eq("[a .b, f(a,  1), a  +  b, yield(a,  1)]"))
     end
   end
 end

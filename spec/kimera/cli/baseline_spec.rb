@@ -14,7 +14,7 @@ RSpec.describe(Kimera::CLI::Baseline, :aggregate_failures) do
 
   let(:out) { StringIO.new }
   let(:errors) { StringIO.new }
-  let(:cli) { described_class.new(io: out, errors: errors) }
+  let(:cli) { Driven.new(Kimera::CLI.new(io: out, errors: errors), out, errors, "baseline") }
 
   def entry(file, line, label, **extra)
     { "file" => file, "line" => line, "label" => label, **extra, "reason" => "debt" }

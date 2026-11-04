@@ -5,10 +5,10 @@ require_relative "../child_process"
 Kimera::Execution::WorkerPool::Worker =
   Struct.new(:pid, :request, :response, :inflight, :deadline, :slot, :stacks, :served, :last_words, :unread) do
     include Kimera::Execution::ChildProcess
-    def lines(chunk)
+    def feed(chunk, &)
       *complete, partial = (rest + chunk).split("\n", -1)
       self.unread = partial
-      complete
+      complete.each(&)
     end
 
     def rest
@@ -34,7 +34,7 @@ Kimera::Execution::WorkerPool::Worker =
     end
 
     def autopsy
-      stacks&.take(pid)
+      Array(stacks&.take(pid))
     end
 
     def halt
@@ -63,7 +63,7 @@ Kimera::Execution::WorkerPool::Worker =
 
     def obituary(status)
       words = [demise(status), last_words].compact
-      words.join("\n") unless words.empty?
+      words.empty? ? [] : [words.join("\n")]
     end
 
     def demise(status)

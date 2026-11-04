@@ -10,5 +10,3 @@ class Kimera::Execution::OpenAttribution
 
   def admits?(_source, &) = true
 end
-
-Kimera::Execution::Attribution::ANY = Kimera::Execution::OpenAttribution.new

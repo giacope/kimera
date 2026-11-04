@@ -2,12 +2,13 @@
 
 require "kimera/execution/baseline_screen"
 require "kimera/frameworks/suite"
+require "tmpdir"
 
 RSpec.describe(Kimera::Execution::BaselineScreen) do
   # Reruns ids "plainly": the ids in `red` fail; `ran` records each argv.
   def suite(red: [], output: "", ran: [])
-    lambda do |env, *argv, chdir:|
-      ran << [env, argv, chdir]
+    lambda do |*argv, chdir:|
+      ran << [argv, chdir]
       File.write(argv.last, red.join("\n")) if argv.first == "plain"
       [output, Struct.new(:success?).new(red.empty?)]
     end
@@ -21,11 +22,8 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
     end.new
   end
 
-  def screen(jobs: 1, **options)
-    described_class.new(
-      adapter: options.delete(:with) || adapter, root: "/project", jobs: jobs,
-      suite: suite(**options)
-    )
+  def screen(jobs: 1, root: "/project", **options)
+    described_class.new(adapter: options.delete(:with) || adapter, root: root, jobs: jobs, suite: suite(**options))
   end
 
   def failures = { "t1" => "SystemStackError: stack level too deep\n  frame", "t2" => nil }
@@ -39,8 +37,8 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
   it "reruns the failing tests in the project root, outside kimera", :aggregate_failures do
     ran = []
     screen(red: %w[t1 t2], ran: ran).call(failures)
-    env, argv, chdir = ran.first
-    expect([env, argv.first(3), chdir]).to(eq([{ "KIMERA" => "1" }, %w[plain t1 t2], "/project"]))
+    argv, chdir = ran.first
+    expect([argv.first(3), chdir]).to(eq([%w[plain t1 t2], "/project"]))
   end
 
   # K3-3: tests red only under kimera were dropped as "covering nothing".
@@ -57,11 +55,22 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
     expect(message).to(include("\n  plain run: rspec t1 t2 --order defined\n"))
   end
 
+  # A project at +root+ whose suite took a method as a Method at load, which kimera redefined since; the taken one.
+  def captured(root)
+    file = File.join(root, "coerce.rb").tap { |path| File.write(path, "def ScreenCoerce.to_int(value) = value\n") }
+    stub_const("ScreenCoerce", Module.new)
+    load(file)
+    ScreenCoerce.method(:to_int).tap { load(file) }
+  end
+
   # R4-KL9: dry-types holds `Coercions::Params.method(:to_int)` from load.
-  it "names a method the suite took at load before any other cause" do
-    captured = instance_double(Kimera::Execution::CapturedMethods, cause: "kimera redefined Coerce.to_int")
-    allow(Kimera::Execution::CapturedMethods).to(receive(:new).with("/project").and_return(captured))
-    expect(harness_error(jobs: 2)).to(end_with("\n  likely cause: kimera redefined Coerce.to_int"))
+  it "names a method the suite took at load before any other cause", :aggregate_failures do
+    Dir.mktmpdir do |root|
+      taken = captured(root)
+      expect(harness_error(jobs: 2, root: root))
+        .to(match(/\n  likely cause: kimera redefined 1 method\(s\).*ScreenCoerce\.to_int at coerce\.rb:1/))
+      expect(taken).to(be_a(Method))
+    end
   end
 
   it "blames the forked workers when there were several, else what kimera changes", :aggregate_failures do
@@ -111,6 +120,21 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
 
   it "excludes them when the framework has no plain rerun" do
     expect(screen(with: adapter(plain: false)).call(failures)).to(include("2 test(s) fail in the baseline"))
+  end
+
+  # A plain run whose report at its out path plus this suffix does not parse, or is not there.
+  def unreadable(suffix)
+    Class.new(Kimera::Frameworks::Suite) do
+      def test_ids = %w[t1 t2 t3]
+      def plain(ids, out) = ["plain", *ids, out]
+      define_method(:failed_plainly) { |_output, out| JSON.parse(File.read("#{out}#{suffix}")) }
+    end.new
+  end
+
+  it "counts every test as failing plainly when the plain run's report cannot be read", :aggregate_failures do
+    ["", ".gone"].each do |suffix|
+      expect(screen(red: %w[t1], with: unreadable(suffix)).call(failures)).to(include("2 test(s) fail in the baseline"))
+    end
   end
 
   it "excludes them when the plain command cannot start" do

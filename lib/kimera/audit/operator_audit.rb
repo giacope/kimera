@@ -9,26 +9,43 @@ class Kimera::Operators::Audit
   UNRENDERABLE = :unrenderable
   IDENTICAL = :identical
 
-  Finding =
-    Data.define(:operator, :original, :label, :rendered, :verdict) do
-      def ok? = verdict == OK
-
-      def to_s = "#{operator}: #{label}\n  #{original}\n  -> #{rendered.inspect} (#{verdict})"
+  class Finding
+    def initialize(operator, original, label, rendered)
+      @operator = operator
+      @original = original
+      @label = label
+      @rendered = rendered
     end
 
-  Rendering =
-    Data.define(:original, :rendered) do
-      def verdict
-        return UNRENDERABLE unless rendered
-        [original, reprinted].include?(rendered) ? IDENTICAL : OK
-      end
-      private
-      def reprinted
-        Kimera::Scribe.new(Kimera::Scribe.parse(original)).source
-      rescue StandardError
-        original
-      end
+    def ok? = verdict == OK
+
+    def to_s = "#{@operator}: #{@label}\n  #{@original}\n  -> #{@rendered.inspect} (#{verdict})"
+
+    private
+
+    def verdict = @_verdict ||= Kimera::Operators::Audit::Rendering.new(@original, @rendered).verdict
+  end
+
+  class Rendering
+    def initialize(original, rendered)
+      @original = original
+      @rendered = rendered
     end
+
+    def verdict
+      return UNRENDERABLE unless @rendered
+      [@original, reprinted].include?(@rendered) ? IDENTICAL : OK
+    end
+
+    private
+
+    def reprinted
+      parsed = Kimera::Scribe.parse(@original)
+      Kimera::Scribe.new(parsed).source
+    rescue StandardError
+      @original
+    end
+  end
 
   def initialize(operators)
     @operators = operators
@@ -50,14 +67,8 @@ class Kimera::Operators::Audit
 
   def findings(point)
     key, original, mutants = point.project(:operator, :original_source, :mutants)
-    mutants.map { |mutant| finding(key, original, mutant) }
-  end
-
-  def finding(key, original, mutant)
-    rendered = Kimera::Rewrite::Directive.new(mutant.directive).render(original)
-    Finding.new(
-      operator: key, original: original, label: mutant.label,
-      rendered: rendered, verdict: Rendering.new(original, rendered).verdict
-    )
+    mutants.map do |mutant|
+      Finding.new(key, original, mutant.label, Kimera::Rewrite::Directive.new(mutant.directive).render(original).first)
+    end
   end
 end

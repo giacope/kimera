@@ -16,7 +16,7 @@ RSpec.describe(Kimera::Flag) do
     end
 
     it "appends every occurrence when it collects" do
-      flag = described_class.build("--item X", :list, "help", collect: true)
+      flag = described_class.repeated("--item X", :list, "help")
 
       expect(parse(flag, ["--item", "a", "--item", "b"])[:list]).to(eq(%w[a b]))
     end
@@ -32,6 +32,12 @@ RSpec.describe(Kimera::Flag) do
 
       expect([parse(flag, ["--on"])[:value], parse(flag, ["--no-on"])[:value]]).to(eq([true, false]))
     end
+  end
+
+  it "equals only another flag with the same signature, key and mode", :aggregate_failures do
+    flag = described_class.build("--name NAME", :value, "help")
+    expect(flag).to(eq(described_class.build("--name NAME", :value, "help")))
+    expect(flag).not_to(eq(flag.to_h))
   end
 
   describe "FlagTable#parse" do
@@ -55,25 +61,26 @@ RSpec.describe(Kimera::Flag) do
     it "writes only keys the defaults declare" do
       declared = Dir.mktmpdir do |dir|
         Dir.chdir(dir) { Kimera::CLI::Run.new.__send__(:parse, []) }
-      end.keys
+      end.to_h.keys
 
       # resolve_globs consumes :cli_tests, and attribution :cli_unit_tests.
-      expect(Kimera::CLI::Run::OPTIONS.keys - declared).to(eq(%i[cli_tests cli_unit_tests]))
+      keys = Kimera::CLI::RunOptions::OPTIONS.to_a.map { it.to_h[:key] }
+      expect(keys - declared).to(eq(%i[cli_tests cli_unit_tests]))
     end
 
     it "defines each switch exactly once" do
-      switches = Kimera::CLI::Run::OPTIONS.flags.map(&:switch)
+      switches = Kimera::CLI::RunOptions::OPTIONS.to_a.map { it.to_h[:signature].grep(/\A-/) }
 
       expect(switches.uniq).to(eq(switches))
     end
   end
 
-  it "gives run and synthesize the same definition of the flags they share" do
-    shared =
-      lambda do |command|
-        command::OPTIONS.flags.select { |flag| %i[registry operators].include?(flag.key) }
-      end
+  def shared(command)
+    keys = %i[registry operators]
+    command::OPTIONS.to_a.select { |flag| keys.include?(flag.to_h[:key]) }
+  end
 
-    expect(shared.call(Kimera::CLI::Run)).to(eq(shared.call(Kimera::CLI::Synthesize)))
+  it "gives run and synthesize the same definition of the flags they share" do
+    expect(shared(Kimera::CLI::RunOptions)).to(eq(shared(Kimera::CLI::Synthesize)))
   end
 end

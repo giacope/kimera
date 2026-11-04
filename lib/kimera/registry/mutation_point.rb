@@ -87,11 +87,18 @@ class Kimera::MutationPoint
       "overlay re-declares the macro, which can leave the original lambda registered in front of the " \
       "mutated one, so warm coverage cannot see it; evaluate with --isolated"
   BOUND_REASON = "a lambda a constant holds stays bound, since a registry may keep it; evaluate with --isolated"
+  BLOCK_REASON =
+    "its mutant leaves its method no use of the block passed to it, which Ruby settles as it compiles the " \
+      "method, and the warm overlay compiles every mutant of the method into one; the suite reports an ignored " \
+      "block, so a warm survivor is judged again in a fresh mirror against the tests near its file"
+  MACRO_KEPT =
+    "a lambda handed to a class-body macro: the warm overlay re-declares the macro, and one that adds to a list " \
+      "(default_scope, a callback, a validation) keeps the original lambda beside the mutated one, so a warm " \
+      "survivor is judged again in a fresh mirror against the tests near its file"
   NEVER = "never executed: the suite never loads this file, so no test can run it"
   NEVER_LOADED =
     "#{NEVER} (kimera did not evaluate it, since loading it would run its top-level code inside the test " \
       "process)".freeze
-  UNEXECUTED = "no test reached the code it mutates (other code on its line may have run); its file was loaded at boot"
   UNMUTATABLE = "unmutatable: "
   SAFE = true
 
@@ -109,15 +116,15 @@ class Kimera::MutationPoint
         mutants: Array(hash["mutants"]).map { |m| Kimera::Mutant.from_h(m) }
       )
     end
+
+    def none = new(mutants: [])
   end
 
   def initialize(**attributes)
     @attributes = attributes
   end
 
-  def body?
-    unsafe_reason == CLASS_BODY_REASON
-  end
+  def body? = unsafe_reason == CLASS_BODY_REASON
 
   def reloadable?
     !body? && ![LOAD_REASON, MACRO_REASON, BOUND_REASON].include?(unsafe_reason) && !unloaded? && !unmutatable?
@@ -125,15 +132,15 @@ class Kimera::MutationPoint
 
   def unloaded? = unsafe_reason.to_s.start_with?(NEVER)
 
-  def unloaded!(failure = nil) = unsafe!(failure ? "#{NEVER} (nor could kimera load it: #{failure})" : NEVER_LOADED)
+  def unloaded! = unsafe!(NEVER_LOADED)
 
-  def unmutatable?
-    unsafe_reason.to_s.start_with?(UNMUTATABLE)
-  end
+  def unloadable!(failure) = unsafe!("#{NEVER} (nor could kimera load it: #{failure})")
 
-  def unmutatable!(detail)
-    unsafe!("#{UNMUTATABLE}#{detail}")
-  end
+  def unmutatable? = unsafe_reason.to_s.start_with?(UNMUTATABLE)
+
+  def unmutatable(detail) = "#{UNMUTATABLE}#{detail}"
+
+  def unmutatable!(detail) = unsafe!(unmutatable(detail))
 
   def safe = marks.safe
 
@@ -146,6 +153,22 @@ class Kimera::MutationPoint
   end
 
   def revisit!(reason) = marks.revisit = reason
+
+  def class_body! = unsafe!(CLASS_BODY_REASON)
+
+  def bound! = unsafe!(BOUND_REASON)
+
+  def blocked! = revisit!(BLOCK_REASON)
+
+  def ordered! = revisit!(ORDER_REASON)
+
+  def ordered? = revisit == ORDER_REASON
+
+  def macro!(coverage) = defer!(coverage, MACRO_REASON, MACRO_KEPT)
+
+  def loading!(coverage) = defer!(coverage, LOAD_REASON, BOOT_REASON)
+
+  def warm_covered? = [BLOCK_REASON, MACRO_KEPT].include?(revisit)
 
   def defer!(coverage, unreached, reached) = uncovered?(coverage) ? unsafe!(unreached) : revisit!(reached)
 
@@ -162,40 +185,28 @@ class Kimera::MutationPoint
 
   def taint!(ranges)
     return self unless safe?
-    hit = ranges.find { |range| range.contains?(location.start_offset, location.finish) }
-    unsafe!(hit.reason) if hit
+    hit = ranges.lazy.flat_map { |range| range.reasons(location.start_offset, location.finish) }.first(1)
+    hit.each { |reason| unsafe!(reason) }
     self
   end
 
   def ids = mutants.map(&:id)
 
-  def marks
-    @_marks ||= Marks.new(@attributes.fetch(:schema_safe, SAFE), *@attributes.values_at(:unsafe_reason, :revisit))
+  def marks(kind = Marks)
+    @_marks ||= kind.new(@attributes.fetch(:schema_safe, SAFE), *@attributes.values_at(:unsafe_reason, :revisit))
   end
 
   def project(*fields)
     fields.map { |field| public_send(field) }
   end
 
-  def safe?
-    safe
-  end
+  def safe? = safe
 
-  def to_h
-    identity.merge(anchor).merge(verdict).merge("mutants" => mutants.map(&:to_h))
-  end
+  def to_h = identity.merge(anchor).merge(verdict).merge("mutants" => mutants.map(&:to_h))
 
-  def identity
-    { "point_id" => point_id, "file" => file, "operator" => operator }
-  end
+  def identity = { "point_id" => point_id, "file" => file, "operator" => operator }
 
-  def anchor
-    { "node_type" => node_type, "location" => location.to_h, "original_source" => original_source }
-  end
+  def anchor = { "node_type" => node_type, "location" => location.to_h, "original_source" => original_source }
 
-  def verdict
-    { "method_name" => method_name, "schema_safe" => safe, "unsafe_reason" => unsafe_reason }
-  end
-
-  NONE = new(mutants: []).tap(&:safe).freeze
+  def verdict = { "method_name" => method_name, "schema_safe" => safe, "unsafe_reason" => unsafe_reason }
 end

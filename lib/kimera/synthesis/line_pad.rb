@@ -11,7 +11,18 @@ class Kimera::LinePad
 
   def short(text) = @span.b.count("\n") - text.b.count("\n")
 
-  def texts(text) = short(text).negative? ? [] : [padded(text), closed(text)].uniq
+  def layouts(text)
+    return [] if short(text).negative?
+    padded = padded(text)
+    [*[padded, closed(text)].uniq, "(#{padded})"]
+  end
+
+  def fits(scribe, readback)
+    written = [scribe, scribe.joined].lazy.filter_map { |each| closed(each.text) }
+    written.select { |text| readback.faithful?(text) }.first(1)
+  end
+
+  private
 
   def padded(text) = "#{text}#{"\n" * short(text)}"
 
@@ -20,9 +31,5 @@ class Kimera::LinePad
     return if missing.negative?
     closing = text.match(CLOSING)
     closing ? "#{closing.pre_match}#{"\n" * missing}#{closing}" : padded(text)
-  end
-
-  def fitted(scribe, readback)
-    [scribe, scribe.joined].lazy.filter_map { |written| closed(written.text) }.find { |text| readback.faithful?(text) }
   end
 end

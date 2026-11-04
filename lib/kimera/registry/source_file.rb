@@ -21,9 +21,9 @@ class Kimera::RegistryScan::SourceFile
     @numbering = numbering
   end
 
-  def points = scanned.first
+  def points = scanned.fetch(0)
 
-  def regions = scanned.last
+  def regions = scanned.fetch(1)
 
   private
 
@@ -31,24 +31,24 @@ class Kimera::RegistryScan::SourceFile
 
   def guards = @_guards ||= Kimera::MemoGuard::Source.new(@source).exemptions + removals.exemptions
 
-  def removals = @_removals ||= Kimera::DefaultRemoval::Source.new(@source)
+  def removals(kind = Kimera::DefaultRemoval::Source) = @_removals ||= kind.new(@source)
 
   def scanned = @_scanned ||= attempt
 
   def attempt
     scan(Kimera::Syntax.parse(@source))
   rescue StandardError, SystemStackError => error
-    [[], [whole("#{Kimera::Unmutated::UNSCANNED}#{error.class}: #{error.message.lines.first&.chomp}")]]
+    [[], [Kimera::Unmutated.whole(@file, last_line, :unscanned, "#{error.class}: #{error.message.lines.first&.chomp}")]]
   end
 
   def scan(parsed)
-    return [[], [whole("#{Kimera::Unmutated::UNPARSED}#{parsed.errors.first&.message}")]] if parsed.failure?
+    return [[], [Kimera::Unmutated.whole(@file, last_line, :unparsed, parsed.errors.first&.message)]] if parsed.failure?
     root = parsed.value
     operators = @operators.map { |operator| operator.survey(root) }
     self.class.new(@source, file: @file, operators: operators, numbering: @numbering).mined(root)
   end
 
-  def whole(reason) = Kimera::Unmutated.new(@file, 1, [@source.lines.size, 1].max, reason)
+  def last_line = [@source.lines.size, 1].max
 
   def unmutated(held)
     held.group_by { |block, _| block.location.start_offset }.values.flat_map { |pairs| runs(pairs.map(&:last)) }
@@ -56,7 +56,7 @@ class Kimera::RegistryScan::SourceFile
 
   def runs(nodes)
     Kimera::RegistryScan::Skipped.new(nodes).lines.slice_when { |line, following| following > line + 1 }.map do |run|
-      Kimera::Unmutated.new(@file, run.first, run.last, Kimera::Unmutated::BLOCK)
+      Kimera::Unmutated.block(@file, run.first, run.last)
     end
   end
 
@@ -100,7 +100,7 @@ class Kimera::RegistryScan::SourceFile
     cursor.position ? chosen : chosen.reject(&:statement?)
   end
 
-  def guarded?(node, key) = guards.any? { |guard| guard.location == node.location && guard.operator == key }
+  def guarded?(node, key) = guards.any? { |guard| guard.covers?(node, key) }
 
   def harvest(operators, node, position)
     operators.flat_map { |operator| operator.pairs(node, position: position) }
@@ -108,10 +108,7 @@ class Kimera::RegistryScan::SourceFile
 
   def assemble(node, pairs, name) = Kimera::MutationPoint.new(**attributes(node, distinct(node, pairs), name))
 
-  def classed(point, cursor, pairs)
-    point.unsafe!(Kimera::MutationPoint::CLASS_BODY_REASON) unless cursor.inside_def || toggled?(pairs)
-    point
-  end
+  def classed(point, cursor, pairs) = cursor.inside_def || toggled?(pairs) ? point : point.tap(&:class_body!)
 
   def toggled?(pairs) = pairs.all? { |key, _| @operators.any? { it.toggles? && it.key == key } }
 
@@ -119,7 +116,7 @@ class Kimera::RegistryScan::SourceFile
 
   def distinct(node, pairs) = outcomes.distinct(node, pairs, &DIRECTIVE)
 
-  def outcomes = @_outcomes ||= Kimera::Rewrite::Outcomes.new(@source)
+  def outcomes(kind = Kimera::Rewrite::Outcomes) = @_outcomes ||= kind.new(@source)
 
   def attributes(node, pairs, name)
     location = node.location

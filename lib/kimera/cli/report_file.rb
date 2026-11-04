@@ -11,10 +11,15 @@ end
 
 class Kimera::CLI::ReportFile
   DEFAULT = "tmp/kimera/report.json"
+  private_constant(:DEFAULT)
+
+  def self.default = new(DEFAULT)
 
   def initialize(path)
     @path = path
   end
+
+  def to_s = @path
 
   def document
     @_document ||= JSON.parse(File.read(@path, encoding: Encoding::UTF_8))
@@ -26,5 +31,5 @@ class Kimera::CLI::ReportFile
 
   def narrowed? = document.fetch("run", {})["narrowed"] == true
 
-  def row(token) = results.find { |result| [result["mutant_id"].to_s, result["key"]].include?(token.to_s) }
+  def row(token) = results.find { |result| [result["mutant_id"].to_s, result["key"]].include?(token.to_s) } || yield
 end

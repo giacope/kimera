@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
+require_relative "../registry/registry"
 require_relative "report_rows"
+require_relative "test_quality"
 require_relative "result"
 
 module Kimera
@@ -11,18 +13,19 @@ module Kimera
 end
 
 class Kimera::RunReport
-  include Kimera::ReportRows
-
   Notes = Data.define(:counted, :flaky, :suite)
   NOTES = Notes.new(counted: [], flaky: nil, suite: nil)
 
   attr_reader :results, :leaks, :registry
 
   CONDITIONAL = %i[uncovered_by_unit harness_error ignored isolated_only unmutatable leaks].freeze
+  REPORTED = %i[
+    survived timeout error no_coverage uncovered_by_unit harness_error ignored isolated_only unmutatable
+  ].freeze
   LABELS = { total: "mutants", harness_error: "unjudged" }.freeze
   SCHEMA_VERSION = 1
 
-  def initialize(results:, leaks: [], registry: nil, **context)
+  def initialize(results:, leaks: [], registry: Kimera::Registry.new, **context)
     @results = results
     @leaks = leaks
     @registry = registry
@@ -61,7 +64,7 @@ class Kimera::RunReport
 
   def test(id) = tests.fetch(id, {})
 
-  def unmutated = @registry ? @registry.unmutated : []
+  def unmutated = @registry.unmutated
 
   def by_file = @results.group_by { |result| result.file.to_s }.transform_values { |part| rebuilt(results: part) }
 
@@ -95,13 +98,9 @@ class Kimera::RunReport
 
   def percent = covered.empty? ? "n/a" : format("%.1f%%", score * 100)
 
-  def counts
-    { total: @results.size, killed: killed.size, leaks: @leaks.size, **reported }
-  end
+  def counts = { total: @results.size, killed: killed.size, leaks: @leaks.size, **reported }
 
-  def reported
-    Kimera::Status::REPORTED.to_h { |status| [status, statuses(status).size] }
-  end
+  def reported = REPORTED.to_h { |status| [status, statuses(status).size] }
 
   def summary
     tallies = counts
@@ -116,13 +115,18 @@ class Kimera::RunReport
 
   def document(metadata) = metadata ? to_h.merge("run" => metadata) : to_h
 
+  def quality = notes.suite&.then { |suite| Kimera::TestQuality.new(@results, suite).to_h }
+
   def to_h
+    rows = Kimera::ReportRows.new(@registry)
     { "schema_version" => SCHEMA_VERSION, "counts" => counts, "mutation_score" => score }
-      .merge("results" => @results.map { |result| detailed(result) }, "leaks" => @leaks.map(&:to_h))
+      .merge("results" => @results.map { |result| rows.of(result) }, "leaks" => @leaks.map(&:to_h))
       .merge("unmutated" => unmutated.map(&:to_h)).merge(catalog).merge(flakes)
   end
 
   private
+
+  def flakes = { "test_quality" => quality, "flaky_tests" => notes.flaky }.compact
 
   def catalog
     listed = tests.slice(*test_ids)
@@ -139,9 +143,7 @@ class Kimera::RunReport
     "#{text} (#{count} uncovered not scored)"
   end
 
-  def grouped
-    @_grouped ||= @results.group_by(&:status)
-  end
+  def grouped = @_grouped ||= @results.group_by(&:status)
 
   def rebuilt(results: @results, **changes)
     Kimera::RunReport.new(results: results, leaks: @leaks, registry: @registry, **@context, **changes)

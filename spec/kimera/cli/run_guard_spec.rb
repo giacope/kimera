@@ -10,8 +10,8 @@ require "tmpdir"
 RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
   def guarded(root, &)
     errors = StringIO.new
-    code = described_class.new(io: StringIO.new, errors: errors).__send__(:guarded, { source_root: root }, &)
-    [code, errors.string]
+    outcome = described_class.new(io: StringIO.new, errors: errors).__send__(:guarded, { source_root: root }, &)
+    [ended(outcome, StringIO.new, errors), errors.string]
   end
 
   # The guarded run's code, and what it said, for a run that deletes a tracked file.

@@ -8,18 +8,13 @@ class Kimera::Operators::ElementDrop < Kimera::Operators::Base
   def key = "element_drop"
 
   def variants(node, **)
-    parts = collection(node)
-    drop(*parts) if parts
+    syntax(node).collections(SPLATS).flat_map { |elements, splat| drop(elements, splat) }
   end
 
   private
 
-  def collection(node)
-    syntax(node).collection(SPLATS)
-  end
-
   def drop(elements, splat)
-    return unless droppable?(elements, splat)
+    return [] unless droppable?(elements, splat)
     drops(elements, "drop_element", label: "drop")
   end
 

@@ -12,18 +12,18 @@ class Kimera::GuardClause
   end
 
   def edits
-    return unless DROPS.include?(type) && @node&.type == :begin_node
-    type == DROPS.first ? rescued : ensured
+    return unless DROPS.any? { |drop| directive.kind?(drop) } && @node&.type == :begin_node
+    directive.kind?(DROPS.first) ? rescued : ensured
   end
 
   private
 
-  def type = @mutant.directive[Kimera::Rewrite::TYPE]
+  def directive = Kimera::Rewrite::Directive.new(@mutant.directive)
 
   def test = "::Kimera::RUNTIME.active?(#{Integer(@mutant.id)})"
 
   def rescued
-    clause = Kimera::Syntax::RESCUES.call(@node.rescue_clause)[Integer(@mutant.directive[Kimera::Rewrite::INDEX])]
+    clause = Kimera::Rescues.new(@node.rescue_clause).to_a[directive.position]
     clause && caught(clause.exceptions.map(&:location), clause.keyword_loc.end_offset)
   end
 

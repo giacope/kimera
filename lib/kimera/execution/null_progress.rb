@@ -3,15 +3,11 @@
 module Kimera
   module Execution
     class NullProgress
-      def start(_total, _label = nil); end
+      UNSEEN = ->(_status = nil) {}
 
-      def tick(_status = nil); end
-
-      def finish; end
+      def during(_total, _label = nil) = yield(UNSEEN)
 
       def note(_text); end
-
-      NONE = new.freeze
     end
   end
 end

@@ -36,7 +36,7 @@ class Kimera::CLI::RspecOptions
     pattern.start_with?("#{path}/") ? pattern : File.join(path, pattern)
   end
 
-  def options = @_options ||= read(words)
+  def options = @_options ||= read(words { [] })
 
   def read(words)
     FLAGS.each_with_object({}) do |(flag, key), found|
@@ -49,6 +49,6 @@ class Kimera::CLI::RspecOptions
     path = File.join(@root, FILE)
     File.file?(path) ? Shellwords.split(File.read(path, encoding: Encoding::UTF_8).scrub) : []
   rescue ArgumentError
-    []
+    yield
   end
 end

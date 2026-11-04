@@ -5,18 +5,21 @@ class Kimera::Incremental::Session::Payload
     @data = data
   end
 
-  def session = Kimera::Incremental::Session.new(**attributes)
+  def session(stamp) = Kimera::Incremental::Session.new(**attributes(stamp))
 
   private
 
-  def attributes
-    fields = { leaks: leaks, meta: @data["meta"] || {} }
-    fields[:results] =
-      keys(@data["results"]) do |hash|
-        Kimera::MutantResult.from_h(hash).tap { |result| result.killing_tests = hash["killing_tests"] }
-      end
-    fields[:fingerprints] = keys(@data["fingerprints"]) { |fingerprint| fingerprint }
-    fields
+  def attributes(stamp)
+    meta = @data["meta"] || {}
+    kept = meta["stamp"] == stamp
+    { leaks: kept ? leaks : [], meta: stamp ? meta.merge("stamp" => stamp) : meta }
+      .merge(results: kept ? results : {}, fingerprints: keys(@data["fingerprints"]) { |fingerprint| fingerprint })
+  end
+
+  def results
+    keys(@data["results"]) do |hash|
+      Kimera::MutantResult.from_h(hash).tap { |result| result.killing_tests = hash["killing_tests"] }
+    end
   end
 
   def leaks

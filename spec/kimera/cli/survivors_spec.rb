@@ -50,7 +50,7 @@ RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
     out = StringIO.new
     original = $stdout
     $stdout = out
-    [out.string, Kimera::CLI.new.run(["survivors", *argv])]
+    [out.string, ended(Kimera::CLI.new.run(["survivors", *argv]), out, $stderr)]
   ensure
     $stdout = original
   end
@@ -82,7 +82,7 @@ RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
   # R6B6-M3: a lone `-` line reads as a deleted statement.
   it "says it could not write the mutant's text for a mutant with no mutated source" do
     out, = run(report_path, "--status", "no_coverage")
-    expect(out).to(include("- x?\n    + #{Kimera::Rewrite::MutantText::UNWRITTEN}\n"))
+    expect(out).to(include("- x?\n    + #{Kimera::MutatedText.new([])}\n"))
   end
 
   it "filters by file substring" do
@@ -132,7 +132,7 @@ RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
 
   it "omits the optional lines for a bare result with --id" do
     out, status = run(report_path, "--id", "12")
-    expect([status, out]).to(eq([0, "#12  timeout  app/models/bare.rb\n  - z\n  + #{Kimera::Rewrite::MutantText::UNWRITTEN}\n"]))
+    expect([status, out]).to(eq([0, "#12  timeout  app/models/bare.rb\n  - z\n  + #{Kimera::MutatedText.new([])}\n"]))
   end
 
   describe "multiline diffs" do

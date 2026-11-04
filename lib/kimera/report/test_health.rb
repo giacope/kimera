@@ -7,18 +7,20 @@ module Kimera
   end
 end
 
-module Kimera::Report::TestHealth
+class Kimera::Report::TestHealth
   SHOWN = 10
 
-  private
+  def initialize(io, palette)
+    @io = io
+    @palette = palette
+  end
 
   def flaky(report)
     found = report.notes.flaky
     return unless found
     flakes = found.fetch("flaky")
     @io.puts
-    rerun = reruns(found)
-    @io.puts(flakes.empty? ? "No flaky tests in #{rerun}." : yellow("Flaky tests (#{flakes.size}), in #{rerun}:"))
+    @io.puts(headline(flakes, reruns(found)))
     flakes.each { |flake| @io.puts("  #{flake_line(report, flake)}") }
     @io.puts("  Each passed the baseline but failed a rerun, so it kills no mutant.") if flakes.any?
   end
@@ -28,7 +30,7 @@ module Kimera::Report::TestHealth
     return unless suite
     found = report.quality
     idle, redundant = found.values_at("kills_nothing", "redundant")
-    @io.puts("", bold("Test quality (#{suite.size} tests):"))
+    @io.puts("", @palette.bold("Test quality (#{suite.size} tests):"))
     @io.puts(
       "  #{idle.size} kill none of the mutants they cover; #{redundant.size} are redundant (another test " \
         "kills each mutant they kill); #{found.fetch("covers_nothing").size} cover no mutant in scope."
@@ -36,12 +38,18 @@ module Kimera::Report::TestHealth
     { "Kill nothing" => idle, "Redundant" => redundant }.each { |title, tests| listed(report, title, tests) }
   end
 
+  private
+
   def listed(report, title, tests)
     return if tests.empty?
     @io.puts("  #{title}:")
     tests.first(SHOWN).each { |test| @io.puts("    #{Kimera::Readout::Label.new(test, report.test(test)).text}") }
     hidden = tests.size - SHOWN
     @io.puts("    (+#{hidden} more; the JSON report's test_quality lists them all)") if hidden.positive?
+  end
+
+  def headline(flakes, rerun)
+    flakes.empty? ? "No flaky tests in #{rerun}." : @palette.yellow("Flaky tests (#{flakes.size}), in #{rerun}:")
   end
 
   def reruns(found)

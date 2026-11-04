@@ -5,9 +5,14 @@ module Kimera
   end
 end
 
-Kimera::Execution::Pace =
-  Data.define(:timings) do
-    def fastest(tests) = tests.sort_by.with_index { |test, index| [timings[test] || Float::INFINITY, index] }
+class Kimera::Execution::Pace
+  def initialize(timings)
+    @timings = timings
   end
 
-Kimera::Execution::Pace::STILL = Kimera::Execution::Pace.new({}.freeze)
+  def fastest(tests) = tests.sort_by.with_index { |test, index| [timings[test] || Float::INFINITY, index] }
+
+  private
+
+  attr_reader :timings
+end

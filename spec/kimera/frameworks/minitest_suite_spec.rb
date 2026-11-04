@@ -98,11 +98,24 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
       expect(probe).to(eq([:suite]))
     end
 
+    # The suite loads here; the hooks write to a pipe the forked worker shares.
+    # Finishes +loaded+ in a worker forked from this process.
+    def forked_finish(loaded)
+      Process.wait(
+        fork do
+          loaded.finish
+        ensure
+          exit!(0)
+        end
+      )
+    end
+
     it "leaves them to that process: a worker forked from it does not run them" do
-      ran = []
-      Minitest.after_run { ran << :ran }
-      adapter.tap { allow(Process).to(receive(:pid).and_return(-1)) }.finish
-      expect(ran).to(be_empty)
+      reader, writer = IO.pipe
+      Minitest.after_run { writer.write("ran") }
+      forked_finish(adapter)
+      writer.close
+      expect(reader.read).to(eq(""))
     end
   end
 
@@ -174,7 +187,8 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
   # the class's tests; kimera's seed for the test follows that.
   it "seeds a test's random numbers by the run's seed and its id, or as Minitest orders it", :aggregate_failures do
     adapter
-    expected = Random.new(Kimera::Seed.new("KIMERA_SEED" => "42").for("DemoKimeraTest#test_passes")).rand(1_000_000)
+    seed = Kimera::Seed.new("KIMERA_SEED" => "42").for("DemoKimeraTest#test_passes").fetch(0)
+    expected = Random.new(seed).rand(1_000_000)
     expect([drawn(42), drawn(42)]).to(eq([expected, expected]))
     expect(drawn(nil)).to(eq(DemoKimeraTest.runnable_methods.then { rand(1_000_000) }))
   end
@@ -312,20 +326,31 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     expect(adapter.describe("DemoKimeraTest#test_passes")).to(eq("DemoKimeraTest#test_passes"))
   end
 
-  # The stubbed run stands in for Minitest's own, which would run every test
-  # class loaded so far (and pass), and is restored after the example.
+  # A Minitest without the autorun internal, and no run of its own, in place of the real one for the example.
+  def bare_minitest
+    minitest =
+      Module.new do
+        singleton_class.attr_accessor(:seed)
+        def self.class_variable_set(*) = raise(NameError, "uninitialized class variable @@installed_at_exit")
+      end
+    stub_const("Minitest", minitest.tap { |fake| fake.const_set(:Test, Class.new) })
+  end
+
   it "falls back to neutering Minitest.run when the autorun internal is absent", :aggregate_failures do
-    allow(Minitest).to(receive(:class_variable_set).and_raise(NameError))
-    allow(Minitest).to(receive(:run).and_return(:ran))
+    bare_minitest
     expect { described_class.build }.not_to(raise_error)
     expect(Minitest.run).to(be(true))
   end
 
-  # This file loads Minitest itself, so only the call shows the build loads it.
+  # This file loads Minitest itself, so a fresh process shows the build loads it.
   it "loads Minitest when it builds" do
-    allow(described_class).to(receive(:require).and_call_original)
-    described_class.build
-    expect(described_class).to(have_received(:require).with("minitest"))
+    loads = fresh_lines(<<~RUBY)
+      require "kimera/frameworks/minitest_suite"
+      p(defined?(::Minitest::Test))
+      Kimera::Frameworks::MinitestSuite.build
+      p(defined?(::Minitest::Test))
+    RUBY
+    expect(loads).to(eq(["nil", '"constant"']))
   end
 
   # minitest-hooks builds each test from an instance its with_info_handler

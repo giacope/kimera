@@ -10,9 +10,9 @@ end
 class Kimera::Report::TestList
   SHOWN = 3
 
-  def initialize(report, path)
+  def initialize(report, saved)
     @report = report
-    @path = path
+    @saved = saved
   end
 
   def lines(result)
@@ -29,6 +29,6 @@ class Kimera::Report::TestList
 
   def more(result, hidden)
     return [] unless hidden.positive?
-    ["  (+#{hidden} more#{"; all of them: kimera mutant #{result.mutant_id} --report #{@path}" if @path})"]
+    ["  (+#{hidden} more#{@saved.more(result.mutant_id)})"]
   end
 end

@@ -22,18 +22,44 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
     inherited ? ENV.store("TEST_ENV_NUMBER", inherited) : ENV.delete("TEST_ENV_NUMBER")
   end
 
-  def config(adapter, database) = Struct.new(:adapter, :database).new(adapter, database)
+  def config(adapter, database) = FakeRails::Config.new(adapter, database)
 
-  # A test database whose schema dump is there to load.
-  def record(database, adapter: "sqlite3")
-    base = Class.new
-    current = config(adapter, database)
-    configurations = double(configs_for: [current])
-    stub_const("ActiveRecord::Tasks::DatabaseTasks", double(schema_dump_path: __FILE__))
-    base.define_singleton_method(:connection_db_config) { current }
-    base.define_singleton_method(:configurations) { configurations }
+  # A test database whose schema dump is there to load, and the Active Record
+  # on it, whose connection pools are +pools+.
+  def record(database, adapter: "sqlite3", pools: [])
+    stub_const("ActiveRecord::Tasks::DatabaseTasks", FakeRails::Tasks.new(__FILE__))
     stub_const("ActiveRecord::ConnectionHandling::DEFAULT_ENV", -> { "test" })
+    handler = FakeRails::Pools.new(pools)
+    stub_const("ActiveRecord::Base", FakeRails::Base.new(config(adapter, database), handler: handler))
+  end
+
+  # Stand-in for ActiveRecord::DatabaseConfigurations: +names+ maps the
+  # worker's TEST_ENV_NUMBER to its test database names.
+  def configurations_for(names, env)
+    Class.new do
+      define_method(:initialize) do |*|
+        @named =
+          names.call(env.fetch("TEST_ENV_NUMBER", nil)).map do |db|
+            FakeRails::Config.new("postgresql", db, "primary")
+          end
+      end
+      define_method(:configs_for) do |env_name:, name: nil|
+        named = env_name == "test" ? @named : []
+        name ? named.first : named
+      end
+    end
+  end
+
+  # A Rails whose database.yml names the test database as +names+ does, the
+  # Active Record on it, and the tasks that rebuild a database from its schema.
+  def rails(names, env = ENV)
+    configurations = configurations_for(names, env)
+    stub_const("ActiveRecord::DatabaseConfigurations", configurations)
+    stub_const("ActiveRecord::ConnectionHandling::DEFAULT_ENV", -> { "test" })
+    stub_const("ActiveRecord::Tasks::DatabaseTasks", FakeRails::Tasks.new(__FILE__))
+    base = FakeRails::Base.new(config("postgresql", "app_test"), configurations: configurations.new)
     stub_const("ActiveRecord::Base", base)
+    stub_const("Rails", FakeRails::Application.new({}))
   end
 
   def parallelization(after: [], before: [])
@@ -59,9 +85,7 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       expect(described_class.new.current?).to(be(false))
     end
 
-    def handle(filename, closed: false, alive: true)
-      double(filename: filename, closed?: closed, weakref_alive?: alive)
-    end
+    def handle(filename, closed: false, alive: true) = FakeRails::Handle.new(filename, closed, alive)
 
     it "holds an open, live in-memory handle only" do
       expect(described_class::HELD.call(handle(""))).to(be(true))
@@ -143,9 +167,14 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
   # thredded's dummy app migrates at load and has no schema file; Rails'
   # after-fork hook aborted every worker trying to load one.
   describe "a schema file to load each worker's database from" do
-    def schema_at(path)
+    def schema_at(path, failure: nil)
       stub_const("ActiveRecord::ConnectionHandling::DEFAULT_ENV", -> { "test" })
-      stub_const("ActiveRecord::Tasks::DatabaseTasks", double(schema_dump_path: path))
+      stub_const("ActiveRecord::Tasks::DatabaseTasks", FakeRails::Tasks.new(path, failure: failure))
+    end
+
+    # An Active Record whose test configurations are +configs+.
+    def primary(configs = [config("postgresql", "app_test")])
+      FakeRails::Base.new(configs.first, configurations: FakeRails::Configurations.new(configs))
     end
 
     def configured(present)
@@ -153,13 +182,13 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
         schema = File.join(dir, "schema.rb")
         File.write(schema, "") if present
         schema_at(schema)
-        return described_class.new(record: double(configurations: double(configs_for: [:primary]))).loadable?
+        return described_class.new(record: primary).loadable?
       end
     end
 
     it "reads the suite's own Active Record by default" do
       Dir.mktmpdir do |dir|
-        stub_const("ActiveRecord::Base", double(configurations: double(configs_for: [:primary])))
+        stub_const("ActiveRecord::Base", primary)
         schema_at(File.join(dir, "missing.rb"))
         expect(described_class.new.loadable?).to(be(false))
       end
@@ -173,31 +202,25 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
 
     # R5-KL3: cancancan connects to `:memory:` in a `before`, with no configuration to load.
     it "is not there when the suite configures no test database" do
-      record = double(configurations: double(configs_for: []))
-      expect(described_class.new(record: record).loadable?).to(be(false))
+      schema_at(__FILE__)
+      expect(described_class.new(record: primary([])).loadable?).to(be(false))
     end
 
     # R4-KR1 (K3-5): a plain Active Record suite has no Rails for db_dir.
     it "is not there when Active Record cannot work out the schema path" do
-      schema_at("db/schema.rb")
-      allow(ActiveRecord::Tasks::DatabaseTasks).to(receive(:schema_dump_path).and_raise(NameError, "primary::Rails"))
-      record = double(configurations: double(configs_for: [:primary]))
-      expect(described_class.new(record: record).loadable?).to(be(false))
+      schema_at("db/schema.rb", failure: NameError.new("primary::Rails"))
+      expect(described_class.new(record: primary).loadable?).to(be(false))
     end
   end
 
   describe Kimera::Execution::WorkerDatabases do
-    subject(:databases) { described_class.new(jobs: 2, errors: errors) }
+    subject(:databases) { described_class.new(jobs: 2, errors: errors, copies: FakeCopies.new(possible: false)) }
 
     let(:errors) { StringIO.new }
 
     def switch(flag)
       stub_const("ActiveSupport", Module.new) unless defined?(ActiveSupport)
       ActiveSupport.define_singleton_method(:parallelize_test_databases) { flag }
-    end
-
-    def no_pools
-      allow(ActiveRecord::Base).to(receive(:connection_handler).and_return(double(connection_pool_list: [])))
     end
 
     # Rails 8.0's Parallelization has after-fork hooks only.
@@ -210,7 +233,6 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
     it "forks on a Rails with no before-fork hooks" do
       after_hooks_only
       record("db/test.sqlite3")
-      no_pools
       expect { databases.before_fork }.not_to(raise_error)
     end
 
@@ -218,15 +240,7 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
     def schemaless
       parallelization(after: ->(_i) {})
       record("app_test", adapter: "mysql2")
-      no_pools
-      allow(Kimera::Execution::ParallelDatabases).to(
-        receive(:new).and_return(
-          instance_double(
-            Kimera::Execution::ParallelDatabases, enabled?: true, loadable?: false, assign: nil,
-            numbered: {}
-          )
-        )
-      )
+      stub_const("ActiveRecord::Tasks::DatabaseTasks", FakeRails::Tasks.new("/no/such/schema.rb"))
     end
 
     it "stays off, and says the workers share one database, without a schema file to load from" do
@@ -265,7 +279,6 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
 
     def shared(database = "app_test", adapter: "mysql2")
       record(database, adapter: adapter)
-      allow(ActiveRecord::Base).to(receive(:connection_handler).and_return(double(connection_pool_list: [])))
       2.times { databases.before_fork }
       errors.string
     end
@@ -280,123 +293,76 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
 
     # K3-5: the parent's own connections block a fork's database.
     it "closes the parent's connections before the workers fork" do
-      parent = instance_double(Kimera::Execution::ParentConnections, release!: nil)
-      allow(Kimera::Execution::ParentConnections).to(receive(:new).and_return(parent))
-      databases.before_fork
-      expect(parent).to(have_received(:release!))
+      connections = FakeConnections.new
+      databases.before_fork(connections)
+      expect(connections.released).to(eq(1))
     end
 
     it "says nothing of one worker, which has the database to itself" do
       record("app_test", adapter: "postgresql")
-      allow(ActiveRecord::Base).to(receive(:connection_handler).and_return(double(connection_pool_list: [])))
       described_class.new(jobs: 1, errors: errors).before_fork
       expect(errors.string).to(be_empty)
     end
 
-    # The numbered databases of a PostgreSQL suite, after two before-fork calls.
+    # The databases a PostgreSQL suite with numbered databases rebuilt, after two before-fork calls.
     def prepared
       switch(false)
-      record("app_test", adapter: "postgresql")
-      numbered = instance_double(Kimera::Execution::NumberedDatabases, numbered?: true, prepare: nil)
-      allow(Kimera::Execution::NumberedDatabases).to(receive(:new).and_return(numbered))
-      numbered.tap { 2.times { databases.before_fork } }
+      rails(->(number) { ["app_test#{number}"] })
+      2.times { databases.before_fork }
+      ActiveRecord::Tasks::DatabaseTasks.rebuilt.map(&:database)
     end
 
     it "creates and loads each numbered database once, before the workers fork" do
-      expect(prepared).to(have_received(:prepare).with(1).once)
+      expect(prepared).to(eq(["app_test2"]))
       expect(errors.string).to(be_empty)
     end
 
     it "moves a worker onto its numbered database when no Rails hook does" do
       parallelization
-      numbered = instance_double(Kimera::Execution::NumberedDatabases, adopt: nil)
-      allow(Kimera::Execution::NumberedDatabases).to(receive(:new).and_return(numbered))
+      rails(->(number) { ["app_test#{number}"] })
       databases.after_fork(1)
-      expect(numbered).to(have_received(:adopt).with(1))
+      expect(ActiveRecord::Base.established).to(eq([nil]))
     end
   end
 
   # K3-5: the parent's own idle session blocked a mirror's drop_current.
   describe Kimera::Execution::ParentConnections do
     def pools(handler)
-      stub_const("ActiveRecord::Base", Class.new)
-      allow(ActiveRecord::Base).to(
-        receive_messages(
-          connection_handler: handler,
-          connection_db_config: config("pg", "t")
-        )
-      )
+      stub_const("ActiveRecord::Base", FakeRails::Base.new(config("pg", "t"), handler: handler))
     end
 
     it "disconnects every pool the parent opened" do
-      pool = double(disconnect!: nil)
-      pools(double(each_connection_pool: [pool]))
+      pool = FakeRails::Pool.new
+      pools(FakeRails::Pools.new([pool]))
       described_class.new.release!
-      expect(pool).to(have_received(:disconnect!))
+      expect(pool).to(be_disconnected)
     end
 
     it "reads the pools of Rails before 7.1 too" do
-      pool = double(disconnect!: nil)
-      pools(double(connection_pool_list: [pool]))
+      pool = FakeRails::Pool.new
+      pools(FakeRails::ListedPools.new([pool]))
       described_class.new.release!
-      expect(pool).to(have_received(:disconnect!))
+      expect(pool).to(be_disconnected)
     end
 
     it "keeps an in-memory database's connection, which holds its schema" do
-      pool = double(disconnect!: nil)
-      record(":memory:")
-      allow(ActiveRecord::Base).to(receive(:connection_handler).and_return(double(each_connection_pool: [pool])))
+      pool = FakeRails::Pool.new
+      record(":memory:", pools: [pool])
       described_class.new.release!
-      expect(pool).not_to(have_received(:disconnect!))
+      expect(pool).not_to(be_disconnected)
     end
 
     it "does nothing without Active Record, and survives a pool that will not let go" do
       expect { described_class.new.release! }.not_to(raise_error)
-      pools(
-        double(
-          each_connection_pool: [
-            double.tap do |pool|
-              allow(pool).to(receive(:disconnect!).and_raise("busy"))
-            end
-          ]
-        )
-      )
+      pools(FakeRails::Pools.new([FakeRails::BusyPool.new]))
       expect { described_class.new.release! }.not_to(raise_error)
     end
   end
 
   describe Kimera::Execution::NumberedDatabases do
-    subject(:numbered) { described_class.new(errors: errors) }
+    subject(:numbered) { described_class.new(tolerance: Kimera::Execution::Tolerance.new(errors)) }
 
     let(:errors) { StringIO.new }
-
-    # Stand-in for ActiveRecord::DatabaseConfigurations: +names+ maps the
-    # worker's TEST_ENV_NUMBER to its test database names.
-    def configurations_for(names, env)
-      Class.new do
-        define_method(:initialize) do |*|
-          @named =
-            names.call(env.fetch("TEST_ENV_NUMBER", nil)).map do |db|
-              Struct.new(:name, :database).new("primary", db)
-            end
-        end
-        define_method(:configs_for) do |env_name:, name: nil|
-          named = env_name == "test" ? @named : []
-          name ? named.first : named
-        end
-      end
-    end
-
-    def rails(names, env = ENV)
-      configurations = configurations_for(names, env)
-      stub_const("ActiveRecord::DatabaseConfigurations", configurations)
-      stub_const("ActiveRecord::ConnectionHandling::DEFAULT_ENV", -> { "test" })
-      base = Class.new { class << self; attr_accessor :configurations; end }
-      base.configurations = configurations.new
-      allow(base).to(receive(:establish_connection))
-      stub_const("ActiveRecord::Base", base)
-      stub_const("Rails", double(application: double(config: double(database_configuration: {}))))
-    end
 
     it "is numbered when database.yml names the database by TEST_ENV_NUMBER" do
       rails(->(number) { ["app_test#{number}"] })
@@ -411,17 +377,13 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
 
     it "creates and loads a worker's renamed database" do
       rails(->(number) { ["app_test#{number}"] })
-      tasks = double(reconstruct_from_schema: nil)
-      stub_const("ActiveRecord::Tasks::DatabaseTasks", tasks)
       numbered.prepare(2)
-      expect(tasks).to(have_received(:reconstruct_from_schema).with(having_attributes(database: "app_test3")))
+      expect(ActiveRecord::Tasks::DatabaseTasks.rebuilt.map(&:database)).to(eq(["app_test3"]))
     end
-
-    def database_tasks = double.tap { |tasks| stub_const("ActiveRecord::Tasks::DatabaseTasks", tasks) }
 
     it "says which worker's database it could not create" do
       rails(->(number) { ["app_test#{number}"] })
-      allow(database_tasks).to(receive(:reconstruct_from_schema).and_raise(RuntimeError, "denied"))
+      stub_const("ActiveRecord::Tasks::DatabaseTasks", FakeRails::Tasks.new(failure: RuntimeError.new("denied")))
       numbered.prepare(1)
       expect(errors.string).to(eq("kimera: could not create the database for worker 1 (RuntimeError: denied)\n"))
     end
@@ -429,7 +391,7 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
     it "reconnects a worker to its own database, leaving TEST_ENV_NUMBER as it found it" do
       rails(->(number) { ["app_test#{number}"] })
       numbered.adopt(1)
-      expect(ActiveRecord::Base).to(have_received(:establish_connection))
+      expect(ActiveRecord::Base.established).to(eq([nil]))
       expect(ENV.key?("TEST_ENV_NUMBER")).to(be(false))
       expect(ActiveRecord::Base.configurations.configs_for(env_name: "test").map(&:database)).to(eq(["app_test2"]))
     end
@@ -437,18 +399,18 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
     # The suite's own environment, once a worker adopted its database through it.
     def adopted(env)
       rails(->(number) { ["app_test#{number}"] }, env)
-      described_class.new(errors: errors, env: env).adopt(1)
+      described_class.new(tolerance: Kimera::Execution::Tolerance.new(errors), env: env).adopt(1)
       env
     end
 
     it "restores a TEST_ENV_NUMBER it found set in the suite's own environment", :aggregate_failures do
       expect(adopted({ "TEST_ENV_NUMBER" => "7" })).to(eq("TEST_ENV_NUMBER" => "7"))
-      expect(ActiveRecord::Base).to(have_received(:establish_connection))
+      expect(ActiveRecord::Base.established).to(eq([nil]))
     end
 
     it "leaves no TEST_ENV_NUMBER in a suite environment that had none", :aggregate_failures do
       expect(adopted({})).to(eq({}))
-      expect(ActiveRecord::Base).to(have_received(:establish_connection))
+      expect(ActiveRecord::Base.established).to(eq([nil]))
     end
 
     it "is not numbered outside the test environment" do
@@ -460,7 +422,7 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
     it "stays on the parent's database when the name does not change" do
       rails(->(_number) { ["app_test"] })
       numbered.adopt(1)
-      expect(ActiveRecord::Base).not_to(have_received(:establish_connection))
+      expect(ActiveRecord::Base.established).to(eq([]))
     end
   end
 
@@ -469,8 +431,8 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
     def renames(databases)
       calls = []
       parallelization(after: ->(slot) { calls << slot })
-      mirror = described_class.new(3)
-      allow(mirror).to(receive(:require))
+      mirror = described_class.new(3, copies: FakeCopies.new)
+      fake_feature("active_record/test_databases")
       databases.each do |database|
         record(database)
         mirror.adopt
@@ -485,8 +447,8 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
 
   # The environment an isolated child for the mirror slot starts with.
   def mirror_environment(slot)
-    child = Kimera::Execution::IsolatedPlan::ChildCommand.new(framework: "rspec", test_files: [])
     Dir.mktmpdir do |dir|
+      child = Kimera::Execution::IsolatedPlan::ChildCommand.new(framework: "rspec", test_files: [], root: dir)
       child.command(dir, child.request([], slot: slot), ledger: File.join(dir, "l"), paths: []).first
     end
   end

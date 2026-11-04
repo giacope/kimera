@@ -17,14 +17,30 @@ class Kimera::Execution::Reload
   LOADING = "the reload tier could not load the mutated source: "
   UNCALLED = "no test called the method that holds it"
 
-  Failure =
-    Data.define(:exception) do
-      def message = "#{exception.class}: #{exception.message}"
-
-      def verdict = [:error, [], "#{LOADING}#{message}"]
+  class Failure
+    def initialize(exception)
+      @exception = exception
     end
 
-  Workspace = Data.define(:root, :aliases)
+    def message = "#{exception.class}: #{exception.message}"
+
+    def verdict = [:error, [], "#{LOADING}#{message}"]
+
+    private
+
+    attr_reader :exception
+  end
+
+  class Workspace
+    def initialize(root:, aliases:)
+      @root = root
+      @aliases = aliases
+    end
+
+    def path(file) = File.join(File.expand_path(@root), file)
+
+    def again(&) = (@aliases || Kimera::Execution::Aliases.new([])).again(&)
+  end
 
   def initialize(registry:, adapter:, isolation:, workspace:)
     @registry = registry
@@ -77,10 +93,10 @@ class Kimera::Execution::Reload
 
   def evaluate(errand)
     failed = mutate(errand)
-    return failed.verdict if failed
+    return failed.fetch(0).verdict unless failed.empty?
     errand.reached.empty? ? [:no_coverage, [], UNCALLED] : [:survived, []]
   rescue Kimera::Overlay::Unbakeable => error
-    [:unmutatable, [], "#{Kimera::MutationPoint::UNMUTATABLE}#{error.message}"]
+    [:unmutatable, [], verdicts.point(errand.id).unmutatable(error.message)]
   rescue StandardError, ScriptError => error
     Failure.new(error).verdict
   end
@@ -88,13 +104,13 @@ class Kimera::Execution::Reload
   def mutate(errand)
     id = errand.id
     file = verdicts.point(id).file
-    watch = overlay(file, File.join(File.expand_path(@workspace.root), file), id)
+    watch = overlay(file, @workspace.path(file), id)
     Kimera::RUNTIME.active = nil
     @isolation.around { hunt(errand, watch) }
   end
 
   def hunt(errand, watch)
-    errand.tests.lazy.map { |test| trial(test, errand, watch) }.reject(&:passed?).first
+    errand.tests.lazy.map { |test| trial(test, errand, watch) }.reject(&:passed?).first(1)
   end
 
   def trial(test, errand, watch)
@@ -105,23 +121,20 @@ class Kimera::Execution::Reload
 
   def overlay(file, path, id) = watched(file, path, id).tap { |watch| install(watch.source, path) }
 
-  def watched(file, path, id)
+  def watched(file, path, id, trims = Kimera::BodyTrim)
     location = verdicts.point(id).location
-    source = Kimera::BodyTrim.new(File.read(path, encoding: Encoding::UTF_8), [location]).trim(path)
+    source = trims.new(File.read(path, encoding: Encoding::UTF_8), [location]).trim(path)
     Kimera::Execution::CallWatch.new(Kimera::Overlay.new(@registry).bake(file, source, id), location.start_offset, id)
   end
 
-  def install(source, path)
-    aliases.again { Kimera::Execution::OverlayGuards.new.overlay { Kimera::Overlay::Source.new(source).evaluate(path) } }
+  def install(source, path, guards = Kimera::Execution::OverlayGuards.new)
+    @workspace.again { guards.overlay { Kimera::Overlay::Source.new(source).evaluate(path) } }
   end
-
-  def aliases = @workspace.aliases || Kimera::Execution::Aliases.new([])
 
   def verdict(id, line, status = nil, deadline = nil)
     return verdicts.timeout(id, deadline) if line == :timeout
     return verdicts.unjudged(id, "reload worker produced no result#{exited(status)}") unless line
-    message = parse(line)
-    message ? verdicts.parse(message) : verdicts.unjudged(id, "reload worker output unparseable")
+    verdicts.parse(parse(line) { return verdicts.unjudged(id, "reload worker output unparseable") })
   end
 
   def exited(status)

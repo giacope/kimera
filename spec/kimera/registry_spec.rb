@@ -35,7 +35,7 @@ RSpec.describe(Kimera::Registry) do
     end
 
     it "returns nil for an unknown mutant id", :aggregate_failures do
-      expect(registry.mutant(99_999)).to(be_nil)
+      expect { registry.mutant(99_999) }.to(raise_error(KeyError))
       expect(registry.index[99_999]).to(be_nil)
     end
 
@@ -62,7 +62,7 @@ RSpec.describe(Kimera::Registry) do
     end
 
     def written(path)
-      expect(registry.write(path)).to(eq(path))
+      expect(registry.write(path)).to(be(registry))
       described_class.from_file(path)
     end
 

@@ -5,8 +5,6 @@ require_relative "flake_record"
 require_relative "worker_pool"
 
 class Kimera::Execution::FlakeHunt
-  RANGE = 2**31
-
   def initialize(adapter, driver, progress, env: ENV)
     @adapter = adapter
     @driver = driver
@@ -14,38 +12,31 @@ class Kimera::Execution::FlakeHunt
     @env = env
   end
 
-  def call(coverage, scope, settings)
-    seeds = series(settings[:seed], Integer(settings[:flaky_runs] || 0))
+  def call(coverage, scope, runs)
+    seeds = runs.seeds
     return if seeds.empty?
     hunt(@adapter.test_ids & (scope ? coverage.slice(*scope) : coverage).values.flatten, seeds).tap do |record|
-      settings[:filter]&.flag!(record.flaky)
+      runs.flag(record)
     end
   end
 
   private
 
   def hunt(tests, seeds, env = @env)
-    saved = env[Kimera::Execution::SEED_ENV]
     Kimera::Execution::FlakeRecord.new(tests, seeds).tap do |record|
       seeds.each.with_index(1) do |seed, round|
-        env[Kimera::Execution::SEED_ENV] = seed.to_s
-        sweep(tests, seed, record, "flaky check #{round}/#{seeds.size}")
+        Kimera::Execution::SuiteEnv.new(env).seeded(seed) { sweep(tests, seed, record, "flaky check #{round}/#{seeds.size}") }
       end
     end
-  ensure
-    saved ? env.store(Kimera::Execution::SEED_ENV, saved) : env.delete(Kimera::Execution::SEED_ENV)
   end
 
-  def series(seed, runs) = Array.new(runs) { |index| seed ? (seed + index + 1) % RANGE : Random.new_seed % RANGE }
-
   def sweep(tests, seed, record, label)
-    @progress.start(tests.size, "#{label} (seed #{seed})")
-    listeners = Kimera::Execution::WorkerPool::Listeners.new(
-      resolve: ->(message) { record.note(message, seed).then { @progress.tick } },
-      lost: ->(test, reason, _stacks) { record.lose(test, reason, seed).then { @progress.tick } }, trace: nil
-    )
-    @driver.drive(tests, @driver.method(:channel), listeners)
-  ensure
-    @progress.finish
+    @progress.during(tests.size, "#{label} (seed #{seed})") do |tick|
+      listeners = Kimera::Execution::WorkerPool::Listeners.new(
+        resolve: ->(message) { record.note(message, seed).then { tick.call } },
+        lost: ->(test, reason, _stacks) { record.lose(test, reason, seed).then { tick.call } }, trace: nil
+      )
+      @driver.drive(tests, @driver.method(:channel), listeners)
+    end
   end
 end

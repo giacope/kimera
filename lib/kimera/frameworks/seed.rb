@@ -13,7 +13,7 @@ class Kimera::Seed
     @env = env
   end
 
-  def value = @env[VARIABLE]&.then { |text| Integer(text, 10) }
+  def given = Array(@env[VARIABLE]).map { |text| Integer(text, 10) }
 
-  def for(test) = (value ^ Zlib.crc32(test.to_s)) % RANGE
+  def for(test) = given.map { |value| (value ^ Zlib.crc32(test.to_s)) % RANGE }
 end

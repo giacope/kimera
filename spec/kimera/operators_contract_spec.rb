@@ -130,7 +130,7 @@ RSpec.describe(Kimera::Operators) do
 
       it "rewrites both, preserving &." do
         catalog = scan("index_fetch", spellings, "spellings.rb")
-        sources = catalog.each.map { |m, p| Kimera::Rewrite::Directive.new(m.directive).render(p.original_source) }
+        sources = catalog.each.map { |m, p| Kimera::Rewrite::Directive.new(m.directive).render(p.original_source).first }
         expect(sources).to(contain_exactly("h.fetch(k)", "h&.fetch(k)"))
       end
 
@@ -311,7 +311,7 @@ RSpec.describe(Kimera::Operators) do
 
     it "renders a report line for a parameter slice, which is not a parseable expression" do
       m = built("default_argument").each.first.first
-      expect(Kimera::Rewrite::Directive.new(m.directive).render("name = \"world\"")).to(eq("name (default removed)"))
+      expect(Kimera::Rewrite::Directive.new(m.directive).render("name = \"world\"")).to(eq(["name (default removed)"]))
     end
   end
 

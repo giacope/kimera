@@ -4,13 +4,13 @@ require "kimera/registry/memoization"
 
 RSpec.describe(Kimera::Memoization) do
   def reasons(source)
-    described_class.new(source).ranges.map(&:reason)
+    described_class.new(source).ranges.map(&:to_s)
   end
 
   def covers?(source, snippet)
     at = source.index(snippet)
     finish = at + snippet.length
-    described_class.new(source).ranges.any? { |r| r.contains?(at, finish) }
+    described_class.new(source).ranges.any? { |r| r.reasons(at, finish).any? }
   end
 
   def find(node, klass)
@@ -22,35 +22,35 @@ RSpec.describe(Kimera::Memoization) do
     subject(:range) { described_class.new(10, 20, "memoized") }
 
     it "includes a span strictly inside the range" do
-      expect(range.contains?(12, 18)).to(be(true))
+      expect(range.reasons(12, 18)).to(eq(["memoized"]))
     end
 
     it "is inclusive at the low boundary (start == start_offset)" do
-      expect(range.contains?(10, 18)).to(be(true))
+      expect(range.reasons(10, 18)).to(eq(["memoized"]))
     end
 
     it "is inclusive at the high boundary (finish == end_offset)" do
-      expect(range.contains?(12, 20)).to(be(true))
+      expect(range.reasons(12, 20)).to(eq(["memoized"]))
     end
 
     it "is inclusive at both boundaries simultaneously" do
-      expect(range.contains?(10, 20)).to(be(true))
+      expect(range.reasons(10, 20)).to(eq(["memoized"]))
     end
 
     it "rejects a span starting before the range" do
-      expect(range.contains?(9, 20)).to(be(false))
+      expect(range.reasons(9, 20)).to(eq([]))
     end
 
     it "rejects a span ending after the range" do
-      expect(range.contains?(10, 21)).to(be(false))
+      expect(range.reasons(10, 21)).to(eq([]))
     end
 
     it "rejects when only the start is inside (both conditions required)" do
-      expect(range.contains?(10, 25)).to(be(false))
+      expect(range.reasons(10, 25)).to(eq([]))
     end
 
     it "rejects when only the finish is inside (both conditions required)" do
-      expect(range.contains?(5, 20)).to(be(false))
+      expect(range.reasons(5, 20)).to(eq([]))
     end
   end
 
@@ -165,10 +165,9 @@ RSpec.describe(Kimera::Memoization) do
       expect(reasons(code)).to(eq([]))
     end
 
-    it "requires the or-left to be the matching read node, not merely same-named" do
-      result = Prism.parse("def m\n  @x = @@x || compute(1)\nend\n")
+    it "requires the or-left to be the matching read node itself, not one in parentheses" do
+      result = Prism.parse("def m\n  @x = (@x) || compute(1)\nend\n")
       write = find(result.value, Prism::InstanceVariableWriteNode)
-      allow(write.value.left).to(receive(:name).and_return(:@x))
       expect(described_class.new("").__send__(:cached, write)).to(be_nil)
     end
   end

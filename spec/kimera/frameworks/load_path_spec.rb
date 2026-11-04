@@ -46,7 +46,9 @@ RSpec.describe(Kimera::Frameworks::LoadPath) do
   end
 
   it "reads the configured folders kimera exports, and none when unset", :aggregate_failures do
-    configured = { described_class::VARIABLE => "a#{File::PATH_SEPARATOR}b" }
+    configured = {}
+    described_class.new([], env: configured).share(%w[a b])
+    expect(configured).to(eq("KIMERA_LOAD_PATH" => "a#{File::PATH_SEPARATOR}b"))
     expect(described_class.new([], root: root, env: configured).dirs)
       .to(eq([File.join(root, "a"), File.join(root, "b")]))
     expect(described_class.new([], root: root, env: {}).dirs).to(eq([]))

@@ -31,15 +31,15 @@ module KimeraEval
 
     def timed(mode)
       copy = sandbox.copy(File.join(ROOT, "examples", "sample_app"))
-      result = checkout.cli("run", "app", "--tests", "spec/**/*_spec.rb", *mode, "--no-progress", chdir: copy)
-      { "wall_s" => result.wall.round(2), "exit" => result.code }
+      exit, _, usage = checkout.cli("run", "app", "--tests", "spec/**/*_spec.rb", *mode, "--no-progress", chdir: copy)
+      usage.timed(2).merge(exit.exited)
     end
 
     def inflector
       dir = clone
-      env = { "BUNDLE_GEMFILE" => File.join(dir, "Gemfile.eval"), "KIMERA_PATH" => checkout.path }
+      env = { "BUNDLE_GEMFILE" => File.join(dir, "Gemfile.eval"), "KIMERA_PATH" => checkout.to_s }
       Shell.new(env: env, chdir: dir, timeout: 900).run("bundle", "install")
-      judged(dir, env, oracle(dir, Oracle::Runner.new(RSPEC, env)))
+      judged(dir, env, oracle(dir, Oracle::Suite.new(RSPEC, env)))
     end
 
     def judged(dir, env, truth)
@@ -48,8 +48,8 @@ module KimeraEval
     end
 
     def clone
-      Shell.new(chdir: ROOT).run("git", "clone", "-q", INFLECTOR, CACHE) unless File.directory?(CACHE)
-      Shell.new(chdir: CACHE).run("git", "checkout", "-q", REVISION)
+      shell(ROOT).run("git", "clone", "-q", INFLECTOR, CACHE) unless File.directory?(CACHE)
+      shell(CACHE).run("git", "checkout", "-q", REVISION)
       sandbox.copy(CACHE, "dry-inflector").tap { |dir| bundled(dir) }
     end
 
@@ -61,9 +61,10 @@ module KimeraEval
     def itself
       report = File.join(sandbox.root, "self.json")
       arguments = ["run", *SELF, "--jobs", "4", "--no-progress", "--report", report]
-      result = checkout.cli(*arguments, chdir: checkout.path, timeout: 3600)
-      tail = result.output.lines.grep(/mutants=/).last.to_s.strip
-      { "wall_s" => result.wall.round(1), "exit" => result.code, "tail" => tail }
+      exit, printed, usage = checkout.cli(*arguments, chdir: checkout.to_s, timeout: 3600)
+      usage.timed(1).merge(exit.exited).merge("tail" => tail(printed))
     end
+
+    def tail(printed) = printed.output.lines.grep(/mutants=/).last.to_s.strip
   end
 end

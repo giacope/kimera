@@ -5,67 +5,67 @@ require "kimera/rewrite/directive"
 RSpec.describe(Kimera::Rewrite::Directive) do
   describe "#render" do
     it "renders a comparison variant from a directive" do
-      out = described_class.new({ "type" => "comparison", "to" => "<" }).render("a > b")
+      out = described_class.new({ "type" => "comparison", "to" => "<" }).render("a > b").first
       expect(out).to(eq("a < b"))
     end
 
     it "renders a boolean connective variant" do
-      out = described_class.new({ "type" => "boolean_connective", "to" => "or" }).render("a && b")
+      out = described_class.new({ "type" => "boolean_connective", "to" => "or" }).render("a && b").first
       expect(out).to(eq("a || b"))
     end
 
     # unparser printed `a || b and "c"` for this: a syntax error once it sits in an
     # argument list (thor's `Shellwords.split(ENV["THOR_DIFF"] || ENV["RAILS_DIFF"] || "diff -u")`).
     it "parenthesizes a nested connective so the variant stays valid in any context" do
-      out = described_class.new({ "type" => "boolean_connective", "to" => "and" }).render('a || b || "c"')
+      out = described_class.new({ "type" => "boolean_connective", "to" => "and" }).render('a || b || "c"').first
       expect(out).to(eq('(a || b) && "c"'))
     end
 
     it "keeps the keyword spelling of a connective it swaps" do
-      out = described_class.new({ "type" => "boolean_connective", "to" => "or" }).render("a and b")
+      out = described_class.new({ "type" => "boolean_connective", "to" => "or" }).render("a and b").first
       expect(out).to(eq("a or b"))
     end
 
     it "drops one clause of a method and keeps the other", :aggregate_failures do
       both = "def x\n  a\nrescue\n  b\nensure\n  c\nend"
-      render = ->(directive, source) { described_class.new(directive).render(source) }
+      render = ->(directive, source) { described_class.new(directive).render(source).first }
       expect(render.call({ "type" => "drop_ensure" }, both)).to(eq("def x\n  a\nrescue\n  b\nend"))
       expect(render.call({ "type" => "drop_rescue", "index" => 0 }, both)).to(eq("def x\n  a\nensure\n  c\nend"))
       expect(render.call({ "type" => "drop_ensure" }, "def x\n  a\nensure\n  c\nend")).to(eq("def x\n  a\nend"))
     end
 
     it "drops a keyword beside a double splat" do
-      out = described_class.new({ "type" => "kwarg_pair_drop", "key" => "a" }).render("f(a: 1, **o)")
+      out = described_class.new({ "type" => "kwarg_pair_drop", "key" => "a" }).render("f(a: 1, **o)").first
       expect(out).to(eq("f(**o)"))
     end
 
     it "keeps an attribute write a safe navigation drops to a plain call" do
-      expect(described_class.new({ "type" => "csend_to_send" }).render("a&.b = 1")).to(eq("a.b = 1"))
+      expect(described_class.new({ "type" => "csend_to_send" }).render("a&.b = 1").first).to(eq("a.b = 1"))
     end
 
     it "renders a boolean literal variant" do
-      out = described_class.new({ "type" => "boolean_literal", "to" => "false" }).render("true")
+      out = described_class.new({ "type" => "boolean_literal", "to" => "false" }).render("true").first
       expect(out).to(eq("false"))
     end
 
     it "writes a block's `it` and `_1` as written, not as kimera's names for them", :aggregate_failures do
-      render = ->(source) { described_class.new({ "type" => "selector_swap", "to" => "first" }).render(source) }
+      render = ->(source) { described_class.new({ "type" => "selector_swap", "to" => "first" }).render(source).first }
       expect(render.call("list.find { it > 10 }")).to(eq("list.first { it > 10 }"))
       expect(render.call("list.find do\n  _1 > 10\nend")).to(eq("list.first do\n  _1 > 10\nend"))
     end
 
     it "labels statement deletion specially without parsing" do
-      out = described_class.new({ "type" => "statement_deletion" }).render("do_thing(x)")
+      out = described_class.new({ "type" => "statement_deletion" }).render("do_thing(x)").first
       expect(out).to(eq("(statement deleted)"))
     end
 
     it "renders a string segment of an interpolation, which does not parse alone" do
-      expect(described_class.new({ "type" => "string_literal", "value" => "" }).render("; boundary=")).to(eq('""'))
+      expect(described_class.new({ "type" => "string_literal", "value" => "" }).render("; boundary=")).to(eq(['""']))
     end
 
     # Unparsing the whole node would print a modifier `if` as an if/end block.
     it "writes a forced condition into the original text, keeping its shape", :aggregate_failures do
-      forced = ->(source, to) { described_class.new({ "type" => "condition", "to" => to }).render(source) }
+      forced = ->(source, to) { described_class.new({ "type" => "condition", "to" => to }).render(source).first }
       expect(forced.call("return false if order_total <= 0", "false")).to(eq("return false if false"))
       expect(forced.call("x unless ready?", "true")).to(eq("x unless true"))
       expect(forced.call("é < 0 ? 0 : é", "true")).to(eq("true ? 0 : é"))
@@ -75,7 +75,7 @@ RSpec.describe(Kimera::Rewrite::Directive) do
     # once-campfire's `tag.div(..., &)` forwards its method's anonymous block:
     # cut out of the method, the snippet did not parse and rendered as nil.
     it "writes a forced condition into a snippet that forwards anonymous arguments", :aggregate_failures do
-      forced = ->(source, to) { described_class.new({ "type" => "condition", "to" => to }).render(source) }
+      forced = ->(source, to) { described_class.new({ "type" => "condition", "to" => to }).render(source).first }
       expect(forced.call("if w && h\n  tag.div(class: \"a\", &)\nelse\n  tag.div(&)\nend", "true"))
         .to(eq("if true\n  tag.div(class: \"a\", &)\nelse\n  tag.div(&)\nend"))
       expect(forced.call("call(*, **) if ready?", "false")).to(eq("call(*, **) if false"))
@@ -85,7 +85,7 @@ RSpec.describe(Kimera::Rewrite::Directive) do
     # The mutant keeps an assignment the predicate makes (PinnedPredicate), so
     # its rendering does too: a bare `if true` reads as a NameError in the body.
     it "writes a forced condition that keeps the assignment its predicate makes", :aggregate_failures do
-      forced = ->(source, to) { described_class.new({ "type" => "condition", "to" => to }).render(source) }
+      forced = ->(source, to) { described_class.new({ "type" => "condition", "to" => to }).render(source).first }
       expect(forced.call("if ok && room = find(id)\n  room.id\nend", "true"))
         .to(eq("if (ok && room = find(id); true)\n  room.id\nend"))
       expect(forced.call("x if /(?<n>\\d)/ =~ s", "false")).to(eq("x if (/(?<n>\\d)/ =~ s; false)"))
@@ -93,27 +93,27 @@ RSpec.describe(Kimera::Rewrite::Directive) do
     end
 
     it "forces only a condition directive, never another one that names a target" do
-      expect(described_class.new({ "type" => "boolean_literal", "to" => "false" }).render("x if y")).to(eq("false"))
+      expect(described_class.new({ "type" => "boolean_literal", "to" => "false" }).render("x if y")).to(eq(["false"]))
     end
 
     it "falls back to unparsing a condition that does not parse alone" do
       out = described_class.new({ "type" => "condition", "to" => "true" }).render("x if")
-      expect(out).to(be_nil)
+      expect(out).to(eq([]))
     end
 
-    it "returns nil when the snippet cannot be rendered cleanly" do
-      expect(described_class.new({ "type" => "bogus" }).render("a > b")).to(be_nil)
+    it "renders nothing when the snippet cannot be rendered cleanly" do
+      expect(described_class.new({ "type" => "bogus" }).render("a > b")).to(eq([]))
     end
 
     # Without the hash check this crashes on the symbol arg and render returns nil.
     it "leaves a call without keyword arguments untouched by a kwarg drop" do
-      out = described_class.new({ "type" => "kwarg_pair_drop", "key" => "dependent" }).render("has_many :posts")
+      out = described_class.new({ "type" => "kwarg_pair_drop", "key" => "dependent" }).render("has_many :posts").first
       expect(out).to(eq("has_many(:posts)"))
     end
 
     it "kwarg drop matches symbol keys only, ignoring string keys" do
       out = described_class.new({ "type" => "kwarg_pair_drop", "key" => "dependent" })
-        .render('has_many :posts, "dependent" => :destroy')
+        .render('has_many :posts, "dependent" => :destroy').first
       expect(out).to(eq('has_many(:posts, "dependent" => :destroy)'))
     end
 
@@ -121,13 +121,13 @@ RSpec.describe(Kimera::Rewrite::Directive) do
     # mutant equals the original and always survives.
     it "drops a kwarg pair from a call that carries a block" do
       out = described_class.new({ "type" => "kwarg_pair_drop", "key" => "expires_in" })
-        .render("Rails.cache.fetch(key, expires_in: 5) { total }")
+        .render("Rails.cache.fetch(key, expires_in: 5) { total }").first
       expect(out).to(eq("Rails.cache.fetch(key) { total }"))
     end
 
     it "drops a kwarg array element from a call that carries a block" do
       out = described_class.new({ "type" => "kwarg_element_drop", "key" => "on", "index" => 0 })
-        .render("after_commit on: [:create, :update] do\n  sync\nend")
+        .render("after_commit on: [:create, :update] do\n  sync\nend").first
       expect(out).to(eq("after_commit(on: [:update]) do\n  sync\nend"))
     end
   end

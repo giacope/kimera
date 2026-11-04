@@ -16,7 +16,7 @@ class Kimera::Operators::ReturnValue < Kimera::Operators::Base
   private
 
   def tail(node)
-    solo("tail => nil", Kimera::Operators::STATEMENT_DELETION) if nilable?(node)
+    erased("tail => nil") if nilable?(node)
   end
 
   public :tail

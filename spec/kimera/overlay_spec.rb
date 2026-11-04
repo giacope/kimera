@@ -24,18 +24,26 @@ RSpec.describe(Kimera::Overlay) do
 
   # The whole-file weave and its fallbacks: what kimera writes for a file
   # whose guards it can't splice into the source.
-  def unspliced
-    allow(Kimera::Overlay::Stitch).to(receive(:new).and_return(instance_double(Kimera::Overlay::Stitch, result: nil)))
-  end
+  def unspliced = unspliced_where { true }
 
   # Every splice of a set of points that holds one on `line` fails.
-  def unspliced_at(line)
-    allow(Kimera::Overlay::Stitch).to(receive(:new).and_wrap_original) do |build, file, map, points, unsafe|
-      build.call(file, map, points, unsafe).tap do |stitch|
-        allow(stitch).to(receive(:result)) if points.any? { |point| point.location.start_line == line }
+  def unspliced_at(line) = unspliced_where { |points| points.any? { |point| point.location.start_line == line } }
+
+  # A stitch that fails for the points the block picks, in place of kimera's.
+  def unspliced_where(&picked) = stub_const("Kimera::Overlay::Stitch", stitching(picked))
+
+  def stitching(picked)
+    Class.new(Kimera::Overlay::Stitch) do
+      define_method(:initialize) do |file, map, points, unsafe|
+        super(file, map, points, unsafe)
+        @refused = picked.call(points)
       end
+      define_method(:results) { @refused ? [] : super() }
     end
   end
+
+  # Kimera's own stitch again, in place of the failing one an example's hook put there.
+  def spliced_again = stub_const("Kimera::Overlay::Stitch", Kimera::Overlay::Stitch.superclass)
 
   # What the block answers with the mutant of that label on.
   def flipped(registry, label, &) = Kimera::RUNTIME.during(registry.each.find { |m, _p| m.label == label }.first.id, &)
@@ -71,7 +79,7 @@ RSpec.describe(Kimera::Overlay) do
     # A guard written as a keyword `if` right after `return` reads as a
     # modifier, so it is written as a ternary there. The extended operators plant guards in the returned chain.
     let(:extended_keys) do
-      (Kimera::Operators::DEFAULT_KEYS + %w[string_literal return_value argument_drop element_drop]).freeze
+      (Kimera::Operators.build.map(&:key) + %w[string_literal return_value argument_drop element_drop]).freeze
     end
 
     let(:guarded_return) do
@@ -735,10 +743,7 @@ RSpec.describe(Kimera::Overlay) do
 
     # Every weave fails to render.
     def unweavable
-      build = Kimera::Overlay::FileWeave.method(:new)
-      allow(Kimera::Overlay::FileWeave).to(receive(:new)) do |*arguments, **options|
-        build.call(*arguments, **options).tap { |weave| allow(weave).to(receive(:attempt).and_return(nil)) }
-      end
+      stub_const("Kimera::Overlay::FileWeave", Class.new(Kimera::Overlay::FileWeave) { def attempt(_) = [] })
     end
 
     it "raises when no point is guardable and the whole file would not parse" do
@@ -801,11 +806,8 @@ RSpec.describe(Kimera::Overlay) do
 
       # Whole-file emission fails; individual methods are fine.
       def unwritable!
-        allow(Kimera::Scribe).to(receive(:new).and_wrap_original) do |original, node, *place|
-          unless node.type == :def_node
-            raise(RuntimeError, "Could not find a round tripping solution for regexp")
-          end
-          original.call(node, *place)
+        failing_scribe do |node|
+          RuntimeError.new("Could not find a round tripping solution for regexp") unless node.type == :def_node
         end
       end
 
@@ -822,15 +824,14 @@ RSpec.describe(Kimera::Overlay) do
       it "refuses a per-method splice whose methods read as other methods" do
         registry = Kimera::RegistryScan.new.source(splice_source, file: "spliced.rb")
         unwritable!
-        allow(Kimera::Unwoven).to(receive(:new).and_return(instance_double(Kimera::Unwoven, keeps?: false)))
+        stub_const("Kimera::Unwoven", Class.new(Kimera::Unwoven) { def keeps?(_owners) = false })
         expect { described_class.new(registry).synthesize("spliced.rb", splice_source) }
           .to(raise_error(Kimera::Scribe::Unreadable, /could not write its guard/))
       end
 
       def checking(checked)
-        allow(Kimera::Unwoven).to(receive(:new).and_wrap_original) do |build, tree|
-          build.call(tree).tap { |found| allow(found).to(receive(:keeps?)) { |defs| checked.push(defs.map(&:name)) } }
-        end
+        written = Class.new(Kimera::Unwoven) { define_method(:keeps?) { |defs| checked.push(defs.map(&:name)) } }
+        stub_const("Kimera::Unwoven", written)
       end
 
       it "reads back the methods it rewrote, and only those" do
@@ -849,11 +850,7 @@ RSpec.describe(Kimera::Overlay) do
 
       # Kimera writes no tree but a method, and not the method named compare.
       def unparsing_methods
-        allow(Kimera::Scribe).to(receive(:new).and_wrap_original) do |original, node, *place|
-          raise(RuntimeError, "boom") unless node.type == :def_node
-          raise(RuntimeError, "boom") if node.name == :compare
-          original.call(node, *place)
-        end
+        failing_scribe { |node| RuntimeError.new("boom") if node.type != :def_node || node.name == :compare }
       end
 
       def partial
@@ -880,15 +877,14 @@ RSpec.describe(Kimera::Overlay) do
 
       # A rebuild failure outside any method is a Kimera bug. Splicing would hide it.
       def broken
-        build = Kimera::Guardrail.method(:new)
-        allow(Kimera::Guardrail).to(receive(:new)) do |*arguments|
-          build.call(*arguments).tap do |guardrail|
-            allow(guardrail).to(receive(:reopen).and_wrap_original) do |original, node|
+        failing =
+          Class.new(Kimera::Guardrail) do
+            def reopen(node)
               raise(NoMethodError, "undefined method 'children' for nil") if node.type == :constant_write_node
-              original.call(node)
+              super
             end
           end
-        end
+        stub_const("Kimera::Guardrail", failing)
       end
 
       it "refuses to splice when the rebuild fails, rather than the emission" do
@@ -900,12 +896,16 @@ RSpec.describe(Kimera::Overlay) do
       end
 
       def invalid!
-        allow(Kimera::Scribe).to(receive(:new).and_wrap_original) do |_original, node|
-          unless node.type == :def_node
-            raise(RuntimeError, "Could not find a round tripping solution for regexp")
+        failing =
+          Class.new(Kimera::Scribe) do
+            def initialize(node, *place)
+              raise(RuntimeError, "Could not find a round tripping solution for regexp") unless node.type == :def_node
+              super
+            end
+
+            def text = "def broken("
           end
-          "def broken(" # syntactically impossible splice
-        end
+        stub_const("Kimera::Scribe", failing)
       end
 
       it "refuses to splice a result that would not parse" do
@@ -957,9 +957,9 @@ RSpec.describe(Kimera::Overlay) do
       def made_before(source)
         stub_const("Spliced", Module.new)
         stub_const("SplicedTop", nil)
-        Kimera::Warnings::SILENCED.during { TOPLEVEL_BINDING.eval(value_source) }
+        Kimera::Warnings.silenced.during { TOPLEVEL_BINDING.eval(value_source) }
         [Spliced::Point.new(x: 11), SplicedTop.new(20), Spliced::Nested.new(x: 10)].tap do
-          Kimera::Warnings::SILENCED.during { TOPLEVEL_BINDING.eval(source) }
+          Kimera::Warnings.silenced.during { TOPLEVEL_BINDING.eval(source) }
         end
       end
 
@@ -1015,7 +1015,7 @@ RSpec.describe(Kimera::Overlay) do
       it "leaves a file with nothing to splice unreopened" do
         code = "Point = Data.define(:x) do\n  def big? = x > 10\nend\n"
         registry = Kimera::RegistryScan.new.source(code, file: "p.rb")
-        allow(Kimera::Scribe).to(receive(:new).and_raise(RuntimeError, "Could not find a round tripping solution"))
+        failing_scribe { RuntimeError.new("Could not find a round tripping solution") }
         expect { described_class.new(registry).synthesize("p.rb", code) }
           .to(raise_error(Kimera::Scribe::Unreadable, Kimera::Overlay::FileWeave::UNGUARDABLE))
       end
@@ -1040,7 +1040,7 @@ RSpec.describe(Kimera::Overlay) do
 
       # The registry and the overlay, woven without a warning.
       def woven
-        allow(Kimera::Overlay::Stitch).to(receive(:new).and_call_original)
+        spliced_again
         registry = Kimera::RegistryScan.new.source(code, file: "bid.rb")
         result = nil
         expect { result = described_class.new(registry).synthesize("bid.rb", code) }.not_to(output.to_stderr)
@@ -1060,7 +1060,7 @@ RSpec.describe(Kimera::Overlay) do
     end
 
     it "does not warn when every point is guardable" do
-      allow(Kimera::Overlay::Stitch).to(receive(:new).and_call_original)
+      spliced_again
       code = "def m(a, b)\n  a > b\nend\n"
       registry = Kimera::RegistryScan.new.source(code, file: "clean.rb")
       expect { described_class.new(registry).synthesize("clean.rb", code) }.not_to(output.to_stderr)
@@ -1179,7 +1179,7 @@ RSpec.describe(Kimera::Overlay) do
       sites, at = nesting
       probe = [at, at, "PROBE; "]
       guards = ["(!(::Kimera::RUNTIME.active?(1)) ? (outer(", "(!(::Kimera::RUNTIME.active?(2)) ? (inner(PROBE; x))"]
-      expect(sites.first.text(sites, [probe])).to(eq("#{guards.join} : (nil)))) : (nil))"))
+      expect(sites.first.edit(sites, [probe]).last).to(eq("#{guards.join} : (nil)))) : (nil))"))
     end
 
     it "makes the class the hook builds answer as the original, and each mutant as itself", :aggregate_failures do

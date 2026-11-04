@@ -40,7 +40,7 @@ RSpec.describe(Kimera::Execution::IsolatedPlan::ChildCommand) do
     expect(failing(two, false)).to(eq([2, ["./a_spec.rb[1:1]", "./a_spec.rb[1:2]"]]))
   end
 
-  def drawn(test) = Random.new(Kimera::Seed.new("KIMERA_SEED" => "31").for(test)).rand(1_000_000)
+  def drawn(test) = Random.new(Kimera::Seed.new("KIMERA_SEED" => "31").for(test).fetch(0)).rand(1_000_000)
 
   def seeded(child, file, source, request, seed: 31)
     Dir.mktmpdir do |dir|
@@ -97,15 +97,18 @@ RSpec.describe(Kimera::Execution::IsolatedPlan::ChildCommand) do
   end
 
   it "asks the child for the run's seed only when there is one", :aggregate_failures do
-    expect(described_class.new(framework: "rspec", test_files: [], seed: 4).request(["t"])).to(include("seed" => 4))
-    expect(described_class.new(framework: "rspec", test_files: []).request(["t"])).not_to(have_key("seed"))
+    expect(described_class.new(framework: "rspec", test_files: [], root: ".", seed: 4).request(["t"]))
+      .to(include("seed" => 4))
+    expect(described_class.new(framework: "rspec", test_files: [], root: ".").request(["t"])).not_to(have_key("seed"))
   end
 
   # R6B3-M1: a mirror runs the suite with the ruby flags the run gives, as the
   # warm pass runs it: `-w` when the Rakefile's test task warns.
   def ruby(**)
-    child = described_class.new(framework: "minitest", test_files: [])
-    Dir.mktmpdir { |dir| child.command(dir, child.request(["t"], **), ledger: File.join(dir, "l"), paths: []).last }
+    Dir.mktmpdir do |dir|
+      child = described_class.new(framework: "minitest", test_files: [], root: dir)
+      child.command(dir, child.request(["t"], **), ledger: File.join(dir, "l"), paths: []).last
+    end
   end
 
   it "runs the child ruby with the warnings the run asks for, and none otherwise", :aggregate_failures do

@@ -69,7 +69,7 @@ RSpec.describe(Kimera::Execution::BlockUse) do
 
   it "sends a warm survivor whose mutant leaves its method no yield to a fresh mirror", :aggregate_failures do
     expect(revisited).to(eq([[3, "conditional"], [12, "statement_deletion"], [12, "conditional"]]))
-    expect(registry.points.filter_map(&:revisit).uniq).to(eq([described_class::REASON]))
+    expect(registry.points.filter_map(&:revisit).uniq).to(eq([Kimera::MutationPoint::BLOCK_REASON]))
   end
 
   it "judges them warm when the suite reports no ignored block", :aggregate_failures do

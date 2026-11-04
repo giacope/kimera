@@ -48,7 +48,7 @@ RSpec.describe(Kimera::Execution::MacroLambdas) do
     ordered = point("order(:created_at)")
     described_class.new(registry, dir).quarantine!({ booster.ids.first => ["t1"], ordered.ids.first.to_s => ["t1"] })
     expect([booster.safe?, ordered.safe?]).to(eq([true, true]))
-    expect([booster.revisit, ordered.revisit]).to(eq([described_class::KEPT] * 2))
+    expect([booster.revisit, ordered.revisit]).to(eq([Kimera::MutationPoint::MACRO_KEPT] * 2))
   end
 
   it "leaves lambdas no class-body macro is handed: a constant's, and those in a method", :aggregate_failures do

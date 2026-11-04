@@ -7,9 +7,8 @@ require "tmpdir"
 # F9: a test red only under kimera is rerun outside it before kimera trusts it.
 RSpec.describe(Kimera::Frameworks::RSpecSuite, :aggregate_failures) do
   describe "rerunning baseline failures without kimera" do
-    let(:adapter) { described_class.allocate }
-
-    before { allow(adapter).to(receive(:test_ids).and_return(%w[./a_spec.rb[1:1] ./a_spec.rb[1:2]])) }
+    # A suite of two examples in one file, past the loading this spec skips.
+    let(:adapter) { Class.new(described_class) { def test_ids = %w[./a_spec.rb[1:1] ./a_spec.rb[1:2]] }.allocate }
 
     it "reruns the known ids through the bundle with a JSON report, in the order given" do
       expect(adapter.plain(%w[./a_spec.rb[1:2] ./gone_spec.rb[1:1]], "/out.json")).to(
@@ -36,8 +35,9 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite, :aggregate_failures) do
       expect(reported(JSON.generate("examples" => examples))).to(eq(["a[1:1]"]))
     end
 
-    it "reads nothing when there is no report, or it does not parse" do
-      expect([reported(nil), reported("{")]).to(eq([[], []]))
+    it "fails when there is no report, or it does not parse" do
+      expect { reported(nil) }.to(raise_error(Errno::ENOENT))
+      expect { reported("{") }.to(raise_error(JSON::ParserError))
     end
   end
 end

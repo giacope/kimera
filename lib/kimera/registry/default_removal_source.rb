@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class Kimera::DefaultRemoval::Source
-  CALLABLES = Kimera::DefaultRemoval::CALLABLES
+  CALLABLES = [Kimera::SyntaxTypes::DefNode, Kimera::SyntaxTypes::LambdaNode, Kimera::SyntaxTypes::BlockNode].freeze
 
   def initialize(text)
     @text = text

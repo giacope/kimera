@@ -10,27 +10,26 @@ module Kimera
 end
 
 class Kimera::Execution::OrderTrace
-  ORDERED = Kimera::MutationPoint::ORDER_REASON
   NOTE = "baseline (whole suite, in order)"
 
   def initialize(registry)
     @registry = registry
   end
 
-  def follow!(baseline, coverage, scope: nil, progress: Kimera::Execution::NullProgress::NONE)
+  def follow!(baseline, coverage, scope: nil, progress: Kimera::Execution::NullProgress.new)
     return unless wanted?(scope, coverage)
     progress.note(NOTE)
     mark!(baseline, coverage)
   end
 
   def mark!(baseline, coverage)
-    reached(baseline).each do |id|
-      point = @registry.point(id)&.last
-      point.revisit!(ORDERED) if point&.safe? && uncovered?(id, coverage)
+    reached(baseline) { [] }.each do |id|
+      point = @registry.index[id]
+      point.ordered! if point&.safe? && uncovered?(id, coverage)
     end
   end
 
-  def wanted?(scope, coverage) = scope.nil? || scope.any? { |id| open?(@registry.point(id)&.last, coverage) }
+  def wanted?(scope, coverage) = scope.nil? || scope.any? { |id| open?(@registry.index[id], coverage) }
 
   private
 
@@ -39,7 +38,7 @@ class Kimera::Execution::OrderTrace
   def reached(baseline)
     Array(baseline.sequence["touched"])
   rescue Kimera::Execution::Zygote::Died, Kimera::Execution::Zygote::Raised, Timeout::Error
-    []
+    yield
   end
 
   def uncovered?(id, coverage) = coverage.fetch(id) { coverage.fetch(id.to_s, []) }.empty?

@@ -29,37 +29,36 @@ RSpec.describe(Kimera::Execution::TestFilter, :aggregate_failures) do
 
   it "keeps every test when neither attribution nor flakiness narrows them" do
     plain = described_class.new(registry: registry)
-    expect(plain.active?).to(be(false))
+    expect(screens?(plain)).to(be(false))
     expect(plain.keep("app/models/order.rb", %w[own request])).to(eq(%w[own request]))
     expect(plain.settle(id, %w[request])).to(be_nil)
-    expect(plain.screen({ id => %w[request] })).to(eq([{ id => %w[request] }, {}]))
+    expect(screened(plain, { id => %w[request] })).to(eq([{ id => %w[request] }, {}, []]))
   end
 
   it "keeps only the unit's own tests, by the file each is declared in" do
-    expect(filter.active?).to(be(true))
+    expect(screens?(filter)).to(be(true))
     expect(filter.keep("app/models/order.rb", %w[own request also])).to(eq(%w[own also]))
   end
 
   it "builds strict attribution from unit_tests rules, locating each test under the root" do
-    ruled = described_class.build(
-      registry: registry, adapter: adapter,
-      rules: { "app/**/*.rb" => ["spec/requests/{name}s_spec.rb"] }
+    ruled = described_class.from_rules(
+      { "app/**/*.rb" => ["spec/requests/{name}s_spec.rb"] }, registry: registry, adapter: adapter
     )
-    expect(ruled.active?).to(be(true))
+    expect(screens?(ruled)).to(be(true))
     expect(ruled.keep("app/models/order.rb", %w[own request abs else ghost])).to(eq(%w[own request abs]))
   end
 
   it "builds no attribution without rules" do
     plain = described_class.build(registry: registry, adapter: adapter, root: "/elsewhere")
-    expect([plain.active?, plain.keep("app/models/order.rb", %w[own else])]).to(eq([false, %w[own else]]))
-    rooted = described_class.build(registry: registry, adapter: adapter, root: "/elsewhere", rules: {})
+    expect([screens?(plain), plain.keep("app/models/order.rb", %w[own else])]).to(eq([false, %w[own else]]))
+    rooted = described_class.from_rules({}, registry: registry, adapter: adapter, root: "/elsewhere")
     expect(rooted.keep("app/models/order.rb", %w[own else])).to(eq(%w[else]))
   end
 
   it "never keeps a flaky test, with or without attribution" do
     expect(filter(flaky: %w[own]).keep("app/models/order.rb", %w[own also])).to(eq(%w[also]))
-    unattributed = filter(attribution: Kimera::Execution::Attribution::ANY, flaky: %w[request])
-    expect(unattributed.active?).to(be(true))
+    unattributed = filter(attribution: Kimera::Execution::OpenAttribution.new, flaky: %w[request])
+    expect(screens?(unattributed)).to(be(true))
     expect(unattributed.keep("app/models/order.rb", %w[own request])).to(eq(%w[own]))
   end
 
@@ -97,10 +96,10 @@ RSpec.describe(Kimera::Execution::TestFilter, :aggregate_failures) do
   end
 
   it "splits coverage into what each mutant may still be killed by and what is settled" do
-    kept, settled = filter.screen({ id => %w[own request], 999 => [] })
-    expect(kept).to(eq(id => %w[own], 999 => []))
+    kept, settled, narrowed = screened(filter, { id => %w[own request], 999 => [] })
+    expect([kept, narrowed]).to(eq([{ id => %w[own], 999 => [] }, [{ id => %w[own], 999 => [] }]]))
     expect(settled).to(eq({}))
-    kept, settled = filter.screen({ id => %w[request] })
+    kept, settled = screened(filter, { id => %w[request] })
     expect([kept, settled.keys, settled.fetch(id).status]).to(eq([{}, [id], :uncovered_by_unit]))
   end
 

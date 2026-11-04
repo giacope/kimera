@@ -7,9 +7,6 @@ class Kimera::CLI::Baseline::Entry
 
   KILLING = %w[killed timeout error].freeze
   SURVIVING = %w[survived uncovered_by_unit].freeze
-  PRUNABLE = %i[killed stale].freeze
-
-  attr_reader :fields
 
   def initialize(fields, rows, missing: :stale)
     @fields = fields
@@ -17,25 +14,34 @@ class Kimera::CLI::Baseline::Entry
     @missing = missing
   end
 
+  def kind?(*kinds) = kinds.include?(kind)
+
+  def status?(name) = statuses.include?(name)
+
+  def moved? = exact.empty? && hits.any?
+
+  def remark
+    shown = statuses
+    yield(to_s, kind, shown.empty? ? "" : " (#{shown.join(", ")})", @fields["reason"])
+  end
+
+  def to_h = moved? ? @fields.merge("line" => relocated) : @fields
+
+  def to_s
+    file, line, label = @fields.values_at("file", "line", "label")
+    "#{[file, line].compact.join(":")}#{" → #{relocated}" if moved?} [#{label}]"
+  end
+
+  private
+
   def kind
     return :out_of_scope if @rows.empty?
     hits.empty? ? @missing : verdict
   end
 
-  def prunable? = PRUNABLE.include?(kind)
-
-  def moved = exact.empty? ? hits.first&.fetch("line") : nil
-
   def statuses = hits.map { |row| row["verdict"] || row["status"] }.uniq
 
-  def kept = moved ? @fields.merge("line" => moved) : @fields
-
-  def place
-    file, line, label = @fields.values_at("file", "line", "label")
-    "#{[file, line].compact.join(":")}#{" → #{moved}" if moved} [#{label}]"
-  end
-
-  private
+  def relocated = hits.first.fetch("line")
 
   def verdict
     return :surviving if statuses.intersect?(SURVIVING)

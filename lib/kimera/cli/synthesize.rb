@@ -7,6 +7,7 @@ require_relative "../scope/config"
 require_relative "../scope/file_set"
 require_relative "../synthesis/project"
 require_relative "flag"
+require_relative "outcome"
 
 module Kimera
 end
@@ -19,48 +20,37 @@ class Kimera::CLI::Synthesize
     banner: "Usage: kimera synthesize [paths...] [options]",
     flags: [
       Kimera::Flag.build("--out DIR", :out, "Write synthesized mirror tree to DIR"),
-      Kimera::REGISTRY_FLAG,
-      Kimera::OPERATORS_FLAG,
-      Kimera::CONFIG_FLAG
+      Kimera::Flag.shared(:registry),
+      Kimera::Flag.shared(:operators),
+      Kimera::Flag.shared(:config)
     ]
   )
 
-  def initialize(io: $stdout, errors: $stderr)
-    @io = io
-    @errors = errors
-  end
+  MISSING = "kimera synthesize: --out DIR is required"
+
+  def initialize(**); end
 
   def run(argv)
-    defaults = Kimera::Config.parse(argv).scope({ out: nil, registry: nil, operators: Kimera::Operators::DEFAULT_KEYS })
+    operators = Kimera::Operators.build.map(&:key)
+    defaults = Kimera::Config.parse(argv).scope({ out: nil, registry: nil, operators: operators })
     paths, options = OPTIONS.parse(argv, defaults)
     out = options[:out]
-    out ? synthesize(paths, options, out) : missing
+    out ? synthesize(load(paths, **options), out) : missing
   end
 
   private
 
-  def missing
-    @errors.puts("kimera synthesize: --out DIR is required")
-    1
+  def missing = Kimera::CLI::Outcome::Failed.new(1, MISSING)
+
+  def synthesize(registry, out)
+    manifest = Kimera::Synthesis::Project.new(registry).write(out)
+    Kimera::CLI::Outcome::Said.new(*manifest.summary(registry.files.size, out))
   end
 
-  def synthesize(paths, options, out)
-    registry = load(paths, options)
-    report(registry, Kimera::Synthesis::Project.new(registry).write(out), out)
-    0
-  end
-
-  def report(registry, manifest, out)
-    @io.puts("Synthesized #{registry.files.size} files to #{out}.")
-    @io.puts("  #{manifest.mutant_files.size} mutants on the schema path.")
-    unsafe = manifest.unsafe_mutants
-    @io.puts("  #{unsafe.size} mutants routed to reload fallback (memoization).") unless unsafe.empty?
-  end
-
-  def load(paths, options)
-    stored = options[:registry]
-    return Kimera::Registry.from_file(stored) if stored
-    Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: options[:operators]))
-      .build(Kimera::FileSet.from_options(paths, options).files)
+  def load(paths, registry:, operators:, **scope)
+    return Kimera::Registry.from_file(registry) if registry
+    files = Kimera::FileSet.from_options(paths, **scope).files
+    chosen = Kimera::Operators.build(keys: operators)
+    Kimera::RegistryScan.new(operators: chosen).build(files)
   end
 end

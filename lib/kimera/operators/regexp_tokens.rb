@@ -3,7 +3,23 @@
 module Kimera
   module Operators
     class RegexpTokens
-      Token = Data.define(:kind, :offset, :text)
+      class Token
+        def initialize(kind, offset, text)
+          @kind = kind
+          @offset = offset
+          @text = text
+        end
+
+        def kind?(kind) = @kind == kind
+
+        def after = @offset + @text.length
+
+        def splice(source, replacement) = source[0, @offset] + replacement + source[after..]
+
+        def to_s = @text
+
+        def to_a = [@kind, @text]
+      end
 
       ANCHORS = { "\\A" => true, "\\z" => true, "\\Z" => true, "^" => true, "$" => true }.freeze
       REPEATS = %w[* + ?].freeze
@@ -55,7 +71,7 @@ module Kimera
 
       def anchor(at, text) = take(Token.new(:anchor, at, text))
 
-      def take(token) = [token.offset + token.text.length, false, token]
+      def take(token) = [token.after, false, token]
 
       def quantifier?(at) = REPEATS.include?(@source[at]) || (@source.match?(BOUNDED, at) && bounded?(at))
 

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../parsing/syntax"
+require_relative "overrides/held"
 require_relative "redefinition"
 
 module Kimera
@@ -9,18 +10,6 @@ module Kimera
 end
 
 class Kimera::Execution::Overrides
-  Held =
-    Data.define(:holder, :name, :definition, :visibility, :span) do
-      def revisit!(points)
-        lines = span.start_line..span.end_line
-        points.each { |point| point.revisit!(WRAPPED) if point.safe? && lines.cover?(point.location.start_line) }
-      end
-    end
-  WRAPPED =
-    "another file redefined its method around the one it replaced (a memoizer that holds that method), and the " \
-      "warm overlay keeps that definition, which never calls the mutated one; so a mutant no test reached warm is " \
-      "judged again in a fresh mirror against the tests near its file"
-  LOOKUP = Module.instance_method(:instance_method)
   SINGLETON = Kernel.instance_method(:singleton_class)
   VISITS = {
     Prism::ClassNode => :nested, Prism::ModuleNode => :nested, Prism::SingletonClassNode => :lifted,
@@ -33,8 +22,8 @@ class Kimera::Execution::Overrides
   end
 
   def keep
-    held = defined.filter_map { |holder, name, span| elsewhere(holder, name, span) }
-    [yield, held.filter_map { |entry| restore(entry) }]
+    held = defined.flat_map { |holder, name, span| elsewhere(holder, name, span) }
+    [yield, held.flat_map { |entry| entry.restored(file) }]
   end
 
   private
@@ -62,9 +51,9 @@ class Kimera::Execution::Overrides
   def skipped(_node, _scope, _side) = []
 
   def owned(node, scope, side)
-    holder = resolve(scope)
+    holder = resolve(scope) { return [] }
     receiver = node.receiver
-    return [] unless holder && (receiver.nil? || receiver.is_a?(Prism::SelfNode))
+    return [] unless receiver.nil? || receiver.is_a?(Prism::SelfNode)
     owner = side == :singleton || receiver ? SINGLETON.bind_call(holder) : holder
     [[owner, node.name, node.location]]
   end
@@ -72,28 +61,13 @@ class Kimera::Execution::Overrides
   def resolve(scope)
     scope.empty? ? Object : Object.const_get(scope.join("::").delete_prefix("::"))
   rescue NameError
-    nil
+    yield
   end
 
   def elsewhere(holder, name, span)
-    found = lookup(holder, name)
-    return unless found && found.owner == holder && !here?(found)
-    Held.new(holder, name, found, Kimera::Execution::Redefinition.new(holder, name).visibility, span)
-  end
-
-  def restore(entry)
-    holder, name, kept, visibility = entry.deconstruct.first(4)
-    fresh = lookup(holder, name)
-    return unless fresh && here?(fresh)
-    Kimera::Execution::Redefinition.new(holder, name).redefine(kept, visibility)
-    entry.with(definition: fresh)
+    redefinition = Kimera::Execution::Redefinition.new(holder, name)
+    redefinition.held(Kimera::Execution::Overrides::Held, span) { |found| found.owner == holder && !here?(found) }
   end
 
   def here?(method) = Kimera::Execution::Origin.new(method.source_location&.first).canonical == file
-
-  def lookup(holder, name)
-    LOOKUP.bind_call(holder, name)
-  rescue NameError
-    nil
-  end
 end

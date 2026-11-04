@@ -4,9 +4,13 @@ require_relative "parsing/syntax"
 require_relative "parsing/unescaped"
 require_relative "scribe/level"
 require_relative "scribe/shape"
+require_relative "scribe/token"
 require_relative "scribe/binders"
 require_relative "scribe/texts"
 require_relative "scribe/place"
+require_relative "scribe/margin"
+require_relative "scribe/mode"
+require_relative "scribe/scope"
 require_relative "scribe/pen"
 require_relative "scribe/quote"
 require_relative "scribe/number"
@@ -59,25 +63,16 @@ module Kimera
       closed?(body) ? "#{text}\n" : text
     end
 
-    def at(root, original) = Scribe.new(@node, Place.of(root, original))
-
-    def over(root, original) = Scribe.new(@node, Place.of(root, original, original.location.end_line))
+    def at(root, original, ends = Float::INFINITY)
+      place = Place.of(root, original, ends)
+      Scribe.new(@node, block_given? ? yield(place) : place)
+    end
 
     def joined = Scribe.new(@node, @place.joined)
 
-    def unbroken = Scribe.new(@node, @place.unbroken)
-
-    def after(node) = Scribe.new(@node, @place.after(node))
-
-    def text
-      depth = @place.depth
-      pen = Pen.new(binders, Pen::Margin.new(depth: depth, flat: @place.flat?), @place.locals)
-      Lines.new(body, pen, @place.joint).text.delete_prefix("\n#{Pen::INDENT * depth}")
-    end
+    def text = @place.written(body)
 
     private
-
-    def binders = Binders.new(Texts.new(@place.slices))
 
     def body = @node&.type == :program_node ? @node.statements : @node
 

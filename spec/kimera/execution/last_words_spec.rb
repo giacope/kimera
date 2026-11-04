@@ -6,7 +6,7 @@ require "kimera/execution/zygote"
 # What a warm worker says on its way out when an exception ends it, so a
 # crash verdict names the cause instead of just "crashed".
 RSpec.describe(Kimera::Execution::LastWords) do
-  let(:harness) { Kimera::Execution::StackDump::HARNESS }
+  let(:harness) { Kimera::Execution::Frames::HARNESS }
 
   def raised(error, frames)
     error.tap { |failure| failure.set_backtrace(frames) }
@@ -33,7 +33,7 @@ RSpec.describe(Kimera::Execution::LastWords) do
   it "shows kimera's own frames, capped, when the exception came from kimera" do
     frames = Array.new(20) { |index| "#{harness}/execution/shift.rb:#{index}" }
     lines = described_class.new(raised(RuntimeError.new("boom"), frames)).to_s.lines
-    shown = frames.first(Kimera::Execution::StackDump::MAX_FRAMES).map { |frame| frame.delete_prefix("#{Dir.pwd}/") }
+    shown = frames.first(Kimera::Execution::Frames::MAX_FRAMES).map { |frame| frame.delete_prefix("#{Dir.pwd}/") }
     expect(lines.map(&:strip)).to(eq(["RuntimeError: boom", *shown]))
   end
 

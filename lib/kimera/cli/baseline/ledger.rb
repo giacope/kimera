@@ -5,8 +5,6 @@ require_relative "../report_file"
 require_relative "entry"
 
 class Kimera::CLI::Baseline::Ledger
-  attr_reader :path, :report
-
   def initialize(path, report)
     @path = path
     @report = report

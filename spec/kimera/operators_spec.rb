@@ -31,7 +31,8 @@ RSpec.describe(Kimera::Operators) do
     let(:built) { described_class.build }
 
     it "instantiates the conservative core by default" do
-      expect(built.map(&:key)).to(match_array(described_class::DEFAULT_KEYS))
+      keys = %w[comparison boolean_connective boolean_literal statement_deletion negation conditional]
+      expect(built.map(&:key)).to(match_array(keys))
     end
 
     it "instantiates only the default keys by default" do

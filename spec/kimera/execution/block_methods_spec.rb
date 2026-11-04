@@ -222,18 +222,19 @@ RSpec.describe(Kimera::Execution::BlockMethods) do
     end
   end
 
+  # The walks of the object space adopting each of +texts+ makes.
   def searched(*texts)
-    allow(ObjectSpace).to(receive(:each_object).and_call_original)
-    texts.each do |text|
-      located = Kimera::RegistryScan.new.source(text, file: "x.rb").each.map { _2.location }
-      described_class.new(file, text, text, located).adopt { :installed }
+    walks do
+      texts.each do |text|
+        located = Kimera::RegistryScan.new.source(text, file: "x.rb").each.map { _2.location }
+        described_class.new(file, text, text, located).adopt { :installed }
+      end
     end
-    ObjectSpace
   end
 
   it "searches the heap only for a file with a def inside a block", :aggregate_failures do
     expect(searched("class Host\n  def over(value) = value > 1\nend\n", "Dsl.shared { def self.made = 1 > 0 }\n"))
-      .not_to(have_received(:each_object))
-    expect(searched(source)).to(have_received(:each_object).with(Module).at_least(:once))
+      .to(eq(0))
+    expect(searched(source)).to(be_positive)
   end
 end

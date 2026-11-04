@@ -5,6 +5,8 @@ require "kimera/synthesis/overlay"
 
 # The spliced text for each shape of point.
 RSpec.describe(Kimera::Overlay) do
+  def unmatched = "no node to guard: kimera found nothing of its kind where the point was scanned"
+
   def scan(source, keys)
     Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(source, file: "x.rb")
   end
@@ -74,11 +76,7 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   # A point no guard can hold in place has its definition written whole.
-  def whole!
-    allow(Kimera::GuardSplice).to(receive(:new)) do |_map, points|
-      instance_double(Kimera::GuardSplice, rest: points, edits: [], applied: [])
-    end
-  end
+  def whole! = unanchored
 
   def trace
     "class Trace\n  def mark(l)\n    l.fetch(0)\n  rescue IndexError\n    [:seen, __LINE__]\n  end\n\n  " \
@@ -145,7 +143,7 @@ RSpec.describe(Kimera::Overlay) do
 
   def gone(source, keys)
     catalog = scan(source, keys)
-    allow(catalog.points.first).to(receive(:node_type).and_return("float_node"))
+    catalog.points.first.define_singleton_method(:node_type) { "float_node" }
     [described_class.new(catalog).synthesize("x.rb", source), *catalog.points]
   end
 
@@ -154,8 +152,7 @@ RSpec.describe(Kimera::Overlay) do
   }.each do |source, keys|
     it "reports a #{keys.first} point whose node is gone as unmutatable", :aggregate_failures do
       result, lost = gone(source, keys)
-      expect([result.skipped_unsafe, lost.unsafe_reason])
-        .to(eq([lost.ids, "unmutatable: #{Kimera::Overlay::FileWeave::UNMATCHED}"]))
+      expect([result.skipped_unsafe, lost.unsafe_reason]).to(eq([lost.ids, "unmutatable: #{unmatched}"]))
     end
   end
 
@@ -167,27 +164,50 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   describe Kimera::Overlay::Stitch do
+    # A guard splice that places every point, with +edits+, guarding mutant 7.
+    def placing(edits)
+      Class.new do
+        def initialize(_map, _points); end
+
+        define_method(:rest) { [] }
+        define_method(:edits) { edits }
+        define_method(:applied) { [7] }
+      end
+    end
+
     def stitched(edits)
-      weave = instance_double(Kimera::GuardSplice, rest: [], edits: edits, applied: [7])
-      allow(Kimera::GuardSplice).to(receive(:new).and_return(weave))
-      described_class.new("x.rb", Kimera::SourceMap.new("a = 1\n"), [], []).result
+      stub_const("Kimera::GuardSplice", placing(edits))
+      described_class.new("x.rb", Kimera::SourceMap.new("a = 1\n"), [], []).results
     end
 
     it "writes the edits of the guards it was given", :aggregate_failures do
-      result = stitched([[4, 5, "2"]])
+      result, = stitched([[4, 5, "2"]])
       expect([result.source, result.mutant_ids]).to(eq(["a = 2\n", [7]]))
     end
 
     it "writes nothing for edits that overlap, even ones whose text would parse" do
-      expect(stitched([[4, 5, "2"], [4, 5, "3"]])).to(be_nil)
+      expect(stitched([[4, 5, "2"], [4, 5, "3"]])).to(eq([]))
     end
 
     it "writes nothing whose text does not parse" do
-      expect(stitched([[4, 5, "("]])).to(be_nil)
+      expect(stitched([[4, 5, "("]])).to(eq([]))
     end
 
     it "writes nothing whose edits move the lines after them" do
-      expect(stitched([[4, 5, "(2\n)"]])).to(be_nil)
+      expect(stitched([[4, 5, "(2\n)"]])).to(eq([]))
+    end
+
+    # No guard holds a point in place, and the guardrail cannot write the methods holding them.
+    def unwritable
+      unanchored
+      stub_const("Kimera::Guardrail", Class.new(Kimera::Guardrail) { def rewrite(_node) = raise(ArgumentError) })
+    end
+
+    it "writes nothing when a method it must rewrite whole cannot be written" do
+      source = "def m(a) = a > 1\n"
+      point = scan(source, %w[comparison]).points.first
+      unwritable
+      expect(described_class.new("x.rb", Kimera::SourceMap.new(source), [point], []).results).to(eq([]))
     end
   end
 

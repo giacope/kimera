@@ -8,7 +8,7 @@ class Kimera::Operators::RegexpAnchor < Kimera::Operators::RegexpSyntax
   private
 
   def rewrites(source, token)
-    return [] unless token.kind == :anchor
-    [rewrite(source, token, "", "drop `#{token.text}`")]
+    return [] unless token.kind?(:anchor)
+    [rewrite(source, token, "", "drop `#{token}`")]
   end
 end

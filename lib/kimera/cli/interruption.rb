@@ -1,13 +1,14 @@
 # frozen_string_literal: true
 
+require_relative "outcome"
+
 module Kimera
   class CLI
   end
 end
 
 class Kimera::CLI::Interruption
-  def initialize(errors, leader = Process.pid)
-    @errors = errors
+  def initialize(leader = Process.pid)
     @leader = leader
   end
 
@@ -21,7 +22,7 @@ class Kimera::CLI::Interruption
   private
 
   def said(signo)
-    @errors.puts("kimera: interrupted (SIG#{Signal.signame(signo)}); the test processes it started are stopped")
-    128 + signo
+    text = "kimera: interrupted (SIG#{Signal.signame(signo)}); the test processes it started are stopped"
+    Kimera::CLI::Outcome::Failed.new(128 + signo, text)
   end
 end

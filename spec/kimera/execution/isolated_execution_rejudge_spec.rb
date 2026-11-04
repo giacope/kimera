@@ -22,15 +22,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
   let(:ids) { registry.each.map { |mutant, _point| mutant.id }.first(2) }
   let(:note) { "judged in a fresh isolated mirror; the warm pass could not: warm " }
 
-  def test_bar(sink)
-    Class.new do
-      define_method(:initialize) { |s| @s = s }
-      define_method(:note) { |text| @s << [:note, text] }
-      define_method(:start) { |total, label| @s << [:start, total, label] }
-      define_method(:tick) { |status| @s << [:tick, status] }
-      define_method(:finish) { @s << [:finish] }
-    end.new(sink)
-  end
+  def test_bar(sink) = ProgressJournal.new(sink)
 
   def test_warm(id)
     Kimera::MutantResult.new(mutant_id: id, status: :harness_error, file: "calc.rb", detail: "warm #{id}")
@@ -45,22 +37,24 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
     sleep(0.01) until arrived.size > 1 || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
   end
 
-  def test_judged(arrived, isolated, trial)
-    test_meet(arrived, trial.slot)
-    status, detail = isolated.fetch(trial.id)
+  def test_judged(arrived, isolated, id, slot)
+    test_meet(arrived, slot)
+    status, detail = isolated.fetch(id)
     Kimera::MutantResult.new(
-      mutant_id: trial.id, status: status, file: "calc.rb", covering_tests: ["t#{trial.id}"], detail: detail,
-      failing_tests: (["k#{trial.id}"] if status == :killed)
+      mutant_id: id, status: status, file: "calc.rb", covering_tests: ["t#{id}"], detail: detail,
+      failing_tests: (["k#{id}"] if status == :killed)
     )
   end
 
   # isolated: id => [status, detail]; control: the unmutated outcome.
   def test_engine(log, isolated:, control:)
     judged = method(:test_judged).curry[Thread::Queue.new, isolated]
+    seated = method(:seat)
     Class.new(described_class) do
-      define_method(:evaluate) do |trial|
-        log << [:mutant, trial.id, trial.mirror, trial.slot]
-        judged.call(trial)
+      define_method(:evaluate) do |id, bay|
+        mirror, slot = seated.call(bay)
+        log << [:mutant, id, mirror, slot]
+        judged.call(id, slot)
       end
       define_method(:verdict) do |mirror, tests, **|
         log << [:control, tests, mirror]
@@ -86,7 +80,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
   def test_quiet = { progress: test_bar([]) }
 
   def test_revisited(warm, isolated)
-    registry.points.each { |point| point.revisit!(Kimera::Execution::BlockUse::REASON) }
+    registry.points.each { |point| point.revisit!(Kimera::MutationPoint::BLOCK_REASON) }
     Dir.mktmpdir do |root|
       File.write(File.join(root, "calc.rb"), "def a(x, y) = x > y\n")
       test_engine([], isolated: isolated, control: Kimera::Execution::IsolatedOutcome.new(:survived))
@@ -143,7 +137,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
   end
 
   it "names the timeout of a control that ran past --hard-timeout" do
-    slow = Kimera::Execution::IsolatedOutcome.new(:timeout).timed(9)
+    slow = Kimera::Execution::IsolatedOutcome.new(:timeout, nil, "timed out after 9s without a test finishing")
     results, = test_rejudge(isolated: { ids.first => [:killed, nil] }, control: slow, **test_quiet)
     expect(results.first.detail).to(
       eq(

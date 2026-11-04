@@ -7,17 +7,16 @@ class Kimera::Execution::IsolatedOutcome::Ruling
   HEAD_LINES = 5
   TAIL_LINES = 15
 
-  def initialize(exit, path, stderr = "")
+  def initialize(exit, path, stderr = "", seconds = 0)
     @exit = exit
     @path = path
     @stderr = stderr
+    @seconds = seconds
   end
 
   def outcome
-    return OUTCOME.new(:timeout) if @exit == :timeout
-    ledger = read
-    return unreported unless ledger
-    tally(ledger)
+    return OUTCOME.new(:timeout, nil, "timed out after #{@seconds}s without a test finishing") if @exit == :timeout
+    tally(read { return unreported })
   end
 
   private
@@ -59,8 +58,8 @@ class Kimera::Execution::IsolatedOutcome::Ruling
 
   def read
     ledger = JSON.parse(File.read(@path, encoding: Encoding::UTF_8))
-    ledger if ledger.is_a?(Hash) && ledger["failures"].is_a?(Integer)
+    ledger.is_a?(Hash) && ledger["failures"].is_a?(Integer) ? ledger : yield
   rescue Errno::ENOENT, JSON::ParserError
-    nil
+    yield
   end
 end

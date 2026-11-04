@@ -10,7 +10,7 @@ class Kimera::Execution::IsolatedPlan; end
 class Kimera::Execution::IsolatedPlan::Kin
   CONVENTIONS = ["%s_spec.rb", "%s_test.rb", "test_%s.rb"].freeze
 
-  def initialize(all:, coverage:, registry:, locate: nil)
+  def initialize(all:, coverage:, registry:, locate:)
     @all = all
     @coverage = coverage
     @registry = registry
@@ -38,7 +38,7 @@ class Kimera::Execution::IsolatedPlan::Kin
   end
 
   def path(test)
-    located = @locate&.call(test).to_s
+    located = @locate.call(test).to_s
     (located.empty? ? test[/\A(.+?)\[/, 1].to_s : located).delete_prefix("./")
   end
 end

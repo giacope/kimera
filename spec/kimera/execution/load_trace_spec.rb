@@ -116,6 +116,6 @@ RSpec.describe(Kimera::Execution::LoadTrace) do
   it "also sends a warm survivor whose mutant leaves its method no yield to a fresh mirror" do
     File.write(file, "class LoadTraceJoin\n  def join(list)\n    list.each { |x| yield x }\n  end\nend\n")
     described_class.new(registry, dir).quarantine!({})
-    expect(point("list.each { |x| yield x }").revisit).to(eq(Kimera::Execution::BlockUse::REASON))
+    expect(point("list.each { |x| yield x }").revisit).to(eq(Kimera::MutationPoint::BLOCK_REASON))
   end
 end

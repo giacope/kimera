@@ -6,39 +6,54 @@ require_relative "base"
 module Kimera
   module Operators
     class Catalog
-      Roster = Struct.new(:classes)
+      class Roster
+        def initialize(defaults)
+          @defaults = defaults
+          @classes = defaults.dup
+        end
 
-      def initialize(defaults, rails)
-        @defaults = defaults
+        def register(*klasses)
+          klasses.flatten.each { |klass| admit(klass) }
+          self
+        end
+
+        def reset!
+          @classes.replace(@defaults)
+          self
+        end
+
+        def custom = @classes - @defaults
+
+        def each(&) = @classes.each(&)
+
+        private
+
+        def admit(klass)
+          raise(UsageError, "not an operator class: #{klass.inspect}") unless operator?(klass)
+          key = klass.new.key
+          taken = @classes.find { |operator| operator.new.key == key }
+          raise(UsageError, "operator key already registered: #{key} (#{taken})") if taken
+          @classes << klass
+        end
+
+        def operator?(klass)
+          klass.is_a?(Class) && klass < Base
+        end
+      end
+
+      def initialize(roster, rails)
+        @roster = roster
         @rails = rails
       end
 
       def build(keys:)
         requested = expand(keys)
         validate!(requested)
-        roster.classes.map(&:new).select { |operator| requested.include?(operator.key) }
+        @roster.each.map(&:new).select { |operator| requested.include?(operator.key) }
       end
 
       def keys
-        roster.classes.map { |klass| key_of(klass) }
-      end
-
-      def register(*klasses)
-        klasses.flatten.each { |klass| admit(klass) }
-        self
-      end
-
-      def reset!
-        roster.classes.replace(@defaults)
-        self
-      end
-
-      def custom
-        roster.classes - @defaults
-      end
-
-      def expand(keys)
-        Array(keys).map(&:to_s).flat_map { |key| expansion(key) }.uniq
+        @roster.each.map { |klass| key_of(klass) }
       end
 
       def validate!(requested)
@@ -47,27 +62,16 @@ module Kimera
         raise(UsageError, "unknown operator(s): #{unknown.join(", ")}#{nearest(unknown)} (valid: #{vocabulary})")
       end
 
-      private
-
-      def roster = @_roster ||= Roster.new(@defaults.dup)
-
-      def admit(klass)
-        raise(UsageError, "not an operator class: #{klass.inspect}") unless operator?(klass)
-        key = key_of(klass)
-        classes = roster.classes
-        taken = classes.find { |operator| key_of(operator) == key }
-        raise(UsageError, "operator key already registered: #{key} (#{taken})") if taken
-        classes << klass
+      def expand(keys)
+        Array(keys).map(&:to_s).flat_map { |key| expansion(key) }.uniq
       end
+
+      private
 
       def key_of(klass) = klass.new.key
 
-      def operator?(klass)
-        klass.is_a?(Class) && klass < Base
-      end
-
       def groups
-        { "all" => keys, "rails" => @rails, "custom" => custom.map { |klass| key_of(klass) } }
+        { "all" => keys, "rails" => @rails, "custom" => @roster.custom.map { |klass| key_of(klass) } }
       end
 
       def expansion(key)
@@ -81,7 +85,8 @@ module Kimera
       def nearest(unknown)
         checker = DidYouMean::SpellChecker.new(dictionary: [*groups.keys, *keys])
         guesses = unknown.filter_map { |key| checker.correct(key).first }
-        "; did you mean #{guesses.join(", ")}?" unless guesses.empty?
+        return "" if guesses.empty?
+        "; did you mean #{guesses.join(", ")}?"
       end
     end
   end

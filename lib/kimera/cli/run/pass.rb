@@ -1,31 +1,32 @@
 # frozen_string_literal: true
 
 require_relative "../../execution/harness"
-require_relative "../../execution/isolated"
 require_relative "../../execution/test_filter"
 require_relative "../../frameworks/suite"
 require_relative "../../frameworks/test_task"
 require_relative "../../incremental/coverage_cache"
 require_relative "../../report/progress"
 require_relative "../../results/run_report"
+require_relative "bench"
 require_relative "route"
 require_relative "sources"
 
 class Kimera::CLI::Run::Pass
-  def initialize(registry, options, adapter)
+  def initialize(registry, options, adapter, bench = Kimera::CLI::Run::Bench.new)
     @registry = registry
     @options = options
     @adapter = adapter
+    @bench = bench
   end
 
   def call(remaining)
-    with_adapter { perform(remaining).then { |judged| judged.annotate(flaky: harness.flakes&.to_h, suite: suite) } }
+    with_adapter { harness.noted(perform(remaining)).annotate(**suite) }
       .then { |judged| judged.described(@adapter.catalog(judged.test_ids)) }
   end
 
   private
 
-  def progress = @_progress ||= Kimera::Report::Progress.new(enabled: @options[:progress])
+  def progress(kind = Kimera::Report::Progress) = @_progress ||= kind.new(enabled: @options[:progress])
 
   def with_adapter
     yield
@@ -38,30 +39,32 @@ class Kimera::CLI::Run::Pass
     run(remaining)
   end
 
-  def suite = @options[:test_quality] ? @adapter.test_ids : nil
+  def suite = @options[:test_quality] ? { suite: @adapter.test_ids } : {}
 
   def filter
-    @_filter ||= Kimera::Execution::TestFilter.build(
-      registry: @registry, rules: @options[:attribution] == "unit" ? @options[:unit_tests] : nil,
-      adapter: @adapter, root: @options[:source_root]
-    )
+    @_filter ||=
+      if @options[:attribution] == "unit"
+        filters.from_rules(@options[:unit_tests], registry: @registry, adapter: @adapter, root: @options[:source_root])
+      else
+        filters.build(registry: @registry, adapter: @adapter, root: @options[:source_root])
+      end
   end
 
-  def harness = @_harness ||= Kimera::Execution::Harness.build(**settings)
+  def filters = Kimera::Execution::TestFilter
 
-  def files
-    @_files ||= Kimera::CLI::Run::Sources.new.tests(@options[:tests], @options[:exclude_tests])
+  def harness = @_harness ||= @bench.harness(**settings)
+
+  def files(sources = Kimera::CLI::Run::Sources)
+    @_files ||= sources.new.tests(@options[:tests], @options[:exclude_tests])
   end
 
-  def settings
-    base.merge({ hard_timeout: @options[:hard_timeout] }.compact)
-  end
+  def settings = base.merge({ hard_timeout: @options[:hard_timeout] }.compact)
 
   def base
     { registry: @registry, adapter: @adapter, source_root: @options[:source_root] }
       .merge(soft_timeout: @options[:soft_timeout], jobs: @options[:jobs])
       .merge(isolate_db: @options[:isolate_db], progress: progress, filter: filter)
-      .merge(@options.slice(:relative_timeout, :timeout_factor, :timeout_slack, :seed, :flaky_runs, :test_quality))
+      .merge(@options.to_h.slice(:relative_timeout, :timeout_factor, :timeout_slack, :seed, :flaky_runs, :test_quality))
       .merge(confirm_survivors: route.confirming?, measured: cache.method(:measured))
   end
 
@@ -92,11 +95,11 @@ class Kimera::CLI::Run::Pass
     report.revise(judge(pending).results)
   end
 
-  def route = @_route ||= Kimera::CLI::Run::Route.new(@registry, @options)
+  def route(kind = Kimera::CLI::Run::Route) = @_route ||= kind.new(@registry, @options)
 
-  def cache
+  def cache(kind = Kimera::Incremental::CoverageCache)
     sources = -> { Kimera::FileSet.new(@options[:paths], exclude: @options[:exclude]).relative_to(@options[:source_root]) }
-    @_cache ||= Kimera::Incremental::CoverageCache.new(registry: @registry, options: @options, sources: sources)
+    @_cache ||= kind.new(registry: @registry, options: @options, sources: sources)
   end
 
   def rejudged(report)
@@ -119,12 +122,12 @@ class Kimera::CLI::Run::Pass
   end
 
   def isolation
-    @_isolation ||= Kimera::Execution::IsolatedExecution.new(**core, **limits)
+    @_isolation ||= harness.isolated(**core, **limits)
   end
 
   def core
     { registry: @registry, root: @options[:source_root], tests: @adapter.test_ids }
-      .merge(coverage: harness.coverage, timings: harness.timings, progress: progress, jobs: @options[:jobs])
+      .merge(progress: progress, jobs: @options[:jobs])
       .merge(framework: @options[:framework], test_files: files, filter: filter, test_paths: paths, warnings: warnings)
   end
 
@@ -134,5 +137,5 @@ class Kimera::CLI::Run::Pass
     @options[:framework] == "minitest" ? Kimera::Frameworks::TestTask.new(@options[:source_root]).flags : []
   end
 
-  def limits = @options.slice(:seed, :test_quality).merge({ hard_timeout: @options[:hard_timeout] }.compact)
+  def limits = @options.to_h.slice(:seed, :test_quality).merge({ hard_timeout: @options[:hard_timeout] }.compact)
 end

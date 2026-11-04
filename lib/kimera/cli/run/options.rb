@@ -11,8 +11,6 @@ class Kimera::CLI
 end
 
 module Kimera::CLI::RunOptions
-  DEFAULT_TESTS = ["spec/**/*_spec.rb"].freeze
-
   GATES = [
     Kimera::Flag.build("--[no-]gate", :gate, "Return gate status (default: on; use --no-gate for exploration)"),
     Kimera::Flag.build("--max-survivors N", :max_survivors, "Gate: fail only if survivors exceed N", type: Integer),
@@ -65,7 +63,7 @@ module Kimera::CLI::RunOptions
     Kimera::Flag.build("--log FILE", :log, "Write the final human-readable report to FILE"),
     Kimera::Flag.build("--pidfile FILE", :pidfile, "Write kimera's process id to FILE, removed when the run ends"),
     Kimera::Flag.build(
-      "--report FILE", :report, "Write the canonical JSON report to FILE (default: #{Kimera::CLI::ReportFile::DEFAULT})"
+      "--report FILE", :report, "Write the canonical JSON report to FILE (default: #{Kimera::CLI::ReportFile.default})"
     ),
     Kimera::Flag.build("--no-report", :report, "Write no JSON report"),
     Kimera::Flag.build("--summary FILE", :summary, "Append a Markdown summary to FILE (ci: $GITHUB_STEP_SUMMARY)"),
@@ -79,6 +77,17 @@ module Kimera::CLI::RunOptions
     banner: "Usage: kimera run [paths...] [options]\n" \
       "Paths take an optional line or range: app/models/order.rb:42 or app/models/order.rb:40-60\n" \
       "Exit codes: 0 gates passed, 1 usage or setup error, 2 gate failed",
-    flags: Kimera::CLI::RunFlags::SCOPE + Kimera::CLI::RunFlags::EXECUTION + GATES + OUTPUT
+    flags: SCOPE + EXECUTION + GATES + OUTPUT
   )
+  private_constant(:GATES, :OUTPUT)
+
+  class Usage
+    def initialize(table = OPTIONS)
+      @table = table
+    end
+
+    def parse(argv, defaults) = @table.parse(argv, defaults)
+
+    def help(banner) = @table.retitled(banner).build { |_flag, _value| :ignored }.help
+  end
 end

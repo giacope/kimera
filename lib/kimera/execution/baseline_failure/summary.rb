@@ -11,7 +11,29 @@ class Kimera::Execution::BaselineFailure::Summary
     "fresh process, because they rely on state an earlier test leaves behind. Kimera runs every test in a process " \
     "of its own, so make each one set up what it needs:"
 
-  Context = Data.define(:workers, :stacks, :jobs, :ordered)
+  class Context
+    def initialize(workers:, stacks:, jobs:, ordered:)
+      @workers = workers
+      @stacks = stacks
+      @jobs = jobs
+      @ordered = ordered
+    end
+
+    def state(failed) = (failed - @ordered).empty? ? "order-dependent" : "not green"
+
+    def breakdown(failed) = Kimera::Execution::BaselineFailure::Breakdown.new(failed, @workers).to_s
+
+    def stack(id) = @stacks.fetch(id, [])
+
+    def advice(failed) = "#{order}#{shared(failed)}"
+
+    private
+
+    def order = @ordered.empty? ? "" : "\n  #{ORDERED}#{Kimera::Listing.new(@ordered).lines("    ")}"
+
+    def shared(failed) = @jobs > 1 && (failed - @ordered).any? ? "\n  ran on #{@jobs} workers: #{SHARED}" : ""
+  end
+
   SERIAL = Context.new(workers: {}, stacks: {}, jobs: 1, ordered: [])
 
   def initialize(failed, messages, command, context = SERIAL)
@@ -22,9 +44,8 @@ class Kimera::Execution::BaselineFailure::Summary
   end
 
   def to_s
-    text = "baseline suite is #{state}: #{listed}#{appendix}"
-    text += Kimera::Execution::BaselineFailure::Breakdown.new(@failed, @context.workers).to_s
-    "#{text}\n  reproduce without kimera: #{@command}#{order}#{shared}"
+    text = "baseline suite is #{@context.state(@failed)}: #{listed}#{appendix}#{@context.breakdown(@failed)}"
+    "#{text}\n  reproduce without kimera: #{@command}#{@context.advice(@failed)}"
   end
 
   def listed
@@ -34,18 +55,6 @@ class Kimera::Execution::BaselineFailure::Summary
 
   private
 
-  def state = (@failed - @context.ordered).empty? ? "order-dependent" : "not green"
-
-  def order
-    ordered = @context.ordered
-    ordered.empty? ? "" : "\n  #{ORDERED}#{Kimera::Listing.new(ordered).lines("    ")}"
-  end
-
-  def shared
-    jobs = @context.jobs
-    jobs > 1 && (@failed - @context.ordered).any? ? "\n  ran on #{jobs} workers: #{SHARED}" : ""
-  end
-
   def appendix
     items = @failed.first(MAX_DETAILS).filter_map { |id| detail(id) }
     items.empty? ? "" : "\n#{items.join("\n")}"
@@ -54,7 +63,7 @@ class Kimera::Execution::BaselineFailure::Summary
   def detail(id)
     message = @messages[id]
     return unless message
-    "  #{id}:\n    #{[truncate(message), @context.stacks[id]].compact.join("\n").gsub("\n", "\n    ")}"
+    "  #{id}:\n    #{[truncate(message), *@context.stack(id)].join("\n").gsub("\n", "\n    ")}"
   end
 
   def truncate(text)

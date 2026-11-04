@@ -109,12 +109,7 @@ RSpec.describe(Kimera::Overlay) do
     it "reports a mutant that reads as the original as unmutatable" do
       catalog = scan(source, %w[comparison])
       mutant = catalog.each.first.first
-      allow(Kimera::Rewrite::Directive).to(
-        receive(:new).and_wrap_original do |_, _|
-          instance_double(Kimera::Rewrite::Directive, apply: nil)
-        end
-      )
-      allow(Kimera::Guardrail).to(receive(:new).and_wrap_original) { |build, *arguments| build.call(*arguments).tap { |rail| allow(rail).to(receive(:changes).and_return([])) } }
+      stub_const("Kimera::Guardrail", Class.new(Kimera::Guardrail) { def changes(*) = [] })
       expect { described_class.new(catalog).bake("x.rb", source, mutant.id) }
         .to(raise_error(described_class::Unbakeable, "kimera could not write it (the mutant reads as the original)"))
     end
@@ -122,7 +117,7 @@ RSpec.describe(Kimera::Overlay) do
     it "reports a bake that would change a line outside the mutation as unmutatable" do
       program = "def one = 1\n# two\ndef big?(x) = x > 1\n"
       catalog = scan(program, %w[comparison])
-      allow(Kimera::BakeSplice).to(receive(:new).and_return(instance_double(Kimera::BakeSplice, source: nil)))
+      splicing
       expect { described_class.new(catalog).bake("x.rb", program, catalog.each.first.first.id) }
         .to(
           raise_error(
@@ -134,7 +129,7 @@ RSpec.describe(Kimera::Overlay) do
 
     it "reports a bake that does not parse as unmutatable" do
       catalog = scan(source, %w[comparison])
-      allow(Kimera::BakeSplice).to(receive(:new).and_return(instance_double(Kimera::BakeSplice, source: "def (")))
+      splicing("def (")
       expect { described_class.new(catalog).bake("x.rb", source, catalog.each.first.first.id) }
         .to(raise_error(described_class::Unbakeable, "kimera could not write it (what it wrote does not parse)"))
     end
@@ -190,11 +185,7 @@ RSpec.describe(Kimera::Overlay) do
     end
 
     # A point no guard can hold in place has its definition written whole.
-    def whole!
-      allow(Kimera::GuardSplice).to(receive(:new)) do |_map, points|
-        instance_double(Kimera::GuardSplice, rest: points, edits: [], applied: [])
-      end
-    end
+    def whole! = unanchored
 
     # The method written whole holds every guard: a default argument's raise,
     # a visibility mutant's probe and registration.

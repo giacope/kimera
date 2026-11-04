@@ -2,31 +2,60 @@
 
 module Kimera
   class IgnoreList
-    Match =
-      Data.define(:point, :mutant) do
-        def rule?(rule)
-          ANCHORS.all? do |field, matcher|
-            value = rule[field]
-            !value || __send__(matcher, value)
-          end
+    class Match
+      def initialize(point, mutant)
+        @point = point
+        @mutant = mutant
+      end
+
+      def rule?(rule)
+        ANCHORS.all? do |field, matcher|
+          value = rule[field]
+          !value || __send__(matcher, value)
         end
-        private
-        def line?(value) = point.location.range.include?(Integer(value))
-        def starts?(value) = point.location.start_line == Integer(value)
-        def operator?(value) = Array(value).map(&:to_s).include?(point.operator)
-        def column?(value) = point.location.start_column + 1 == Integer(value)
-        def label?(value) = value == mutant.label
-        def method?(value) = value.to_s == point.method_name
-        def original?(value) = squeeze(value) == squeeze(point.original_source)
-        def squeeze(source) = source.to_s.split.join(" ")
+      end
+      private
+      def line?(value) = point.location.range.include?(Integer(value))
+      def starts?(value) = point.location.start_line == Integer(value)
+      def operator?(value) = Array(value).map(&:to_s).include?(point.operator)
+      def column?(value) = point.location.start_column + 1 == Integer(value)
+      def label?(value) = value == mutant.label
+      def method?(value) = value.to_s == point.method_name
+      def original?(value) = squeeze(value) == squeeze(point.original_source)
+      def squeeze(source) = source.to_s.split.join(" ")
+
+      attr_reader :point, :mutant
+    end
+
+    class Resolution
+      def initialize(ids:, stale:, moved:)
+        @ids = ids
+        @stale = stale
+        @moved = moved
       end
 
-    Resolution = Data.define(:ids, :stale, :moved)
+      def ignored(eligible) = @ids & eligible
 
-    Shift =
-      Data.define(:rule, :line) do
-        def to_s = "#{rule[:file]}:#{rule[:line]} → #{line} [#{rule[:label]}]"
+      def alert(listener)
+        @stale.each { |rule| listener.stale(rule) }
+        @moved.each { |shift| listener.moved(shift) }
       end
+
+      def to_h = { ids: @ids, stale: @stale, moved: @moved.map(&:to_s) }
+    end
+
+    class Shift
+      def initialize(rule, line)
+        @rule = rule
+        @line = line
+      end
+
+      def to_s = "#{rule[:file]}:#{rule[:line]} → #{line} [#{rule[:label]}]"
+
+      private
+
+      attr_reader :rule, :line
+    end
 
     ANCHORS = { line: :line?, column: :column?, label: :label? }.merge(method: :method?, original: :original?)
       .merge(starts: :starts?, operator: :operator?).freeze
@@ -40,13 +69,9 @@ module Kimera
       kept = uncontested(placements)
       Resolution.new(
         ids: kept.flat_map(&:ids).uniq.sort, stale: lapsed(placements, kept),
-        moved: kept.filter_map(&:moved)
+        moved: kept.flat_map(&:moved)
       )
     end
-
-    def ids(registry) = resolve(registry).ids
-
-    def stale(registry) = resolve(registry).stale
 
     private
 
@@ -61,7 +86,7 @@ module Kimera
     end
 
     def lapsed(placements, kept)
-      placements.select { |placement| placement.stale? || !kept.include?(placement) }.map(&:rule)
+      placements.flat_map { |placement| placement.lapsed(kept) }
     end
 
     def pairs(registry, glob)

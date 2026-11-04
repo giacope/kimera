@@ -2,6 +2,8 @@
 
 require "tempfile"
 require_relative "child_process"
+require_relative "clock"
+require_relative "suite_env"
 
 class Kimera::Execution::SuiteCapture
   include Kimera::Execution::ChildProcess
@@ -11,21 +13,37 @@ class Kimera::Execution::SuiteCapture
   OVERDUE = "the suite did not exit within %s s (a hook, or a parallel worker, that never returns?); " \
     "run it yourself to see where it stops"
 
-  Overdue = Data.define(:limit) { def success? = false }
+  class Overdue
+    def initialize(limit)
+      @limit = limit
+    end
 
-  def initialize(errors = $stderr)
-    @errors = errors
+    def success? = false
+
+    private
+
+    attr_reader :limit
   end
 
-  def call(env, *command, chdir:, limit: nil)
+  def initialize(errors = $stderr, env = Kimera::Execution::SuiteEnv.new, clock = Kimera::Execution::Clock.new(POLL))
+    @errors = errors
+    @env = env
+    @clock = clock
+  end
+
+  def call(*spawned, chdir:) = captured(spawned, chdir) { |pid| Process.wait2(pid).last.tap { signal(-pid) } }
+
+  def timed(*spawned, chdir:, limit:) = captured(spawned, chdir) { |pid, log| waited(pid, limit, log) }
+
+  private
+
+  def captured(spawned, chdir)
     Tempfile.create("kimera-suite") do |log|
-      pid = Process.spawn(env, *command, chdir: chdir, in: File::NULL, out: log, err: log, pgroup: true)
-      status = stopping(pid) { limit ? waited(pid, limit, log) : Process.wait2(pid).last.tap { signal(-pid) } }
+      pid = Process.spawn(@env.to_h, *spawned, chdir: chdir, in: File::NULL, out: log, err: log, pgroup: true)
+      status = stopping(pid) { yield(pid, log) }
       [File.read(log.path, encoding: Encoding::UTF_8).scrub, status]
     end
   end
-
-  private
 
   def stopping(pid)
     yield
@@ -35,25 +53,22 @@ class Kimera::Execution::SuiteCapture
   end
 
   def waited(pid, limit, log)
-    started = now
+    started = @clock.now
     (1..).each do |poll|
       _, status = Process.wait2(pid, Process::WNOHANG)
       return status.tap { signal(-pid) } if status
-      elapsed = now - started
-      return overdue(pid, limit, log) if elapsed > limit
-      sleep(POLL)
+      elapsed = @clock.now - started
+      return Overdue.new(limit).tap { overrun(pid, limit, log) } if elapsed > limit
+      @clock.pause
       tick(elapsed) if (poll % TICKS).zero?
     end
   end
 
   def tick(elapsed) = @errors.puts("kimera: the suite is still running (#{elapsed.round} s)…")
 
-  def overdue(pid, limit, log)
+  def overrun(pid, limit, log)
     stop(-pid)
     log.write("\n#{format(OVERDUE, limit)}\n")
     log.flush
-    Overdue.new(limit)
   end
 end
-
-Kimera::Execution::SUITE = Kimera::Execution::SuiteCapture.new

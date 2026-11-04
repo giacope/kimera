@@ -2,74 +2,38 @@
 
 require_relative "deadline"
 require_relative "expiry"
-require_relative "finding"
+require_relative "lineup"
 require_relative "probe"
-require_relative "suspect"
 
 class Kimera::Execution::Shift::Attempt
-  CLEAR = 0.5
-
-  def initialize(probe:, isolation:, killers:, zygote:)
+  def initialize(probe:, isolation:, zygote:)
     @probe = probe
     @isolation = isolation
-    @killers = killers
     @zygote = zygote
   end
 
-  def run(id, tests) = hunt(Kimera::Execution::Shift::Lineup.new(id, @killers.order(tests)), [])
+  def run(id, tests, killers)
+    verdicts = hunt(Kimera::Execution::Shift::Lineup.new(id, killers.order(tests)), [])
+    [verdicts, verdicts.reduce(killers) { |known, verdict| verdict.taught(known) }]
+  end
 
-  def calm?(test) = replay(Kimera::Execution::Shift::Lineup.new(nil, [test]))["passed"]
+  def calm?(test) = replayed(Kimera::Execution::Shift::Lineup.new(nil, [test]))["passed"]
+
+  def replayed(lineup) = fresh { @probe.replay(lineup) }
 
   private
 
   def hunt(lineup, doubts)
     found = fresh { @probe.sweep(lineup) }
-    return doubts.first&.final unless found
-    finding = Kimera::Execution::Shift::Finding.new(lineup, found)
-    settle(finding, doubts, judge(finding))
+    return doubts.first(1).map(&:final) if found.empty?
+    finding = lineup.found(found.fetch(0))
+    settle(finding, doubts, finding.judged(self, @probe))
   end
 
-  def settle(finding, doubts, verdict)
-    return hunt(finding.onward, doubts) unless verdict
-    verdict.conclude { |suspect| hunt(finding.onward, doubts + [suspect]) }
+  def settle(finding, doubts, verdicts)
+    return hunt(finding.onward, doubts) if verdicts.empty?
+    verdicts.fetch(0).conclude { |suspect| hunt(finding.onward, doubts + [suspect]) }
   end
-
-  def judge(finding)
-    return expired(finding) if finding.expired?
-    finding.overran? ? lagged(finding) : failed(finding)
-  end
-
-  def expired(finding)
-    calm = replay(finding.calm)
-    clear?(calm) ? finding.stall(calm) : finding.crawl(calm)
-  end
-
-  def clear?(calm) = calm["passed"] && calm.fetch("elapsed") < calm.fetch("limit") * CLEAR
-
-  def failed(finding)
-    return finding.kill(finding.found, @killers) if finding.first?
-    solo = replay(finding.solo)
-    solo["passed"] ? retrace(finding) : finding.kill(solo, @killers)
-  end
-
-  def retrace(finding)
-    control = replay(finding.control)
-    control["passed"] ? confirm(finding) : finding.refuted(control)
-  end
-
-  def confirm(finding)
-    again = replay(finding.again)
-    again["passed"] ? finding.doubted : finding.kill(again, @killers)
-  end
-
-  def lagged(finding)
-    calm = replay(finding.calm)
-    return unless calm["passed"] && !calm["overran"]
-    again = replay(finding.solo)
-    finding.overrun(calm, again, @probe.deadline.budget) if again["overran"]
-  end
-
-  def replay(lineup) = fresh { @probe.replay(lineup) }
 
   def fresh(&) = @zygote.call { @isolation.around(&) }
 end

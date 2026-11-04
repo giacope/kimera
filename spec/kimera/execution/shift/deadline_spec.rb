@@ -8,7 +8,7 @@ require "kimera/execution/shift"
 RSpec.describe(Kimera::Execution::Shift::Deadline) do
   def deadline(seconds, times, beat: described_class::SILENT)
     clock = times.dup
-    described_class.build(seconds, clock: -> { clock.shift }, beat: beat)
+    described_class.build(seconds, watch: Kimera::Execution::Stopwatch.new(-> { clock.shift }), beat: beat)
   end
 
   it "expires a test run the moment the soft timeout is spent" do
@@ -44,7 +44,7 @@ RSpec.describe(Kimera::Execution::Shift::Deadline) do
   describe "#overran?" do
     def deadline(times, budget)
       clock = times.dup
-      described_class.build(5.0, clock: -> { clock.shift }, budget: budget)
+      described_class.build(5.0, watch: Kimera::Execution::Stopwatch.new(-> { clock.shift }), budget: budget)
     end
 
     let(:budget) { Kimera::Execution::TimeBudget.new({ "t1" => 0.1 }, factor: 1.0, slack: 0.1) }
@@ -61,12 +61,12 @@ RSpec.describe(Kimera::Execution::Shift::Deadline) do
       expect(guard.overran?("t1", 0.2)).to(be(false))
     end
 
-    it "holds the budget it checks against" do
-      expect(deadline([], budget).budget).to(be(budget))
+    it "explains an overrun through the budget it checks against" do
+      expect(deadline([], budget).explain("t1", [0.3, 0.4], 0.1)).to(eq(budget.explain("t1", [0.3, 0.4], 0.1)))
     end
 
     it "has no budget unless given one" do
-      expect(described_class.build(5.0).budget).to(be(Kimera::Execution::TimeBudget::NONE))
+      expect(described_class.build(5.0).overran?("t1", Float::MAX)).to(be(false))
     end
   end
 end
