@@ -117,4 +117,90 @@ RSpec.describe(Kimera::MutantResult) do
       expect(described_class.from_waiver(1, "x.rb").lapsed?).to(be(false))
     end
   end
+
+  describe "what other objects ask of a result" do
+    let(:judged) do
+      described_class.new(
+        mutant_id: 4, status: :survived, file: "x.rb", failing_tests: ["f1"], covering_tests: ["c1"], detail: "warm"
+      )
+    end
+
+    it "keeps its fields to itself" do
+      expect(described_class.members.select { |field| judged.public_methods.include?(field) }).to(eq([]))
+    end
+
+    it "keys itself by its mutant, and looks itself up in a table keyed so", :aggregate_failures do
+      expect(judged.entry).to(eq([4, judged]))
+      expect(judged.from(4 => :point)).to(eq(:point))
+      expect { judged.from({}) }.to(raise_error(KeyError))
+    end
+
+    it "orders by mutant id" do
+      expect([judged, result(:killed)].sort.map(&:mutant_id)).to(eq([1, 4]))
+    end
+
+    it "tells whether its status is one of those named", :aggregate_failures do
+      expect([judged.status?(:survived), judged.status?(:killed, :survived), judged.status?(:killed)])
+        .to(eq([true, true, false]))
+    end
+
+    it "ticks a progress with its status, and hands its covering tests on", :aggregate_failures do
+      expect(judged.tick(->(status) { [:ticked, status] })).to(eq(%i[ticked survived]))
+      expect(judged.covering { |tests| [:ran, tests] }).to(eq([:ran, ["c1"]]))
+    end
+
+    it "is unstaged with its detail after the reason" do
+      expect(judged.unstaged("could not stage it: "))
+        .to(have_fields(mutant_id: 4, status: :harness_error, detail: "could not stage it: warm"))
+    end
+
+    it "credits the killing tests its block names from its id and failing tests", :aggregate_failures do
+      expect(judged.credit { |id, failing| [id, *failing] }.killing_tests).to(eq([4, "f1"]))
+      expect(result(:killed).credit { |_id, failing| failing }.killing_tests).to(eq([]))
+    end
+
+    it "is quarantined when its status is suspect and its block gives a reason", :aggregate_failures do
+      reasons = []
+      suspected = judged.suspected(%i[timeout survived]) { |status, file| reasons.push([status, file]) && "why" }
+      expect([suspected.status, suspected.detail, reasons]).to(eq([:isolated_only, "why", [[:survived, "x.rb"]]]))
+      expect(judged.suspected(%i[timeout survived]) { false }).to(be(judged))
+      expect(judged.suspected([:timeout]) { raise("not asked") }).to(be(judged))
+    end
+
+    it "merges a fresh verdict, keeping a kill or its own survival, and both sides' tests", :aggregate_failures do
+      fresh = result(:killed).with(failing_tests: %w[f2 c1])
+      expect(judged.merged(fresh)).to(eq(fresh.with(covering_tests: %w[c1 f2])))
+      unjudged = result(:harness_error).with(failing_tests: ["f3"])
+      expect(judged.merged(unjudged)).to(eq(unjudged.with(covering_tests: %w[c1 f3])))
+      uncovered = judged.with(status: :no_coverage)
+      expect(uncovered.merged(unjudged)).to(eq(uncovered.with(covering_tests: %w[c1 f3])))
+    end
+
+    it "notes on a verdict why it was judged again, with its own detail" do
+      expect(judged.noting(result(:killed), "again: ")).to(eq(result(:killed).with(note: "again: warm")))
+    end
+
+    it "reads back the killing tests it was saved with" do
+      counted = result(:killed).with(killing_tests: ["k1"])
+      expect(described_class.from_h(counted.to_h)).to(eq(counted))
+    end
+
+    it "keeps its raw duration but reports none as zero", :aggregate_failures do
+      timeless = described_class.new(mutant_id: 2, status: :killed, file: "x.rb")
+      expect([timeless.to_h["duration"], timeless.message[:ms], timeless.waive.to_h["duration"]])
+        .to(eq([0.0, 0.0, 0.0]))
+      expect(timeless.isolated("why").to_h["duration"]).to(eq(0.0))
+      expect(timeless.inspect).to(include("duration=nil"))
+    end
+  end
+
+  describe Kimera::LeakReport do
+    let(:leak) { described_class.new(mutant_id: 3, detail: "state") }
+
+    it "prints its line, tells whether a table holds its mutant, and keeps its fields", :aggregate_failures do
+      expect(leak.line).to(eq("- #3  state"))
+      expect([leak.among?(3 => :kept), leak.among?(4 => :kept)]).to(eq([true, false]))
+      expect([leak.public_methods.intersect?(%i[mutant_id detail]), leak.to_h]).to(eq([false, { mutant_id: 3, detail: "state" }]))
+    end
+  end
 end

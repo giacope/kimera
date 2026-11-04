@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "kimera/execution/shift"
 require "kimera/frameworks/suite"
 
 RSpec.describe(Kimera::Frameworks) do
@@ -7,6 +8,25 @@ RSpec.describe(Kimera::Frameworks) do
     it "exposes passed? mirroring the passed field", :aggregate_failures do
       expect(described_class.new(passed: true, failed_ids: []).passed?).to(be(true))
       expect(described_class.new(passed: false, failed_ids: ["a"]).passed?).to(be(false))
+    end
+  end
+
+  describe "RunOutcome#to_h" do
+    it "prints whether it passed, the failed ids and their failures, which it keeps to itself", :aggregate_failures do
+      failed = Kimera::Frameworks::RunOutcome.new(passed: false, failed_ids: ["a"], failures: { "a" => "boom" })
+      expect(failed.to_h).to(eq("passed" => false, "failed_ids" => ["a"], "failures" => { "a" => "boom" }))
+      expect(Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: []).to_h)
+        .to(eq("passed" => true, "failed_ids" => [], "failures" => {}))
+      expect(failed.public_methods.intersect?(Kimera::Frameworks::RunOutcome.members)).to(be(false))
+      expect(failed.expired?).to(be(false))
+    end
+  end
+
+  describe Kimera::Execution::Shift::Expiry do
+    it "prints a failed run of its test, whose message is the failure", :aggregate_failures do
+      expiry = described_class.new(test: "t1", message: "ran past 2.0s")
+      expect(expiry.to_h).to(eq("passed" => false, "failed_ids" => ["t1"], "failures" => { "t1" => "ran past 2.0s" }))
+      expect([expiry.passed?, expiry.expired?]).to(eq([false, true]))
     end
   end
 
@@ -71,6 +91,22 @@ RSpec.describe(Kimera::Frameworks) do
 
     it "knows no test's file by default" do
       expect(described_class.new["Foo#bar"].file).to(eq(""))
+    end
+
+    it "names the first of the tests it selects, and catalogs the known ones by name", :aggregate_failures do
+      adapter = Class.new(described_class) { def test_ids = %w[a b] }.new
+      expect([adapter["b", "a"].name, adapter[].name]).to(eq(["b", nil]))
+      expect(adapter["b", "ghost", "a"].to_h).to(eq("b" => { "name" => "b" }, "a" => { "name" => "a" }))
+    end
+
+    it "has no plain rerun by default, so names no test failing in one", :aggregate_failures do
+      selection = described_class.new["Foo#bar"]
+      expect([selection.plain("/out.json"), selection.failed("Foo#bar failed", "/out.json")]).to(eq([[], []]))
+    end
+
+    it "has no hooks by default", :aggregate_failures do
+      hooks = described_class.new.hooks
+      expect([hooks.start, hooks.finish]).to(eq([nil, nil]))
     end
   end
 
