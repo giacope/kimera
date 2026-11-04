@@ -7,6 +7,7 @@ require "kimera/registry/builder"
 require "timeout"
 
 using ResultFields
+using PointFields
 
 # A mutant baked into the harness's own timeout code can wedge its suite,
 # so the runner's watchdog is tested directly here.

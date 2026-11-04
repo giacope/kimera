@@ -11,14 +11,14 @@ class Kimera::CLI::Run::Aim
 
   def restrict(ids)
     return ids if lines.empty? && methods.empty?
-    kept = @registry.index.filter_map { |id, point| id if hit?(point) }
+    kept = @registry.each.filter_map { |mutant, point, file| mutant.to_i if hit?(point, file) }
     raise(Kimera::UsageError, miss) if kept.empty?
     ids & kept
   end
 
   private
 
-  def hit?(point) = line?(point) && method?(point)
+  def hit?(point, file) = line?(point, file) && method?(point)
 
   def lines
     @_lines ||= Hash(@options[:lines]).transform_keys { |path| Kimera::FileSet::Root.new(root).relative(path) }
@@ -28,12 +28,12 @@ class Kimera::CLI::Run::Aim
 
   def methods = Array(@options[:methods])
 
-  def line?(point)
-    wanted = lines[point.file]
-    !wanted || point.location.range.any? { |line| wanted.include?(line) }
+  def line?(point, file)
+    wanted = lines[file]
+    !wanted || point.fits?(lines: wanted)
   end
 
-  def method?(point) = methods.empty? || methods.include?(point.method_name)
+  def method?(point) = methods.empty? || point.fits?(method: methods)
 
   def miss
     aimed = lines.map { |file, wanted| "#{file}:#{wanted.minmax.uniq.join("-")}" }
@@ -44,10 +44,13 @@ class Kimera::CLI::Run::Aim
   def hints
     found =
       lines.keys.map do |file|
-        "mutated lines in #{file}: #{listed(@registry.to_h.fetch(file, []).map { it.location.range.begin })}"
+        "mutated lines in #{file}: #{listed(@registry.to_h.fetch(file, [])) { it.dig("location", "start_line") }}"
       end
-    methods.empty? ? found : found << "methods with mutants: #{listed(@registry.to_a.filter_map(&:method_name))}"
+    methods.empty? ? found : found << "methods with mutants: #{listed(@registry.to_a) { it["method_name"] }}"
   end
 
-  def listed(values) = values.empty? ? "none" : values.uniq.sort.join(", ")
+  def listed(points)
+    values = points.filter_map { |point| yield(point.to_h) }
+    values.empty? ? "none" : values.uniq.sort.join(", ")
+  end
 end

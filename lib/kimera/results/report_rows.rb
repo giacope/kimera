@@ -12,28 +12,28 @@ module Kimera
     def of(result)
       base = result.to_h
       id = base["mutant_id"]
-      pair = @registry[id] { return base }
-      base.merge("key" => @keys[id]).merge(rewritten(pair))
+      mutant, point = @registry[id] { return base }
+      base.merge("key" => @keys[id]).merge(rewritten(id, mutant, point.to_h))
     end
 
     private
 
-    def rewritten(pair)
-      mutant, point = pair
-      place(point, mutant).merge(rendered(point, mutant))
+    def rewritten(id, mutant, row)
+      place(row, mutant).merge(rendered(id, mutant, row))
     end
 
-    def rendered(point, mutant)
-      texts = @registry.texts(point, mutant, Kimera::Rewrite::MutantText)
-      { "original" => point.original_source, "mutated" => texts.map { |text| parenthesised(mutant, text) }.first }
+    def rendered(id, mutant, row)
+      texts = @registry.texts(id, Kimera::Rewrite::MutantText)
+      { "original" => row["original_source"], "mutated" => texts.map { |text| parenthesised(mutant, text) }.first }
     end
 
     def parenthesised(mutant, mutated)
       mutant.rewrite(Kimera::Rewrite::Directive).kind?("boolean_connective") ? "(#{mutated})" : mutated
     end
 
-    def place(point, mutant)
-      point.location.position.merge("method" => point.method_name, "operator" => point.operator, "label" => mutant.to_s)
+    def place(row, mutant)
+      Kimera::Location.from_h(row["location"]).position
+        .merge("method" => row["method_name"], "operator" => row["operator"], "label" => mutant.to_s)
     end
   end
 end

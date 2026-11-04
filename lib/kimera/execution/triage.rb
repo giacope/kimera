@@ -16,13 +16,13 @@ class Kimera::Execution::Triage
   end
 
   def tiers(ids)
-    safe, unsafe = ids.partition { |id| @verdicts.point(id).safe? }
+    safe, unsafe = ids.partition { |id| @verdicts.point(id).fits?(safe: true) }
     [safe, *unsafe.partition { |id| @verdicts.point(id).reasons(Kimera::Reason.unreloadable).empty? }]
   end
 
   def quarantine(id)
     found = @verdicts.point(id)
-    Kimera::MutantResult.new(mutant_id: id, status: held(found), file: found.file, detail: found.reasons(Kimera::Reason.unsafety).first)
+    @verdicts.unjudged(id, found.reasons(Kimera::Reason.unsafety).first).with(status: held(found))
   end
 
   def reclassified(results) = results.transform_values { |result| reclassify(result) }

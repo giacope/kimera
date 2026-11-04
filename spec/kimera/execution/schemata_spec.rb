@@ -5,6 +5,8 @@ require "kimera/execution/schemata"
 require "kimera/registry/builder"
 require "tmpdir"
 
+using PointFields
+
 RSpec.describe(Kimera::Execution::Schemata) do
   let(:dir) { Dir.mktmpdir }
   # What the loader tells the user: its diagnoses of the files it cannot overlay.
@@ -258,7 +260,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
       registry, loader = synthesized
       point = registry.to_a.find { |p| p.file == "sl_synth_ok.rb" }
       expect(noisily(loader)).to(include(*point.ids))
-      expect(point).to(be_safe)
+      expect(point).to(satisfy(&:safe?))
     end
 
     it "leaves its points unmutatable, with the reason" do

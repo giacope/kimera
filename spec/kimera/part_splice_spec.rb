@@ -2,6 +2,8 @@
 
 require "kimera/synthesis/part_splice"
 
+using PointFields
+
 # R6B3-M4: a mutant of a part of a heredoc, or of a string spanning lines, is
 # written in the literal's own text, every line where it was: what the literal
 # reads is the original with that part's text replaced.

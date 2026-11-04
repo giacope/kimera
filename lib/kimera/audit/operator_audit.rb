@@ -66,9 +66,10 @@ class Kimera::Operators::Audit
   end
 
   def findings(point)
-    original = point.original_source
-    point.mutants.map do |mutant|
-      Finding.new(point.operator, original, mutant.to_s, mutant.rewrite(Kimera::Rewrite::Directive).render(original).first)
+    row = point.to_h
+    original = row["original_source"]
+    point.each.map do |mutant|
+      Finding.new(row["operator"], original, mutant.to_s, mutant.rewrite(Kimera::Rewrite::Directive).render(original).first)
     end
   end
 end

@@ -3,6 +3,8 @@
 require "kimera/execution/order_trace"
 require "kimera/registry/builder"
 
+using PointFields
+
 # A mutant the in-order run of the suite reaches but no single test does in a
 # fresh process is sent to the isolated tier with the reason.
 RSpec.describe(Kimera::Execution::OrderTrace) do

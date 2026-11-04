@@ -9,6 +9,7 @@ require "kimera/registry/builder"
 require "tmpdir"
 
 using ResultFields
+using PointFields
 
 RSpec::Matchers.define_negated_matcher(:not_output, :output)
 

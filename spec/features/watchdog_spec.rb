@@ -14,7 +14,7 @@ RSpec.describe("Harness watchdog") do
   end
 
   def catalog(ids)
-    Kimera::Registry.new(points: [point(ids)])
+    PointRegistry.of([point(ids)])
   end
 
   def point(ids)

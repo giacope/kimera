@@ -4,6 +4,8 @@ require "json"
 require "tmpdir"
 require_relative "../property_helper"
 
+using PointFields
+
 RSpec.describe(Kimera::Registry) do
   def unmatched = "no node to guard: kimera found nothing of its kind where the point was scanned"
 

@@ -5,6 +5,8 @@ require "kimera/registry/builder"
 require "kimera/synthesis/guard_splice"
 require "kimera/synthesis/source_map"
 
+using PointFields
+
 RSpec.describe(Kimera::GuardSplice) do
   let(:source) { "def a(x) = x > 1\ndef b(y) = y < 2\n" }
   let(:map) { Kimera::SourceMap.new(source) }

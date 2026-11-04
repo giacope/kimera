@@ -6,6 +6,7 @@ require "kimera/results/run_report"
 require "tmpdir"
 
 using ResultFields
+using PointFields
 
 RSpec.describe(Kimera::RunReport) do
   def result(id, status)
@@ -238,7 +239,7 @@ RSpec.describe(Kimera::RunReport) do
       end
 
       it "carries the original->mutated diff", :aggregate_failures do
-        point = mutant_and_point.last
+        point = mutant_and_point[1]
         expect(enriched["original"]).to(eq(point.original_source))
         expect(enriched["mutated"]).to(be_a(String))
       end

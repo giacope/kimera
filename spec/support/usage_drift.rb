@@ -29,7 +29,7 @@ class UsageDrift
     "completion" => nil, "skill" => nil, "version" => nil, "help" => nil
   }.freeze
   CONFIG = (Kimera::Config::SCALAR_KEYS + Kimera::Config::LIST_KEYS).freeze
-  KEYS = (CONFIG + Kimera::IgnoreList::ANCHORS.keys.map(&:to_s) + %w[ignore file reason format_version]).freeze
+  KEYS = (CONFIG + Kimera::IgnoreList::ANCHORS.map(&:to_s) + %w[ignore file reason format_version]).freeze
   INVOCATION = /\bkimera\s+(?<command>[a-z]+)(?<rest>[^`]*)/
   FLAG = /(?<![\w-])--[a-z][a-z0-9-]*/
   SETTING = /\A(?<key>[a-z][a-z0-9_]*):(?: .*)?\z/

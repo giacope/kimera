@@ -6,6 +6,8 @@ require "kimera/runtime"
 require "kimera/support/warnings"
 require "kimera/synthesis/overlay"
 
+using PointFields
+
 # Each family also runs live, since one variant rendering bad source breaks the whole file's overlay.
 RSpec.describe(Kimera::Operators) do
   let(:ext_source) { <<~RUBY }

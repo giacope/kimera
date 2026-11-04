@@ -5,6 +5,8 @@ require "kimera/registry/builder"
 require "kimera/runtime"
 require "kimera/synthesis/overlay"
 
+using PointFields
+
 # assignment_deletion, nil_literal and keyword_drop: what each one targets,
 # what it leaves alone, and that the woven method behaves as the mutant.
 RSpec.describe(Kimera::Operators) do

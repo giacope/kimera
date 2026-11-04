@@ -8,6 +8,8 @@ require "kimera/synthesis/project"
 require "kimera/synthesis/overlay"
 require "tmpdir"
 
+using PointFields
+
 # Source must parse even when a C locale makes default_external US-ASCII.
 RSpec.describe(Kimera::Overlay) do
   let(:dir) { Dir.mktmpdir }

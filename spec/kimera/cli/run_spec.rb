@@ -7,6 +7,7 @@ require "stringio"
 require "tmpdir"
 
 using ResultFields
+using PointFields
 
 RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
   subject(:cli) { described_class.new }

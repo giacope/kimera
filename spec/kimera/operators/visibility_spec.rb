@@ -7,6 +7,8 @@ require "kimera/synthesis/body_trim"
 require "kimera/synthesis/overlay"
 require "property/support/schemata_projection"
 
+using PointFields
+
 RSpec.describe(Kimera::Operators::Visibility) do
   def scan(code)
     Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["visibility"])).source(code, file: "vis.rb")
@@ -61,7 +63,7 @@ RSpec.describe(Kimera::Operators::Visibility) do
   end
 
   it "is judged warm: its point is schema-safe although it sits in a class body", :aggregate_failures do
-    point = scan("class A\n  def shown = 1\nend\n").each.first.last
+    point = scan("class A\n  def shown = 1\nend\n").each.first[1]
     expect(point.safe?).to(be(true))
     expect(point.original_source).to(eq("def shown = 1"))
   end
@@ -132,8 +134,8 @@ RSpec.describe(Kimera::Operators::Visibility) do
 
   it "keeps a mutated method when the class body is trimmed for a second load" do
     code = "class A\n  def shown = 1\n  def other = 2\nend\n"
-    location = scan(code).each.first.last.location
-    trimmed = Kimera::BodyTrim.new(code, [location]).trimmed
+    point = scan(code).each.first[1]
+    trimmed = Kimera::BodyTrim.new(code, [point]).trimmed
     expect(trimmed).to(include("def shown = 1"))
   end
 end

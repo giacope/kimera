@@ -25,7 +25,7 @@ class Kimera::Execution::OrderTrace
   def mark!(baseline, coverage)
     reached(baseline) { [] }.each do |id|
       point = @registry.index[id]
-      point.mark!(Kimera::Reason.ordered) if point&.safe? && uncovered?(id, coverage)
+      point.mark!(Kimera::Reason.ordered) if point&.fits?(safe: true) && uncovered?(id, coverage)
     end
   end
 
@@ -33,7 +33,9 @@ class Kimera::Execution::OrderTrace
 
   private
 
-  def open?(point, coverage) = point&.safe? && point.ids.any? { |id| uncovered?(id, coverage) }
+  def open?(point, coverage)
+    point&.fits?(safe: true) && point.each.any? { |mutant| uncovered?(mutant.to_i, coverage) }
+  end
 
   def reached(baseline)
     Array(baseline.sequence["touched"])

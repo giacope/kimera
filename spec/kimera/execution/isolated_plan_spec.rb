@@ -10,6 +10,7 @@ require "json"
 require "tmpdir"
 
 using ResultFields
+using PointFields
 
 # The mirror-and-bake subprocess flow is covered by the integration suite.
 RSpec.describe(Kimera::Execution::IsolatedPlan) do
@@ -299,8 +300,8 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
 
     def mixed
       code = "def a(x, y)\n  x > y\nend\n"
-      Kimera::Registry.new(
-        points: Kimera::RegistryScan.new.source(code, file: "lib/x.rb").to_a +
+      PointRegistry.of(
+        Kimera::RegistryScan.new.source(code, file: "lib/x.rb").to_a +
           Kimera::RegistryScan.new.source(code, file: "app/y.rb").to_a
       )
     end
@@ -344,8 +345,8 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
   describe "MirrorLayout#mutables" do
     def nested
       code = "def a(x, y)\n  x > y\nend\n"
-      Kimera::Registry.new(
-        points: Kimera::RegistryScan.new.source(code, file: "lib/a.rb").to_a +
+      PointRegistry.of(
+        Kimera::RegistryScan.new.source(code, file: "lib/a.rb").to_a +
           Kimera::RegistryScan.new.source(code, file: "lib/deep/b.rb").to_a +
           Kimera::RegistryScan.new.source(code, file: "app/c.rb").to_a
       )
@@ -372,7 +373,7 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
 
     it "copies a would-be link that holds a mutated file, so no mutant writes through it" do
       code = "def a(x, y)\n  x > y\nend\n"
-      inside = Kimera::Registry.new(points: Kimera::RegistryScan.new.source(code, file: "vendor/a.rb").to_a)
+      inside = PointRegistry.of(Kimera::RegistryScan.new.source(code, file: "vendor/a.rb").to_a)
       expect(layout(inside).placement("vendor")).to(eq(:copy))
     end
   end

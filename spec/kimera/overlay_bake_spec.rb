@@ -3,6 +3,8 @@
 require "kimera/registry/builder"
 require "kimera/synthesis/overlay"
 
+using PointFields
+
 # The reload fallback: one mutation baked into source, unguarded.
 RSpec.describe(Kimera::Overlay) do
   def unmatched = "no node to guard: kimera found nothing of its kind where the point was scanned"

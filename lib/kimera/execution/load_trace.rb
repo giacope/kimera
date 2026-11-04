@@ -20,7 +20,7 @@ class Kimera::Execution::LoadTrace
       @holes = holes
     end
 
-    def holds?(point) = point.location.within?([range]) && !point.location.within?(holes)
+    def holds?(point) = point.fits?(within: [range]) && !point.fits?(within: holes)
 
     private
 
@@ -72,7 +72,8 @@ class Kimera::Execution::LoadTrace
 
   def loaded(file, lines)
     spans = spans(Kimera::Syntax.parse(File.read(File.join(root, file), encoding: Encoding::UTF_8)).value, lines)
-    @registry.to_h.fetch(file, []).select { |point| point.safe? && spans.any? { |span| span.holds?(point) } }
+    points = @registry.to_h.fetch(file, [])
+    points.select { |point| point.fits?(safe: true) && spans.any? { |span| span.holds?(point) } }
   end
 
   def spans(node, lines)

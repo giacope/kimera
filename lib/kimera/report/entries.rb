@@ -65,20 +65,20 @@ class Kimera::Report::Entries
     @io.puts
     row = result.to_h
     spotted(row["status"], row["mutant_id"], mutant, point)
-    diff(point, mutant)
+    diff(row["mutant_id"], point)
     covering.each { |line| @io.puts("    #{line}") }
     annotate(result)
   end
 
   def resolved(result)
     id = result.to_h["mutant_id"]
-    pair = @registry[id] { return }
-    yield(id, *pair)
+    mutant, point = @registry[id] { return }
+    yield(id, mutant, point)
   end
 
-  def diff(point, mutant)
-    variants = @registry.texts(point, mutant, Kimera::Rewrite::MutantText)
-    source(@palette.red("-"), point.original_source)
+  def diff(id, point)
+    variants = @registry.texts(id, Kimera::Rewrite::MutantText)
+    source(@palette.red("-"), point.to_h["original_source"])
     source(@palette.green("+"), Kimera::MutatedText.new(variants).to_s)
   end
 
@@ -99,13 +99,7 @@ class Kimera::Report::Entries
     @io.puts("    #{label}#{text}") if text
   end
 
-  def where(point, row) = point ? place(point) : row["file"].to_s
-
-  def place(point)
-    location = point.location
-    method = point.method_name
-    "#{point.file}:#{location}#{"  in #{method}" if method}"
-  end
+  def where(point, row) = point ? point.to_s : row["file"].to_s
 
   def uncovered(result)
     resolved(result) { |id, mutant, point| spotted("no coverage", id, mutant, point) }
@@ -113,6 +107,6 @@ class Kimera::Report::Entries
   end
 
   def spotted(status, id, mutant, point)
-    @io.puts("  #{@palette.yellow(status)} ##{id}  #{place(point)}  [#{mutant}]")
+    @io.puts("  #{@palette.yellow(status)} ##{id}  #{point}  [#{mutant}]")
   end
 end

@@ -3,6 +3,8 @@
 require "kimera/registry/builder"
 require "kimera/synthesis/overlay"
 
+using PointFields
+
 RSpec.describe(Kimera::Overlay) do
   def synth(source)
     registry = Kimera::RegistryScan.new.source(source, file: "x.rb")
@@ -629,7 +631,7 @@ RSpec.describe(Kimera::Overlay) do
       inner = registry.to_a.find { |point| point.original_source == "-1" }
       expect(result.to_h.fetch(:skipped_unsafe)).to(be_empty)
       expect(result.to_h.fetch(:mutant_ids)).to(match_array(registry.to_a.flat_map(&:ids)))
-      expect(inner).to(be_safe)
+      expect(inner).to(satisfy(&:safe?))
     end
 
     # `-0` reads as a literal, not as `-` on `0`, so the literal's zero mutant
@@ -878,7 +880,7 @@ RSpec.describe(Kimera::Overlay) do
         dropped, kept = registry.to_a.partition { |point| point.method_name.to_s == "compare" }
         reasons = dropped.map { PointVerdict.new(it).unsafe_reason }.uniq
         expect(reasons).to(eq(["unmutatable: kimera could not write its method"]))
-        expect(kept).to(all(be_safe))
+        expect(kept).to(all(satisfy(&:safe?)))
       end
 
       # A rebuild failure outside any method is a Kimera bug. Splicing would hide it.

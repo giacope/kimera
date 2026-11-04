@@ -3,6 +3,8 @@
 require "kimera/execution/shift"
 require "kimera/frameworks/suite"
 
+using PointFields
+
 RSpec.describe(Kimera::Frameworks) do
   describe Kimera::Frameworks::RunOutcome do
     it "exposes passed? mirroring the passed field", :aggregate_failures do

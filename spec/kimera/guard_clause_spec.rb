@@ -5,6 +5,8 @@ require "kimera/runtime"
 require "kimera/synthesis/overlay"
 require "kimera/synthesis/unwoven"
 
+using PointFields
+
 # R6B6-M2: a dropped rescue or ensure clause is guarded on the clause alone
 # (`rescue *(active ? [] : [IndexError])`, an ensure body under `if !active`),
 # and its bake blanks the clause's lines, so the method runs its own body on

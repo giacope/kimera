@@ -5,6 +5,7 @@ require "kimera/registry/builder"
 require "tmpdir"
 
 using ResultFields
+using PointFields
 
 RSpec.describe(Kimera::Incremental::Session) do
   let(:dir) { Dir.mktmpdir }

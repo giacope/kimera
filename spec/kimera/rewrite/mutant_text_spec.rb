@@ -24,8 +24,8 @@ RSpec.describe(Kimera::Rewrite::MutantText) do
 
   def texts(code, keys)
     scanned(code, keys) do |registry|
-      registry.each.map do |mutant, point|
-        [mutant.to_s, registry.texts(point, mutant, described_class).first]
+      registry.each.map do |mutant, _point|
+        [mutant.to_s, registry.texts(mutant.to_i, described_class).first]
       end
     end
   end
@@ -57,7 +57,7 @@ RSpec.describe(Kimera::Rewrite::MutantText) do
 
   def changed(registry)
     File.write(File.join(JSON.parse(registry.to_json).fetch("root"), "relay.rb"), kinds.sub("fast", "fist"))
-    registry.each.map { |mutant, point| registry.texts(point, mutant, described_class).first }
+    registry.each.map { |mutant, _point| registry.texts(mutant.to_i, described_class).first }
   end
 
   it "is nothing when its file changed where the point was" do

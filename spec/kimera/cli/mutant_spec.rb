@@ -6,6 +6,7 @@ require "stringio"
 require "tmpdir"
 
 using ResultFields
+using PointFields
 
 RSpec.describe(Kimera::CLI::Mutant, :aggregate_failures) do
   let(:sample) { File.expand_path("../../../examples/sample_app", __dir__) }

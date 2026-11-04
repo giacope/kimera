@@ -5,6 +5,8 @@ require "kimera/execution/macro_lambdas"
 require "kimera/registry/builder"
 require "tmpdir"
 
+using PointFields
+
 # once-campfire: re-declaring `belongs_to :creator, default: -> { Current.user }`
 # warm adds a second callback, and the original runs first, so the mutated
 # lambda never runs and its mutants read as untested.

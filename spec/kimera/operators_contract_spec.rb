@@ -5,6 +5,8 @@ require "kimera/registry/builder"
 require "kimera/runtime"
 require "kimera/synthesis/overlay"
 
+using PointFields
+
 # Each family is checked in the registry, a live overlay, and baked source.
 # default_argument bakes and overlays by different mechanisms.
 RSpec.describe(Kimera::Operators) do

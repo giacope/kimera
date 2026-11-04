@@ -5,6 +5,8 @@ require "kimera/execution/schemata"
 require "kimera/registry/builder"
 require "tmpdir"
 
+using PointFields
+
 # K3-7: the overlay evaluated a generator template nothing loads, which
 # reassigned the suite's own settings inside the test process.
 RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do

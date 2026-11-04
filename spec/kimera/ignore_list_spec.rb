@@ -3,6 +3,8 @@
 require "kimera/registry/builder"
 require "kimera/scope/ignore_list"
 
+using PointFields
+
 RSpec.describe(Kimera::IgnoreList) do
   let(:source) do
     <<~RUBY

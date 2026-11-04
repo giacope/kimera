@@ -5,6 +5,8 @@ require "kimera/execution/block_use"
 require "kimera/registry/builder"
 require "tmpdir"
 
+using PointFields
+
 # R6B2-M3: Ruby settles whether a method uses the block passed to it as it
 # compiles the method, and the warm overlay compiles every mutant of a method
 # into one. A mutant that leaves the method no `yield` warns, under a suite that

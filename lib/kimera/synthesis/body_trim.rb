@@ -16,9 +16,9 @@ module Kimera
     ].freeze
     STRINGS = [Prism::StringNode, Prism::InterpolatedStringNode, Prism::XStringNode, Prism::InterpolatedXStringNode].freeze
 
-    def initialize(source, locations)
+    def initialize(source, points)
       @source = source
-      @locations = locations
+      @points = points
     end
 
     def trim(path) = loaded?(path) ? trimmed : @source
@@ -48,9 +48,8 @@ module Kimera
 
     def live?(node)
       location = node.location
-      from = location.start_offset
-      to = location.end_offset
-      @locations.any? { |live| live.inside?(from, to) }
+      span = [location.start_offset, location.end_offset]
+      @points.any? { |point| point.fits?(inside: span) }
     end
 
     def kept?(node, defined)

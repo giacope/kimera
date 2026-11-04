@@ -13,6 +13,8 @@ require "kimera/execution/worker_databases"
 require "stringio"
 require "tmpdir"
 
+using PointFields
+
 RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
   # A warm worker (kimera's own, running this suite) carries its own
   # TEST_ENV_NUMBER; each example starts without one and leaves it as found.

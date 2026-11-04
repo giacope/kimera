@@ -80,6 +80,12 @@ class Kimera::MutationPoint
   SAFE = true
 
   FIELDS = %i[point_id file operator node_type location original_source method_name mutants].freeze
+  CRITERIA = {
+    safe: :safe?, line: :line?, starts: :starts?, column: :column?, operator: :operator?, method: :method?,
+    original: :original?, lines: :lines?, opening: :opening?, within: :within?, inside: :inside?,
+    covers: :covers?, entered: :entered?, node: :node?, kin: :kin?
+  }.freeze
+  private_constant(:CRITERIA)
   Marks =
     Struct.new(:safe, :reason, :revisit) do
       def safe? = safe
@@ -95,6 +101,8 @@ class Kimera::MutationPoint
       private(*members, *members.map { :"#{it}=" })
     end
   FIELDS.each { |field| define_method(field) { @attributes[field] } }
+  private(*FIELDS)
+  protected(:method_name)
 
   class << self
     def from_h(hash)
@@ -114,21 +122,65 @@ class Kimera::MutationPoint
     @attributes = attributes
   end
 
-  def safe? = marks.safe?
-
   def mark!(reason) = reason.mark!(marks, ids)
 
   def reasons(kind) = kind.held(marks)
 
-  def ids = mutants.map(&:to_i)
+  def fits?(**criteria) = criteria.all? { |name, value| __send__(CRITERIA.fetch(name), value) }
+
+  def anchored(nodes, &) = nodes.fetch(location.anchor(node_type), &)
+
+  def each(&)
+    return enum_for(:each) unless block_given?
+    mutants.each(&)
+    self
+  end
 
   def to_h = identity.merge(anchor).merge(verdict).merge("mutants" => mutants.map(&:to_h))
 
+  def to_s = "#{file}:#{location}#{"  in #{method_name}" if method_name}"
+
   private
+
+  def ids = mutants.map(&:to_i)
 
   def marks(kind = Marks)
     @_marks ||= kind.new(@attributes.fetch(:schema_safe, SAFE), *@attributes.values_at(:unsafe_reason, :revisit))
   end
+
+  def safe?(wanted) = marks.safe? == wanted
+
+  def line?(line) = location.range.include?(Integer(line))
+
+  def starts?(line) = location.starts_on?(Integer(line))
+
+  def column?(column) = location.column?(Integer(column))
+
+  def operator?(names) = Array(names).map(&:to_s).include?(operator)
+
+  def method?(names) = Array(names).map(&:to_s).include?(method_name)
+
+  def original?(text) = squeezed(text) == squeezed(original_source)
+
+  def squeezed(text) = text.to_s.split.join(" ")
+
+  def lines?(lines) = location.range.any? { |line| lines.include?(line) }
+
+  def opening?(lines) = lines.cover?(location.range.begin)
+
+  def within?(ranges) = location.within?(ranges)
+
+  def inside?(span) = location.inside?(*span)
+
+  def covers?(offset) = location.covers?(offset)
+
+  def entered?(span) = location.starts_between?(*span)
+
+  def node?(node)
+    location.starts_at?(node.location.start_offset) && node.type.to_s == node_type && node.slice == original_source
+  end
+
+  def kin?(other) = other.method_name == method_name
 
   def identity = { "point_id" => point_id, "file" => file, "operator" => operator }
 

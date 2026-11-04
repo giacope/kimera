@@ -26,7 +26,7 @@ class Kimera::Overlay
         skipped_unsafe.concat(points.flat_map { |point| point.mark!(orphan) })
       end
 
-      def skip!(points) = skipped_unsafe.concat(points.flat_map(&:ids))
+      def skip!(points) = skipped_unsafe.concat(points.flat_map { |point| point.each.map(&:to_i) })
 
       def empty? = mutant_ids.empty?
 
@@ -49,16 +49,16 @@ class Kimera::Overlay
   end
 
   def synthesize(file, source)
-    safe, unsafe = @registry.to_h.fetch(file, []).partition(&:safe?)
+    safe, unsafe = @registry.to_h.fetch(file, []).partition { |point| point.fits?(safe: true) }
     return unsafe(file, source, unsafe) if safe.empty?
     map = Kimera::SourceMap.new(source)
     Kimera::Overlay::FileWeave.new(file, map, safe, unsafe).result
   end
 
   def bake(_file, source, id)
-    pair = @registry[id] { return source }
+    mutant, point = @registry[id] { return source }
     map = Kimera::SourceMap.new(source)
-    checked(map, pair.last, spliced(map, *pair).fetch(0) { write(map, baked(map, *pair), pair.last) })
+    checked(map, point, spliced(map, mutant, point).fetch(0) { write(map, baked(map, mutant, point), point) })
   end
 
   private
@@ -79,7 +79,7 @@ class Kimera::Overlay
 
   def checked(map, point, text)
     raise(Unbakeable, "#{UNWRITTEN} (what it wrote does not parse)") unless Kimera::Syntax.parse(text).success?
-    return text if Kimera::PointLines.new(map, point.location).kept?(text)
+    return text if Kimera::PointLines.new(map, point).kept?(text)
     raise(Unbakeable, "#{UNWRITTEN} (what it wrote changes or moves a line outside the mutation)")
   end
 
@@ -96,13 +96,14 @@ class Kimera::Overlay
   end
 
   def grafted(map, tree, point, cause)
-    Kimera::Overlay::MethodBake.new(map, tree).source(point.location).fetch(0) do
+    Kimera::Overlay::MethodBake.new(map, tree).source(point).fetch(0) do
       raise(Unbakeable, "kimera could not write its bake (#{cause})")
     end
   end
 
   def unsafe(file, source, points)
-    Result.new(file: file, source: source, mutant_ids: [], skipped_unsafe: points.flat_map(&:ids))
+    skipped = points.flat_map { |point| point.each.map(&:to_i) }
+    Result.new(file: file, source: source, mutant_ids: [], skipped_unsafe: skipped)
   end
 end
 

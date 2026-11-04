@@ -18,7 +18,7 @@ class Kimera::IgnoreList::Placement
 
   def moved
     return [] unless exact.empty?
-    drifted.first(1).map { |_mutant, point| Kimera::IgnoreList::Shift.new(@rule, point.location.range.begin) }
+    drifted.first(1).map { |_mutant, point| Kimera::IgnoreList::Shift.new(@rule, point.to_h.dig("location", "start_line")) }
   end
 
   private

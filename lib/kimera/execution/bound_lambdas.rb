@@ -33,7 +33,7 @@ class Kimera::Execution::BoundLambdas
   end
 
   def open?(point, ranges)
-    point.reasons(Kimera::Reason.unreloadable).empty? && point.location.within?(ranges)
+    point.reasons(Kimera::Reason.unreloadable).empty? && point.fits?(within: ranges)
   end
 
   def bound?(node) = WRITES.any? { |kind| node.is_a?(kind) } && callable?(node.value)

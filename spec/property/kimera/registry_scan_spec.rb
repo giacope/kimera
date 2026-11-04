@@ -3,6 +3,8 @@
 require_relative "../property_helper"
 require "kimera/registry/builder"
 
+using PointFields
+
 # The registry scan reads any Ruby it is given without raising (R6B6-M1: a
 # method that opened with `if x` / `else ...` / `end` stopped every run whose
 # scope held it). Scanned with every operator: shapes the field corpus held,

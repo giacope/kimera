@@ -5,6 +5,8 @@ require "kimera/registry/builder"
 require "kimera/runtime"
 require "kimera/synthesis/overlay"
 
+using PointFields
+
 RSpec.describe(Kimera::Operators) do
   def scan(code, *keys)
     Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(code, file: "r.rb")

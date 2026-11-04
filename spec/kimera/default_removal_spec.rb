@@ -3,6 +3,8 @@
 require "kimera/registry/default_removal"
 require "kimera/registry/builder"
 
+using PointFields
+
 # Which `default => required` mutants a warm guard can stand in for. The guard
 # keeps the parameter optional and raises from its default, so it matches the
 # real signature only when that change binds the same arguments and skips no

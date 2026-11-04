@@ -24,7 +24,10 @@ class Kimera::GuardSplice
     outer.map { |site| site.edit(sites, probes) } + probes.reject { |probe| outer.any? { |site| site.holds?(probe) } }
   end
 
-  def applied = @points.zip(placements).reject { |_, found| found.empty? }.flat_map { |point, _| point.ids }
+  def applied
+    placed = @points.zip(placements).reject { |_, found| found.empty? }
+    placed.flat_map { |point, _| point.each.map(&:to_i) }
+  end
 
   def rest = @points.zip(placements).select { |_, found| found.empty? }.map(&:first)
 
@@ -41,7 +44,7 @@ class Kimera::GuardSplice
   def placements = @_placements ||= @points.map { |point| @index.anchored(point).flat_map { placement(point, it) } }
 
   def placement(point, node)
-    hidden, shown = point.mutants.partition { |mutant| mutant.rewrite(Kimera::Rewrite::Directive).kind?("privatize") }
+    hidden, shown = point.each.partition { |mutant| mutant.rewrite(Kimera::Rewrite::Directive).kind?("privatize") }
     clauses, sited = clauses(node, shown)
     guards = sited.map { |mutant, _| guarded(node, mutant) { [] } }
     guards.all?(&:any?) ? [[guards.flatten(1), probed(node, hidden) + clauses.flat_map(&:last)]] : []

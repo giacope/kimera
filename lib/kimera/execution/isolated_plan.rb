@@ -23,7 +23,7 @@ class Kimera::Execution::IsolatedPlan
   def tests(id, point)
     found = candidates(id, point)
     screen = @options[:filter]
-    found && screen ? screen.keep(point.file, found) : found
+    found && screen ? screen.keep(file(id), found) : found
   end
 
   def settled(id, point)
@@ -44,16 +44,21 @@ class Kimera::Execution::IsolatedPlan
 
   def candidates(id, point)
     return if point.reasons(Kimera::Reason.unloaded).any?
-    return @tests if everything?(point)
-    whole?(point) ? kin.tests(point.file) : selection.recorded(id) { return }
+    return @tests if everything?(id, point)
+    whole?(point) ? kin.tests(file(id)) : selection.recorded(id) { return }
   end
 
-  def everything?(point, protection = Kimera::SelfProtection)
-    point.reasons(Kimera::Reason.ordered).any? || protection.new(File.join(@layout.root, point.file)).protected?
+  def everything?(id, point, protection = Kimera::SelfProtection)
+    point.reasons(Kimera::Reason.ordered).any? || protection.new(File.join(@layout.root, file(id))).protected?
   end
 
   def whole?(point)
-    !point.safe? || point.reasons(Kimera::Reason.revisiting).any?
+    !point.fits?(safe: true) || point.reasons(Kimera::Reason.revisiting).any?
+  end
+
+  def file(id)
+    _mutant, _point, file = @registry[id]
+    file
   end
 
   def selection = @_selection ||= @options.fetch(:selection) { selected }

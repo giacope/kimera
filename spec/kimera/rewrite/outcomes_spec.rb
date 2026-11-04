@@ -3,6 +3,8 @@
 require "prism"
 require "kimera/rewrite/outcomes"
 
+using PointFields
+
 RSpec.describe(Kimera::Rewrite::Outcomes) do
   def wrapper?(node) = %i[program_node statements_node arguments_node].include?(node.type)
 

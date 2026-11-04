@@ -101,7 +101,7 @@ class Kimera::Execution::Reload
   end
 
   def mutate(id, errand, runtime = Kimera::RUNTIME)
-    file = verdicts.point(id).file
+    file = @registry[id].last
     watch = overlay(file, @workspace.path(file), id)
     runtime.during(nil) { @isolation.around { hunt(errand, watch) } }
   end
@@ -119,9 +119,9 @@ class Kimera::Execution::Reload
   def overlay(file, path, id) = watched(file, path, id).tap { |watch| install(watch.source, path) }
 
   def watched(file, path, id, trims = Kimera::BodyTrim)
-    location = verdicts.point(id).location
-    source = trims.new(File.read(path, encoding: Encoding::UTF_8), [location]).trim(path)
-    Kimera::Execution::CallWatch.new(Kimera::Overlay.new(@registry).bake(file, source, id), location, id)
+    point = verdicts.point(id)
+    source = trims.new(File.read(path, encoding: Encoding::UTF_8), [point]).trim(path)
+    Kimera::Execution::CallWatch.new(Kimera::Overlay.new(@registry).bake(file, source, id), point, id)
   end
 
   def install(source, path, guards = Kimera::Execution::OverlayGuards.new)

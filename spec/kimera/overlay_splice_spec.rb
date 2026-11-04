@@ -3,6 +3,8 @@
 require "kimera/registry/builder"
 require "kimera/synthesis/overlay"
 
+using PointFields
+
 # Overlays and bakes are spliced into the original source: only rewritten
 # spans change, so every line, comment, magic comment and `__END__` section
 # outside them stays where it was.

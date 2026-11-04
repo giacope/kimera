@@ -4,6 +4,8 @@ require "kimera/registry/builder"
 require "fileutils"
 require "tmpdir"
 
+using PointFields
+
 # A block whose body runs on each call (define_method, lambda, proc,
 # Proc.new) is mutated like a method body; any other block outside a method
 # is reported as not mutated, never silently skipped.

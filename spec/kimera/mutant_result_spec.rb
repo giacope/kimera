@@ -3,6 +3,7 @@
 require "kimera/results/result"
 
 using ResultFields
+using PointFields
 
 RSpec.describe(Kimera::MutantResult) do
   def result(status)

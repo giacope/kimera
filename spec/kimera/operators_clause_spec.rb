@@ -6,6 +6,8 @@ require "kimera/runtime"
 require "kimera/synthesis/body_trim"
 require "kimera/synthesis/overlay"
 
+using PointFields
+
 # super_call, rescue_clause and ensure_clause: what each one targets, what it
 # leaves alone, and that the woven method behaves as the mutant when flipped.
 RSpec.describe(Kimera::Operators) do
@@ -216,8 +218,7 @@ RSpec.describe(Kimera::Operators) do
       source = Kimera::Overlay.new(scan(code, "rescue_clause")).synthesize("c.rb", code).to_s
       guarded = /\A  rescue \*\(::Kimera::RUNTIME\.active\?\(\d+\) \? \[\] : \[ArgumentError\]\)\n\z/
       expect(source.lines).to(match([*code.lines.first(3), guarded, *code.lines.drop(4)]))
-      expect(Kimera::BodyTrim.new(code, [scan(code, "rescue_clause").to_a.first.location]).trimmed)
-        .to(include("def m(v)"))
+      expect(Kimera::BodyTrim.new(code, [scan(code, "rescue_clause").to_a.first]).trimmed).to(include("def m(v)"))
     end
 
     it "drops the ensure of a method with no body of its own", :aggregate_failures do

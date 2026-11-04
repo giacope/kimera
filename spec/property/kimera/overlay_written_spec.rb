@@ -5,6 +5,8 @@ require_relative "../../support/tree_shape"
 require "kimera/registry/builder"
 require "kimera/synthesis/overlay"
 
+using PointFields
+
 # Every mutant kimera writes is the mutant: for each point and operator over
 # kimera's own sources, the example apps and a fixed set of shapes the field
 # corpus holds, the bake parses, differs from the original, and reads back as
