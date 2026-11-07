@@ -68,6 +68,12 @@ RSpec.describe(Kimera::Incremental::Selection) do
     expect(selected("impact")).to(eq(["x >= 2"]))
   end
 
+  it "reads a test's file stored as an absolute path, as Minitest's source location gives it" do
+    mapped(test_files: { "./spec/other_spec.rb[1:1]" => File.expand_path("spec/other_spec.rb") })
+    write("spec/other_spec.rb", "it { c(2) }\n")
+    expect(selected("impact")).to(eq(["x >= 2"]))
+  end
+
   it "counts a deleted test as changed, so the files it reached stay in scope" do
     mapped
     FileUtils.rm("spec/other_spec.rb")

@@ -43,7 +43,12 @@ class Kimera::Incremental::Extent
 
     def touched(document, names)
       files = document.fetch("test_files") { {}.tap { lacking("the coverage map at #{MAP} names no test's file") } }
-      files.filter_map { |id, file| id if names.include?(Pathname(file).cleanpath.to_s) }.to_set
+      files.filter_map { |id, file| id if names.include?(relative(file)) }.to_set
+    end
+
+    def relative(file)
+      path = Pathname(file)
+      (path.absolute? ? path.relative_path_from(File.expand_path(@root.to_s)) : path).cleanpath.to_s
     end
 
     def read
