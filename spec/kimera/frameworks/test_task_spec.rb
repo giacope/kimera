@@ -3,9 +3,6 @@
 require "kimera/frameworks/test_task"
 require "tmpdir"
 
-# R6B3-M1: Rake::TestTask (and Minitest::TestTask) run the suite with `ruby -w`
-# unless the task sets `warning = false`; mechanize's suite asserts on a
-# deprecation it prints only `if $VERBOSE`, green under `rake test`, red without.
 RSpec.describe(Kimera::Frameworks::TestTask) do
   def task(rakefile)
     Dir.mktmpdir do |root|
@@ -35,8 +32,6 @@ RSpec.describe(Kimera::Frameworks::TestTask) do
     expect(flags(rakefile)).to(eq(["-w"]))
   end
 
-  # Starts with warnings off, whatever ran before: compared with the state it
-  # found, the task that keeps them off passed once a mutant had turned them on.
   def installed(rakefile)
     before = [$VERBOSE, Warning[:deprecated]]
     $VERBOSE = false

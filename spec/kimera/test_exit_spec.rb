@@ -7,8 +7,6 @@ require "kimera/exits/test_exit"
 require "stringio"
 require "tmpdir"
 
-# A test that calls exit or abort fails; the SystemExit no longer unwinds the
-# worker, the isolated child or kimera itself.
 RSpec.describe(Kimera::TestExit) do
   let(:dir) { Dir.mktmpdir }
 
@@ -66,7 +64,6 @@ RSpec.describe(Kimera::TestExit) do
       end
     end
 
-    # Hides RSpec's warning about re-pointing already-initialized streams.
     def adapter
       original = $stderr
       $stderr = StringIO.new
@@ -123,7 +120,6 @@ RSpec.describe(Kimera::TestExit) do
       end
     end
 
-    # abort prints its message to $stderr.
     def run(id)
       PROBE.clear
       original = $stderr

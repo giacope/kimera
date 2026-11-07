@@ -9,8 +9,6 @@ require "tmpdir"
 using ResultFields
 using PointFields
 
-# R5-KL7: action_policy's LookupChain keeps the lambdas its constants held at
-# load; the overlay bound new, guarded ones that the chain never called.
 RSpec.describe(Kimera::Execution::BoundLambdas, :aggregate_failures) do
   let(:dir) { Dir.mktmpdir }
 
@@ -42,8 +40,6 @@ RSpec.describe(Kimera::Execution::BoundLambdas, :aggregate_failures) do
     expect(registry.to_a.find { |point| point.location.range.begin == 2 }.reasons(Kimera::Reason.unreloadable).empty?).to(be(false))
   end
 
-  # action_policy's INFER_FROM_CLASS: `strict_namespace: false => true` was judged by reloading the file, which
-  # bound a new lambda the chain never called, so it survived though the plain suite fails with it.
   it "holds the parameter defaults of a constant's lambda too, which would otherwise go to the reload tier" do
     registry = scanned(<<~RUBY)
       module BoundLookup
@@ -61,7 +57,6 @@ RSpec.describe(Kimera::Execution::BoundLambdas, :aggregate_failures) do
 
   def held = Kimera::Reason::BOUND_REASON
 
-  # The registry of a chain built at load, after the overlay: the lambda the chain took, and its first mutant.
   def chained
     stub_const("BoundChain", Module.new)
     registry = scanned("module BoundChain\n  STEP = ->(n) { n > 1 }\n  CHAIN = [STEP]\nend\n")

@@ -4,8 +4,6 @@ require "kimera/incremental/git_diff"
 
 RSpec.describe(Kimera::Incremental::GitDiff) do
   describe ".parse" do
-    # Open3 tags git's output with the locale's encoding, US-ASCII when LANG
-    # is unset, so any non-ASCII line made the header regexps raise.
     def captured(text) = text.b.force_encoding(Encoding::US_ASCII)
 
     it "parses non-ASCII diff content whatever the locale's encoding", :aggregate_failures do
@@ -60,7 +58,6 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
     end
 
     it "never attributes new-side lines to /dev/null, even prefixed and with a malformed hunk" do
-      # Real git never emits this; a hand-crafted diff must still not invent a file.
       diff = <<~DIFF
         --- a/gone.rb
         +++ b//dev/null
@@ -70,8 +67,6 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
       expect(described_class.parse(diff)).to(eq({}))
     end
 
-    # An added line "++ b/x.rb" prints as "+++ b/x.rb", the same as a file
-    # header; only the hunk header's count tells them apart.
     it "reads an added line that looks like a file header as content" do
       diff = <<~DIFF
         diff --git a/f.rb b/f.rb

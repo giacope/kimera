@@ -3,8 +3,6 @@
 require "kimera/registry/builder"
 require "kimera/synthesis/overlay"
 
-# The parts of a splice: where a rewrite changed a tree, what a source's
-# tree holds, and what the spliced text is for each shape of point.
 RSpec.describe(Kimera::SpliceDiff) do
   def read(source) = Kimera::Scribe.parse(source).statements.body.first
 
@@ -29,8 +27,6 @@ RSpec.describe(Kimera::SpliceDiff) do
     expect(described_class.new(read("'q'"), read("'q'").copy(unescaped: "")).path.size).to(eq(1))
   end
 
-  # Two kinds of node that hold the same one changed child: the change is the
-  # kind, not the child.
   it "stops at a change of type even when only a child differs" do
     held = { a: Struct.new(:child) { def type = :a_node }, b: Struct.new(:child) { def type = :b_node } }
     expect(described_class.new(held[:a].new(read("x")), held[:b].new(read("y"))).path.size).to(eq(1))
@@ -116,7 +112,6 @@ RSpec.describe(Kimera::SpliceDiff) do
       expect(fitted("/ab/x", Kimera::Scribe.parse("/a\nb/x").statements.body.first)).to(eq([]))
     end
 
-    # R6B4-M1: a writing that reads back as another tree is no fit.
     it "takes the first writing that reads back as the node" do
       node = Kimera::Scribe.parse("case v\nwhen 3.. then :big\nend").statements.body.first
       readback = Class.new { def faithful?(text) = text.start_with?("case v;") }.new
@@ -146,8 +141,6 @@ RSpec.describe(Kimera::SpliceDiff) do
       node || read(slice)
     end
 
-    # The names of the source a bare call written where the node stands reads
-    # as locals there: it takes parentheses so as not to read the local.
     def locals(source, slice)
       root = Kimera::Scribe.parse(source)
       names = source.scan(/[a-z_]\w*/).map(&:to_sym).uniq

@@ -2,7 +2,6 @@
 
 require "kimera/execution/time_budget"
 
-# A covering test's relative budget is its baseline time × factor + slack.
 RSpec.describe(Kimera::Execution::TimeBudget) do
   it "defaults to ten times the baseline plus a second", :aggregate_failures do
     budget = described_class.new({ "t1" => 0.5 })

@@ -69,9 +69,6 @@ RSpec.describe(Kimera::CLI::CoverageMinimum) do
     expect(ungated?(%(return unless defined?(SimpleCov)\nminimum_coverage 90\n))).to(be(true))
   end
 
-  # Kimera's runs set KIMERA and leave everything else as it was: a Ruby
-  # version, a gem check or a constant is as true under Kimera as in the
-  # user's own run, so the floor still trips.
   it "flags a floor under a condition that doesn't read ENV", :aggregate_failures do
     expect(ungated?(%(if RUBY_ENGINE == "ruby"\n  SimpleCov.minimum_coverage 90\nend\n))).to(be(true))
     expect(ungated?(%(SimpleCov.minimum_coverage 90 if defined?(SimpleCov)\n))).to(be(true))

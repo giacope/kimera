@@ -25,7 +25,6 @@ RSpec.describe(Kimera::Execution::BaselineExclusions) do
     expect(notice(numbered(7))).to(start_with("kimera: 7 test(s) fail in the baseline, in a plain run too"))
   end
 
-  # A failing test's coverage is cut short where it failed (K3-3).
   it "says their coverage is unknown, never that they cover nothing", :aggregate_failures do
     expect(notice(numbered(1))).to(include("their coverage is unknown"))
     expect(notice(numbered(1))).not_to(include("cover no in-scope mutant"))

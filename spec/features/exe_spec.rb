@@ -3,9 +3,7 @@
 require "bundler"
 require "open3"
 
-# The checkout executable must not activate global gems before the Gemfile resolves.
 RSpec.describe("exe/kimera") do
-  # Runs exe/kimera with the arguments outside the current bundle; its output and status.
   def unbundled(*arguments, **)
     command = [Gem.ruby, File.expand_path("../../exe/kimera", __dir__), *arguments]
     Bundler.with_unbundled_env { Open3.capture2e(*command, **) }

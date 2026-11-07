@@ -5,10 +5,6 @@ require "kimera/registry/builder"
 
 using PointFields
 
-# Which `default => required` mutants a warm guard can stand in for. The guard
-# keeps the parameter optional and raises from its default, so it matches the
-# real signature only when that change binds the same arguments and skips no
-# default the real arity check would never run.
 RSpec.describe(Kimera::DefaultRemoval) do
   def scan(source)
     operators = Kimera::Operators.build(keys: ["default_argument"])
@@ -44,7 +40,6 @@ RSpec.describe(Kimera::DefaultRemoval) do
       .to(eq("k: compute" => :warm, "c: 3" => described_class::REORDERS))
   end
 
-  # Prism recovers a tree from broken source; its signatures aren't trusted.
   it "finds nothing in source that does not parse, or in methods without parameters", :aggregate_failures do
     broken = "def m(a = 1, b = 2, c = 3, d: a.to_s, e: 1)\n  x =\nend\n"
     source = described_class::Source

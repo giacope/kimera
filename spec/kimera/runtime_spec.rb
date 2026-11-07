@@ -15,7 +15,6 @@ RSpec.describe(Kimera::Runtime) do
     expect(Kimera::RUNTIME).to(equal(bound))
   end
 
-  # R3K3: a mutated method called inside a Ractor raised Ractor::IsolationError.
   describe "inside a non-main Ractor" do
     def in_ractor(shared, id)
       experimental = Warning[:experimental]
@@ -89,8 +88,6 @@ RSpec.describe(Kimera::Runtime) do
     end
   end
 
-  # Assert only through our own handles: when self-hosted, an outer harness
-  # holds a ledger open for the whole run.
   describe "coverage touch-ledgers" do
     def touches
       ledger = runtime.start!
@@ -103,7 +100,7 @@ RSpec.describe(Kimera::Runtime) do
     it "records touches on an open ledger and drains them uniquely", :aggregate_failures do
       touches = self.touches
       expect(touches.first).to(contain_exactly(10, 11))
-      expect(touches.last).to(eq([])) # draining clears the ledger
+      expect(touches.last).to(eq([]))
     end
 
     it "stops recording on a ledger once it is closed" do
@@ -113,7 +110,6 @@ RSpec.describe(Kimera::Runtime) do
       expect(ledger.drain!).to(be_empty)
     end
 
-    # A guard in a hot loop runs millions of times; the ledger holds each id once.
     it "keeps one entry per mutant however often its guard runs" do
       ledger = runtime.start!
       100_000.times { runtime.active?(7) }
@@ -131,7 +127,6 @@ RSpec.describe(Kimera::Runtime) do
     def nested
       outer, inner = Array.new(2) { runtime.start! }
       runtime.active?(7)
-      # Drain before close stops the ledger.
       drain = inner.drain!
 
       close(inner, 8)
@@ -146,8 +141,6 @@ RSpec.describe(Kimera::Runtime) do
       expect(drains.last).to(contain_exactly(7, 8))
     end
 
-    # Drained ledgers are equal empty arrays, so Array#delete would evict the
-    # outer one too. Self-hosted, that zeroed coverage for later examples.
     def drain(mutant, ledger)
       runtime.active?(mutant)
       ledger.drain!
@@ -161,8 +154,8 @@ RSpec.describe(Kimera::Runtime) do
 
     def isolation
       outer = runtime.start!
-      drain(1, outer) # outer now == []
-      close(fresh, 2) # inner also == []; must keep the empty outer
+      drain(1, outer)
+      close(fresh, 2)
       outer.drain!
     ensure
       runtime.stop!(outer)
@@ -172,8 +165,6 @@ RSpec.describe(Kimera::Runtime) do
       expect(isolation).to(eq([2]))
     end
 
-    # Start from an empty table: an outer measurer or leaked ledgers would
-    # skip the empty-table path.
     def preserve
       saved = runtime.instance_variable_get(:@ledgers)
       runtime.instance_variable_set(:@ledgers, Kimera::Runtime::NONE)
@@ -198,7 +189,6 @@ RSpec.describe(Kimera::Runtime) do
       end
     end
 
-    # Self-hosted suites call reset! in hooks; the harness's touches must survive.
     def reset
       ledger = runtime.start!
       runtime.active?(3)
@@ -214,8 +204,6 @@ RSpec.describe(Kimera::Runtime) do
     end
   end
 
-  # Asserted through our own ledger: a self-hosting harness may hold its own
-  # open too, and the child writes to both.
   describe "touches made in a forked child" do
     def forked(&)
       ledger = Kimera::RUNTIME.start!
@@ -266,7 +254,6 @@ RSpec.describe(Kimera::Runtime) do
   describe "#privatize" do
     let(:owner) { Class.new { def shown = 1 } }
 
-    # Whether shown is private with each id active in turn.
     def privacy(ids)
       ids.map do |id|
         runtime.active = id
@@ -281,7 +268,6 @@ RSpec.describe(Kimera::Runtime) do
       expect(owner.public_method_defined?(:shown)).to(be(true))
     end
 
-    # Registers shown for mutant 6, then redefines it over an alias that keeps the registered one.
     def overridden
       runtime.privatize(6, owner, :shown)
       owner.class_eval do
@@ -298,9 +284,6 @@ RSpec.describe(Kimera::Runtime) do
       expect(owner.public_method_defined?(:before)).to(be(true))
     end
 
-    # R6B4-M6: an includer took an alias at load (hashie's IndifferentAccess
-    # aliases update to indifferent_update in `included`); the real mutant makes
-    # that alias private too.
     def mixin = @_mixin ||= Module.new { def sized = 3 }
 
     def visible(holders, name) = holders.map { it.public_method_defined?(name) }
@@ -320,11 +303,6 @@ RSpec.describe(Kimera::Runtime) do
       expect(visible(holders, :size)).to(eq([true, true]))
     end
 
-    # Shift switches a mutant on before each test it runs with it. Switching
-    # on the one already on leaves its flips as they are, as the real mutant
-    # leaves what a test before did to it, and does not walk the object space
-    # for aliases again for each test: in kimera's own suite process one walk
-    # took 0.5 s.
     it "leaves the flips of the active mutant as they are when it is switched on again" do
       runtime.privatize(3, owner, :shown)
       runtime.active = 3
@@ -339,16 +317,11 @@ RSpec.describe(Kimera::Runtime) do
       expect([walked, visible(holders, :size)]).to(eq([1, [false, false]]))
     end
 
-    # In a child: the walks switching mutant 990_001 on makes, and what it hides.
     def switched(holders)
       hidden = nil
       [walks { hidden = Kimera::RUNTIME.during(990_001) { visible(holders, :size) } }, hidden]
     end
 
-    # Every fork first finds the holders of the flips registered since the last
-    # one (Forks#_fork): one walk serves the workers and every test's child
-    # forked after it, and a child switching a mutant on walks nothing. In
-    # kimera's own suite process one walk took 0.5 s.
     it "walks once for the flips registered before many forks, and never in a child" do
       holders = [Class.new.include(mixin).tap { it.alias_method(:size, :sized) }]
       Kimera::RUNTIME.privatize(990_001, mixin, :sized)
@@ -364,9 +337,6 @@ RSpec.describe(Kimera::Runtime) do
       expect(box.public_method_defined?(:sized)).to(be(true))
     end
 
-    # R6B4-M4: a method defined while its mutant is active (a class a test
-    # builds, whose `included` hook defines it) is private as defined, as the
-    # real mutant's is, and public again after.
     it "flips a method registered while its mutant is active, and every one of them back", :aggregate_failures do
       holders = [Class.new { def shown = 1 }, owner].each { runtime.privatize(9, it, :shown) if (runtime.active = 9) }
       expect(visible(holders, :shown)).to(eq([false, false]))

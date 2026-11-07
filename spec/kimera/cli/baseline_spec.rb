@@ -174,7 +174,6 @@ RSpec.describe(Kimera::CLI::Baseline, :aggregate_failures) do
     expect(kept["ignore"].first.keys).to(eq(%w[file line label original reason]))
   end
 
-  # A baseline created from a report whose one mutant only other units' tests reach.
   def unit_uncovered
     File.write("r.json", JSON.generate("results" => [row(30, "> => <", "uncovered_by_unit")]))
     cli.run(%w[create r.json --reason debt --output base.yml])

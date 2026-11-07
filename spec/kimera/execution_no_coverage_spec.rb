@@ -102,7 +102,6 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
       "kimera: per-worker test databases unavailable (LoadError: missing helper); workers share one database\n"
     end
 
-    # Rails' parallel testing, whose registration file raises +loading+ when given.
     def parallelization(loading = nil)
       par = Module.new
       par.define_singleton_method(:after_fork_hooks) { [->(_index) {}] }
@@ -167,7 +166,6 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     end
   end
 
-  # Read in the parent, what a duty wrote down in the worker the block forks.
   def noted(notes)
     reader, writer = notes
     pid = yield
@@ -180,7 +178,6 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     let(:notes) { IO.pipe }
     let(:duty) { FakeDuty.new(5, notes.last) }
 
-    # Boots worker 5 in a fork that exits 1 unless the boot exits first.
     def booted
       runner = pool(database: database)
       noted(notes) do
@@ -210,7 +207,6 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
       expect(pool.__send__(:build, duty)).to(be_a(Kimera::Execution::Shift))
     end
 
-    # R4-KR1: a parallelize_setup hook raised before the worker could say a word.
     def unprepared(database)
       said = StringIO.new
       pool(database: database).__send__(:serve, FakeDuty.new(5, said))
@@ -230,8 +226,6 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     end
   end
 
-  # The hard watchdog renews on each test's beat, so a slow test's raised soft
-  # limit stays a second under it and the soft timeout still fires first.
   it "keeps a test's raised soft limit under the hard watchdog" do
     patience = Kimera::Execution::Patience.new(0.1, timings: { "t" => 5.0 }, hard: pool.__send__(:hard))
     expect(patience.limit("t")).to(eq(1.0))
@@ -243,8 +237,6 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     expect(said.string).to(eq("[\"pulse\"]\n"))
   end
 
-  # Leading its own process group, the worker takes what its tests start
-  # down with it when it is killed.
   it "boots a pool duty inside the fork block, as the leader of a process group" do
     notes = IO.pipe
     seen, status = noted(notes) { pool.__send__(:spawn, FakeDuty.new(5, notes.last)) }
@@ -252,8 +244,6 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
   end
 
   describe "a reload errand" do
-    # An errand on a real pipe, emitted from the child's side: which ends it closed, and what a second
-    # copy of the parent's end reads.
     def emitted
       reader, writer = IO.pipe
       kept = reader.dup
@@ -278,8 +268,6 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
       Kimera::Execution::Reload.new(registry: Object.new, adapter: Object.new, isolation: Object.new, workspace: nil)
     end
 
-    # An errand on a real pipe whose child side first says whether the child leads its own process group,
-    # and prints to standard output before it emits, as tests do.
     let(:errand) do
       Class.new(Kimera::Execution::Reload::Errand) do
         def child!
@@ -295,8 +283,6 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
       end.new(9, [], *IO.pipe)
     end
 
-    # The reload child of the errand: whether the parent's writer is closed, what the child wrote (until the
-    # pipe closes, or 10 s), and how it exited.
     def worked
       pid = reload.__send__(:child, 9, errand)
       _, _, reader, writer = errand.to_a
@@ -318,8 +304,6 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
       expect(worked.last).to(eq(0))
     end
 
-    # The child leads its own process group, so the terminal's Ctrl-C never
-    # reaches it: an interrupted kimera kills and reaps it on the way out.
     it "takes a reload child down with it when kimera is interrupted" do
       pid = fork { sleep(300) }
       interrupted = Class.new(Kimera::Execution::Reload::Errand) { def await(_deadline, &) = raise(Interrupt) }.new
@@ -361,7 +345,6 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     end
   end
 
-  # A weave whose points stitch together two at a time at most.
   def pairwise = Class.new(Kimera::Overlay::FileWeave) { def attempt(points) = points.size <= 2 ? [:woven] : [] }
 
   it "backs out merged weave points until the combined render succeeds" do

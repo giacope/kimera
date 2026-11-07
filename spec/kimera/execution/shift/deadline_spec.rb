@@ -2,9 +2,6 @@
 
 require "kimera/execution/shift"
 
-# Frameworks rescue the soft timeout's interrupt as a test failure, so the
-# guard checks the clock itself after each run. Every covering test run gets
-# the whole budget: a mutant many tests cover is not a timeout for that alone.
 RSpec.describe(Kimera::Execution::Shift::Deadline) do
   def deadline(seconds, times, beat: described_class::SILENT)
     clock = times.dup
@@ -33,7 +30,6 @@ RSpec.describe(Kimera::Execution::Shift::Deadline) do
     expect { described_class.build(0.05).guard("t1") { sleep(5) } }.to(raise_error(Timeout::Error))
   end
 
-  # The parent's hard watchdog renews on each beat, so it too times one test.
   it "beats before each test run" do
     beats = []
     budget = deadline(nil, [0.0] * 4, beat: -> { beats << :beat })

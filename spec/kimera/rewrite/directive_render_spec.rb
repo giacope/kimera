@@ -5,8 +5,6 @@ require "kimera/rewrite/directive"
 
 using PointFields
 
-# R4-KR3: Prism rejects `next`, `break` and `redo` outside a block, so a
-# report re-rendering a guard clause's point alone showed no mutated code.
 RSpec.describe(Kimera::Rewrite::Directive) do
   let(:code) do
     <<~RUBY

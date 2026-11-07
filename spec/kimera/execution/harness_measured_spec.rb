@@ -10,7 +10,6 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   after { FileUtils.remove_entry(dir) }
 
-  # Every test reaches the one mutant.
   def adapter(id)
     Class.new(Kimera::Frameworks::Suite) do
       define_method(:source) { |_files| self }

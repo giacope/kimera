@@ -7,9 +7,6 @@ require "open3"
 require "rbconfig"
 require "tmpdir"
 
-# R4-KR5: maintenance_tasks' helper sets $VERBOSE and raises on every warning;
-# under $VERBOSE, .rspec's --require builds RSpec's reporter, and the child's
-# later change of its output stream warned, so every isolated verdict was lost.
 RSpec.describe(Kimera::Execution) do
   let(:dir) { Dir.mktmpdir }
   let(:lib) { File.expand_path("../../lib", __dir__) }
@@ -34,8 +31,6 @@ RSpec.describe(Kimera::Execution) do
 
   def strict = "module Warning\n  def self.warn(message, **) = raise(message.to_s)\nend\n$VERBOSE = true\n"
 
-  # R5-KR1: two mirrors raced for the one database the suite creates as spec_helper loads; the
-  # child's own read of .rspec lost, and RSpec quit before any example with no failure counted.
   def racing = "$loads = ($loads || 0) + 1\nraise \"PG::DuplicateDatabase (simulated)\" if $loads == 1\n"
 
   it "reports an error raised while the child reads .rspec as a failure outside every test, with its message",

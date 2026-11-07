@@ -154,7 +154,6 @@ RSpec.describe(Kimera::Report::Text) do
     expect(render(killed)).not_to(include("Test quality"))
   end
 
-  # The report of a mutant whose twelve covering tests kill nothing.
   def idle_tests = Array.new(12) { |index| "idle#{index}" }
 
   def idle_mutant
@@ -213,7 +212,6 @@ RSpec.describe(Kimera::Report::Text) do
     expect(render(uncovered, coverage: :list)).not_to(include(Kimera::Reason::ORDER_REASON, "]\n    \n"))
   end
 
-  # Uncovered mutants are listed only under a --fail-on-no-coverage gate.
   it "points at the survivors subcommand for uncovered mutants when they are not listed", :aggregate_failures do
     expect(saved(uncovered, "rep.json")).to(include(listing))
     expect(render(uncovered)).to(include(instructions))
@@ -232,7 +230,6 @@ RSpec.describe(Kimera::Report::Text) do
     expect(output).not_to(include("Mutants with no covering test"))
   end
 
-  # Staying silent about unjudged mutants would read like a clean run.
   it "always lists mutants the harness could not judge, with the reason", :aggregate_failures do
     output = render(error)
     expect(output).to(match(/\n\nMutants Kimera could not judge \(1\):/))

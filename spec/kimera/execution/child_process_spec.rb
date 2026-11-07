@@ -9,7 +9,6 @@ RSpec.describe(Kimera::Execution::ChildProcess) do
 
   def parse(line, &) = reader.__send__(:parse, line, &)
 
-  # A pipe read under a C locale tags the worker's UTF-8 bytes as US-ASCII.
   it "parses a worker's UTF-8 line whatever encoding the pipe tagged it with" do
     line = "{\"detail\":\"caf\xC3\xA9 \xE2\x80\xA6\"}\n".b.force_encoding(Encoding::US_ASCII)
     expect(parse(line)).to(eq("detail" => "café …"))
@@ -26,10 +25,6 @@ RSpec.describe(Kimera::Execution::ChildProcess) do
     expect(line.encoding).to(eq(Encoding::BINARY))
   end
 
-  # The descriptor itself moves, so code that writes to 1 or 2 without Ruby's
-  # streams (a C extension, a subshell) writes to the null device too.
-  # A file's descriptor, discarded: whether the stream answered is on it, where it then points, and what a
-  # write to the stream took.
   def discarded
     Dir.mktmpdir do |dir|
       File.open(File.join(dir, "out.txt"), "w") do |file|
@@ -50,7 +45,6 @@ RSpec.describe(Kimera::Execution::ChildProcess) do
   describe "process groups" do
     def call(name, *) = reader.__send__(name, *)
 
-    # A forked child that took the lead, and the process group it reports.
     def led
       group, report = IO.pipe
       pid =
@@ -70,7 +64,6 @@ RSpec.describe(Kimera::Execution::ChildProcess) do
       expect(group).to(eq(pid))
     end
 
-    # A session leader may not move to another group: what lead answers in a forked one, and its group.
     def unmoved
       said, told = IO.pipe
       pid =
@@ -115,7 +108,6 @@ RSpec.describe(Kimera::Execution::ChildProcess) do
       expect(call(:signal, gone)).to(be_a(Errno::ESRCH))
     end
 
-    # Processes as a user may not signal one they do not own.
     def foreign = Class.new { def kill(_signal, target) = raise(Errno::EPERM, target.to_s) }.new
 
     it "shrugs off a process out of reach, answering why it could not signal it" do

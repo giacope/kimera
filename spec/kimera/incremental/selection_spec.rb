@@ -23,7 +23,7 @@ RSpec.describe(Kimera::Incremental::Selection) do
   let(:registry) { Kimera::RegistryScan.new.source(source, file: "calc.rb") }
 
   it "selects only mutants whose point overlaps a changed line" do
-    changed = { "calc.rb" => Set[3] } # the `x > y` line
+    changed = { "calc.rb" => Set[3] }
     ids = described_class.new(changed, "main").ids(registry)
 
     points = ids.map { |id| registry.index[id] }.uniq
@@ -31,12 +31,12 @@ RSpec.describe(Kimera::Incremental::Selection) do
   end
 
   it "returns nothing when changes miss every mutation point" do
-    changed = { "calc.rb" => Set[1, 4] } # class line + blank line
+    changed = { "calc.rb" => Set[1, 4] }
     expect(described_class.new(changed, "main").ids(registry)).to(be_empty)
   end
 
   it "selects all mutants on a multi-mutation changed line" do
-    changed = { "calc.rb" => Set[7] } # `x < y && y > 0`
+    changed = { "calc.rb" => Set[7] }
     ids = described_class.new(changed, "main").ids(registry)
     sources = ids.map { |id| registry.index[id].original_source }.uniq
     expect(sources).to(contain_exactly("x < y && y > 0", "x < y", "y > 0"))

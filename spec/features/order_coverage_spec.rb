@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-# Memo's cache-hit branch runs only when an earlier test filled the key, so
-# no test reaches it alone in a fresh process; the suite run in order does.
 RSpec.describe("kimera run on code only an earlier test's state reaches (end-to-end)", :aggregate_failures) do
   def files = {
     "app/memo.rb" => <<~RUBY,

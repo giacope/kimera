@@ -1,10 +1,5 @@
 # frozen_string_literal: true
 
-# Logs the real parent's steps as the transitions of formal/WorkerPool.tla
-# they should be, for TraceCheck to validate with formal/WorkerPoolTrace.tla
-# (see formal/README.md). The hooks are prepended by `record`, which the
-# property specs call inside the supervised fork: the classes in the test
-# process itself are never touched.
 module PoolTrace
   Step =
     Struct.new(:act, :w, :kind, :id, :reply, :offer, :recheck) do
@@ -13,7 +8,6 @@ module PoolTrace
       end
     end
 
-  # One run's steps, with the offer or close the step in progress sent.
   Recorder =
     Struct.new(:queue, :slots, :steps, :unassigned, :sent) do
       def log(act, slot, **fields) = steps << Step.of(act, slot, **fields).to_h
@@ -33,7 +27,6 @@ module PoolTrace
     end
   end
 
-  # WorkerPool: dispatching a line, the start of a line kept, the loop's end.
   module Pool
     def self.install = Kimera::Execution::WorkerPool.prepend(self)
 
@@ -71,14 +64,11 @@ module PoolTrace
 
     def partial?(worker) = !worker.__send__(:unread).to_s.empty?
 
-    # A new line was started: nothing was buffered, or a line was dispatched
-    # since (and so the buffered start before it was finished).
     def started?(worker, steps, partial)
       partial?(worker) && (!partial || PoolTrace.recorder.steps.size > steps)
     end
   end
 
-  # Fleet: spawns (logged with their first offer, by Pool#assign) and removals.
   module Fleet
     def self.install = Kimera::Execution::WorkerPool::Fleet.prepend(self)
 
@@ -96,7 +86,6 @@ module PoolTrace
     end
   end
 
-  # Worker: what the parent sends a child.
   module Requests
     def self.install = Kimera::Execution::WorkerPool::Worker.prepend(self)
 

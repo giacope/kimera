@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-# Cart's spec runs Price too, so by default it kills Price's mutants. Under
-# strict attribution only Price's own tests may, and it has none.
 RSpec.describe("kimera run --attribution unit (end-to-end)", :aggregate_failures) do
   def shop_files
     {
@@ -30,7 +28,6 @@ RSpec.describe("kimera run --attribution unit (end-to-end)", :aggregate_failures
     test_tree(shop_files, "kimera-attribution") { |root| test_outcome(cwd: root, arguments: arguments) }
   end
 
-  # What a unit-attributed run says of Price's mutants and of the rest.
   def unit_facts(run, price)
     {
       statuses: price.map { |r| r["status"] }.uniq, covering: price.first["covering_tests"],

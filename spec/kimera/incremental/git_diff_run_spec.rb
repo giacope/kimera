@@ -48,9 +48,6 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
       expect(changed["calc.rb"]).to(include(2))
     end
 
-    # main moved on after the branch point; only the branch's own changes,
-    # committed or not, belong to it.
-    # A feature branch off main, both moved on, uncommitted work on top; main's name.
     def branched
       commit("calc.rb", "a = 1\nb = 1\nc = 1\n", "init")
       git("branch", "-q", "feature", dir: dir)
@@ -72,7 +69,6 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
         .to(raise_error(Kimera::Incremental::DiffError, /git diff against "no-such-ref" failed \(unknown ref/))
     end
 
-    # A one-commit clone of a two-commit history.
     def shallow
       commit("calc.rb", "x = 1\n", "init")
       commit("calc.rb", "x = 2\n", "next")
@@ -87,7 +83,6 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
     end
 
     it "appends no bare paths separator when paths is absent" do
-      # A trailing bare `--` would force git to read "calc.rb" as a revision.
       commit("calc.rb", "def a\n  1\nend\n", "init")
       edit("calc.rb", "def a\n  2\nend\n")
       changed = described_class.new(since: "calc.rb", root: dir).lines

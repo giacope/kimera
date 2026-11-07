@@ -4,11 +4,9 @@ require "kimera/execution/suite_capture"
 require "stringio"
 require "tmpdir"
 
-# K3-2: doctor waited forever on a suite that never exits.
 RSpec.describe(Kimera::Execution::SuiteCapture, :aggregate_failures) do
   let(:said) { StringIO.new }
 
-  # A suite that never exits, watched with +elapsed+ seconds since the start, one reading per poll.
   def polled(*elapsed, limit:, clock: FakeClock.new(0.0, *elapsed))
     capture = described_class.new(said, Kimera::Execution::SuiteEnv.new, clock)
     Dir.mktmpdir { |root| capture.timed("sleep", "30", chdir: root, limit: limit) }
@@ -25,13 +23,11 @@ RSpec.describe(Kimera::Execution::SuiteCapture, :aggregate_failures) do
     expect(said.string).to(eq("kimera: the suite is still running (1 s)…\n" * 2))
   end
 
-  # Waits for the suite, or bounds it when given a limit.
   def suite(said, limit, *command, chdir:)
     capture = described_class.new(said)
     limit ? capture.timed(*command, chdir: chdir, limit: limit) : capture.call(*command, chdir: chdir)
   end
 
-  # A suite's background child shares its process group.
   def orphan(limit)
     Dir.mktmpdir do |root|
       output, = suite(said, limit, "sh", "-c", "sleep 30 & echo $!", chdir: root)
@@ -56,7 +52,6 @@ RSpec.describe(Kimera::Execution::SuiteCapture, :aggregate_failures) do
     expect(orphan(10)).to(eq(:gone))
   end
 
-  # R4-KR2: Ctrl-C on doctor left the suite running, holding every inherited descriptor.
   def interrupted(limit)
     Dir.mktmpdir do |root|
       pidfile = File.join(root, "pid")

@@ -8,8 +8,6 @@ require "kimera/synthesis/overlay"
 
 using PointFields
 
-# super_call, rescue_clause and ensure_clause: what each one targets, what it
-# leaves alone, and that the woven method behaves as the mutant when flipped.
 RSpec.describe(Kimera::Operators) do
   def scan(code, *keys)
     Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(code, file: "c.rb")
@@ -29,7 +27,6 @@ RSpec.describe(Kimera::Operators) do
 
   def active(id, &) = Kimera::RUNTIME.during(id, &)
 
-  # R5 (CodeTriage): `Repo#color`'s seven branches had no mutant with init's operators.
   describe "when_clause" do
     let(:code) { <<~RUBY }
       class ClauseTier
@@ -65,7 +62,6 @@ RSpec.describe(Kimera::Operators) do
     end
   end
 
-  # R5 (Rails apps): 205 non-tail `<<` statements were never mutated by any operator.
   describe "append_deletion" do
     let(:code) { <<~RUBY }
       class ClauseLog
@@ -211,8 +207,6 @@ RSpec.describe(Kimera::Operators) do
       expect(rendered(code, "rescue_clause")).to(eq(["def m(v)\n  Integer(v)\nend"]))
     end
 
-    # R6B5-M2, R6B6-M2: the clause is guarded where it stands, on the clause
-    # alone, so no line of the method moves, with its mutant off or on.
     it "guards a method's own clause inside its body, on the method's lines", :aggregate_failures do
       code = "class Plain\n  def m(v)\n    Integer(v)\n  rescue ArgumentError\n    0\n  end\nend\n"
       source = Kimera::Overlay.new(scan(code, "rescue_clause")).synthesize("c.rb", code).to_s

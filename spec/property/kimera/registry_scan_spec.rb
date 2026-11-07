@@ -5,14 +5,6 @@ require "kimera/registry/builder"
 
 using PointFields
 
-# The registry scan reads any Ruby it is given without raising (R6B6-M1: a
-# method that opened with `if x` / `else ...` / `end` stopped every run whose
-# scope held it). Scanned with every operator: shapes the field corpus held,
-# kimera's own fixtures, and a seeded sample of the installed gems' files;
-# each scan must end, report no file as one it could not scan, and anchor
-# every point at its source. A file the scan trips on anyway is reported and
-# skipped (spec/kimera/registry_scan_deferred_spec.rb). `PBT_SCALE` widens
-# the sample and `PBT_SEED` picks another.
 RSpec.describe(Kimera::RegistryScan) do
   def unscanned_reason = "kimera could not scan it, so nothing in it is mutated (a kimera bug, please report it): "
 

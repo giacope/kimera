@@ -7,27 +7,6 @@ require "kimera/synthesis/overlay"
 
 using PointFields
 
-# Every mutant kimera writes is the mutant: for each point and operator over
-# kimera's own sources, the example apps and a fixed set of shapes the field
-# corpus holds, the bake parses, differs from the original, and reads back as
-# the mutated tree. Both sides are read the way kimera reads every file
-# (numbered parameters named), written once by Scribe (which spells a sign, a
-# heredoc or a call one way) and compared as TreeShape, a lone expression in
-# parentheses being that expression. A factory-built constant is reopened on
-# both sides alike. Every bake, and the warm overlay with every mutant off,
-# keeps the file's line layout: as many lines, each definition on its line,
-# and every line after the mutation (the point, the bodies of the heredocs it
-# holds, and the %i/%w list that holds it) as it was, so no node after the
-# mutation point moves: not `__LINE__`, a backtrace line, nor the `__LINE__ + 1` a `class_eval` heredoc
-# hands down. With every mutant off the overlay reads as the file, each node
-# on its line, the methods and classes it writes whole too. A bake kimera
-# refuses names an unbound local, or drops the newline a heredoc's text ends
-# with: the mutants it cannot write. A dropped rescue or ensure clause keeps
-# every line inside the mutation too (R6B6-M2): its bake is the method with
-# each node on its line, and with its mutant on the warm overlay runs those
-# same nodes on those same lines.
-# A seeded sample of files keeps it fast; `PBT_SCALE` widens it and
-# `PBT_SEED` picks another.
 RSpec.describe(Kimera::Overlay) do
   shapes = {
     "heredoc statements" => <<~'RUBY',
@@ -271,8 +250,6 @@ RSpec.describe(Kimera::Overlay) do
     "unbakeable: #{error.message}" unless error.message.include?("Kimera::Scribe::Unbound") || ended?(source, point)
   end
 
-  # A heredoc's text ends with a newline, so the mutant that drops the newline
-  # of its last line has no heredoc to be written as, and kimera refuses it.
   def ended?(source, point)
     finish = point.location.finish
     found = []
@@ -288,10 +265,6 @@ RSpec.describe(Kimera::Overlay) do
     laid(baked, source) || following(baked, map, point) || misread.call
   end
 
-  # The first line after the mutation that the bake changes, if one is: the
-  # mutation owns the point's lines and the bodies of the heredocs it holds;
-  # the original is compared with a factory-built constant reopened, as the
-  # bake writes it.
   def following(baked, map, point)
     original = map.splice(Kimera::SpliceReopening.new(map).edits).lines
     last = ending(map, point.location)
@@ -308,15 +281,11 @@ RSpec.describe(Kimera::Overlay) do
     [*last, *node.compact_child_nodes.flat_map { |child| held(child, location) }]
   end
 
-  # A %i/%w list owns its lines: no element carries a line number.
   def worded?(node, location)
     node.type == :array_node && node.opening_loc&.slice&.start_with?("%") &&
       location.inside?(node.location.start_offset, node.location.end_offset)
   end
 
-  # R6B6-M2: a dropped clause's bake is the mutated method, each node on its
-  # line, and the warm overlay with that mutant on runs the same nodes on the
-  # same lines (read as SchemataProjection reads a guarded clause).
   def clause(bake, source, mutant, point, weave)
     return unless %w[drop_rescue drop_ensure].include?(mutant.to_h.fetch("directive")["type"])
     mutated = Kimera::Guardrail.new(Kimera::SourceMap.new(source), []).changes(point, mutant.rewrite(Kimera::Rewrite::Directive)).last.last
@@ -341,9 +310,6 @@ RSpec.describe(Kimera::Overlay) do
 
   def holds?(node, line) = node.type == :def_node && (node.location.start_line..node.location.end_line).cover?(line)
 
-  # Each node of a method by type and line, a begin read with its guarded
-  # clauses settled (one that rescues nothing gone, an empty ensure gone);
-  # not `nil`, which a visibility mutant's probe reduces to.
   def placed(node)
     return [] unless node
     node = SchemataProjection.settled(node) if node.type == :begin_node
@@ -354,11 +320,6 @@ RSpec.describe(Kimera::Overlay) do
 
   def woven(written, source) = laid(written, source) || unwoven(written, source)
 
-  # The warm overlay with every mutant off, read as each guard's original
-  # side, must be the file, every node on its line (R6B5-M2: a method or a
-  # class written whole sat on its first line, so `__LINE__` and every
-  # backtrace in it moved), against the file with its factory-built
-  # constants reopened, as the overlay writes them.
   def unwoven(written, source)
     map = Kimera::SourceMap.new(source)
     original = read(map.splice(Kimera::SpliceReopening.new(map).edits))
@@ -366,8 +327,6 @@ RSpec.describe(Kimera::Overlay) do
       Kimera::Unwoven.new(Kimera::Scribe.parse(written)).keeps?([original])
   end
 
-  # How a written file moves the original's lines, if it does: a different
-  # line count, or a definition outside the rewritten ones on another line.
   def laid(written, source)
     lines = [written, source].map { |text| text.lines.size }
     lines.uniq.one? ? moved(written, source) : "breaks #{lines.first} lines for #{lines.last}"

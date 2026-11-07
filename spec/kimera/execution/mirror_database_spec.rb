@@ -2,11 +2,7 @@
 
 require "kimera/execution/mirror_database"
 
-# Each isolated mirror past the first takes a test database of its own, the
-# way Rails' parallel test workers do, so concurrent mirrors never share rows.
 RSpec.describe(Kimera::Execution::MirrorDatabase, :aggregate_failures) do
-  # rails: which of ActiveRecord and Rails' parallel testing are loaded, and
-  # whether ActiveSupport answers parallelize_test_databases.
   def test_rails(rails, parallel, answers, calls)
     record if rails.include?(:record)
     stub_const("ActiveSupport", Module.new) unless defined?(ActiveSupport)
@@ -17,15 +13,12 @@ RSpec.describe(Kimera::Execution::MirrorDatabase, :aggregate_failures) do
     ActiveSupport::Testing::Parallelization.define_singleton_method(:after_fork_hooks) { hooks }
   end
 
-  # An Active Record whose test database has its schema dump to load (or none at +schema+).
   def record(schema = __FILE__)
     stub_const("ActiveRecord::Tasks::DatabaseTasks", FakeRails::Tasks.new(schema))
     stub_const("ActiveRecord::ConnectionHandling::DEFAULT_ENV", -> { "test" })
     stub_const("ActiveRecord::Base", FakeRails::Base.new(FakeRails::Config.new("postgresql", "app_test")))
   end
 
-  # What a mirror in +slot+ adopting its database answers, the hooks it ran,
-  # and whether it loaded Rails' test databases.
   def test_adopted(slot, parallel: true, rails: %i[record testing], answers: true)
     calls = []
     test_rails(rails, parallel, answers, calls)
@@ -58,7 +51,6 @@ RSpec.describe(Kimera::Execution::MirrorDatabase, :aggregate_failures) do
     end
   end
 
-  # K3-4: before 8.1 Rails had no switch: its hook always renamed the database.
   it "renames the database on a Rails before 8.1, which has no switch" do
     _adopted, calls, loaded = test_adopted(1, answers: false)
     expect([calls, loaded]).to(eq([[1], true]))

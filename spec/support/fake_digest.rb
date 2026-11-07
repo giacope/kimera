@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-# What a run tells the person running it, as Kimera::CLI::Run::Digest says it:
-# it writes down each thing it was asked to say, in order.
 class FakeDigest
   attr_reader :said
 
@@ -20,14 +18,9 @@ class FakeDigest
     @said.push([:emit, report, registry, heard])
   end
 
-  # Each report it emitted, with the registry and what its delivery asked of the emission.
   def emitted = @said.filter_map { |kind, *heard| heard if kind == :emit }
 end
 
-# The warnings and the gate of a run, as Kimera::CLI::Run::Alerts gives them:
-# its gate answers the status it was given and writes down each report it
-# gated, with the settings it gated it by, and the ignore entries it was told
-# are stale or moved.
 class FakeAlerts
   attr_reader :gated, :warned
 

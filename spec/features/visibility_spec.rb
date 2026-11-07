@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-# The visibility operator end to end: the warm run flips a method private on
-# activation, and its verdicts match the isolated tier's, which bakes
-# `private(:name)` into a fresh copy of the project.
 RSpec.describe("kimera run --operators visibility (end-to-end)") do
   def files = {
     "app/ledger.rb" => <<~RUBY,

@@ -57,8 +57,6 @@ RSpec.describe(Kimera::CLI::TestShard) do
     end
   end
 
-  # Kimera's own specs load and run spec files inside an example: those
-  # examples are the test's, not the suite's, and none may be dealt out.
   it "deals out the loaded RSpec examples in turn, and none defined while they run" do
     source = <<~RUBY
       RSpec.describe("outer") do
@@ -66,7 +64,6 @@ RSpec.describe(Kimera::CLI::TestShard) do
         it("defines its own") { expect(RSpec.describe("inner") { 4.times { |i| it("\#{i}") {} } }.descendant_filtered_examples.size).to(eq(4)) }
       end
     RUBY
-    # The second process runs the inner group's four too, where it was defined.
     expect(test_shards("rspec", source)).to(eq([[2, true], [6, true]]))
   end
 
@@ -81,9 +78,6 @@ RSpec.describe(Kimera::CLI::TestShard) do
     expect(test_shards("minitest", source)).to(eq([[2, true], [2, true]]))
   end
 
-  # Run at once, two shards of a Rails suite each forked Rails' own workers,
-  # and those shared test.sqlite3_0 and the rest: "database is locked".
-  # Each of two shards' exit status, the suite written to dir.
   def sharded(dir)
     File.write(File.join(dir, "shard_test.rb"), rails_suite)
     [0, 1].map do |index|

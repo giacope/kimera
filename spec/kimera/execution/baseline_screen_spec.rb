@@ -7,7 +7,6 @@ require "tmpdir"
 using ResultFields
 
 RSpec.describe(Kimera::Execution::BaselineScreen) do
-  # Reruns ids "plainly": the ids in `red` fail; `ran` records each argv.
   def suite(red: [], output: "", ran: [])
     lambda do |*argv, chdir:|
       ran << [argv, chdir]
@@ -16,7 +15,6 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
     end
   end
 
-  # A suite of three tests whose selections rerun plainly, if +plain+, as this +selection+ does.
   def adapter(plain: true, selection: rerunning(plain))
     Class.new(Kimera::Frameworks::Suite) do
       def test_ids = %w[t1 t2 t3]
@@ -50,7 +48,6 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
     expect([argv.first(3), chdir]).to(eq([%w[plain t1 t2], "/project"]))
   end
 
-  # K3-3: tests red only under kimera were dropped as "covering nothing".
   def harness_error(**)
     screen(**).call(failures)
   rescue Kimera::Execution::BaselineFailure => error
@@ -64,7 +61,6 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
     expect(message).to(include("\n  plain run: rspec t1 t2 --order defined\n"))
   end
 
-  # A project at +root+ whose suite took a method as a Method at load, which kimera redefined since; the taken one.
   def captured(root)
     file = File.join(root, "coerce.rb").tap { |path| File.write(path, "def ScreenCoerce.to_int(value) = value\n") }
     stub_const("ScreenCoerce", Module.new)
@@ -72,7 +68,6 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
     ScreenCoerce.method(:to_int).tap { load(file) }
   end
 
-  # R4-KL9: dry-types holds `Coercions::Params.method(:to_int)` from load.
   it "names a method the suite took at load before any other cause", :aggregate_failures do
     Dir.mktmpdir do |root|
       taken = captured(root)
@@ -94,7 +89,6 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
     expect(message).not_to(include("\n  t2"))
   end
 
-  # R4-KR1: a lost test's worker left its after-fork hook's error and frame.
   it "lists what a lost test's worker left under its message", :aggregate_failures do
     left = "exited 1\nworker 0's after-fork setup raised RuntimeError: no index\n  test/test_helper.rb:9\n  a\n  b"
     listed = "\n  t1: its worker died before reporting a result\n    exited 1\n    worker 0's after-fork setup " \
@@ -109,7 +103,6 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
     expect(error.message).to(include("\n  t5: boom\n  … and 2 more\n"))
   end
 
-  # R5-KW4: the red tests that reached a mutant are screened the same way.
   it "stops on the red tests that pass plainly, and lets the run go on when they fail plainly too",
     :aggregate_failures do
     expect { screen.plainly!(failures) }.to(raise_error(Kimera::Execution::BaselineFailure, /\Aharness error: 2 test/))
@@ -131,7 +124,6 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
     expect(screen(with: adapter(plain: false)).call(failures)).to(include("2 test(s) fail in the baseline"))
   end
 
-  # A plain run whose report at its out path plus this suffix does not parse, or is not there.
   def unreadable(suffix)
     selection =
       Class.new(Kimera::Frameworks::BareSelection) do

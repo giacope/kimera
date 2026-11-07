@@ -3,8 +3,6 @@
 require "json"
 require "kimera/execution/pool_driver"
 
-# A shift a pool duty runs: it writes down each errand it serves, with the
-# pipe ends it serves it on.
 class FakeShift
   attr_reader :served
 
@@ -15,9 +13,6 @@ class FakeShift
   def coverage(request, response) = @served.push([:coverage, request, response])
 end
 
-# A worker's test databases, as Kimera::Execution::WorkerDatabases sets them
-# up after a fork and tears them down before the worker exits: it writes down
-# each worker, and its setup runs the block it was given.
 class FakeDatabases
   attr_reader :forked, :exited
 
@@ -35,11 +30,6 @@ class FakeDatabases
   def before_exit(index) = @exited.push(index)
 end
 
-# A pool duty for worker +index+, on real pipes. It writes down on +notes+,
-# a JSON line each, what the process that ran it looked like (whether it led
-# its own process group and had closed the parent's pipe ends), each pulse,
-# and how it was retired; from a forked worker, +notes+ is the pipe the
-# parent reads. It prints to standard output as it runs, as tests do.
 class FakeDuty
   def initialize(index, notes, pipes = Kimera::Execution::Pool::Channels.new(*IO.pipe, *IO.pipe))
     @index = index
@@ -49,7 +39,6 @@ class FakeDuty
 
   def child! = @pipes.child!
 
-  # Sets the worker's databases up as the real duty does.
   def prepare(database) = Kimera::Execution::Pool::Duty.new(:serve, @index, @pipes).prepare(database)
 
   def run(shift)

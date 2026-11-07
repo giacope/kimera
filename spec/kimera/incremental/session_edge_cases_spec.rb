@@ -29,7 +29,6 @@ RSpec.describe(Kimera::Incremental::Session) do
     expect([report.to_a.map(&:killed?), report.notes.to_h["leaks"]]).to(eq([[true], [leak]]))
   end
 
-  # Saves at +path+, then saves again what it resumed from there: the meta the second save found.
   def resaved(path, registry = Kimera::Registry.new)
     described_class.new.save(path, registry, meta: { "since" => "main" })
     described_class.from(path).save(path, registry, meta: { "extra" => "v" })

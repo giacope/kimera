@@ -39,7 +39,7 @@ RSpec.describe(Kimera::IgnoreList) do
 
   it "matches all mutants on a line when only file + line given" do
     ids = ids(file: "calc.rb", line: 3)
-    expect(ids.size).to(eq(2)) # both > variants
+    expect(ids.size).to(eq(2))
   end
 
   it "matches only points that start on the line given as starts:, not ones spanning it", :aggregate_failures do
@@ -107,8 +107,6 @@ RSpec.describe(Kimera::IgnoreList) do
     expect(pinned.map { |id| registry.index[id].location.to_h.fetch("start_column") }.uniq).to(eq([first_column]))
   end
 
-  # The report and the text report print 1-based columns; an entry copied
-  # from either must match.
   it "reads the column 1-based, as the report prints it, not 0-based" do
     expect(ids(file: "calc.rb", line: 3, column: first_column)).to(be_empty)
   end

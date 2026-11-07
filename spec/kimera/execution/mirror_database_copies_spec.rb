@@ -2,12 +2,9 @@
 
 require "kimera/execution/mirror_database"
 
-# A mirror whose database Rails' hook cannot load from a schema file takes the
-# copy the parent made of its prepared database.
 RSpec.describe(Kimera::Execution::MirrorDatabase) do
   let(:copies) { FakeCopies.new }
 
-  # A Rails with parallel testing, whose test database has no schema file to load each mirror's copy from.
   before do
     stub_const("ActiveRecord::Base", FakeRails::Base.new(FakeRails::Config.new("postgresql", "app_test")))
     stub_const("ActiveRecord::Tasks::DatabaseTasks", FakeRails::Tasks.new("/no/such/schema.rb"))

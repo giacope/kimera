@@ -13,9 +13,6 @@ RSpec.describe("kimera run with the Minitest adapter") do
     expect([run.verdicts.key("survived"), run.status]).to(eq([14, 2]))
   end
 
-  # R6B3-M1: Rake::TestTask runs `ruby -w` by default; mechanize asserts on a
-  # deprecation it prints only `if $VERBOSE`, green under `rake test`, so the
-  # baseline kimera ran without -w was red.
   def warned = {
     "Rakefile" => "require \"rake/testtask\"\nRake::TestTask.new { |t| t.pattern = \"test/*_test.rb\" }\n",
     "app/legacy.rb" => <<~RUBY,

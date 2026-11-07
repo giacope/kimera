@@ -2,9 +2,6 @@
 
 require "kimera/frameworks/seed"
 
-# Two of Coin's tests draw a random number and fail on half the draws. Kimera
-# seeds each test from --seed and the test's id, so the seed picked here
-# passes the baseline and fails a rerun with another seed.
 RSpec.describe("kimera run --flaky-runs (end-to-end)", :aggregate_failures) do
   let(:shaky) { ["./spec/coin_spec.rb[1:1]", "./spec/coin_spec.rb[1:3]"] }
 
@@ -33,7 +30,6 @@ RSpec.describe("kimera run --flaky-runs (end-to-end)", :aggregate_failures) do
     report["results"].group_by { |r| r["method"] }.transform_values { |rs| rs.map { |r| r["status"] }.uniq }
   end
 
-  # The flaky-test tally a reseeded run reported.
   def tally(report)
     flaky = report.fetch("flaky_tests")
     {
@@ -42,7 +38,6 @@ RSpec.describe("kimera run --flaky-runs (end-to-end)", :aggregate_failures) do
     }
   end
 
-  # The verdicts a reseeded run left, and the settings its report records.
   def verdicts_of(report)
     rows = report["results"]
     {
@@ -68,13 +63,11 @@ RSpec.describe("kimera run --flaky-runs (end-to-end)", :aggregate_failures) do
       .to(include("Flaky tests (2), in 2 rerun(s) of 3 covering test(s), seeds #{seed + 1}, #{seed + 2}:"))
   end
 
-  # A child that seeded its tests otherwise would see the flaky tests fail in the unmutated mirror.
   it "seeds the isolated tier's tests as the warm path does" do
     run = coin(["--seed", seed.to_s, "--isolated"])
     expect(by_method(run.report).fetch("big?")).to(eq(["killed"]), run.output)
   end
 
-  # The verdicts of a run given only a seed, which keeps no flaky tally and lets the flaky tests kill.
   def seeded_verdicts
     report = coin(["--seed", seed.to_s]).report
     expect(report).not_to(have_key("flaky_tests"))

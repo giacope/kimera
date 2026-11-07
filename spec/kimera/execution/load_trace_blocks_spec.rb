@@ -12,8 +12,6 @@ require "tmpdir"
 using ResultFields
 using PointFields
 
-# R3K2: a lambda a class body calls to build a constant ran only while the
-# file loaded, before warm coverage starts, and read as "no covering test".
 RSpec.describe(Kimera::Execution::LoadTrace, :aggregate_failures) do
   let(:source) do
     <<~RUBY
@@ -69,16 +67,12 @@ RSpec.describe(Kimera::Execution::LoadTrace, :aggregate_failures) do
     expect(point("val >= 0").reasons(Kimera::Reason.unsafety).first).to(eq(Kimera::Reason::LOAD_REASON))
   end
 
-  # A macro that defines a method with def at load: the method holds what
-  # the original macro defined, which the warm overlay cannot replace.
-  # A file whose class body runs a macro that defines a method with def.
   def macro_file
     File.join(dir, "nested.rb").tap do |path|
       File.write(path, "class LoadBlocks\n  def self.make\n    def built(a) = a > 1\n  end\n  make\nend\n")
     end
   end
 
-  # A scan of the files, and a trace that recorded loading some of them.
   def recorded(files, loads)
     scan = Kimera::RegistryScan.new(root: dir).build(files)
     [scan, described_class.new(scan, dir).tap { |watched| watched.record { loads.each { |path| load(path) } } }]
@@ -116,7 +110,6 @@ RSpec.describe(Kimera::Execution::LoadTrace, :aggregate_failures) do
       expect(only?("")).to(be(true))
     end
 
-    # R5-KL4: a class body runs as it loads (`@limit = 100`, `after Parser`).
     it "holds a class or module body only of definitions, constants, requires and declarations" do
       nested = "module A\n  require \"x\"\n  B = 1\n  class C < A::D\n    def c = 1\n    def self.d = 2\n  end\n  " \
         "class << self\n    def e = 3\n  end\nend\n"
@@ -142,7 +135,6 @@ RSpec.describe(Kimera::Execution::LoadTrace, :aggregate_failures) do
     end
   end
 
-  # K3-7: a file the suite never loads is uncovered, and never evaluated.
   it "reports a never-loaded point uncovered, not isolated, and never reloads it" do
     found = point("val >= 0")
     found.mark!(Kimera::Reason.unloaded)

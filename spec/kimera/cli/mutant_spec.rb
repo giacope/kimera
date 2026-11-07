@@ -20,7 +20,6 @@ RSpec.describe(Kimera::CLI::Mutant, :aggregate_failures) do
     Kimera::RunReport.new(results: [row], registry: registry).annotate(run: provenance).to_h
   end
 
-  # The arguments of the run a --rerun of mutant +id+ in +document+ asks for.
   def rerun(id, document)
     run = FakeRun.new
     Dir.mktmpdir do |dir|
@@ -36,11 +35,6 @@ RSpec.describe(Kimera::CLI::Mutant, :aggregate_failures) do
     [registry, *registry[id]]
   end
 
-  # A rerun scans only the mutant's file, where ordinals restart at 1, so
-  # focusing the report's ordinal missed a second file's mutant ("not in
-  # scope") or picked a different one. It focuses the key instead.
-  # In the sample's full scan: the scan, a mutant of a later file, its point,
-  # and the arguments of its rerun.
   def later_rerun
     full = Kimera::RegistryScan.new.build(Dir["app/**/*.rb"])
     mutant, point = full.each.find { |found, spot| spot.file.end_with?("pricing.rb") && found.to_s == "> => >=" }

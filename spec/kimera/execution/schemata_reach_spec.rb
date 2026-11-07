@@ -7,8 +7,6 @@ require "tmpdir"
 
 using PointFields
 
-# K3-7: the overlay evaluated a generator template nothing loads, which
-# reassigned the suite's own settings inside the test process.
 RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
   let(:dir) { Dir.mktmpdir }
 
@@ -52,7 +50,6 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
     expect(point(registry, "reach_template.rb").reasons(Kimera::Reason.unloaded).any?).to(be(false))
   end
 
-  # A registry of the one file, overlaid as if the suite had loaded nothing.
   def unasked(name, body)
     path = write(name, body)
     registry = Kimera::RegistryScan.new(root: dir).build([path])
@@ -61,7 +58,6 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
 
   def unsafe_reason(registry, file) = PointVerdict.new(point(registry, file)).unsafe_reason
 
-  # R5-KL4: slim's include.rb (`after Parser, Include` in its class body) ran in every worker.
   it "never evaluates a file the suite did not load when a class body in it runs code", :aggregate_failures do
     stub_const("ReachCore", Module.new)
     registry, loader = unasked("reach_plugin.rb", "module ReachCore\n  @limit = 100\n  def self.big?(n) = n > 1\nend\n")
@@ -70,7 +66,6 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
     expect(unsafe_reason(registry, "reach_plugin.rb")).to(eq(Kimera::Reason::NEVER_LOADED))
   end
 
-  # R5-KL4: i18n's key_value.rb needs a gem the suite never loads: 45 mutants were unmutatable, unscored.
   it "reports a file the suite did not load, and kimera could not, uncovered with the error", :aggregate_failures do
     source = "require \"reach_no_such_gem\"\nmodule ReachOptional\n  def self.big?(n) = n > 1\nend\n"
     registry, loader = unasked("reach_optional.rb", source)
@@ -79,7 +74,6 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
     expect(unsafe_reason(registry, "reach_optional.rb")).to(eq("#{Kimera::Reason::NEVER} #{failed}"))
   end
 
-  # A file whose class the suite reaches through an autoload that raises on load.
   def broken_autoload
     stub_const("ReachLazy", Module.new).autoload(:Broken, write("reach_broken.rb", "raise \"broken on load\"\n"))
     "module ReachLazy\n  class Broken\n    def self.big?(n) = n > 1\n  end\nend\nReachLazy::Broken.big?(1)\n"
@@ -92,7 +86,6 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
     expect(unsafe_reason(registry, "reach_lazy.rb")).to(eq("#{Kimera::Reason::NEVER} #{failed}"))
   end
 
-  # R5-KL5: kramdown's parser registry (`@@parsers = {}` in an autoloaded class body) was emptied.
   it "loads an autoloaded file as the suite would, then trims it, so its class body runs once", :aggregate_failures do
     stub_const("ReachReg", Module.new)
     ReachReg.autoload(:Table, File.join(dir, "reach_table.rb"))
@@ -109,9 +102,6 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
       .to(match([include(*point(registry, "reach_table.rb").ids), { a: 1 }]))
   end
 
-  # kramdown's parser/kramdown/list.rb (`define_parser(:list, ...)` in its class body) is required by the
-  # autoloaded parser/kramdown.rb: 1157 mutants read "never loads this file". The file the autoload names is out
-  # of scope here, as under --since.
   def chained
     stub_const("ReachChain", Module.new)
     ReachChain.autoload(:Table, write("reach_table.rb", <<~RUBY))
@@ -139,8 +129,6 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
     expect([loader.overlay!, ReachChain::Table::ROWS]).to(match([include(*rows), { b: 1 }]))
   end
 
-  # A file the suite never loads opens a class that shares a name with a constant its superclass would
-  # autoload: that file is not one the suite would load.
   def stray
     stub_const("ReachBase", Class.new)
     stub_const("ReachKid", Class.new(ReachBase))
@@ -154,7 +142,6 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
     expect(ReachSettings).not_to(have_key(:stray))
   end
 
-  # The project reached through a symlink: Ruby records the file the autoload loaded by its real path.
   it "knows such a file loaded by its real path too", :aggregate_failures do
     registry, = chained
     File.symlink(dir, link = File.join(dir, "linked"))

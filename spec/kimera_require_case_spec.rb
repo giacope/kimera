@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-# `require "english"` loads on a case-insensitive filesystem (macOS) and
-# crashes at boot on Linux. Resolve every library require and insist the file
-# found is spelled exactly like the feature, so the check bites on either host.
 RSpec.describe(Kimera) do
   def test_features
     Dir[File.expand_path("../lib/**/*.rb", __dir__)].flat_map do |file|

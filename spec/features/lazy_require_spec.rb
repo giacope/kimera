@@ -1,9 +1,6 @@
 # frozen_string_literal: true
 
 RSpec.describe("a source file the suite requires lazily") do
-  # dry-validation loads its extensions on demand. The overlay evaluated such a
-  # file before the suite did, so the suite's own require loaded the original
-  # over the guarded methods: the covered mutants read as no_coverage, exit 0.
   def write(fixture, loader)
     FileUtils.mkdir_p(File.join(fixture, "app"))
     FileUtils.mkdir_p(File.join(fixture, "spec"))

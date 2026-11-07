@@ -1,10 +1,5 @@
 # frozen_string_literal: true
 
-# A suite whose tests share a path (thor's spec/sandbox, sinatra's
-# test/file.txt) is green in one process and red on several workers. The red
-# parallel baseline listed every failing test on one line and said nothing
-# about --jobs 1, and doctor --check-baseline, which ran it in one process,
-# called it green.
 RSpec.describe("a suite that shares a path between tests (end-to-end)") do
   def test_store = <<~RUBY
     require "fileutils"
@@ -23,8 +18,6 @@ RSpec.describe("a suite that shares a path between tests (end-to-end)") do
     end
   RUBY
 
-  # Each test writes its own value to the one shared file, waits, and reads
-  # it back: on two workers the other writes (or deletes) it meanwhile.
   def test_shared(root, store)
     FileUtils.mkdir_p(%w[app spec test].map { |dir| File.join(root, dir) })
     File.write(File.join(root, "app", "store.rb"), store)
@@ -88,7 +81,6 @@ RSpec.describe("a suite that shares a path between tests (end-to-end)") do
 
   let(:red) { "! Parallel baseline: red split across 2 processes (jobs: 2), green in one: " }
 
-  # R5-KW4: green when rerun plainly, so a harness error, not "not green".
   def forked_hint = "likely cause: they ran in workers forked from the one process that loaded the suite"
 
   it "names --jobs 1 as the check when the baseline is red on two workers", :aggregate_failures do

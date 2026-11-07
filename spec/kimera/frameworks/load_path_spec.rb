@@ -4,8 +4,6 @@ require "fileutils"
 require "kimera/frameworks/load_path"
 require "tmpdir"
 
-# One rule for every place kimera loads or names a test file: run, doctor,
-# the isolated child and the printed reproduce command.
 RSpec.describe(Kimera::Frameworks::LoadPath) do
   let(:root) { File.realpath(Dir.mktmpdir) }
 

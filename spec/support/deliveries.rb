@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-# The delivery Kimera::CLI::Run::Cycle hands its emission, with the plain
-# defaults wherever a spec names no setting: no saved report, text, no
-# metadata, coverage hinted at, no log, no scope notes and no summary.
 module Deliveries
   PLAIN = { path: nil, format: "text", metadata: nil, coverage: :hint, log: nil, scope: [], summary: nil }.freeze
 
@@ -17,9 +14,6 @@ end
 
 RSpec.configure { |config| config.include(Deliveries) }
 
-# An emission that keeps what a delivery asked of it: the path it saved to
-# (nil when it only rendered), the scope notes and coverage it rendered with,
-# the format it presented in and the run metadata of the document.
 class FakeEmission
   attr_reader :heard
 

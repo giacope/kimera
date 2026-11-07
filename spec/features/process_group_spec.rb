@@ -10,7 +10,6 @@ RSpec.describe("processes a test starts") do
   def scaffold(fixture)
     FileUtils.mkdir_p(File.join(fixture, "app"))
     FileUtils.mkdir_p(File.join(fixture, "spec"))
-    # Deleting the push hangs the loop, and the worker running it.
     File.write(File.join(fixture, "app", "countdown.rb"), <<~RUBY)
       # frozen_string_literal: true
       class Countdown
@@ -24,7 +23,6 @@ RSpec.describe("processes a test starts") do
         end
       end
     RUBY
-    # The "server" holds a shared lock on server.lock for as long as it lives.
     File.write(File.join(fixture, "spec", "countdown_spec.rb"), <<~RUBY)
       # frozen_string_literal: true
       require_relative "../app/countdown"
@@ -58,7 +56,6 @@ RSpec.describe("processes a test starts") do
     false
   end
 
-  # Only if the fix is missing: don't leave its servers running.
   def stop(servers)
     File.readlines(servers).each { |pid| stop!(Integer(pid)) } if File.exist?(servers)
   end
@@ -69,7 +66,6 @@ RSpec.describe("processes a test starts") do
     nil
   end
 
-  # The run, and whether every server it started was gone once it ended.
   def warm_run
     Dir.mktmpdir("kimera-process-group") do |fixture|
       scaffold(fixture)

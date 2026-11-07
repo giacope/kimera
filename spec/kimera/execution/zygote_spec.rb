@@ -5,7 +5,6 @@ require "kimera/execution/zygote"
 RSpec.describe(Kimera::Execution::Zygote) do
   subject(:zygote) { described_class.new }
 
-  # How a death ends the worker that echoes it.
   let(:ending) do
     Class.new do
       def die_of(signal) = [:signal, signal]
@@ -93,12 +92,9 @@ RSpec.describe(Kimera::Execution::Zygote) do
     end
   end
 
-  # The child's half runs only in a forked child, where no coverage reaches;
-  # run it here, with exits that write the code down instead of exiting.
   describe "the child's half, run here" do
     let(:exits) { FakeExits.new }
 
-    # The reply of a zygote whose child half ran here.
     def spawned(saved)
       reader, writer = IO.pipe
       described_class.new(exits).__send__(:spawned, described_class::Pipe.new(reader.dup, writer), saved) { 7 }

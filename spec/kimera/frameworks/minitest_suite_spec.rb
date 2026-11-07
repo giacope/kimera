@@ -2,8 +2,6 @@
 
 require "fileutils"
 require "kimera/frameworks/minitest_suite"
-# Examples stub Minitest before any adapter is built, so load it here, not by
-# whichever example happens to run first.
 require "minitest"
 require "tmpdir"
 
@@ -39,14 +37,12 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
 
   def state(value, &) = steer(value, &)
 
-  # So each example's source evaluates the class fresh.
   before { stub_const("DemoKimeraTest", Class.new(Minitest::Test)) }
 
   after do
     FileUtils.remove_entry(dir)
   end
 
-  # R5-KL6: resque's helper stops the Redis it started in Minitest.after_run.
   describe "the suite's after_run hooks" do
     around do |example|
       kept = Minitest.class_variable_get(:@@after_run)
@@ -64,7 +60,6 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
       expect(ran).to(eq(%i[second first]))
     end
 
-    # Hooks that, run last registered first, raise, exit and record.
     def troubled(ran)
       Minitest.after_run { ran << :last }
       Minitest.after_run { exit(1) }
@@ -76,7 +71,6 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
       /hook at #{here}:\d+ raised ArgumentError: no redis; kimera went on\n.+ called exit\(1\); kimera went on/
     end
 
-    # CodeTriage: SimpleCov's hook saw kimera's error in flight and exited 1, so the run ended without a word.
     it "goes on past a hook that exits or raises, and says which", :aggregate_failures do
       ran = []
       troubled(ran)
@@ -84,7 +78,6 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
       expect(ran).to(eq([:last]))
     end
 
-    # A hook registered from a file under a simplecov gem's lib/.
     def coverage_hook
       hook = File.join(dir, "simplecov-1.3.2", "lib", "simplecov.rb")
       FileUtils.mkdir_p(File.dirname(hook))
@@ -100,8 +93,6 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
       expect(probe).to(eq([:suite]))
     end
 
-    # The suite loads here; the hooks write to a pipe the forked worker shares.
-    # Finishes +loaded+ in a worker forked from this process.
     def forked_finish(loaded)
       Process.wait(
         fork do
@@ -121,7 +112,6 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     end
   end
 
-  # R6B3-M1: the suite loads with the warnings the Rakefile's test task runs it with.
   def warned(rakefile)
     before = [$VERBOSE, Warning[:deprecated]]
     $VERBOSE = false
@@ -153,7 +143,6 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     end
   end
 
-  # Strict attribution maps each test to the file that declares its class.
   it "names the file that declares a test's class", :aggregate_failures do
     stub_const("KimeraDeclared", Module.new)
     sourced = described_class.build.source([declared])
@@ -185,8 +174,6 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
 
   def drawn(seed) = seeded(seed) { [adapter.run(["DemoKimeraTest#test_passes"]), rand(1_000_000)].last }
 
-  # Minitest seeds a class's random numbers by the run's seed as it orders
-  # the class's tests; kimera's seed for the test follows that.
   it "seeds a test's random numbers by the run's seed and its id, or as Minitest orders it", :aggregate_failures do
     adapter
     seed = Kimera::Seed.new("KIMERA_SEED" => "42").for("DemoKimeraTest#test_passes").fetch(0)
@@ -237,7 +224,6 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     expect(message).to(include("Expected"))
   end
 
-  # A warm kill's detail says where the test failed, not just that it did.
   it "follows an assertion's message with the test's own frame", :aggregate_failures do
     id = "DemoKimeraTest#test_conditional"
     message = state(false) { adapter.run([id]).to_h.fetch("failures")[id] }
@@ -287,9 +273,6 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     )
   end
 
-  # The command must load what kimera loaded: a nested test folder and the
-  # project's root test/ both, quoted where the shell needs it.
-  # A test file in a folder whose name holds a space, beside a test folder.
   def nested_test
     nested = File.join(dir, "lib", "my tool", "test")
     FileUtils.mkdir_p([nested, File.join(dir, "test")])
@@ -329,7 +312,6 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     expect(adapter["DemoKimeraTest#test_passes"].name).to(eq("DemoKimeraTest#test_passes"))
   end
 
-  # A Minitest without the autorun internal, and no run of its own, in place of the real one for the example.
   def bare_minitest
     minitest =
       Module.new do
@@ -345,7 +327,6 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     expect(Minitest.run).to(be(true))
   end
 
-  # This file loads Minitest itself, so a fresh process shows the build loads it.
   it "loads Minitest when it builds" do
     loads = fresh_lines(<<~RUBY)
       require "kimera/frameworks/minitest_suite"
@@ -356,8 +337,6 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     expect(loads).to(eq(["nil", '"constant"']))
   end
 
-  # minitest-hooks builds each test from an instance its with_info_handler
-  # makes, so a test run outside that handler cannot even be constructed.
   describe "class-level hooks" do
     def hooked(before_all: "true")
       path = File.join(dir, "hooked_test.rb")
@@ -416,7 +395,6 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     end
   end
 
-  # `rails test` puts test/ on $LOAD_PATH for `require "test_helper"`; kimera loads files directly.
   describe "test/ on $LOAD_PATH" do
     around do |example|
       original = $LOAD_PATH.dup

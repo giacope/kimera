@@ -15,7 +15,6 @@ module KimeraSubprocess
     File.join(test_repository_root, "examples", "sample_app")
   end
 
-  # Yields [combined output, parsed report or nil, exit status].
   def test_run(cwd:, arguments: [], tests: "spec/**/*_spec.rb", report: "report.json")
     Dir.mktmpdir("kimera-run") do |dir|
       json = File.join(dir, report)
@@ -27,7 +26,6 @@ module KimeraSubprocess
     end
   end
 
-  # A kimera run's combined output, parsed report (nil when it wrote none), and exit status.
   Outcome =
     Data.define(:output, :report, :status) do
       def results = report ? report.fetch("results") : []
@@ -36,19 +34,15 @@ module KimeraSubprocess
 
       def rows(file) = results.select { |row| row["file"] == file }
 
-      # Each mutant's status, by id.
       def verdicts = results.to_h { |row| [row["mutant_id"], row["status"]] }
 
-      # The distinct statuses of the results for a file, or for every file.
       def statuses(file = nil)
         results.select { |row| file.nil? || row["file"] == file }.map { |row| row["status"] }.uniq
       end
     end
 
-  # Runs kimera as test_run does, answering its Outcome.
   def test_outcome(cwd:, **) = test_run(cwd: cwd, **) { |output, report, status| Outcome.new(output, report, status) }
 
-  # Yields a scratch directory holding the files.
   def test_tree(files, prefix = "kimera-feature")
     Dir.mktmpdir(prefix) do |root|
       files.each do |path, body|

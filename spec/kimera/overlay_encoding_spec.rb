@@ -10,7 +10,6 @@ require "tmpdir"
 
 using PointFields
 
-# Source must parse even when a C locale makes default_external US-ASCII.
 RSpec.describe(Kimera::Overlay) do
   let(:dir) { Dir.mktmpdir }
 
@@ -82,8 +81,6 @@ RSpec.describe(Kimera::Overlay) do
     expect { test_overlay("widget_overlay.rb") }.not_to(raise_error)
   end
 
-  # A multibyte char makes whitequark's character offsets diverge from Prism's
-  # byte offsets.
   it "synthesizes a working guard for a point after a multibyte character", :aggregate_failures do
     registry, result, object = test_synthesized_module
     expect(result.to_h.fetch(:mutant_ids)).not_to(be_empty)

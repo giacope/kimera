@@ -24,14 +24,10 @@ RSpec.describe(Kimera::Overlay) do
     Object.new.extend(mod)
   end
 
-  # The whole-file weave and its fallbacks: what kimera writes for a file
-  # whose guards it can't splice into the source.
   def unspliced = unspliced_where { true }
 
-  # Every splice of a set of points that holds one on `line` fails.
   def unspliced_at(line) = unspliced_where { |points| points.any? { |point| point.location.range.begin == line } }
 
-  # A stitch that fails for the points the block picks, in place of kimera's.
   def unspliced_where(&picked) = stub_const("Kimera::Overlay::Stitch", stitching(picked))
 
   def stitching(picked)
@@ -44,10 +40,8 @@ RSpec.describe(Kimera::Overlay) do
     end
   end
 
-  # Kimera's own stitch again, in place of the failing one an example's hook put there.
   def spliced_again = stub_const("Kimera::Overlay::Stitch", Kimera::Overlay::Stitch.superclass)
 
-  # What the block answers with the mutant of that label on.
   def flipped(registry, label, &) = Kimera::RUNTIME.during(registry.each.find { |m, _p| m.to_s == label }.first.to_i, &)
 
   describe "round-tripping gnarly expressions" do
@@ -70,7 +64,6 @@ RSpec.describe(Kimera::Overlay) do
       it "produces valid, reparseable Ruby for: #{snippet}", :aggregate_failures do
         source = "def m(a = 1, b = 2, c = 3, d = 4, e = 5, f = 6, arr = [1, 2])\n  #{snippet}\nend\n"
         result, = synth(source)
-        # Check MRI too: whitequark and prism disagree on some malformed output.
         expect { Kimera::Scribe.parse(result.to_s) }.not_to(raise_error)
         expect { RubyVM::InstructionSequence.compile(result.to_s) }.not_to(raise_error)
       end
@@ -78,8 +71,6 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   describe "guards in keyword-argument positions" do
-    # A guard written as a keyword `if` right after `return` reads as a
-    # modifier, so it is written as a ternary there. The extended operators plant guards in the returned chain.
     let(:extended_keys) do
       (Kimera::Operators.build.map(&:key) + %w[string_literal return_value argument_drop element_drop]).freeze
     end
@@ -151,8 +142,6 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   describe "magic comments" do
-    # A written tree has no comments, magic ones included. Without them string
-    # literals turn mutable.
     it "preserves # frozen_string_literal: true across synthesis" do
       source = "# frozen_string_literal: true\ndef m(a = 1, b = 2)\n  a > b\nend\n"
       result, = synth(source)
@@ -179,7 +168,6 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   describe "match-pattern position" do
-    # A literal in a case/in pattern is syntax. Guarding it yields invalid Ruby.
     it "does not mutate a boolean literal inside a case/in pattern", :aggregate_failures do
       source = "def kind(x, a, b)\n  case x\n  in true then a > b\n  else a < b\n  end\nend\n"
       result, registry = synth(source)
@@ -195,8 +183,6 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   describe "interpolated-literal parts" do
-    # A guard is an if node, which unparser wouldn't emit as a direct dstr child.
-    # It must be re-wrapped as a #{} interpolation.
     def synthesis(source, keys)
       registry = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(source, file: "x.rb")
       [Kimera::Overlay.new(registry).synthesize("x.rb", source), registry]
@@ -224,8 +210,6 @@ RSpec.describe(Kimera::Overlay) do
       Kimera::RUNTIME.during(part.mutants.first.to_i) { expect(subject.banner("1.0")).to(eq("1.0")) }
     end
 
-    # `"a " "b"` nests a dstr in a dstr, which unparser refused once guarded.
-    # The inner parts get spliced into the parent.
     def splice
       result, registry = synthesis(
         "def m(a, b)\n  \"Found \#{a} mutants \" \\\n    \"across \#{b} files.\"\nend\n", %w[string_literal]
@@ -240,9 +224,6 @@ RSpec.describe(Kimera::Overlay) do
       Kimera::RUNTIME.during(part.mutants.first.to_i) { expect(subject.m(3, 2)).to(eq("Found 3 mutants 2 files.")) }
     end
 
-    # A guarded whole segment becomes a bare `#{}`, which can't start a
-    # juxtaposition, so parts flatten into one dstr. The middle interpolation
-    # forces that path. Exact output pins the coalescing predicates.
     def flatten
       result, registry = synthesis("def m(x)\n  \"alpha \" \"beta \#{x} gamma \" \"delta\"\nend\n", %w[string_literal])
       [result, subject(result), registry.to_a.find { |p| p.original_source == '"alpha "' }]
@@ -265,8 +246,6 @@ RSpec.describe(Kimera::Overlay) do
       expect { Kimera::Scribe.parse(result.to_s) }.not_to(raise_error)
     end
 
-    # Merging a multi-line %r{}x's str parts could leave no delimiter unparser
-    # could emit, which sinks the whole file (mastodon lost 107 mutants to it).
     def expression
       source = <<~'RUBY'
         PATTERN = %r{
@@ -283,21 +262,18 @@ RSpec.describe(Kimera::Overlay) do
     it "leaves the parts of an interpolated regexp unmerged", :aggregate_failures do
       registry, source = expression
       result = nil
-      # No warning means no round-trip fallback.
       expect { result = described_class.new(registry).synthesize("re.rb", source) }.not_to(output.to_stderr)
       expect(result.to_h.fetch(:mutant_ids).size).to(eq(registry.each.count))
       expect { Kimera::Scribe.parse(result.to_s) }.not_to(raise_error)
     end
 
     it "keeps a pure string juxtaposition uncoalesced" do
-      # Coalescing would leave a lone str child, which unparser refused.
       mod, = materialize("def m(a, b)\n  [\"a \" \"b\", a > b]\nend\n")
       subject = Object.new.extend(mod)
       expect(subject.m(2, 1)).to(eq(["a b", true]))
     end
 
     it "coalesces plain parts spliced out of a nested juxtaposition", :aggregate_failures do
-      # Splicing the inner dstr leaves adjacent str parts, which unparser refused.
       result, = synth("def m(a, b)\n  \"x\" \"y\#{a > b}z\" \"w\"\nend\n")
       expect { RubyVM::InstructionSequence.compile(result.to_s) }.not_to(raise_error)
       subject = subject(result)
@@ -306,7 +282,6 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   describe "non-interpolating containers" do
-    # Str coalescing must apply only inside dstr/dsym/regexp/xstr.
     it "leaves adjacent string elements of an array untouched" do
       mod, = materialize("def m(a, b)\n  [\"a\", \"b\", (a > b)]\nend\n")
       subject = Object.new.extend(mod)
@@ -315,8 +290,6 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   describe "block-attached calls" do
-    # Prism's call span includes the block, so directives land on the block
-    # node and must reach through to the inner send.
     def synthesis(source, keys)
       registry = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(source, file: "x.rb")
       [Kimera::Overlay.new(registry).synthesize("x.rb", source), registry]
@@ -327,7 +300,6 @@ RSpec.describe(Kimera::Overlay) do
       [result, subject(result), registry.each.find { |m, _p| m.to_s == "&. => ." }.first]
     end
 
-    # Returns [result, whether nil raised].
     def activated(subject, mutant)
       Kimera::RUNTIME.during(mutant.to_i) do
         [
@@ -357,15 +329,13 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   describe "reopening Struct/Data value objects in place" do
-    # described_class is bound before the overlay runs. Rebinding the constant
-    # would leave that reference uninstrumented, so its mutants would survive.
     def overlay(source, const, keys: nil)
       registry = Kimera::RegistryScan.new(operators: operators(keys)).source(source, file: "x.rb")
       result = Kimera::Overlay.new(registry).synthesize("x.rb", source)
       verbose = $VERBOSE
       $VERBOSE = nil
-      TOPLEVEL_BINDING.eval(source) # app load: binds const
-      held = TOPLEVEL_BINDING.eval(const) # what described_class holds
+      TOPLEVEL_BINDING.eval(source)
+      held = TOPLEVEL_BINDING.eval(const)
       TOPLEVEL_BINDING.eval(result.to_s, "x.rb")
       [held, registry, result]
     ensure
@@ -442,9 +412,6 @@ RSpec.describe(Kimera::Overlay) do
     end
 
     it "leaves factory lookalikes that are not casgn+block+factory untouched", :aggregate_failures do
-      # One lookalike per detection guard: non-block value (Alpha), csend (Beta),
-      # a block taking parameters (Gamma), dynamic receiver (Delta), receiverless (Epsilon),
-      # non-casgn (take).
       source = <<~RUBY
         Alpha = [Struct.new(:x)]
         Beta = Struct&.new(:x) do
@@ -504,7 +471,6 @@ RSpec.describe(Kimera::Overlay) do
     end
 
     it "returns the source verbatim when no point is schema-safe", :aggregate_failures do
-      # A round-trip would drop comments and formatting.
       source = "# load-order comment\ndef total\n  @total ||= compute(a > b)\nend\n"
       result, = synth(source)
       expect(result.to_s).to(eq(source))
@@ -520,9 +486,6 @@ RSpec.describe(Kimera::Overlay) do
     end
   end
 
-  # Only one mutant is active at a time, so under a point's guard every guard
-  # beneath it is false: its variants copy the bare subtree, not the guarded
-  # one. Copying the guards made size multiply along a nesting path.
   describe "nested points" do
     let(:source) { "def m(a)\n  ((a + 1) * 2 - 3).abs.succ.to_s\nend\n" }
     let(:registry) do
@@ -531,8 +494,6 @@ RSpec.describe(Kimera::Overlay) do
     let(:overlay) { described_class.new(registry) }
     let(:result) { overlay.synthesize("x.rb", source) }
 
-    # A spliced guard names each mutant in its test and, but for the last,
-    # once more in its chain of alternatives.
     it "emits each mutant's guard once, however deep its point sits", :aggregate_failures do
       guards = result.to_s.scan(/active\?\((\d+)\)/).flatten.map { |id| Integer(id) }
       expect(result.to_h.fetch(:mutant_ids).size).to(be > 10)
@@ -553,8 +514,6 @@ RSpec.describe(Kimera::Overlay) do
       Kimera::RUNTIME.during(id) { outcomes(live) }
     end
 
-    # chain_link_deletion reaches into its receiver, a node with points of its own.
-    # Bakes come first: kimera's own guards read the same runtime when it mutates itself.
     it "behaves like each mutant's bake when that mutant is active" do
       live = loaded(result.to_s)
       baked = result.to_h.fetch(:mutant_ids).to_h { |id| [id, outcomes(loaded(overlay.bake("x.rb", source, id)))] }
@@ -563,9 +522,6 @@ RSpec.describe(Kimera::Overlay) do
     end
   end
 
-  # The point's own text comes first in its guard, so a local it binds
-  # (`brand ||= "PayPal"`) is bound in every alternative after it, where a
-  # kept `brand.upcase` would read that nil local, not the method (R6B1-M1).
   describe "a call named like a local its point binds" do
     let(:source) do
       <<~RUBY
@@ -616,9 +572,6 @@ RSpec.describe(Kimera::Overlay) do
     end
   end
 
-  # Prism sees a literal -1 inside `--1`. The parser gem folded both minuses
-  # into one literal, so that point had no node to guard; kimera now guards
-  # the tree it scans, so the point is live like any other.
   describe "a literal inside `--1`" do
     let(:source) { "def m(a)\n  a > 0 && --1\nend\n" }
     let(:registry) do
@@ -634,8 +587,6 @@ RSpec.describe(Kimera::Overlay) do
       expect(inner).to(satisfy(&:safe?))
     end
 
-    # `-0` reads as a literal, not as `-` on `0`, so the literal's zero mutant
-    # is spliced in parentheses, on the line it was written on.
     def zero?(mutant) = mutant.to_h.dig("directive", "value").zero?
 
     it "bakes the literal's zero mutant as `-` on `0`, on the file's own lines" do
@@ -644,8 +595,6 @@ RSpec.describe(Kimera::Overlay) do
       expect(overlay.bake("x.rb", source, zero.first.to_i)).to(eq("def m(a)\n  a > 0 && -(0)\nend\n"))
     end
 
-    # Only the parentheses the attempt added are read back as its expression;
-    # the file's own stay.
     it "bakes it so beside parentheses the file wrote itself" do
       program = "def m(a)\n  (a > 0) && --1\nend\n"
       catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: %w[numeric_literal]))
@@ -656,8 +605,6 @@ RSpec.describe(Kimera::Overlay) do
     end
   end
 
-  # From Lobsters: Ruby reads "\xFF" in a UTF-8 file as that byte, but the
-  # parser gem rejected the literal, so its whole file was unmutatable.
   describe "a string escape that is invalid UTF-8" do
     def escaped(source, keys = %w[string_literal arithmetic])
       operators = Kimera::Operators.build(keys: keys)
@@ -675,8 +622,6 @@ RSpec.describe(Kimera::Overlay) do
       RUBY
     end
 
-    # unparser could not write such a byte back into a plain heredoc, so the
-    # file was spliced per method and the heredoc's method left unmutated.
     let(:heredoc) do
       "def banner(size)\n  return if size < 2 * 2\n  <<~TEXT\n    \\xFF\n    end\n  TEXT\nend\n\n#{source}"
     end
@@ -708,8 +653,6 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   describe "write fallback" do
-    # When the points on one line can't be spliced, only those points drop,
-    # not the file.
     before { unspliced }
 
     let(:source) { "class MatchRepro\n  def extract(limit)\n    alias c d\n    limit > 1\n  end\nend\n" }
@@ -722,7 +665,6 @@ RSpec.describe(Kimera::Overlay) do
         .source(source, file: "match_repro.rb")
     end
 
-    # Count, line and reason are all triage signal, so pin the exact message.
     def fallback
       registry = scan
       unspliced_at(3)
@@ -748,7 +690,6 @@ RSpec.describe(Kimera::Overlay) do
       expect(reasons).to(eq(["unmutatable: kimera could not write its guard"]))
     end
 
-    # Every weave fails to render.
     def unweavable
       stub_const("Kimera::Overlay::FileWeave", Class.new(Kimera::Overlay::FileWeave) { def attempt(_) = [] })
     end
@@ -759,8 +700,6 @@ RSpec.describe(Kimera::Overlay) do
         .to(raise_error(Kimera::Scribe::Unreadable, Kimera::Overlay::FileWeave::UNGUARDABLE))
     end
 
-    # A failure outside any method can't be fixed by dropping points. Splicing
-    # per method keeps the rest of the file verbatim.
     describe "per-method splicing" do
       let(:splice_source) do
         <<~RUBY
@@ -774,9 +713,6 @@ RSpec.describe(Kimera::Overlay) do
         RUBY
       end
 
-      # Nested points belong to the outer method. Claiming them twice would
-      # splice overlapping edits. A method written whole keeps its lines only
-      # on one line (R6B5-M2).
       let(:nested_source) do
         <<~RUBY
           class Nested
@@ -788,8 +724,6 @@ RSpec.describe(Kimera::Overlay) do
           end
         RUBY
       end
-      # Re-evaluating `Name = Data.define do` would build a second class that
-      # no existing instance belongs to, so no spliced guard would ever run.
       let(:value_source) do
         <<~RUBY
           module Spliced
@@ -811,7 +745,6 @@ RSpec.describe(Kimera::Overlay) do
         RUBY
       end
 
-      # Whole-file emission fails; individual methods are fine.
       def unwritable!
         failing_scribe do |node|
           RuntimeError.new("Could not find a round tripping solution for regexp") unless node.type == :def_node
@@ -827,7 +760,6 @@ RSpec.describe(Kimera::Overlay) do
         [registry, result]
       end
 
-      # R6B4-M1..M3: a method written so it reads as another method is refused.
       it "refuses a per-method splice whose methods read as other methods" do
         registry = Kimera::RegistryScan.new.source(splice_source, file: "spliced.rb")
         unwritable!
@@ -855,7 +787,6 @@ RSpec.describe(Kimera::Overlay) do
         expect(Prism.parse(result.to_s)).to(be_success)
       end
 
-      # Kimera writes no tree but a method, and not the method named compare.
       def unparsing_methods
         failing_scribe { |node| RuntimeError.new("boom") if node.type != :def_node || node.name == :compare }
       end
@@ -883,7 +814,6 @@ RSpec.describe(Kimera::Overlay) do
         expect(kept).to(all(satisfy(&:safe?)))
       end
 
-      # A rebuild failure outside any method is a Kimera bug. Splicing would hide it.
       def broken
         failing =
           Class.new(Kimera::Guardrail) do
@@ -933,7 +863,6 @@ RSpec.describe(Kimera::Overlay) do
         registry, result = nested
         expect(result.to_h.fetch(:mutant_ids).size).to(eq(registry.each.count))
         expect(Prism.parse(result.to_s)).to(be_success)
-        # Methods without points aren't re-emitted, so kimera can't normalise this.
         expect(result.to_s).to(include("def  untouched_by_points"))
       end
 
@@ -961,7 +890,6 @@ RSpec.describe(Kimera::Overlay) do
         [registry, source]
       end
 
-      # A Point, a SplicedTop and a Nested made before the spliced overlay runs.
       def made_before(source)
         stub_const("Spliced", Module.new)
         stub_const("SplicedTop", nil)
@@ -971,7 +899,6 @@ RSpec.describe(Kimera::Overlay) do
         end
       end
 
-      # Each ask's answer with the mutant of its label, at its line, active.
       def flipped(registry, asks)
         asks.map do |label, line, ask|
           at = ->(mutant, point) { mutant.to_s == label && point.location.range.begin == line }
@@ -994,7 +921,6 @@ RSpec.describe(Kimera::Overlay) do
         expect(flipped(registry, asks)).to(eq([false, true, false]))
       end
 
-      # How the splice reopens each kind of constant.
       def reopenings
         lexical = "(is_a?(::Module) ? self : ::Object)"
         [
@@ -1046,7 +972,6 @@ RSpec.describe(Kimera::Overlay) do
         RUBY
       end
 
-      # The registry and the overlay, woven without a warning.
       def woven
         spliced_again
         registry = Kimera::RegistryScan.new.source(code, file: "bid.rb")
@@ -1081,8 +1006,6 @@ RSpec.describe(Kimera::Overlay) do
       [Kimera::Overlay.new(registry).synthesize("x.rb", source), registry]
     end
 
-    # `alias` takes a bare name, so a mutant of one is guarded at the alias
-    # statement; the tree weave's guard where the name stood would not parse.
     it "guards a bare name at the statement that holds it", :aggregate_failures do
       source = "class AliasProbe\n  def m\n    alias c d\n    1\n  end\nend\n"
       result, registry = woven(source, %w[symbol_literal numeric_literal])
@@ -1090,9 +1013,6 @@ RSpec.describe(Kimera::Overlay) do
       expect(result.to_s).to(include("? (alias c d) : "))
     end
 
-    # Only `::Kimera::RUNTIME.active?` is a guard; a lookalike is the project's
-    # own call. The rescue clause's mutant has the method written whole, where
-    # the guards written are read back from the tree.
     it "reports the guards it wrote, not calls that look like them" do
       source = "class Lookalike\n  def m(a)\n    ::Kimera::Flags.active?(9)\n    Foo::Bar.active?(8)\n    " \
         "a.active?(7)\n    a > 1\n  rescue TypeError\n    0\n  end\nend\n"
@@ -1133,8 +1053,6 @@ RSpec.describe(Kimera::Overlay) do
       expect([plain::Point.new(x: 2).big?(1), plain.method_defined?(:big?)]).to(eq([true, false]))
     end
 
-    # A def is a value too: its tail mutant guards the def, so the method that
-    # holds it returns nil with the mutant on and defines the method without.
     it "guards a def at a method's tail where it stands" do
       source = "class NestedTail\n  def outer; def inner; end; end\nend\n"
       result, registry = woven(source, %w[return_value])
@@ -1143,9 +1061,6 @@ RSpec.describe(Kimera::Overlay) do
     end
   end
 
-  # R6B4-M4: hashie's IndifferentAccess.included, a privatize probe inside a
-  # guarded `base.class_eval do ... end`: the probe overlapped the guard, the
-  # file would not weave, and kimera dropped points it could write.
   describe "a visibility probe inside a guarded statement" do
     let(:source) do
       <<~RUBY

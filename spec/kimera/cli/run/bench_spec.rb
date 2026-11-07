@@ -17,7 +17,6 @@ RSpec.describe(Kimera::CLI::Run::Bench) do
 
   def identity = %w[-c user.email=t@example.com -c user.name=Test -c commit.gpgsign=false]
 
-  # A repository holding x.rb and y.rb, with x.rb changed since its commit.
   def changed
     git("init", "-q")
     %w[x.rb y.rb].each { |file| File.write(File.join(dir, file), "a = 1\n") }

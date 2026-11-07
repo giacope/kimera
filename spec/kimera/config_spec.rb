@@ -137,7 +137,6 @@ RSpec.describe(Kimera::Config) do
         - label: "> => >="
           reason: because
     YAML
-    # The message names the rule, so the user can find it among several.
     expect { with_config(yaml) }.to(raise_error(Kimera::UsageError, /missing file: .+label.+because/))
   end
 
@@ -150,7 +149,6 @@ RSpec.describe(Kimera::Config) do
       end
     end
 
-    # Falling back to defaults would silently gate the wrong scope.
     it "fails loudly when the explicit --config path does not exist" do
       expect { described_class.parse(["--config", "nope.yml"]) }
         .to(raise_error(Kimera::UsageError, /no such config file: nope\.yml/))

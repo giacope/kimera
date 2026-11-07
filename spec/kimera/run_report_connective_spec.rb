@@ -3,9 +3,6 @@
 require "kimera/registry/builder"
 require "kimera/results/run_report"
 
-# liquid's `left && right && left.respond_to?(...)`: kimera swaps the inner
-# `left && right` as one node, so pasting `left || right` by hand checked a
-# different mutant (`left || (right && ...)`).
 RSpec.describe(Kimera::RunReport, :aggregate_failures) do
   let(:registry) do
     Kimera::RegistryScan.new.source(

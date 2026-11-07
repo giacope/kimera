@@ -40,7 +40,6 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
   def fixture(row) = written("results" => [row])
 
-  # The status `kimera ARGV` exits with, having printed what it said to out and errors.
   def commanded(*argv) = ended(described_class.new(io: out, errors: errors).run(argv), out, errors)
 
   def project(files)
@@ -190,7 +189,6 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
   end
 
   describe "run argument, cycle, and digest boundaries" do
-    # A report that counts +statuses+ in its score, as count_no_coverage asks.
     def counting(statuses) = satisfy { |report| report.instance_variable_get(:@context).fetch(:counted) == statuses }
 
     let(:tiny) { Kimera::RegistryScan.new.source("def x; 1; end\n", file: "x.rb") }
@@ -204,7 +202,6 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       }
     end
 
-    # A cycle that judged nothing concludes; its gate answers +gate+.
     def concluded(settings, gate: 0)
       alerts = FakeAlerts.new(gate)
       cycle = Kimera::CLI::Run::Cycle.new(settings, tiny, digest: digest, alerts: alerts)
@@ -318,7 +315,6 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       end
     end
 
-    # What a whole cycle over +tiny+, judged by fakes, said.
     def called(verbose)
       settings = options.merge(verbose: verbose, ignore: [], tests: [__FILE__])
       digest = FakeDigest.new
@@ -358,15 +354,11 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       end
     end
 
-    # The harness pass of a cycle over +tiny+ with +settings+ in +env+; the
-    # bench calls the block as it loads the suite.
     def harnessed(settings, env, &)
       cycle = Kimera::CLI::Run::Cycle.new(settings.merge(source_root: ".", tests: [__FILE__]), tiny, digest: nil)
       cycle.__send__(:harness, tiny.index.keys, FakeBench.new(&), env: env)
     end
 
-    # `.rspec`'s `--require spec_helper` loads the helper while the adapter is
-    # built, so a coverage floor gated on KIMERA must see it before then.
     it "sets KIMERA before loading the framework adapter" do
       env = {}
       seen = nil
@@ -374,7 +366,6 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect(seen).to(eq("1"))
     end
 
-    # Workers forked later, and the adapter as it loads the suite, read the run's seed from there.
     it "exports the run's seed to the environment before loading the adapter, and clears a stale one" do
       seen = []
       env = { "KIMERA_SEED" => "3" }
@@ -383,7 +374,6 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect([seen, env.key?("KIMERA_SEED")]).to(eq([["42", nil], false]))
     end
 
-    # The adapter, doctor and isolated children read load_path: from there.
     it "exports the configured load path to the environment before loading the adapter" do
       seen = []
       env = {}
@@ -459,7 +449,6 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         examining(suite)
       end
 
-      # The tests doctor looks for in a FRAMEWORK project that configures none.
       def defaults(framework)
         examination = Kimera::CLI::Doctor::Examination.new(
           { framework: framework }, dir, Kimera::CLI::Instruments.new(suite: suite), Kimera::CLI::Checklist.new(out)
@@ -467,7 +456,6 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         examination.__send__(:tests_for)
       end
 
-      # The suite ran the configured tests, not only a dry run of them.
       def baselined? = suite.commands.any? { |command| !command.include?("--dry-run") }
 
       it "is skipped unless requested" do
@@ -487,7 +475,6 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       end
     end
 
-    # The arguments of the run ci asks for, given +argv+.
     def ci_arguments(argv)
       run = FakeRun.new
       Kimera::CLI::CI.new(io: out, errors: errors, env: {}, run: run).run(argv)
@@ -633,7 +620,6 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       without("NO_COLOR") { expect(uncolored).to(eq("x")) }
     end
 
-    # Told not to color, it never asks the stream whether it is a terminal, so a closed one paints plainly.
     it "paints plainly on a closed stream it was told not to color" do
       expect(Kimera::Report::Palette.new(File.open(File::NULL, "w") { it }, false).bold("x")).to(eq("x"))
     end
@@ -662,7 +648,6 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect(shown).not_to(end_with("\n"))
     end
 
-    # A surface answers what to write: a frame over the blank screen, then one commit, and nothing once blank.
     def shown(surface)
       blank = Kimera::Report::Frame.new(0)
       frame, ink = surface.painted(blank, Kimera::Report::Tally.new(1, "m", 0.0), 0)
@@ -688,7 +673,6 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
   end
 
   describe "previously uncovered CLI paths" do
-    # Doctor's examination of a project in dir configured with SETTINGS, holding a test and a spec.
     def examination(suite, settings)
       project("test/x_test.rb" => "# test\n", "spec/x_spec.rb" => "# spec\n")
       instruments = Kimera::CLI::Instruments.new(suite: suite)
@@ -722,7 +706,6 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect(errors.string).to(include("kimera: invalid option: --unknown"))
     end
 
-    # The baseline checks doctor's suite makes for a project configured with SETTINGS.
     def baselined(suite, **settings) = examination(suite, settings).__send__(:test_command).baselines(1)
 
     it "builds and diagnoses a successful minitest baseline command" do
@@ -744,8 +727,6 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect(suite.ran).to(eq([[command, dir, 125]]))
     end
 
-    # A repository in +dir+ whose one commit is on the branches +refs+ names:
-    # main and origin/main, as `kimera changed` looks them up.
     def repository(*refs)
       git = ->(*arguments) { system("git", "-C", dir, *arguments, out: File::NULL, err: File::NULL) }
       git.call("init", "-q", "-b", "trunk")
@@ -754,7 +735,6 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       refs.each { |ref| git.call("update-ref", ref == "main" ? "refs/heads/main" : "refs/remotes/origin/main", "HEAD") }
     end
 
-    # The arguments of the run `kimera changed +argv+` asks for, in +dir+.
     def changed(argv)
       run = FakeRun.new
       Dir.chdir(dir) { Kimera::CLI::Changed.new(io: out, errors: errors, run: run).run(argv) }
@@ -766,7 +746,6 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect(changed(["app"])).to(eq(["--since", "origin/main", "app"]))
     end
 
-    # Outside a repository, looking for a reference would fail.
     it "keeps an explicit --since=REF" do
       expect(changed(["--since=HEAD", "app"])).to(eq(["--since=HEAD", "app"]))
     end

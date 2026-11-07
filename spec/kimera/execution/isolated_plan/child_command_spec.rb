@@ -7,13 +7,9 @@ require "tmpdir"
 require "kimera/execution/isolated_child_command"
 require "kimera/frameworks/seed"
 
-# A mutant's child stops at its first failing test: any failure kills it. The
-# baseline's child runs them all, so a red baseline names every failing test.
 RSpec.describe(Kimera::Execution::IsolatedPlan::ChildCommand) do
   let(:two) { "RSpec.describe('two') { 2.times { |n| it(n.to_s) { expect(n).to(eq(-1)) } } }\n" }
 
-  # The first example runs a failing group of its own on the shared reporter,
-  # as a spec of an RSpec extension does; only the second fails itself.
   let(:nested) do
     <<~RUBY
       RSpec.describe("outer") do
@@ -53,7 +49,6 @@ RSpec.describe(Kimera::Execution::IsolatedPlan::ChildCommand) do
     end
   end
 
-  # The warm path seeds each test the same way, so a test draws the same numbers in either tier.
   it "seeds each RSpec test from the run's seed and the test's id", :aggregate_failures do
     source = "RSpec.describe('r') { it('draws') { expect(rand(1_000_000)).to(eq(#{drawn("./a_spec.rb[1:1]")})) } }\n"
     expect(seeded(described_class::CHILD, "a_spec.rb", source, { "tests" => ["./a_spec.rb"] })).to(eq(0))
@@ -102,8 +97,6 @@ RSpec.describe(Kimera::Execution::IsolatedPlan::ChildCommand) do
     expect(described_class.new(framework: "rspec", test_files: [], root: ".").request(["t"])).not_to(have_key("seed"))
   end
 
-  # R6B3-M1: a mirror runs the suite with the ruby flags the run gives, as the
-  # warm pass runs it: `-w` when the Rakefile's test task warns.
   def ruby(**)
     Dir.mktmpdir do |dir|
       child = described_class.new(framework: "minitest", test_files: [], root: dir)

@@ -12,7 +12,6 @@ RSpec.describe(Kimera::Scribe) do
 
   def self.statement(source) = parse(source).statements.body.first
 
-  # The tree as a mutation can leave it: no parentheses around a lone expression.
   def self.bare(node)
     Kimera::Rewrite::AstWalk.new(node).rebuild do |rebuilt|
       body = rebuilt.body if rebuilt.type == :parentheses_node
@@ -63,9 +62,6 @@ RSpec.describe(Kimera::Scribe) do
     end
   end
 
-  # Ruby and Prism read "\xFF" in a UTF-8 file as that byte, but the parser
-  # gem's builder rejected the literal, so one (as in Lobsters' avatar sniffing)
-  # left its whole file unmutatable.
   describe "a string escape that is invalid UTF-8" do
     let(:source) { 'def jpeg?(data) = data.start_with?("\xFF\xD8\xFF".b)' }
 
@@ -80,20 +76,16 @@ RSpec.describe(Kimera::Scribe) do
       expect(reemit(interpolated)).to(eq(interpolated))
     end
 
-    # Ruby rejects it only when it compiles the regexp, so the file still reads.
     it "reads a regexp escape that is invalid UTF-8 and writes it back" do
       expect(reemit('/\xFF/')).to(eq('/\xFF/'))
     end
 
-    # unparser wrote a command string's parts as they are, so the escape came
-    # back a raw byte and the file no longer loaded.
     it "writes a command string's byte back as an escape", :aggregate_failures do
       written = reemit("`printf \\xFE\#{name}`")
       expect(written).to(eq("`printf \\xFE\#{name}`"))
       expect(written).to(be_valid_encoding)
     end
 
-    # unparser could not write such a byte back into a plain heredoc.
     it "writes a heredoc's byte back as an escape, the tree unchanged", :aggregate_failures do
       heredoc = "x = <<~TEXT\n  \\xFF\n  end \#{y}\nTEXT\n"
       expect(reemit(heredoc)).to(eq("x = \"\\xFF\\nend \#{y}\\n\""))
@@ -101,9 +93,6 @@ RSpec.describe(Kimera::Scribe) do
     end
   end
 
-  # unparser 0.9 only tracked locals from assignments and method parameters, so
-  # a string interpolating any other local failed its round-trip check and took
-  # the whole file down with it.
   describe "locals bound by patterns, captures and block parameters" do
     {
       "a case/in binding" => "def bid(value) = (case value; in chosen then \"\#{chosen}\"; end)",
@@ -125,7 +114,6 @@ RSpec.describe(Kimera::Scribe) do
       expect(reemit("def bid(&) = forward(&)")).to(eq("def bid(&)\n  forward(&)\nend"))
     end
 
-    # Under /x, a (?<name>) inside a comment names nothing, so the read stays a call.
     it "binds only the captures an extended regexp really names", :aggregate_failures do
       expect(reemit("/(?<real>.) # (?<fake>.)\n/x =~ value; real; fake"))
         .to(eq("/(?<real>.) # (?<fake>.)\n/x =~ value\nreal\nfake\n"))
@@ -133,8 +121,6 @@ RSpec.describe(Kimera::Scribe) do
         .not_to(raise_error)
     end
 
-    # A guard that replaces the regexp of `/(?<n>.)/ =~ s` unbinds `n`, so the
-    # body's read of it would come back a method call: the tree has no source.
     it "binds no capture when a guard stands where the regexp was" do
       capture, read = parse("/(?<n>.)/ =~ s; n").statements.body
       call = capture.call
@@ -160,7 +146,6 @@ RSpec.describe(Kimera::Scribe) do
       expect(reemit("if a.nil?\n  b = 1\nend")).to(eq("if a.nil?\n  b = 1\nend"))
     end
 
-    # A block parameter's read in the condition is the block's own, not the body's.
     it "keeps a condition that reads a block parameter in front", :aggregate_failures do
       source = "if a.any? { |d| d.b }\n  d = 1\n  e\nend"
       expect(reemit(source)).to(eq("if a.any? { |d|\n  d.b\n}\n  d = 1\n  e\nend"))
@@ -168,8 +153,6 @@ RSpec.describe(Kimera::Scribe) do
     end
   end
 
-  # unparser 0.9 wrote an array range endpoint as a %w/%i literal, raising on
-  # any other element and changing `["a b"]` into `%w[a b]`.
   describe "array range endpoints" do
     {
       "([a, a]...a)" => "([a, a]...a)\n", "(0...[a, a])" => "(0...[a, a])\n",
@@ -190,10 +173,6 @@ RSpec.describe(Kimera::Scribe) do
     end
   end
 
-  # The parser gem read `|(name)|` and `|name|` as the same procarg0 node, told
-  # apart only by the location of the parentheses. Written without them, a
-  # block handed ["a"] binds the whole array instead of "a": hashira's
-  # `text.scan(RE) { |(name)| ... }` went red under kimera, unmutated.
   describe "a destructuring block parameter" do
     it "keeps the parentheses of a one-name destructuring block parameter", :aggregate_failures do
       expect(reemit("x.each { |(a)| a }")).to(eq("x.each { |(a)|\n  a\n}"))
@@ -207,8 +186,6 @@ RSpec.describe(Kimera::Scribe) do
     end
   end
 
-  # A mutated tree lacks the parentheses its new operator needs: with the inner
-  # && of `x = a && b && c` swapped to ||, unparser wrote `x = a || b && c`.
   describe "grouping a tree without parentheses" do
     {
       "a && (b || c)" => "a && (b || c)", "x = (a || b) && c" => "x = (a || b) && c",
@@ -246,8 +223,6 @@ RSpec.describe(Kimera::Scribe) do
 
     def over(template, receiver) = statement(template).copy(receiver: receiver)
 
-    # Every nesting two deep of connectives and operators, in each context,
-    # reads back as the very tree it was written from.
     def trees(depth)
       return [named(:a)] if depth.zero?
       inner = trees(depth - 1)
@@ -276,10 +251,6 @@ RSpec.describe(Kimera::Scribe) do
       end
     end
 
-    # Every nesting two deep of calls, blocks, powers and signs over numeric
-    # literals, in each context, reads back as the very tree it was written
-    # from. A sign straight over a literal is left out: `-1` reads back as the
-    # literal -1, the same number.
     def numerals(depth)
       return [statement("2"), statement("-2")] if depth.zero?
       inner = numerals(depth - 1)
@@ -304,8 +275,6 @@ RSpec.describe(Kimera::Scribe) do
     end
   end
 
-  # unparser 0.9 wrote a sign right before a numeric literal, and Ruby reads
-  # the sign as the literal's: `-(0.to_s)` as `-0.to_s`, which is `(-0).to_s`.
   describe "a sign before a numeric literal" do
     def unparenthesized(source) = bare(statement(source))
 
@@ -364,7 +333,6 @@ RSpec.describe(Kimera::Scribe) do
       expect(reemit("10 ** 3")).to(eq("10 ** 3"))
     end
 
-    # What Ruby itself reads back, not only the text.
     it "writes code that evaluates like the tree", :aggregate_failures do
       expect(Object.new.instance_eval(write(unparenthesized("-(1.to_s)")))).to(eq("1"))
       expect(Object.new.instance_eval(write(unparenthesized("(-1) ** 2")))).to(eq(1))
@@ -381,9 +349,6 @@ RSpec.describe(Kimera::Scribe) do
     end
   end
 
-  # unparser refused, with "Unparser cannot round trip this node", any string
-  # it could not prove would read back: Kimera spliced and coalesced string
-  # parts around it, and dropped what was left.
   describe "interpolated strings of any shape" do
     def evaluates(node) = Object.new.instance_eval(write(node))
 
@@ -420,8 +385,6 @@ RSpec.describe(Kimera::Scribe) do
       expect(reemit("\"a\" \"b\#{c}\" 'd'")).to(eq("\"a\" \"b\#{c}\" \"d\""))
     end
 
-    # Merging a multi-line %r{}x's str parts left no delimiter unparser could
-    # emit, which sank the whole file (mastodon lost 107 mutants to it).
     [
       "%r{\n  a/b   # a comment\n  \#{c}\n}x", "%r{a/b}", "/a\\/b/", "%r{a\\}b}", "%r[a/{b}]"
     ].each do |source|
@@ -438,8 +401,6 @@ RSpec.describe(Kimera::Scribe) do
     end
   end
 
-  # unparser wrote a guard after `return` as a keyword `if`, which Ruby reads
-  # as a modifier, and `a || b and c` for a mutated chain.
   describe "keywords that read differently where they sit" do
     it "writes a condition after return as a ternary" do
       expect(write(bare(statement("return (if a then 1 end)")))).to(eq("return a ? 1 : nil"))
@@ -461,7 +422,6 @@ RSpec.describe(Kimera::Scribe) do
     end
   end
 
-  # Every form, read and written back: the text is exact, and it reads back as the tree.
   describe "every form" do
     {
       "true" =>
@@ -758,11 +718,9 @@ RSpec.describe(Kimera::Scribe) do
     end
   end
 
-  # Trees no source reads as, written as Ruby reads them back.
   describe "trees a mutation can leave" do
     def self.unparenthesized(source) = bare(statement(source))
 
-    # A method body that holds a clause, as a guard moves it into a branch.
     def self.clause(body) = statement("def m\n#{body}\nend").body
 
     def self.assigned(value) = statement("x = a").copy(value: value)
@@ -887,7 +845,6 @@ RSpec.describe(Kimera::Scribe) do
       end
     end
 
-    # Only a modifier reads what its body binds, and a modifier takes no else.
     it "refuses a condition reading what its body binds once an else follows" do
       tree = statement("d = 1 if d").copy(subsequent: statement("if a then b else c end").subsequent)
       expect { write(tree) }.to(raise_error(described_class::Unbound, /read of d/))
@@ -911,9 +868,6 @@ RSpec.describe(Kimera::Scribe) do
     end
   end
 
-  # R6B4-M1: a guard ending in an endless range ran on into the next line:
-  # `when 90.. then "A"` was written `when 90..` / `"A"`, which Ruby reads as
-  # `when 90.."A"` (a bad value for range); `if x..; y; end` read `if x..y`.
   describe "a condition ending in an endless range" do
     {
       "case v; when 3.. then :big; end" => "case v\nwhen 3..;\n  :big\nend",
@@ -937,9 +891,6 @@ RSpec.describe(Kimera::Scribe) do
     end
   end
 
-  # R6B4-M2: a %w/%i literal in a pattern is a value (`%w[a b] === value`);
-  # written as `["a", "b"]` it read as an array pattern, which a Struct of
-  # "a" and "b" matches.
   describe "a word list in a pattern" do
     {
       "case v; in %w[a b] then :pair; end" => "case v\nin %W[a b]\n  :pair\nend", "x in %i[a b]" => "x in %I[a b]",
@@ -972,9 +923,6 @@ RSpec.describe(Kimera::Scribe) do
     end
   end
 
-  # R6B4-M3: Prism reads a string in the file's encoding and flags the one an
-  # escape forces; `"\u{3042}"` in a binary file is UTF-8, and was written as
-  # `"\xE3\x81\x82"`, which is binary.
   describe "a string whose escape forces its encoding" do
     def binary(code) = "# encoding: binary\n#{code}\n"
 
@@ -998,11 +946,6 @@ RSpec.describe(Kimera::Scribe) do
     end
   end
 
-  # Found by the round-trip property over the field corpus: mustermann's
-  # `not (Regexp.new(s).options & X).zero?` was written `not(...).zero?`, which
-  # Ruby reads as `(not ...).zero?`; a sign folded into a literal (`++1`,
-  # `- 1`) and an infinite literal written as `Float::INFINITY` read back as
-  # other trees.
   describe "a prefix the writer must not fuse" do
     {
       "not (a & b).zero?" => "not (a & b).zero?", "not (a).zero?" => "not (a).zero?", "not(a and b)" => "not(a and b)",
@@ -1016,7 +959,6 @@ RSpec.describe(Kimera::Scribe) do
     end
   end
 
-  # Every file of kimera's own reads back as the very tree it was written from.
   it "writes kimera's own sources so they read back as the same tree", :aggregate_failures do
     Dir[File.expand_path("../../lib/**/*.rb", __dir__)].each do |file|
       tree = parse(File.read(file, encoding: Encoding::UTF_8))

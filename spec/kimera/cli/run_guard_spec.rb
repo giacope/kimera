@@ -6,7 +6,6 @@ require "kimera/cli/run"
 require "stringio"
 require "tmpdir"
 
-# R3K8: a run that deleted the project's files exited as if nothing happened.
 RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
   def guarded(root, &)
     errors = StringIO.new
@@ -14,7 +13,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     [ended(outcome, StringIO.new, errors), errors.string]
   end
 
-  # The guarded run's code, and what it said, for a run that deletes a tracked file.
   def deleting(root)
     File.write(File.join(root, "fixture.rb"), "1\n")
     guarded(root) do

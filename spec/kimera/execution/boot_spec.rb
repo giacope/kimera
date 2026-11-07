@@ -4,8 +4,6 @@ require "kimera/execution/boot"
 
 using ResultFields
 
-# A suite whose test files load but select no test (an inclusion filter that
-# matches nothing) would score every mutant as uncovered; the boot refuses it.
 RSpec.describe(Kimera::Execution::Boot) do
   def adapter(ids)
     Class.new do

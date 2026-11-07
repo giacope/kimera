@@ -5,8 +5,6 @@ require "kimera/cli/run"
 require "stringio"
 require "tmpdir"
 
-# --tests replaces the configured glob. A run narrowed that way says so, since
-# its survivors may be killed by the tests it left out.
 RSpec.describe(Kimera::CLI::Run::Narrowing) do
   around do |example|
     Dir.mktmpdir { |dir| Dir.chdir(dir) { example.run } }
@@ -46,7 +44,6 @@ RSpec.describe(Kimera::CLI::Run::Narrowing) do
     expect(wider.provenance).to(eq("narrowed" => false))
   end
 
-  # Expanded, the configured glob counts 3 of 3 files.
   it "doesn't expand the globs when --tests is the configured glob", :aggregate_failures do
     same = narrowing(["spec/**/*_spec.rb"])
     expect(same.notes).to(eq([]))
@@ -83,8 +80,6 @@ RSpec.describe(Kimera::CLI::Run::Narrowing) do
       expect(provenance).to(include("narrowed" => false))
     end
 
-    # The suite the warm harness was handed for a run of +argv+, out of a suite
-    # of tests the names spell, and the run's provenance.
     def adapter_for(*argv)
       harness = FakeHarness.new
       bench = Kimera::CLI::Run::Bench.new(suites: FakeSuites.new(suite), harnesses: harness)
@@ -93,7 +88,6 @@ RSpec.describe(Kimera::CLI::Run::Narrowing) do
       [harness.settings[:adapter], JSON.parse(File.read("report.json"))["run"]]
     end
 
-    # rack's one root-only test, without the other 26 in its file.
     it "leaves out the tests --exclude-test-name names, and records the pattern", :aggregate_failures do
       adapter, provenance = adapter_for("--exclude-test-name", "unreadable", "--exclude-test-name", "root only")
       expect(adapter.test_ids).to(eq(["kept"]))

@@ -8,8 +8,6 @@ require "timeout"
 
 using ResultFields
 
-# The warm pool end to end: a hard-timeout verdict carries the killed
-# worker's stacks, and a doubted kill is judged again on a fresh worker.
 RSpec.describe(Kimera::Execution::Harness) do
   let(:registry) do
     Kimera::RegistryScan.new.source(<<~RUBY, file: "calc.rb")
@@ -25,7 +23,6 @@ RSpec.describe(Kimera::Execution::Harness) do
     described_class.build(registry: registry, adapter: adapter, **)
   end
 
-  # Every covering test of an active mutant blocks in a method the dump can name.
   def hanging
     Class.new(Kimera::Frameworks::Suite) do
       def source(_files) = self
@@ -49,8 +46,6 @@ RSpec.describe(Kimera::Execution::Harness) do
     expect(detail).to(match(/harness_recheck_spec\.rb:\d+:in '[^']*wedge'/))
   end
 
-  # The first worker doubts its first kill; every later worker kills, and
-  # says so when the kill was a recheck.
   def doubting
     calls = 0
     lambda do |_slot|

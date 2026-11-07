@@ -3,11 +3,7 @@
 require "kimera/frameworks/class_hooks"
 require "minitest"
 
-# Kimera runs one test the way Minitest runs a class's tests: through the
-# class's suite runner (Minitest 6's run_suite, Minitest 5's run), with the
-# class-level hooks around it and the per-test runner a class may specialise.
 RSpec.describe(Kimera::Frameworks::ClassHooks) do
-  # Kimera seeds Minitest before it runs a test; its suite orders by the seed.
   around do |example|
     saved = Minitest.seed
     Minitest.seed ||= 1
@@ -16,8 +12,6 @@ RSpec.describe(Kimera::Frameworks::ClassHooks) do
     Minitest.seed = saved
   end
 
-  # A test class that notes what ran: its tests, and around them its info
-  # handler, as minitest-hooks' before(:all) and after(:all) run there.
   def noted(seen, &)
     Class.new(Minitest::Test) do
       define_singleton_method(:name) { "NotedTest" }
@@ -42,8 +36,6 @@ RSpec.describe(Kimera::Frameworks::ClassHooks) do
     expect(described_class.new(noted([])).test("test_ok_too")).to(be_nil)
   end
 
-  # Minitest 6 runs each class's tests through run_suite (excon starts its
-  # test servers there, R6B5-M3); a class with one is run through it.
   def suited(seen)
     noted(seen) do
       define_singleton_method(:run_suite) do |reporter, options = {}|
@@ -65,8 +57,6 @@ RSpec.describe(Kimera::Frameworks::ClassHooks) do
     expect(seen).to(eq(%i[around prepared ok]))
   end
 
-  # A class that records a failed before_all through the reporter, as
-  # minitest-hooks does, and then skips its tests; or a failed after_all.
   def hooked(before: false, after: false)
     noted([]) do
       define_singleton_method(:with_info_handler) do |reporter, &block|
@@ -91,8 +81,6 @@ RSpec.describe(Kimera::Frameworks::ClassHooks) do
     expect([seen, Minitest.parallel_executor]).to(eq([%i[around prepared ok], executor]))
   end
 
-  # Minitest's info handler asks the reporter whether it passed when it prints
-  # results on SIGINFO, and for its reporters; a parallel executor holds its lock.
   def asking(asked)
     noted([]) do
       define_singleton_method(:with_info_handler) do |reporter, &block|

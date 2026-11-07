@@ -2,8 +2,6 @@
 
 require "kimera/execution/patience"
 
-# A test may run for the configured soft timeout, or for its own baseline
-# × 3 + 1s when that is longer, capped a second under the hard watchdog.
 RSpec.describe(Kimera::Execution::Patience) do
   let(:timings) { { "fast" => 0.1, "slow" => 4.7 } }
 

@@ -6,31 +6,10 @@ require "kimera/execution/shift"
 require "kimera/execution/worker_pool"
 require_relative "../../property_helper"
 
-# Fault injection for the real pool, with scripts drawn from the child
-# actions in formal/WorkerPool.tla. The real parent (WorkerPool, Fleet, Backlog,
-# Worker, StillbornGuard) drives forked children that follow a random script,
-# either speaking Shift's pipe protocol themselves or running the real Shift
-# over an adapter that injects the faults, and the run must keep the model's
-# safety invariants. Every run's steps are also logged
-# (support/pool_trace.rb), and the second property has TLC check that each
-# log is a behavior of the model, step by step (support/trace_check.rb,
-# formal/WorkerPoolTrace.tla).
-#
-# Each mutant's script is [warm, recheck]: what its child does when offered
-# it warm, and again on a fresh worker after a requeue. A scripted recheck
-# never requeues; the real Shift never requeues at all. Every run is supervised in
-# its own process group with a deadline of its own, so a pool that stops
-# polling fails the example instead of hanging the suite. Each child leads a
-# process group of its own, as the pool's workers do, and starts a
-# grandchild first, as a test that starts a server does: however the child
-# ends, the grandchild must not outlive the run.
 RSpec.describe(Kimera::Execution::WorkerPool) do
   let(:warm) { Pbt.one_of(:result, :result, :result, :leak, :tainted, :requeue, :requeue, :crash, :hang, :partial) }
   let(:recheck) { Pbt.one_of(:result, :leak, :tainted, :crash, :hang, :partial) }
   let(:scripts) { Pbt.array(Pbt.tuple(warm, recheck), min: 1, max: 6) }
-  # Backlog#take with its sources swapped: a fresh worker serves the queue
-  # before a recheck. Every verdict is still right and every recheck still
-  # runs on a fresh worker, so only the trace shows the change.
   let(:mutant) do
     Module.new do
       def chosen(worker) = following || (worker.fresh? && rechecks.shift)
@@ -39,12 +18,8 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
   def watchdog = 0.4
 
-  # Twice the worst case (every mutant hangs on one worker) plus fork time.
   def deadline = 15
 
-  # A child as Pool#spawn makes one: the leader of its own process group.
-  # Like a test that starts a server, it starts a grandchild first, which
-  # must not outlive the run however the child ends.
   def founded(grandchildren)
     forked do |request, response|
       Process.setpgid(0, 0)
@@ -53,7 +28,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     end
   end
 
-  # Logs one line per offer the child receives: "id recheck first?".
   def child(script, log, grandchildren)
     served = 0
     founded(grandchildren) do |request, response|
@@ -69,7 +43,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     end
   end
 
-  # Shift#judging and Shift#process, reduced to their pipe traffic.
   def act(behavior, id, response)
     case behavior
     when :crash then exit!(1)
@@ -80,14 +53,12 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     end
   end
 
-  # Half a line, flushed, then silence with the pipe held open.
   def halt(response, text)
     response.write(text)
     response.flush
     sleep(60)
   end
 
-  # The verdict a result carries.
   def status(behavior) = behavior == :tainted ? "timeout" : "killed"
 
   def report(behavior, id, response)
@@ -108,8 +79,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     false
   end
 
-  # Runs inside the supervisor: the pool, a log of what it reported, and its
-  # trace. A mutant module, if given, is prepended to Backlog first.
   def run(script, jobs, log, mutant)
     Kimera::Execution::WorkerPool::Backlog.prepend(mutant) if mutant
     grandchildren = witness
@@ -126,7 +95,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     tally[:trace] = PoolTrace.recorder.to_h
   end
 
-  # A slot is reused only once its last holder is reaped.
   def spawner(tally, script, jobs, log)
     holders = {}
     lambda do |slot|
@@ -160,10 +128,8 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
   def outcome(behavior) = { crash: :crash, hang: :timeout, partial: :timeout }.fetch(behavior, :result)
 
-  # What each mutant's last child does with it.
   def final(script) = script.map { |warm, recheck| warm == :requeue ? recheck : warm }
 
-  # What each mutant ends with, given its script.
   def expected(script) = final(script).each_with_index.map { |behavior, index| [index + 1, outcome(behavior)] }
 
   def statuses(events) = events.filter_map { |kind, id, status| [id, status] if kind == :result }
@@ -176,8 +142,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
   def requeued(script) = script.each_index.select { |i| script[i][0] == :requeue }.map { it + 1 }
 
-  # StillbornGuard may abort only before any result, on the crash after
-  # `jobs` recorded ones (it raises before recording that one).
   def stillborn?(tally, script, jobs)
     events = tally[:events]
     crashes = tally[:offers].count { |id, recheck| script[Integer(id) - 1][recheck == "true" ? 1 : 0] == :crash }
@@ -199,7 +163,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     expect(requeues(events)).to(match_array(requeued(script)))
   end
 
-  # Safety holds whether or not the run completed.
   def safe(tally, script)
     released(tally)
     once(tally[:events], script)
@@ -212,7 +175,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     expect(tally[:outlived]).to(be(false), "a process a worker started outlived the run")
   end
 
-  # Each mutant gets one verdict its script allows, and ends in its final status.
   def once(events, script)
     judged = verdicts(events)
     ids = judged.map(&:first)
@@ -233,9 +195,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     TraceCheck.new(runs).verdict
   end
 
-  # The trace is checked once all runs are in: one TLC run per pool size.
   shared_examples("a pool the model describes") do
-    # Each scripted run, judged; its job count and trace.
     def scripted_runs
       runs = []
       for_all(scripts, Pbt.integer(min: 1, max: 3), runs: 30) do |script, jobs|
@@ -268,22 +228,14 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     expect([tally[:error], verdicts(tally[:events])]).to(eq([nil, [[1, :timeout], [2, :result]]]))
   end
 
-  # The real Shift in each child, with an adapter that injects the faults
-  # (support/faulty_suite.rb). Shift decides what goes down the pipe, so
-  # the child side of the protocol is the code's, not a script's.
   context("with Shift as the child") do
     let(:warm) { Pbt.one_of(:killed, :killed, :survived, :leak, :tainted, :requeue, :requeue, :crash, :hang) }
     let(:recheck) { Pbt.one_of(:killed, :survived, :leak, :tainted, :requeue, :crash, :hang) }
 
-    # Room for a Trial and a LeakGuard re-run under a loaded machine: a slow
-    # healthy child would get the wrong verdict.
     def soft = 0.25
 
     def watchdog = 1.0
 
-    # Shift judges each mutant in fresh processes and never requeues: a test
-    # that fails first in one is the kill, whatever a rerun would do, so the
-    # warm script alone decides.
     def status(behavior)
       { killed: "killed", leak: "killed", survived: "survived", tainted: "timeout", requeue: "killed" }.fetch(behavior)
     end

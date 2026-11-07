@@ -4,8 +4,6 @@ require "kimera/report/progress"
 require "stringio"
 
 RSpec.describe(Kimera::Report::Progress) do
-  # In-place redraw only engages on a tty; a plain StringIO gets heartbeat lines.
-  # A terminal of +rows+ by +columns+, writing to a string.
   def fake_tty(rows = nil, columns = nil)
     io = StringIO.new
     def io.tty? = true
@@ -13,7 +11,6 @@ RSpec.describe(Kimera::Report::Progress) do
     io
   end
 
-  # interval: 0 disables throttling.
   def progress(io: fake_tty, enabled: true, interval: 0, clock: nil)
     options = { io: io, enabled: enabled, cadence: ->(_surface) { interval } }
     options[:clock] = clock if clock
@@ -70,7 +67,6 @@ RSpec.describe(Kimera::Report::Progress) do
     expect(lines.last).to(include("2/2", "100%", "killed=2"))
   end
 
-  # Every tick but the last lands at t=0, inside the heartbeat window; the last at `at`.
   def plain(total, ticks, at:, label: "mutants (warm)")
     now = 0.0
     io = StringIO.new
@@ -114,7 +110,6 @@ RSpec.describe(Kimera::Report::Progress) do
     expect(io.string).to(be_empty)
   end
 
-  # Ticks at t=0 (always suppressed), then again at `elapsed`.
   def heartbeat(elapsed, tty: false)
     now = 0.0
     io = tty ? fake_tty : StringIO.new
@@ -129,11 +124,11 @@ RSpec.describe(Kimera::Report::Progress) do
 
   it "throttles non-tty heartbeats to the heartbeat interval by default" do
     io = heartbeat(Kimera::Report::Log::HEARTBEAT_EVERY)
-    expect(io.string.lines.size).to(eq(2)) # start frame + one heartbeat
+    expect(io.string.lines.size).to(eq(2))
   end
 
   it "keeps the fast redraw window only on a tty", :aggregate_failures do
-    io = heartbeat(Kimera::Report::Live::REDRAW_EVERY * 2) # a tty would redraw here; the heartbeat must not
+    io = heartbeat(Kimera::Report::Live::REDRAW_EVERY * 2)
     expect(io.string.lines.size).to(eq(1))
 
     tty = heartbeat(Kimera::Report::Live::REDRAW_EVERY, tty: true)
@@ -152,7 +147,7 @@ RSpec.describe(Kimera::Report::Progress) do
 
     last = frames(io).last
     expect(last).to(start_with("mutants [=====>                  ]  1/4  25%  killed=1 survived=0"))
-    expect(last).to(match(/  \d+:\d{2}\z/)) # elapsed clock closes the line
+    expect(last).to(match(/  \d+:\d{2}\z/))
   end
 
   def fill(count, total)
@@ -160,15 +155,14 @@ RSpec.describe(Kimera::Report::Progress) do
     frames(io).last[/\[.*?\]/]
   end
 
-  # 24-wide bar, keyed by [count, total].
   def geometries
     {
-      [0, 4] => "[                        ]", # empty, no head
-      [1, 4] => "[=====>                  ]", # filled 6
-      [2, 4] => "[===========>            ]", # filled 12
-      [4, 4] => "[========================]", # full, no head
-      [1, 24] => "[>                       ]", # filled 1: head only
-      [23, 24] => "[======================> ]" # filled 23: head near end
+      [0, 4] => "[                        ]",
+      [1, 4] => "[=====>                  ]",
+      [2, 4] => "[===========>            ]",
+      [4, 4] => "[========================]",
+      [1, 24] => "[>                       ]",
+      [23, 24] => "[======================> ]"
     }
   end
 
@@ -179,11 +173,11 @@ RSpec.describe(Kimera::Report::Progress) do
   def boundary
     now = 0.0
     bar, io = progress(interval: 0.1, clock: -> { now })
-    bar.during(10, "mutants") do |tick| # draws at t=0
+    bar.during(10, "mutants") do |tick|
       now = 0.05
-      tick.call # inside the window: skipped
+      tick.call
       now = 0.1
-      tick.call # at the edge: drawn
+      tick.call
     end
     frames(io)
   end
@@ -203,7 +197,7 @@ RSpec.describe(Kimera::Report::Progress) do
 
   it "draws phase-start and final frames despite the throttle", :aggregate_failures do
     drawn = phases
-    expect(drawn.size).to(eq(3)) # tick 1/2 was throttled away
+    expect(drawn.size).to(eq(3))
     expect(drawn[0]).to(include("baseline", "0/2"))
     expect(drawn[1]).to(include("baseline", "2/2", "100%"))
     expect(drawn[2]).to(include("mutants", "0/3"))
@@ -215,7 +209,6 @@ RSpec.describe(Kimera::Report::Progress) do
     expect([transcript.scan("\r\e[K").size, transcript.end_with?("\n")]).to(eq([2, true]))
   end
 
-  # One tick without a status, then one with.
   def unstated
     bar, io = progress
     bar.during(2, "baseline") { |tick| [nil, :killed].each { |status| tick.call(status) } }
@@ -233,7 +226,6 @@ RSpec.describe(Kimera::Report::Progress) do
     expect(frames(io).last).not_to(match(/=\d/))
   end
 
-  # What the stream shows after a kill, and then after a timeout.
   def snapshots
     bar, io = progress
     bar.during(2, "mutants") do |tick|
@@ -263,14 +255,12 @@ RSpec.describe(Kimera::Report::Progress) do
     expect(io.string).to(match(%r{baseline \[========================\]  1/1  100%.*\n\r\e\[Kmutants \(warm\)}m))
   end
 
-  # The stream of a bar on a 20-column terminal; the phase yields its first frame and its tick.
   def narrow(label = "mutants (isolated)", io: fake_tty(24, 20))
     bar = described_class.new(io: io, enabled: true, cadence: ->(_surface) { 0 })
     bar.during(2, label) { |tick| yield(io.string.dup, tick) }
     io
   end
 
-  # What a tick wrote after the first frame, and how many rows that frame took.
   def wrapped
     rows = erased = nil
     io = fake_tty(24, 20)
@@ -287,7 +277,6 @@ RSpec.describe(Kimera::Report::Progress) do
     expect(after).to(start_with("\r\e[K#{"\e[1A\r\e[K" * (rows - 1)}"))
   end
 
-  # A wiped frame leaves the cursor on its first row: the next phase's frame has nothing above it to erase.
   it "climbs no rows into earlier output after a phase it cleared short" do
     io = narrow { |first, _tick| first }
     cleared = io.string.size
@@ -329,7 +318,6 @@ RSpec.describe(Kimera::Report::Progress) do
   end
 
   it "renders elapsed time as MM:SS from the monotonic delta" do
-    # 3600s tells 60 from 59 or 61. The nonzero base catches `-` => `+`.
     expect(elapsed(1000.0, 4600.0)).to(end_with("  60:00"))
   end
 
@@ -346,7 +334,6 @@ RSpec.describe(Kimera::Report::Progress) do
     expect(last).to(include("killed=1 survived=0"))
   end
 
-  # An unflushed frame is invisible to whoever is watching the run.
   def watched(tty:)
     io = StringIO.new
     flushes = [0]
@@ -356,7 +343,6 @@ RSpec.describe(Kimera::Report::Progress) do
     io
   end
 
-  # The flushes a tty saw by the end of a phase's first tick.
   def painted_flushes
     io = watched(tty: true)
     bar = described_class.new(io: io, enabled: true, cadence: ->(_surface) { 0 })

@@ -41,7 +41,6 @@ RSpec.describe(Kimera::Incremental::CoverageMap) do
       .to(eq([".rspec changed", "spec/b_spec.rb changed", "spec/a_spec.rb changed"]))
   end
 
-  # The stored sources are lib/a.rb at "1" and lib/b.rb at "2"; t1 and t2 reached lib/a.rb, t3 lib/b.rb.
   def reused(sources, files = [], ids = %w[t1 t2 t3 t4])
     picked = stored.picked(sources, files, ids)
     [picked, stored.reused(sources, picked.size, ids.size)]

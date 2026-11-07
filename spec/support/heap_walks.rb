@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-# How often the block walks the object space, seen through a TracePoint on
-# ObjectSpace.each_object as the block runs.
 module HeapWalks
   def walks(&)
     count = 0

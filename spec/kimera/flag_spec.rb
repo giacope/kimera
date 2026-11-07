@@ -63,7 +63,6 @@ RSpec.describe(Kimera::Flag) do
         Dir.chdir(dir) { Kimera::CLI::Run.new.__send__(:parse, []) }
       end.to_h.keys
 
-      # resolve_globs consumes :cli_tests, and attribution :cli_unit_tests.
       keys = Kimera::CLI::RunOptions::OPTIONS.to_a.map { it.to_h[:key] }
       expect(keys - declared).to(eq(%i[cli_tests cli_unit_tests]))
     end

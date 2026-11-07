@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 RSpec.describe("kimera run --operators all (end-to-end)") do
-  # Quoted heredoc keeps the regexp escapes intact.
   def toolbox
     <<~'RUBY'
       # frozen_string_literal: true

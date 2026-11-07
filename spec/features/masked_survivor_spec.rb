@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-# A run-once guard: whichever lexer test runs first readies Sql for the rest
-# of the process, so with the superclass call gone the Hql test still passes
-# after the Sql test. Alone in a fresh process it fails.
 RSpec.describe("kimera run confirming survivors (end-to-end)", :aggregate_failures) do
   def files = {
     "lib/lexer.rb" => <<~RUBY,
@@ -54,7 +51,6 @@ RSpec.describe("kimera run confirming survivors (end-to-end)", :aggregate_failur
     end
   end
 
-  # What the confirming run says about the mutants the plain run let survive.
   def confirmation(run, masked)
     {
       statuses: run.verdicts.values.uniq,

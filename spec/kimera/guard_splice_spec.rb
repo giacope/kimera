@@ -15,7 +15,6 @@ RSpec.describe(Kimera::GuardSplice) do
     comparisons.source(source, file: "x.rb").to_a
   end
 
-  # An index that finds the node of the first point only, as when a later point's node is gone.
   def first_only(index)
     first = points.first
     Class.new { define_method(:anchored) { |point| point.equal?(first) ? index.anchored(point) : [] } }.new

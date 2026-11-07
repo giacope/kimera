@@ -1,15 +1,8 @@
 # frozen_string_literal: true
 
-# Stand-ins for the parts of Rails and Active Record that kimera's database
-# handling reads, put in place of the real constants with stub_const.
 module FakeRails
-  # A database configuration, as connection_db_config and configs_for answer
-  # one; a copy renames its database as Active Record's _database= does.
   Config = Struct.new(:adapter, :database, :name) { alias_method(:_database=, :database=) }
 
-  # ActiveRecord::Base: its connection's configuration, the configurations, the
-  # connection pools, its one connection, and each connection it was told to
-  # establish.
   class Base
     attr_accessor :configurations
     attr_reader :connection_handler, :connection, :established
@@ -27,8 +20,6 @@ module FakeRails
     def establish_connection(config = nil) = @established.push(config)
   end
 
-  # ActiveRecord::DatabaseConfigurations: the configurations of the test
-  # environment, by name.
   class Configurations
     def initialize(configs)
       @configs = configs
@@ -40,7 +31,6 @@ module FakeRails
     end
   end
 
-  # Rails, as far as its application's database configuration.
   Application =
     Struct.new(:database_configuration) do
       def application = self
@@ -48,7 +38,6 @@ module FakeRails
       def config = self
     end
 
-  # An SQLite3 database handle, as SQLite3::ForkSafety holds it.
   Handle =
     Struct.new(:filename, :closed, :alive) do
       def closed? = closed
@@ -56,8 +45,6 @@ module FakeRails
       def weakref_alive? = alive
     end
 
-  # The connection pools, as the connection handler of Rails 7.1 and later
-  # walks them.
   class Pools
     def initialize(pools = [])
       @pools = pools
@@ -66,7 +53,6 @@ module FakeRails
     def each_connection_pool = @pools.each
   end
 
-  # The connection pools, as the connection handler of Rails before 7.1 lists them.
   class ListedPools
     def initialize(pools = [])
       @pools = pools
@@ -75,8 +61,6 @@ module FakeRails
     def connection_pool_list = @pools
   end
 
-  # A connection to the test database: its adapter and tables, and what it
-  # was told to run, in order; truncating raises +truncate+ when given.
   class Connection
     attr_reader :adapter_name, :tables, :said
 
@@ -95,26 +79,20 @@ module FakeRails
     end
   end
 
-  # A connection pool that knows whether it was disconnected.
   class Pool
     def disconnect! = (@disconnected = true)
 
     def disconnected? = @disconnected == true
   end
 
-  # A connection pool whose connection is busy and will not let go.
   class BusyPool
     def disconnect! = raise(ActiveRecord::ExclusiveConnectionTimeoutError, "busy")
   end
 
-  # ActiveRecord::Base before the suite establishes a connection.
   class Unconnected
     def connection_db_config = raise(ActiveRecord::ConnectionNotEstablished, "No connection pool")
   end
 
-  # Active Record's errors that kimera rescues, put in place with stub_const
-  # under their real names: the root of its errors, a connection the suite
-  # never established, and a pool whose connection will not let go in time.
   def self.errors(example)
     root = Class.new(StandardError)
     example.stub_const("ActiveRecord::ActiveRecordError", root)
@@ -122,14 +100,11 @@ module FakeRails
     example.stub_const("ActiveRecord::ExclusiveConnectionTimeoutError", Class.new(root))
   end
 
-  # Active Record loaded, its errors with it, before the suite connects.
   def self.unconnected(example)
     errors(example)
     example.stub_const("ActiveRecord::Base", Unconnected.new)
   end
 
-  # ActiveRecord::Tasks::DatabaseTasks: the schema dump each database loads
-  # from (or the error working it out raises), and each database it rebuilt.
   class Tasks
     attr_reader :rebuilt
 
@@ -145,8 +120,6 @@ module FakeRails
   end
 end
 
-# A Rails application that eager-loads, writing down how often, or raises the
-# error it was given.
 class FakeApplication
   attr_reader :eager_loads
 

@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-# Table::RATES is built while the suite loads, before any guard exists, so a
-# warm run of a Rate.compute mutant can't change it.
 RSpec.describe("kimera run on a method that also ran while the suite loaded (end-to-end)", :aggregate_failures) do
   def files = {
     "app/rate.rb" => "class Rate\n  def self.compute(x)\n    x > 10 ? 2 : 1\n  end\nend\n",

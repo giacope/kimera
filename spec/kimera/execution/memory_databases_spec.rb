@@ -4,10 +4,6 @@ require "kimera/execution/boot"
 require "kimera/frameworks/suite"
 require "kimera/execution/memory_databases"
 
-# ActiveRecord drops every pool in a forked child and reconnects. An in-memory
-# SQLite database lives only in the connection it came from, so a warm worker
-# reconnected to an empty one: devise's suite read "no such table: users" and
-# 735 of its mutants went unjudged.
 RSpec.describe(Kimera::Execution::MemoryDatabases) do
   let(:boot) { Kimera::Execution::Boot.new(adapter: nil, isolate: false) }
 

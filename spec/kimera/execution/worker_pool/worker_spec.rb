@@ -34,7 +34,6 @@ RSpec.describe Kimera::Execution::WorkerPool::Worker do
     expect(worker.fresh?).to(be(false))
   end
 
-  # Teardown hooks can hang on locks a leaked thread holds; the watchdog must still see it.
   it "stays on the clock while it retires", :aggregate_failures do
     worker = described_class.new(request: :pipe, inflight: 5, deadline: nil)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
@@ -51,7 +50,6 @@ RSpec.describe Kimera::Execution::WorkerPool::Worker do
     end
   end
 
-  # Any line proves the worker alive; a crash line also says why it is dying.
   it "renews its deadline on every message", :aggregate_failures do
     worker = described_class.new
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)

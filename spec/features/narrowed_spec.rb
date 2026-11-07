@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-# A run narrowed with --tests cannot know whether a test it left out covers a
-# mutant, so its uncovered mutants are reported as such and neither scored as
-# not killed nor gated on, unless --fail-on-no-coverage asks for that.
 RSpec.describe("kimera run narrowed with --tests (end-to-end)", :aggregate_failures) do
   def files = {
     "app/a.rb" => "class A\n  def big?(n) = n > 9\nend\n",

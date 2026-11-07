@@ -6,7 +6,6 @@ require "kimera/scribe"
 RSpec.describe(Kimera::Rewrite::AstWalk) do
   let(:tree) { Kimera::Scribe.parse("f(a, [b, c]) { d }") }
 
-  # A rebuild that changes nothing hands back the very tree, so nothing is copied.
   it "keeps every node a rebuild leaves as it was" do
     expect(described_class.new(tree).rebuild { |node| node }).to(be(tree))
   end

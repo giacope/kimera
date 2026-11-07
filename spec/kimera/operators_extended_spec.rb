@@ -8,7 +8,6 @@ require "kimera/synthesis/overlay"
 
 using PointFields
 
-# Each family also runs live, since one variant rendering bad source breaks the whole file's overlay.
 RSpec.describe(Kimera::Operators) do
   let(:ext_source) { <<~RUBY }
     class ExtOps
@@ -91,8 +90,6 @@ RSpec.describe(Kimera::Operators) do
 
   def pick(catalog, wanted) = catalog.each.find { |m, p| m.to_s == wanted || p.original_source == wanted }.first.to_i
 
-  # What the block answers for an ExtOps under the key's overlay, with the
-  # mutant of that label (or source) active, or none.
   def under(key, wanted = nil)
     stub_const("ExtOps", Class.new)
     catalog = built(key)
@@ -101,7 +98,6 @@ RSpec.describe(Kimera::Operators) do
     active(wanted && pick(catalog, wanted)) { yield(ExtOps.new) }
   end
 
-  # The block's answer with no mutant active, then with the wanted one.
   def outcomes(key, wanted, &) = [under(key, &), under(key, wanted, &)]
 
   def active(id, &) = Kimera::RUNTIME.during(id, &)
@@ -126,10 +122,6 @@ RSpec.describe(Kimera::Operators) do
     expect(under("conditional", "condition => true") { |o| o.pick(false) }).to(eq(:yes))
   end
 
-  # `if page = next_page` binds page for the body: pinning the predicate to
-  # a bare literal dropped the binding, and with it the whole point, since
-  # Kimera won't write the body's read of a local no longer assigned.
-  # A predicate that binds nothing is still not evaluated.
   describe "conditional on a predicate that assigns" do
     let(:linker) { <<~RUBY }
       class Linker
@@ -145,7 +137,6 @@ RSpec.describe(Kimera::Operators) do
       end
     RUBY
 
-    # The overlay, and each mutant's id by method and label.
     def linked
       stub_const("Linker", Class.new)
       catalog = scan("conditional", linker, "linker.rb")
@@ -192,7 +183,6 @@ RSpec.describe(Kimera::Operators) do
     RUBY
     catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["conditional"]))
       .source(code, file: "route.rb")
-    # Only the outer if contributes; the elsif arm is skipped.
     expect(catalog.each.count).to(eq(2))
   end
 
@@ -231,7 +221,6 @@ RSpec.describe(Kimera::Operators) do
     expect(outcomes("return_value", "return => return nil") { |o| o.evens([1, 2]) }).to(eq([[2], nil]))
   end
 
-  # Looked up by source: several methods have a "tail => nil" mutant.
   it "return_value nils non-call tails" do
     expect(outcomes("return_value", "a * b") { |o| o.total(3, 4) }).to(eq([12, nil]))
   end
@@ -290,11 +279,9 @@ RSpec.describe(Kimera::Operators) do
     catalog = Kimera::RegistryScan.new(
       operators: described_class.build(keys: %w[rails_permit argument_drop])
     ).source(code, file: "p.rb")
-    # The more specific rails label wins.
     expect(catalog.each.map { |m, _p| m.to_s }).to(contain_exactly("permit: drop :name", "permit: drop :admin"))
   end
 
-  # The only family that mutates mid-expression, so it is checked on rendered source.
   describe "chain_link_deletion" do
     def chained(code)
       Kimera::RegistryScan.new(
@@ -326,7 +313,6 @@ RSpec.describe(Kimera::Operators) do
     end
 
     it "leaves the root of a chain alone (that is method_unwrap's job)", :aggregate_failures do
-      # A receiverless call is still a CallNode; only the receiver check rules it out.
       expect(chained("def m(x)\n  x.strip\nend\n").each.count).to(eq(0))
       expect(chained("def m\n  source.strip\nend\n").each.count).to(eq(0))
     end
@@ -338,7 +324,6 @@ RSpec.describe(Kimera::Operators) do
     end
 
     it "leaves operator-named links to their own families" do
-      # `xs[0]` is a CallNode with a receiver; only the identifier check skips it.
       expect(chained("def m(xs)\n  xs[0].to_s\nend\n").each.count).to(eq(0))
     end
 
@@ -351,7 +336,6 @@ RSpec.describe(Kimera::Operators) do
         end
       RUBY
 
-      # The chain's answer, with the labelled mutant active, or none.
       def demoed(label = nil)
         stub_const("ChainDemo", Class.new)
         catalog = chained(demo)

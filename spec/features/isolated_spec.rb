@@ -3,7 +3,6 @@
 using ResultFields
 
 RSpec.describe("kimera run --isolated (end-to-end)") do
-  # The sample's known boundary survivor is mutant 3.
   it "reproduces the fast-path verdicts with fully out-of-process evaluation", :aggregate_failures do
     run = test_outcome(cwd: test_sample, arguments: ["--isolated"])
     expect(run.counts.slice("total", "timeout", "error", "leaks"))
@@ -31,8 +30,6 @@ RSpec.describe("kimera run --isolated (end-to-end)") do
     expect([run.verdicts, run.status]).to(eq([serial, 2]), run.output)
   end
 
-  # A suite that can't load in the mirror must stop the run, not score every
-  # mutant it covers as killed.
   def test_unloadable(root)
     FileUtils.cp_r(File.join(test_repository_root, "examples", "minitest_app", "."), root)
     FileUtils.mkdir_p(File.join(root, "coverage"))

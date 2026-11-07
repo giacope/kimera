@@ -24,7 +24,6 @@ RSpec.describe(Kimera::Execution::Pool) do
     Kimera::Execution::WorkerPool::Listeners.new(resolve: resolve, lost: ->(*) {}, trace: nil)
   end
 
-  # Records each slot it spawns into; its workers kill whatever they're sent.
   def answering(seen)
     lambda do |slot|
       seen << slot
@@ -54,8 +53,6 @@ RSpec.describe(Kimera::Execution::Pool) do
     expect(seen).to(contain_exactly(0, 1))
   end
 
-  # The worker's request pipe closes at once, so it exits without work.
-  # Spawns the pool's real workers, noting each one's stack dump.
   def launching(pool, launched)
     spawner = pool.spawner(:serve)
     ->(slot) { spawner.call(slot).tap { |worker| launched << worker.last }.tap { |worker| worker[1].close } }
@@ -73,7 +70,6 @@ RSpec.describe(Kimera::Execution::Pool) do
     end
   end
 
-  # A stack dump that writes down on +notes+ that a worker armed it.
   def armed(notes)
     Struct.new(:notes) do
       def arm!
@@ -83,10 +79,8 @@ RSpec.describe(Kimera::Execution::Pool) do
     end.new(notes)
   end
 
-  # A pool whose workers' stack dump writes down on +notes+ that a worker armed it.
   def arming(notes) = driver(databases: FakeDatabases.new).tap { |pool| pool.__send__(:armed).stacks = armed(notes) }
 
-  # What a worker the pool spawns writes down on a pipe: its stack dump, then its duty; and how it exited.
   def spawned
     reader, writer = IO.pipe
     pid = arming(writer).__send__(:spawn, FakeDuty.new(1, writer))

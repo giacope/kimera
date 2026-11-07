@@ -9,18 +9,15 @@ require "stringio"
 RSpec.describe(Kimera::CLI::TestCommand) do
   def watched = 125
 
-  # The status of a process that exited 0 (or 1 when not +success+), or that +signal+ killed.
   def status(success, signal = nil)
     return ProcessStatuses.killed(signal) if signal
     ProcessStatuses.exited(success ? 0 : 1)
   end
 
-  # The test command over +files+ of +framework+ at +root+, without the tests +names+ name, run through +suite+.
   def command(framework, files = ["t.rb"], root: "/app", names: [], suite: answering)
     described_class.new(Kimera::CLI::TestExclusion.new(framework, names), files, root: root, suite: suite)
   end
 
-  # A suite that answers every command with +output+, green or red.
   def answering(output = "", success: true) = FakeCapture.new { [output, status(success)] }
 
   def loading(framework, output: "", success: true, suite: answering(output, success: success))
@@ -33,9 +30,6 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     expect(suite.ran).to(eq([[["bundle", "exec", "ruby", "-e", described_class::DRY_RUN, "t.rb"], "/app", watched]]))
   end
 
-  # The load path run uses: each file's nearest test/ or spec/, the
-  # project's own, and load_path: from the configuration.
-  # Doctor's load check of a nested test file, with a configured load path; the file.
   def loaded_in(root, suite)
     FileUtils.mkdir_p([File.join(root, "test"), File.join(root, "lib", "x", "test")])
     stub_const("ENV", ENV.to_h.merge("KIMERA_LOAD_PATH" => "support"))
@@ -44,7 +38,6 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     end
   end
 
-  # The dry run of +file+ with the load path a nested test file gets.
   def nested(file) = %w[bundle exec ruby -I support -I lib/x/test -I test -e].push(described_class::DRY_RUN, file)
 
   it "puts the same folders on doctor's load path as kimera run does" do
@@ -61,8 +54,6 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     expect(suite.ran).to(eq([[%w[bundle exec rspec --dry-run t.rb], "/app", watched]]))
   end
 
-  # A helper gating its coverage floor on KIMERA must not fail the dry run,
-  # which executes no code at all.
   it "runs the full baseline with KIMERA set too" do
     suite = answering
     command("rspec", suite: suite).baseline
@@ -78,7 +69,6 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     expect(result).to(eq(["✗", "Test loading: t.rb:1: boom (RuntimeError)"]))
   end
 
-  # R4-KR6: maintenance_tasks' dummy app aborts with Rails' pending-migrations message.
   it "quotes the first lines of a suite that aborts with a plain message", :aggregate_failures do
     said = "\nMigrations are pending. To resolve this issue, run:\n\n        bin/rails db:migrate\n\n" \
       "You have 9 pending migrations:\n\n20201211151756_create_runs.rb\n"
@@ -93,7 +83,6 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     expect(loading("minitest", output: "\n  \n", success: false)).to(eq(["✗", "Test loading: test command failed"]))
   end
 
-  # A suite whose command cannot start: there is no bundle executable.
   def unbundled = FakeCapture.new { raise(Errno::ENOENT) }
 
   it "warns without failing when Bundler is missing" do
@@ -101,8 +90,6 @@ RSpec.describe(Kimera::CLI::TestCommand) do
       .to(eq(["!", "Test loading: Bundler is unavailable; not checked"]))
   end
 
-  # R6B3-M1: doctor runs the baseline as the Rakefile's test task does, and
-  # says so when a red suite is green with warnings the other way.
   def warned(rakefile, outcomes)
     Dir.mktmpdir do |root|
       File.write(File.join(root, "Rakefile"), rakefile)
@@ -146,7 +133,6 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     command(framework, suite: FakeCapture.new { [output, status(false, signal)] }).baseline.last
   end
 
-  # R5-KR4: rubytoolbox under the OOM killer; doctor headlined an example's name that held "error".
   it "says first that the suite was killed by a signal, never naming a passing example", :aggregate_failures do
     output = "Catalog import\n  raises an error when fetching fails\n"
     expect(
@@ -196,7 +182,6 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     expect(baseline("minitest", output)).to(end_with(listed))
   end
 
-  # Rails' minitest reporter prints its headers unnumbered (once-campfire).
   it "names the failing tests of a Rails minitest run" do
     output = <<~OUT
       Failure:
@@ -213,7 +198,6 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     expect(baseline("minitest", output)).to(end_with(listed))
   end
 
-  # rubocop-ast needs a generated lexer; the count line alone said nothing.
   it "names the error that stopped the suite before any example ran" do
     output = <<~OUT
       An error occurred while loading spec_helper.
@@ -227,7 +211,6 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     expect(loading("rspec", output: output, success: false).last).to(end_with("outside of examples #{cause}"))
   end
 
-  # thor's spec/helper.rb sets minimum_coverage(90), which a dry run always trips.
   it "explains a command that failed with no failing test", :aggregate_failures do
     expect(loading("rspec", output: "911 examples, 0 failures\n", success: false).last)
       .to(eq("Test loading: 911 examples, 0 failures#{described_class::QUIET_EXIT}"))
@@ -256,7 +239,6 @@ RSpec.describe(Kimera::CLI::TestCommand) do
       .to(eq(["✗", "Baseline: Bundler is unavailable; run your test suite, then retry"]))
   end
 
-  # A suite in which each shard's command answers with its own output; an empty one passes.
   def sharded(framework, outputs)
     shards = outputs.each_index.map { |index| Kimera::CLI::TestShard.new(index, outputs.size).argv(framework) }
     FakeCapture.new do |argv|
@@ -285,7 +267,6 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     expect(thirds.ran).to(include([shard("minitest", 2, 3), "/app", watched]))
   end
 
-  # What the baselines of an RSpec suite say, green or red in one process, split across +jobs+.
   def baselines(green, jobs: nil)
     tests = command("rspec", suite: answering("2 examples, #{green ? 0 : 1} failure", success: green))
     (jobs ? tests.baselines(jobs) : tests.baselines).map(&:last)
@@ -299,7 +280,6 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     expect(baselines(false, jobs: 2)).to(match([start_with("Baseline: 2 examples, 1 failure")]))
   end
 
-  # thor, green in one process, red on four workers that share spec/sandbox.
   it "warns with every worker's failing tests when the suite is red split across processes", :aggregate_failures do
     red = ["rspec ./spec/a_spec.rb:3 # A\n", "", "rspec ./spec/b_spec.rb:9 # B\nrspec ./spec/a_spec.rb:3 # A\n"]
     status, text = parallel("rspec", red)
@@ -313,7 +293,6 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     expect(text).to(start_with("Parallel baseline: red split across 3 processes (jobs: 3), green in one: "))
   end
 
-  # R4-KR4: stringer's SimpleCov minimum_coverage(100) fails each half of the suite.
   it "tells a coverage floor apart from shared state", :aggregate_failures do
     floor = "Parallel baseline: #{format(described_class::FLOOR, 2, 2)}"
     expect(parallel("rspec", ["10 examples, 0 failures\n", "12 examples, 0 failures\n"])).to(eq(["!", floor]))
@@ -326,7 +305,6 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     expect(parallel("rspec", mixed).last).to(start_with("Parallel baseline: #{format(described_class::SHARED, 2, 2)}"))
   end
 
-  # K3-2: a suite that never exits hung doctor for 25 minutes, silently.
   describe "a suite that never exits" do
     def hung
       Dir.mktmpdir do |root|
@@ -377,8 +355,6 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     end
   end
 
-  # R6B4-M8: `kimera run` leaves out the tests exclude_test_names names;
-  # doctor's baseline ran them, and called the suite red on one it leaves out.
   describe "the tests exclude_test_names leaves out" do
     def suite(root, framework)
       spec = framework == "rspec"

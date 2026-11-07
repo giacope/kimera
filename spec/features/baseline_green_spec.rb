@@ -5,16 +5,13 @@ require "kimera/registry/builder"
 require "kimera/synthesis/project"
 
 RSpec.describe("synthesized baseline") do
-  # A copy of the sample app synthesized with every mutant guarded, its specs beside it.
   def synthesized(dir)
     root = test_sample
     registry = Kimera::RegistryScan.new(root: root).build(Dir["#{root}/app/**/*.rb"])
     Kimera::Synthesis::Project.new(registry, root: root).write(dir)
-    # So require_relative resolves to the synthesized app files.
     FileUtils.cp_r("#{root}/spec", "#{dir}/spec")
   end
 
-  # Synthesizes the copy into dir and runs its suite with no mutant active; its output.
   def green(dir)
     synthesized(dir)
     script = <<~RUBY

@@ -3,9 +3,6 @@
 require "fileutils"
 require "tmpdir"
 
-# K3-3: warm workers re-ran the before(:suite) hooks the parent had run; a
-# hook that is not idempotent then broke every test, and kimera dropped them
-# as "failing tests that cover no in-scope mutant", leaving false survivors.
 RSpec.describe("kimera run on a suite whose hooks misbehave under kimera (end-to-end)", :aggregate_failures) do
   def project(root, files)
     {
@@ -41,7 +38,6 @@ RSpec.describe("kimera run on a suite whose hooks misbehave under kimera (end-to
     end
   RUBY
 
-  # The run over the calculator's spec and the given files, and its project root.
   def hooked(files, *arguments)
     Dir.mktmpdir("kimera-hooks") do |root|
       project(root, { "spec/calc_spec.rb" => calculator }.merge(files))

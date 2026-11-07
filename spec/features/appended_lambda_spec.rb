@@ -1,10 +1,5 @@
 # frozen_string_literal: true
 
-# R6B2-M5: the warm overlay evaluates a mutated file again, so a class-body
-# macro that adds to a list (ActiveRecord's default_scope) holds the original
-# lambda and the woven one. A test reaches the woven one, and the original
-# masks its mutant: places-manager's `default_scope -> { order(name: :asc) }`
-# survived warm, deleted, and failed three examples baked.
 RSpec.describe("a lambda a class-body macro adds to a list") do
   def files = {
     "app/item.rb" => <<~RUBY,

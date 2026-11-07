@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-# On the schema path a memoized mutant would falsely survive.
 RSpec.describe("reload fallback for memoized mutants") do
   def files = {
     "app/models/rate.rb" => <<~RUBY,
@@ -31,8 +30,6 @@ RSpec.describe("reload fallback for memoized mutants") do
     expect(run.counts).to(include("survived" => 0, "killed" => be >= 2, "error" => 0), run.output)
   end
 
-  # R6B2-M2: the reload child watched `high?`, a one-line def that starts later
-  # on the memoized mutant's line, not `reading`, the method that holds it.
   def meter = {
     "app/meter.rb" => <<~RUBY,
       # frozen_string_literal: true

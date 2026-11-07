@@ -91,7 +91,6 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
   end
 
   describe "an attempt" do
-    # Passes test "a", and any test while no mutant is active; fails the rest.
     def picky
       passed = Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
       Object.new.tap do |adapter|
@@ -124,7 +123,6 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
   end
 
   describe "the coverage channel" do
-    # Its one test, "t", reaches mutant 7 and fails with "boom".
     def reaching
       Object.new.tap do |adapter|
         adapter.define_singleton_method(:run) do |_ids|
@@ -208,8 +206,6 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
       File.write("plugin.rb", "File.write(File.join(__dir__, \"plugged\"), \"\")\n")
     end
 
-    # The mutants the warm harness ran in a run of a.rb and b.rb with +flags+,
-    # where a --since run finds line 2 of a.rb changed.
     def ran(*flags)
       harness = FakeHarness.new
       bench = FakeBench.new(harness: harness, changed: { "a.rb" => Set[2] })
@@ -218,7 +214,6 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
       harness.asked.filter_map { |kind, ids| ids if kind == :run }.flatten
     end
 
-    # a.rb and b.rb each hold the same number of mutants, all on line 2.
     it "narrows the run to the lines changed since the reference, and runs everything without one" do
       narrowed = ran("--since", "main")
       expect([narrowed.size * 2, narrowed.empty?]).to(eq([ran.size, false]))
@@ -266,7 +261,6 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
         .to(eq(coverage: { 1 => ["t1"] }, timings: { "t1" => 0.5 }, registry: registry, jobs: 3))
     end
 
-    # R6B3-M1: a Minitest suite's mirrors run with the warnings its Rakefile's test task sets.
     def warnings(framework)
       Dir.mktmpdir do |root|
         File.write(File.join(root, "Rakefile"), "Rake::TestTask.new\n")
@@ -327,7 +321,6 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
       .to(match("id" => 7, "status" => "unmutatable", "fails" => [], "detail" => "why", "ms" => Float, "cover" => []))
   end
 
-  # Mutant 1 of the registry, and 999, which it no longer has: the session saved a result and a leak for each.
   describe "a session's pruning" do
     let(:registry) { Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n", file: "calc.rb") }
     let(:kept) { registry.each.first.first.to_i }
@@ -342,7 +335,6 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
       end
     end
 
-    # The mutants a session holds results for, and those its leaks name.
     def held(session)
       report = session.report([kept, 999], [], registry)
       [report.to_a.map(&:mutant_id), report.notes.to_h["leaks"].map(&:mutant_id)]

@@ -26,7 +26,6 @@ RSpec.describe(Kimera::MemoGuard) do
     expect(exemptions(source).map(&:last)).to(eq(%w[conditional assignment_deletion]))
   end
 
-  # A memo can also fill its ivar in a guarded block and end on the ivar.
   describe "a fill guard" do
     it "exempts an unless block that fills the ivar the method then returns" do
       source = "def m\n  unless @x\n    rows = load\n    @x = rows.to_a\n  end\n  @x\nend\n"
@@ -61,8 +60,6 @@ RSpec.describe(Kimera::MemoGuard) do
     end
   end
 
-  # A keyed cache's early return and its store are one memo (D6): skipping the
-  # lookup recomputes the same value, and dropping the store recomputes it later.
   describe "a keyed cache" do
     it "exempts a lookup guard through a local and the store into the same cache", :aggregate_failures do
       source = "def parse(key, partial: false)\n  unless partial\n    cached = @cache[key]\n    " \

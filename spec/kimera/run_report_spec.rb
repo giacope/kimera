@@ -56,7 +56,6 @@ RSpec.describe(Kimera::RunReport) do
 
   describe "#score" do
     it "is killed / evaluable" do
-      # 4 killed out of 5 evaluable
       expect(report.score.to_f).to(be_within(1e-9).of(4.0 / 5))
     end
 
@@ -93,7 +92,6 @@ RSpec.describe(Kimera::RunReport) do
       expect(rep_with_leak.score.to_s).to(include("score=80.0%"))
     end
 
-    # Otherwise a run that killed nothing could read 100%.
     it "annotates the score with the uncovered count" do
       expect(report.score.to_s).to(include("score=80.0% (1 uncovered not scored)"))
     end

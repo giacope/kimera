@@ -2,14 +2,11 @@
 
 require "kimera/execution/baseline_failure"
 
-# thor's suite, red on four workers, used to print about 80 test IDs on one
-# line before its per-worker traces.
 RSpec.describe(Kimera::Execution::BaselineFailure::Summary) do
   let(:failed) { (1..80).map { |n| "./spec/thor_spec.rb[1:#{n}]" } }
 
   let(:workers) { failed.each_slice(20).with_index.to_h { |ids, slot| [slot, ids] } }
 
-  # The circumstances of a red baseline: a serial run unless told otherwise.
   def context(workers: {}, jobs: 1, ordered: [])
     described_class::Context.new(workers: workers, stacks: {}, jobs: jobs, ordered: ordered)
   end

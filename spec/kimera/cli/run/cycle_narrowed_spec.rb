@@ -7,8 +7,6 @@ require "tmpdir"
 
 using ResultFields
 
-# A narrowed run cannot know whether a test it left out covers a mutant: its
-# uncovered rows say so, and only on a narrowed run.
 RSpec.describe(Kimera::CLI::Run::Cycle, "#narrowed") do
   around { |example| Dir.mktmpdir { |dir| Dir.chdir(dir) { example.run } } }
 
@@ -27,7 +25,6 @@ RSpec.describe(Kimera::CLI::Run::Cycle, "#narrowed") do
     )
   end
 
-  # A run of the configured spec/*_spec.rb, or of only spec/a_spec.rb when +narrowed+.
   def details(narrowed)
     tests = narrowed ? ["spec/a_spec.rb"] : ["spec/*_spec.rb"]
     options = { tests: tests, configured_tests: ["spec/*_spec.rb"], exclude_tests: [] }

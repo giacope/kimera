@@ -6,8 +6,6 @@ require "kimera/registry/builder"
 
 using ResultFields
 
-# A baseline test whose worker hits the hard timeout under parallel load runs
-# once more, alone, before it can turn the baseline red.
 RSpec.describe(Kimera::Execution::BaselinePass) do
   let(:registry) do
     Kimera::RegistryScan.new.source(<<~RUBY, file: "calc.rb")
@@ -33,9 +31,6 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
 
   def failed(id, touched = ids) = passed(id, touched).merge("passed" => false, "failure" => "boom in #{id}")
 
-  # +first+ and +alone+ script the two rounds: each maps a test to :pass,
-  # :fail, :timeout or :crash. Returns the pass's result and every round's
-  # arguments.
   def measure(first, alone = {}, meter: progress, jobs: 1)
     rounds = []
     pass = described_class.new(adapter: adapter, registry: registry, progress: meter)
@@ -94,7 +89,6 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
       .to(raise_error(Kimera::Execution::BaselineFailure, Regexp.new(Regexp.escape(text))))
   end
 
-  # t1 stalls in parallel and is lost again alone; t2 crashes alone.
   def relapsed(pass, tick = Kimera::Execution::NullProgress::UNSEEN)
     pass.__send__(:lost, tick, "t1", :timeout, ["parallel stacks"])
     pass.__send__(:relapse, tick, "t1", :timeout, ["stacks alone"])
@@ -107,7 +101,6 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     expect(pass.__send__(:losses).to_h.fetch(:stacks)).to(eq("t1" => ["stacks alone"], "t2" => []))
   end
 
-  # A failure that covers no mutant in scope gates nothing, but didn't pass either.
   it "doesn't count a test that fails alone as recovered", :aggregate_failures do
     result, = measure({ "t1" => :timeout }, { "t1" => :stray })
 
@@ -135,8 +128,6 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     expect(pass.__send__(:tally).to_h.fetch(:messages)["t1"]).to(eq("its worker died before reporting a result"))
   end
 
-  # A suite that shares a directory, file or port between tests is red on
-  # several workers and green on one: the error says what to try.
   it "names --jobs 1 as the check when a baseline on several workers is red", :aggregate_failures do
     hint = "\n  ran on 3 workers: if the reproduce command above fails too, the tests are red on their own; if it " \
       "passes and --jobs 1 is green, the suite shares state between workers (a directory, file or port): use jobs: 1 " \
@@ -149,7 +140,6 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     )
   end
 
-  # Without coverage the baseline runs in one process, whatever --jobs says.
   it "doesn't name --jobs 1 for the baseline it checks in one process" do
     outcome = Struct.new(:passed?, :failures, :failed_ids).new(false, { "t1" => "boom" }, ["t1"])
     adapter.define_singleton_method(:run) { |_ids| outcome }
@@ -162,7 +152,6 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     )
   end
 
-  # R5-KW4: a red test that reached a mutant was "not green" though it passes plainly.
   def screening(passing)
     Class.new do
       attr_reader :screened
@@ -174,8 +163,6 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     end.new
   end
 
-  # BaselineScreen, as a pass builds one: it hands out +screen+ when built for +wanted+, and writes down what each
-  # was built with.
   def screens(screen, built = [], wanted: nil)
     Class.new do
       define_method(:new) do |**settings|
@@ -199,7 +186,6 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     expect(screen.screened).to(eq([{ "t1" => "boom in t1", "t3" => "its worker died before reporting a result" }]))
   end
 
-  # R4-KR1: the harness error kept only "its worker died", not the after-fork hook's error.
   it "hands the screen what a lost test's worker left", :aggregate_failures do
     screen = screening(true)
     expect { screened(screen, { "t2" => :died }) }.to(raise_error(Kimera::Execution::BaselineFailure))
@@ -238,7 +224,6 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
   describe "the whole suite, run once in order" do
     def outcome(failed) = Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed, failures: {})
 
-    # +failed+ fail when the whole suite runs; a test run alone fails unless +alone+.
     def scripted(failed, touch: [], alone: false)
       whole = outcome(failed)
       lone = outcome(alone ? [] : ["t"])
@@ -250,10 +235,8 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
 
     def summary = Kimera::Execution::BaselineFailure::Summary
 
-    # The whole suite run once in order, in this process.
     def sequenced = described_class.new(adapter: adapter, registry: registry, zygote: InlineZygote.new).sequence
 
-    # A suite that warns as it runs.
     def noisy
       quiet = outcome([])
       adapter.define_singleton_method(:run) do |_ids|
@@ -272,7 +255,6 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
       expect { sequenced }.not_to(output.to_stderr)
     end
 
-    # Under a run of kimera on itself the outer run's guards fire too.
     it "reports which mutants it reached" do
       scripted([], touch: [ids.first, ids.first])
       expect(sequenced["touched"].intersection(ids)).to(eq([ids.first]))

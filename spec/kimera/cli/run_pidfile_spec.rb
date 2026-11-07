@@ -4,8 +4,6 @@ require "kimera/cli/run"
 require "stringio"
 require "tmpdir"
 
-# --pidfile gives a script kimera's own pid to wait on; `pgrep -f "kimera
-# run"` also matches the shell that launched it.
 RSpec.describe(Kimera::CLI::Run) do
   around do |example|
     Dir.mktmpdir { |dir| Dir.chdir(dir) { example.run } }
@@ -23,7 +21,6 @@ RSpec.describe(Kimera::CLI::Run) do
     ended(outcome, StringIO.new, StringIO.new)
   end
 
-  # The pidfile as the run saw it, and the run's status.
   def held_pid
     held = nil
     status =

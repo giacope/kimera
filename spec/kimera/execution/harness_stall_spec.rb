@@ -4,7 +4,6 @@ require "kimera/execution/harness"
 require "kimera/registry/builder"
 require "stringio"
 
-# The warm baseline's notice for tests that stalled under parallel load.
 RSpec.describe(Kimera::Execution::Harness) do
   let(:registry) do
     Kimera::RegistryScan.new.source(<<~RUBY, file: "calc.rb")
@@ -14,7 +13,6 @@ RSpec.describe(Kimera::Execution::Harness) do
     RUBY
   end
 
-  # A baseline that measured nothing but the tests that stalled and then passed alone.
   def measured(recovered)
     Kimera::Execution::BaselineTally::Measured.new(coverage: {}, irrelevant: {}, recovered: recovered, timings: {})
   end

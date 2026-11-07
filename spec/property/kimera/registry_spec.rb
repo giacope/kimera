@@ -23,7 +23,6 @@ RSpec.describe(Kimera::Registry) do
       source.byteslice(0, start).count("\n") + 1 == location.fetch("start_line")
   end
 
-  # The scan's numbering and anchoring, then what they must be.
   def numbering(source)
     registry = scan(source)
     facts = {
@@ -47,7 +46,6 @@ RSpec.describe(Kimera::Registry) do
     end
   end
 
-  # How many distinct keys the mutants have and where each resolves, then what they must be.
   def keying(registry)
     keys = Kimera::MutantKeys.of(registry)
     ids = registry.each.map { |mutant, _| mutant.to_i }
@@ -71,7 +69,6 @@ RSpec.describe(Kimera::Registry) do
     sources.each_with_index.map { |program, i| File.join(dir, "f#{i}.rb").tap { File.write(it, render(program)) } }
   end
 
-  # The files whose keys differ when scanned among the others and alone.
   def drifted(sources)
     Dir.mktmpdir do |dir|
       scanned = ->(paths) { Kimera::RegistryScan.new(operators: operators, root: dir).build(paths) }
@@ -82,7 +79,6 @@ RSpec.describe(Kimera::Registry) do
     end
   end
 
-  # README: a key names the same mutant in a one-file run and in a full one.
   it "keys a file's mutants the same whether it is scanned alone or among others" do
     for_all(Pbt.array(programs, min: 2, max: 4), runs: 40) do |sources|
       expect(drifted(sources)).to(be_empty, "keys depend on the other files")
@@ -91,8 +87,6 @@ RSpec.describe(Kimera::Registry) do
 
   def unlined(key) = key.sub(Kimera::MutantKeys::LINE, ":")
 
-  # For each mutant before the shift: how many keys share its key's unlined
-  # form after it, and where its key resolves.
   def moves(program, shift)
     before = scan(render(program))
     after = scan(("\n" * shift) + render(program))
@@ -108,9 +102,6 @@ RSpec.describe(Kimera::Registry) do
 
   def landing(key, moved, keys) = { unlined: moved.count(unlined(key)), resolved: keys.id(key) }
 
-  # README: a key whose line moved still resolves when path and digest match
-  # exactly one mutant. Shifting the file keeps every digest unique, so every
-  # old key must come back to its own mutant.
   it "follows a key to its mutant after lines above it move" do
     for_all(programs, Pbt.integer(min: 1, max: 5), runs: 150) do |program, shift|
       found = moves(program, shift)
@@ -124,24 +115,18 @@ RSpec.describe(Kimera::Registry) do
     values << node.statements.body.last.location.then { [it.start_offset, it.length] }
   end
 
-  # The embedded values a statement deletion would delete.
   def deleted_embeds(source)
     deletions = scan(source).to_a.select { |point| point.operator.include?("statement_deletion") }
     spans = deletions.map { |point| point.location.to_h.values_at("start_offset", "length") }
     spans & embeds(Prism.parse(source).value)
   end
 
-  # README: statement_deletion deletes side-effecting statements; the
-  # expression an interpolation embeds is its text, not one of them.
   it "never deletes the value an interpolation embeds" do
     for_all(programs, runs: 150) do |program|
       expect(deleted_embeds(render(program))).to(be_empty)
     end
   end
 
-  # The other outcomes of a lookup, on keys built to collide: an exact key
-  # wins, a moved key resolves only when its unlined form is unique, and
-  # anything else (ambiguous or unknown) comes back as the text it was.
   describe Kimera::MutantKeys do
     let(:key) do
       parts = Pbt.tuple(Pbt.one_of("a.rb", "b.rb"), Pbt.one_of("1", "2", "3"), Pbt.one_of("0000000a", "0000000b"))
@@ -170,14 +155,6 @@ RSpec.describe(Kimera::Registry) do
     end
   end
 
-  # A mutant that is the original can never be killed, and two that are the
-  # same program count one test gap twice, whichever operators made them
-  # (`x.to_s.to_s` unwrapped or unlinked). A point the parser folds away
-  # (the inner `-1` of `--1`) has no program; it is reported unmutatable.
-  # A bake Ruby reads a flip-flop or `$_` match in was never the mutated tree:
-  # generated programs hold none, so a mutant left a literal in a condition.
-  # Per point (its source and labels): whether a bake is the original, how
-  # many bakes repeat, and which Ruby misreads.
   def baked(schemata)
     folded = "#{Kimera::Reason::UNMUTATABLE}#{unmatched}"
     schemata.registry.to_a.reject { |point| point.reasons(Kimera::Reason.unsafety).first == folded }.map do |point|

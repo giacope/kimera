@@ -2,8 +2,6 @@
 
 require "kimera/frameworks/suite"
 
-# A failure message carries the first frames of the failing test, so a warm
-# kill's detail says where it failed, not just that it did.
 RSpec.describe(Kimera::Frameworks::Suite) do
   let(:adapter) { described_class.new }
 

@@ -2,10 +2,7 @@
 
 require "kimera/execution/pool_driver"
 
-# Each side must close the pipe ends it doesn't own, or the reader never sees
-# a worker exit.
 RSpec.describe(Kimera::Execution::Pool::Channels) do
-  # The request pipe's reader and writer, then the response pipe's.
   let(:ends) { Array.new(2) { IO.pipe }.flatten }
   let(:pipes) { described_class.new(*ends) }
 

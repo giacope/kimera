@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-# `kimera skill` prints skills/kimera/SKILL.md for agents, and agents type
-# what it says. When a command, flag, config key or operator is renamed or
-# removed, these fail until the guide (and the README) say the new thing.
 RSpec.describe(UsageDrift, :aggregate_failures) do
   def read(path) = File.read(File.expand_path("../../#{path}", __dir__), encoding: Encoding::UTF_8)
 

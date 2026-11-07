@@ -116,8 +116,6 @@ RSpec.describe(Kimera::Operators::Visibility) do
       expect(VisibilityOps.public_method_defined?(:part)).to(be(true))
     end
 
-    # Self-hosted, the outer run's guards write their own ids into every open
-    # ledger, so the probe is checked in the source rather than by a call.
     it "records a covering call through a probe that changes nothing" do
       id = ids.fetch("part")
       runtime = "::Kimera::RUNTIME"

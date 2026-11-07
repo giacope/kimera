@@ -7,11 +7,6 @@ require "tmpdir"
 
 using PointFields
 
-# R6B2-M3: Ruby settles whether a method uses the block passed to it as it
-# compiles the method, and the warm overlay compiles every mutant of a method
-# into one. A mutant that leaves the method no `yield` warns, under a suite that
-# reports ignored blocks, only when baked alone: warm it survived (dry-monads'
-# `Right#and`, `if block_given?` => `if false`).
 RSpec.describe(Kimera::Execution::BlockUse) do
   let(:source) do
     <<~RUBY
@@ -108,8 +103,6 @@ RSpec.describe(Kimera::Execution::BlockUse) do
     expect(dropped("  def a(v) = v > 1 ? yield(v) : v")).to(eq([[2, "conditional"]]))
   end
 
-  # Ruby leaves out a branch its condition rules out as it compiles: `if false`,
-  # `if nil`, and the else of `if 1`, `if "s"`, `if :a`, `if -> {}`.
   it "counts no yield in a branch a literal condition rules out" do
     dead = %w[false nil (false) (1;nil) true&&false @x&&nil false||nil].map { |literal| guarded("yield if #{literal}") }
     expect(dead.uniq).to(eq([[[4, "statement_deletion"]]]))
@@ -133,9 +126,6 @@ RSpec.describe(Kimera::Execution::BlockUse) do
     expect(%w[@x !false @x&&true true&&@x false||@x @x||false /x/ [] ()].flat_map { either(it) }.uniq).to(eq([[]]))
   end
 
-  # R6B3-M2: Ruby compiles `defined?(super)` as a check that a super method
-  # exists, no use of the block; what `defined?` evaluates (a receiver) or
-  # checks for a block (`yield`, in an argument or an element) is one.
   it "counts what defined? evaluates or checks for a block, not a super it only looks up", :aggregate_failures do
     looked = [
       "defined?(super)", "defined?(super())", "defined?(x(super))", "defined?(super(yield))",

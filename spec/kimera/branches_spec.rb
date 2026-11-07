@@ -16,8 +16,6 @@ RSpec.describe(Kimera::Branches) do
     expect([branches("if a\n  1\nend\n").following, branches("unless a\n  1\nend\n").following]).to(eq([nil, nil]))
   end
 
-  # Prism 1.2 renamed consequent to subsequent (if) and else_clause (unless);
-  # the old name still answers, with a deprecation warning.
   it "reads the clause after a branch without Prism's deprecated name" do
     deprecated = Warning[:deprecated]
     Warning[:deprecated] = true

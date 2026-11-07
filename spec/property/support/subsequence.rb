@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-# Whether `kept` appears in `whole` in order, not necessarily contiguously.
-# Greedy matching is exact for this: taking the earliest match for each
-# element never rules out a later one.
 module Subsequence
   module_function
 

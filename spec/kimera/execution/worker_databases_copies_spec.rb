@@ -3,15 +3,12 @@
 require "kimera/execution/worker_databases"
 require "stringio"
 
-# A suite that migrates its database as it loads leaves no schema file for
-# Rails' hook: each warm worker past the first takes a copy the parent made.
 RSpec.describe(Kimera::Execution::WorkerDatabases) do
   subject(:databases) { described_class.new(jobs: 3, errors: errors, env: {}, copies: copies) }
 
   let(:errors) { StringIO.new }
   let(:copies) { FakeCopies.new }
 
-  # An Active Record on app_test, with no database.yml numbered by TEST_ENV_NUMBER.
   before do
     stub_const("ActiveRecord::Base", FakeRails::Base.new(FakeRails::Config.new("postgresql", "app_test")))
   end

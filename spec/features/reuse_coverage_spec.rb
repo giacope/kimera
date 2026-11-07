@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-# A full run stores its baseline's coverage map; an incremental run reuses it
-# and reruns only the tests that reached the changed file, with the verdicts a
-# run that measures every test gives.
 RSpec.describe("kimera run --reuse-coverage (end-to-end)") do
   let(:dir) { Dir.mktmpdir("kimera-reuse") }
 
