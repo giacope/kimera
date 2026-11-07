@@ -44,10 +44,13 @@ RSpec.describe(Kimera::Incremental::Selection) do
     picked.ids(registry).map { |id| registry.index[id].original_source }.uniq
   end
 
-  def mapped(test_files: { "./spec/other_spec.rb[1:1]" => "./spec/other_spec.rb" })
-    map = { "coverage" => { "lib/other.rb" => ["./spec/other_spec.rb[1:1]"] }, "test_files" => test_files }
-    write("tmp/kimera/coverage.json", JSON.generate(map))
+  def test(name) = "./spec/#{name}_spec.rb[1:1]"
+
+  def mapped(test_files: { test("other") => "./spec/other_spec.rb" }, coverage: { "lib/other.rb" => [test("other")] })
+    write("tmp/kimera/coverage.json", JSON.generate("coverage" => coverage, "test_files" => test_files))
   end
+
+  def both = %w[other calc].to_h { [test(it), "./spec/#{it}_spec.rb"] }
 
   it "keeps the changed lines by default, and every line of each changed file with files", :aggregate_failures do
     write("lib/calc.rb", "def a(x, y)\n  x < y\nend\n\ndef b(x)\n  x < 1\nend\n")
@@ -68,8 +71,14 @@ RSpec.describe(Kimera::Incremental::Selection) do
     expect(selected("impact")).to(eq(["x >= 2"]))
   end
 
+  it "leaves out the files only the unchanged tests reach" do
+    mapped(test_files: both, coverage: { "lib/other.rb" => [test("other")], "lib/calc.rb" => [test("calc")] })
+    write("spec/other_spec.rb", "it { c(2) }\n")
+    expect(selected("impact")).to(eq(["x >= 2"]))
+  end
+
   it "reads a test's file stored as an absolute path, as Minitest's source location gives it" do
-    mapped(test_files: { "./spec/other_spec.rb[1:1]" => File.expand_path("spec/other_spec.rb") })
+    mapped(test_files: { test("other") => File.expand_path("spec/other_spec.rb") })
     write("spec/other_spec.rb", "it { c(2) }\n")
     expect(selected("impact")).to(eq(["x >= 2"]))
   end
