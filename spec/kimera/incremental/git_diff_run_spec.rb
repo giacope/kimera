@@ -131,10 +131,27 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
     end
   end
 
+  describe "#names" do
+    def pruned
+      commit("a.rb", "x = 1\ny = 2\n", "init")
+      commit("b.rb", "z = 1\n", "b")
+      head("HEAD").tap do
+        edit("a.rb", "x = 1\n")
+        FileUtils.rm(File.join(dir, "b.rb"))
+        edit("c.rb", "w = 1\n")
+        git("add", "c.rb", dir: dir)
+      end
+    end
+
+    it "names every file changed since the ref, deleted ones and ones that only lost lines included" do
+      expect(described_class.new(since: pruned, root: dir).names).to(eq(%w[a.rb b.rb c.rb]))
+    end
+  end
+
   describe "#run_diff" do
     it "returns a falsey status when git is unavailable (ENOENT)" do
       previous = ENV.fetch("PATH", nil).tap { ENV["PATH"] = "/nonexistent-dir-for-kimera" }
-      out, ok = described_class.new(since: "HEAD", root: dir).__send__(:read)
+      out, ok = described_class.new(since: "HEAD", root: dir).__send__(:read, %w[diff])
 
       expect([out, ok]).to(eq(["", false]))
     ensure

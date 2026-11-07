@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **`--since-scope files|impact` catches, on the pull request, survivors that
+  only a full run on main used to find.** `--since` mutates the changed lines,
+  so a change that made an untouched line's mutant unkillable passed its gate:
+  a guard on one line that left a rescue below it unreached, a spec rewrite
+  that stopped killing a mutant elsewhere, a hunk that only deleted lines.
+  `files` mutates every line of each changed file; `impact` adds the source
+  files that the changed or deleted tests reached, per the coverage map a full
+  run with `--reuse-coverage` stores, which now records each test's file.
+  `lines` stays the default. kimera's own CI stores the map on main and runs
+  pull requests with `impact`.
+
 Fixed while holding kimera to its own strict lint profiles:
 
 - **One busy database pool no longer keeps the parent from letting go of

@@ -133,8 +133,14 @@ jobs:
         with:
           ruby-version: "3.4"
           bundler-cache: true
-      - name: Mutation-test changed lines
-        run: bundle exec kimera run --since origin/${{ github.base_ref }} --fail-on-no-coverage
+      - name: Restore main's coverage map
+        uses: actions/cache/restore@v4
+        with:
+          path: tmp/kimera/coverage.json
+          key: kimera-coverage-${{ github.event.pull_request.base.sha }}
+          restore-keys: kimera-coverage-
+      - name: Mutation-test the changed files and what the changed tests reach
+        run: bundle exec kimera run --since origin/${{ github.base_ref }} --since-scope impact --fail-on-no-coverage
 
   # Property specs at 10x their CI run counts, over a fresh seed and a wider
   # corpus sample. Trigger manually from the Actions tab.
@@ -173,7 +179,15 @@ jobs:
           ruby-version: "3.4"
           bundler-cache: true
       - name: Full self-host run
-        run: bundle exec kimera run --judge-isolated-only --report tmp/selfhost.json --summary "$GITHUB_STEP_SUMMARY"
+        run: >-
+          bundle exec kimera run --judge-isolated-only --reuse-coverage
+          --report tmp/selfhost.json --summary "$GITHUB_STEP_SUMMARY"
+      - name: Store the coverage map for pull requests
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: tmp/kimera/coverage.json
+          key: kimera-coverage-${{ github.sha }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

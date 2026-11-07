@@ -35,6 +35,7 @@ class Kimera::CLI::Run::Arguments
 
   def gates
     { since: nil, session: nil, max_survivors: nil }.merge(max_ignored: nil, max_errors: 0, jobs: 1)
+      .merge(since_scope: "lines")
       .merge(evaluate_ignored: false, baseline: nil)
   end
 

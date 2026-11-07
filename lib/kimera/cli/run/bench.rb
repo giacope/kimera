@@ -15,8 +15,8 @@ class Kimera::CLI::Run::Bench
     @diffs = diffs
   end
 
-  def change(since, root)
-    since ? @diffs.from_diff(since: since, root: root) : Kimera::CLI::Run::NullSelection.new
+  def change(since, root, scope = "lines")
+    since ? @diffs.from_diff(since: since, root: root, scope: scope) : Kimera::CLI::Run::NullSelection.new
   end
 
   def suite(framework, names)
