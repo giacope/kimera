@@ -2,14 +2,6 @@
 
 require "kimera/synthesis/unwoven"
 
-# The warm overlay rewrites a whole method when it cannot guard a point in
-# place. With every mutant off that method must be the original: its guards
-# (`if ::Kimera::RUNTIME.active?(id)`) read as their else side, a visibility
-# probe and its registration as nothing, and the rest as the original reads,
-# compared as an Outline (no locations, a lone expression in parentheses as the
-# expression, a string by its value however its parts split, an integer in any
-# base). R6B4-M1..M3: the rewrite read `when 90.. then "A"` as `when 90.."A"`,
-# `in %w[a b]` as an array pattern and `"\u{3042}"` as binary, and kimera ran it.
 RSpec.describe(Kimera::Unwoven) do
   def tree(source) = Kimera::Syntax.parse(source).value
 
@@ -37,7 +29,6 @@ RSpec.describe(Kimera::Unwoven) do
       .to(be(false))
   end
 
-  # Two methods on one line: each is matched by its name, not the first of its kind there.
   it "finds a method among others of its kind on its line by its name" do
     source = "def a = 1; def b = 2\n"
     expect(described_class.new(tree(source)).keeps?([tree(source).statements.body.last])).to(be(true))
@@ -71,9 +62,6 @@ RSpec.describe(Kimera::Unwoven) do
     expect(keeps?("def f\n  #{guard(1, "nil", "a; b")}\n  c\nend\n", "def f\n  a; b\n  c\nend\n")).to(be(true))
   end
 
-  # R6B5-M2: the rewrite joined the method onto its first line and padded the
-  # lines it lost before its `end`; `__LINE__` read 2 for 8, and every
-  # backtrace, coverage line and `class_eval ..., __LINE__ + 1` moved with it.
   def trace = "def mark(l)\n  begin\n    l.fetch(0)\n  rescue IndexError\n    nil\n  end\n  [:seen, __LINE__]\nend\n"
 
   def begun = "begin\n    l.fetch(0)\n  rescue IndexError\n    nil\n  end"
@@ -91,8 +79,6 @@ RSpec.describe(Kimera::Unwoven) do
     expect(keeps?("class Conf; define_method(:size) { [:size, __LINE__] }\n\n\nend\n", original)).to(be(false))
   end
 
-  # A holder is found by its kind, its line and its name, whatever else on
-  # the file shares one of them.
   it "finds the method it rewrote among others of its name or line", :aggregate_failures do
     twice = "def of = 1\ndef of = 2\n"
     expect(described_class.new(tree(twice)).keeps?([tree(twice).statements.body.last])).to(be(true))
@@ -118,8 +104,6 @@ RSpec.describe(Kimera::Unwoven) do
 
   def tests(*ids) = ids.map { |id| "::Kimera::RUNTIME.active?(#{id})" }.join(" || ")
 
-  # The guard a point gets in place: the original first, under the negated
-  # tests, then each mutant.
   it "reads a guard written in place as its original", :aggregate_failures do
     woven = "def f(a)\n  (!(#{tests(1, 2)}) ? (a > 1) : #{tests(1)} ? (a >= 1) : (a < 1))\nend\n"
     expect(keeps?(woven, "def f(a)\n  a > 1\nend\n")).to(be(true))

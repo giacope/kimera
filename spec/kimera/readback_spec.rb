@@ -2,8 +2,6 @@
 
 require "kimera/synthesis/readback"
 
-# A whole-method or whole-file write is kept only when it reads back as the
-# tree meant (R6B4-M1..M3).
 RSpec.describe(Kimera::Readback) do
   def tree(source) = Kimera::Syntax.parse(source).value
 

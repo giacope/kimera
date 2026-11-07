@@ -1,9 +1,5 @@
 # frozen_string_literal: true
 
-# An older RSpec idiom focuses on `focus: true` examples and falls back to
-# all of them when none is focused; kimera loads examples as `rspec` does.
-# A baseline whose filter still leaves nothing to run fails loudly instead of
-# scoring every mutant as uncovered.
 RSpec.describe("kimera run under an inclusion filter that matches nothing (end-to-end)", :aggregate_failures) do
   def files(fallback) = {
     ".rspec" => "--require spec_helper\n",

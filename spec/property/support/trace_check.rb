@@ -5,8 +5,6 @@ require "json"
 require "open3"
 require "tmpdir"
 
-# The traces as a TLA+ module, so TLC needs no JSON module to read them:
-# arrays become sequences, hashes records.
 class TraceModule
   def initialize(traces)
     @traces = traces
@@ -27,11 +25,6 @@ class TraceModule
   end
 end
 
-# Checks logged pool runs (support/pool_trace.rb) against the model with TLC
-# and formal/WorkerPoolTrace.tla: one TLC run per pool size, since the slots
-# are a constant of the model. A trace is accepted when TLC matched all its
-# steps; the report names, for each other trace, the first step no model
-# step could take.
 class TraceCheck
   ROOT = File.expand_path("../../..", __dir__)
   JAR = File.join(ROOT, "tmp", "tla2tools.jar")
@@ -40,12 +33,10 @@ class TraceCheck
 
   def self.available? = system("java", "-version", out: File::NULL, err: File::NULL)
 
-  # runs: [jobs, trace] pairs.
   def initialize(runs)
     @runs = runs
   end
 
-  # [every trace accepted?, report]
   def verdict
     system(File.join(ROOT, "bin", "model-check"), "--fetch", exception: true)
     reports = @runs.group_by(&:first).map { |jobs, group| replayed("jobs #{jobs}", group.map(&:last)) }

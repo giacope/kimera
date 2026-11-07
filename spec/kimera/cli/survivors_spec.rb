@@ -3,8 +3,6 @@
 require "fileutils"
 require "json"
 require "kimera/cli"
-# Required eagerly: a lazy require after the self-host overlay would load the
-# original source over the guards.
 require "kimera/cli/survivors"
 require "tmpdir"
 
@@ -33,7 +31,6 @@ RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
           "mutant_id" => 11, "status" => "no_coverage", "file" => "app/models/book.rb",
           "line" => 8, "label" => "condition => true", "original" => "x?"
         },
-        # Only the required fields, so optional --id lines can be pinned absent.
         {
           "mutant_id" => 12, "status" => "timeout", "file" => "app/models/bare.rb",
           "original" => "z"
@@ -79,7 +76,6 @@ RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
     expect(filtered).to(eq("no survived mutants matching zzz\n"))
   end
 
-  # R6B6-M3: a lone `-` line reads as a deleted statement.
   it "says it could not write the mutant's text for a mutant with no mutated source" do
     out, = run(report_path, "--status", "no_coverage")
     expect(out).to(include("- x?\n    + #{Kimera::MutatedText.new([])}\n"))
@@ -91,7 +87,6 @@ RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
     expect(out).not_to(include("#7"))
   end
 
-  # The text report and the gate call harness_error rows unjudged.
   it "lists the report's harness_error rows by their text name, unjudged" do
     out, = run(report_path, "--status", "unjudged")
     expect(out).to(include("#13"))
@@ -103,7 +98,6 @@ RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
     expect(out).to(include("#11"))
   end
 
-  # A narrowed run's uncovered mutants may be covered by a test it left out.
   it "says a narrowed run's uncovered mutants are not covered by the narrowed tests", :aggregate_failures do
     File.write(report_path, JSON.generate(report.merge("run" => { "narrowed" => true })))
     out, = run(report_path, "--status", "no_coverage")
@@ -272,7 +266,6 @@ RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
     expect do
       _, status = run(report_path)
       expect(status).to(eq(1))
-      # The parser's own message must follow the colon.
     end.to(output(/unreadable report #{Regexp.escape(report_path)}: \S+/).to_stderr)
   end
 
@@ -297,7 +290,6 @@ RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
     expect([status, out.include?("#9"), out.include?("#7")]).to(eq([0, true, false]))
   end
 
-  # `kimera mutant ID --report FILE` names its report with a flag; so may this.
   it "reads the report named by --report, taking a positional argument as the file filter", :aggregate_failures do
     out, status = run("--report", report_path, "book")
     expect(status).to(eq(0))

@@ -2,13 +2,6 @@
 
 require "yaml"
 
-# Runs a block in a forked process of its own process group and returns what
-# it returns (as YAML of plain data, symbols and Crashed), or raises Overdue
-# once `deadline` seconds pass.
-# The bound holds whatever the block does: a loop wedged in a read, or a
-# watchdog that never fires, is killed along with every process it forked.
-# Forks that lead groups of their own (the pool's workers) are out of that
-# reach, so an overdue block gets a TERM first: the pool's ensure stops them.
 module Supervised
   class Overdue < StandardError; end
 
@@ -50,8 +43,6 @@ module Supervised
     YAML.safe_load(data, permitted_classes: [Symbol, Crashed], aliases: true)
   end
 
-  # Drains the report while waiting, so a large one can't block the child;
-  # nil once the deadline passes first.
   def collected(pid, reader, until_time)
     report = +""
     until Process.waitpid(pid, Process::WNOHANG)
@@ -67,7 +58,6 @@ module Supervised
     chunk.is_a?(String) ? chunk : ""
   end
 
-  # Asks an overdue block to stop, and gives its ensures a moment to run.
   def settle(pid)
     Process.kill("TERM", pid)
     until_time = now + GRACE
@@ -78,7 +68,6 @@ module Supervised
 
   def now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-  # Kills the group (the block's forks outlive it), then reaps the leader.
   def stop(pid)
     Process.kill("KILL", -pid)
   rescue Errno::ESRCH, Errno::EPERM

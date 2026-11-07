@@ -4,10 +4,6 @@ require "kimera/execution/shift"
 require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 
-# A covering test that runs past the soft timeout with the mutant on counts
-# as detected only when, alone and with the mutant off, it passes in well
-# under that timeout. A test that is slow without the mutant too cannot tell
-# a hang from its own pace, so its expiry is no kill.
 RSpec.describe(Kimera::Execution::Shift) do
   let(:registry) do
     Kimera::RegistryScan.new.source(<<~RUBY, file: "calc.rb")
@@ -22,7 +18,6 @@ RSpec.describe(Kimera::Execution::Shift) do
 
   before { stub_const("Kimera::Execution::Stopwatch::CLOCK", -> { clock.first }) }
 
-  # +script+ maps a test to its successive runs, as [seconds, passed?] pairs.
   def timed(script)
     now = clock
     Class.new do
@@ -62,8 +57,6 @@ RSpec.describe(Kimera::Execution::Shift) do
     expect(adapter.log).to(eq([["t1", target], ["t1", nil]]))
   end
 
-  # A slow example on a busy machine is not a hang: its limit is raised from
-  # its own baseline (× 3 + 1s), never past a second under the hard watchdog.
   it "raises a slow test's soft limit from its baseline", :aggregate_failures do
     expect(worker(timed({ "t1" => [hung] }), %w[t1], timings: { "t1" => 2.0 }).evaluate(target).status)
       .to(eq(:survived))

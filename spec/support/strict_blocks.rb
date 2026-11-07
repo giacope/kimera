@@ -1,11 +1,5 @@
 # frozen_string_literal: true
 
-# R6B2-M1: a suite may turn on Warning[:strict_unused_block] and raise every
-# warning (dry-rb's spec_helper does), and kimera runs its scheduler and its
-# verdicts in that suite's process. So kimera's own suite runs its lib the same
-# way: a block passed to a method that ignores it, where either side is in lib,
-# raises in the example that reaches it, and fails the suite should kimera
-# rescue that error on the way.
 Warning[:strict_unused_block] = true
 
 module StrictBlocks

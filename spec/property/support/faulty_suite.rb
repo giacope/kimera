@@ -3,9 +3,6 @@
 require "json"
 require "kimera/frameworks/suite"
 
-# The request pipe as Shift reads it (Shift::Channel calls #gets). Logs each
-# offer as the scripted children do, "id recheck first?", and remembers it,
-# so the adapter knows whether the mutant it runs is a recheck.
 class OfferTap
   def initialize(io, log)
     @io = io
@@ -30,21 +27,6 @@ class OfferTap
   end
 end
 
-# A framework adapter with one test that does to each mutant what the
-# mutant's script says for the offer that brought it (warm or recheck), so
-# that the real Shift, not a script, decides what goes down the pipe:
-# - killed: fails with the mutant on, passes with it off;
-# - survived: passes;
-# - leak: killed, then passes when run again in the same process;
-# - requeue: fails with the mutant off too;
-# - tainted: outlasts the soft timeout;
-# - crash: the process exits;
-# - hang: the process sleeps through the soft timeout, until the parent's
-#   watchdog kills it.
-# Kimera::RUNTIME.active names the mutant on each run, and is nil on a
-# control run, which belongs to the mutant the offer brought. Shift runs
-# each mutant, and each control run, in a child of its own, so a run
-# counter starts over in each.
 class FaultySuite
   FAILING = %i[killed requeue].freeze
 

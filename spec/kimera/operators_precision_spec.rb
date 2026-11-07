@@ -16,8 +16,6 @@ RSpec.describe(Kimera::Operators) do
     Object.new.extend(Module.new.tap { |m| m.module_eval(synthesized.source) })
   end
 
-  # What the block answers on the code's overlay with no mutant active, then
-  # with the first mutant whose label matches.
   def live(code, key, label = //)
     catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: [key])).source(code, file: "p.rb")
     object = overlaid(catalog, code)
@@ -57,7 +55,6 @@ RSpec.describe(Kimera::Operators) do
       expect(labels).to(contain_exactly("0 => -1", "0 => 1"))
     end
 
-    # For 1, the off-by-one `1 => 0` duplicates the explicit zero target.
     it "dedups the off-by-one that collides with the explicit zero" do
       labels = mutants("def one\n  1\nend\n", "numeric_literal").map(&:label)
       expect(labels).to(contain_exactly("1 => 0", "1 => 2"))
@@ -143,7 +140,6 @@ RSpec.describe(Kimera::Operators) do
     end
   end
 
-  # Pins the `node.arguments&.` safe navigation; `.` would raise on nil.
   describe "rails matchers tolerate argument-less DSL calls" do
     def build(code, key)
       Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: [key])).source(code, file: "app.rb")
@@ -167,7 +163,6 @@ RSpec.describe(Kimera::Operators) do
       catalog = nil
       expect { catalog = build("class Foo\n  before_action\nend\n", "rails_callback") }
         .not_to(raise_error)
-      # Deletion is unconditional; the scope-drop path finds no kwargs.
       expect(catalog.each.map { |m, _p| m.label }).to(eq(["delete `before_action`"]))
     end
   end
@@ -200,7 +195,6 @@ RSpec.describe(Kimera::Operators) do
     end
   end
 
-  # Dropping either of two equal neighbors leaves the same program.
   describe "drops of equal neighbors" do
     def indexes(code, key) = mutants(code, key).map { |m| m.directive["index"] }
 
@@ -212,13 +206,11 @@ RSpec.describe(Kimera::Operators) do
 
     def kept(elements) = indexes("def m(a)\n  [#{elements}]\nend\n", "element_drop")
 
-    # `-(1)` and `-1` are one value: dropping either leaves the same program.
     it "counts neighbors equal up to parentheses and a negated literal as equal", :aggregate_failures do
       expect(indexes("def m\n  [-(1), -1].include?(1)\nend\n", "element_drop")).to(eq([0]))
       expect(indexes("def m\n  f(-(1), -1)\nend\n", "argument_drop")).to(eq([0]))
     end
 
-    # An empty group is nil, the way kimera writes a deleted statement.
     it "counts elements equal up to parentheses and negation as equal" do
       lists = [
         "(a), a, ((a))", "-(-1), 1, (1)",
@@ -239,7 +231,6 @@ RSpec.describe(Kimera::Operators) do
     end
   end
 
-  # Forcing `if true` to true leaves it unchanged: a survivor no test can kill.
   describe "conditional on a literal condition" do
     def labels(code) = mutants(code, "conditional").map(&:label)
 
@@ -256,11 +247,10 @@ RSpec.describe(Kimera::Operators) do
       labels = mutants(code, "argument_drop").map(&:label)
       expect(labels).to(include("drop arg `build(`"))
       expect(labels).to(include("drop arg `other`"))
-      expect(labels).not_to(include("drop arg `  ), other`")) # would be `first`=>`last`
+      expect(labels).not_to(include("drop arg `  ), other`"))
     end
   end
 
-  # No suite asserts its own log lines, and a memo guard is equivalent for pure code.
   describe "default-set noise suppression" do
     it "statement_deletion skips logger calls, whatever the chain", :aggregate_failures do
       expect(mutants("def m(x)\n  Rails.logger.debug { x }\nend\n", "statement_deletion")).to(be_empty)
@@ -290,7 +280,6 @@ RSpec.describe(Kimera::Operators) do
         .to(eq(2))
     end
 
-    # The operator passes over the guard itself, before any memo exemption applies.
     it "conditional offers no variant of a defined?(@ivar) guard" do
       guard = Kimera::Syntax.parse("return @x if defined?(@x)").value.statements.body.first
       expect(Kimera::Operators::Conditional.new.variants(guard)).to(be_nil)
@@ -356,7 +345,6 @@ RSpec.describe(Kimera::Operators) do
       expect(mutants("def m\n  nil\nend\n", "return_value")).to(be_empty)
     end
 
-    # A caller that only tests truthiness cannot tell nil from false.
     it "return_value does not propose nil for a false tail or `return false`", :aggregate_failures do
       expect(mutants("def m?\n  false\nend\n", "return_value")).to(be_empty)
       expect(mutants("def m?(x)\n  return false if x\n  x\nend\n", "return_value").map(&:label)).to(eq(["tail => nil"]))
@@ -370,7 +358,6 @@ RSpec.describe(Kimera::Operators) do
       expect(mutants("def m\n  first\nend\n", "selector_swap")).to(be_empty)
     end
 
-    # Without the SWAPS guard it would propose `strip => ` for every call.
     it "selector_swap ignores a call whose message has no dual" do
       expect(mutants("def m(s)\n  s.strip\nend\n", "selector_swap")).to(be_empty)
     end

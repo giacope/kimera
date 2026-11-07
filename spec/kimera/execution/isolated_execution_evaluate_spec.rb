@@ -4,9 +4,6 @@ require "kimera/execution/isolated"
 require "kimera/registry/builder"
 require "tmpdir"
 
-# An error raised outside every test (a load error, a hook) is not taken for
-# a kill on its first sighting: the mutant runs once more, and only an error
-# that recurs kills it.
 RSpec.describe(Kimera::Execution::IsolatedExecution, "#evaluate", :aggregate_failures) do
   let(:registry) do
     Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n", file: "calc.rb")
@@ -47,7 +44,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#evaluate", :aggregate_fai
       .to(eq(["t1"]))
   end
 
-  # The mutant itself broke loading: a fresh mirror without it runs clean.
   it "kills the mutant when the error recurs and a fresh mirror without the mutant runs clean", :aggregate_failures do
     result, seen = test_settled(outside, outside, Kimera::Execution::IsolatedOutcome.new(:survived))
     expect([result.status, seen]).to(eq([:killed, [[3, false, true], [3, false, true], [3, true, false]]]))
@@ -56,8 +52,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#evaluate", :aggregate_fai
     )
   end
 
-  # A missing service or an unwritable directory breaks the run whatever the
-  # mutant does: that is the environment, never a kill.
   it "leaves it unjudged when the error occurs without the mutant too", :aggregate_failures do
     result, seen = test_settled(outside, outside, outside)
     expect([result.status, seen.size]).to(eq([:harness_error, 3]))

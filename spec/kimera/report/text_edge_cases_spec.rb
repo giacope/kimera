@@ -36,7 +36,6 @@ RSpec.describe(Kimera::Report::Text) do
   end
 
   it "starts with the summary line when no scope is given" do
-    # No stray blank line from puts(nil).
     expect(render).to(start_with("mutants="))
   end
 
@@ -70,7 +69,7 @@ RSpec.describe(Kimera::Report::Text) do
     tests = (1..8).map { |i| "spec[#{i}]" }
     out = render(results: [survivor(covering: tests)])
     expect(out).to(include("covered by 8 test(s):"))
-    expect(out).to(include("(+5 more)")) # 8 total, 3 shown
+    expect(out).to(include("(+5 more)"))
   end
 
   it "points the truncation note at the full list when the report is saved" do
@@ -137,7 +136,7 @@ RSpec.describe(Kimera::Report::Text) do
 
   it "omits the truncation note when all covering tests are shown" do
     out = render(results: [survivor(covering: ["spec[1]"])])
-    expect(out).not_to(include("more)")) # no "(+0 more)"
+    expect(out).not_to(include("more)"))
   end
 
   it "omits the covering line when no tests cover the survivor" do
@@ -147,14 +146,12 @@ RSpec.describe(Kimera::Report::Text) do
 
   it "wraps header, verdict, and diff markers in SGR sequences when color is on", :aggregate_failures do
     out = render(results: [survivor(covering: ["spec[1]"])], color: true)
-    # Any SGR code passes; the exact color is style, not contract.
     expect(out).to(match(/\e\[\d+mSurviving mutants \(1\):\e\[0m/))
     expect(out).to(match(/\e\[\d+msurvived\e\[0m/))
     expect(out).to(match(/\e\[\d+m-\e\[0m/))
     expect(out).to(match(/\e\[\d+m\+\e\[0m/))
   end
 
-  # StringIO responds to tty? but returns false, so the guard must be AND, not OR.
   it "auto-detects: no color on a non-tty stream" do
     io = StringIO.new
     run = Kimera::RunReport.new(results: [survivor])
@@ -162,7 +159,6 @@ RSpec.describe(Kimera::Report::Text) do
     expect(io.string).not_to(include("\e["))
   end
 
-  # Runs the block with NO_COLOR set to the value, or unset.
   def no_color(value)
     saved = ENV.fetch("NO_COLOR", nil)
     ENV["NO_COLOR"] = value
@@ -171,7 +167,6 @@ RSpec.describe(Kimera::Report::Text) do
     ENV["NO_COLOR"] = saved
   end
 
-  # Whether a report on a terminal comes out colored, with NO_COLOR as given.
   def colored?(value)
     io = StringIO.new
     def io.tty? = true
@@ -222,7 +217,6 @@ RSpec.describe(Kimera::Report::Text) do
     io.string
   end
 
-  # R6B6-M3: a lone `-` line reads as a deleted statement.
   it "says it could not write the variant when it cannot be rendered" do
     expect(output).to(include("- a > b\n    + #{Kimera::MutatedText.new([])}\n"))
   end

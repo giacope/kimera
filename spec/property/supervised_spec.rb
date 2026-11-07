@@ -2,9 +2,7 @@
 
 require_relative "property_helper"
 
-# The harness the pool properties lean on for their termination bound.
 RSpec.describe(Supervised) do
-  # A killed orphan can linger as a zombie until init reaps it; it isn't running.
   def running?(pid)
     Process.kill(0, pid)
     !File.read("/proc/#{pid}/status").match?(/^State:\s+Z/)
@@ -12,8 +10,6 @@ RSpec.describe(Supervised) do
     false
   end
 
-  # kill returns before its target exits, so a process just killed may still be
-  # running; whether it still is a second later.
   def outlives?(pid)
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 1
     sleep(0.01) while running?(pid) && Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
@@ -28,8 +24,6 @@ RSpec.describe(Supervised) do
     expect(described_class.run(deadline: 5) { raise(ArgumentError, "boom") }.detail).to(eq("ArgumentError: boom"))
   end
 
-  # Runs, past its deadline, a block that forks a sleeping grandchild and then
-  # sleeps; how long that took, and the grandchild.
   def overdue
     IO.pipe do |reader, writer|
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
@@ -52,8 +46,6 @@ RSpec.describe(Supervised) do
     writer.puts("stopped")
   end
 
-  # The pool's workers lead process groups of their own; only its ensure can
-  # stop them.
   it "lets an overdue block's ensures run before it is killed", :aggregate_failures do
     IO.pipe do |reader, writer|
       expect { described_class.run(deadline: 0.5) { ensured(writer) } }.to(raise_error(Supervised::Overdue))

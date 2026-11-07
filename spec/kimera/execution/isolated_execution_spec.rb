@@ -6,8 +6,6 @@ require "kimera/execution/test_filter"
 require "kimera/registry/builder"
 require "timeout"
 
-# A mutant baked into the harness's own timeout code can wedge its suite,
-# so the runner's watchdog is tested directly here.
 RSpec.describe(Kimera::Execution::IsolatedExecution) do
   let(:registry) do
     Kimera::RegistryScan.new.source(<<~RUBY, file: "calc.rb")
@@ -56,8 +54,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       Kimera::Execution::IsolatedWatchdog.new(hard_timeout, poll: poll_interval)
     end
 
-    # A wait, polled every +poll+ seconds, on a child that is still running at the first look and ends soon
-    # after: what the wait answered, and how long it took.
     def looked(poll)
       pid = Process.spawn("sleep", "0.1", pgroup: true)
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
@@ -91,14 +87,9 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       status, elapsed, pid = test_wedged_wait(0.3)
       expect(status).to(eq(:timeout))
       expect(elapsed).to(be < 5.0)
-      # kill 0 probes for existence
       expect { Process.kill(0, pid) }.to(raise_error(Errno::ESRCH))
     end
 
-    # The hard timeout bounds one test, as on the warm path. Bounding the whole
-    # child timed out any suite longer than it, the unmutated baseline included.
-    # sh, not ruby: a ruby child can take longer than the hard timeout just to
-    # boot on a loaded machine, before its first beat.
     def beating(pulse, beats)
       script = "for _ in $(seq #{beats}); do printf . >> \"$0\"; sleep 0.15; done"
       pid = Process.spawn("sh", "-c", script, pulse, pgroup: true)
@@ -116,7 +107,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       expect(witness.outlived?).to(be(false))
     end
 
-    # Interrupts this thread, as Ctrl-C does, after +seconds+.
     def interrupt_after(seconds)
       Thread.new(Thread.current) do |waiting|
         sleep(seconds)
@@ -124,8 +114,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       end
     end
 
-    # The child leads its own process group, so the terminal's Ctrl-C never
-    # reaches it: an interrupted kimera kills and reaps it on the way out.
     it "takes a child's group down with it when kimera is interrupted", :aggregate_failures do
       pid = Process.spawn("sleep", "300", pgroup: true, out: File::NULL)
       interrupt_after(0.2)
@@ -135,8 +123,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
   end
 
   describe "#verdict" do
-    # Without its own process group, the group SIGKILL hits ESRCH and
-    # waitpid blocks until the wedged child exits on its own.
     def timeout
       r = runner(hard_timeout: 0.3)
       r.__send__(:plan).define_singleton_method(:command) { |*, **| [{}, %w[sleep 30]] }
@@ -161,7 +147,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
         def evaluate(id, _bay)
           (@seen ||= Hash.new { |h, k| h[k] = [] })[Thread.current] << id
-          sleep(0.01) # let other workers claim queue items
+          sleep(0.01)
           Kimera::MutantResult.new(mutant_id: id, status: :killed, file: "calc.rb", duration: 0.0)
         end
       end
@@ -209,7 +195,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       seen
     end
 
-    # No other test can turn one of their verdicts into a false kill.
     it "runs only the tests the mutants it is given will run, in suite order", :aggregate_failures do
       green = Kimera::Execution::IsolatedOutcome.new(:survived)
       coverage = { first => %w[t3 t1], 999 => %w[t2] }
@@ -258,7 +243,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       end
     end
 
-    # What a mirror holds, by what each check looks at.
     def contents(mirror)
       at = ->(*parts) { File.join(mirror, *parts) }
       {
@@ -276,7 +260,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       end
     end
 
-    # Whether the mirror of root holds the path once populated.
     def mirrors?(root, path)
       Dir.mktmpdir do |mirror|
         Kimera::Execution::MirrorLayout.new(root, registry).populate(mirror)
@@ -441,7 +424,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end
 
     it "reports :no_coverage when no test exercises the mutant" do
-      # Default coverage is empty, so the plan yields no tests.
       synth = Kimera::Overlay.new(registry)
       result = Dir.mktmpdir { |m| test_invoke_private(runner, :evaluate, first, Kimera::Execution::Bay.new(m, nil, synth)) }
       expect(result.status).to(eq(:no_coverage))
@@ -456,9 +438,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       end
     end
 
-    # The child runs them in the order given; the report keeps coverage order.
-    # The result for a mutant whose covering tests the baseline timed; the
-    # tests its child was given land in +given+.
     def paced = { coverage: { first => %w[slow fast] }, timings: { "fast" => 0.1, "slow" => 2.0 } }
 
     def paced_trial(given)
@@ -490,8 +469,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       ).to(eq([:no_coverage, "covered only by flaky test(s), which never kill: t1", []]))
     end
 
-    # Evaluates mutant +id+ in a mirror of +root+; returns its result and the
-    # mirror's calc.rb afterward.
     def test_mirrored(runner, root, id, synth = Kimera::Overlay.new(registry))
       Dir.mktmpdir do |mirror|
         FileUtils.cp_r(File.join(root, "calc.rb"), File.join(mirror, "calc.rb"))
@@ -500,8 +477,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       end
     end
 
-    # Its verdict records the bake it saw (and whether it was the first), and kills; unless it pauses, its clock
-    # reads 10.0, then 12.5.
     def test_baker(root, id, sink, pause, quality)
       readings = [10.0, 12.5]
       seated = method(:seat)
@@ -533,7 +508,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       expect(restored).to(eq(test_source_fixture))
     end
 
-    # Any failing test kills it, so its child stops at the first.
     it "asks the mutant's test child to stop at the first failure" do
       _result, (_source, first_failure), = test_baking_evaluate(first)
       expect(first_failure).to(be(true))
@@ -566,11 +540,9 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     it "captures a verdict-time exception as an :error result", :aggregate_failures do
       result = test_raising_evaluate(first)
       expect(result.status).to(eq(:error))
-      # The class tells the operator what blew up, not just what it said.
       expect(result.detail).to(eq("RuntimeError: boom"))
     end
 
-    # An overlay that cannot write the bake its writer printed.
     def unwritable
       Class.new do
         def bake(*)
@@ -578,8 +550,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
         end
       end.new
     end
-
-    # The mirror keeps its copy, and the mutant gets no :error, which counts as killed.
 
     it "reports :unmutatable, with the reason, for a mutant kimera can't bake", :aggregate_failures do
       result, baked, restored = test_baking_evaluate(first, synth: unwritable)
@@ -602,7 +572,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end
 
     it "leaves the mirror copy untouched when the original cannot be read", :aggregate_failures do
-      # No calc.rb under root, so there is no original to restore from.
       result, mirror = unreadable(first)
       expect(result.status).to(eq(:error))
       expect(result.detail).to(include("Errno::ENOENT"))
@@ -611,8 +580,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
   end
 
   describe "#verdict (command stubbed on the runner)" do
-    # verdict only consumes the plan's command, so no real bake is needed. A
-    # callable cmd receives the ledger path, as the real children do in argv.
     def command(invocation, asked: [], **)
       plan = Object.new
       plan.define_singleton_method(:command) do |_mirror, _locations, ledger, first:, **|
@@ -630,7 +597,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       Dir.mktmpdir { |m| test_invoke_private(command(invocation, **), :verdict, Kimera::Execution::Bay.new(m), []) }
     end
 
-    # A child that reports its failures to the ledger, then exits with `code`.
     def test_ledger_child(failures, failing, code)
       json = { failures: failures, failing: failing }.to_json
       ->(ledger) { [Gem.ruby, "-e", "File.write(ARGV[0], #{json.dump}); exit #{code}", ledger] }
@@ -650,8 +616,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       expect(test_verdict_of(%w[sleep 30], hard_timeout: 0.3).to_h[:status]).to(eq(:timeout))
     end
 
-    # The watchdog renews on each test's beat; a test whose baseline needs
-    # longer than the hard timeout gets the warm pool's raised limit.
     it "lets a test whose baseline outlasts the hard timeout run to its own limit", :aggregate_failures do
       slow = command(%w[sleep 0.6], hard_timeout: 0.3, timings: { "t" => 0.1 })
       outcome = Dir.mktmpdir { |m| test_invoke_private(slow, :verdict, Kimera::Execution::Bay.new(m), ["t"]) }
@@ -674,7 +638,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       expect(test_verdict_of(test_ledger_child(0, [], 0)).to_h[:status]).to(eq(:survived))
     end
 
-    # A SimpleCov floor trips on the partial run after every example passed.
     it "reports a non-zero exit with zero failures as :harness_error, not a kill", :aggregate_failures do
       outcome = test_verdict_of(test_ledger_child(0, [], 2))
       expect(outcome.to_h[:status]).to(eq(:harness_error))

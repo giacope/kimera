@@ -11,8 +11,6 @@ RSpec.describe(Kimera::CLI::Doctor::Examination, :aggregate_failures) do
     described_class.new({}, root, Kimera::CLI::Instruments.new, Kimera::CLI::Checklist.new(StringIO.new))
   end
 
-  # K3-1: on an engine doctor said no Rails-specific parallel setup was needed.
-  # The root, holding an engine and its dummy app.
   def engine(root)
     { "lib/blog/core.rb" => "class Blog::Core < Rails::Engine\nend\n", "spec/dummy/config/application.rb" => "" }
       .each do |path, body|

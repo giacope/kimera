@@ -4,8 +4,6 @@ require "fileutils"
 require "kimera/execution/captured_methods"
 require "tmpdir"
 
-# R4-KL9: a Method taken at load (`REGISTERED = method(:to_int)`) is no
-# longer == the method once the overlay redefines it from the same file.
 RSpec.describe(Kimera::Execution::CapturedMethods) do
   let(:dir) { Dir.mktmpdir }
   let(:file) { File.join(dir, "lib", "coerce.rb") }
@@ -24,8 +22,6 @@ RSpec.describe(Kimera::Execution::CapturedMethods) do
 
   def taken(*names) = names.map { |name| CapturedCoerce.method(name) }
 
-  # R5-KW4: the screen now runs for red tests that reached a mutant; Method objects kimera
-  # made and dropped while weaving were named as the suite's.
   def dropped = taken(:to_int).clear
 
   def unswept

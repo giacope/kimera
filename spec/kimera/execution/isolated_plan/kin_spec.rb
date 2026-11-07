@@ -3,9 +3,6 @@
 require "kimera/execution/isolated_kin"
 require "kimera/registry/builder"
 
-# A mutant only the isolated tier can judge (a validation, a callback) has no
-# coverage of its own; it runs the tests in the files that cover its source
-# file, plus that file's conventional spec or test file, not the whole suite.
 RSpec.describe(Kimera::Execution::IsolatedPlan::Kin) do
   let(:registry) do
     Kimera::RegistryScan.new.source("class User\n  def adult?(age) = age > 17\nend\n", file: "app/models/user.rb")

@@ -8,7 +8,6 @@ require "tmpdir"
 RSpec.describe(Kimera::Frameworks::RSpecSuite) do
   let(:dir) { Dir.mktmpdir }
 
-  # Loading a spec file registers groups in the global RSpec.world, so snapshot and restore it.
   around do |example|
     groups = RSpec.world.example_groups.dup
     streams = %i[output_stream error_stream deprecation_stream].map { |name| RSpec.configuration.public_send(name) }
@@ -38,7 +37,6 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
     end
   end
 
-  # Hides RSpec's warning about re-pointing already-initialized streams.
   def adapter
     original = $stderr
     $stderr = StringIO.new

@@ -29,7 +29,6 @@ RSpec.describe(Kimera::RunReport) do
 
   def reloaded(subject) = JSON.parse(JSON.generate(subject.to_h))["results"].map { Kimera::MutantResult.from_h(it) }
 
-  # A report's score, total, statuses counted, and statuses after JSON, then what they must be.
   def accounting(outcomes)
     run = report(outcomes)
     counts = run.counts
@@ -58,7 +57,6 @@ RSpec.describe(Kimera::RunReport) do
 
     def status(outcomes, options) = described_class.new(report(outcomes), options).status(StringIO.new)
 
-    # The gate's documented rules (README, `kimera help run`), restated.
     def failing?(outcomes, options)
       survived, uncovered, ignored, unjudged = %i[survived no_coverage ignored harness_error].map { outcomes.count(it) }
       survived += outcomes.count(:uncovered_by_unit)
@@ -72,7 +70,6 @@ RSpec.describe(Kimera::RunReport) do
       ].any?
     end
 
-    # Nothing killed while mutants only the isolated tier can judge wait.
     def untested?(outcomes)
       outcomes.intersect?(%i[isolated_only unmutatable]) && !outcomes.intersect?(Kimera::Status::KILLING)
     end
@@ -83,8 +80,6 @@ RSpec.describe(Kimera::RunReport) do
       end
     end
 
-    # More bad news never makes a failing gate pass. A kill is good news: it
-    # is the evaluation an all-isolated_only run was missing.
     it "never passes once another result lands on a failing gate" do
       bad = Pbt.one_of(*(Kimera::RunReport::REPORTED - Kimera::Status::KILLING))
       for_all(results, options, bad, runs: 300) do |outcomes, options, extra|
@@ -93,7 +88,6 @@ RSpec.describe(Kimera::RunReport) do
       end
     end
 
-    # Outcomes, gate settings, and the status they must give.
     def thresholds
       [
         [[:killed], {}, 0], [[:survived], {}, 2],
@@ -114,7 +108,6 @@ RSpec.describe(Kimera::RunReport) do
   end
 
   describe Kimera::Report::Tally do
-    # The width of the bar drawn after each tick.
     def widths(total, ticks)
       tally = described_class.new(total, "mutants", 0.0)
       ticks.first(total).each_with_index.map do |status, i|

@@ -4,10 +4,8 @@ require "json"
 require "kimera/frameworks/rspec_suite"
 require "tmpdir"
 
-# F9: a test red only under kimera is rerun outside it before kimera trusts it.
 RSpec.describe(Kimera::Frameworks::RSpecSuite, :aggregate_failures) do
   describe "rerunning baseline failures without kimera" do
-    # A suite of two examples in one file, past the loading this spec skips.
     let(:adapter) { Class.new(described_class) { def test_ids = %w[./a_spec.rb[1:1] ./a_spec.rb[1:2]] }.allocate }
 
     it "reruns the known ids through the bundle with a JSON report, in the order given" do
@@ -21,7 +19,6 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite, :aggregate_failures) do
       expect(adapter.plain(%w[./a_spec.rb[1:1]], "/out.json").first(2)).to(eq(%w[rspec --format]))
     end
 
-    # The failed ids read from a JSON report with this body, or from none.
     def reported(body)
       Dir.mktmpdir do |dir|
         out = File.join(dir, "out.json")

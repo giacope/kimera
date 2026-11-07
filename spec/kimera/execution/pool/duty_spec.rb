@@ -3,8 +3,6 @@
 require "json"
 require "kimera/execution/pool_driver"
 
-# A worker ending on an exception tells the parent why before its pipe closes,
-# so the crash verdict can say more than "crashed".
 RSpec.describe(Kimera::Execution::Pool::Duty) do
   let(:database) { Class.new { def before_exit(index) = index }.new }
 
@@ -54,7 +52,6 @@ RSpec.describe(Kimera::Execution::Pool::Duty) do
     expect(JSON.parse(duty.pipes.res_r.read)).to(include("detail" => "SIGTERM in t1"))
   end
 
-  # Retires a duty on +error+ in a fork that exits 99 if it lives on: what the duty said, and how the fork ended.
   def retired(error)
     duty = duty()
     pid =

@@ -3,7 +3,6 @@
 require "kimera/registry/builder"
 require "kimera/synthesis/overlay"
 
-# The spliced text for each shape of point.
 RSpec.describe(Kimera::Overlay) do
   def unmatched = "no node to guard: kimera found nothing of its kind where the point was scanned"
 
@@ -59,23 +58,18 @@ RSpec.describe(Kimera::Overlay) do
     end
   end
 
-  # R6B5-M2, R6B6-M2: a method's own `rescue` is guarded on the clause alone,
-  # its classes a splat that rescues nothing while its mutant is on, so no
-  # line of the method moves, with the mutant off or on.
   it "guards a method's own clause where it stands, on the method's lines" do
     source = "def m(a)\n  a.call\nrescue ArgumentError\n  0\nend\n# kept\nLINE = __LINE__\n"
     guarded = source.sub("rescue ArgumentError", "rescue *(#{runtime}(1) ? [] : [ArgumentError])")
     expect(woven(source, %w[rescue_clause])).to(eq(guarded))
   end
 
-  # A guard on the clause alone leaves `begin ... end while` testing after its first pass.
   it "guards the clause of a loop's `begin` where it stands, its lines as they were" do
     source = "def m(n)\n  i = 0\n  begin\n    i += 1\n  rescue IndexError\n    nil\n  end while i < n\n  i\nend\n"
     guarded = source.sub("rescue IndexError", "rescue *(#{runtime}(1) ? [] : [IndexError])")
     expect(woven(source, %w[rescue_clause])).to(eq(guarded))
   end
 
-  # A point no guard can hold in place has its definition written whole.
   def whole! = unanchored
 
   def trace
@@ -91,8 +85,6 @@ RSpec.describe(Kimera::Overlay) do
       expect(written).to(end_with("end\n# kept\nLINE = __LINE__\n"))
     end
 
-    # R6B5-M2: written whole, the method sat on its first line, `__LINE__`
-    # read that line, and the lines it lost were padded before its `end`.
     it "nowhere when it would move a line of the definition", :aggregate_failures do
       whole!
       catalog = scan(trace, %w[rescue_clause])
@@ -112,8 +104,6 @@ RSpec.describe(Kimera::Overlay) do
     ).to(include("const_defined?(:Opts, false)"))
   end
 
-  # Guarded, the regexp would bind no local: the definition then reads as
-  # another method, so the regexp's point is left out and reported.
   def named_capture
     whole!
     source = "def number(s); if /(?<num>\\d+)/ =~ s then num.to_i end; rescue ArgumentError; 0; end\n"
@@ -156,7 +146,6 @@ RSpec.describe(Kimera::Overlay) do
     end
   end
 
-  # Written whole, the definition replaces the guards placed in it.
   it "writes whole a definition that holds a gone point, without the guards placed in it", :aggregate_failures do
     result, lost, placed = gone("def m(a) = a > 1 && a < 5\n", %w[comparison])
     expect([result.mutant_ids, result.skipped_unsafe]).to(eq([placed.ids, lost.ids]))
@@ -164,7 +153,6 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   describe Kimera::Overlay::Stitch do
-    # A guard splice that places every point, with +edits+, guarding mutant 7.
     def placing(edits)
       Class.new do
         def initialize(_map, _points); end
@@ -197,7 +185,6 @@ RSpec.describe(Kimera::Overlay) do
       expect(stitched([[4, 5, "(2\n)"]])).to(eq([]))
     end
 
-    # No guard holds a point in place, and the guardrail cannot write the methods holding them.
     def unwritable
       unanchored
       stub_const("Kimera::Guardrail", Class.new(Kimera::Guardrail) { def rewrite(_node) = raise(ArgumentError) })
@@ -219,7 +206,6 @@ RSpec.describe(Kimera::Overlay) do
     later = "def m(a)\n  x = a > 1\n  <<~T\n    b\n  T\nend\n"
     guarded = "def m(a)\n  if a\n    log <<~T\n      b\n    T\n  end\n  __LINE__\nend\n"
     sql = "def u(t)\n  run %{\n    UPDATE \#{t}\n    SET a = 1\n  }\n  __LINE__\nend\n"
-    # R6B3-M4: a heredoc stays a heredoc, and every line after the mutation where it was.
     {
       ["def m(v)\n  foo(\n    \"Ruby/\#{v}\",\n    2)\nend\n", %w[string_literal], "\"Ruby/\" => \"\""] =>
         "def m(v)\n  foo(\n    \"\#{v}\",\n    2)\nend\n",

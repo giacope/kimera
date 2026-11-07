@@ -43,7 +43,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
   end
 
   describe "#parse" do
-    # Run from a config-free dir; the repo's own .kimera.yml would skew defaults.
     around do |example|
       Dir.mktmpdir { |dir| Dir.chdir(dir) { example.run } }
     end
@@ -139,7 +138,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect { cli.__send__(:parse, %w[--attribution all]) }.to(raise_error(Kimera::UsageError, /unknown attribution/))
     end
 
-    # Exact equality, so a dropped or drifted default fails.
     it "applies exactly the documented defaults" do
       expect(cli.__send__(:parse, []).to_h).to(eq(defaults))
     end
@@ -161,7 +159,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(cli.__send__(:parse, ["--config", "custom.yml", "--jobs", "2"])[:jobs]).to(eq(2))
     end
 
-    # Appending would re-include the whole suite when scoping to one file.
     it "replaces the config tests: glob when --tests is given" do
       File.write("custom.yml", %(tests: ["spec/config_spec.rb"]\n))
       parsed = cli.__send__(:parse, ["--config", "custom.yml", "--tests", "spec/only_spec.rb"])
@@ -194,7 +191,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       ]
     end
 
-    # A flag's help line with its wrapped continuation lines, flag and argument removed.
     def description(lines, index)
       [lines[index], *lines[(index + 1)..].take_while { |l| l !~ /\A\s*--/ }].join.sub(/\A\s*--\S+( \S+)?/, "")
     end
@@ -205,7 +201,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(description(lines, index).scan(/\w/).size).to(be >= 10, "--#{flag} lacks a description")
     end
 
-    # Checks each flag has a real description, not the exact prose.
     it "documents every flag in --help" do
       lines = help.lines
       expect(lines.first).to(start_with("Usage: kimera run [paths...] [options]"))
@@ -240,7 +235,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(parsed[:paths]).to(eq(["app/models", "lib/core.rb"]))
     end
 
-    # An unconditional assignment would blank them back to the defaults.
     it "keeps the config paths: when no positional paths are given" do
       File.write("custom.yml", %(paths: ["only/**/*.rb"]\n))
       expect(cli.__send__(:parse, ["--config", "custom.yml"])[:paths]).to(eq(["only/**/*.rb"]))
@@ -272,7 +266,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(cli.__send__(:parse, ["--max-ignored", "5"])[:max_ignored]).to(eq(5))
     end
 
-    # nil means auto: Report::Progress draws a bar on a tty and plain lines elsewhere.
     it "leaves progress on auto by default and honors --[no-]progress" do
       expect(cli.__send__(:parse, [])[:progress]).to(be_nil)
       expect(cli.__send__(:parse, ["--progress"])[:progress]).to(be(true))
@@ -310,7 +303,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       Kimera::RunReport.new(results: results)
     end
 
-    # Otherwise a run where every worker died could gate at 100% and exit 0.
     it "fails on a mutant the harness could not judge, and honours --max-errors" do
       report = report(0, unjudged: 1)
       expect(alerts.gate(report, { max_survivors: nil, max_errors: 0 })).to(eq(2))
@@ -326,7 +318,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       /xm
     end
 
-    # Exit 2 beside a healthy summary is untriageable from a CI log alone.
     it "names each tripped gate on stderr" do
       report = report(1, ignored: 2, unjudged: 1)
       options = { max_survivors: nil, max_ignored: 1, max_errors: 0, fail_on_no_coverage: false }
@@ -380,10 +371,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(alerts.gate(report(0), options)).to(eq(0))
     end
 
-    # A scope that killed nothing while mutants only the isolated tier can
-    # judge wait has shown nothing: passing would score untested code as
-    # tested. Kills, not evaluations, so a tolerated survivor never turns the
-    # gate green.
     it "fails a gate that killed nothing while isolated-only mutants were in scope" do
       unmutatable = [Kimera::MutantResult.new(mutant_id: 2, status: :unmutatable, file: "x.rb")]
       message = /gate failed: 0 of 2 mutants killed: 2 only the isolated tier can judge \(run with --isolated\)/
@@ -410,7 +397,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(alerts.gate(report(0), { max_survivors: nil, fail_on_no_coverage: true })).to(eq(0))
     end
 
-    # Each new ignore entry must cost a visible budget raise.
     it "budgets the ignore list via max_ignored" do
       report = report(0, ignored: 3)
       expect(alerts.gate(report, { max_survivors: nil, max_ignored: 3 })).to(eq(0))
@@ -436,7 +422,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
   describe "framework suites" do
     it "builds the RSpec suite" do
-      # In-process, RSpec warns when the suite re-points its streams.
       built = hushed { Kimera::Frameworks::SUITES.load("rspec") }
       expect(built).to(be_a(Kimera::Frameworks::RSpecSuite))
     end
@@ -445,9 +430,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(Kimera::Frameworks::SUITES.load("minitest")).to(be_a(Kimera::Frameworks::MinitestSuite))
     end
 
-    # The spec run already loaded the suites, so a fresh process, which has
-    # not, shows the registry loading each framework's file before it fetches
-    # the suite the file registers.
     def fresh
       fresh_lines(<<~RUBY)
         require "kimera/frameworks/suite"
@@ -602,7 +584,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       end
     end
 
-    # What a quiet emission prints while it writes the text report to the log.
     def quietly_logged(log)
       io = StringIO.new
       report = Kimera::RunReport.new(results: [], registry: registry)
@@ -630,7 +611,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
   end
 
   describe "#run orchestration (harness skipped via a complete session)" do
-    # A --since run finds line 2 of calc.rb changed.
     subject(:cli) { described_class.new(bench: FakeBench.new(changed: { "calc.rb" => Set[2] })) }
 
     around do |example|
@@ -651,7 +631,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       $stdout = original
     end
 
-    # What the CLI stamps a session with when no flag changes the settings.
     def stamp(registry)
       settings = Kimera::CLI::Run::Arguments.new.parse([]).to_h.slice(*Kimera::CLI::Run::Cycle::SETTINGS, :require)
       Kimera::Incremental::Stamp.new(root: ".", sources: registry.files, settings: settings).to_s
@@ -684,7 +663,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       [out, status, output, results]
     end
 
-    # How many workers run a session doesn't change what they judge.
     it "reuses the session at another --jobs" do
       out, _status, _output, results = reuse("--jobs", "3")
       expect(out).to(include("killed=#{results.size}"))
@@ -697,7 +675,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(JSON.parse(File.read(output))["counts"][:killed.to_s] || 0).to(be >= 0)
     end
 
-    # Mirror the CLI's build so session ids line up and nothing reaches the harness.
     def changed_source
       File.write("calc.rb", "def m(a, b)\n  a > b\nend\n")
       File.write("other.rb", "def n(a, b)\n  a < b\nend\n")
@@ -744,7 +721,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       YAML
     end
 
-    # The session also holds a verdict for the ignored mutant.
     def waiver
       registry = calculation
       configuration
@@ -817,8 +793,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
   end
 
-  # Each drives one orchestration path of a pass through fakes of the suite,
-  # the warm harness and the isolated tier.
   describe "#run_harness wiring" do
     let(:registry) do
       Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n", file: "x.rb")
@@ -846,7 +820,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
     def both = FakeSuite.new(%w[t1 t2])
 
-    # finish runs the suite's after(:suite) teardown for what warm! set up.
     it "builds an adapter and harness, warms up, and runs" do
       suite = FakeSuite.new
       harness = FakeHarness.new(result(1, :killed))
@@ -867,13 +840,10 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       [FakeHarness.new(coverage: {}, isolation: isolation), isolation]
     end
 
-    # The test file of each of three tests: the unit's own, the same by its
-    # absolute path, and another unit's.
     def unit_files
       { "own" => "./spec/x_spec.rb", "absolute" => File.expand_path("spec/x_spec.rb"), "other" => "spec/other_spec.rb" }
     end
 
-    # A screen that keeps the unit's own tests, by either path, and drops the other.
     def screening
       satisfy { |filter| [screens?(filter), filter.keep("x.rb", %w[own absolute other])] == [true, %w[own absolute]] }
     end
@@ -930,7 +900,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(isolation.settings).to(include(hard_timeout: 9.0))
     end
 
-    # Isolated mode forces coverage on to pick each mutant's covering tests.
     it "routes evaluation through the IsolatedExecution when --isolated" do
       harness, isolation = routing
       pass(registry, settings(coverage: false, isolated: true), [1], harness: harness)
@@ -944,7 +913,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(harness.asked).to(match([[:without_coverage!, kind_of(Array)], [:run, [1], "mutants"]]))
     end
 
-    # Mutant 1 is covered only by a normal spec; mutant 2 by a pool-unsafe one.
     def partition
       isolation = FakeIsolation.new(result(2, :survived))
       coverage = { 1 => ["./spec/unit_spec.rb[1:1]"], 2 => ["./spec/acp/end_to_end_spec.rb[1:2]"] }
@@ -981,9 +949,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n\ndef n(a, b)\n  a < b\nend\n", file: "x.rb")
       end
 
-      # The warm pass gives each method's mutant +status+; the second method's
-      # point is marked to revisit for +reason+. Returns the warm harness, the
-      # isolated tier, which kills what it re-judges, and both ids.
       def second_look(coverage, status, reason)
         first, last = per_method
         warm = Kimera::RunReport.new(results: [first, last].map { |id| verdict(id, status) })
@@ -992,7 +957,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         [FakeHarness.new(warm, coverage: coverage, isolation: isolation), isolation, first, last]
       end
 
-      # The first mutant of each of the two methods.
       def per_method = registry.each.map { |mutant, point| [mutant.id, point] }.uniq(&:last).first(2).map(&:first)
 
       def bootstrap = second_look({ 1 => ["t1"], 2 => ["t1"] }, :survived, Kimera::MutationPoint::BOOT_REASON)
@@ -1031,8 +995,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(isolation.asked).to(be_empty)
     end
 
-    # Validations and callbacks run once at load: only a fresh process can
-    # judge them. An incremental run judges them by default.
     def deferred
       warm = Kimera::RunReport.new(results: [verdict(1, :isolated_only), verdict(2, :killed)])
       isolation = FakeIsolation.new(result(1, :survived))
@@ -1099,9 +1061,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
   end
 
-  # A typo'd path or glob must fail, not score perfect over nothing.
   describe "empty scope guards" do
-    # A --since run finds no line changed.
     subject(:cli) { described_class.new(bench: FakeBench.new) }
 
     around do |example|
@@ -1127,8 +1087,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       end
     end
 
-    # A silent no-op exclude widens a CI gate's scope.
-    # What loading a.rb as the sources and as the tests, excluding a pattern that matches nothing, warns.
     def unexcluded
       File.write(File.join(dir, "a.rb"), "class A; end\n")
       errors = StringIO.new

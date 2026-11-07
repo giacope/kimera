@@ -20,7 +20,6 @@ RSpec.describe(Kimera::FileSet) do
     relative
   end
 
-  # A helper listed first in `tests:` loads first, as a runner's -r would.
   describe "#listed" do
     it "keeps the patterns' order, sorting within each and listing a file once", :aggregate_failures do
       %w[test/helper.rb test/b_test.rb test/a_test.rb].each { |path| touch(path) }
@@ -40,7 +39,6 @@ RSpec.describe(Kimera::FileSet) do
       expect(noop).to(eq(["app/typo/**/*.rb"]))
     end
 
-    # fnmatch never matches a directory against a file path.
     it "counts a bare directory exclude as effective" do
       touch("app/a.rb")
       touch("app/legacy/old.rb")
@@ -99,7 +97,6 @@ RSpec.describe(Kimera::FileSet) do
     end
 
     it "excludes files via a directory exclude (resolved, not just fnmatched)" do
-      # fnmatch alone would not match "app" against "app/a.rb".
       touch("app/a.rb")
       touch("app/sub/b.rb")
       touch("lib/keep.rb")

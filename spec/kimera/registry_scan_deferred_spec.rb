@@ -4,11 +4,7 @@ require "kimera/registry/builder"
 require "fileutils"
 require "tmpdir"
 
-# A block whose body runs on each call (define_method, lambda, proc,
-# Proc.new) is mutated like a method body; any other block outside a method
-# is reported as not mutated, never silently skipped.
 RSpec.describe(Kimera::RegistryScan) do
-  # Each unmutated region of a registry as its first and last line.
   def spans(registry) = registry.unmutated.map { |region| region.to_h.values_at("start_line", "end_line") }
 
   def block_reason
@@ -125,8 +121,6 @@ RSpec.describe(Kimera::RegistryScan) do
     expect(spans(registry)).to(eq([[4, 4]]))
   end
 
-  # The lines a block inside a class-level block skips are the outer block's:
-  # its runs span both (selfhost survivors in Cursor#holds?).
   it "reports a block inside a class-level block under the outer one, in one run with the lines beside it" do
     registry = scan(<<~RUBY)
       class W
@@ -148,16 +142,12 @@ RSpec.describe(Kimera::RegistryScan) do
     expect(spans(registry)).to(eq([[3, 4]]))
   end
 
-  # A lambda in the block is mutated; what is not mutated is the line beside
-  # it, not the block that holds both (R6B1-M3).
   it "reports the lines it skips in a class-level block, not the lines it mutates there", :aggregate_failures do
     registry = scan("class W\n  configure do\n    @limit = -> { 10 > 5 }\n    @mode = @limit.call ? 1 : 2\n  end\nend")
     expect(lines(registry)).to(eq([3]))
     expect(spans(registry)).to(eq([[4, 4]]))
   end
 
-  # A skipped node that holds a method holds code kimera mutates (R6B2-M4): the
-  # `if` around a def is skipped, the def's body is not.
   it "leaves out of a skipped node's lines the method it defines", :aggregate_failures do
     registry = scan(<<~RUBY)
       class Flags

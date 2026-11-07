@@ -3,8 +3,6 @@
 require "kimera/scribe"
 require "kimera/synthesis/guardrail_factories"
 
-# Scribe writes a node to stand where another stood in its source: with the
-# locals bound there, and with every untouched subtree as it was written.
 RSpec.describe(Kimera::Scribe) do
   def tree(source) = Kimera::Scribe.parse(source)
 
@@ -13,8 +11,6 @@ RSpec.describe(Kimera::Scribe) do
     node.compact_child_nodes.lazy.filter_map { |child| find(child, slice) }.first
   end
 
-  # The text Scribe writes for the node `yield` makes of the one at `slice`,
-  # to stand where that one stands.
   def written(source, slice)
     root = tree(source)
     original = find(root, slice)
@@ -26,8 +22,6 @@ RSpec.describe(Kimera::Scribe) do
   def read(source) = tree(source).statements.body.first
 
   describe "locals where a node stands" do
-    # Every name in the source that reads as a local where the node stands
-    # (or after it): a bare call of that name written there takes parentheses.
     def locals(source, slice, after: false)
       root = tree(source)
       original = find(root, slice)
@@ -96,8 +90,6 @@ RSpec.describe(Kimera::Scribe) do
       expect(written(source, "y = <<~T") { |write| write.copy(name: :z) }).to(eq('z = "t\n"'))
     end
 
-    # A guard's alternatives follow the point's own text, so a local the point
-    # binds is bound where they stand: kept, `brand` would read that local.
     def shadowed(slice)
       root = tree(shadowing)
       original = find(root, slice)

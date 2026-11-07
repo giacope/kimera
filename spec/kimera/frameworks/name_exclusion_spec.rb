@@ -3,8 +3,6 @@
 require "kimera/frameworks/suite"
 require "kimera/frameworks/name_exclusion"
 
-# rack's one test that fails as root covered in-scope mutants; leaving out
-# its whole file dropped 26 more tests.
 RSpec.describe(Kimera::Frameworks::NameExclusion, :aggregate_failures) do
   let(:adapter) do
     Class.new(Kimera::Frameworks::Suite) do

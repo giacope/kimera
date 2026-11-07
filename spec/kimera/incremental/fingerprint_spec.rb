@@ -30,7 +30,6 @@ RSpec.describe(Kimera::Incremental::Fingerprint) do
 
   def digest(body) = Digest::SHA256.hexdigest(body)
 
-  # `git rev-parse HEAD` in a repository with no commit prints "HEAD" and fails.
   it "records no commit for a repository without one" do
     git("init", "-q")
     expect(fingerprint["commit"]).to(eq(""))

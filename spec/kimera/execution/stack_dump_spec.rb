@@ -5,8 +5,6 @@ require "kimera/execution/stack_dump"
 require "timeout"
 require "tmpdir"
 
-# In-process: the spec arms its own process and signals itself, so the dump
-# is written and read by the same code a worker and its pool run.
 RSpec.describe(Kimera::Execution::StackDump) do
   let(:dir) { Dir.mktmpdir("kimera-stacks-spec") }
   let(:dump) { described_class.new(dir) }
@@ -20,7 +18,6 @@ RSpec.describe(Kimera::Execution::StackDump) do
     Signal.trap(described_class::SIGNAL, previous || "DEFAULT")
   end
 
-  # IGNORE underneath, so a dump that never armed times out instead of killing the suite.
   def armed(&)
     trapped("IGNORE") do
       dump.arm!
@@ -28,7 +25,6 @@ RSpec.describe(Kimera::Execution::StackDump) do
     end
   end
 
-  # A thread as the dump reads one: its name, its frames and its status.
   def thread(name, frames: [], status: "sleep") = Struct.new(:name, :backtrace, :status).new(name, frames, status)
 
   def interrupted = armed { dump.take(Process.pid) }.fetch(0)
@@ -88,7 +84,6 @@ RSpec.describe(Kimera::Execution::StackDump) do
     expect(text).not_to(include("more thread"))
   end
 
-  # A clock that reads each of +times+ in turn, and a pause that records.
   def patient(times, pauses)
     clock = times.dup
     described_class.new(dir, pause: ->(seconds) { pauses << seconds }, clock: -> { clock.shift })
@@ -118,7 +113,6 @@ RSpec.describe(Kimera::Execution::StackDump) do
     expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to(be_between(0.05, 1.0))
   end
 
-  # A worker that writes its dump through a temporary file a little later; its pid.
   def late_writer(folder)
     fork do
       sleep(0.1)
@@ -149,16 +143,12 @@ RSpec.describe(Kimera::Execution::StackDump) do
     expect(trapped("IGNORE") { dump.take(Process.pid) }).to(eq(["café �"]))
   end
 
-  # A worker in the pool's own process group gets the signal alone; only a
-  # worker that leads its own group has the group signalled.
   describe "asking a worker" do
-    # Built before the forks, so every child writes to the parent's pipes.
     let!(:ready) { IO.pipe }
     let!(:heard) { IO.pipe }
 
     after { Process.waitall }
 
-    # In a child: says +name+ on the heard pipe when the dump's signal comes, and exits; gives up after 10 s.
     def listen(name)
       Signal.trap(described_class::SIGNAL) do
         heard.last.puts(name)
@@ -169,14 +159,12 @@ RSpec.describe(Kimera::Execution::StackDump) do
       exit!(1)
     end
 
-    # In a child: leads a group of its own, with a child of its own in it.
     def family
       Process.setpgid(0, 0)
       fork { listen("grandchild") }
       listen("leader")
     end
 
-    # A process in this group, and a group leader with a child of its own; the names of those that heard.
     def asked
       workers = [fork { listen("member") }, fork { family }]
       3.times { ready.first.gets }
@@ -184,7 +172,6 @@ RSpec.describe(Kimera::Execution::StackDump) do
       names
     end
 
-    # The names the listeners said, once every one has exited.
     def names
       heard.last.close
       Timeout.timeout(15) { heard.first.readlines(chomp: true).sort }

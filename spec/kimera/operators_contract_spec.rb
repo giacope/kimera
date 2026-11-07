@@ -5,8 +5,6 @@ require "kimera/registry/builder"
 require "kimera/runtime"
 require "kimera/synthesis/overlay"
 
-# Each family is checked in the registry, a live overlay, and baked source.
-# default_argument bakes and overlays by different mechanisms.
 RSpec.describe(Kimera::Operators) do
   let(:contract_src) { <<~RUBY }
     class Contracts
@@ -51,8 +49,6 @@ RSpec.describe(Kimera::Operators) do
     Kimera::Overlay::Source.new(synthesized.source).evaluate(File.expand_path(file))
   end
 
-  # What the block answers for a Contracts under the key's overlay, with the
-  # labelled mutant active, or none.
   def under(key, label = nil)
     stub_const("Contracts", Class.new)
     catalog = built(key)
@@ -118,8 +114,6 @@ RSpec.describe(Kimera::Operators) do
         end
       RUBY
 
-      # What the block answers for a Spellings, with the mutant of the point
-      # whose source is given active, or none.
       def spelled(source)
         stub_const("Spellings", Class.new)
         catalog = scan("index_fetch", spellings, "spellings.rb")
@@ -142,7 +136,6 @@ RSpec.describe(Kimera::Operators) do
         expect { spelled("h.[](k)") { |o| o.explicit({ a: 1 }, :nope) } }.to(raise_error(KeyError))
       end
 
-      # Dropping `&.` too would mutate nil- and miss-tolerance at once, so a survivor is unattributable.
       it "keeps nil tolerance through the safe-navigated spelling" do
         expect(spelled("h&.[](k)") { |o| o.maybe(nil, :k) }).to(be_nil)
       end
@@ -180,7 +173,6 @@ RSpec.describe(Kimera::Operators) do
       expect(catalog.each.map { |m, _p| m.label }).to(eq(["delete String()"]))
     end
 
-    # `Array(*xs)` does not unwrap to a single value.
     it "rejects a splatted argument" do
       catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["kernel_coercion"]))
         .source("def m(xs)\n  Array(*xs)\nend\n", file: "k.rb")
@@ -236,7 +228,6 @@ RSpec.describe(Kimera::Operators) do
       expect(under("symbol_literal", ":ok => :ok__kimera__", &:tag)).to(eq(:ok__kimera__))
     end
 
-    # A label (`tier:`) has no parser-side node, so it would report no_coverage forever.
     it "skips label position but keeps every expression spelling", :aggregate_failures do
       code = <<~RUBY
         def m(o)
@@ -293,7 +284,6 @@ RSpec.describe(Kimera::Operators) do
         .to(eq("hi bob?"))
     end
 
-    # Each mutant's baked `def greet` line, by label.
     def greets
       catalog = built("default_argument")
       overlay = Kimera::Overlay.new(catalog)
@@ -360,7 +350,6 @@ RSpec.describe(Kimera::Operators) do
       expect(safe(scan(contract_keys, awkward, "awkward.rb")).size).to(be > 10)
     end
 
-    # A point the overlay cannot apply is permanent no_coverage noise.
     it "are all applied by the overlay, into source that parses", :aggregate_failures do
       catalog = scan(contract_keys, awkward, "awkward.rb")
       result = Kimera::Overlay.new(catalog).synthesize("awkward.rb", awkward)

@@ -4,10 +4,8 @@ require "kimera/operators/audit"
 
 require_relative "../../../examples/operators/kimera_plugin"
 
-# Loading the plugin registers its operators; reset so other specs see only built-ins.
 Kimera::Operators::ROSTER.reset!
 
-# Unrenderable and identity directives hide in a report: one scores as an error or kill, the other survives.
 RSpec.describe(Kimera::Operators::Audit) do
   let(:controller) do
     <<~APP
@@ -34,7 +32,6 @@ RSpec.describe(Kimera::Operators::Audit) do
       expect(described_class.new(operators).faults(controller)).to(eq([]))
     end
 
-    # An operator that proposes the labelled directive for each call of +name+.
     def proposing(key, name, label, type, **directive)
       Class.new(Kimera::Operators::Base) do
         define_method(:key) { key }

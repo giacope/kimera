@@ -3,8 +3,6 @@
 require "kimera/execution/last_words"
 require "kimera/execution/zygote"
 
-# What a warm worker says on its way out when an exception ends it, so a
-# crash verdict names the cause instead of just "crashed".
 RSpec.describe(Kimera::Execution::LastWords) do
   let(:harness) { Kimera::Execution::Frames::HARNESS }
 

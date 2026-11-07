@@ -3,8 +3,6 @@
 require "kimera/execution/order_trace"
 require "kimera/registry/builder"
 
-# A mutant the in-order run of the suite reaches but no single test does in a
-# fresh process is sent to the isolated tier with the reason.
 RSpec.describe(Kimera::Execution::OrderTrace) do
   let(:registry) do
     Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n\ndef b(x, y)\n  x < y\nend\n", file: "calc.rb")
@@ -42,7 +40,6 @@ RSpec.describe(Kimera::Execution::OrderTrace) do
       expect(trace.wanted?(nil, {})).to(be(true))
     end
 
-    # One uncovered mutant is enough: the mark lands on its point, so on its siblings too.
     it "wants the run when a mutant in scope sits on a point with an uncovered mutant", :aggregate_failures do
       (covered, uncovered), = mutants
       coverage = { covered => ["t1"], uncovered.to_s => [] }

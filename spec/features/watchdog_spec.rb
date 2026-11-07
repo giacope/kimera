@@ -4,8 +4,6 @@ require "json"
 require "kimera/execution/harness"
 require "kimera/registry/registry"
 
-# Forked fake workers speak the pool protocol, so the watchdog is tested
-# without schemata or a test framework.
 RSpec.describe("Harness watchdog") do
   def location
     Kimera::Location.new(start_offset: 0, span: 1, start_line: 1, start_column: 0, end_line: 1, end_column: 1)
@@ -23,7 +21,6 @@ RSpec.describe("Harness watchdog") do
     )
   end
 
-  # +timeout+ hangs after start; +crash+ exits after start, before any result.
   def fake_spawner(timeout: nil, crash: nil, statuses: Hash.new("killed"))
     lambda do |_slot|
       forked do |request, response|
@@ -56,11 +53,9 @@ RSpec.describe("Harness watchdog") do
 
   it "hard-kills a hung worker, marks the in-flight mutant as timeout, and finishes the rest" do
     report = harness(catalog([1, 2, 3]), fake_spawner(timeout: 2)).run(ids: [1, 2, 3])
-    # 3 is picked up by the replacement worker.
     expect(report.results.to_h { |r| [r.mutant_id, r.status] }).to(eq(1 => :killed, 2 => :timeout, 3 => :killed))
   end
 
-  # A worker that exits 3 before it reads a request.
   def stillborn
     lambda do |_slot|
       request, sender = IO.pipe
@@ -77,8 +72,6 @@ RSpec.describe("Harness watchdog") do
     end
   end
 
-  # E.g. an after-fork hook that raises. Marking every mutant unjudged would
-  # report a clean run over code that never ran.
   it "aborts when worker after worker dies without reporting anything" do
     expect { harness(catalog([1, 2, 3, 4]), stillborn).run(ids: [1, 2, 3, 4]) }
       .to(raise_error(Kimera::Error, /died before reporting a result.*status 3/m))

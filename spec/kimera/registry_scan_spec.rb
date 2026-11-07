@@ -63,7 +63,6 @@ RSpec.describe(Kimera::RegistryScan) do
   end
 
   it "produces no points for source that fails to parse" do
-    # Prism would recover the first def from a partial AST.
     registry = described_class.new.source(
       "def a(x, y)\n  x > y\nend\ndef broken(", file: "bad.rb"
     )
@@ -160,7 +159,6 @@ RSpec.describe(Kimera::RegistryScan) do
     end
   end
 
-  # R6B6-M3: a report writes a mutant in its file, found under the registry's root.
   it "records the root it scanned: the working directory as `.`, another by its path", :aggregate_failures do
     expect(described_class.new.source("def a = 1\n", file: "a.rb").root).to(eq("."))
     expect(described_class.new(root: "/app").source("def a = 1\n", file: "a.rb").root).to(eq("/app"))
@@ -173,7 +171,6 @@ RSpec.describe(Kimera::RegistryScan) do
     expect(reloaded.points.first.original_source).to(eq(registry.points.first.original_source))
   end
 
-  # A repeated or nil id would silently alias two mutation sites.
   describe "numbering" do
     def numbering = Kimera::RegistryScan::Numbering.new
 
@@ -183,10 +180,6 @@ RSpec.describe(Kimera::RegistryScan) do
       expect([counter.mutant, counter.mutant]).to(eq([1, 2]))
     end
 
-    # Kimera's own specs drive the runtime with ids from 1 (a nested harness
-    # forks real workers that switch on mutant 1). A run on kimera itself
-    # numbers its mutants far above them, so a spec never switches one on.
-    # The lowest mutant id of a scan of these paths.
     def first_id(paths) = described_class.new(root: "/").build(paths).each.map { |m, _p| m.id }.min
 
     it "numbers kimera's own mutants from OWN_FIRST, and a project's from 1" do
@@ -207,7 +200,6 @@ RSpec.describe(Kimera::RegistryScan) do
     end
   end
 
-  # Different operators can meet on redundant code; one program is one mutant.
   describe "variants that leave the same program" do
     let(:operators) { Kimera::Operators.build(keys: ["all"]) }
 
@@ -221,14 +213,11 @@ RSpec.describe(Kimera::RegistryScan) do
       expect(labels("def m\n  Array(nil)\nend\n")).to(eq(["delete `Array(nil)`", "drop arg `nil`"]))
     end
 
-    # `&` alone is not a program; the call is read where it stands.
     it "reads the node in its file", :aggregate_failures do
       expect(labels("def m(&)\n  f(1, 1, &)\nend\n")).to(eq(["delete `f(1, 1, &)`", "drop arg `1`"]))
       expect(labels("def m(a)\n  f(a, a)\n  a.map { it }\nend\n")).to(eq(["delete `f(a, a)`", "drop arg `a`"]))
     end
 
-    # The parser gem rejected /\xff/ in a UTF-8 file; kimera writes the tree
-    # Prism reads, so that file's variants are compared like any other's.
     it "compares the variants of a file with a regexp escape that is invalid UTF-8" do
       expect(labels("def m\n  f(1, 1)\n  /\\xff/\nend\n")).to(eq(["delete `f(1, 1)`", "drop arg `1`"]))
     end
@@ -238,7 +227,6 @@ RSpec.describe(Kimera::RegistryScan) do
     end
   end
 
-  # Ruby reads a range literal it tests as a flip-flop; see Rewrite::Conditions.
   describe "variants that leave a range literal in a condition" do
     def labels(source, keys = ["all"])
       points = described_class.new(operators: Kimera::Operators.build(keys: keys)).source(source, file: "x.rb").points

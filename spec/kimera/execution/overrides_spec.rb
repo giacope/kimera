@@ -5,8 +5,6 @@ require "kimera/execution/overrides"
 require "kimera/registry/builder"
 require "tmpdir"
 
-# Overlaying a file evaluates it again; a method a later file redefined must
-# keep the later definition.
 RSpec.describe(Kimera::Execution::Overrides) do
   let(:dir) { Dir.mktmpdir }
   let(:own) { File.join(dir, "order.rb").tap { |file| File.write(file, "") } }
@@ -41,7 +39,6 @@ RSpec.describe(Kimera::Execution::Overrides) do
 
   def overlay(overrides) = overrides.keep { evaluate(Object, source.gsub(":own", ":again"), own) }
 
-  # The files of the definitions the displaced methods hold, for each name on its holder.
   def replaced(displaced, **holders)
     holders.to_h do |name, holder|
       [name, displaced.flat_map { |held| held.replacing(name, [holder]) }.map { |kept| kept.source_location.first }]
@@ -57,8 +54,6 @@ RSpec.describe(Kimera::Execution::Overrides) do
       .to(eq(total: [own], make: [own], build: [own]))
   end
 
-  # A method the file defines on another object is that object's: the class's
-  # own, of the same name, is not the file's to put back.
   def tallying = "class OverridesOrder\n  def OverridesTally.make = :tally\nend\n"
 
   it "puts back no method of the class's own for one the file defines on another object" do
@@ -67,9 +62,6 @@ RSpec.describe(Kimera::Execution::Overrides) do
     expect([OverridesOrder.make, displaced]).to(eq([:own, []]))
   end
 
-  # R6B4-M7: a memoizer in another file (unparser's Adamantium `memoize`)
-  # replaces the method with one that calls the original it captured at load,
-  # so the overlaid method is never reached warm.
   describe "a kept method's revisit" do
     def points
       text = "class Revisited\n  def total = a > b\n\n\n\n\n\n\n\n  def kept = a > b\nend\n"
@@ -114,7 +106,6 @@ RSpec.describe(Kimera::Execution::Overrides) do
     end
   end
 
-  # R4-KL7: dry-types raises on every warning; putting a later file's method back warned "method redefined".
   it "puts a method back without a warning under $VERBOSE" do
     boot
     overrides = described_class.new(own, source)

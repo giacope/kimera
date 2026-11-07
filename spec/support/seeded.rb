@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-# Runs the block with KIMERA_SEED set as kimera sets it for a seeded run, or
-# unset, and puts back what was there.
 module Seeded
   def seeded(seed)
     saved = ENV.fetch("KIMERA_SEED", nil)

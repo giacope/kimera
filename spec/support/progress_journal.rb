@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-# A progress double that records each phase it is handed, the ticks the
-# phase reports and the notes it is told, instead of drawing them.
 class ProgressJournal
   attr_reader :events
 

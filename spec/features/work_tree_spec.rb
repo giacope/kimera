@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-# R3K8: a run that deletes the project's files fails, naming them.
 RSpec.describe("kimera run on a suite that deletes a project file (end-to-end)", :aggregate_failures) do
   def files = {
     "fixture.rb" => "keep me\n",

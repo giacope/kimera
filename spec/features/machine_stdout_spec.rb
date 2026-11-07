@@ -3,8 +3,6 @@
 require "open3"
 
 RSpec.describe("machine-readable stdout") do
-  # SimpleCov and Coveralls print from an at_exit hook, after kimera has written
-  # its report; thor's suite made `--format json` unparseable that way.
   def write(fixture)
     FileUtils.mkdir_p(File.join(fixture, "app"))
     FileUtils.mkdir_p(File.join(fixture, "spec"))
@@ -25,7 +23,6 @@ RSpec.describe("machine-readable stdout") do
     ]
   end
 
-  # Open3 hands kimera pipes, not a tty: the CI case.
   def run_with(format, *extra)
     Dir.mktmpdir("kimera-machine-stdout") do |fixture|
       write(fixture)

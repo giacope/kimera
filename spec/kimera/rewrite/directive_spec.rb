@@ -14,8 +14,6 @@ RSpec.describe(Kimera::Rewrite::Directive) do
       expect(out).to(eq("a || b"))
     end
 
-    # unparser printed `a || b and "c"` for this: a syntax error once it sits in an
-    # argument list (thor's `Shellwords.split(ENV["THOR_DIFF"] || ENV["RAILS_DIFF"] || "diff -u")`).
     it "parenthesizes a nested connective so the variant stays valid in any context" do
       out = described_class.new({ "type" => "boolean_connective", "to" => "and" }).render('a || b || "c"').first
       expect(out).to(eq('(a || b) && "c"'))
@@ -63,7 +61,6 @@ RSpec.describe(Kimera::Rewrite::Directive) do
       expect(described_class.new({ "type" => "string_literal", "value" => "" }).render("; boundary=")).to(eq(['""']))
     end
 
-    # Unparsing the whole node would print a modifier `if` as an if/end block.
     it "writes a forced condition into the original text, keeping its shape", :aggregate_failures do
       forced = ->(source, to) { described_class.new({ "type" => "condition", "to" => to }).render(source).first }
       expect(forced.call("return false if order_total <= 0", "false")).to(eq("return false if false"))
@@ -72,8 +69,6 @@ RSpec.describe(Kimera::Rewrite::Directive) do
       expect(forced.call("if a\n  b\nend", "false")).to(eq("if false\n  b\nend"))
     end
 
-    # once-campfire's `tag.div(..., &)` forwards its method's anonymous block:
-    # cut out of the method, the snippet did not parse and rendered as nil.
     it "writes a forced condition into a snippet that forwards anonymous arguments", :aggregate_failures do
       forced = ->(source, to) { described_class.new({ "type" => "condition", "to" => to }).render(source).first }
       expect(forced.call("if w && h\n  tag.div(class: \"a\", &)\nelse\n  tag.div(&)\nend", "true"))
@@ -82,8 +77,6 @@ RSpec.describe(Kimera::Rewrite::Directive) do
       expect(forced.call("call(...) unless done?", "true")).to(eq("call(...) unless true"))
     end
 
-    # The mutant keeps an assignment the predicate makes (PinnedPredicate), so
-    # its rendering does too: a bare `if true` reads as a NameError in the body.
     it "writes a forced condition that keeps the assignment its predicate makes", :aggregate_failures do
       forced = ->(source, to) { described_class.new({ "type" => "condition", "to" => to }).render(source).first }
       expect(forced.call("if ok && room = find(id)\n  room.id\nend", "true"))
@@ -105,7 +98,6 @@ RSpec.describe(Kimera::Rewrite::Directive) do
       expect(described_class.new({ "type" => "bogus" }).render("a > b")).to(eq([]))
     end
 
-    # Without the hash check this crashes on the symbol arg and render returns nil.
     it "leaves a call without keyword arguments untouched by a kwarg drop" do
       out = described_class.new({ "type" => "kwarg_pair_drop", "key" => "dependent" }).render("has_many :posts").first
       expect(out).to(eq("has_many(:posts)"))
@@ -117,8 +109,6 @@ RSpec.describe(Kimera::Rewrite::Directive) do
       expect(out).to(eq('has_many(:posts, "dependent" => :destroy)'))
     end
 
-    # A block call parses as :block wrapping the send. Without unwrapping, the
-    # mutant equals the original and always survives.
     it "drops a kwarg pair from a call that carries a block" do
       out = described_class.new({ "type" => "kwarg_pair_drop", "key" => "expires_in" })
         .render("Rails.cache.fetch(key, expires_in: 5) { total }").first

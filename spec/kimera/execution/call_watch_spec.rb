@@ -3,8 +3,6 @@
 require "kimera/execution/call_watch"
 require "kimera/runtime"
 
-# The reload tier bakes one mutant into a fresh process; the watch tells it
-# which tests call the method that holds the mutant (R6B1-M4).
 RSpec.describe(Kimera::Execution::CallWatch) do
   let(:source) do
     <<~RUBY
@@ -28,14 +26,12 @@ RSpec.describe(Kimera::Execution::CallWatch) do
     expect(watched("a + 1").source).to(eq(source.sub("= @inner ||= a + 1\n", "= (#{probe}; @inner ||= a + 1)\n")))
   end
 
-  # R6B2-M2: a one-line def that starts later on the point's line held it, by line.
   it "probes the method that holds the point, not a one-line def beside it on its line", :aggregate_failures do
     meter = "def reading\n  @reading ||= Struct.new(:value) { def high? = value > 5 }.new(@x > 0 ? @x : 0)\nend\n"
     expect(watched("@x > 0", meter).source).to(eq(meter.sub("def reading\n", "def reading; #{probe}\n")))
     expect(watched("value > 5", meter).source).to(eq(meter.sub("= value > 5 }", "= (#{probe}; value > 5) }")))
   end
 
-  # A guard probe whose edit opens a parenthesis it never closes.
   def unbalanced = Struct.new(:node, :ids) { def watch = [[0, 0, "("]] }
 
   it "leaves the source unwatched when the probed text would not parse" do
@@ -43,7 +39,6 @@ RSpec.describe(Kimera::Execution::CallWatch) do
     expect([unwatched.source, unwatched.watching?, unwatched.reached?([])]).to(eq([source, false, true]))
   end
 
-  # Outside any method it cannot tell, so every test counts as reaching it.
   it "leaves a point no method holds as it is", :aggregate_failures do
     expect([watched("class").source, watched("class").watching?, watched("class").reached?([])]).to(
       eq([source, false, true])

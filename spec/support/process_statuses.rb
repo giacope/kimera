@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-# Real exit statuses, of processes that exit with a code or die of a signal.
 module ProcessStatuses
   module_function
 

@@ -3,11 +3,6 @@
 require "fileutils"
 require "tmpdir"
 
-# Two mutants of Catalog.load poison the memoized class-level table: once a
-# test reloads it under the mutant, the table stays wrong after the
-# switch-off. Each run starts in a fresh process, so the warm pass judges them
-# itself. A mutant that makes its process exit can't be judged warm; it is
-# judged again in a fresh mirror, which can't judge it either.
 RSpec.describe("kimera run re-judges what the warm pass could not (end-to-end)", :aggregate_failures) do
   def test_catalog(root)
     FileUtils.mkdir_p([File.join(root, "app"), File.join(root, "spec")])

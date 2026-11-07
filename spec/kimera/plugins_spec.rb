@@ -6,7 +6,6 @@ require "kimera/plugins"
 
 require_relative "../../examples/operators/kimera_plugin"
 
-# The example plugin registers on load; reset so each example starts from the built-ins.
 Kimera::Operators::ROSTER.reset!
 
 RSpec.describe(Kimera::Plugins) do

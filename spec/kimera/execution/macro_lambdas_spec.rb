@@ -5,9 +5,6 @@ require "kimera/execution/macro_lambdas"
 require "kimera/registry/builder"
 require "tmpdir"
 
-# once-campfire: re-declaring `belongs_to :creator, default: -> { Current.user }`
-# warm adds a second callback, and the original runs first, so the mutated
-# lambda never runs and its mutants read as untested.
 RSpec.describe(Kimera::Execution::MacroLambdas) do
   let(:source) do
     <<~RUBY
@@ -40,9 +37,6 @@ RSpec.describe(Kimera::Execution::MacroLambdas) do
     expect(point("Current.user").reloadable?).to(be(false))
   end
 
-  # R6B2-M5: a macro that adds to a list (default_scope) keeps the original
-  # lambda beside the woven one, which a test then reaches, and the original
-  # masks the mutant: places-manager's `default_scope -> { order(name: :asc) }`.
   it "judges a macro's lambda a test covers warm, and a survivor again in a fresh mirror", :aggregate_failures do
     booster = point("Current.user")
     ordered = point("order(:created_at)")

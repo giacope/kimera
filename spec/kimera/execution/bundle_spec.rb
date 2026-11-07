@@ -4,10 +4,6 @@ require "fileutils"
 require "tmpdir"
 require "kimera/execution/bundle"
 
-# The Gemfile a mirror's child runs under: the one kimera itself runs under
-# (BUNDLE_GEMFILE, an Appraisal-style Gemfile.rails-8.1 or gemfiles/x.gemfile),
-# as its copy in the mirror, or the project's own when the lockfile resolved a
-# path gem out of the project, which the mirror does not hold.
 RSpec.describe(Kimera::Execution::Bundle) do
   def write(dir, files)
     files.each do |path, text|
@@ -41,8 +37,6 @@ RSpec.describe(Kimera::Execution::Bundle) do
     expect(chosen({ "Gemfile.ci" => "" }, nil)).to(be_nil)
   end
 
-  # gemfiles/rails.gemfile's `gemspec path: "../"` resolves to the project,
-  # which the mirror holds; `path: "../../engine"` leaves it.
   def nested(remote)
     lock = "PATH\n  remote: #{remote}\n"
     { "gemfiles/rails.gemfile" => "gemspec path: '../'\n", "gemfiles/rails.gemfile.lock" => lock }

@@ -3,16 +3,12 @@
 RSpec.describe("kimera run --test-quality (end-to-end)", :aggregate_failures) do
   def app(name) = File.join(test_repository_root, "examples", name)
 
-  # A plain run and a --test-quality run of the same suite.
   def both(cwd, tests, arguments = [])
     [[], ["--test-quality"]].map { |flags| test_outcome(cwd: cwd, tests: tests, arguments: arguments + flags) }
   end
 
   def keyed(run) = run.results.to_h { |row| [row["key"], row["status"]] }
 
-  # What --test-quality names per mutant: killed rows whose failing tests it
-  # leaves unnamed, the most killers of one mutant, and rows it names killers
-  # for though nothing killed them.
   def quality_facts(run)
     killed, others = run.results.partition { |row| row["status"] == "killed" }
     {

@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-# A clock that reads the times it was given, one per look, and counts its
-# pauses instead of pausing.
 class FakeClock
   attr_reader :paused
 

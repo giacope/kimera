@@ -44,8 +44,6 @@ RSpec.describe(Kimera::Incremental::CoverageCache) do
     cache(scope: scope, reuse_coverage: true, since: "HEAD").measured(%w[t1 t2 t3 t4])
   end
 
-  # A mutant id outside the run's registry is a suite's own fixture (kimera's
-  # specs drive the runtime with registries of their own).
   it "stores, after a full run, which tests reached each source file, and every test" do
     keep
     expect(JSON.parse(File.read(map)).values_at("coverage", "tests"))

@@ -1,9 +1,5 @@
 # frozen_string_literal: true
 
-# R6B2-M1: dry-rb's spec_helper turns on Warning[:strict_unused_block] and raises
-# every warning. kimera's own calls passed blocks to methods that ignore them, so
-# the first memoized mutant ended the run and the first warm kill of each worker
-# read `error`.
 RSpec.describe("a suite that raises every warning, unused blocks included") do
   def files = {
     "app/totals.rb" => <<~RUBY,
@@ -53,9 +49,6 @@ RSpec.describe("a suite that raises every warning, unused blocks included") do
     expect(run.output).not_to(include("may be ignored"))
   end
 
-  # R6B2-M3: Ruby settles whether a method uses its block as it compiles it, and
-  # the warm overlay compiles every mutant of `join` into one, so `if false`,
-  # which leaves `join` no yield, raised the warning only when baked alone.
   def pair = {
     "app/pair.rb" => <<~RUBY,
       # frozen_string_literal: true

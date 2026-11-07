@@ -97,14 +97,12 @@ RSpec.describe(Kimera::SelfProtection) do
       expect(registry.count).to(eq(0))
     end
 
-    # An instrumented runtime.rb makes Runtime.active? recurse into itself.
     it "keeps the runtime out of a whole-lib registry" do
       lib = File.expand_path("../../lib", __dir__)
       registry = Kimera::RegistryScan.new(root: lib).build(Dir["#{lib}/**/*.rb"])
       expect(registry.files).not_to(include(a_string_matching(/runtime\.rb\z/)))
     end
 
-    # The isolated oracle bakes mutants into source, so it has no selector to recurse through.
     it "includes the runtime when shielding is disabled" do
       registry = Kimera::RegistryScan.new(root: ".", shielded: false).build([Kimera::Runtime::SOURCE_PATH])
       expect(registry.count).to(be > 0)

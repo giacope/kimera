@@ -3,10 +3,7 @@
 require "kimera/execution/isolated"
 require "tmpdir"
 
-# Without numbered databases, concurrent mirrors past the first take copies
-# of the parent's prepared database, made once before the first mirror.
 RSpec.describe(Kimera::Execution::IsolatedExecution) do
-  # The slots the mirror database was prepared for over two mirrors of +jobs+.
   def mirrored(jobs, numbered: false)
     mirror = FakeMirror.new
     numbers = FakeNumbered.new(numbered: numbered)

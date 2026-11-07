@@ -5,9 +5,6 @@ require "kimera/registry/builder"
 require "open3"
 require "tmpdir"
 
-# A suite in an isolated mirror can read the project's history (`git
-# ls-files`, `git show`) through a private index and refs that borrow the
-# project's objects; whatever it writes stays in the mirror.
 RSpec.describe(Kimera::Execution::MirrorGit, :aggregate_failures) do
   let(:registry) do
     Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n", file: "calc.rb")
@@ -26,11 +23,8 @@ RSpec.describe(Kimera::Execution::MirrorGit, :aggregate_failures) do
     test_git(root, "-c", "user.name=k", "-c", "user.email=k@k", "commit", "-qm", "one")
   end
 
-  # The project's HEAD and index.
   def state(root) = [test_git(root, "rev-parse", "HEAD"), File.binread(File.join(root, ".git", "index"))]
 
-  # Yields a project, a mirror the project's git was copied into, and the
-  # project's state before the copy.
   def mirrored
     Dir.mktmpdir do |root|
       test_project(root)
@@ -43,7 +37,6 @@ RSpec.describe(Kimera::Execution::MirrorGit, :aggregate_failures) do
     end
   end
 
-  # Stages and commits a new file in the mirror.
   def commit_in(mirror)
     File.write(File.join(mirror, "new.rb"), "1\n")
     test_git(mirror, "add", "new.rb")
@@ -72,7 +65,6 @@ RSpec.describe(Kimera::Execution::MirrorGit, :aggregate_failures) do
     end
   end
 
-  # What a mirror holds once the root's git was copied into it.
   def copied(root)
     Dir.mktmpdir { |mirror| described_class.new(root).copy(File.join(mirror, ".git")).then { Dir.children(mirror) } }
   end
@@ -82,7 +74,6 @@ RSpec.describe(Kimera::Execution::MirrorGit, :aggregate_failures) do
   end
 
   describe "a mirror of the project" do
-    # The project's objects, and the mirror's alternates and tracked files once populated.
     def populated
       Dir.mktmpdir do |root|
         test_project(root)

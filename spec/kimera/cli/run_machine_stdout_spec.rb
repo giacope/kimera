@@ -4,9 +4,6 @@ require "kimera/cli/run"
 require "stringio"
 require "tmpdir"
 
-# The suite loads in kimera's own process, so its prints and at_exit hooks
-# (SimpleCov, Coveralls) shared stdout with a --format json report: thor's
-# `kimera ci --format sarif` printed invalid SARIF.
 RSpec.describe(Kimera::CLI::Run) do
   let(:report) { IO.pipe }
   let(:diagnostics) { IO.pipe }
@@ -59,15 +56,12 @@ RSpec.describe(Kimera::CLI::Run) do
     expect(diagnostics.first.read_nonblock(100_000)).to(end_with("later"))
   end
 
-  # A --format json run on STDOUT whose suite writes to STDOUT too.
   def noisy(stdout)
     harness = FakeHarness.new { stdout.write("noise") && Kimera::RunReport.new(results: []) }
     run = described_class.new(io: stdout, errors: $stderr, bench: FakeBench.new(harness: harness))
     project { run.run(%w[calc.rb --format json]) }
   end
 
-  # What reaches the report pipe and the diagnostics pipe when a run detaches
-  # stdout after a buffered write, and its suite writes to stdout.
   def detached_writes
     stdout = report.last
     stdout.sync = false

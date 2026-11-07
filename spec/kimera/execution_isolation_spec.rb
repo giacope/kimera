@@ -58,7 +58,6 @@ RSpec.describe(Kimera::Execution) do
       ]
     end
 
-    # Inside the suite's own transaction, only a savepoint rolls back per mutant.
     it "opens the transaction with requires_new: true" do
       owner, captured = test_capturing_owner
       described_class.new(owner).around { :x }

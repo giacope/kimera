@@ -16,7 +16,6 @@ RSpec.describe(Kimera::Execution::TestFilter, :aggregate_failures) do
     }
   end
   let(:locate) { ->(test) { files[test] } }
-  # The adapter names each test's file as the framework does: relative with ./, or absolute.
   let(:adapter) do
     named = { "own" => "./spec/models/order_spec.rb", "request" => "spec/requests/orders_spec.rb" }
       .merge("abs" => File.expand_path("spec/models/order_spec.rb"), "else" => "/elsewhere/spec/models/order_spec.rb")

@@ -3,8 +3,6 @@
 require "kimera/execution/database_copies"
 require "stringio"
 
-# Active Record is not in this bundle: a stand-in Base records what a copy
-# asks of it, and a fake engine stands in for the server or the file.
 RSpec.describe(Kimera::Execution::DatabaseCopies) do
   subject(:copies) { copying(engine) }
 
@@ -16,7 +14,6 @@ RSpec.describe(Kimera::Execution::DatabaseCopies) do
 
   before { stub_const("ActiveRecord::Base", base) }
 
-  # Copies made with +engine+ for PostgreSQL, whose exit hooks the spec holds.
   def copying(engine)
     sink = exits
     hooks = Module.new { define_singleton_method(:at_exit) { |&block| sink << block } }
@@ -40,7 +37,6 @@ RSpec.describe(Kimera::Execution::DatabaseCopies) do
     expect(engine.removed).to(eq(["app_test_1"]))
   end
 
-  # Runs the exit hooks in a fork, which exits 0 when they removed nothing.
   def exited_fork
     forked =
       fork do

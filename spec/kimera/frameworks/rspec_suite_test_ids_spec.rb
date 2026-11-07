@@ -4,9 +4,6 @@ require "fileutils"
 require "kimera/frameworks/rspec_suite"
 require "tmpdir"
 
-# kimera loads examples as the rspec executable does: an inclusion filter that
-# matches nothing falls back to every example when the suite sets
-# run_all_when_everything_filtered, and keeps the focused ones otherwise.
 RSpec.describe(Kimera::Frameworks::RSpecSuite, "#test_ids") do
   let(:dir) { Dir.mktmpdir }
 
@@ -49,7 +46,6 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite, "#test_ids") do
     expect(ids.map { |id| adapter.describe(id) }).to(eq(["KimeraFiltered passes", "KimeraFiltered fails"]))
   end
 
-  # Not under aggregate_failures: the outer example would catch the inner one's failure.
   it "runs an example the fallback selected" do
     adapter, ids = filtered(fallback: true)
     expect(adapter.run([ids.last]).failed_ids).to(eq([ids.last]))
@@ -64,9 +60,6 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite, "#test_ids") do
     expect(filtered(fallback: false).last).to(eq([]))
   end
 
-  # RSpec memoizes each group's filtered examples; a stale empty entry would
-  # keep the example from running.
-  # A focus filter that matched nothing, so RSpec fell back to running everything.
   def unfocused
     RSpec.configuration.filter_run_including(focus: true)
     RSpec.configuration.run_all_when_everything_filtered = true

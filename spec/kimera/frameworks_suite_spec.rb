@@ -17,8 +17,6 @@ RSpec.describe(Kimera::Frameworks) do
     end
   end
 
-  # The suite loads in a process that already holds kimera's dependencies,
-  # so a project constant one of them defines at top level cannot load.
   describe "a test file that clashes with a dependency's constant" do
     def loaded(error)
       Kimera::Frameworks::Suite.new.__send__(:load_test_file, "test/x_test.rb") { raise(error) }
@@ -90,8 +88,6 @@ RSpec.describe(Kimera::Frameworks) do
       expect(registry.load(:demo)).to(eq(:built))
     end
 
-    # Whether a fresh Ruby process, loading only kimera's suite base, builds the named built-in adapter: the
-    # registry requires the adapter's file, and the adapter what it runs on (the minitest gem).
     def fresh(name)
       lib = File.expand_path("../../lib", __dir__)
       script = "require 'kimera/frameworks/suite'; Kimera::Frameworks::SUITES.load(:#{name}).then { exit(0) }"

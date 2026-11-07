@@ -4,11 +4,6 @@ require "kimera/execution/shift"
 require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 
-# A survivor's covering tests ran together in one process, where an earlier
-# test can load what the mutant broke and hide it. Under confirm_survivors
-# each test then runs alone in a fresh process with the mutant on, fastest
-# first and at most CAP of them; a failure kills only if the test passes alone
-# with the mutant off.
 RSpec.describe(Kimera::Execution::Shift::Unmask) do
   let(:registry) do
     Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n", file: "calc.rb")
@@ -16,8 +11,6 @@ RSpec.describe(Kimera::Execution::Shift::Unmask) do
 
   let(:target) { registry.each.first.first.id }
 
-  # +script+ maps a test to the outcomes of its successive runs; unscripted
-  # runs pass.
   def scripted(script)
     Class.new do
       attr_reader :log
@@ -70,7 +63,6 @@ RSpec.describe(Kimera::Execution::Shift::Unmask) do
     expect([alone.size, alone.first]).to(eq([described_class::CAP, ["t9", target]]))
   end
 
-  # Passes every run together, then raises +error+ on the first run alone.
   def raising(error)
     Class.new do
       define_method(:initialize) { @runs = 0 }
@@ -93,13 +85,11 @@ RSpec.describe(Kimera::Execution::Shift::Unmask) do
       .to(raise_error(Kimera::Execution::Zygote::Died, /\ASignalException: SIGTERM/))
   end
 
-  # A timeout found alone carries no failure messages to annotate.
   describe "a test that hangs alone" do
     let(:clock) { [0.0] }
 
     before { stub_const("Kimera::Execution::Stopwatch::CLOCK", -> { clock.first }) }
 
-    # +script+ maps a test to its successive runs, as [seconds, passed?] pairs.
     def timed(script)
       now = clock
       Class.new do
@@ -122,7 +112,6 @@ RSpec.describe(Kimera::Execution::Shift::Unmask) do
       expect(result.status).to(eq(:timeout))
     end
 
-    # Slow without the mutant too, the hang can't be laid on the mutant.
     it "keeps the survivor when its test hangs alone and runs slow without the mutant too" do
       adapter = timed({ "t2" => [[0.1, true], [6.0, true], [4.0, true]] })
       result = Kimera::Execution::Shift.new(

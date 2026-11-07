@@ -26,7 +26,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
   def rule(label, reason) = { "file" => "calc.rb", "line" => 2, "label" => label, "reason" => reason }
 
-  # A warm harness that gives every mutant it runs +status+.
   def harness(status) = FakeHarness.new { |ids| judged(ids, status) }
 
   def judged(ids, status)
@@ -41,7 +40,6 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
   def rows(document, status) = document["results"].select { |row| row["status"] == status }
 
-  # The warm harness ran exactly the mutants +ids+.
   def evaluated(ids) = satisfy { |judge| ran(judge).sort == ids.sort }
 
   def ran(judge) = judge.asked.filter_map { |kind, run| run if kind == :run }.flatten

@@ -1,9 +1,5 @@
 # frozen_string_literal: true
 
-# The suite reaches Pricing#price only through an alias and an alias_method
-# declared in other files, and Fees::Hook#charges only through a macro another
-# file's class body calls while it loads. Both used to come out uncovered,
-# though the suite kills every one of these mutants.
 RSpec.describe("kimera run on code reached through another file (end-to-end)", :aggregate_failures) do
   def shop_files
     {

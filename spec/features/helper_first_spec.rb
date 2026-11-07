@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-# Spec-style Minitest files that never require their helper, which the
-# project's Rake task preloads with -r: listing the helper first in `tests:`
-# loads it first.
 RSpec.describe("kimera run with a helper listed first in tests (end-to-end)", :aggregate_failures) do
   def files = {
     "app/calc.rb" => "class Calc\n  def positive?(n) = n > 0\nend\n",

@@ -11,25 +11,20 @@ RSpec.describe(Kimera::Execution::Aliases) do
 
   after { FileUtils.remove_entry(dir) }
 
-  # The method as its file declares it, as the overlay redefines it, and as
-  # something else redefines it before the overlay.
   def define(mod, factor, file) = mod.module_eval(["def price(a) = a * ", factor].join, file)
 
   def declared(mod = Module.new, file = path) = mod.tap { define(mod, 2, file) }
 
   def overlay(mod, file = path) = define(mod, 3, file)
 
-  # A method the overlay displaced from +holder+, as Overrides hands it over.
   def held(holder, name, method)
     Kimera::Execution::Overrides::Held.new(Kimera::Execution::Redefinition.new(holder, name), method, :public, nil)
   end
 
   def holder(origin, &) = Class.new { include origin }.tap { |klass| klass.class_eval(&) }
 
-  # A module declaring price in the watched file, and a class that aliases it as cost.
   def costing(origin = declared) = [origin, holder(origin) { alias_method :cost, :price }]
 
-  # Follows the block, then has the tracker look at its files.
   def witnessing(aliases)
     aliases.follow do
       yield
@@ -50,8 +45,6 @@ RSpec.describe(Kimera::Execution::Aliases) do
     expect(aliased.new.cost(1)).to(eq(4))
   end
 
-  # An alias whose method its holder no longer has is no alias to re-point. The class holding the alias
-  # stays referenced: collected before the tracker walks the object space, it left nothing to look at.
   it "follows no alias whose method is gone from its holder" do
     origin, aliased = costing.tap { |(declaring, _)| declaring.remove_method(:price) }
     aliases = described_class.new([path]).tap { |tracker| tracker.follow { overlay(origin) } }
@@ -112,7 +105,6 @@ RSpec.describe(Kimera::Execution::Aliases) do
     expect(klass.cost(1)).to(eq(3))
   end
 
-  # The overlay, then the block's own definition of the alias.
   def reclaim(origin, aliased)
     overlay(origin)
     aliased.define_method(:cost) { |_a| :mine }
@@ -151,7 +143,6 @@ RSpec.describe(Kimera::Execution::Aliases) do
     expect(aliased.new.cost(1)).to(eq(3))
   end
 
-  # The real path of pricing.rb, whose directory is also linked.
   def linked
     FileUtils.mkdir_p(File.join(dir, "real"))
     File.symlink(File.join(dir, "real"), File.join(dir, "linked"))
@@ -169,8 +160,6 @@ RSpec.describe(Kimera::Execution::Aliases) do
     expect(described_class.new([File.join(dir, "missing.rb")]).follow { :ok }).to(eq(:ok))
   end
 
-  # A wrapper in another file took over the original's name before the
-  # overlay; the overlay's version of the original reaches the alias.
   describe "an alias whose original another file wrapped" do
     let(:wrapper) { File.join(dir, "tax.rb").tap { |file| File.write(file, "") } }
     let!(:klass) do
@@ -185,7 +174,6 @@ RSpec.describe(Kimera::Execution::Aliases) do
 
     def wrap(target) = target.class_eval(wrapping, wrapper)
 
-    # The overlay's version of the original, then the wrapper again, as an overlay leaves them.
     def rewrapped
       overlay(klass)
       klass.instance_method(:price).tap { wrap(klass) }
@@ -198,8 +186,6 @@ RSpec.describe(Kimera::Execution::Aliases) do
       expect([klass.new.plain(1), klass.new.price(1)]).to(eq([3, 4]))
     end
 
-    # R6B4-M7: what no alias reaches, a wrapper holding the method it replaced
-    # (a memoizer) keeps from the overlay; kimera judges those mutants again.
     it "says which overlaid original an alias it tracks now reaches", :aggregate_failures do
       overlaid = nil
       aliases.follow { aliases.witness([held(:price, overlaid = rewrapped)]) }
@@ -214,7 +200,6 @@ RSpec.describe(Kimera::Execution::Aliases) do
       expect(klass.new.plain(1)).to(eq(3))
     end
 
-    # The overlay, witnessed, then the wrapper again.
     def witnessed
       overlay(klass)
       aliases.witness
@@ -226,7 +211,6 @@ RSpec.describe(Kimera::Execution::Aliases) do
       expect(klass.new.plain(1)).to(eq(3))
     end
 
-    # Its own name now resolves to the wrapper, which must not become the alias.
     it "leaves the alias alone when nothing hands it a new original" do
       aliases.follow { aliases.witness }
       expect([klass.new.plain(1), klass.new.price(1)]).to(eq([2, 3]))

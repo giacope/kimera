@@ -2,8 +2,6 @@
 
 require "kimera/execution/database_copies"
 
-# Stand-ins for Active Record's base, its config class and its PostgreSQL
-# tasks record each call in one log.
 RSpec.describe(Kimera::Execution::DatabaseCopies::Postgres) do
   subject(:engine) { described_class.new(config) }
 
@@ -20,7 +18,6 @@ RSpec.describe(Kimera::Execution::DatabaseCopies::Postgres) do
     stub_const("ActiveRecord::Tasks::PostgreSQLDatabaseTasks", tasks(log))
   end
 
-  # An Active Record that logs each connection it establishes, on a server that lists +listed+.
   def base(sink, listed = nil)
     pool = self.pool(listed)
     Class.new do
@@ -29,7 +26,6 @@ RSpec.describe(Kimera::Execution::DatabaseCopies::Postgres) do
     end
   end
 
-  # Active Record's config class, writing down the environment and name of each config made.
   def configs(sink)
     Struct.new(:env_name, :name, :configuration_hash) do
       define_method(:initialize) do |*settings|

@@ -4,11 +4,7 @@ require "fileutils"
 require "kimera/synthesis/overlay"
 require "tmpdir"
 
-# An overlaid file runs as `load` runs it: at the top level, with a scope of
-# its own, its own __FILE__ and __dir__, and require_relative from where it
-# lies.
 RSpec.describe(Kimera::Overlay::Source) do
-  # Each file stores what it saw in this hash, so no constant is left behind.
   let(:seen) { {} }
 
   before { stub_const("KimeraSourceSeen", seen) }

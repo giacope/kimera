@@ -2,7 +2,6 @@
 
 require "kimera/execution/baseline_stall"
 
-# Baseline tests that stalled under parallel load but passed alone.
 RSpec.describe(Kimera::Execution::BaselineStall) do
   def text(recovered) = described_class.new(recovered, hard: 16.0, jobs: 8).to_s
 

@@ -5,12 +5,6 @@ require "kimera/runtime"
 require "kimera/synthesis/overlay"
 require "kimera/synthesis/unwoven"
 
-# R6B6-M2: a dropped rescue or ensure clause is guarded on the clause alone
-# (`rescue *(active ? [] : [IndexError])`, an ensure body under `if !active`),
-# and its bake blanks the clause's lines, so the method runs its own body on
-# its own lines in both tiers: a test that reads a line sees the mutation and
-# nothing else (the warm side ran the body on the clause's `end` line, the bake
-# rewrote a modifier `if` as a block one).
 RSpec.describe(Kimera::GuardClause) do
   def overlay(code)
     operators = Kimera::Operators.build(keys: %w[rescue_clause ensure_clause])
@@ -35,8 +29,6 @@ RSpec.describe(Kimera::GuardClause) do
     end
   RUBY
 
-  # Loads a program into a fresh ClauseLoader and reads the line the
-  # ArgumentError was raised on, with `active` on.
   def raised(source, active = nil)
     stub_const("ClauseLoader", Class.new)
     Kimera::Overlay::Source.new(source).evaluate("c.rb")
@@ -59,7 +51,6 @@ RSpec.describe(Kimera::GuardClause) do
     expect(raised(baked(loader, 1))).to(eq(4))
   end
 
-  # The mutants a call to ClauseLoader#read reached; a raised ArgumentError is let through.
   def reached(lines)
     ledger = Kimera::RUNTIME.start!
     begin
@@ -70,7 +61,6 @@ RSpec.describe(Kimera::GuardClause) do
     Kimera::RUNTIME.stop!(ledger)
   end
 
-  # Coverage: only a test that raises into the clause can kill its mutant.
   it "is reached where an exception reaches the clause, not by every call" do
     raised(woven(loader))
     expect([reached(["a"]), reached([""])]).to(eq([[], [1]]))
@@ -144,8 +134,6 @@ RSpec.describe(Kimera::GuardClause) do
     expect(woven(code)).to(eq(code.sub("  begin\n    n += 1\n  ensure\n  end\n", guarded)))
   end
 
-  # Guarded in place, `begin ... end while` would test before its first pass,
-  # and guarded around the loop, its mutant would be written as a plain while.
   def emptied_loop
     code = "def m(n)\n  begin\n    n += 1\n  ensure\n  end while n < 3\n  n\nend\n"
     catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: %w[ensure_clause comparison]))

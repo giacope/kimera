@@ -3,9 +3,6 @@
 require "kimera/registry/builder"
 require "kimera/synthesis/overlay"
 
-# Overlays and bakes are spliced into the original source: only rewritten
-# spans change, so every line, comment, magic comment and `__END__` section
-# outside them stays where it was.
 RSpec.describe(Kimera::Overlay) do
   def scan(source, keys)
     Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(source, file: "x.rb")
@@ -98,8 +95,6 @@ RSpec.describe(Kimera::Overlay) do
       ).to(start_with("Pair = ((is_a?(::Module) ? self : ::Object).const_defined?"))
     end
 
-    # Dropping the only use of `_1` leaves a block that would take no
-    # parameter, so the block's parameter is written out.
     it "names a numbered block's parameter when the bake drops its only use" do
       program = "def m(list) = list.map { foo(_1) > 2 }\n"
       expect(bake(program, %w[argument_drop], "drop arg `_1`"))
@@ -184,11 +179,8 @@ RSpec.describe(Kimera::Overlay) do
       )
     end
 
-    # A point no guard can hold in place has its definition written whole.
     def whole! = unanchored
 
-    # The method written whole holds every guard: a default argument's raise,
-    # a visibility mutant's probe and registration.
     describe "a definition written whole" do
       let(:written) do
         whole!
@@ -219,8 +211,6 @@ RSpec.describe(Kimera::Overlay) do
       end
     end
 
-    # R6B5-M2: the method's own `rescue` is guarded where it stands; every
-    # other guard too, and no line of the method moves.
     describe "a definition with its own clause" do
       let(:program) do
         <<~RUBY
@@ -256,8 +246,6 @@ RSpec.describe(Kimera::Overlay) do
       expect([result.source, result.mutant_ids]).to(eq([program, []]))
     end
 
-    # A registry scanned before the file changed: its first point now lies in
-    # a comment, outside every statement, and is dropped alone.
     it "drops a point the file no longer holds where it was scanned, and keeps the rest", :aggregate_failures do
       registry = scan("def a(x) = x > 1\ndef b(y) = y > 2\n", %w[comparison])
       result = nil
@@ -273,9 +261,6 @@ RSpec.describe(Kimera::Overlay) do
       expect(result.source.lines[3]).to(eq("  rescue *(::Kimera::RUNTIME.active?(1) ? [] : [ArgumentError])\n"))
     end
 
-    # R6B5-M2: written whole, a class sat on its first line and `__LINE__` in
-    # it read 1; the statement is written whole only where that keeps every
-    # line.
     def held
       "class Held; CHECK = ->(x) { begin; x.call; rescue ArgumentError; 0; end }; end\nclass Laid\n  CHECK = " \
         "->(x) do\n    begin\n      x.call\n    rescue ArgumentError\n      __LINE__\n    end\n  end\nend\n"

@@ -2,16 +2,11 @@
 
 require "kimera/synthesis/outline"
 
-# Two trees of one Outline are one program however their source spelled it:
-# the warm overlay's rewrite of a method, read back, against the method it
-# rewrote (Kimera::Unwoven).
 RSpec.describe(Kimera::Outline) do
   def tree(source) = Kimera::Syntax.parse(source).value
 
   def outline(node) = described_class.new(node).shape
 
-  # The hash a guard over its key leaves: the parser flagged it as having an
-  # expression key, the original as having only symbol keys.
   def unguarded(source)
     Kimera::Rewrite::AstWalk.new(tree(source)).rebuild do |node|
       node.type == :if_node ? node.subsequent.statements.body.first : node

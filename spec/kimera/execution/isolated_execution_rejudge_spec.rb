@@ -7,9 +7,6 @@ require "kimera/report/progress"
 require "stringio"
 require "tmpdir"
 
-# The warm pass hands over what it could not judge; each mutant is judged
-# again in a mirror of its own, and a kill stands only if its tests pass in
-# another fresh mirror without the mutant.
 RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_failures) do
   let(:registry) do
     Kimera::RegistryScan.new.source(<<~RUBY, file: "calc.rb")
@@ -28,8 +25,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
     Kimera::MutantResult.new(mutant_id: id, status: :harness_error, file: "calc.rb", detail: "warm #{id}")
   end
 
-  # Concurrent workers meet before either judges, so each takes a mutant of
-  # its own however the threads are scheduled.
   def test_meet(arrived, slot)
     return unless slot
     arrived << slot
@@ -46,7 +41,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
     )
   end
 
-  # isolated: id => [status, detail]; control: the unmutated outcome.
   def test_engine(log, isolated:, control:)
     judged = method(:test_judged).curry[Thread::Queue.new, isolated]
     seated = method(:seat)
@@ -93,10 +87,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
     Kimera::MutantResult.new(mutant_id: id, status: status, file: "calc.rb", covering_tests: tests, detail: "warm")
   end
 
-  # R6B3-M3: a mutant sent to a mirror only because the warm overlay cannot
-  # settle it (a block it leaves unused, a lambda a macro keeps) was covered
-  # and judged warm; the mirror runs every test near its file, not all of which
-  # reach it, so the tests that covered it stay the warm ones.
   it "keeps the warm coverage of a mutant re-judged for a block it leaves unused" do
     first, second = ids
     warm = [test_covered(first, :survived, ["w"]), test_covered(second, :survived, ["w"])]
@@ -163,8 +153,6 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
     expect(log.map(&:first)).to(eq([:mutant]))
   end
 
-  # A slot names the test database a mirror takes; one mirror at a time keeps
-  # the project's own database.
   it "gives each concurrent mirror a slot, and a lone mirror none", :aggregate_failures do
     isolated = ids.to_h { |id| [id, [:survived, nil]] }
     _results, alone = test_rejudge(isolated: isolated, jobs: 1, **test_quiet)

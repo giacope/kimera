@@ -17,7 +17,6 @@ RSpec.describe(Kimera::Incremental::Session) do
     Kimera::RunReport.new(results: results, leaks: leaks)
   end
 
-  # A session that judged the report's mutants with it.
   def judged(report, session = described_class.new) = session.judged(report.results.map(&:mutant_id)) { report }
 
   def seed(dir, report, registry: Kimera::Registry.new, meta: {})
@@ -26,7 +25,6 @@ RSpec.describe(Kimera::Incremental::Session) do
     path
   end
 
-  # The stored results of +ids+ a session reports, in order, and the ids it still has to judge.
   def stored(session, ids = [1, 2, 3]) = session.report(ids, [], Kimera::Registry.new).results
 
   def pending(session, ids)
@@ -64,7 +62,6 @@ RSpec.describe(Kimera::Incremental::Session) do
     expect(session.save(File.join(dir, "session.json"), Kimera::Registry.new)).to(be(session))
   end
 
-  # The tests or sources changed since: a kill may no longer stand.
   it "drops verdicts saved under another stamp, and keeps those saved under the same", :aggregate_failures do
     registry = Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n", file: "x.rb")
     id = registry.each.first.first.id
@@ -74,7 +71,6 @@ RSpec.describe(Kimera::Incremental::Session) do
       .to(eq([false, true]))
   end
 
-  # A run starts its session from no file under the run's stamp; saved, the stamp lets the next run resume it.
   it "stamps the session a run starts, so the next run under the same stamp keeps its verdicts" do
     registry = Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n", file: "x.rb")
     id = registry.each.first.first.id
@@ -136,8 +132,6 @@ RSpec.describe(Kimera::Incremental::Session) do
   end
 
   describe "staleness invalidation on resume" do
-    # Mutant ids are positional, so an edit can point a stored id at a
-    # different mutation.
     def registry(source)
       Kimera::RegistryScan.new.source(source, file: "calc.rb")
     end

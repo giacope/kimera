@@ -5,7 +5,6 @@ require "kimera/work_tree"
 require "open3"
 require "tmpdir"
 
-# R3K8: 171 tracked fixtures vanished during a warm run, and nothing said so.
 RSpec.describe(Kimera::WorkTree, :aggregate_failures) do
   def project(git:)
     Dir.mktmpdir("kimera-tree") do |root|
@@ -31,7 +30,6 @@ RSpec.describe(Kimera::WorkTree, :aggregate_failures) do
     tree.changed(before)
   end
 
-  # Deletes a.rb, rewrites b.rb, and writes kimera's report and a log.
   def churn(root)
     File.delete(File.join(root, "a.rb"))
     File.write(File.join(root, "b.rb"), "22\n")
@@ -97,7 +95,6 @@ RSpec.describe(Kimera::WorkTree, :aggregate_failures) do
     end
   end
 
-  # A cache file under tmp, and a directory named like a Ruby file.
   def decoys(root)
     FileUtils.mkdir_p(File.join(root, "tmp", "cache"))
     File.write(File.join(root, "tmp", "cache", "x.rb"), "1\n")
@@ -116,7 +113,6 @@ RSpec.describe(Kimera::WorkTree, :aggregate_failures) do
     end
   end
 
-  # A process environment with no git on its PATH.
   def without_git
     path = ENV.fetch("PATH")
     Dir.mktmpdir do |empty|

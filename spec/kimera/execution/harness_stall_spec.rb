@@ -4,7 +4,6 @@ require "kimera/execution/harness"
 require "kimera/registry/builder"
 require "stringio"
 
-# The warm baseline's notice for tests that stalled under parallel load.
 RSpec.describe(Kimera::Execution::Harness) do
   let(:registry) do
     Kimera::RegistryScan.new.source(<<~RUBY, file: "calc.rb")

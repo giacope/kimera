@@ -6,10 +6,6 @@ require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 require "stringio"
 
-# A covering test that passes but runs past its relative budget (baseline ×
-# factor + slack) makes the mutant a timeout, once the same test ran within
-# budget with the mutant switched off and past it again with it on. A single
-# slow run (a fresh worker's first test, a GC pause) is not a verdict.
 RSpec.describe(Kimera::Execution::Shift) do
   let(:registry) do
     Kimera::RegistryScan.new.source(<<~RUBY, file: "calc.rb")
@@ -25,8 +21,6 @@ RSpec.describe(Kimera::Execution::Shift) do
 
   before { stub_const("Kimera::Execution::Stopwatch::CLOCK", -> { clock.first }) }
 
-  # +script+ maps a test to its successive runs, as [seconds, passed?]
-  # pairs; each run advances the fake clock. Unscripted runs are instant passes.
   def timed(script)
     now = clock
     Class.new do

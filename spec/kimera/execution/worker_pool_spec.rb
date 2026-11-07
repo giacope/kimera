@@ -4,7 +4,6 @@ require "json"
 require "kimera/execution/worker_pool"
 require "timeout"
 
-# Failure handling only; happy paths are covered in harness_spec.
 RSpec.describe(Kimera::Execution::WorkerPool) do
   def pool(queue:, spawner:, jobs: 1, deadline: 5.0)
     resolved = []
@@ -17,7 +16,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     [resolved, lost]
   end
 
-  # +settling+ simulates the post-result leak-check re-run.
   def healthy(preamble: [], evaluation: 0, settling: 0)
     forked do |request, response|
       serving(request, response) { |id| settle(response, id, preamble, evaluation, settling) }
@@ -57,12 +55,11 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
         response.puts(JSON.generate(t: "ready"))
         response.flush
       end
-      request.gets # die with the next dispatch in flight
+      request.gets
       exit!(1)
     end
   end
 
-  # Serves until retired, then hangs in teardown (a truncate blocked by a leaked lock).
   def stuck
     forked do |request, response|
       while (line = request.gets)
@@ -132,7 +129,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     ]
   end
 
-  # Ticks before each covering test, then reports after longer than the deadline.
   def ticking
     forked do |request, response|
       while (line = request.gets)
@@ -150,8 +146,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     end
   end
 
-  # The hard timeout times each covering test, so a mutant many tests cover
-  # isn't killed for that alone.
   it "renews a worker's hard deadline on every tick", :aggregate_failures do
     resolved, lost = pool(queue: [1], spawner: ->(_slot) { ticking }, deadline: 0.5)
     expect(lost).to(be_empty)
@@ -159,7 +153,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   end
 
   it "aborts once more workers than the pool is wide die without reporting" do
-    # The exit description is the operator's only clue when the worker said nothing.
     expect { pool(queue: (1..6).to_a, spawner: ->(_slot) { crashed }, jobs: 2) }
       .to(raise_error(Kimera::Error, /3 warm workers died before reporting.*last exit: status 1/m))
   end
@@ -186,8 +179,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     expect { pool(queue: (1..6).to_a, spawner: signal, jobs: 2) }.to(raise_error(Kimera::Error, /last exit: signal 9/))
   end
 
-  # Leads its own process group and starts a grandchild, as a test that
-  # starts a server does, then serves as the block says.
   def founder(witness)
     forked do |request, response|
       Process.setpgid(0, 0)
@@ -216,8 +207,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     expect(witness.outlived?).to(be(false))
   end
 
-  # Spawns a worker that leaves the witness running and exits at its first
-  # request, then healthy workers.
   def crash_once(witness)
     spawned = 0
     lambda do |_slot|
@@ -233,9 +222,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
       .to(eq([[[1, :crash]], [2], false]))
   end
 
-  # Workers lead their own process groups, out of reach of the terminal's
-  # Ctrl-C: a run that stops early takes them down itself. The first worker
-  # hangs; +spawner+ makes the rest.
   def stopped(witness, spawner, resolve: ->(_message) {})
     hung = nil
     fleet =
@@ -263,7 +249,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     expect([error, reaped?(pid), pipes, witness.outlived?]).to(match([be_a(Interrupt), true, all(be_closed), false]))
   end
 
-  # A hang is the mutant's fault; only crashes are systemic.
   it "does not trip the circuit breaker on repeated timeouts" do
     lost = nil
     Timeout.timeout(15) do
@@ -276,7 +261,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     resolved, lost = pool(queue: (1..6).to_a, spawner: rotation, jobs: 1)
     judged = resolved.select { |m| m["t"] == "result" }.map { |m| m["id"] }
 
-    # Two deaths exceed jobs, which would trip the breaker without prior progress.
     expect(lost.map(&:last)).to(eq(%i[crash crash]))
     expect(judged.size).to(eq(4))
     expect(judged + lost.map(&:first)).to(match_array((1..6).to_a))
@@ -292,7 +276,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   it "never re-dispatches a duplicate of a crashed id", :aggregate_failures do
     resolved, lost = pool(queue: [1, 2, 2, 3], spawner: recovery)
 
-    # Worker one resolves 1, then dies holding 2.
     expect(lost).to(eq([[2, :crash]]))
     expect(resolved.select { |m| m["t"] == "result" }.map { |m| m["id"] }).to(eq([1, 3]))
   end
@@ -309,13 +292,10 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     spawner = watchdog
     Timeout.timeout(10) { resolved, lost = pool(queue: [1, 2], spawner: spawner, deadline: 0.3) }
 
-    # Only the pre-start deadline can retire a worker that never speaks.
     expect(lost).to(eq([[1, :timeout]]))
     expect(resolved.select { |m| m["t"] == "result" }.map { |m| m["id"] }).to(eq([2]))
   end
 
-  # A readable pipe need not hold a whole line: blocking on the rest of it
-  # would stall the loop before its watchdog ever ran.
   def halting(*writes, linger: 30)
     forked do |request, response|
       request.gets
@@ -349,7 +329,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     expect(lost).to(be_empty)
   end
 
-  # IO.select can report a pipe ready with nothing to read yet.
   def spurious(response)
     woken = false
     read = response.method(:read_nonblock)
@@ -379,7 +358,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     resolved = lost = nil
     Timeout.timeout(10) { resolved, lost = pool(queue: [1, 2], spawner: ->(_slot) { stuck }, deadline: 0.5) }
 
-    # Nothing was in flight, so nothing is charged to a mutant.
     expect(lost).to(be_empty)
     expect(resolved.select { |m| m["t"] == "result" }.map { |m| m["id"] }).to(eq([1, 2]))
   end
@@ -388,7 +366,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     slots, spawner = self.slots
     pool(queue: [1, 2, 3], spawner: spawner, jobs: 1)
 
-    # A nil slot would cost the replacement its own test database.
     expect(slots).to(eq([0, 0]))
   end
 
@@ -407,7 +384,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     counter, spawner = leak
     _, lost = pool(queue: [1, 2], spawner: spawner, deadline: 1.0)
 
-    # 0.4s eval + 0.8s settle exceeds the 1.0s deadline unless it re-arms on result.
     expect(lost).to(be_empty)
     expect(counter[0]).to(eq(1))
   end

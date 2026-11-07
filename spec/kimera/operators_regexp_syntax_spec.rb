@@ -87,8 +87,6 @@ RSpec.describe(Kimera::Operators) do
     Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("r.rb", code).source).evaluate("r.rb")
   end
 
-  # Whether the overlaid RegexpOps#code? accepts the text, with the labelled
-  # mutant active, or none.
   def accepts?(text, label = nil)
     stub_const("RegexpOps", Class.new)
     code = "class RegexpOps\n  def code?(s) = s.match?(/\\A[A-Z]{3}\\z/)\nend\n"

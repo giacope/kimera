@@ -3,7 +3,6 @@
 require "kimera/registry/builder"
 require "kimera/synthesis/overlay"
 
-# The reload fallback: one mutation baked into source, unguarded.
 RSpec.describe(Kimera::Overlay) do
   def unmatched = "no node to guard: kimera found nothing of its kind where the point was scanned"
 
@@ -24,7 +23,7 @@ RSpec.describe(Kimera::Overlay) do
       mutant = registry.each.find { |m, _p| m.label == "> => <" }.first
       baked = synth.bake("x.rb", source, mutant.id)
       expect(baked).to(include("a < b"))
-      expect(baked).not_to(include("active?")) # no guard, unlike synthesize
+      expect(baked).not_to(include("active?"))
     end
 
     it "applies the boundary variant when that mutant is chosen" do
@@ -36,8 +35,6 @@ RSpec.describe(Kimera::Overlay) do
       expect(synth.bake("x.rb", source, 999_999)).to(eq(source))
     end
 
-    # Rebinding the constant would leave described_class on the original class,
-    # so every baked mutant would falsely survive.
     def data
       program = <<~RUBY
         Baked = Data.define(:v) do
@@ -63,8 +60,6 @@ RSpec.describe(Kimera::Overlay) do
       expect([Object.const_get(:Baked).equal?(captured), captured.build(1).v]).to(eq([true, true]))
     end
 
-    # An emptied segment leaves an empty str in a dstr, which unparser couldn't
-    # round-trip. The guarded path never hits this.
     def prune(program, keys, needle)
       catalog = selected(keys, program)
       described_class.new(catalog).bake(
@@ -92,7 +87,6 @@ RSpec.describe(Kimera::Overlay) do
     end
 
     it "collapses a juxtaposed pair to the surviving plain string", :aggregate_failures do
-      # Unparser rejected a dstr with a lone str child.
       baked = prune("def m\n  \"a \" \"b\"\nend\n", %w[string_literal], '"a "')
       expect(baked).to(include('"b"'))
       expect(baked).not_to(include('"a "'))
@@ -115,7 +109,6 @@ RSpec.describe(Kimera::Overlay) do
     end
 
     it "leaves a plain xstr untouched by pruning" do
-      # xstr interpolates, so pruning could degrade it to a plain str.
       program = "def m(a, b)\n  [`ls`, a > b]\nend\n"
       catalog = build(program)
       mutant = catalog.each.find { |m, _p| m.label == "> => <" }.first
@@ -123,8 +116,6 @@ RSpec.describe(Kimera::Overlay) do
       expect(baked).to(include("[`ls`, a < b]"))
     end
 
-    # unparser 0.9 raised on the array endpoint, so every mutant of the file
-    # failed to bake.
     it "bakes a file with an array range endpoint" do
       program = "def m(a, b)\n  r = ([a, a]...a)\n  a > b\nend\n"
       catalog = build(program)
@@ -132,8 +123,6 @@ RSpec.describe(Kimera::Overlay) do
       expect(described_class.new(catalog).bake("x.rb", program, mutant.id)).to(include("r = ([a, a]...a)", "a < b"))
     end
 
-    # unparser wrote an interpolation only if it read back as the same tree,
-    # which an endpoint in parentheses did not.
     it "bakes a file interpolating a range with an array endpoint" do
       program = "def m(a, b)\n  \"x\#{([a]...[b]).size}y\"\n  a > b\nend\n"
       catalog = build(program)
@@ -141,7 +130,6 @@ RSpec.describe(Kimera::Overlay) do
       expect(described_class.new(catalog).bake("x.rb", program, mutant.id)).to(include("([a]...[b]).size", "a < b"))
     end
 
-    # The swapped connective binds more loosely than the && around it.
     it "bakes a swapped connective with the grouping it had", :aggregate_failures do
       program = "def m(p, q, r)\n  x = p && q && r\nend\n"
       baked = prune(program, %w[boolean_connective], "p && q")
@@ -150,12 +138,6 @@ RSpec.describe(Kimera::Overlay) do
       expect(mod.instance_method(:m).bind_call(Object.new.extend(mod), true, nil, false)).to(be(false))
     end
 
-    # unparser 0.9 wrote `-(0.succ)` as `-0.succ`, which Ruby reads as
-    # `(-0).succ`, and `(-1) ** 2` as `-1 ** 2`, which is `-(1 ** 2)`. Inside a
-    # string the parentheses must be in the tree, or the interpolation is
-    # unwritable. A bake splices the literal alone, parenthesised where Ruby
-    # would otherwise read it as part of the minus; across lines nothing else
-    # keeps the lines after it.
     {
       "a minus over a chain rooted at the literal" => ["--1.succ", "-1", "-1 => 0", "-(0).succ", -1],
       "a literal raised to a power" => ["0 ** 2", "0", "0 => -1", "(-1) ** 2", 1],
@@ -173,8 +155,6 @@ RSpec.describe(Kimera::Overlay) do
       end
     end
 
-    # Prism sees a literal -1 inside `--1`, and kimera bakes the tree it
-    # scans, so the bake reaches that literal (the parser gem folded it away).
     it "bakes the literal inside `--1`" do
       program = "def m\n  --1\nend\n"
       catalog = selected(%w[numeric_literal], program)
@@ -200,8 +180,6 @@ RSpec.describe(Kimera::Overlay) do
       expect(baked).to(include('data.start_with?("\xFF\xD8".b)', "size / 2"))
     end
 
-    # When the whole file can't be written, a warm run splices it per method,
-    # so a bake writes the point's method alone.
     describe "in a file kimera can't write whole" do
       let(:program) do
         <<~'RUBY'
@@ -226,7 +204,6 @@ RSpec.describe(Kimera::Overlay) do
       end
       let(:catalog) { selected(%w[arithmetic comparison], program) }
 
-      # Kimera writes no tree but a method, and not the method named banner.
       def unwritable(method = nil)
         writer =
           failing_scribe { |node| RuntimeError.new("unwritable") unless node.type == :def_node && node.name != :banner }
@@ -246,7 +223,6 @@ RSpec.describe(Kimera::Overlay) do
         expect(Prism.parse(baked)).to(be_success)
       end
 
-      # Re-evaluating `Size = Data.define do` would make a second class.
       it "reopens a value object around the method it writes", :aggregate_failures do
         baked = bake("x > LIMIT")
         expect(baked).to(include("Size = ((is_a?(::Module) ? self : ::Object).const_defined?(:Size, false)"))
@@ -277,8 +253,6 @@ RSpec.describe(Kimera::Overlay) do
     end
   end
 
-  # R6B4-M1..M3: a bake written whole, file or method, must read back as the
-  # mutant meant.
   describe "a whole write that reads back as another program" do
     let(:source) { "def m(a, b)\n  a > b\nend\n" }
     let(:registry) { build(source) }
@@ -292,9 +266,6 @@ RSpec.describe(Kimera::Overlay) do
     end
   end
 
-  # R6B4-M5: since batch 3's line guard refused every bake that changes a line
-  # outside the mutation, no element of a multi-line %i/%w literal could be
-  # baked: the writer put the whole array on one line.
   describe "an element of a word list across lines" do
     let(:source) do
       <<~RUBY

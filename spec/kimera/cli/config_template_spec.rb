@@ -6,8 +6,6 @@ require "kimera/cli/config_template"
 require "kimera/report/formats"
 require "kimera/scope/ignore_list"
 
-# The schema documents .kimera.yml for editors and supplies the comments
-# `kimera init` writes, so it must list exactly what Kimera reads.
 RSpec.describe(Kimera::CLI::ConfigTemplate, :aggregate_failures) do
   let(:schema) { JSON.parse(File.read(described_class::PATH)) }
   let(:properties) { schema.fetch("properties") }

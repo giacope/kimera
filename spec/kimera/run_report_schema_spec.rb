@@ -6,8 +6,6 @@ require "kimera/cli/run"
 require "kimera/registry/builder"
 require "kimera/results/run_report"
 
-# The report schema documents what `kimera run` writes for scripts and agents,
-# so every key a report can carry must be described there, and no other.
 RSpec.describe(Kimera::RunReport, :aggregate_failures) do
   let(:schema) { JSON.parse(File.read(File.expand_path("../../schema/report.schema.json", __dir__))) }
   let(:properties) { schema.fetch("properties") }

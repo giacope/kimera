@@ -9,7 +9,6 @@ require "kimera/runtime"
 require "json"
 require "tmpdir"
 
-# The mirror-and-bake subprocess flow is covered by the integration suite.
 RSpec.describe(Kimera::Execution::IsolatedPlan) do
   let(:registry) do
     Kimera::RegistryScan.new.source(<<~RUBY, file: "lib/calc.rb")
@@ -42,8 +41,6 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       expect(plan(coverage: { mutant_id => ["spec/a_spec.rb[1:1]"] }).tests(mutant_id, point)).to(eq(%w[t1 t2 t3]))
     end
 
-    # The tests near its file may leave out the earlier test whose state it
-    # needs, so an order-reached point keeps the whole suite.
     it "runs the tests near the file for a load-time point, and the whole suite for an order-reached one",
       :aggregate_failures do
       suite = %w[./spec/a_spec.rb[1:1] ./spec/b_spec.rb[1:1]]
@@ -100,7 +97,6 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       expect(plan.tests(mutant_id, point)).to(be_nil)
     end
 
-    # --no-coverage measured nothing, so every test covers every mutant, as warm.
     it "runs the whole suite when no coverage was measured" do
       unmeasured = Kimera::Execution::Unmeasured.new(FakeSuite.new(%w[t1 t2 t3]))
       expect(plan(coverage: unmeasured).tests(mutant_id, point)).to(eq(%w[t1 t2 t3]))
@@ -117,8 +113,6 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       expect(p.tests(pt.mutants.first.id, pt)).to(eq(%w[t1 t2 t3]))
     end
 
-    # An unsafe point has no live guard, so a touch recorded for its id
-    # belongs to another mutant.
     it "ignores recorded coverage for a schema-unsafe point (contamination)" do
       unsafe = Kimera::RegistryScan.new.source(<<~RUBY, file: "lib/memo.rb")
         def total(a, b)
@@ -132,7 +126,6 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     end
 
     it "runs a mutant in an instrumentation-excluded (protected) file against the whole suite", :aggregate_failures do
-      # The runtime selector can't be instrumented, so it has no coverage.
       protected, root = runtime
       pt = protected.points.find(&:safe?)
       p = plan(registry: protected, root: root)
@@ -140,8 +133,6 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       expect(pt.file).to(eq("lib/kimera/runtime.rb"))
     end
 
-    # The selector has no guards. A touch recorded for its id comes from a
-    # self-hosting spec calling Runtime.active? with a literal id.
     it "ignores recorded coverage for a protected file (self-host contamination)" do
       protected, root = runtime
       pt = protected.points.find(&:safe?)
@@ -156,7 +147,6 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       described_class::ChildCommand.new(framework: framework, test_files: test_files, root: "/project")
     end
 
-    # The ruby command line the child runs for a ledger in +mirror+, with nothing else on the load path.
     def launched(child, mirror)
       child.command(mirror, child.request([]), ledger: File.join(mirror, "l.json"), paths: []).last
     end
@@ -187,7 +177,6 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       expect([child.request(["a"], slot: 2)["slot"], child.request(["a"]).key?("slot")]).to(eq([2, false]))
     end
 
-    # The same load path the warm run and doctor use, read in the mirror: what stands between ruby and the child.
     it "puts the test files' folders and the mirror's test and spec on the load path", :aggregate_failures do
       Dir.mktmpdir do |mirror|
         FileUtils.mkdir_p(File.join(mirror, "test"))
@@ -233,12 +222,6 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       expect(argv[7..].map { |a| File.basename(a) }).to(eq([File.basename(child), *ledgers]))
     end
 
-    # A Gemfile names gems by paths relative to it (a monorepo's engines); the
-    # mirror sits elsewhere, so only the project's own Gemfile resolves them.
-    # A `gemspec` line read from the project's Gemfile puts the project's own
-    # lib on the load path beside the mirror's (asciidoctor's -w test then sees
-    # VERSION defined twice), so a Gemfile that names nothing by a relative
-    # path runs from the mirror.
     it "pins BUNDLE_GEMFILE to the mirror's Gemfile when the project's names no gem by a relative path" do
       Dir.mktmpdir do |root|
         File.write(File.join(root, "Gemfile"), "gemspec\ngem 'kimera', path: '/opt/kimera'\n")
@@ -255,8 +238,6 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       end
     end
 
-    # R6B5-M4: bullet's CI runs its suite under Gemfile.rails-8.1, and the
-    # mirror ran its children under ./Gemfile, which tracks Rails main.
     def running(gemfile) = stub_const("ENV", ENV.to_h.merge("BUNDLE_GEMFILE" => gemfile))
 
     def appraised(root)
@@ -274,10 +255,6 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       end
     end
 
-    # The lockfile says where each path gem resolved, however the Gemfile
-    # spells it (`path: ENV.fetch("KIMERA_PATH", "../..")`): only a relative
-    # path out of the project needs the project's Gemfile; one inside it, or
-    # an absolute one, resolves from the mirror too.
     def locked(remotes)
       Dir.mktmpdir do |root|
         File.write(File.join(root, "Gemfile"), "gem 'kimera', path: ENV.fetch('KIMERA_PATH', 'engines/kimera')\n")
@@ -312,7 +289,6 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       end
     end
 
-    # Only a mutant's run stops at its first failure; a baseline names every failing test.
     it "asks the child to run every test unless told otherwise" do
       Dir.mktmpdir do |mirror|
         ledger = File.join(mirror, "l.json")
@@ -359,8 +335,6 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       entries.to_h { |entry| [entry, layout.placement(entry)] }
     end
 
-    # A boot that needs node_modules/ or a vendored bundle must load in the
-    # mirror, or every mutant it covers scores as a false kill.
     it "copies sources, links dependencies, empties scratch dirs and snapshots history", :aggregate_failures do
       expect(placements(%w[lib app spec Gemfile])).to(all(satisfy { |_e, how| how == :copy }))
       expect(placements(%w[vendor node_modules .bundle]).values).to(eq(%i[link link link]))

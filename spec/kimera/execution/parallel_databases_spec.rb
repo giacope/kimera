@@ -14,8 +14,6 @@ require "stringio"
 require "tmpdir"
 
 RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
-  # A warm worker (kimera's own, running this suite) carries its own
-  # TEST_ENV_NUMBER; each example starts without one and leaves it as found.
   around do |example|
     inherited = ENV.delete("TEST_ENV_NUMBER")
     example.run
@@ -24,8 +22,6 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
 
   def config(adapter, database) = FakeRails::Config.new(adapter, database)
 
-  # A test database whose schema dump is there to load, and the Active Record
-  # on it, whose connection pools are +pools+.
   def record(database, adapter: "sqlite3", pools: [])
     stub_const("ActiveRecord::Tasks::DatabaseTasks", FakeRails::Tasks.new(__FILE__))
     stub_const("ActiveRecord::ConnectionHandling::DEFAULT_ENV", -> { "test" })
@@ -33,8 +29,6 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
     stub_const("ActiveRecord::Base", FakeRails::Base.new(config(adapter, database), handler: handler))
   end
 
-  # Stand-in for ActiveRecord::DatabaseConfigurations: +names+ maps the
-  # worker's TEST_ENV_NUMBER to its test database names.
   def configurations_for(names, env)
     Class.new do
       define_method(:initialize) do |*|
@@ -50,8 +44,6 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
     end
   end
 
-  # A Rails whose database.yml names the test database as +names+ does, the
-  # Active Record on it, and the tasks that rebuild a database from its schema.
   def rails(names, env = ENV)
     configurations = configurations_for(names, env)
     stub_const("ActiveRecord::DatabaseConfigurations", configurations)
@@ -95,8 +87,6 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       expect(described_class::HELD.call(Object.new)).to(be(false))
     end
 
-    # R3K7: sqlite3 >= 2 closes every writable handle a fork inherits, and
-    # the in-memory schema the suite loaded went with it.
     def forked(handles)
       closed = []
       safety = Module.new
@@ -118,7 +108,6 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       expect(kept).to(eq([""]))
     end
 
-    # A connection pool that discards itself as Active Record's does after a fork.
     def pool_class
       pool =
         Class.new do
@@ -147,7 +136,6 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       expect(described_class.new.numbered(1)).to(eq("TEST_ENV_NUMBER" => "2"))
     end
 
-    # K3-4: Rails before 8.1 has no switch, and always parallelized databases.
     it "is on before Rails 8.1" do
       stub_const("ActiveSupport", Module.new)
       expect(described_class.new.enabled?).to(be(true))
@@ -164,15 +152,12 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
     end
   end
 
-  # thredded's dummy app migrates at load and has no schema file; Rails'
-  # after-fork hook aborted every worker trying to load one.
   describe "a schema file to load each worker's database from" do
     def schema_at(path, failure: nil)
       stub_const("ActiveRecord::ConnectionHandling::DEFAULT_ENV", -> { "test" })
       stub_const("ActiveRecord::Tasks::DatabaseTasks", FakeRails::Tasks.new(path, failure: failure))
     end
 
-    # An Active Record whose test configurations are +configs+.
     def primary(configs = [config("postgresql", "app_test")])
       FakeRails::Base.new(configs.first, configurations: FakeRails::Configurations.new(configs))
     end
@@ -200,13 +185,11 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       expect(described_class.new(record: nil).loadable?).to(be(true))
     end
 
-    # R5-KL3: cancancan connects to `:memory:` in a `before`, with no configuration to load.
     it "is not there when the suite configures no test database" do
       schema_at(__FILE__)
       expect(described_class.new(record: primary([])).loadable?).to(be(false))
     end
 
-    # R4-KR1 (K3-5): a plain Active Record suite has no Rails for db_dir.
     it "is not there when Active Record cannot work out the schema path" do
       schema_at("db/schema.rb", failure: NameError.new("primary::Rails"))
       expect(described_class.new(record: primary).loadable?).to(be(false))
@@ -223,7 +206,6 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       ActiveSupport.define_singleton_method(:parallelize_test_databases) { flag }
     end
 
-    # Rails 8.0's Parallelization has after-fork hooks only.
     def after_hooks_only
       par = Module.new
       par.define_singleton_method(:after_fork_hooks) { [->(_i) {}] }
@@ -236,7 +218,6 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       expect { databases.before_fork }.not_to(raise_error)
     end
 
-    # Workers on one MySQL database, with no schema file to load each their own from.
     def schemaless
       parallelization(after: ->(_i) {})
       record("app_test", adapter: "mysql2")
@@ -255,7 +236,6 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       expect(databases.active?).to(be(true))
     end
 
-    # R3K6: renaming ":memory:" made files named ":memory:_0" in the project.
     def renamed(database)
       calls = []
       record(database)
@@ -291,7 +271,6 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       expect(shared(":memory:", adapter: "sqlite3")).to(be_empty)
     end
 
-    # K3-5: the parent's own connections block a fork's database.
     it "closes the parent's connections before the workers fork" do
       connections = FakeConnections.new
       databases.before_fork(connections)
@@ -304,7 +283,6 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       expect(errors.string).to(be_empty)
     end
 
-    # The databases a PostgreSQL suite with numbered databases rebuilt, after two before-fork calls.
     def prepared
       switch(false)
       rails(->(number) { ["app_test#{number}"] })
@@ -325,7 +303,6 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
     end
   end
 
-  # K3-5: the parent's own idle session blocked a mirror's drop_current.
   describe Kimera::Execution::ParentConnections do
     def pools(handler)
       stub_const("ActiveRecord::Base", FakeRails::Base.new(config("pg", "t"), handler: handler))
@@ -396,7 +373,6 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       expect(ActiveRecord::Base.configurations.configs_for(env_name: "test").map(&:database)).to(eq(["app_test2"]))
     end
 
-    # The suite's own environment, once a worker adopted its database through it.
     def adopted(env)
       rails(->(number) { ["app_test#{number}"] }, env)
       described_class.new(tolerance: Kimera::Execution::Tolerance.new(errors), env: env).adopt(1)
@@ -427,7 +403,6 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
   end
 
   describe Kimera::Execution::MirrorDatabase do
-    # The slots the Rails hook renamed mirror 3's database for, as it adopts each database in turn.
     def renames(databases)
       calls = []
       parallelization(after: ->(slot) { calls << slot })
@@ -445,7 +420,6 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
     end
   end
 
-  # The environment an isolated child for the mirror slot starts with.
   def mirror_environment(slot)
     Dir.mktmpdir do |dir|
       child = Kimera::Execution::IsolatedPlan::ChildCommand.new(framework: "rspec", test_files: [], root: dir)

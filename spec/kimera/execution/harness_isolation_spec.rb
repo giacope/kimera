@@ -12,7 +12,6 @@ RSpec.describe(Kimera::Execution::Harness) do
   end
 
   before do
-    # Fake ActiveRecord::Base, so no real database is needed.
     ledger = events
     base =
       Class.new do

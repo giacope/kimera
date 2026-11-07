@@ -35,7 +35,6 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     end
   end
 
-  # The status `kimera ARGV` exits with in dir, having printed what it said to out and error.
   def kimera(*argv) = Dir.chdir(dir) { ended(described_class.new(io: out, errors: error).run(argv), out, error) }
 
   def configure(*argv) = kimera("init", *argv)
@@ -125,7 +124,6 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     expect(out.string.scan(/^framework: \w+/)).to(eq(["framework: rspec", "framework: rspec"]))
   end
 
-  # Neither autorun nor a test class: only the gem's name says Minitest.
   it "detects Minitest from a helper that only requires a Minitest library" do
     project("spec/spec_helper.rb" => "require \"minitest/pride\"\n")
     configure
@@ -228,8 +226,6 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     end
   end
 
-  # `rails test` leaves out test/system; loaded with the rest, once-campfire's
-  # Selenium tests need Chrome and also broke unrelated tests.
   describe "a Rails app's system tests" do
     let(:rails) { { "config/application.rb" => "", "test/test_helper.rb" => "require 'minitest'\n" } }
 
@@ -247,8 +243,6 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     end
   end
 
-  # R6B4-M9: hashie's .rspec leaves out spec/integration (each runs under its
-  # own Gemfile); init took every spec, and kimera's baseline could not load them.
   describe "the specs a project's .rspec leaves out or picks" do
     def dotted(options) = { ".rspec" => "--require spec_helper\n#{options}\n", "spec/a_spec.rb" => "" }
 
@@ -266,7 +260,6 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     end
   end
 
-  # K3-1: RSpec Rails apps keep their browser specs in spec/system and spec/features.
   describe "an RSpec Rails app's browser specs" do
     let(:app) { { "config/application.rb" => "", ".rspec" => "", "spec/models/a_spec.rb" => "" } }
 
@@ -282,7 +275,6 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     end
   end
 
-  # F4: an engine is any lib file that subclasses Rails::Engine, not only engine.rb.
   it "knows an engine declared outside engine.rb, with its dummy app" do
     engine = {
       "lib/blog/railtie_engine.rb" => "module Blog\n  class Core < ::Rails::Engine\n  end\nend\n",
@@ -292,7 +284,6 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     expect(test_initialized(engine.except("spec/dummy/config/application.rb"))["operators"]).not_to(include("rails"))
   end
 
-  # R3K4: jekyll's helper requires minitest/autorun and rspec/mocks.
   it "calls a suite whose helper runs Minitest minitest, whatever else it loads", :aggregate_failures do
     helper = "require \"minitest/autorun\"\nrequire \"rspec/mocks\"\n"
     expect(test_initialized("test/helper.rb" => helper, "test/test_calc.rb" => "")).to(
@@ -323,8 +314,6 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     expect(test_initialized({ "spec/a_spec.rb" => "" }, 2)["jobs"]).to(eq(2))
   end
 
-  # Sequel and graphql-ruby keep Minitest specs under spec/ with no helper
-  # that names a framework; the lockfile says which one is installed.
   describe "the framework a lockfile installs" do
     spec = { "spec/core/a_spec.rb" => "describe('x') { }\n" }
     minitest = spec.merge("Gemfile.lock" => "GEM\n  specs:\n    minitest (5.25.1)\n")
@@ -360,15 +349,12 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     expect(test_initialized(helper)).to(include("framework" => "rspec"))
   end
 
-  # Validations, callbacks and dependent: options are a Rails app's riskiest
-  # declarations; the rails operators mutate them.
   it "turns on the rails operators in a Rails app, and only there", :aggregate_failures do
     rails = test_initialized("config/application.rb" => "", "spec/a_spec.rb" => "")
     expect(rails["operators"]).to(eq(initial_operators))
     expect(test_initialized("spec/a_spec.rb" => "")["operators"]).not_to(include("rails"))
   end
 
-  # R5 (CodeTriage): the core never mutates a `when` branch or a `<<` statement.
   it "writes the core, `when` branches and `<<` statements into a new project's operators" do
     expected = %w[
       comparison boolean_connective boolean_literal statement_deletion negation conditional when_clause append_deletion
@@ -376,8 +362,6 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     expect(test_initialized("spec/a_spec.rb" => "")["operators"]).to(eq(expected))
   end
 
-  # camaleon-cms: an engine with a dummy app has no config/application.rb at
-  # its root, and is still Rails (E3).
   describe "an engine with a dummy app" do
     let(:engine) { { "lib/cms/engine.rb" => "module Cms\n  class Engine < ::Rails::Engine\n  end\nend\n" } }
 
@@ -396,22 +380,18 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     end
   end
 
-  # count_no_coverage, on by default, is what gates uncovered mutants; init
-  # writes it with its description instead of the redundant gate flag.
   it "writes count_no_coverage, not fail_on_no_coverage", :aggregate_failures do
     configure("--dry-run")
     expect(out.string).to(include("# Score a mutant with no covering test as not killed", "count_no_coverage: true"))
     expect(out.string).not_to(include("fail_on_no_coverage"))
   end
 
-  # rack names its tests test/spec_*.rb; rake-style gems use test/test_*.rb.
   it "finds minitest files named test_*.rb or spec_*.rb", :aggregate_failures do
     helper = { "test/helper.rb" => "require 'minitest/autorun'\n" }
     expect(test_initialized(helper.merge("test/spec_utils.rb" => ""))).to(include("tests" => ["test/**/spec_*.rb"]))
     expect(test_initialized(helper.merge("test/test_task.rb" => ""))).to(include("tests" => ["test/**/test_*.rb"]))
   end
 
-  # R4-KL3: zeitwerk's support class test/support/loader_test.rb and its tests test/**/test_*.rb.
   def zeitwerk_like
     { "test/helper.rb" => "require 'minitest/autorun'\n", "test/support/loader_test.rb" => "", "test/b_test.rb" => "" }
   end
@@ -430,8 +410,6 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     [ended(doctor.run(argv), out, error), out.string]
   end
 
-  # A green suite that writes down, as each command runs, the command and what
-  # doctor had printed by then.
   def green_suite(seen = [])
     FakeCapture.new { |command| seen.push([command, out.string]) && ["", ProcessStatuses.exited(0)] }
   end
@@ -469,8 +447,6 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     expect(test_doctor_in(dir, "--check-baseline", suite: green_suite).last.lines.last).to(eq(green))
   end
 
-  # Output piped to a file or CI log must show doctor working before the
-  # suite run, which can take minutes.
   describe "a doctor run whose output is piped" do
     let(:out) { CountedIO.new }
 
@@ -489,8 +465,6 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     end
   end
 
-  # R6B4-M8: strong_migrations' configuration leaves out a test that fails
-  # here; `kimera run` left it out, doctor ran it and called the suite red.
   it "runs the baseline without the tests exclude_test_names leaves out, as run does" do
     project("spec/a_spec.rb" => "", ".kimera.yml" => "exclude_test_names: [\"needs a network\"]\njobs: 1\n")
     seen = [].tap { |ran| doctor("--check-baseline", suite: green_suite(ran)) }
@@ -515,7 +489,6 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     end
   end
 
-  # A suite whose dry run is green, and whose runs are green when +serial+.
   def serial_suite(serial)
     FakeCapture.new { |command| ["", ProcessStatuses.exited(serial || command.include?("--dry-run") ? 0 : 1)] }
   end
@@ -525,8 +498,6 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     test_doctor_in(dir, "--check-baseline", *argv, suite: suite).last
   end
 
-  # A suite that is green in one process can still be red on the configured
-  # workers; doctor runs it split across that many processes too.
   describe "the parallel baseline" do
     let(:parallel) do
       "✓ Parallel baseline: green split across 3 processes too (jobs: 3; #{Kimera::CLI::TestCommand::SAMPLE})\n"
@@ -552,19 +523,16 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     end
   end
 
-  # thor keeps its floor in spec/helper.rb.
   it "finds a coverage floor in any spec or test helper" do
     project("spec/support/.keep" => "", "spec/helper.rb" => "SimpleCov.start { minimum_coverage(90) }\n")
     expect(test_doctor_in(dir).last).to(include("! Coverage floor: minimum_coverage in spec/helper.rb"))
   end
 
-  # A .simplecov symlinked to a shared config that isn't checked out.
   it "passes over a helper path that is not a readable file" do
     File.symlink(File.join(dir, "missing.rb"), File.join(dir, ".simplecov"))
     expect(test_doctor_in(dir).last).not_to(include("Coverage floor"))
   end
 
-  # K3-6: outside GitHub, ci silently ran a full run that judged no DSL.
   def ci_given(env, argv = [])
     out, error = captured
     run = FakeRun.new
@@ -620,7 +588,6 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     expect(out.string).to(include("--judge-isolated-only"))
   end
 
-  # The report's run section records what the run did, not the raw flag.
   def effective(options)
     Kimera::CLI::Run::Cycle.new(options, nil, digest: nil).__send__(:provenance)
       .slice("judge_isolated_only", "confirm_survivors")

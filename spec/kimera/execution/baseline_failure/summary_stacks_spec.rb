@@ -3,7 +3,6 @@
 require "kimera/execution/baseline_failure"
 require "kimera/execution/baseline_losses"
 
-# What a red baseline says about a test lost with its worker.
 RSpec.describe(Kimera::Execution::BaselineFailure::Summary) do
   def context(stacks) = described_class::Context.new(workers: {}, stacks: stacks, jobs: 1, ordered: [])
 

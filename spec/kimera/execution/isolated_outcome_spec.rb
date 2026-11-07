@@ -72,8 +72,6 @@ RSpec.describe(Kimera::Execution::IsolatedOutcome) do
     expect(outcome.to_h[:detail]).to(start_with("suite died on signal 9 with 0 failures"))
   end
 
-  # An error no test owns (a load error, a before(:suite) hook) may be the
-  # environment's, so it is ruled apart: the caller runs the mutant again.
   it "rules an error outside every test apart from a kill, keeping it as the detail", :aggregate_failures do
     outcome = test_judge(failed, { failures: 1, failing: [], load_error: "ArgumentError: boom" }.to_json)
     expect(outcome.to_h.values_at(:status, :failing_tests)).to(eq([:outside, []]))

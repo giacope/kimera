@@ -5,16 +5,10 @@ require "kimera/execution/schemata"
 require "kimera/registry/builder"
 require "tmpdir"
 
-# R4-KL10: dry-types' `RSpec.shared_examples_for … do def be_boolean …`: the
-# block defines its method on each example group that includes it, which the
-# source cannot name, so the overlay's copy reached none of them and every
-# mutant in it read "no test executed this line".
 RSpec.describe(Kimera::Execution::BlockMethods) do
   let(:dir) { Dir.mktmpdir }
   let(:file) { File.join(dir, "shared.rb") }
 
-  # A DSL that runs each block it is handed on a class of its own, as
-  # RSpec's it_behaves_like does.
   let(:dsl) do
     Module.new do
       def self.made = @_made ||= []
@@ -137,10 +131,6 @@ RSpec.describe(Kimera::Execution::BlockMethods) do
     expect(blocks.adopt { :installed }).to(eq(:installed))
   end
 
-  # R5 self-host: pool_duty.rb's `using Kimera::Execution::Fault` above a
-  # `Struct.new do def words(error) = error.last_words`: the def compiled on
-  # its own lost the refinement, and the suite's specs of it raised
-  # NoMethodError under kimera only.
   describe "in a file that refines what its block's defs call" do
     let(:refinements) do
       {
@@ -191,9 +181,6 @@ RSpec.describe(Kimera::Execution::BlockMethods) do
     end
   end
 
-  # Holdout q03: `refine String do def truncate_words ... squish ... end`. The
-  # overlay's run of `refine` reaches the refinement itself; a def defined on
-  # it again on its own could not call its neighbour `squish`.
   describe "in a refine block, which the overlay's run of the file reaches" do
     let(:source) do
       <<~RUBY
@@ -222,7 +209,6 @@ RSpec.describe(Kimera::Execution::BlockMethods) do
     end
   end
 
-  # The walks of the object space adopting each of +texts+ makes.
   def searched(*texts)
     walks do
       texts.each do |text|

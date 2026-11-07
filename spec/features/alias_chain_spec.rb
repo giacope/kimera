@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-# A second file wraps Order#total through alias_method, so the original body
-# runs only through the alias. Its mutants must reach the tests through the
-# alias, whichever of the two files sorts first.
 RSpec.describe("kimera run on a method wrapped by an alias chain in another file (end-to-end)") do
   def files(wrapper) = {
     "app/order.rb" => <<~RUBY,

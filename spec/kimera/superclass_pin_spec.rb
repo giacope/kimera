@@ -17,8 +17,6 @@ RSpec.describe(Kimera::SuperclassPin) do
     expect(KimeraPinnedPair.new(1).a).to(eq(1))
   end
 
-  # Evaluates the source twice, as an overlay re-runs a file; answers what the
-  # named constant was after the first run.
   def twice(source, file, name)
     Kimera::Overlay::Source.new(source).evaluate(file)
     first = Object.const_get(name)

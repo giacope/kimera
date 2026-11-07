@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-# The command handlers of the CLI, as Kimera::CLI::Handlers loads them: each
-# run writes down the handler's file, its name and the arguments, and answers
-# an outcome with the status it was given.
 class FakeHandlers
   attr_reader :ran
 

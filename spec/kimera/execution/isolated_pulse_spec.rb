@@ -20,8 +20,6 @@ RSpec.describe(Kimera::Execution::IsolatedPulse) do
     end
   end
 
-  # Whether a pulse beaten at 4.0 has expired: when looked at again then, and
-  # at each later time.
   def renewed(dir, times)
     path = File.join(dir, "pulse")
     pulse = watch(path).observed

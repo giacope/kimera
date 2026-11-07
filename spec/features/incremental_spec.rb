@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 RSpec.describe("kimera run --since (incremental CI mode)") do
-  # Only method b changes in the working tree.
   def test_build_repository(dir)
     FileUtils.mkdir_p(File.join(dir, "app", "models"))
     FileUtils.mkdir_p(File.join(dir, "spec"))
@@ -59,7 +58,6 @@ RSpec.describe("kimera run --since (incremental CI mode)") do
       raise(Kimera::Error, "git #{arguments} failed")
   end
 
-  # Two runs over a repository's uncommitted change, sharing a session; each run's outcome.
   def resumed
     Dir.mktmpdir("kimera-incr") do |dir|
       test_build_repository(dir)
@@ -69,7 +67,6 @@ RSpec.describe("kimera run --since (incremental CI mode)") do
     end
   end
 
-  # `<=` -> `<` and `>=`, both on b's changed line.
   it "evaluates only mutants on changed lines, and resumes from a session", :aggregate_failures do
     first, saved, again = resumed
     expect(first.output).to(match(/Incremental: \d+ mutants on lines changed/))

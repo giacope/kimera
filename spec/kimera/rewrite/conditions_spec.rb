@@ -21,8 +21,6 @@ RSpec.describe(Kimera::Rewrite::Conditions) do
 
   literals = { "range" => "(1...2)", "regexp" => "/r/" }.freeze
 
-  # `r` stands for the literal a mutation leaves: parsed in place, the parser
-  # would already read it as a condition.
   def placed(form, literal)
     written = Kimera::Scribe.parse(literal).statements.body.first
     Kimera::Rewrite::AstWalk.new(Kimera::Scribe.parse(form)).rebuild { |node| r?(node) ? written : node }
@@ -30,7 +28,6 @@ RSpec.describe(Kimera::Rewrite::Conditions) do
 
   def r?(node) = node.type == :call_node && node.name == :r && node.variable_call?
 
-  # What Ruby runs when the tree is written out.
   def rereads?(tree)
     Prism.parse(Kimera::Scribe.new(tree).source).value.inspect.match?(/FlipFlopNode|MatchLastLineNode/)
   end

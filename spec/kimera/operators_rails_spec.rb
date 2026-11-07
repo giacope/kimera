@@ -6,13 +6,11 @@ require "kimera/runtime"
 require "kimera/support/warnings"
 require "kimera/synthesis/overlay"
 
-# Class-body DSL runs once at load, so its points must go to the isolated oracle.
 RSpec.describe(Kimera::Operators) do
   def registry(code, keys)
     Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(code, file: "app.rb")
   end
 
-  # What the block answers with the mutant of that label on.
   def flipped(catalog, label, &) = Kimera::RUNTIME.during(catalog.each.find { |m, _p| m.label == label }.first.id, &)
 
   describe "rails_permit" do
@@ -35,7 +33,6 @@ RSpec.describe(Kimera::Operators) do
       expect(registry(code, ["rails_permit"]).each.count).to(eq(0))
     end
 
-    # Params whose require answers themselves and whose permit answers the keys.
     def fake_params
       Class.new do
         def require(_key) = self
@@ -43,7 +40,6 @@ RSpec.describe(Kimera::Operators) do
       end
     end
 
-    # A UsersController from the catalog's overlay, with fake params.
     def controller(catalog)
       stub_const("UsersController", Class.new)
       overlay = Kimera::Overlay.new(catalog).synthesize("app.rb", permit_src)
@@ -96,7 +92,7 @@ RSpec.describe(Kimera::Operators) do
       id = catalog.each.first.first.id
       baked = Kimera::Overlay.new(catalog).bake("app.rb", model_src, id)
       expect(baked).not_to(include("validates"))
-      expect(baked).to(include("before_action")) # only the target was removed
+      expect(baked).to(include("before_action"))
     end
 
     it "expands the 'rails' group key" do
@@ -110,8 +106,6 @@ RSpec.describe(Kimera::Operators) do
     end
   end
 
-  # R5 (CodeTriage): a PR added `length:` to a validation; deleting the whole call was killed by an old
-  # presence test, so the new constraint read as judged while no test exercised it.
   describe "rails_validation option drops" do
     let(:validated_src) { <<~RUBY }
       class Repo
@@ -170,7 +164,6 @@ RSpec.describe(Kimera::Operators) do
       catalog = registry(scoped_src, ["rails_callback"])
       id = catalog.each.find { |m, _p| m.label == "before_action: drop :edit from only:" }.first.id
       baked = Kimera::Overlay.new(catalog).bake("app.rb", scoped_src, id)
-      # The other filter is untouched.
       expect(baked).to(include("only: [:update]", "except: [:index]"))
       expect(baked).not_to(include(":edit"))
     end
@@ -196,8 +189,6 @@ RSpec.describe(Kimera::Operators) do
       posts = catalog.each.find { |_m, p| p.original_source.include?(":posts") }.first.id
       baked = Kimera::Overlay.new(catalog).bake("app.rb", assoc_src, posts)
       expect(baked).not_to(include("dependent: :destroy"))
-      # No trailing empty hash or comma, and the other one untouched. A splice
-      # keeps the call's own spelling, with or without parentheses.
       expect(baked).to(match(/has_many[( ]:posts\)?\s*$/m).and(include("dependent: :nullify")))
     end
 
@@ -221,7 +212,6 @@ RSpec.describe(Kimera::Operators) do
         .source(pricing_code, file: "pricing.rb")
     end
 
-    # > gets its boundary and its swap.
     it "treats lambda bodies as re-executing, schemata-safe code", :aggregate_failures do
       catalog = pricing
       expect(catalog.each.count).to(eq(2))

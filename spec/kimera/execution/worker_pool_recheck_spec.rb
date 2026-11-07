@@ -4,8 +4,6 @@ require "json"
 require "kimera/execution/worker_pool"
 require "timeout"
 
-# A worker whose kill didn't reproduce asks for a recheck: the pool retires it
-# and hands the mutant to a worker that has run nothing yet.
 RSpec.describe(Kimera::Execution::WorkerPool) do
   def pool(queue:, spawner:, jobs: 1, deadline: 5.0)
     resolved = []
@@ -18,8 +16,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     [resolved, lost]
   end
 
-  # Echoes each request in its result, so the parent sees what it sent.
-  # +suspect+ ids get a requeue instead, and the worker stops serving.
   def echo(suspect: [])
     forked do |request, response|
       served = 0
@@ -47,7 +43,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
   def result(resolved, id) = results(resolved).find { |message| message["id"] == id }
 
-  # Whether mutant 2's recheck ran on mutant 1's worker, and the others' recheck flags.
   def rechecked(resolved)
     {
       same_pid: result(resolved, 2)["pid"] == result(resolved, 1)["pid"],
@@ -78,7 +73,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     expect(spawned).to(eq(3))
   end
 
-  # Stacks for any pid.
   def stacks = Object.new.tap { |taker| taker.define_singleton_method(:take) { |pid| ["stacks of #{pid}"] } }
 
   it "hands a timed-out worker's stacks to the loss" do
@@ -91,7 +85,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   describe "a crash" do
     after { Process.waitall }
 
-    # Stacks that must never be taken.
     def untouchable
       Object.new.tap do |never|
         never.define_singleton_method(:take) { |_pid| raise(ArgumentError, "a crash is never dumped") }

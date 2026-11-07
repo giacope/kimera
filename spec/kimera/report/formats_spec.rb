@@ -88,7 +88,6 @@ RSpec.describe(Kimera::Report::Formats, :aggregate_failures) do
     end
   end
 
-  # R6B6-M3: a mutant whose text kimera could not write says so, not a lone `-` line.
   it "leaves out the column and diff a bare result does not carry", :aggregate_failures do
     bare = { "mutant_id" => 4, "status" => "survived", "file" => "a.rb", "line" => 3, "label" => "x" }
     io = StringIO.new
@@ -108,7 +107,6 @@ RSpec.describe(Kimera::Report::Formats, :aggregate_failures) do
 
   def rendered(format, document) = StringIO.new.tap { |io| described_class.new(io: io).render(format, document) }.string
 
-  # Findings on lines 1 to count of a.rb.
   def findings(count, **row)
     (1..count).map { |line| { "file" => "a.rb", "line" => line }.merge(row.transform_keys(&:to_s)) }
   end

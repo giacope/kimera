@@ -2,12 +2,10 @@
 
 require "kimera/frameworks/minitest_suite"
 
-# F9: a test red only under kimera is rerun outside it before kimera trusts it.
 RSpec.describe(Kimera::Frameworks::MinitestSuite, :aggregate_failures) do
   describe "rerunning baseline failures without kimera" do
     let(:adapter) { described_class.allocate }
 
-    # A suite that reproduces each set of tests with a command naming them, past the loading this spec skips.
     def reproducing
       Class.new(described_class) { def reproduce(ids) = "bundle exec ruby -e 1 #{ids.join(" ")}" }.allocate
     end

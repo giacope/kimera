@@ -13,8 +13,6 @@ RSpec.describe(Kimera::Execution::Attribution, :aggregate_failures) do
       expect(attribution.own?("test/kimera/cli/test_run.rb", "lib/kimera/cli/run.rb")).to(be(true))
     end
 
-    # Under spec/unit, and every spec in a directory named after the file, but
-    # not a helper, a sibling directory, or a spec under test/.
     {
       "spec/unit/dry/inflector_spec.rb" => true, "spec/unit/dry/inflector/underscore_spec.rb" => true,
       "spec/dry/inflector/deep/camelize_spec.rb" => true, "test/unit/dry/inflector/pluralize_test.rb" => true,

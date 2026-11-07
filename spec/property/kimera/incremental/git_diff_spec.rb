@@ -5,11 +5,7 @@ require "tmpdir"
 require "kimera/incremental/selection"
 require_relative "../../property_helper"
 
-# `kimera changed` and `--since` mutate only the lines a diff touched: a
-# changed line the parser misses is a mutant silently left out of the gate.
 RSpec.describe(Kimera::Incremental::GitDiff) do
-  # Content can read as a header once rendered after its "+": "++ b/x"
-  # becomes "+++ b/x".
   let(:text) do
     Pbt.one_of("x = 1", "y = 2", "end", "", "  z", "# note", "@@ -1 +1 @@", "+++ a/x", "--- b/y", "++ b/c.rb")
   end
@@ -17,8 +13,6 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
     Pbt.array(Pbt.tuple(Pbt.one_of("app/a.rb", "lib/b c.rb", "c.rb"), Pbt.array(Pbt.integer(min: 1, max: 40))), max: 3)
   end
 
-  # What `git diff --unified=0` prints for these added lines, with a
-  # removal-only hunk and a deleted file as noise that must add nothing.
   def render(changed, random)
     "#{changed.map { |file, lines| section(file, lines, random) }.join}" \
       "diff --git a/old.rb b/old.rb\n--- a/old.rb\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n"
@@ -43,9 +37,6 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
     end
   end
 
-  # Against git itself: after any edit, the lines the parser does not report
-  # must be lines the old file already had, in order. A new or edited line
-  # can never go unreported.
   describe "on a real repository" do
     let(:lines) { Pbt.array(Pbt.one_of("a", "b", "c", "d", "end", "++ b/g.rb"), max: 12) }
 
@@ -69,7 +60,6 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
       end
     end
 
-    # The oracle below is only as good as this check.
     it "judges subsequences exactly" do
       cases = {
         [[], []] => true, [[], %w[a]] => true, [%w[a], []] => false, [%w[a c], %w[a b c]] => true,
@@ -82,8 +72,6 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
       expect(edited(%w[a b], %w[a z b]).to_a).to(eq([2]))
     end
 
-    # Lines reported past the file's end, and whether the unreported lines are
-    # old ones in order; then the unreported lines.
     def reporting(old, new)
       reported = edited(old, new)
       kept = new.each_with_index.reject { |_, i| reported.include?(i + 1) }.map(&:first)

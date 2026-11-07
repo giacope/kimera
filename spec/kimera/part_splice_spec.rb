@@ -2,9 +2,6 @@
 
 require "kimera/synthesis/part_splice"
 
-# R6B3-M4: a mutant of a part of a heredoc, or of a string spanning lines, is
-# written in the literal's own text, every line where it was: what the literal
-# reads is the original with that part's text replaced.
 RSpec.describe(Kimera::PartSplice, :aggregate_failures) do
   def literal(source) = Prism.parse(source).value.statements.body.first.value
 

@@ -3,67 +3,6 @@
 require "kimera/registry/builder"
 require "kimera/synthesis/overlay"
 
-# Symbolic evaluation of a mutant schemata. Fixing which mutant is active
-# decides every `::Kimera::RUNTIME.active?(id)` guard, so the guarded program
-# reduces to one plain program. That program must be the mutant's bake (the
-# single mutation applied directly), and with nothing active, the original:
-# then warm runs judge exactly the code the report shows, for every input.
-#
-# Both sides are compared as Prism trees up to rewrites that never change
-# behavior, applied to both alike:
-# - a lone expression in parentheses is that expression;
-# - adjacent string parts join and empty ones drop (writing may split them),
-#   and an interpolated string literal is its string;
-# - && and || chains are associative (writing may regroup them);
-# - minus on a numeric literal is the negative literal (`-(1)` is `-1`);
-# - a `nil` statement that is not a sequence's last is no statement (a
-#   visibility mutant's coverage probe reduces to one);
-# - a method's parameters are one list, whatever kind each is;
-# - a block's `it` or numbered parameters are named ones, as kimera reads
-#   them (a bake that drops the last read of `it` names the parameter);
-# - where a token was spelled is not compared, only the tree: `then`, `do`
-#   or braces, the parentheses of a call (a splice keeps the source's, a
-#   whole-file write chooses its own);
-# - `begin ... end` is its body, and holding a rescue or ensure clause it is
-#   the method body that holds that clause (a guarded method body needs the
-#   begin; Ruby reads both alike);
-# - a rescue clause of `*[A, B]` is one of `A, B`, of `*::StandardError` a
-#   bare one, and of `*[]` no clause (it rescues nothing; with no clause left
-#   an `else` body runs after the body), and an ensure that runs nothing is
-#   no ensure: a dropped clause is guarded where it stands (R6B6-M2).
-#
-# A spliced guard reads `(!(active?(1) || active?(2)) ? (original) : active?(1)
-# ? (first) : (second))`: with none of its mutants active it is the original,
-# otherwise the chain after it. A bare `active?(k)` statement is a visibility
-# mutant's coverage probe, so it reduces to `nil`.
-#
-# A visibility mutant is not a guard: `::Kimera::RUNTIME.privatize(k, self,
-# :m)` registers a flip the runtime makes when k turns active, so it reduces
-# to `private(:m)` with k active and to nothing otherwise.
-#
-# One more rewrite is an assumption, not a behavior-preserving identity:
-# `required` reads a default that raises the missing-argument ArgumentError
-# as a required parameter, because a guard can't change a signature. That is
-# what the equivalence contract below allows, and schemata_spec checks it by
-# running calls that omit arguments, not by this reduction.
-#
-# Equivalence contract. With an applied mutant active, the schemata behaves
-# like that mutant's bake on every call (same return value, or same
-# exception class and message), except for:
-# - reflection: a removed default is still optional to Method#arity and
-#   Method#parameters;
-# - where a missing argument is reported: inside the method once earlier
-#   defaults have run, not by the arity check at the call site, so the
-#   backtrace differs and so does the wording ("missing argument: b" vs
-#   "wrong number of arguments"; "missing keyword: c" vs ":c");
-# - comparison failures: "comparison of A with B failed" names and orders its
-#   operands by whichever VM path ran (`[x, y].max` compiles one way for
-#   literals, another for computed elements), and guards change the shape.
-# A default removal the schemata can't represent is not applied at all. One
-# whose bake doesn't parse (a middle optional, or one before a splat) is
-# never emitted. One that rebinds positional arguments, sits in a block
-# (omitted block arguments bind to nil), or follows a default that isn't
-# inert is judged by reload instead (Kimera::DefaultRemoval).
 module SchemataProjection
   CHAINS = %i[and_node or_node].freeze
   INTERPOLATED = %i[
@@ -76,7 +15,6 @@ module SchemataProjection
     .merge(CHAINS.to_h { |type| [type, :chain] }, INTERPOLATED.to_h { |type| [type, :interpolation] })
     .merge(DEFAULTS.keys.to_h { |type| [type, :required] }).freeze
   VOID = Object.new.freeze
-  # A predicate on a node, but not how a literal's encoding was spelled.
   FLAG = /\A(?!forced_).*\?\z/
 
   module_function
@@ -100,7 +38,6 @@ module SchemataProjection
 
       def projected(id) = SchemataProjection.normal(SchemataProjection.project(schemata, id))
 
-      # [id, projected, baked] for every applied mutant that disagrees.
       def mismatches
         result.mutant_ids.filter_map do |id|
           got = projected(id)
@@ -114,7 +51,6 @@ module SchemataProjection
 
   def canon(source) = normal(read(source))
 
-  # Numbered and `it` parameters as named ones, as kimera reads every file.
   def read(source) = Kimera::Rewrite::NumberedParams.new(Kimera::Scribe.parse(source)).normalize
 
   def runtime?(node) = node&.type == :constant_path_node && node.name == :RUNTIME
@@ -126,7 +62,6 @@ module SchemataProjection
 
   def guard(node) = (called(node.predicate, :active?) if node.type == :if_node)
 
-  # The branch a guard takes with `active` on: a tree guard's, or a spliced one's.
   def taken(node, active)
     id = guard(node)
     return [id == active ? node.statements : node.subsequent&.statements] if id
@@ -134,7 +69,6 @@ module SchemataProjection
     [ids.include?(active) ? node.subsequent&.statements : node.statements] if ids
   end
 
-  # The mutants a spliced guard tests: `!(active?(1) || active?(2))`.
   def spliced(node)
     test = node.predicate if node.type == :if_node
     return unless test&.type == :call_node && test.name == :! && test.receiver
@@ -171,7 +105,6 @@ module SchemataProjection
     value.map { |item| item.is_a?(Prism::Node) ? yield(item) : item }.reject { |item| item.equal?(VOID) }
   end
 
-  # A privatize guard is `private :name` while its mutant is active, and nothing otherwise.
   def revealed(node, active) = active ? statement("private(:#{node.arguments.arguments[2].unescaped})") : VOID
 
   def statement(source) = Kimera::Scribe.parse(source).statements.body.first
@@ -205,7 +138,6 @@ module SchemataProjection
 
   def chain(node) = [:"#{node.type}_chain", *operands(node, node.type).map { |operand| normal(operand) }]
 
-  # A lone expression in parentheses, a sequence of one, or a bare begin.
   def lone(node)
     case node.type
     when :statements_node then (kept(node.body) in [only]) ? lone(only) : node
@@ -239,7 +171,6 @@ module SchemataProjection
     node.copy(rescue_clause: nil, else_clause: nil, statements: body)
   end
 
-  # A clause's exceptions as its guard reads them, or nil for one that rescues nothing.
   def caught(clause)
     splat = clause.exceptions.first if clause.exceptions.one?
     splat&.type == :splat_node ? listed(clause, lone(splat.expression)) : clause
@@ -290,7 +221,6 @@ module SchemataProjection
     written || [node.type, *tree(node.copy(parts: []))[1..], parts]
   end
 
-  # A string literal of no parts is "", and of one string part that string.
   def plain(parts)
     return [:string, ""] if parts.empty?
     parts.first if parts.one? && parts.first[0] == :string
@@ -318,8 +248,6 @@ module SchemataProjection
 
   COMPARED = /\Acomparison of (.+) with (.+) failed\z/
 
-  # An error message up to the details the equivalence contract excludes
-  # (see the top of this file); any other wording must match exactly.
   def worded(error)
     message = error.message
     return message unless error.instance_of?(ArgumentError)

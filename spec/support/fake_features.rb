@@ -3,9 +3,6 @@
 require "fileutils"
 require "tmpdir"
 
-# A Rails file the bundle does not have, put first on the load path for an
-# example: requiring it runs +body+ (by default nothing), and the example asks
-# whether it was loaded.
 module FakeFeatures
   def fake_feature(name, body = "")
     root = Dir.mktmpdir("kimera-feature")

@@ -2,7 +2,6 @@
 
 require "stringio"
 
-# A string stream that writes down, at each flush, how many lines it held.
 class CountedIO < StringIO
   attr_reader :flushed
 

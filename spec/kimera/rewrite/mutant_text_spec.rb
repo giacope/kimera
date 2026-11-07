@@ -6,13 +6,6 @@ require "kimera/report/text"
 require "kimera/results/run_report"
 require "kimera/rewrite/mutant_text"
 
-# R6B6-M3: every report shows the mutant's text. A point's slice is written
-# alone when it parses alone (a call forwarding an anonymous `&`, `*`, `**` or
-# `...` does, read in a method that forwards them); one that only parses where
-# it stands (an element of `%i[]`, a bare list, a call holding a heredoc, a
-# `retry`) is written in its file's own tree; when neither can be read, the
-# views say so instead of showing a lone `-` line, which reads as a deleted
-# statement.
 RSpec.describe(Kimera::Rewrite::MutantText) do
   def scanned(code, keys)
     Dir.mktmpdir do |dir|

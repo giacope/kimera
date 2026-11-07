@@ -83,8 +83,6 @@ RSpec.describe(Kimera::Memoization) do
       expect(reasons(code)).to(eq(["memoized via ||="]))
     end
 
-    # A keyed cache is memoization too (D6): each key's value is computed once.
-    # An instance, class or global variable, or a memoized hash.
     %w[@cache @@cache $cache (@cache||={})].each do |cache|
       it "taints a keyed cache's ||= on #{cache}", :aggregate_failures do
         code = "def m(key)\n  #{cache}[key] ||= compute(a > b)\nend\n"
@@ -125,7 +123,6 @@ RSpec.describe(Kimera::Memoization) do
       expect(reasons(code)).to(eq(["constant assignment (computed once)"]))
     end
 
-    # A method body inside the constant's block still runs per call.
     it "does not taint a method body nested inside a Struct constant" do
       code = "Pair = Struct.new(:a, :b) do\n  def ok?\n    a >= b\n  end\nend\n"
       expect(covers?(code, "a >= b")).to(be(false))
@@ -182,9 +179,7 @@ RSpec.describe(Kimera::Memoization) do
     end
 
     it "taints nothing for an or-write node without a value" do
-      # allocate skips Prism's constructor, which requires args.
       fake = Class.new(Prism::InstanceVariableOrWriteNode) do
-        # stubs a valueless node on purpose
         def value; end
       end.allocate
       expect(described_class.new("").__send__(:taint, fake)).to(be_nil)
@@ -192,7 +187,6 @@ RSpec.describe(Kimera::Memoization) do
 
     it "taints nothing for a constant write without a value" do
       fake = Class.new(Prism::ConstantWriteNode) do
-        # stubs a valueless node on purpose
         def value; end
       end.allocate
       expect(described_class.new("").__send__(:taint, fake)).to(be_nil)

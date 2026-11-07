@@ -9,12 +9,6 @@ require "kimera/cli/synthesize"
 require "kimera/cli/workflows"
 require "kimera/scope/ignore_list"
 
-# Checks what a document tells people to type against the CLI as built: each
-# `kimera <command>` exists, each flag on it is one that command parses, every
-# flag mentioned anywhere is one some command parses, each top-level key of a
-# YAML block that configures Kimera (and, with spans: true, each `key: value`
-# code span) is one .kimera.yml or an ignore entry reads, and each --operators
-# value is an operator or group.
 class UsageDrift
   RUN = Kimera::CLI::RunOptions::OPTIONS
   REPORT = Kimera::CLI::Survivors::OPTIONS
@@ -77,10 +71,8 @@ class UsageDrift
 
   def keys = ((spans + configs).uniq - KEYS).map { |key| "no config key or ignore anchor: #{key}:" }
 
-  # `kimera: <phase> ...` is the progress prefix, not a setting.
   def spans = @spans ? code.filter_map { |fragment| fragment.strip[SETTING, :key] } - ["kimera"] : []
 
-  # jobs: is also a GitHub workflow key, so it does not mark a block as Kimera's.
   def configs
     blocks = @text.scan(/^```ya?ml\n(.*?)^```/m).flatten.map { |block| block.scan(TOP_KEY).flatten }
     blocks.select { |found| found.intersect?(CONFIG - ["jobs"]) }.flatten

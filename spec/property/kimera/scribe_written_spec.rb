@@ -5,16 +5,6 @@ require_relative "../../support/tree_shape"
 require "kimera/scribe"
 require "kimera/synthesis/source_map"
 
-# Every tree Scribe writes reads back as that tree: kimera's own sources, its
-# example apps and evaluation fixtures, and unparser's round-trip corpus
-# (spec/property/corpus/unparser, MIT, from unparser 083f55d), the forms its
-# authors collected because a writer gets them wrong. Each file is parsed,
-# written whole by Scribe with its magic comments kept, parsed again and
-# compared as TreeShape, a string by the value and encoding Ruby gives it, a
-# lone expression in parentheses being that expression. A file Prism cannot
-# read is no tree to write; a tree Scribe refuses (Scribe::Unbound) is written
-# by no bake. R6B4-M1..M3: `when 90.. then "A"` read as `when 90.."A"`, `in
-# %w[a b]` as an array pattern, `"\u{3042}"` in a binary file as binary.
 RSpec.describe(Kimera::Scribe) do
   def self.root = File.expand_path("../../..", __dir__)
 

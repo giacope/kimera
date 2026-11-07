@@ -4,8 +4,6 @@ require "kimera/operators"
 require "kimera/registry/builder"
 require "kimera/synthesis/overlay"
 
-# The overlay reads the mutants it applied off the woven tree: each appears
-# once, whatever else the runtime is asked (a privatize registration).
 RSpec.describe(Kimera::Overlay, :aggregate_failures) do
   it "names each applied mutant once, privatized ones too" do
     source = "class Shown\n  def shown(a) = a > 1\nend\n"

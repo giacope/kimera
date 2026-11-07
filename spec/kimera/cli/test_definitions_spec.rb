@@ -4,8 +4,6 @@ require "fileutils"
 require "kimera/cli/test_definitions"
 require "tmpdir"
 
-# R4-KL3: zeitwerk's test/**/*_test.rb matched one support class and none of
-# its 50 tests, and doctor passed it.
 RSpec.describe(Kimera::CLI::TestDefinitions) do
   let(:dir) { Dir.mktmpdir }
 

@@ -2,25 +2,7 @@
 
 require "pbt"
 
-# Random Ruby methods for property specs: pure, loop-free expressions over the
-# parameters, built to reach every operator family. A program is a tree of
-# [template, *children]; "%1".."%3" in a template stand for its children, so
-# shrinking can swap any node for one of its children or a bare parameter.
-# A program is [signature, *statements]. Signatures vary the optional
-# parameters (a second optional, a splat after them) and their defaults,
-# some of which read `a` and can raise, so removing a default is tested for
-# argument binding and for the order defaults are evaluated in.
-#
-# `(!(a...b).cover?(%1))` is one dropped link from a bare range under `!`,
-# which Ruby reads as a flip-flop; kimera emits no such mutant.
-# `(-%1)` over `-1` roots a call chain at a literal a mutation can unsign
-# (`(--1.to_s)`), or leaves a literal the parser folds (`(--1)`).
-# `([%1]...[%2]).to_s.size` has array literals for endpoints and prints the
-# range instead of iterating. `"\xFF"` is a string whose escape is not valid
-# UTF-8, which Ruby reads as that byte.
 class RubyPrograms < Pbt::Arbitrary::Arbitrary
-  # Each hole is filled from DEFAULTS, or from LITERALS where `a` is itself
-  # optional (its default can't read it).
   SIGNATURES = {
     "def m(a, b = %1, c: %2)" => %i[any any],
     "def m(a = %1, b = %2, c: %3)" => %i[literal any any],
@@ -54,8 +36,6 @@ class RubyPrograms < Pbt::Arbitrary::Arbitrary
     "(%1 ? %2 : %3)", "(if %1 then %2 else %3 end)", "(unless %1 then %2 else %3 end)",
     "%1.clamp(%2, %3)", "[%1, %2, %3].compact.size", "%1.between?(%2, %3)"
   ].freeze
-  # `x = %1 && %2 && %3` nests a connective with no parentheses of its own, so
-  # swapping the inner one to || leaves a tree only grouping can write back.
   STATEMENTS = [
     "%1", "a += %1", "return %1 if %2", "b = %1", "x = %1", "x = %1 && %2 && %3", "@v = %1", "return nil if %1", "nil"
   ].freeze
@@ -72,8 +52,6 @@ class RubyPrograms < Pbt::Arbitrary::Arbitrary
     [signature(random), *Array.new(random.rand(1..@statements)) { statement(random) }]
   end
 
-  # Simpler signatures first, then the body one statement shorter, then each
-  # statement smaller.
   def shrink(current)
     signature, *body = current
     Enumerator.new do |out|
@@ -106,9 +84,6 @@ class RubyPrograms < Pbt::Arbitrary::Arbitrary
     [template, *kinds.map { |kind| [DEFAULTS.fetch(kind).sample(random: random)] }]
   end
 
-  # The plainest signature first, then each default back to "2". Each step
-  # leaves the plainest template or turns one more default into "2", so
-  # shrinking can't cycle.
   def simpler(signature)
     template, *defaults = signature
     [(SIMPLEST unless signature == SIMPLEST), *plainer(template, defaults)].compact
@@ -132,8 +107,6 @@ class RubyPrograms < Pbt::Arbitrary::Arbitrary
 
   def holes(template) = template.scan(HOLE).flatten.uniq.size
 
-  # A node shrinks to a bare parameter, to one of its own subexpressions, or
-  # by shrinking one child in place.
   def smaller(node)
     template, *children = node
     return [] if children.empty? && template == "a"

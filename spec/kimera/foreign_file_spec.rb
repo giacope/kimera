@@ -4,8 +4,6 @@ require "fileutils"
 require "kimera/scope/file_set"
 require "tmpdir"
 
-# F3/K3-7: vendored and generated code is not the author's, and a generator
-# template evaluated in the test process changed the suite's own settings.
 RSpec.describe(Kimera::ForeignFile, :aggregate_failures) do
   def tree(files, &)
     Dir.mktmpdir("kimera-foreign") do |root|

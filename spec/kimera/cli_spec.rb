@@ -35,7 +35,6 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
       expect(error).to(eq("kimera: invalid option: --nonsense\nTry: kimera registry --help\n"))
     end
 
-    # Exact match: the help banner also contains the version string.
     it "prints exactly the version for every version alias" do
       %w[version -v --version].each do |variant|
         out, _error, status = run(variant)
@@ -59,7 +58,6 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
       expect(status).to(eq(1))
     end
 
-    # The handler a subcommand dispatches to, with its file and arguments, and the status it answers.
     def dispatch(argv, status = 0)
       handlers = FakeHandlers.new(status)
       [ended(described_class.new(handlers: handlers).run(argv), StringIO.new, StringIO.new), handlers.ran]
@@ -102,7 +100,6 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
       FileUtils.mkdir_p(File.join(Dir.pwd, "lib"))
       File.write(File.join(Dir.pwd, "lib", "deep.rb"), "def m(a, b)\n  a > b\nend\n")
       out, _error, status = run("registry")
-      # calc.rb is outside the default globs.
       expect(out).to(match(/\AFound \d+ mutants at \d+ mutation points across 1 files\.\n\z/))
       expect(status).to(eq(0))
     end
@@ -121,7 +118,6 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     it "takes its scope from .kimera.yml" do
       configuration
       out, _error, status = run("registry")
-      # Only deep.rb's `a > b`, comparison only.
       expect(out).to(eq("Found 2 mutants at 1 mutation points across 1 files.\n"))
       expect(status).to(eq(0))
     end
@@ -160,7 +156,6 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     end
 
     it "honors --operators, splitting a comma list into a restricted set" do
-      # Two keys, so the comma split is load-bearing.
       out, = run("registry", "calc.rb", "--operators", "comparison,boolean_literal", "--json", "--quiet")
       operators = JSON.parse(out)["operators"]
       expect(operators).to(eq(%w[comparison boolean_literal]))

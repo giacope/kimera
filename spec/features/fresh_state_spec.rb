@@ -1,9 +1,5 @@
 # frozen_string_literal: true
 
-# Every test runs, in the baseline and for each mutant, in a process forked
-# from one no test has run in. So a cache another file fills, a test that
-# hides a later caller behind that cache, and a registry later tests add to
-# all read as they would in a fresh `rspec` run.
 RSpec.describe("kimera run on a suite whose state outlives a test (end-to-end)", :aggregate_failures) do
   def files = {
     "app/rate.rb" => "class Rate\n  def self.compute(x)\n    x > 10 ? 2 : 1\n  end\nend\n",
@@ -63,7 +59,6 @@ RSpec.describe("kimera run on a suite whose state outlives a test (end-to-end)",
     end
   end
 
-  # The verdicts that tell a fresh run of the suite from a stale one, and the leaks.
   def telling(run)
     plugins = verdicts(run.report).values_at("app/plugins.rb condition => true", "app/plugins.rb condition => false")
     [run.statuses("app/rate.rb"), plugins, run.report.fetch("leaks")]

@@ -3,12 +3,9 @@
 require "kimera/cli/interruption"
 require "stringio"
 
-# R4-KR2: Ctrl-C printed an Interrupt backtrace from rubygems.
 RSpec.describe(Kimera::CLI::Interruption) do
   let(:errors) { StringIO.new }
 
-  # What the guard answers, or the signal it let through: one that escaped
-  # would stop this very run, so it is caught here and compared.
   def answer(leader = Process.pid, &)
     ended(described_class.new(leader).guard(&), StringIO.new, errors)
   rescue SignalException => error

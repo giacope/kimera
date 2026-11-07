@@ -7,8 +7,6 @@ require "kimera/execution/test_filter"
 require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 
-# The driver stands in for the warm pool: it answers each test with the
-# result the seed in the environment calls for, as a worker forked then would.
 RSpec.describe(Kimera::Execution::FlakeHunt, :aggregate_failures) do
   let(:adapter) do
     Class.new(Kimera::Frameworks::Suite) do
@@ -20,7 +18,6 @@ RSpec.describe(Kimera::Execution::FlakeHunt, :aggregate_failures) do
   let(:progress) { Kimera::Execution::NullProgress.new }
   let(:env) { { "KIMERA_SEED" => "11" } }
 
-  # Under seed 12, t2 fails; under 13, t2 and t1 fail and t3 times out.
   def drive(log, tests, spawner, listeners)
     seed = Integer(env.fetch("KIMERA_SEED"), 10)
     log << [seed, tests, spawner.call]
@@ -37,7 +34,6 @@ RSpec.describe(Kimera::Execution::FlakeHunt, :aggregate_failures) do
     end.new
   end
 
-  # Reruns under SEED, FLAKY_RUNS times, that flag what they find on FILTER.
   def runs(seed: nil, flaky_runs: nil, filter: nil) = Kimera::Execution::FlakeRuns.new(seed, flaky_runs, filter)
 
   def hunt(log, **settings)

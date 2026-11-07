@@ -5,10 +5,6 @@ require "kimera/registry/mutation_point"
 require "kimera/synthesis/body_trim"
 require "tmpdir"
 
-# A warm overlay evaluates a file that already ran, so only code carrying a
-# live mutant has to run again. Re-running the rest of a class body would
-# redeclare DSL state (a class_attribute default, a registry entry, a
-# pre_check) on top of what the first load left.
 RSpec.describe(Kimera::BodyTrim) do
   def live(source, snippets)
     snippets.map { |text| Kimera::Location.new(start_offset: source.b.index(text.b), span: text.bytesize) }
@@ -20,7 +16,6 @@ RSpec.describe(Kimera::BodyTrim) do
 
   def lines(text) = text.lines.map(&:strip).reject(&:empty?)
 
-  # The statements left standing, one per line.
   def kept(source, *snippets) = lines(trim(source, *snippets))
 
   it "blanks class-body statements without a live mutant, in place", :aggregate_failures do
@@ -72,8 +67,6 @@ RSpec.describe(Kimera::BodyTrim) do
     expect(kept(source, "n > 3", "n < 0")).to(eq(lines(source) - ["@three, @four = 3, 4", "private def plain = 1"]))
   end
 
-  # Sinatra::Base declares `ruby2_keywords :new if respond_to?(:ruby2_keywords, true)`.
-  # Blanked, the re-evaluated `new(*args)` stops passing keywords through.
   it "keeps ruby2_keywords, also under a modifier condition, and a guarded directive" do
     source = <<~RUBY
       class App
@@ -89,9 +82,6 @@ RSpec.describe(Kimera::BodyTrim) do
     expect(kept(source, "args.size > 1")).to(eq(lines(source) - dropped))
   end
 
-  # A refinement is active only in the code compiled after `using` in the
-  # same file or class body. Blanked, the re-evaluated methods lose it and a
-  # refined call raises NoMethodError in the baseline.
   it "keeps a using, at the top level and in a class body" do
     source = <<~RUBY
       require_relative "fault"
@@ -105,16 +95,12 @@ RSpec.describe(Kimera::BodyTrim) do
     expect(kept(source, "@error.headline")).to(eq(lines(source) - ["track :name"]))
   end
 
-  # The condition may hold now when it did not at load (`require "x/railtie"
-  # if defined?(Rails)`), so a conditional require is never replayed.
   it "keeps a bare require but not one under a modifier condition" do
     source = "require \"a\"\nrequire_relative \"b\" if defined?(Host)\nrequire \"c\" unless ready\n" \
       "loaded = 1 if ready\ndef m = 1\n"
     expect(kept(source, "m = 1")).to(eq(["require \"a\"", "loaded = 1 if ready", "def m = 1"]))
   end
 
-  # A factory kimera does not know is reopened like Struct.new when its block
-  # defines methods, so the rest of its block is blanked like a class body.
   it "trims inside the block of an unknown factory that defines methods" do
     source = "Opts = Options.new(:a) do\n  attr_writer :x\n  def big? = a > 1\nend\n"
     expect(kept(source, "a > 1")).to(eq(["Opts = Options.new(:a) do", "def big? = a > 1", "end"]))
@@ -178,9 +164,6 @@ RSpec.describe(Kimera::BodyTrim) do
     end
   end
 
-  # A version or feature guard around alias-and-redefine (`if TRUE_FREEZE;
-  # alias _clone clone; def clone ...`) must not run its alias again: by then
-  # the target is the project's own method, and the alias would re-point.
   describe "conditions" do
     let(:source) do
       <<~RUBY
@@ -291,7 +274,6 @@ RSpec.describe(Kimera::BodyTrim) do
       RUBY
     end
 
-    # Any factory's block that defines methods is reopened, never run again.
     it "descends into Struct, Data, Class, Module and other method-defining blocks assigned to a constant" do
       live = ["x > 10", "w > 2", "n > 1", "n < 1", "n >= 1", "n <= 1"]
       dropped = ["include Comparable", 'self.table_name = "anons"', "extend self", "setting :x"]
@@ -319,8 +301,6 @@ RSpec.describe(Kimera::BodyTrim) do
   end
 
   it "keeps the source whole when blanking would leave it unparseable" do
-    # Blanking the second heredoc's body from the end of its line would take
-    # the first heredoc's terminator with it.
     source = "class Mixed\n  def size = <<~TEXT.size > 1; register(<<~NOTE)\n    text\n  TEXT\n    note\n  NOTE\nend\n"
     expect(trim(source, "<<~TEXT.size > 1")).to(eq(source))
   end
@@ -343,7 +323,6 @@ RSpec.describe(Kimera::BodyTrim) do
       expect(described_class.new(source, locations).trim(write("never.rb"))).to(eq(source))
     end
 
-    # Requires real.rb, and linked.rb through a link to dir; answers linked.rb's own path.
     def linked_requires
       real = write("real.rb")
       linked = write("linked.rb")

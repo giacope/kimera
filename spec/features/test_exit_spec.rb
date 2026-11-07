@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-# A mutant that makes code under test call abort fails the test that runs it,
-# so the mutant is killed. The SystemExit used to unwind the warm worker (or
-# the isolated child), and the mutant was scored harness_error.
 RSpec.describe("abort in code under test (end-to-end)") do
   def test_fixture(root)
     FileUtils.mkdir_p(%w[app spec test].map { |dir| File.join(root, dir) })
@@ -27,7 +24,6 @@ RSpec.describe("abort in code under test (end-to-end)") do
     RUBY
   end
 
-  # The killed mutant's detail, and how many mutants couldn't be judged.
   def test_killer(arguments, tests: "spec/**/*_spec.rb")
     Dir.mktmpdir("kimera-abort") do |root|
       test_fixture(root)

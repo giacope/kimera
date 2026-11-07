@@ -4,10 +4,6 @@ require "kimera/cli"
 require "kimera/cli/rspec_options"
 require "tmpdir"
 
-# What a project's .rspec tells rspec to load and leave out (R6B4-M9), as
-# globs from the project's root: rspec joins a pattern that does not start
-# with its default path (spec, or --default-path) to it, and reads a comma as
-# "or".
 RSpec.describe(Kimera::CLI::RspecOptions, :aggregate_failures) do
   def options(text)
     Dir.mktmpdir do |root|

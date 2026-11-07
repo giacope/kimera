@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-# R3K5: code .rspec's --require loaded ran before kimera's load trace began.
-# R3K2: a lambda a class body calls ran while loading, not as a method.
-# K3-7: an in-scope file the suite never loads was evaluated anyway.
 RSpec.describe("kimera run on code that runs while the suite loads (end-to-end)", :aggregate_failures) do
   def files = {
     ".rspec" => "--require spec_helper\n",

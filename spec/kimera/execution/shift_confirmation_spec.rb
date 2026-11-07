@@ -6,9 +6,6 @@ require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 require "stringio"
 
-# Each mutant runs in a process of its own; a kill counts only if the killing
-# test fails again with the mutant on in another fresh process, alone, or
-# after the same covering tests, which then pass it with the mutant off.
 RSpec.describe(Kimera::Execution::Shift) do
   let(:registry) do
     Kimera::RegistryScan.new.source(<<~RUBY, file: "calc.rb")
@@ -24,8 +21,6 @@ RSpec.describe(Kimera::Execution::Shift) do
 
   let(:ids) { registry.each.map { |m, _p| m.id } }
 
-  # +script+ maps a test to the outcomes of its successive runs, consumed in
-  # order; unscripted runs pass.
   let(:scripted_class) do
     Class.new do
       attr_reader :log
@@ -67,7 +62,6 @@ RSpec.describe(Kimera::Execution::Shift) do
   end
 
   describe "a confirmed kill" do
-    # The coverage pass ran it without the mutant, first in a fresh process too.
     it "takes a failing first test as the kill, running it once", :aggregate_failures do
       target = ids.first
       adapter = scripted({ "t1" => %i[fail] })
@@ -182,8 +176,6 @@ RSpec.describe(Kimera::Execution::Shift) do
   end
 
   describe "the soft timeout" do
-    # Frameworks rescue Timeout's interrupt as a test error; pretend one did.
-    # With the mutant off the tests pass at once.
     def swallowing(delay)
       Class.new do
         define_method(:test_ids) { %w[t1 t2] }
@@ -206,8 +198,6 @@ RSpec.describe(Kimera::Execution::Shift) do
       expect(result.detail).to(start_with("soft timeout (0.1s) expired while t1 ran with the mutant on; alone with"))
     end
 
-    # The interrupted test's threads die with its process, so the worker
-    # keeps serving.
     it "keeps taking work after a timeout", :aggregate_failures do
       first, second = ids.first(2)
       sent = serve(swallowing(1.0), { first => %w[t1], second => %w[t2] }, [first, second], soft: 0.1)
@@ -221,16 +211,12 @@ RSpec.describe(Kimera::Execution::Shift) do
       expect(worker(adapter, { target => ["t1"] }, soft: 5.0).evaluate(target).status).to(eq(:killed))
     end
 
-    # The control run, mutant off, is the one that runs past the deadline: the
-    # test is slow on its own, so its timeout says nothing about the mutant.
-    # Sleeps past the deadline, interrupted or not.
     def idle
       sleep(1.0)
     rescue Timeout::ExitException
       nil
     end
 
-    # Slow with the mutant off; with it on, t1 fails only its first run.
     def slow_off
       runs = Hash.new(0)
       nap = method(:idle)

@@ -4,9 +4,6 @@ require "English"
 require "json"
 require "shellwords"
 
-# Under LANG=C, Ruby reads files and pipes as US-ASCII; kimera's own reads
-# and the pipes between its processes must still carry UTF-8 test names and
-# source.
 RSpec.describe("kimera under the C locale (end-to-end)", :aggregate_failures) do
   def menu
     <<~RUBY
@@ -35,7 +32,6 @@ RSpec.describe("kimera under the C locale (end-to-end)", :aggregate_failures) do
       .force_encoding(Encoding::UTF_8).then { |text| [text, $CHILD_STATUS.exitstatus] }
   end
 
-  # The run's exit, each mutant's status and every test name, read as UTF-8.
   def run_facts(root)
     output, status = cli(root, "run", "app", "--tests", "spec/**/*_spec.rb", "--jobs", "2", "--no-progress")
     expect(status).to(eq(0), output)

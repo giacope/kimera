@@ -44,7 +44,6 @@ RSpec.describe(Kimera::CLI::Synthesize, :aggregate_failures) do
     expect(status).to(eq(1))
   end
 
-  # `x > y` yields `>=` and `<` under the default operators.
   it "synthesizes a mirror tree and reports exact schema-path counts" do
     out, _error, status = run("calc.rb", "--out", outdir = File.join(dir, "schemata"))
     expect(status).to(eq(0))
@@ -57,7 +56,6 @@ RSpec.describe(Kimera::CLI::Synthesize, :aggregate_failures) do
     File.write(File.join(dir, "lib", "deep.rb"), "def m(a, b)\n  a > b\nend\n")
     out, _error, status = run("--out", File.join(dir, "out"))
     expect(status).to(eq(0))
-    # calc.rb is outside the default globs.
     expect(out).to(include("Synthesized 1 files"))
   end
 
@@ -101,7 +99,6 @@ RSpec.describe(Kimera::CLI::Synthesize, :aggregate_failures) do
 
   it "splits --operators into keys when building the registry" do
     outdir = File.join(dir, "ops")
-    # calc.rb has no regexp literals.
     out, _error, status = run("calc.rb", "--operators", "regexp", "--out", outdir)
     expect(status).to(eq(0))
     expect(out).to(include("0 mutants on the schema path."))

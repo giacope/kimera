@@ -2,11 +2,6 @@
 
 require "prism"
 
-# A Prism tree up to how its source spelled it: no locations, a string however
-# its parts were split, a number in any base. Two trees of one shape are the
-# same program. A string is its value as Ruby makes it: Prism reads the bytes
-# in the file's encoding and flags the one an escape forces (`"\u{3042}"` is
-# UTF-8 in a binary file, `"\xE3\x81\x82"` is not), so the flag is no spelling.
 module TreeShape
   SPELLING = /\A(?:forced_\w+_encoding|frozen|mutable|binary|decimal|octal|hexadecimal)\?\z/
   FORCED = { forced_utf8_encoding?: Encoding::UTF_8, forced_binary_encoding?: Encoding::BINARY }.freeze

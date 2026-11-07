@@ -6,8 +6,6 @@ require "kimera/registry/builder"
 require "tmpdir"
 
 RSpec.describe(Kimera::Execution::LoadTrace) do
-  # A macro a class body calls while it loads, a method it never calls, and a
-  # memoized (schema-unsafe) method the macro calls too.
   let(:source) do
     <<~RUBY
       module LoadTraceFees
@@ -59,7 +57,6 @@ RSpec.describe(Kimera::Execution::LoadTrace) do
     expect(point("a > b")).to(have_attributes(safe?: true, unsafe_reason: nil, revisit: nil))
   end
 
-  # A test covers it too, so it stays warm; what it computed at load did not see the mutant.
   it "marks a covered point of a method that ran while loading", :aggregate_failures do
     ternary = point("flag ? 1 : 2")
     traced({ ternary.ids.first => ["t1"] })
@@ -84,7 +81,6 @@ RSpec.describe(Kimera::Execution::LoadTrace) do
     expect(point("flag ? 1 : 2").safe?).to(be(false))
   end
 
-  # The scan of fees.rb through a directory linked to its real one.
   def linked_scan
     real, linked = %w[real linked].map { |name| File.join(dir, name) }
     FileUtils.mkdir_p(real)
@@ -112,7 +108,6 @@ RSpec.describe(Kimera::Execution::LoadTrace) do
     expect(point("Current.user").unsafe_reason).to(eq(Kimera::MutationPoint::MACRO_REASON))
   end
 
-  # R6B2-M3: kimera's suite turns on Warning[:strict_unused_block] (spec/support/strict_blocks.rb).
   it "also sends a warm survivor whose mutant leaves its method no yield to a fresh mirror" do
     File.write(file, "class LoadTraceJoin\n  def join(list)\n    list.each { |x| yield x }\n  end\nend\n")
     described_class.new(registry, dir).quarantine!({})

@@ -23,7 +23,6 @@ RSpec.describe(Kimera::Incremental::Selection) do
     raise(RuntimeError, "git #{arguments.join(" ")} failed: #{error}") unless status.success?
   end
 
-  # calc.rb committed with `x < y` on line 2, then edited to `x > y`.
   def changed
     git("init", "-q", "-b", "main")
     File.write(File.join(root, "calc.rb"), "def a(x, y)\n  x < y\nend\n")
