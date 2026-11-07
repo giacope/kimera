@@ -52,15 +52,15 @@ class Kimera::Incremental::CoverageCache
 
   def chosen(stored, ids)
     sources = fingerprint["sources"]
-    stored.picked(sources, @registry.files, ids).tap do |picked|
+    stored.picked(sources, @registry.to_h.keys, ids).tap do |picked|
       @errors.puts(stored.reused(sources, picked.size, ids.size))
     end
   end
 
   def by_file(coverage)
-    own = coverage.slice(*@registry.index.keys)
-    own.each_with_object(Hash.new { |files, file| files[file] = [] }) do |(id, tests), files|
-      files[@registry.index.fetch(id).file] |= tests
+    own = @registry.each.select { |mutant, _point, _file| coverage.key?(mutant.to_i) }
+    own.each_with_object(Hash.new { |files, file| files[file] = [] }) do |(mutant, _point, file), files|
+      files[file] |= coverage.fetch(mutant.to_i)
     end
   end
 end

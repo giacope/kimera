@@ -15,14 +15,26 @@ require_relative "superclass_pin"
 class Kimera::Overlay
   Result =
     Struct.new(:file, :source, :mutant_ids, :skipped_unsafe, keyword_init: true) do
+      private(*members)
       def install(path)
         Kimera::Overlay::Source.new(source).evaluate(path)
         mutant_ids
       end
 
       def settle!(points, detail)
-        skipped_unsafe.concat(points.flat_map { |point| point.orphan!(mutant_ids, detail) })
+        orphan = Kimera::Reason::Guarded.orphaned(mutant_ids, detail)
+        skipped_unsafe.concat(points.flat_map { |point| point.mark!(orphan) })
       end
+
+      def skip!(points) = skipped_unsafe.concat(points.flat_map { |point| point.each.map(&:to_i) })
+
+      def empty? = mutant_ids.empty?
+
+      def write(path) = File.write(path, source)
+
+      def record(manifest, destination) = manifest.recorded(file, destination, mutant_ids, skipped_unsafe)
+
+      def to_s = source
     end
 
   class Unbakeable < Kimera::Error; end
@@ -37,22 +49,22 @@ class Kimera::Overlay
   end
 
   def synthesize(file, source)
-    safe, unsafe = @registry.at(file).partition(&:safe?)
+    safe, unsafe = @registry.to_h.fetch(file, []).partition { |point| point.fits?(safe: true) }
     return unsafe(file, source, unsafe) if safe.empty?
     map = Kimera::SourceMap.new(source)
     Kimera::Overlay::FileWeave.new(file, map, safe, unsafe).result
   end
 
   def bake(_file, source, id)
-    pair = @registry.point(id) { return source }
+    mutant, point = @registry[id] { return source }
     map = Kimera::SourceMap.new(source)
-    checked(map, pair.last, spliced(map, *pair).fetch(0) { write(map, baked(map, *pair), pair.last) })
+    checked(map, point, spliced(map, mutant, point).fetch(0) { write(map, baked(map, mutant, point), point) })
   end
 
   private
 
   def spliced(map, mutant, point)
-    changed = Kimera::Guardrail.new(map, []).changes(point, mutant.directive)
+    changed = Kimera::Guardrail.new(map, []).changes(point, mutant.rewrite(Kimera::Rewrite::Directive))
     expected, original = changed && expectation(changed.last&.last || map.ast, map.ast) { return [] }
     return [] unless expected
     raise(Unbakeable, "#{UNWRITTEN} (the mutant reads as the original)") if expected == original
@@ -67,12 +79,12 @@ class Kimera::Overlay
 
   def checked(map, point, text)
     raise(Unbakeable, "#{UNWRITTEN} (what it wrote does not parse)") unless Kimera::Syntax.parse(text).success?
-    return text if Kimera::PointLines.new(map, point.location).kept?(text)
+    return text if Kimera::PointLines.new(map, point).kept?(text)
     raise(Unbakeable, "#{UNWRITTEN} (what it wrote changes or moves a line outside the mutation)")
   end
 
   def baked(map, mutant, point)
-    Kimera::Guardrail.new(map, []).bake(point, mutant.directive) ||
+    Kimera::Guardrail.new(map, []).bake(point, mutant.rewrite(Kimera::Rewrite::Directive)) ||
       raise(Unbakeable, UNMATCHED)
   end
 
@@ -84,13 +96,14 @@ class Kimera::Overlay
   end
 
   def grafted(map, tree, point, cause)
-    Kimera::Overlay::MethodBake.new(map, tree).source(point.location).fetch(0) do
+    Kimera::Overlay::MethodBake.new(map, tree).source(point).fetch(0) do
       raise(Unbakeable, "kimera could not write its bake (#{cause})")
     end
   end
 
   def unsafe(file, source, points)
-    Result.new(file: file, source: source, mutant_ids: [], skipped_unsafe: points.flat_map(&:ids))
+    skipped = points.flat_map { |point| point.each.map(&:to_i) }
+    Result.new(file: file, source: source, mutant_ids: [], skipped_unsafe: skipped)
   end
 end
 

@@ -3,28 +3,31 @@
 require "kimera/execution/pool_driver"
 
 RSpec.describe(Kimera::Execution::Pool::Channels) do
-  def channels
-    request, response = Array.new(2) { IO.pipe }
-    described_class.new(*request, *response)
-  end
+  let(:ends) { Array.new(2) { IO.pipe }.flatten }
+  let(:pipes) { described_class.new(*ends) }
 
-  def shut(pipes)
-    pipes.to_a.each { |io| io.close unless io.closed? }
-  end
+  after { ends.each { |io| io.close unless io.closed? } }
+
+  def closed = ends.map(&:closed?)
 
   it "closes the child's ends and hands back the parent's", :aggregate_failures do
-    pipes = channels
-    expect(pipes.parent!).to(eq([pipes.req_w, pipes.res_r]))
-    expect([pipes.req_r.closed?, pipes.res_w.closed?]).to(eq([true, true]))
-    expect([pipes.req_w.closed?, pipes.res_r.closed?]).to(eq([false, false]))
-    shut(pipes)
+    expect(pipes.parent!).to(eq(ends.values_at(1, 2)))
+    expect(closed).to(eq([true, false, false, true]))
   end
 
-  it "closes the parent's ends in the child", :aggregate_failures do
-    pipes = channels
+  it "closes the parent's ends in the child" do
     pipes.child!
-    expect([pipes.req_w.closed?, pipes.res_r.closed?]).to(eq([true, true]))
-    expect([pipes.req_r.closed?, pipes.res_w.closed?]).to(eq([false, false]))
-    shut(pipes)
+    expect(closed).to(eq([false, true, true, false]))
+  end
+
+  it "serves a shift's errand on the child's ends" do
+    shift = Class.new { def coverage(request, response) = [request, response] }.new
+    expect(pipes.serve(shift, :coverage)).to(eq(ends.values_at(0, 3)))
+  end
+
+  it "answers on the child's response end, then closes it", :aggregate_failures do
+    pipes.say("tick")
+    pipes.close
+    expect([ends[2].read, closed]).to(eq(["tick\n", [false, false, false, true]]))
   end
 end

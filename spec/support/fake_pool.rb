@@ -31,18 +31,21 @@ class FakeDatabases
 end
 
 class FakeDuty
-  attr_reader :index, :pipes
-
   def initialize(index, notes, pipes = Kimera::Execution::Pool::Channels.new(*IO.pipe, *IO.pipe))
     @index = index
     @notes = notes
     @pipes = pipes
   end
 
+  def child! = @pipes.child!
+
+  def prepare(database) = Kimera::Execution::Pool::Duty.new(:serve, @index, @pipes).prepare(database)
+
   def run(shift)
     $stdout.print("loud")
     $stdout.flush
-    note("run", shift.class.name, Process.getpgrp == Process.pid, pipes.req_w.closed?, pipes.res_r.closed?)
+    parent = @pipes.to_a.values_at(1, 2)
+    note("run", shift.class.name, Process.getpgrp == Process.pid, *parent.map(&:closed?))
   end
 
   def pulse = note("pulse")

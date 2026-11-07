@@ -11,7 +11,11 @@ module Kimera
 
     IDENTIFIER = /\A[A-Za-z_]\w*[!?]?\z/
 
-    Variant = Struct.new(:label, :directive, keyword_init: true)
+    Variant = Struct.new(:label, :directive, keyword_init: true) { private(*members) }
+
+    class EmptyKeywords
+      def elements = []
+    end
 
     class CallQuery
       def initialize(node)
@@ -74,7 +78,7 @@ module Kimera
       end
 
       def keywords(node)
-        arguments(node).reverse_each.find { |a| a.is_a?(SyntaxTypes::KeywordHashNode) }
+        arguments(node).grep(SyntaxTypes::KeywordHashNode).fetch(-1) { EmptyKeywords.new }
       end
 
       def unescaped(node)

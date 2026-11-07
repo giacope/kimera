@@ -26,7 +26,7 @@ RSpec.configure do |config|
   end
   config.around { |example| Kimera::RUNTIME.during(Kimera::RUNTIME.active) { example.run } }
   config.around do |example|
-    flips = Kimera::RUNTIME.__send__(:hidden).flips
+    flips = Kimera::RUNTIME.__send__(:hidden).__send__(:flips)
     kept = flips.dup
     example.run
   ensure

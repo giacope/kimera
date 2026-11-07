@@ -4,6 +4,8 @@ require "kimera/execution/shift"
 require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 
+using ResultFields
+
 RSpec.describe(Kimera::Execution::Shift) do
   let(:registry) do
     Kimera::RegistryScan.new.source(<<~RUBY, file: "calc.rb")
@@ -13,7 +15,7 @@ RSpec.describe(Kimera::Execution::Shift) do
     RUBY
   end
 
-  let(:target) { registry.each.first.first.id }
+  let(:target) { registry.each.first.first.to_i }
   let(:clock) { [0.0] }
 
   before { stub_const("Kimera::Execution::Stopwatch::CLOCK", -> { clock.first }) }

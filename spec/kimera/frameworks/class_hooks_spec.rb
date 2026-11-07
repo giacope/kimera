@@ -81,11 +81,27 @@ RSpec.describe(Kimera::Frameworks::ClassHooks) do
     expect([seen, Minitest.parallel_executor]).to(eq([%i[around prepared ok], executor]))
   end
 
-  it "hands the suite a reporter that has passed until a result fails", :aggregate_failures do
-    reporter = described_class::Transcript.new(proc {})
+  def asking(asked)
+    noted([]) do
+      define_singleton_method(:with_info_handler) do |reporter, &block|
+        asked.push(reporter.passed?, reporter.reporters.grep(Minitest::SummaryReporter))
+        block.call
+        asked.push(reporter.passed?, reporter.synchronize { :held })
+      end
+    end
+  end
+
+  it "hands the suite a reporter that has passed until a result fails" do
+    asked = []
+    described_class.new(asking(asked)).test("test_bad")
+    expect(asked).to(eq([true, [], false, :held]))
+  end
+
+  it "lets a test the transcript has not seen pass, and a passing or skipped one too", :aggregate_failures do
+    transcript = described_class::Transcript.new(proc {})
     passing = Minitest::Result.from(Minitest::Test.new("x"))
-    expect([reporter.passed?, reporter.tap { it.record(passing) }.passed?, reporter.reporters]).to(eq([true, true, []]))
-    reporter.record(Minitest::Result.from(Minitest::Test.new("y").tap { it.failures << Minitest::Assertion.new }))
-    expect([reporter.passed?, reporter.synchronize { :held }]).to(eq([false, :held]))
+    skipped = Minitest::Result.from(Minitest::Test.new("y").tap { it.failures << Minitest::Skip.new })
+    expect([transcript.passed?, transcript.tap { it.record(passing) }.tap { it.record(skipped) }.passed?])
+      .to(eq([true, true]))
   end
 end

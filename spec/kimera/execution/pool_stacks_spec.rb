@@ -54,7 +54,8 @@ RSpec.describe(Kimera::Execution::Pool) do
   end
 
   def launching(pool, launched)
-    ->(slot) { pool.worker(slot).tap { |worker| launched << worker.last }.tap { |worker| worker[1].close } }
+    spawner = pool.spawner(:serve)
+    ->(slot) { spawner.call(slot).tap { |worker| launched << worker.last }.tap { |worker| worker[1].close } }
   end
 
   describe "its own workers' stack dump" do

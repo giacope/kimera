@@ -8,6 +8,7 @@ module Kimera
   autoload :MutationPoint, "kimera/registry/mutation_point"
   autoload :Registry, "kimera/registry/registry"
   autoload :RegistryScan, "kimera/registry/builder"
+  autoload :Reason, "kimera/registry/reason"
   autoload :Overlay, "kimera/synthesis/overlay"
   autoload :CLI, "kimera/cli"
 end

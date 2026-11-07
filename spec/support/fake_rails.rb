@@ -86,7 +86,23 @@ module FakeRails
   end
 
   class BusyPool
-    def disconnect! = raise(RuntimeError, "busy")
+    def disconnect! = raise(ActiveRecord::ExclusiveConnectionTimeoutError, "busy")
+  end
+
+  class Unconnected
+    def connection_db_config = raise(ActiveRecord::ConnectionNotEstablished, "No connection pool")
+  end
+
+  def self.errors(example)
+    root = Class.new(StandardError)
+    example.stub_const("ActiveRecord::ActiveRecordError", root)
+    example.stub_const("ActiveRecord::ConnectionNotEstablished", Class.new(root))
+    example.stub_const("ActiveRecord::ExclusiveConnectionTimeoutError", Class.new(root))
+  end
+
+  def self.unconnected(example)
+    errors(example)
+    example.stub_const("ActiveRecord::Base", Unconnected.new)
   end
 
   class Tasks

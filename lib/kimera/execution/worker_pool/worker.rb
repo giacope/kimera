@@ -5,6 +5,7 @@ require_relative "../child_process"
 Kimera::Execution::WorkerPool::Worker =
   Struct.new(:pid, :request, :response, :inflight, :deadline, :slot, :stacks, :served, :last_words, :unread) do
     include Kimera::Execution::ChildProcess
+    private(*members)
     def feed(chunk, &)
       *complete, partial = (rest + chunk).split("\n", -1)
       self.unread = partial
@@ -70,6 +71,26 @@ Kimera::Execution::WorkerPool::Worker =
       return unless status
       signal = status.termsig
       signal ? "died on signal #{signal} (SIG#{Signal.signame(signal)})" : "exited #{status.exitstatus}"
+    end
+
+    def trace(listeners, id) = listeners.traced(slot, id)
+
+    def forfeit
+      yield(inflight) if inflight
+    end
+
+    def inform(guard, status) = guard.track(status, last_words)
+
+    def disconnect
+      shut(response)
+      shut(request)
+    end
+
+    def buried = bury(pid)
+
+    def dismiss
+      disconnect
+      stop(pid)
     end
 
     def offer(id, recheck: false)

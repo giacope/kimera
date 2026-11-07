@@ -13,27 +13,27 @@ RSpec.describe(Kimera::Operators) do
 
   def overlaid(catalog, code)
     synthesized = Kimera::Overlay.new(catalog).synthesize("p.rb", code)
-    Object.new.extend(Module.new.tap { |m| m.module_eval(synthesized.source) })
+    Object.new.extend(Module.new.tap { |m| m.module_eval(synthesized.to_s) })
   end
 
   def live(code, key, label = //)
     catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: [key])).source(code, file: "p.rb")
     object = overlaid(catalog, code)
     original = yield(object)
-    [original, Kimera::RUNTIME.during(catalog.each.find { |m, _p| m.label.match?(label) }.first.id) { yield(object) }]
+    [original, Kimera::RUNTIME.during(catalog.each.find { |m, _p| m.to_s.match?(label) }.first.to_i) { yield(object) }]
   end
 
   def only(code, key)
     ms = mutants(code, key)
-    expect(ms.size).to(eq(1), "expected exactly one mutant, got #{ms.map(&:label)}")
+    expect(ms.size).to(eq(1), "expected exactly one mutant, got #{ms.map(&:to_s)}")
     ms.first
   end
 
   describe "numeric_literal floats (never covered by the integer fixture)" do
     it "shifts a float by +1.0 with the exact label and full directive", :aggregate_failures do
       m = only("def rate\n  2.5\nend\n", "numeric_literal")
-      expect(m.label).to(eq("2.5 => 3.5"))
-      expect(m.directive).to(eq("type" => "float_literal", "value" => 3.5))
+      expect(m.to_s).to(eq("2.5 => 3.5"))
+      expect(m.to_h.fetch("directive")).to(eq("type" => "float_literal", "value" => 3.5))
     end
 
     it "flips the float live through an overlay" do
@@ -44,19 +44,19 @@ RSpec.describe(Kimera::Operators) do
   describe "integer_literal full directive" do
     it "carries the exact integer target in each directive", :aggregate_failures do
       ms = mutants("def n\n  5\nend\n", "numeric_literal")
-      table = ms.to_h { |m| [m.label, m.directive] }
+      table = ms.to_h { |m| [m.to_s, m.to_h.fetch("directive")] }
       expect(table["5 => 4"]).to(eq("type" => "integer_literal", "value" => 4))
       expect(table["5 => 6"]).to(eq("type" => "integer_literal", "value" => 6))
       expect(table["5 => 0"]).to(eq("type" => "integer_literal", "value" => 0))
     end
 
     it "does not append a redundant zero target for a literal zero" do
-      labels = mutants("def z\n  0\nend\n", "numeric_literal").map(&:label)
+      labels = mutants("def z\n  0\nend\n", "numeric_literal").map(&:to_s)
       expect(labels).to(contain_exactly("0 => -1", "0 => 1"))
     end
 
     it "dedups the off-by-one that collides with the explicit zero" do
-      labels = mutants("def one\n  1\nend\n", "numeric_literal").map(&:label)
+      labels = mutants("def one\n  1\nend\n", "numeric_literal").map(&:to_s)
       expect(labels).to(contain_exactly("1 => 0", "1 => 2"))
     end
   end
@@ -64,14 +64,14 @@ RSpec.describe(Kimera::Operators) do
   describe "range exclusivity (the exclude_end? branch)" do
     it "flips an inclusive range to exclusive with exact label and directive", :aggregate_failures do
       m = only("def s\n  (2..5)\nend\n", "range")
-      expect(m.label).to(eq(".. => ..."))
-      expect(m.directive).to(eq("type" => "range_flip", "to" => "erange"))
+      expect(m.to_s).to(eq(".. => ..."))
+      expect(m.to_h.fetch("directive")).to(eq("type" => "range_flip", "to" => "erange"))
     end
 
     it "flips an exclusive range to inclusive (the uncovered arm)", :aggregate_failures do
       m = only("def s\n  (2...5)\nend\n", "range")
-      expect(m.label).to(eq("... => .."))
-      expect(m.directive).to(eq("type" => "range_flip", "to" => "irange"))
+      expect(m.to_s).to(eq("... => .."))
+      expect(m.to_h.fetch("directive")).to(eq("type" => "range_flip", "to" => "irange"))
     end
 
     it "makes an exclusive range inclusive live through an overlay" do
@@ -82,44 +82,48 @@ RSpec.describe(Kimera::Operators) do
   describe "collection_literal hash (the hash arm and its directive)" do
     it "empties a hash literal with the exact label and directive", :aggregate_failures do
       m = only("def h\n  { a: 1 }\nend\n", "collection_literal")
-      expect(m.label).to(eq("hash => {}"))
-      expect(m.directive).to(eq("type" => "empty_collection"))
+      expect(m.to_s).to(eq("hash => {}"))
+      expect(m.to_h.fetch("directive")).to(eq("type" => "empty_collection"))
     end
 
     it "empties an array literal with the exact label and directive", :aggregate_failures do
       m = only("def a\n  [1, 2]\nend\n", "collection_literal")
-      expect(m.label).to(eq("array => []"))
-      expect(m.directive).to(eq("type" => "empty_collection"))
+      expect(m.to_s).to(eq("array => []"))
+      expect(m.to_h.fetch("directive")).to(eq("type" => "empty_collection"))
     end
   end
 
   describe "boolean_literal full directives" do
     it "carries the exact target in the true directive" do
-      expect(only("def y\n  true\nend\n", "boolean_literal"))
-        .to(have_attributes(label: "true => false", directive: { "type" => "boolean_literal", "to" => "false" }))
+      mutant = only("def y\n  true\nend\n", "boolean_literal")
+      expect([mutant.to_s, mutant.to_h.fetch("directive")])
+        .to(eq(["true => false", { "type" => "boolean_literal", "to" => "false" }]))
     end
 
     it "carries the exact target in the false directive" do
-      expect(only("def n\n  false\nend\n", "boolean_literal"))
-        .to(have_attributes(label: "false => true", directive: { "type" => "boolean_literal", "to" => "true" }))
+      mutant = only("def n\n  false\nend\n", "boolean_literal")
+      expect([mutant.to_s, mutant.to_h.fetch("directive")])
+        .to(eq(["false => true", { "type" => "boolean_literal", "to" => "true" }]))
     end
   end
 
   describe "boolean_connective full directives" do
     it "carries the exact target of &&" do
-      expect(only("def m(x, y)\n  x && y\nend\n", "boolean_connective"))
-        .to(have_attributes(label: "&& => ||", directive: { "type" => "boolean_connective", "to" => "or" }))
+      mutant = only("def m(x, y)\n  x && y\nend\n", "boolean_connective")
+      expect([mutant.to_s, mutant.to_h.fetch("directive")])
+        .to(eq(["&& => ||", { "type" => "boolean_connective", "to" => "or" }]))
     end
 
     it "carries the exact target of ||" do
-      expect(only("def m(x, y)\n  x || y\nend\n", "boolean_connective"))
-        .to(have_attributes(label: "|| => &&", directive: { "type" => "boolean_connective", "to" => "and" }))
+      mutant = only("def m(x, y)\n  x || y\nend\n", "boolean_connective")
+      expect([mutant.to_s, mutant.to_h.fetch("directive")])
+        .to(eq(["|| => &&", { "type" => "boolean_connective", "to" => "and" }]))
     end
   end
 
   describe "regexp_literal directives (match-all and match-none extremes)" do
     it "carries the exact source for each extreme", :aggregate_failures do
-      table = mutants("def re\n  /ab+/\nend\n", "regexp").to_h { |m| [m.label, m.directive] }
+      table = mutants("def re\n  /ab+/\nend\n", "regexp").to_h { |m| [m.to_s, m.to_h.fetch("directive")] }
       expect(table["regexp => // (match all)"]).to(eq("type" => "regexp_literal", "source" => ""))
       expect(table["regexp => /(?!)/ (match none)"]).to(eq("type" => "regexp_literal", "source" => "(?!)"))
     end
@@ -135,8 +139,8 @@ RSpec.describe(Kimera::Operators) do
       long = "x" * 50
       m = only("def s\n  \"#{long}\"\nend\n", "string_literal")
       inspected = long.inspect[0, 30]
-      expect(m.label).to(eq("#{inspected} => \"\""))
-      expect(m.directive).to(eq("type" => "string_literal", "value" => ""))
+      expect(m.to_s).to(eq("#{inspected} => \"\""))
+      expect(m.to_h.fetch("directive")).to(eq("type" => "string_literal", "value" => ""))
     end
   end
 
@@ -163,7 +167,7 @@ RSpec.describe(Kimera::Operators) do
       catalog = nil
       expect { catalog = build("class Foo\n  before_action\nend\n", "rails_callback") }
         .not_to(raise_error)
-      expect(catalog.each.map { |m, _p| m.label }).to(eq(["delete `before_action`"]))
+      expect(catalog.each.map { |m, _p| m.to_s }).to(eq(["delete `before_action`"]))
     end
   end
 
@@ -175,7 +179,7 @@ RSpec.describe(Kimera::Operators) do
 
     it "emits a drop only for a real dependent: option", :aggregate_failures do
       ms = assocs("class Foo\n  has_many :posts, dependent: :destroy\nend\n")
-      expect(ms.map { |m, _p| m.label }).to(eq(["has_many :posts, dependent: :destroy: drop dependent:"]))
+      expect(ms.map { |m, _p| m.to_s }).to(eq(["has_many :posts, dependent: :destroy: drop dependent:"]))
     end
 
     it "ignores a non-dependent symbol-keyed option (kills the &&=>|| guard)" do
@@ -191,12 +195,12 @@ RSpec.describe(Kimera::Operators) do
         end
       RUBY
       ms = assocs(code)
-      expect(ms.map { |m, _p| m.label }).to(eq(["has_many :posts,: drop dependent:"]))
+      expect(ms.map { |m, _p| m.to_s }).to(eq(["has_many :posts,: drop dependent:"]))
     end
   end
 
   describe "drops of equal neighbors" do
-    def indexes(code, key) = mutants(code, key).map { |m| m.directive["index"] }
+    def indexes(code, key) = mutants(code, key).map { |m| m.to_h.fetch("directive")["index"] }
 
     it "keeps one drop per run of equal neighbors", :aggregate_failures do
       expect(indexes("def m\n  [7, 7]\nend\n", "element_drop")).to(eq([0]))
@@ -232,7 +236,7 @@ RSpec.describe(Kimera::Operators) do
   end
 
   describe "conditional on a literal condition" do
-    def labels(code) = mutants(code, "conditional").map(&:label)
+    def labels(code) = mutants(code, "conditional").map(&:to_s)
 
     it "only forces a literal condition to the other literal", :aggregate_failures do
       expect(labels("def m(a)\n  a if true\nend\n")).to(eq(["condition => false"]))
@@ -244,7 +248,7 @@ RSpec.describe(Kimera::Operators) do
   describe "argument_drop label slicing (multi-line / padded)" do
     it "labels a multi-line argument with its stripped first line", :aggregate_failures do
       code = "def m\n  helper(build(\n    :deep\n  ), other)\nend\n"
-      labels = mutants(code, "argument_drop").map(&:label)
+      labels = mutants(code, "argument_drop").map(&:to_s)
       expect(labels).to(include("drop arg `build(`"))
       expect(labels).to(include("drop arg `other`"))
       expect(labels).not_to(include("drop arg `  ), other`"))
@@ -260,12 +264,12 @@ RSpec.describe(Kimera::Operators) do
     end
 
     it "statement_deletion still deletes a side effect reached through Rails" do
-      expect(only("def m\n  Rails.cache.clear\nend\n", "statement_deletion").label)
+      expect(only("def m\n  Rails.cache.clear\nend\n", "statement_deletion").to_s)
         .to(eq("delete `Rails.cache.clear`"))
     end
 
     it "statement_deletion keeps deleting receiverless calls that are not output" do
-      expect(only("def m\n  save!\nend\n", "statement_deletion").label).to(eq("delete `save!`"))
+      expect(only("def m\n  save!\nend\n", "statement_deletion").to_s).to(eq("delete `save!`"))
     end
 
     it "statement_deletion finds a logger deeper in the chain" do
@@ -347,11 +351,11 @@ RSpec.describe(Kimera::Operators) do
 
     it "return_value does not propose nil for a false tail or `return false`", :aggregate_failures do
       expect(mutants("def m?\n  false\nend\n", "return_value")).to(be_empty)
-      expect(mutants("def m?(x)\n  return false if x\n  x\nend\n", "return_value").map(&:label)).to(eq(["tail => nil"]))
+      expect(mutants("def m?(x)\n  return false if x\n  x\nend\n", "return_value").map(&:to_s)).to(eq(["tail => nil"]))
     end
 
     it "return_value still nils a true tail" do
-      expect(mutants("def m?\n  true\nend\n", "return_value").map(&:label)).to(eq(["tail => nil"]))
+      expect(mutants("def m?\n  true\nend\n", "return_value").map(&:to_s)).to(eq(["tail => nil"]))
     end
 
     it "selector_swap requires an explicit receiver" do

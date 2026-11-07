@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "reason"
+
 module Kimera
   Location =
     Struct.new(
@@ -8,40 +10,43 @@ module Kimera
       :end_line, :end_column,
       keyword_init: true
     ) do
-      def finish
-        start_offset + span
-      end
+      def finish = start_offset + span
 
-      def range
-        (start_line..end_line)
-      end
+      def range = (start_line..end_line)
 
-      def within?(from, to)
-        interior = ((from + 1)..to)
-        interior.cover?(start_offset) && interior.cover?(finish)
+      def anchor(type) = [start_offset, finish, type]
+
+      def covers?(offset) = offset.between?(start_offset, finish - 1)
+
+      def starts_between?(from, to) = start_offset.between?(from, to)
+
+      def starts_on?(line) = start_line == line
+
+      def starts_at?(offset) = start_offset == offset
+
+      def column?(column) = start_column + 1 == column
+
+      def to_s = "#{start_line}:#{start_column + 1}"
+
+      def within?(ranges)
+        ranges.any? do |range|
+          interior = ((range.start_offset + 1)..range.end_offset)
+          interior.cover?(start_offset) && interior.cover?(finish)
+        end
       end
 
       def inside?(from, to) = start_offset >= from && finish <= to
 
-      def to_h
-        coordinates.merge(columns).merge(offsets)
-      end
-
-      def coordinates
-        { "start_line" => start_line, "end_line" => end_line }
-      end
-
-      def columns
-        { "start_column" => start_column, "end_column" => end_column }
-      end
+      def to_h = coordinates.merge(columns).merge(offsets)
 
       def position
         { "line" => start_line, "column" => start_column + 1 }.merge("end_line" => end_line, "end_column" => end_column)
       end
-
-      def offsets
-        { "start_offset" => start_offset, "length" => span }
-      end
+      private
+      def coordinates = { "start_line" => start_line, "end_line" => end_line }
+      def columns = { "start_column" => start_column, "end_column" => end_column }
+      def offsets = { "start_offset" => start_offset, "length" => span }
+      private(*members)
       class << self
         def parse(source)
           new(
@@ -57,54 +62,47 @@ module Kimera
 
   Mutant =
     Struct.new(:id, :label, :directive, keyword_init: true) do
-      def to_h
-        { "id" => id, "label" => label, "directive" => directive }
-      end
+      def to_s = label
 
+      def to_i = id
+
+      def rewrite(kind) = kind.new(directive)
+
+      def to_h = { "id" => id, "label" => label, "directive" => directive }
+      private(*members)
       def self.from_h(hash)
         new(id: hash["id"], label: hash["label"], directive: hash["directive"])
-      end
-
-      def self.of(id, variant)
-        new(id: id, label: variant.label, directive: variant.directive)
       end
     end
 end
 
 class Kimera::MutationPoint
-  CLASS_BODY_REASON = "class-body DSL (runs at load; evaluate with --isolated)"
-  BOOT_REASON =
-    "its method also runs while the suite loads, and what it computed then (a constant, a table) was " \
-      "not mutated, so a warm survivor is judged again in a fresh mirror against the tests near its file"
-  ORDER_REASON =
-    "no single test reaches it in a fresh process, but the suite does when its tests run in order " \
-      "(an earlier test leaves the state it needs), so it is judged in a fresh mirror against the whole suite"
-  LOAD_REASON =
-    "runs only while the suite loads (a macro or hook called from a class body), " \
-      "so warm coverage cannot see it; evaluate with --isolated"
-  MACRO_REASON =
-    "a lambda handed to a class-body macro (a callback, a default:) that no test reached warm: the warm " \
-      "overlay re-declares the macro, which can leave the original lambda registered in front of the " \
-      "mutated one, so warm coverage cannot see it; evaluate with --isolated"
-  BOUND_REASON = "a lambda a constant holds stays bound, since a registry may keep it; evaluate with --isolated"
-  BLOCK_REASON =
-    "its mutant leaves its method no use of the block passed to it, which Ruby settles as it compiles the " \
-      "method, and the warm overlay compiles every mutant of the method into one; the suite reports an ignored " \
-      "block, so a warm survivor is judged again in a fresh mirror against the tests near its file"
-  MACRO_KEPT =
-    "a lambda handed to a class-body macro: the warm overlay re-declares the macro, and one that adds to a list " \
-      "(default_scope, a callback, a validation) keeps the original lambda beside the mutated one, so a warm " \
-      "survivor is judged again in a fresh mirror against the tests near its file"
-  NEVER = "never executed: the suite never loads this file, so no test can run it"
-  NEVER_LOADED =
-    "#{NEVER} (kimera did not evaluate it, since loading it would run its top-level code inside the test " \
-      "process)".freeze
-  UNMUTATABLE = "unmutatable: "
   SAFE = true
 
   FIELDS = %i[point_id file operator node_type location original_source method_name mutants].freeze
-  Marks = Struct.new(:safe, :reason, :revisit)
+  CRITERIA = {
+    safe: :safe?, line: :line?, starts: :starts?, column: :column?, operator: :operator?, method: :method?,
+    methods: :methods?, original: :original?, lines: :lines?, opening: :opening?, within: :within?, inside: :inside?,
+    covers: :covers?, entered: :entered?, node: :node?, kin: :kin?
+  }.freeze
+  private_constant(:CRITERIA)
+  Marks =
+    Struct.new(:safe, :reason, :revisit) do
+      def safe? = safe
+
+      def mark!(slot, text)
+        self.safe = false if slot == :reason
+        self[slot] = text
+      end
+
+      def texts(slot) = [self[slot]].compact
+
+      def to_h = { "schema_safe" => safe, "unsafe_reason" => reason }
+      private(*members, *members.map { :"#{it}=" })
+    end
   FIELDS.each { |field| define_method(field) { @attributes[field] } }
+  private(*FIELDS)
+  protected(:method_name)
 
   class << self
     def from_h(hash)
@@ -124,89 +122,71 @@ class Kimera::MutationPoint
     @attributes = attributes
   end
 
-  def body? = unsafe_reason == CLASS_BODY_REASON
+  def mark!(reason) = reason.mark!(marks, ids)
 
-  def reloadable?
-    !body? && ![LOAD_REASON, MACRO_REASON, BOUND_REASON].include?(unsafe_reason) && !unloaded? && !unmutatable?
-  end
+  def reasons(kind) = kind.held(marks)
 
-  def unloaded? = unsafe_reason.to_s.start_with?(NEVER)
+  def fits?(**criteria) = criteria.all? { |name, value| __send__(CRITERIA.fetch(name), value) }
 
-  def unloaded! = unsafe!(NEVER_LOADED)
+  def anchored(nodes, &) = nodes.fetch(location.anchor(node_type), &)
 
-  def unloadable!(failure) = unsafe!("#{NEVER} (nor could kimera load it: #{failure})")
-
-  def unmutatable? = unsafe_reason.to_s.start_with?(UNMUTATABLE)
-
-  def unmutatable(detail) = "#{UNMUTATABLE}#{detail}"
-
-  def unmutatable!(detail) = unsafe!(unmutatable(detail))
-
-  def safe = marks.safe
-
-  def unsafe_reason = marks.reason
-
-  def orphan!(applied, detail)
-    return [] unless safe? && !ids.intersect?(applied)
-    unmutatable!(detail)
-    ids
-  end
-
-  def revisit!(reason) = marks.revisit = reason
-
-  def class_body! = unsafe!(CLASS_BODY_REASON)
-
-  def bound! = unsafe!(BOUND_REASON)
-
-  def blocked! = revisit!(BLOCK_REASON)
-
-  def ordered! = revisit!(ORDER_REASON)
-
-  def ordered? = revisit == ORDER_REASON
-
-  def macro!(coverage) = defer!(coverage, MACRO_REASON, MACRO_KEPT)
-
-  def loading!(coverage) = defer!(coverage, LOAD_REASON, BOOT_REASON)
-
-  def warm_covered? = [BLOCK_REASON, MACRO_KEPT].include?(revisit)
-
-  def defer!(coverage, unreached, reached) = uncovered?(coverage) ? unsafe!(unreached) : revisit!(reached)
-
-  def uncovered?(coverage) = ids.all? { |id| coverage.fetch(id) { coverage.fetch(id.to_s, []) }.empty? }
-
-  def inside?(ranges) = ranges.any? { |range| location.within?(range.start_offset, range.end_offset) }
-
-  def revisit = marks.revisit
-
-  def unsafe!(reason)
-    marks.safe = false
-    marks.reason = reason
-  end
-
-  def taint!(ranges)
-    return self unless safe?
-    hit = ranges.lazy.flat_map { |range| range.reasons(location.start_offset, location.finish) }.first(1)
-    hit.each { |reason| unsafe!(reason) }
+  def each(&)
+    return enum_for(:each) unless block_given?
+    mutants.each(&)
     self
   end
 
-  def ids = mutants.map(&:id)
+  def to_h = identity.merge(anchor).merge(verdict).merge("mutants" => mutants.map(&:to_h))
+
+  def to_s = "#{file}:#{location}#{"  in #{method_name}" if method_name}"
+
+  private
+
+  def ids = mutants.map(&:to_i)
 
   def marks(kind = Marks)
     @_marks ||= kind.new(@attributes.fetch(:schema_safe, SAFE), *@attributes.values_at(:unsafe_reason, :revisit))
   end
 
-  def project(*fields)
-    fields.map { |field| public_send(field) }
+  def safe?(wanted) = marks.safe? == wanted
+
+  def line?(line) = location.range.include?(Integer(line))
+
+  def starts?(line) = location.starts_on?(Integer(line))
+
+  def column?(column) = location.column?(Integer(column))
+
+  def operator?(names) = Array(names).map(&:to_s).include?(operator)
+
+  def method?(name) = name.to_s == method_name
+
+  def methods?(names) = names.include?(method_name)
+
+  def original?(text) = squeezed(text) == squeezed(original_source)
+
+  def squeezed(text) = text.to_s.split.join(" ")
+
+  def lines?(lines) = location.range.any? { |line| lines.include?(line) }
+
+  def opening?(lines) = lines.cover?(location.range.begin)
+
+  def within?(ranges) = location.within?(ranges)
+
+  def inside?(span) = location.inside?(*span)
+
+  def covers?(offset) = location.covers?(offset)
+
+  def entered?(span) = location.starts_between?(*span)
+
+  def node?(node)
+    location.starts_at?(node.location.start_offset) && node.type.to_s == node_type && node.slice == original_source
   end
 
-  def safe? = safe
-
-  def to_h = identity.merge(anchor).merge(verdict).merge("mutants" => mutants.map(&:to_h))
+  def kin?(other) = other.method_name == method_name
 
   def identity = { "point_id" => point_id, "file" => file, "operator" => operator }
 
   def anchor = { "node_type" => node_type, "location" => location.to_h, "original_source" => original_source }
 
-  def verdict = { "method_name" => method_name, "schema_safe" => safe, "unsafe_reason" => unsafe_reason }
+  def verdict = { "method_name" => method_name }.merge(marks.to_h)
 end

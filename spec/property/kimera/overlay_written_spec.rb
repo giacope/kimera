@@ -5,6 +5,8 @@ require_relative "../../support/tree_shape"
 require "kimera/registry/builder"
 require "kimera/synthesis/overlay"
 
+using PointFields
+
 RSpec.describe(Kimera::Overlay) do
   shapes = {
     "heredoc statements" => <<~'RUBY',
@@ -223,7 +225,7 @@ RSpec.describe(Kimera::Overlay) do
   def children(node) = node.deconstruct_keys(nil).select { |_, value| value.is_a?(Prism::Node) || value.is_a?(Array) }
 
   def expected(map, mutant, point)
-    tree = Kimera::Guardrail.new(map, []).changes(point, mutant.directive).last.last
+    tree = Kimera::Guardrail.new(map, []).changes(point, mutant.rewrite(Kimera::Rewrite::Directive)).last.last
     written = Kimera::SourceMap.new(Kimera::Scribe.new(tree).source)
     shape(written.splice(Kimera::SpliceReopening.new(written).edits))
   end
@@ -231,18 +233,18 @@ RSpec.describe(Kimera::Overlay) do
   def unlike(path, source)
     catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["all"])).source(source, file: "x.rb")
     overlay = described_class.new(catalog)
-    weave = overlay.synthesize("x.rb", source).source
+    weave = overlay.synthesize("x.rb", source).to_s
     woven = woven(weave, source)
     baked =
       catalog.each.filter_map do |mutant, point|
         problem = baked(overlay, source, mutant, point, weave)
-        "#{path}:#{point.location.start_line} #{mutant.label}: #{problem}" if problem
+        "#{path}:#{point.location.range.begin} #{mutant}: #{problem}" if problem
       end
     woven ? ["#{path}: the warm overlay #{woven}", *baked] : baked
   end
 
   def baked(overlay, source, mutant, point, weave)
-    bake = overlay.bake("x.rb", source, mutant.id)
+    bake = overlay.bake("x.rb", source, mutant.to_i)
     written(bake, source, mutant, point) || clause(bake, source, mutant, point, weave)
   rescue Kimera::Overlay::Unbakeable => error
     "unbakeable: #{error.message}" unless error.message.include?("Kimera::Scribe::Unbound") || ended?(source, point)
@@ -265,14 +267,16 @@ RSpec.describe(Kimera::Overlay) do
 
   def following(baked, map, point)
     original = map.splice(Kimera::SpliceReopening.new(map).edits).lines
-    last = [point.location.end_line, *held(map.ast, point.location)].max
+    last = ending(map, point.location)
     moved = (last...original.size).find { |index| original[index] != baked.lines[index] }
     "changes line #{moved + 1}, after the mutation" if moved
   end
 
+  def ending(map, location) = [location.range.end, *held(map.ast, location)].max
+
   def held(node, location)
     opening = node.location.start_offset
-    own = node.respond_to?(:heredoc?) && node.heredoc? && opening.between?(location.start_offset, location.finish - 1)
+    own = node.respond_to?(:heredoc?) && node.heredoc? && location.covers?(opening)
     last = node.closing_loc.start_line if own || worded?(node, location)
     [*last, *node.compact_child_nodes.flat_map { |child| held(child, location) }]
   end
@@ -283,8 +287,8 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   def clause(bake, source, mutant, point, weave)
-    return unless %w[drop_rescue drop_ensure].include?(mutant.directive["type"])
-    mutated = Kimera::Guardrail.new(Kimera::SourceMap.new(source), []).changes(point, mutant.directive).last.last
+    return unless %w[drop_rescue drop_ensure].include?(mutant.to_h.fetch("directive")["type"])
+    mutated = Kimera::Guardrail.new(Kimera::SourceMap.new(source), []).changes(point, mutant.rewrite(Kimera::Rewrite::Directive)).last.last
     method = holder(mutated, point)
     method && (baked_lines(bake, method) || warm_lines(bake, weave, mutant, point))
   end
@@ -294,13 +298,13 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   def warm_lines(bake, weave, mutant, point)
-    on = SchemataProjection.project(read(weave), mutant.id)
+    on = SchemataProjection.project(read(weave), mutant.to_i)
     "runs on other lines warm than baked" unless placed(holder(on, point)) == placed(holder(read(bake), point))
   end
 
   def holder(tree, point)
     found = []
-    Kimera::Rewrite::AstWalk.new(tree).visit { |node| found << node if holds?(node, point.location.start_line) }
+    Kimera::Rewrite::AstWalk.new(tree).visit { |node| found << node if holds?(node, point.location.range.begin) }
     found.min_by { |node| node.location.end_line - node.location.start_line }
   end
 

@@ -12,7 +12,7 @@ class Kimera::Execution::Rig
 
   def driver = @_driver ||= pool
 
-  def spawner = @_spawner ||= @options[:spawner] || driver.method(:worker)
+  def spawner = @_spawner ||= @options[:spawner] || driver.spawner(:serve)
 
   def schedule = @_schedule ||= plan
 

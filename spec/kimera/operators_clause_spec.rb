@@ -6,21 +6,23 @@ require "kimera/runtime"
 require "kimera/synthesis/body_trim"
 require "kimera/synthesis/overlay"
 
+using PointFields
+
 RSpec.describe(Kimera::Operators) do
   def scan(code, *keys)
     Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(code, file: "c.rb")
   end
 
-  def labels(code, *keys) = scan(code, *keys).each.map { |m, _p| m.label }
+  def labels(code, *keys) = scan(code, *keys).each.map { |m, _p| m.to_s }
 
   def rendered(code, *keys)
-    scan(code, *keys).each.map { |m, p| Kimera::Rewrite::Directive.new(m.directive).render(p.original_source).first }
+    scan(code, *keys).each.map { |m, p| m.rewrite(Kimera::Rewrite::Directive).render(p.original_source).first }
   end
 
   def live(code, *keys)
     catalog = scan(code, *keys)
-    Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("c.rb", code).source).evaluate("c.rb")
-    yield(catalog.each.to_h { |m, _p| [m.label, m.id] })
+    Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("c.rb", code).to_s).evaluate("c.rb")
+    yield(catalog.each.to_h { |m, _p| [m.to_s, m.to_i] })
   end
 
   def active(id, &) = Kimera::RUNTIME.during(id, &)
@@ -207,11 +209,10 @@ RSpec.describe(Kimera::Operators) do
 
     it "guards a method's own clause inside its body, on the method's lines", :aggregate_failures do
       code = "class Plain\n  def m(v)\n    Integer(v)\n  rescue ArgumentError\n    0\n  end\nend\n"
-      source = Kimera::Overlay.new(scan(code, "rescue_clause")).synthesize("c.rb", code).source
+      source = Kimera::Overlay.new(scan(code, "rescue_clause")).synthesize("c.rb", code).to_s
       guarded = /\A  rescue \*\(::Kimera::RUNTIME\.active\?\(\d+\) \? \[\] : \[ArgumentError\]\)\n\z/
       expect(source.lines).to(match([*code.lines.first(3), guarded, *code.lines.drop(4)]))
-      expect(Kimera::BodyTrim.new(code, [scan(code, "rescue_clause").points.first.location]).trimmed)
-        .to(include("def m(v)"))
+      expect(Kimera::BodyTrim.new(code, [scan(code, "rescue_clause").to_a.first]).trimmed).to(include("def m(v)"))
     end
 
     it "drops the ensure of a method with no body of its own", :aggregate_failures do

@@ -90,7 +90,7 @@ RSpec.describe(Kimera::Execution::DatabaseCopies) do
   it "copies nothing without Active Record, or before it has a connection", :aggregate_failures do
     hide_const("ActiveRecord::Base")
     expect([described_class.new.possible?, described_class.new.adopt(1)]).to(eq([false, nil]))
-    stub_const("ActiveRecord::Base", Class.new)
+    FakeRails.unconnected(self)
     expect(described_class.new.possible?).to(be(false))
   end
 end

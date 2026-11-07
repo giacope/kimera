@@ -5,6 +5,8 @@ require "tmpdir"
 require "kimera/incremental/selection"
 require_relative "../../property_helper"
 
+using PointFields
+
 RSpec.describe(Kimera::Incremental::GitDiff) do
   let(:text) do
     Pbt.one_of("x = 1", "y = 2", "end", "", "  z", "# note", "@@ -1 +1 @@", "+++ a/x", "--- b/y", "++ b/c.rb")
@@ -88,7 +90,7 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
 
   describe Kimera::Incremental::Selection do
     def expected(registry, touched)
-      registry.points.select { |point| point.location.range.any? { touched.include?(it) } }.flat_map(&:ids)
+      registry.to_a.select { |point| point.location.range.any? { touched.include?(it) } }.flat_map(&:ids)
     end
 
     it "selects, in registry order, exactly the mutants on a changed line" do

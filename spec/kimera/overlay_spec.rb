@@ -3,6 +3,8 @@
 require "kimera/registry/builder"
 require "kimera/synthesis/overlay"
 
+using PointFields
+
 RSpec.describe(Kimera::Overlay) do
   def synth(source)
     registry = Kimera::RegistryScan.new.source(source, file: "x.rb")
@@ -12,19 +14,19 @@ RSpec.describe(Kimera::Overlay) do
   def materialize(source)
     result, registry = synth(source)
     mod = Module.new
-    mod.module_eval(result.source)
+    mod.module_eval(result.to_s)
     [mod, registry]
   end
 
   def subject(result)
     mod = Module.new
-    mod.module_eval(result.source)
+    mod.module_eval(result.to_s)
     Object.new.extend(mod)
   end
 
   def unspliced = unspliced_where { true }
 
-  def unspliced_at(line) = unspliced_where { |points| points.any? { |point| point.location.start_line == line } }
+  def unspliced_at(line) = unspliced_where { |points| points.any? { |point| point.location.range.begin == line } }
 
   def unspliced_where(&picked) = stub_const("Kimera::Overlay::Stitch", stitching(picked))
 
@@ -40,7 +42,7 @@ RSpec.describe(Kimera::Overlay) do
 
   def spliced_again = stub_const("Kimera::Overlay::Stitch", Kimera::Overlay::Stitch.superclass)
 
-  def flipped(registry, label, &) = Kimera::RUNTIME.during(registry.each.find { |m, _p| m.label == label }.first.id, &)
+  def flipped(registry, label, &) = Kimera::RUNTIME.during(registry.each.find { |m, _p| m.to_s == label }.first.to_i, &)
 
   describe "round-tripping gnarly expressions" do
     corpus = [
@@ -62,8 +64,8 @@ RSpec.describe(Kimera::Overlay) do
       it "produces valid, reparseable Ruby for: #{snippet}", :aggregate_failures do
         source = "def m(a = 1, b = 2, c = 3, d = 4, e = 5, f = 6, arr = [1, 2])\n  #{snippet}\nend\n"
         result, = synth(source)
-        expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
-        expect { RubyVM::InstructionSequence.compile(result.source) }.not_to(raise_error)
+        expect { Kimera::Scribe.parse(result.to_s) }.not_to(raise_error)
+        expect { RubyVM::InstructionSequence.compile(result.to_s) }.not_to(raise_error)
       end
     end
   end
@@ -93,7 +95,7 @@ RSpec.describe(Kimera::Overlay) do
     it "emits MRI-valid Ruby for a guarded receiver chain under return" do
       result, = extended(guarded_return)
 
-      expect { RubyVM::InstructionSequence.compile(result.source) }.not_to(raise_error)
+      expect { RubyVM::InstructionSequence.compile(result.to_s) }.not_to(raise_error)
     end
 
     it "keeps baseline behaviour on both paths of the guarded return", :aggregate_failures do
@@ -108,8 +110,8 @@ RSpec.describe(Kimera::Overlay) do
       result, registry = extended(guarded_return)
       subject = subject(result)
 
-      mutant = registry.each.find { |m, _p| m.label == "return => return nil" }.first
-      Kimera::RUNTIME.during(mutant.id) { expect(subject.permission_mode("auto-accept")).to(be_nil) }
+      mutant = registry.each.find { |m, _p| m.to_s == "return => return nil" }.first
+      Kimera::RUNTIME.during(mutant.to_i) { expect(subject.permission_mode("auto-accept")).to(be_nil) }
     end
   end
 
@@ -129,13 +131,13 @@ RSpec.describe(Kimera::Overlay) do
   describe "activating a mutant changes behaviour" do
     def comparison
       mod, registry = materialize("def gt(a, b)\n  a > b\nend\n")
-      [Object.new.extend(mod), registry.each.find { |m, _p| m.label == "> => <" }.first]
+      [Object.new.extend(mod), registry.each.find { |m, _p| m.to_s == "> => <" }.first]
     end
 
     it "flips a comparison when its mutant is active", :aggregate_failures do
       subject, mutant = comparison
       expect(subject.gt(2, 1)).to(be(true))
-      Kimera::RUNTIME.during(mutant.id) { expect(subject.gt(2, 1)).to(be(false)) }
+      Kimera::RUNTIME.during(mutant.to_i) { expect(subject.gt(2, 1)).to(be(false)) }
     end
   end
 
@@ -143,13 +145,13 @@ RSpec.describe(Kimera::Overlay) do
     it "preserves # frozen_string_literal: true across synthesis" do
       source = "# frozen_string_literal: true\ndef m(a = 1, b = 2)\n  a > b\nend\n"
       result, = synth(source)
-      expect(result.source).to(start_with("# frozen_string_literal: true\n"))
+      expect(result.to_s).to(start_with("# frozen_string_literal: true\n"))
     end
 
     it "preserves a shebang followed by a magic comment" do
       source = "#!/usr/bin/env ruby\n# frozen_string_literal: true\ndef m(a = 1, b = 2)\n  a > b\nend\n"
       result, = synth(source)
-      expect(result.source.lines.first(2))
+      expect(result.to_s.lines.first(2))
         .to(eq(["#!/usr/bin/env ruby\n", "# frozen_string_literal: true\n"]))
     end
 
@@ -161,7 +163,7 @@ RSpec.describe(Kimera::Overlay) do
 
     it "does not prefix source that has no magic comments" do
       result, = synth("def m(a, b)\n  a > b\nend\n")
-      expect(result.source).to(start_with("def m"))
+      expect(result.to_s).to(start_with("def m"))
     end
   end
 
@@ -169,14 +171,14 @@ RSpec.describe(Kimera::Overlay) do
     it "does not mutate a boolean literal inside a case/in pattern", :aggregate_failures do
       source = "def kind(x, a, b)\n  case x\n  in true then a > b\n  else a < b\n  end\nend\n"
       result, registry = synth(source)
-      expect(registry.points.map(&:original_source)).not_to(include("true"))
-      expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
+      expect(registry.to_a.map(&:original_source)).not_to(include("true"))
+      expect { Kimera::Scribe.parse(result.to_s) }.not_to(raise_error)
     end
 
     it "still mutates the guarded branch bodies of a case/in" do
       source = "def kind(x, a, b)\n  case x\n  in Integer then a > b\n  end\nend\n"
       _result, registry = synth(source)
-      expect(registry.points.map(&:original_source)).to(include("a > b"))
+      expect(registry.to_a.map(&:original_source)).to(include("a > b"))
     end
   end
 
@@ -192,46 +194,46 @@ RSpec.describe(Kimera::Overlay) do
 
     def segment
       result, registry = banner
-      [subject(result), registry.points.find { |p| p.original_source == "kimera " }]
+      [subject(result), registry.to_a.find { |p| p.original_source == "kimera " }]
     end
 
     it "guards a plain segment of an interpolated string as valid Ruby", :aggregate_failures do
       result, registry = banner
-      part = registry.points.find { |p| p.original_source == "kimera " }
-      expect(result.mutant_ids).to(include(*part.ids))
-      expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
+      part = registry.to_a.find { |p| p.original_source == "kimera " }
+      expect(result.to_h.fetch(:mutant_ids)).to(include(*part.ids))
+      expect { Kimera::Scribe.parse(result.to_s) }.not_to(raise_error)
     end
 
     it "flips the segment live when its mutant is active", :aggregate_failures do
       subject, part = segment
       expect(subject.banner("1.0")).to(eq("kimera 1.0"))
-      Kimera::RUNTIME.during(part.mutants.first.id) { expect(subject.banner("1.0")).to(eq("1.0")) }
+      Kimera::RUNTIME.during(part.mutants.first.to_i) { expect(subject.banner("1.0")).to(eq("1.0")) }
     end
 
     def splice
       result, registry = synthesis(
         "def m(a, b)\n  \"Found \#{a} mutants \" \\\n    \"across \#{b} files.\"\nend\n", %w[string_literal]
       )
-      [result, subject(result), registry.points.find { |p| p.original_source == "across " }]
+      [result, subject(result), registry.to_a.find { |p| p.original_source == "across " }]
     end
 
     it "splices juxtaposed strings so a guarded segment stays emittable", :aggregate_failures do
       result, subject, part = splice
-      expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
+      expect { Kimera::Scribe.parse(result.to_s) }.not_to(raise_error)
       expect(subject.m(3, 2)).to(eq("Found 3 mutants across 2 files."))
-      Kimera::RUNTIME.during(part.mutants.first.id) { expect(subject.m(3, 2)).to(eq("Found 3 mutants 2 files.")) }
+      Kimera::RUNTIME.during(part.mutants.first.to_i) { expect(subject.m(3, 2)).to(eq("Found 3 mutants 2 files.")) }
     end
 
     def flatten
       result, registry = synthesis("def m(x)\n  \"alpha \" \"beta \#{x} gamma \" \"delta\"\nend\n", %w[string_literal])
-      [result, subject(result), registry.points.find { |p| p.original_source == '"alpha "' }]
+      [result, subject(result), registry.to_a.find { |p| p.original_source == '"alpha "' }]
     end
 
     it "flattens and coalesces a guarded whole-segment juxtaposition", :aggregate_failures do
       result, subject, alpha = flatten
-      expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
+      expect { Kimera::Scribe.parse(result.to_s) }.not_to(raise_error)
       expect(subject.m(1)).to(eq("alpha beta 1 gamma delta"))
-      Kimera::RUNTIME.during(alpha.mutants.first.id) { expect(subject.m(1)).to(eq("beta 1 gamma delta")) }
+      Kimera::RUNTIME.during(alpha.mutants.first.to_i) { expect(subject.m(1)).to(eq("beta 1 gamma delta")) }
     end
 
     it "round-trips guarded parts of dsym, regexp and xstr literals" do
@@ -241,7 +243,7 @@ RSpec.describe(Kimera::Overlay) do
         end
       RUBY
       result, = synthesis(source, %w[string_literal])
-      expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
+      expect { Kimera::Scribe.parse(result.to_s) }.not_to(raise_error)
     end
 
     def expression
@@ -261,8 +263,8 @@ RSpec.describe(Kimera::Overlay) do
       registry, source = expression
       result = nil
       expect { result = described_class.new(registry).synthesize("re.rb", source) }.not_to(output.to_stderr)
-      expect(result.mutant_ids.size).to(eq(registry.count))
-      expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
+      expect(result.to_h.fetch(:mutant_ids).size).to(eq(registry.each.count))
+      expect { Kimera::Scribe.parse(result.to_s) }.not_to(raise_error)
     end
 
     it "keeps a pure string juxtaposition uncoalesced" do
@@ -273,7 +275,7 @@ RSpec.describe(Kimera::Overlay) do
 
     it "coalesces plain parts spliced out of a nested juxtaposition", :aggregate_failures do
       result, = synth("def m(a, b)\n  \"x\" \"y\#{a > b}z\" \"w\"\nend\n")
-      expect { RubyVM::InstructionSequence.compile(result.source) }.not_to(raise_error)
+      expect { RubyVM::InstructionSequence.compile(result.to_s) }.not_to(raise_error)
       subject = subject(result)
       expect(subject.m(2, 1)).to(eq("xytruezw"))
     end
@@ -295,11 +297,11 @@ RSpec.describe(Kimera::Overlay) do
 
     def navigation
       result, registry = synthesis("def first_neg(xs)\n  xs&.find { |a| a < 0 }\nend\n", %w[safe_navigation])
-      [result, subject(result), registry.each.find { |m, _p| m.label == "&. => ." }.first]
+      [result, subject(result), registry.each.find { |m, _p| m.to_s == "&. => ." }.first]
     end
 
     def activated(subject, mutant)
-      Kimera::RUNTIME.during(mutant.id) do
+      Kimera::RUNTIME.during(mutant.to_i) do
         [
           subject.first_neg([1, -2]),
           begin
@@ -314,7 +316,7 @@ RSpec.describe(Kimera::Overlay) do
 
     it "strips safe navigation on a call with a block", :aggregate_failures do
       result, subject, mutant = navigation
-      expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
+      expect { Kimera::Scribe.parse(result.to_s) }.not_to(raise_error)
       expect([subject.first_neg([1, -2]), subject.first_neg(nil)]).to(eq([-2, nil]))
       expect(activated(subject, mutant)).to(eq([-2, true]))
     end
@@ -322,7 +324,7 @@ RSpec.describe(Kimera::Overlay) do
     it "drops an argument of a call with a block" do
       source = "def m(xs)\n  xs.each_slice(2) { |s| yield s }\nend\n"
       result, = synthesis(source, %w[argument_drop])
-      expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
+      expect { Kimera::Scribe.parse(result.to_s) }.not_to(raise_error)
     end
   end
 
@@ -334,7 +336,7 @@ RSpec.describe(Kimera::Overlay) do
       $VERBOSE = nil
       TOPLEVEL_BINDING.eval(source)
       held = TOPLEVEL_BINDING.eval(const)
-      TOPLEVEL_BINDING.eval(result.source, "x.rb")
+      TOPLEVEL_BINDING.eval(result.to_s, "x.rb")
       [held, registry, result]
     ensure
       $VERBOSE = verbose
@@ -386,8 +388,8 @@ RSpec.describe(Kimera::Overlay) do
 
     it "emits a reopen (class_eval on the existing class), not a bare rebind", :aggregate_failures do
       result, = synth(struct_source)
-      expect(result.source).to(include("class_eval"))
-      expect(result.source).to(include("const_defined?(:Point, false)"))
+      expect(result.to_s).to(include("class_eval"))
+      expect(result.to_s).to(include("const_defined?(:Point, false)"))
     end
 
     it "preserves the constant's object identity across the overlay" do
@@ -404,7 +406,7 @@ RSpec.describe(Kimera::Overlay) do
     it "instruments to_h key literals reachable through described_class", :aggregate_failures do
       held, registry = overlay(tag_source, "KimeraReopenProbe::Tag", keys: %w[string_literal])
       expect(held.new(name: "a").to_h).to(eq("name" => "a"))
-      Kimera::RUNTIME.during(registry.points.find { |p| p.original_source == '"name"' }.mutants.first.id) do
+      Kimera::RUNTIME.during(registry.to_a.find { |p| p.original_source == '"name"' }.mutants.first.to_i) do
         expect(held.new(name: "a").to_h).to(eq("" => "a"))
       end
     end
@@ -427,9 +429,9 @@ RSpec.describe(Kimera::Overlay) do
         take(Struct.new(:x) { nil })
       RUBY
       result, = synth(source)
-      expect(result.mutant_ids).not_to(be_empty)
-      expect(result.source).not_to(include("class_eval"))
-      expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
+      expect(result.to_h.fetch(:mutant_ids)).not_to(be_empty)
+      expect(result.to_s).not_to(include("class_eval"))
+      expect { Kimera::Scribe.parse(result.to_s) }.not_to(raise_error)
     end
 
     it "reopens a Data.define value object in place too", :aggregate_failures do
@@ -462,25 +464,25 @@ RSpec.describe(Kimera::Overlay) do
 
     it "excludes mutants inside a ||= memoization from the schema path", :aggregate_failures do
       result, registry = synth(total_source)
-      point = registry.points.find { |p| p.original_source == "a > b" }
-      expect(point).to(have_attributes(safe?: false, unsafe_reason: a_string_matching(/memoized/)))
-      expect(result.source).not_to(include("active?"))
-      expect(result.skipped_unsafe).to(include(*point.ids))
+      point = registry.to_a.find { |p| p.original_source == "a > b" }
+      expect(PointVerdict.new(point)).to(have_attributes(safe?: false, unsafe_reason: a_string_matching(/memoized/)))
+      expect(result.to_s).not_to(include("active?"))
+      expect(result.to_h.fetch(:skipped_unsafe)).to(include(*point.ids))
     end
 
     it "returns the source verbatim when no point is schema-safe", :aggregate_failures do
       source = "# load-order comment\ndef total\n  @total ||= compute(a > b)\nend\n"
       result, = synth(source)
-      expect(result.source).to(eq(source))
-      expect(result.skipped_unsafe).not_to(be_empty)
+      expect(result.to_s).to(eq(source))
+      expect(result.to_h.fetch(:skipped_unsafe)).not_to(be_empty)
     end
 
     it "still mutates non-memoized points in the same file", :aggregate_failures do
       result, registry = synth(mixed_source)
-      memoized, live = ["x > y", "p < q"].map { |s| registry.points.find { |p| p.original_source == s } }
+      memoized, live = ["x > y", "p < q"].map { |s| registry.to_a.find { |p| p.original_source == s } }
       expect([memoized.safe?, live.safe?]).to(eq([false, true]))
-      expect(result.mutant_ids).to(include(*live.ids))
-      expect(result.mutant_ids).not_to(include(*memoized.ids))
+      expect(result.to_h.fetch(:mutant_ids)).to(include(*live.ids))
+      expect(result.to_h.fetch(:mutant_ids)).not_to(include(*memoized.ids))
     end
   end
 
@@ -493,9 +495,9 @@ RSpec.describe(Kimera::Overlay) do
     let(:result) { overlay.synthesize("x.rb", source) }
 
     it "emits each mutant's guard once, however deep its point sits", :aggregate_failures do
-      guards = result.source.scan(/active\?\((\d+)\)/).flatten.map { |id| Integer(id) }
-      expect(result.mutant_ids.size).to(be > 10)
-      expect([guards.uniq, guards.tally.values.max]).to(match([match_array(result.mutant_ids), 2]))
+      guards = result.to_s.scan(/active\?\((\d+)\)/).flatten.map { |id| Integer(id) }
+      expect(result.to_h.fetch(:mutant_ids).size).to(be > 10)
+      expect([guards.uniq, guards.tally.values.max]).to(match([match_array(result.to_h.fetch(:mutant_ids)), 2]))
     end
 
     def loaded(text) = Object.new.extend(Module.new.tap { |mod| mod.module_eval(text) })
@@ -513,8 +515,8 @@ RSpec.describe(Kimera::Overlay) do
     end
 
     it "behaves like each mutant's bake when that mutant is active" do
-      live = loaded(result.source)
-      baked = result.mutant_ids.to_h { |id| [id, outcomes(loaded(overlay.bake("x.rb", source, id)))] }
+      live = loaded(result.to_s)
+      baked = result.to_h.fetch(:mutant_ids).to_h { |id| [id, outcomes(loaded(overlay.bake("x.rb", source, id)))] }
       flipped = baked.keys.to_h { |id| [id, flip(live, id)] }
       expect(flipped).to(eq(baked))
     end
@@ -565,8 +567,8 @@ RSpec.describe(Kimera::Overlay) do
 
     it "behaves like each mutant's bake when that mutant is active" do
       result = overlay.synthesize("x.rb", source)
-      baked = result.mutant_ids.to_h { |id| [id, labels(overlay.bake("x.rb", source, id))] }
-      expect(baked.keys.to_h { |id| [id, Kimera::RUNTIME.during(id) { labels(result.source) }] }).to(eq(baked))
+      baked = result.to_h.fetch(:mutant_ids).to_h { |id| [id, labels(overlay.bake("x.rb", source, id))] }
+      expect(baked.keys.to_h { |id| [id, Kimera::RUNTIME.during(id) { labels(result.to_s) }] }).to(eq(baked))
     end
   end
 
@@ -579,24 +581,26 @@ RSpec.describe(Kimera::Overlay) do
 
     it "is guarded, not reported unmutatable", :aggregate_failures do
       result = described_class.new(registry).synthesize("x.rb", source)
-      inner = registry.points.find { |point| point.original_source == "-1" }
-      expect(result.skipped_unsafe).to(be_empty)
-      expect(result.mutant_ids).to(match_array(registry.points.flat_map(&:ids)))
-      expect(inner).to(be_safe)
+      inner = registry.to_a.find { |point| point.original_source == "-1" }
+      expect(result.to_h.fetch(:skipped_unsafe)).to(be_empty)
+      expect(result.to_h.fetch(:mutant_ids)).to(match_array(registry.to_a.flat_map(&:ids)))
+      expect(inner).to(satisfy(&:safe?))
     end
+
+    def zero?(mutant) = mutant.to_h.dig("directive", "value").zero?
 
     it "bakes the literal's zero mutant as `-` on `0`, on the file's own lines" do
       overlay = described_class.new(registry)
-      zero = registry.each.find { |mutant, point| point.original_source == "-1" && mutant.directive["value"].zero? }
-      expect(overlay.bake("x.rb", source, zero.first.id)).to(eq("def m(a)\n  a > 0 && -(0)\nend\n"))
+      zero = registry.each.find { |mutant, point| point.original_source == "-1" && zero?(mutant) }
+      expect(overlay.bake("x.rb", source, zero.first.to_i)).to(eq("def m(a)\n  a > 0 && -(0)\nend\n"))
     end
 
     it "bakes it so beside parentheses the file wrote itself" do
       program = "def m(a)\n  (a > 0) && --1\nend\n"
       catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: %w[numeric_literal]))
         .source(program, file: "x.rb")
-      zero = catalog.each.find { |mutant, point| point.original_source == "-1" && mutant.directive["value"].zero? }
-      expect(described_class.new(catalog).bake("x.rb", program, zero.first.id))
+      zero = catalog.each.find { |mutant, point| point.original_source == "-1" && zero?(mutant) }
+      expect(described_class.new(catalog).bake("x.rb", program, zero.first.to_i))
         .to(eq("def m(a)\n  (a > 0) && -(0)\nend\n"))
     end
   end
@@ -624,7 +628,8 @@ RSpec.describe(Kimera::Overlay) do
 
     it "mutates the whole file, the literal's own point too" do
       result, registry = escaped(source)
-      expect([result.mutant_ids.size, result.skipped_unsafe]).to(eq([registry.count, []]))
+      ids, skipped = result.to_h.values_at(:mutant_ids, :skipped_unsafe)
+      expect([ids.size, skipped]).to(eq([registry.each.count, []]))
     end
 
     it "keeps the literal's mutant live", :aggregate_failures do
@@ -637,7 +642,8 @@ RSpec.describe(Kimera::Overlay) do
     it "mutates a file whose heredoc holds the byte, the heredoc's method too", :aggregate_failures do
       result, registry = nil
       expect { result, registry = escaped(heredoc, %w[arithmetic comparison]) }.not_to(output.to_stderr)
-      expect([result.mutant_ids.size, result.skipped_unsafe]).to(eq([registry.count, []]))
+      ids, skipped = result.to_h.values_at(:mutant_ids, :skipped_unsafe)
+      expect([ids.size, skipped]).to(eq([registry.each.count, []]))
     end
 
     it "writes the heredoc's byte through" do
@@ -670,17 +676,18 @@ RSpec.describe(Kimera::Overlay) do
 
     it "drops only the unguardable points and keeps the rest live", :aggregate_failures do
       registry, result = fallback
-      expect([result.mutant_ids, result.skipped_unsafe])
+      expect(result.to_h.values_at(:mutant_ids, :skipped_unsafe))
         .to(satisfy { |(m, s)| !m.empty? && !s.empty? && !m.intersect?(s) })
-      expect(result.mutant_ids.size + result.skipped_unsafe.size).to(eq(registry.count))
-      expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
+      expect(result.to_h.fetch(:mutant_ids).size + result.to_h.fetch(:skipped_unsafe).size).to(eq(registry.each.count))
+      expect { Kimera::Scribe.parse(result.to_s) }.not_to(raise_error)
     end
 
     it "reports the dropped points as unmutatable, with the reason", :aggregate_failures do
       registry, result = fallback
-      dropped = registry.points.reject(&:safe?)
-      expect(dropped.flat_map(&:ids)).to(eq(result.skipped_unsafe))
-      expect(dropped.map(&:unsafe_reason).uniq).to(eq(["unmutatable: kimera could not write its guard"]))
+      dropped = registry.to_a.reject(&:safe?)
+      expect(dropped.flat_map(&:ids)).to(eq(result.to_h.fetch(:skipped_unsafe)))
+      reasons = dropped.map { PointVerdict.new(it).unsafe_reason }.uniq
+      expect(reasons).to(eq(["unmutatable: kimera could not write its guard"]))
     end
 
     def unweavable
@@ -774,10 +781,10 @@ RSpec.describe(Kimera::Overlay) do
 
       it "keeps every method's mutants and the untouched source verbatim", :aggregate_failures do
         registry, result = spliced
-        expect(result.mutant_ids.size).to(eq(registry.count))
-        expect(result.source).to(include("ODDITY = :unemittable"))
-        expect(result.source).to(include("::Kimera::RUNTIME.active?"))
-        expect(Prism.parse(result.source)).to(be_success)
+        expect(result.to_h.fetch(:mutant_ids).size).to(eq(registry.each.count))
+        expect(result.to_s).to(include("ODDITY = :unemittable"))
+        expect(result.to_s).to(include("::Kimera::RUNTIME.active?"))
+        expect(Prism.parse(result.to_s)).to(be_success)
       end
 
       def unparsing_methods
@@ -795,15 +802,16 @@ RSpec.describe(Kimera::Overlay) do
 
       it "accounts for every point exactly once", :aggregate_failures do
         registry, result = partial
-        expect(result.mutant_ids.size + result.skipped_unsafe.size).to(eq(registry.count))
-        expect(result.mutant_ids & result.skipped_unsafe).to(be_empty)
+        expect(result.to_h.values_at(:mutant_ids, :skipped_unsafe).sum(&:size)).to(eq(registry.each.count))
+        expect(result.to_h.fetch(:mutant_ids) & result.to_h.fetch(:skipped_unsafe)).to(be_empty)
       end
 
       it "reports the points of a method it could not re-emit as unmutatable", :aggregate_failures do
         registry, = partial
-        dropped, kept = registry.points.partition { |point| point.method_name.to_s == "compare" }
-        expect(dropped.map(&:unsafe_reason).uniq).to(eq(["unmutatable: kimera could not write its method"]))
-        expect(kept).to(all(be_safe))
+        dropped, kept = registry.to_a.partition { |point| point.method_name.to_s == "compare" }
+        reasons = dropped.map { PointVerdict.new(it).unsafe_reason }.uniq
+        expect(reasons).to(eq(["unmutatable: kimera could not write its method"]))
+        expect(kept).to(all(satisfy(&:safe?)))
       end
 
       def broken
@@ -853,31 +861,31 @@ RSpec.describe(Kimera::Overlay) do
 
       it "claims a nested definition's points once, for the outer method", :aggregate_failures do
         registry, result = nested
-        expect(result.mutant_ids.size).to(eq(registry.count))
-        expect(Prism.parse(result.source)).to(be_success)
-        expect(result.source).to(include("def  untouched_by_points"))
+        expect(result.to_h.fetch(:mutant_ids).size).to(eq(registry.each.count))
+        expect(Prism.parse(result.to_s)).to(be_success)
+        expect(result.to_s).to(include("def  untouched_by_points"))
       end
 
       def compiled
         registry = Kimera::RegistryScan.new.source(splice_source, file: "spliced.rb")
         unwritable!
         mod = Module.new
-        mod.module_eval(described_class.new(registry).synthesize("spliced.rb", splice_source).source)
-        [mod.const_get(:Spliced), registry.each.find { |m, _p| m.label == "> => <" }.first]
+        mod.module_eval(described_class.new(registry).synthesize("spliced.rb", splice_source).to_s)
+        [mod.const_get(:Spliced), registry.each.find { |m, _p| m.to_s == "> => <" }.first]
       end
 
       it "still selects a spliced mutant at runtime", :aggregate_failures do
         klass, flip = compiled
         expect(klass.new.compare(2, 1)).to(be(true))
-        Kimera::RUNTIME.during(flip.id) { expect(klass.new.compare(2, 1)).to(be(false)) }
+        Kimera::RUNTIME.during(flip.to_i) { expect(klass.new.compare(2, 1)).to(be(false)) }
       end
 
       def reopened
         registry = Kimera::RegistryScan.new.source(value_source, file: "value.rb")
         unwritable!
         source = nil
-        announced = /value\.rb: could not write the whole file; #{registry.count} mutant\(s\) spliced per method/
-        expect { source = described_class.new(registry).synthesize("value.rb", value_source).source }
+        announced = /value\.rb: could not write the whole file; #{registry.each.count} mutant\(s\) spliced per method/
+        expect { source = described_class.new(registry).synthesize("value.rb", value_source).to_s }
           .to(output(announced).to_stderr)
         [registry, source]
       end
@@ -893,8 +901,8 @@ RSpec.describe(Kimera::Overlay) do
 
       def flipped(registry, asks)
         asks.map do |label, line, ask|
-          at = ->(mutant, point) { mutant.label == label && point.location.start_line == line }
-          Kimera::RUNTIME.during(registry.each.find { |mutant, point| at.call(mutant, point) }.first.id) { ask.call }
+          at = ->(mutant, point) { mutant.to_s == label && point.location.range.begin == line }
+          Kimera::RUNTIME.during(registry.each.find { |mutant, point| at.call(mutant, point) }.first.to_i) { ask.call }
         end
       end
 
@@ -974,12 +982,12 @@ RSpec.describe(Kimera::Overlay) do
 
       it "is woven, quietly" do
         registry, result = woven
-        expect(result.mutant_ids.size).to(eq(registry.count))
+        expect(result.to_h.fetch(:mutant_ids).size).to(eq(registry.each.count))
       end
 
       it "still answers as written" do
         _, result = woven
-        bid = Module.new.tap { |mod| mod.module_eval(result.source) }.const_get(:PatternBid)
+        bid = Module.new.tap { |mod| mod.module_eval(result.to_s) }.const_get(:PatternBid)
         expect(bid.new.bid([:parsed, 2])).to(eq(["parsed 2", 2]))
       end
     end
@@ -1001,15 +1009,15 @@ RSpec.describe(Kimera::Overlay) do
     it "guards a bare name at the statement that holds it", :aggregate_failures do
       source = "class AliasProbe\n  def m\n    alias c d\n    1\n  end\nend\n"
       result, registry = woven(source, %w[symbol_literal numeric_literal])
-      expect([result.skipped_unsafe, result.mutant_ids]).to(eq([[], registry.points.flat_map(&:ids)]))
-      expect(result.source).to(include("? (alias c d) : "))
+      expect(result.to_h.values_at(:skipped_unsafe, :mutant_ids)).to(eq([[], registry.to_a.flat_map(&:ids)]))
+      expect(result.to_s).to(include("? (alias c d) : "))
     end
 
     it "reports the guards it wrote, not calls that look like them" do
       source = "class Lookalike\n  def m(a)\n    ::Kimera::Flags.active?(9)\n    Foo::Bar.active?(8)\n    " \
         "a.active?(7)\n    a > 1\n  rescue TypeError\n    0\n  end\nend\n"
       result, registry = woven(source, %w[comparison rescue_clause])
-      expect(result.mutant_ids).to(match_array(registry.points.flat_map(&:ids)))
+      expect(result.to_h.fetch(:mutant_ids)).to(match_array(registry.to_a.flat_map(&:ids)))
     end
 
     def paths
@@ -1018,7 +1026,7 @@ RSpec.describe(Kimera::Overlay) do
     end
 
     it "reopens a value object named by a path with the path's own scope in the source", :aggregate_failures do
-      written = woven(paths, %w[comparison]).first.source
+      written = woven(paths, %w[comparison]).first.to_s
       expect(written).to(include("ReopenPath::Point = (ReopenPath.const_defined?(:Point, false) ? ReopenPath"))
       expect(written).to(include("::ReopenTop = (::Object.const_defined?(:ReopenTop, false) ? "))
     end
@@ -1028,7 +1036,7 @@ RSpec.describe(Kimera::Overlay) do
         paths,
         file: "x.rb"
       )
-      written = Kimera::Scribe.new(Kimera::Guardrail.new(Kimera::SourceMap.new(paths), registry.points).tree).source
+      written = Kimera::Scribe.new(Kimera::Guardrail.new(Kimera::SourceMap.new(paths), registry.to_a).tree).source
       expect(written).to(include("ReopenPath::Point = if (ReopenPath).const_defined?(:Point, false)\n"))
       expect(written).to(include("  (ReopenPath).const_get(:Point)\n", "ReopenPath::Point.class_eval {"))
       expect(written).to(include("::ReopenTop = if (::Object).const_defined?(:ReopenTop, false)"))
@@ -1040,7 +1048,7 @@ RSpec.describe(Kimera::Overlay) do
         source,
         file: "x.rb"
       )
-      written = Kimera::Scribe.new(Kimera::Guardrail.new(Kimera::SourceMap.new(source), registry.points).tree).source
+      written = Kimera::Scribe.new(Kimera::Guardrail.new(Kimera::SourceMap.new(source), registry.to_a).tree).source
       plain = Module.new.tap { |mod| mod.module_eval(written) }::ReopenPlain
       expect([plain::Point.new(x: 2).big?(1), plain.method_defined?(:big?)]).to(eq([true, false]))
     end
@@ -1048,8 +1056,8 @@ RSpec.describe(Kimera::Overlay) do
     it "guards a def at a method's tail where it stands" do
       source = "class NestedTail\n  def outer; def inner; end; end\nend\n"
       result, registry = woven(source, %w[return_value])
-      held = Module.new.tap { |mod| mod.module_eval(result.source) }::NestedTail.new
-      expect([held.outer, Kimera::RUNTIME.during(registry.points.first.ids.first) { held.outer }]).to(eq([:inner, nil]))
+      held = Module.new.tap { |mod| mod.module_eval(result.to_s) }::NestedTail.new
+      expect([held.outer, Kimera::RUNTIME.during(registry.to_a.first.ids.first) { held.outer }]).to(eq([:inner, nil]))
     end
   end
 
@@ -1078,9 +1086,9 @@ RSpec.describe(Kimera::Overlay) do
 
     it "writes the probe inside the statement's guard and weaves every mutant", :aggregate_failures do
       result = described_class.new(registry).synthesize("x.rb", source)
-      expect(result.mutant_ids).to(eq(registry.each.map { |mutant, _| mutant.id }))
-      expect(registry.points.select(&:unmutatable?)).to(be_empty)
-      expect(result.source.lines.size).to(eq(source.lines.size))
+      expect(result.to_h.fetch(:mutant_ids)).to(eq(registry.each.map { |mutant, _| mutant.to_i }))
+      expect(registry.to_a.select { it.reasons(Kimera::Reason.unmutatable).any? }).to(be_empty)
+      expect(result.to_s.lines.size).to(eq(source.lines.size))
     end
 
     def nesting
@@ -1098,7 +1106,7 @@ RSpec.describe(Kimera::Overlay) do
     end
 
     it "makes the class the hook builds answer as the original, and each mutant as itself", :aggregate_failures do
-      mod = Module.new.tap { it.module_eval(described_class.new(registry).synthesize("x.rb", source).source) }
+      mod = Module.new.tap { it.module_eval(described_class.new(registry).synthesize("x.rb", source).to_s) }
       built = Class.new.include(mod::Box)
       expect([built.build(1).class, built.build(0), built.new.big?(4)]).to(eq([built, nil, true]))
       expect(flipped(registry, "> => >=") { Class.new.include(mod::Box).build(0) }).not_to(be_nil)

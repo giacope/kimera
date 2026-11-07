@@ -10,13 +10,13 @@ end
 class Kimera::Report::TestList
   SHOWN = 3
 
-  def initialize(report, saved)
-    @report = report
+  def initialize(notes, saved)
+    @notes = notes
     @saved = saved
   end
 
   def lines(result)
-    tests = Array(result.covering_tests)
+    tests = Array(result.to_h["covering_tests"])
     count = tests.size
     return [] if count.zero?
     listed = tests.first(SHOWN).map { |test| "  #{named(test)}" }
@@ -25,10 +25,10 @@ class Kimera::Report::TestList
 
   private
 
-  def named(test) = Kimera::Readout::Label.new(test, @report.test(test)).text
+  def named(test) = Kimera::Readout::Label.new(test, @notes.test(test)).text
 
   def more(result, hidden)
     return [] unless hidden.positive?
-    ["  (+#{hidden} more#{@saved.more(result.mutant_id)})"]
+    ["  (+#{hidden} more#{@saved.more(result.to_h["mutant_id"])})"]
   end
 end

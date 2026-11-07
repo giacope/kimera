@@ -12,7 +12,11 @@ class Kimera::Report::Actions
     "stayed unjudged and do not gate: judge them with --judge-isolated-only or `kimera run --isolated` " \
     "(on a whole Rails app that can take hours; --since judges a pull request's own)"
   OWN = { isolated: ISOLATED }.freeze
-  private_constant(:OWN)
+  GROUPS = {
+    survivors: :survived, unattributed: :uncovered_by_unit, uncovered: :no_coverage, unjudged: :harness_error,
+    isolated: :isolated_only
+  }.freeze
+  private_constant(:OWN, :GROUPS)
 
   def initialize(io: $stdout)
     @io = io
@@ -26,14 +30,13 @@ class Kimera::Report::Actions
   private
 
   def groups(report)
-    { survivors: report.survived, unattributed: report.unattributed, uncovered: report.uncovered }
-      .merge(unjudged: report.errors, isolated: report.statuses(:isolated_only))
-      .merge(lapsed: report.statuses(:ignored).select(&:lapsed?))
+    GROUPS.transform_values { |status| report.select { |result| result.status?(status) } }
+      .merge(lapsed: report.select { |result| result.status?(:ignored) && result.lapsed? })
   end
 
   def advice(found, saved, kind)
-    found.min_by(1, &:mutant_id).map do |first|
-      "  #{found.size} #{OWN.fetch(kind) { saved.advice(kind, first.mutant_id) }}"
+    found.min(1).map do |first|
+      "  #{found.size} #{OWN.fetch(kind) { saved.advice(kind, first.to_h["mutant_id"]) }}"
     end
   end
 end

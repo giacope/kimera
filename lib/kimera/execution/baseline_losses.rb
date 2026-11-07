@@ -7,6 +7,7 @@ Kimera::Execution::BaselineLosses =
     losses = { timeout: "its worker was killed at the hard timeout (--hard-timeout) before reporting a result" }.freeze
     crash = "its worker died before reporting a result"
     alone = ", and again when rerun alone"
+    private(*members)
     def initialize(stalled_stacks = {}, stacks = {}) = super
 
     def stall(test_id, found) = stalled_stacks.store(test_id, found)
@@ -23,4 +24,6 @@ Kimera::Execution::BaselineLosses =
       found = stacks.fetch(test_id, [])
       found.empty? ? message : [message, *found]
     end
+
+    def context(**) = Kimera::Execution::BaselineFailure::Summary::Context.new(stacks: stacks, **)
   end

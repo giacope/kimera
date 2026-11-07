@@ -4,8 +4,10 @@ require "kimera/registry/builder"
 require "fileutils"
 require "tmpdir"
 
+using PointFields
+
 RSpec.describe(Kimera::RegistryScan) do
-  def spans(registry) = registry.unmutated.map { |region| region.to_h.values_at("start_line", "end_line") }
+  def spans(registry) = registry.regions { it.map(&:to_h) }.map { it.values_at("start_line", "end_line") }
 
   def block_reason
     "code in a block outside any method runs at load or as a DSL callback " \
@@ -18,7 +20,7 @@ RSpec.describe(Kimera::RegistryScan) do
 
   def scan(source) = described_class.new.source(source, file: "widget.rb")
 
-  def lines(registry) = registry.points.select(&:safe?).map { |point| point.location.start_line }.uniq
+  def lines(registry) = registry.to_a.select(&:safe?).map { |point| point.location.range.begin }.uniq
 
   it "mutates define_method and define_singleton_method bodies warm, under the method's name", :aggregate_failures do
     registry = scan(<<~RUBY)
@@ -30,14 +32,14 @@ RSpec.describe(Kimera::RegistryScan) do
       end
     RUBY
     expect(lines(registry)).to(eq([2, 4]))
-    expect(registry.points.map(&:method_name).uniq).to(eq(%w[tiny? valid?]))
+    expect(registry.to_a.map(&:method_name).uniq).to(eq(%w[tiny? valid?]))
   end
 
   it "mutates a define_method body inside a class-level loop, leaving the loop unreported", :aggregate_failures do
     registry = scan("class W\n  %i[a b].each do |n|\n    define_method(n) { |v| v > 1 }\n  end\nend\n")
     expect(lines(registry)).to(eq([3]))
-    expect(registry.points.map(&:method_name).uniq).to(eq([nil]))
-    expect(registry.unmutated).to(be_empty)
+    expect(registry.to_a.map(&:method_name).uniq).to(eq([nil]))
+    expect(registry.regions(&:itself)).to(be_empty)
   end
 
   it "mutates lambda, proc and Proc.new bodies, even assigned to a constant" do
@@ -47,19 +49,19 @@ RSpec.describe(Kimera::RegistryScan) do
 
   it "leaves a block given to another call alone, reporting where it is and why", :aggregate_failures do
     registry = scan("class W\n  LIMITS = [5].map { _1 > 1 ? 2 : 1 }\n  rule(:sane) do |size|\n    size > 0\n  end\nend")
-    expect(registry.points.select(&:safe?)).to(be_empty)
+    expect(registry.to_a.select(&:safe?)).to(be_empty)
     expect(spans(registry)).to(eq([[2, 2], [4, 4]]))
-    expect(registry.unmutated.map { |region| region.to_h["reason"] }.uniq).to(eq([block_reason]))
+    expect(registry.regions(&:itself).map { |region| region.to_h["reason"] }.uniq).to(eq([block_reason]))
   end
 
   it "doesn't report a class-level block that only declares things" do
-    expect(scan("class W\n  included do\n    attr_reader :x\n  end\nend\n").unmutated).to(be_empty)
+    expect(scan("class W\n  included do\n    attr_reader :x\n  end\nend\n").regions(&:itself)).to(be_empty)
   end
 
   it "reports a file that does not parse instead of skipping it", :aggregate_failures do
     registry = scan("class Broken\n  def oops(\nend\n")
-    expect(registry.points).to(be_empty)
-    region = registry.unmutated.first.to_h
+    expect(registry.to_a).to(be_empty)
+    region = registry.regions(&:itself).first.to_h
     expect(region.values_at("file", "start_line", "end_line")).to(eq(["widget.rb", 1, 3]))
     expect(region["reason"]).to(start_with(unparsed))
   end
@@ -88,27 +90,28 @@ RSpec.describe(Kimera::RegistryScan) do
 
     def fine = "def fine(a)\n  a > 2\nend\n"
 
-    def regions(registry) = registry.unmutated.map { it.to_h.values }
+    def regions(registry) = registry.regions { it.map(&:to_h) }.map(&:values)
 
     it "reports it whole, with what went wrong, and scans every other file", :aggregate_failures do
       registry = built("a.rb" => "def trip\n  13\nend\n", "b.rb" => fine, "c.rb" => "class C\n  def deep = 17\nend\n")
       tripped = "#{unscanned}NoMethodError: undefined method 'body' for nil"
       deep = "#{unscanned}SystemStackError: stack level too deep"
-      expect([registry.files, regions(registry)]).to(eq([["b.rb"], [["a.rb", 1, 3, tripped], ["c.rb", 1, 3, deep]]]))
+      expected = [["b.rb"], [["a.rb", 1, 3, tripped], ["c.rb", 1, 3, deep]]]
+      expect([registry.to_h.keys, regions(registry)]).to(eq(expected))
     end
 
     it "reports a file it cannot read, and skips one that is gone", :aggregate_failures do
       registry = built("a.rb" => nil, "b.rb" => fine)
       gone = described_class.new(root: dir).build([File.join(dir, "gone.rb"), File.join(dir, "b.rb")])
-      expect([registry.files, regions(registry).map { it.first(3) }]).to(eq([["b.rb"], [["a.rb", 1, 1]]]))
-      expect(registry.unmutated.first.to_h["reason"]).to(start_with(unread).and(include("Is a directory")))
-      expect([gone.files, gone.unmutated]).to(eq([["b.rb"], []]))
+      expect([registry.to_h.keys, regions(registry).map { it.first(3) }]).to(eq([["b.rb"], [["a.rb", 1, 1]]]))
+      expect(regions(registry).first.last).to(start_with(unread).and(include("Is a directory")))
+      expect([gone.to_h.keys, gone.regions(&:itself)]).to(eq([["b.rb"], []]))
     end
   end
 
   it "keeps its regions through the registry's JSON" do
     registry = scan("class W\n  X = [1].map { |n| n > 0 }\nend\n")
-    expect(Kimera::Registry.parse(registry.to_json).unmutated.map(&:to_h)).to(eq(registry.unmutated.map(&:to_h)))
+    expect(Kimera::Registry.parse(registry.to_json).regions(&:itself).map(&:to_h)).to(eq(registry.regions(&:itself).map(&:to_h)))
   end
 
   it "narrows its regions to the changed lines of the files that changed" do
@@ -134,7 +137,7 @@ RSpec.describe(Kimera::RegistryScan) do
   end
 
   it "leaves unreported what it skips at class level outside any block" do
-    expect(scan("class W\n  LIMIT = ENV.key?(\"X\") ? 2 : 1\nend\n").unmutated).to(be_empty)
+    expect(scan("class W\n  LIMIT = ENV.key?(\"X\") ? 2 : 1\nend\n").regions(&:itself)).to(be_empty)
   end
 
   it "reports every line of a skipped node in a class-level block as one run" do

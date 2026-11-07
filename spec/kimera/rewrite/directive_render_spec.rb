@@ -3,6 +3,8 @@
 require "kimera/registry/builder"
 require "kimera/rewrite/directive"
 
+using PointFields
+
 RSpec.describe(Kimera::Rewrite::Directive) do
   let(:code) do
     <<~RUBY
@@ -20,7 +22,7 @@ RSpec.describe(Kimera::Rewrite::Directive) do
 
   def rendered
     Kimera::RegistryScan.new.source(code, file: "walk.rb").each.map do |mutant, point|
-      [point.original_source, mutant.label, described_class.new(mutant.directive).render(point.original_source).first]
+      [point.original_source, mutant.to_s, mutant.rewrite(described_class).render(point.original_source).first]
     end
   end
 

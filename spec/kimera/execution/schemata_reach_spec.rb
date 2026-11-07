@@ -5,6 +5,8 @@ require "kimera/execution/schemata"
 require "kimera/registry/builder"
 require "tmpdir"
 
+using PointFields
+
 RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
   let(:dir) { Dir.mktmpdir }
 
@@ -32,20 +34,20 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
     stub_const("ReachDefined", Class.new)
   end
 
-  def point(registry, file) = registry.points.find { |found| found.file == file }
+  def point(registry, file) = registry.to_a.find { |found| found.file == file }
 
   it "never evaluates a file the suite did not load when its top level runs code" do
     registry, live = overlaid(proc { false })
     template = point(registry, "reach_template.rb")
     expect(ReachSettings).to(be_empty)
-    expect(template.unloaded?).to(be(true))
+    expect(template.reasons(Kimera::Reason.unloaded).any?).to(be(true))
     expect(live & template.ids).to(be_empty)
   end
 
   it "still evaluates such a file the suite did load", :aggregate_failures do
     registry, live = overlaid(proc { true })
     expect(live).to(include(*point(registry, "reach_template.rb").ids))
-    expect(point(registry, "reach_template.rb").unloaded?).to(be(false))
+    expect(point(registry, "reach_template.rb").reasons(Kimera::Reason.unloaded).any?).to(be(false))
   end
 
   def unasked(name, body)
@@ -54,12 +56,14 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
     [registry, described_class.new(registry, root: dir, loaded: proc { false })]
   end
 
+  def unsafe_reason(registry, file) = PointVerdict.new(point(registry, file)).unsafe_reason
+
   it "never evaluates a file the suite did not load when a class body in it runs code", :aggregate_failures do
     stub_const("ReachCore", Module.new)
     registry, loader = unasked("reach_plugin.rb", "module ReachCore\n  @limit = 100\n  def self.big?(n) = n > 1\nend\n")
     loader.overlay!
     expect(ReachCore.instance_variable_get(:@limit)).to(be_nil)
-    expect(point(registry, "reach_plugin.rb").unsafe_reason).to(eq(Kimera::MutationPoint::NEVER_LOADED))
+    expect(unsafe_reason(registry, "reach_plugin.rb")).to(eq(Kimera::Reason::NEVER_LOADED))
   end
 
   it "reports a file the suite did not load, and kimera could not, uncovered with the error", :aggregate_failures do
@@ -67,7 +71,7 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
     registry, loader = unasked("reach_optional.rb", source)
     expect { loader.overlay! }.not_to(output.to_stderr)
     failed = "(nor could kimera load it: LoadError: cannot load such file -- reach_no_such_gem)"
-    expect(point(registry, "reach_optional.rb").unsafe_reason).to(eq("#{Kimera::MutationPoint::NEVER} #{failed}"))
+    expect(unsafe_reason(registry, "reach_optional.rb")).to(eq("#{Kimera::Reason::NEVER} #{failed}"))
   end
 
   def broken_autoload
@@ -79,7 +83,7 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
     registry, loader = unasked("reach_lazy.rb", broken_autoload)
     loader.overlay!
     failed = "(nor could kimera load it: RuntimeError: broken on load)"
-    expect(point(registry, "reach_lazy.rb").unsafe_reason).to(eq("#{Kimera::MutationPoint::NEVER} #{failed}"))
+    expect(unsafe_reason(registry, "reach_lazy.rb")).to(eq("#{Kimera::Reason::NEVER} #{failed}"))
   end
 
   it "loads an autoloaded file as the suite would, then trims it, so its class body runs once", :aggregate_failures do
@@ -142,12 +146,12 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
     registry, = chained
     File.symlink(dir, link = File.join(dir, "linked"))
     expect(described_class.new(registry, root: link, loaded: proc { false }).overlay!).not_to(be_empty)
-    expect(point(registry, "reach_rows.rb").unloaded?).to(be(false))
+    expect(point(registry, "reach_rows.rb").reasons(Kimera::Reason.unloaded).any?).to(be(false))
   end
 
   it "still evaluates a definitions-only file the suite did not load", :aggregate_failures do
     registry, live = overlaid(proc { |path| path != "reach_defined.rb" })
     expect(live).to(include(*point(registry, "reach_defined.rb").ids))
-    expect(point(registry, "reach_defined.rb").unloaded?).to(be(false))
+    expect(point(registry, "reach_defined.rb").reasons(Kimera::Reason.unloaded).any?).to(be(false))
   end
 end

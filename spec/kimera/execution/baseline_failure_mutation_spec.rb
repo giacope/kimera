@@ -15,6 +15,8 @@ require "kimera/results/result"
 require "stringio"
 require "tmpdir"
 
+using ResultFields
+
 RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
   describe "the baseline summary" do
     def summary = Kimera::Execution::BaselineFailure::Summary
@@ -111,7 +113,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
       subject = Kimera::Execution::Shift::Subject.new(9, "x.rb")
       verdicts, = attempt.run(9, %w[a b c], memory)
       expect(verdicts.map { |verdict| verdict.ruling(subject, {}) })
-        .to(match([have_attributes(status: :killed, failing_tests: ["b"], detail: "boom")]))
+        .to(match([have_fields(status: :killed, failing_tests: ["b"], detail: "boom")]))
     end
 
     it "records only the first killing test in the attempt memory" do
@@ -125,7 +127,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
       Object.new.tap do |adapter|
         adapter.define_singleton_method(:run) do |_ids|
           Kimera::RUNTIME.active?(7)
-          Struct.new(:passed?, :failures).new(false, { "t" => "boom" })
+          Kimera::Frameworks::RunOutcome.new(passed: false, failed_ids: ["t"], failures: { "t" => "boom" })
         end
       end
     end
@@ -188,7 +190,8 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
   end
 
   it "requires a location to lie inside a method span, ending no later than it (endless defs)" do
-    within = [11, 9, 19, 16, 10].map { |start| Kimera::Location.new(start_offset: start, span: 4).within?(10, 20) }
+    method = Struct.new(:start_offset, :end_offset).new(10, 20)
+    within = [11, 9, 19, 16, 10].map { |start| Kimera::Location.new(start_offset: start, span: 4).within?([method]) }
     expect(within).to(eq([true, false, false, true, false]))
   end
 
@@ -254,7 +257,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
       warm = Kimera::Execution::Harness.build(
         registry: registry, adapter: adapter, coverage: { 1 => ["t1"] }, timings: { "t1" => 0.5 }
       )
-      expect(warm.isolated(FakeExecutions.new, registry: registry, jobs: 3))
+      expect(warm.survey.isolated(FakeExecutions.new, registry: registry, jobs: 3))
         .to(eq(coverage: { 1 => ["t1"] }, timings: { "t1" => 0.5 }, registry: registry, jobs: 3))
     end
 
@@ -280,7 +283,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     registry = Kimera::RegistryScan.new.source(
       "def call\n  true\nend\n", file: "lib/kimera/execution/harness.rb"
     )
-    id = registry.each.first.first.id
+    id = registry.each.first.first.to_i
     route = Kimera::CLI::Run::Route.new(registry, { isolate_when_covered_by: [] })
 
     expect(route.split([id]) { {} }).to(eq([[id], []]))
@@ -310,17 +313,17 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
 
   it "serializes a reload verdict at its process boundary", :aggregate_failures do
     verdicts = [[:killed, ["t1"]], [:unmutatable, [], "why"]]
-    reload = Class.new(Kimera::Execution::Reload) { define_method(:evaluate) { |_errand| verdicts.shift } }.allocate
+    reload = Class.new(Kimera::Execution::Reload) { define_method(:evaluate) { |*| verdicts.shift } }.allocate
     errand = Kimera::Execution::Reload::Errand.new(7, [], nil, nil)
-    expect(JSON.parse(reload.__send__(:report, errand)))
+    expect(JSON.parse(reload.__send__(:report, 7, errand)))
       .to(match("id" => 7, "status" => "killed", "fails" => ["t1"], "detail" => nil, "ms" => Float, "cover" => []))
-    expect(JSON.parse(reload.__send__(:report, errand)))
+    expect(JSON.parse(reload.__send__(:report, 7, errand)))
       .to(match("id" => 7, "status" => "unmutatable", "fails" => [], "detail" => "why", "ms" => Float, "cover" => []))
   end
 
   describe "a session's pruning" do
     let(:registry) { Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n", file: "calc.rb") }
-    let(:kept) { registry.each.first.first.id }
+    let(:kept) { registry.each.first.first.to_i }
     let(:session) do
       result = ->(id) { Kimera::MutantResult.new(mutant_id: id, status: :killed) }
       leaks = [kept, 999].map { |id| Kimera::LeakReport.new(mutant_id: id, detail: id.to_s) }
@@ -334,7 +337,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
 
     def held(session)
       report = session.report([kept, 999], [], registry)
-      [report.results.map(&:mutant_id), report.leaks.map(&:mutant_id)]
+      [report.to_a.map(&:mutant_id), report.notes.to_h["leaks"].map(&:mutant_id)]
     end
 
     it "drops stale results and the leak records whose result is gone" do

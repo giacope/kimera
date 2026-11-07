@@ -16,45 +16,45 @@ module Kimera
       private
 
       def evaluate(id, bay)
-        point = registry.index[id]
-        return error(id, nil, "unknown mutant") unless point
-        bake(id, bay, point)
+        _mutant, point, file = registry[id] { return error(id, nil, "unknown mutant") }
+        bake(id, bay, point, file)
       rescue StandardError => error
-        self.error(id, point&.file, "#{error.class}: #{error.message}")
+        self.error(id, file, "#{error.class}: #{error.message}")
       end
 
       def single(id, slot = nil)
         synth = Overlay.new(registry)
         result = with_mirror { |mirror| evaluate(id, Kimera::Execution::Bay.new(mirror, slot, synth)) }
-        return unstaged(result) if result.status == :error
+        return unstaged(result) if result.status?(:error)
         result.killed? ? confirmed(result, slot) : result
       end
 
       def unstaged(result)
-        result.unjudged("the isolated tier could not stage it: #{result.detail}")
+        result.unstaged("the isolated tier could not stage it: ")
       end
 
       def confirmed(result, slot = nil)
-        control = with_mirror { |mirror| verdict(Kimera::Execution::Bay.new(mirror, slot), result.covering_tests) }
+        control = result.covering { |tests| control(tests, slot) }
         control.confirmed(result) { |contradiction| result.unjudged(contradiction) }
       end
 
-      def bake(id, bay, point)
-        file = point.file
+      def control(tests, slot) = with_mirror { |mirror| verdict(Kimera::Execution::Bay.new(mirror, slot), tests) }
+
+      def bake(id, bay, point, file)
         settled = plan.settled(id, point)
         return settled.fetch(0) unless settled.empty?
         tests = plan.tests(id, point)
-        return result(id, file, status: :no_coverage, detail: point.unsafe_reason) unless tests
-        outcome, duration = measure(id, bay, tests, point)
+        return result(id, file, status: :no_coverage, detail: point.reasons(Kimera::Reason.unsafety).first) unless tests
+        outcome, duration = measure(id, bay, tests, file)
         result(id, file, duration: duration, covering_tests: tests, **outcome.to_h, **outcome.killing(quality?))
       end
 
-      def measure(id, bay, tests, point)
+      def measure(id, bay, tests, file)
         started = now
         ordered = Kimera::Execution::Pace.new(timings).fastest(tests)
-        [cleared(bay, ordered, with_mutant(id, bay, point.file) { settle(bay, ordered) }), now - started]
+        [cleared(bay, ordered, with_mutant(id, bay, file) { settle(bay, ordered) }), now - started]
       rescue Kimera::Overlay::Unbakeable => error
-        [IsolatedOutcome.new(:unmutatable, nil, point.unmutatable(error.message)), nil]
+        [IsolatedOutcome.new(:unmutatable, nil, Kimera::Reason.unmutatable(error.message).to_s), nil]
       end
 
       def settle(bay, tests)

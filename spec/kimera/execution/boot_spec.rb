@@ -2,11 +2,14 @@
 
 require "kimera/execution/boot"
 
+using ResultFields
+
 RSpec.describe(Kimera::Execution::Boot) do
   def adapter(ids)
     Class.new do
       define_method(:source) { |_files| self }
       define_method(:test_ids) { ids }
+      define_method(:hooks) { self }
       define_method(:start) { :started }
     end.new
   end

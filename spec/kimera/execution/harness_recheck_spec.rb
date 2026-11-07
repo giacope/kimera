@@ -6,6 +6,8 @@ require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 require "timeout"
 
+using ResultFields
+
 RSpec.describe(Kimera::Execution::Harness) do
   let(:registry) do
     Kimera::RegistryScan.new.source(<<~RUBY, file: "calc.rb")
@@ -15,7 +17,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     RUBY
   end
 
-  let(:ids) { registry.each.map { |m, _p| m.id } }
+  let(:ids) { registry.each.map { |m, _p| m.to_i } }
 
   def harness(adapter, **)
     described_class.build(registry: registry, adapter: adapter, **)
@@ -37,9 +39,9 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   it "puts a real worker's thread backtraces in a hard-timeout verdict", :aggregate_failures do
     report = Timeout.timeout(20) { harness(hanging, soft_timeout: nil, hard_timeout: 0.5).run(ids: [ids.first]) }
-    detail = report.results.first.detail
+    detail = report.to_a.first.detail
 
-    expect([report.results.first.status, report.results.first.duration]).to(eq([:timeout, 0.5]))
+    expect([report.to_a.first.status, report.to_a.first.duration]).to(eq([:timeout, 0.5]))
     expect(detail).to(start_with("hard watchdog timeout\nthreads in the worker when it was killed:\nmain thread ("))
     expect(detail).to(match(/harness_recheck_spec\.rb:\d+:in '[^']*wedge'/))
   end
@@ -73,10 +75,10 @@ RSpec.describe(Kimera::Execution::Harness) do
   it "judges a requeued mutant on a fresh worker and reports the doubt as a leak", :aggregate_failures do
     report = Timeout.timeout(20) { harness(nil, spawner: doubting, hard_timeout: 5.0).run(ids: ids) }
 
-    expect(report.results.map(&:status)).to(all(eq(:killed)))
-    expect(report.results.count { |result| result.detail == "rechecked" }).to(eq(1))
-    expect(report.leaks.map(&:detail)).to(eq(["t9 also failed"]))
-    expect(report.leaks.map(&:mutant_id)).to(eq([ids.first]))
+    expect(report.to_a.map(&:status)).to(all(eq(:killed)))
+    expect(report.to_a.count { |result| result.detail == "rechecked" }).to(eq(1))
+    expect(report.notes.to_h["leaks"].map(&:detail)).to(eq(["t9 also failed"]))
+    expect(report.notes.to_h["leaks"].map(&:mutant_id)).to(eq([ids.first]))
   end
 
   describe(Kimera::Execution::Verdicts) do

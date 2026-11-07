@@ -26,6 +26,7 @@ require_relative "schedule"
 require_relative "schemata"
 require_relative "verdicts"
 require_relative "shift"
+require_relative "survey"
 require_relative "time_budget"
 require_relative "unmeasured"
 require_relative "worker_pool"
@@ -33,29 +34,36 @@ require_relative "worker_pool"
 class Kimera::Execution::Harness
   include Kimera::Execution::ChildProcess
 
-  State = Struct.new(:skipped, :irrelevant, :isolation, :recovered, :aliases)
-
   class << self
-    def build(registry:, adapter:, **options) = new(registry, adapter, options, State.new({}, {}, nil, {}))
+    def build(registry:, adapter:, **options) = new(registry, adapter, options)
   end
 
-  def initialize(registry, adapter, options, state)
+  def initialize(registry, adapter, options)
     @registry = registry
     @adapter = adapter
     @options = options
-    @state = state
   end
 
   def warm!(test_files, scope: nil)
     overlay!(test_files).tap do
-      measure!
-      excluded = screen
+      measured = measure!
+      excluded = measured.screened(screen)
       sift!(scope)
-      notice(excluded)
+      notice(excluded, measured)
     end
   end
 
   def without_coverage!(test_files) = overlay!(test_files).tap { verify! }
+
+  def run(ids: mutants, label: "mutants") = schedule.run(ids, coverage: coverage, label: label)
+
+  def survey = Kimera::Execution::Survey.new(options, adapter)
+
+  private
+
+  attr_reader :registry, :adapter, :options
+
+  def coverage = survey.coverage
 
   def overlay!(test_files)
     trace.record { boot.suite(test_files) }
@@ -65,29 +73,13 @@ class Kimera::Execution::Harness
 
   def load! = boot.load!
 
-  def isolate! = (state.isolation = boot.isolate(isolation))
-
-  def run(ids: mutants, label: "mutants") = schedule.run(ids, coverage: coverage, label: label)
-
-  def coverage = options.fetch(:coverage) { Kimera::Execution::Unmeasured.new(adapter) }
-
-  def isolated(executions = Kimera::Execution::IsolatedExecution, **) = executions.new(coverage:, timings:, **)
-
-  def timings = options.fetch(:timings, {})
-
-  def noted(report) = report.annotate(flaky: options[:flakes]&.to_h)
-
-  def skipped = state.skipped
-
-  private
-
-  attr_reader :registry, :adapter, :options, :state
+  def isolate! = (options[:isolation] = boot.isolate(isolation))
 
   def root = options.fetch(:source_root, ".")
 
   def errors(standard = $stderr) = options.fetch(:errio, standard)
 
-  def isolation = state.isolation ||= options.fetch(:isolation) { Kimera::Execution::Isolation.new }
+  def isolation = options[:isolation] ||= Kimera::Execution::Isolation.new
 
   def soft = options.fetch(:soft_timeout, 5.0)
 
@@ -106,7 +98,7 @@ class Kimera::Execution::Harness
   def rigged
     Kimera::Execution::Rig.new(
       registry: registry, adapter: adapter, isolation: isolation, root: root, soft: soft, hard: hard, jobs: jobs,
-      coverage: coverage, spawner: options[:spawner], progress: progress, aliases: state.aliases,
+      coverage: coverage, spawner: options[:spawner], progress: progress, aliases: options[:aliases],
       **options.slice(:filter, :test_quality, :confirm_survivors, :zygote)
     )
   end
@@ -118,20 +110,17 @@ class Kimera::Execution::Harness
   def booted = Kimera::Execution::Boot.new(adapter: adapter, isolate: options[:isolate_db], errors: errors)
 
   def complete(loader)
-    state.skipped = loader.skipped
-    state.aliases = loader.aliases
+    options[:aliases] = loader.aliases
     isolate!
   end
 
-  def mutants = registry.each.map { |mutant, _path| mutant.id }
+  def mutants = registry.index.keys
 
   def measure!
-    measured = parallel(baseline)
-    options[:coverage] = measured.coverage
-    options[:timings] = measured.timings
-    arm(measured.timings)
-    state.irrelevant = measured.irrelevant
-    state.recovered = measured.recovered
+    parallel(baseline).tap do |measured|
+      options.update(measured.to_h.slice(:coverage, :timings))
+      arm(options.fetch(:timings))
+    end
   end
 
   def sift!(scope)
@@ -146,7 +135,7 @@ class Kimera::Execution::Harness
 
   def parallel(pass)
     pass.parallel!(jobs) do |ids, width, listeners|
-      driver.drive(ids, driver.method(:channel), listeners, jobs: width || jobs)
+      driver.drive(ids, driver.spawner(:coverage), listeners, jobs: width || jobs)
     end
   end
 
@@ -166,10 +155,10 @@ class Kimera::Execution::Harness
     Kimera::Execution::BaselinePass.new(adapter:, registry:, root:, **options.slice(:progress, :measured, :zygote))
   end
 
-  def screen = Kimera::Execution::BaselineScreen.new(adapter: adapter, root: root, jobs: jobs).call(state.irrelevant)
+  def screen = Kimera::Execution::BaselineScreen.new(adapter: adapter, root: root, jobs: jobs)
 
-  def notice(excluded)
-    stall = Kimera::Execution::BaselineStall.new(state.recovered, hard: hard, jobs: jobs).to_s
+  def notice(excluded, measured)
+    stall = measured.stall(hard: hard, jobs: jobs)
     errors.puts(stall) if stall
     errors.puts(excluded) if excluded
   end

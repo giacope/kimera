@@ -5,6 +5,8 @@ require "kimera/execution/macro_lambdas"
 require "kimera/registry/builder"
 require "tmpdir"
 
+using PointFields
+
 RSpec.describe(Kimera::Execution::MacroLambdas) do
   let(:source) do
     <<~RUBY
@@ -29,12 +31,12 @@ RSpec.describe(Kimera::Execution::MacroLambdas) do
 
   after { FileUtils.remove_entry(dir) }
 
-  def point(text) = registry.points.find { |found| found.original_source == text }
+  def point(text) = registry.to_a.find { |found| found.original_source == text }
 
   it "sends an uncovered lambda a class-body macro is handed to the isolated tier", :aggregate_failures do
     described_class.new(registry, dir).quarantine!({})
-    expect(point("Current.user")).to(have_attributes(safe?: false, unsafe_reason: Kimera::MutationPoint::MACRO_REASON))
-    expect(point("Current.user").reloadable?).to(be(false))
+    expect(PointVerdict.new(point("Current.user"))).to(have_attributes(safe?: false, unsafe_reason: Kimera::Reason::MACRO_REASON))
+    expect(point("Current.user").reasons(Kimera::Reason.unreloadable).empty?).to(be(false))
   end
 
   it "judges a macro's lambda a test covers warm, and a survivor again in a fresh mirror", :aggregate_failures do
@@ -42,20 +44,20 @@ RSpec.describe(Kimera::Execution::MacroLambdas) do
     ordered = point("order(:created_at)")
     described_class.new(registry, dir).quarantine!({ booster.ids.first => ["t1"], ordered.ids.first.to_s => ["t1"] })
     expect([booster.safe?, ordered.safe?]).to(eq([true, true]))
-    expect([booster.revisit, ordered.revisit]).to(eq([Kimera::MutationPoint::MACRO_KEPT] * 2))
+    expect([booster, ordered].map { PointVerdict.new(it).revisit }).to(eq([Kimera::Reason::MACRO_KEPT] * 2))
   end
 
   it "leaves lambdas no class-body macro is handed: a constant's, and those in a method", :aggregate_failures do
     described_class.new(registry, dir).quarantine!({})
     expect([point("size > 10"), point("a > b"), point("a < b")].map(&:safe?)).to(eq([true, true, true]))
-    expect([point("size > 10"), point("a > b"), point("a < b")].map(&:revisit)).to(eq([nil, nil, nil]))
+    expect([point("size > 10"), point("a > b"), point("a < b")].map { PointVerdict.new(it).revisit }).to(eq([nil] * 3))
   end
 
   it "leaves a point sent elsewhere already, for a reason or a revisit of its own", :aggregate_failures do
-    point("Current.user").unsafe!(Kimera::MutationPoint::LOAD_REASON)
-    point("order(:created_at)").revisit!(Kimera::MutationPoint::BOOT_REASON)
+    point("Current.user").mark!(Kimera::Reason.unsafe(Kimera::Reason::LOAD_REASON))
+    point("order(:created_at)").mark!(Kimera::Reason.revisit(Kimera::Reason::BOOT_REASON))
     described_class.new(registry, dir).quarantine!({})
-    expect(point("Current.user").unsafe_reason).to(eq(Kimera::MutationPoint::LOAD_REASON))
+    expect(point("Current.user").reasons(Kimera::Reason.unsafety).first).to(eq(Kimera::Reason::LOAD_REASON))
     expect(point("order(:created_at)").safe?).to(be(true))
   end
 

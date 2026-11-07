@@ -12,7 +12,7 @@ require_relative "walking"
 class Kimera::RegistryScan::SourceFile
   include Kimera::RegistryWalking
 
-  DIRECTIVE = ->((_key, variant)) { variant.directive }
+  DIRECTIVE = ->((_key, variant)) { variant.to_h.fetch(:directive) }
 
   def initialize(source, file:, operators:, numbering:)
     @source = source
@@ -74,43 +74,30 @@ class Kimera::RegistryScan::SourceFile
 
   private
 
-  def origin
-    Kimera::RegistryWalking::Cursor.new(
-      position: nil, inside_def: nil, in_pattern: nil, def_body: nil, defname: nil, embedded: nil, block: nil
-    )
-  end
+  def origin = Kimera::RegistryWalking::Cursor.origin
 
   def bank(node, cursor)
-    pairs = harvest(applicable(cursor), node, cursor.position).reject { |key, _| guarded?(node, key) }
+    pairs = cursor.pairs(@operators, node).reject { |key, _| guarded?(node, key) }
     pairs = writable(node, pairs)
     return if pairs.empty?
-    classed(assemble(node, pairs, cursor.defname), cursor, pairs).taint!(tainted)
+    point = cursor.classed(assemble(node, pairs, cursor), toggled?(pairs))
+    point.tap { taints(node).each { |text| point.mark!(Kimera::Reason::Guarded.tainted(text)) } }
   end
 
-  def hold(node, cursor)
-    block = cursor.block
-    return [] unless block && !cursor.inside_def && harvest(skipped, node, cursor.position).any?
-    [[block, node]]
+  def taints(node)
+    location = node.location
+    tainted.lazy.flat_map { |range| range.reasons(location.start_offset, location.end_offset) }.first(1)
   end
 
-  def skipped = @operators.reject(&:body?).reject(&:statement?)
-
-  def applicable(cursor)
-    chosen = cursor.inside_def ? @operators : @operators.select(&:body?)
-    cursor.position ? chosen : chosen.reject(&:statement?)
-  end
+  def hold(node, cursor) = cursor.held(@operators, node)
 
   def guarded?(node, key) = guards.any? { |guard| guard.covers?(node, key) }
 
-  def harvest(operators, node, position)
-    operators.flat_map { |operator| operator.pairs(node, position: position) }
+  def assemble(node, pairs, cursor)
+    Kimera::MutationPoint.new(**cursor.named(attributes(node, distinct(node, pairs))))
   end
 
-  def assemble(node, pairs, name) = Kimera::MutationPoint.new(**attributes(node, distinct(node, pairs), name))
-
-  def classed(point, cursor, pairs) = cursor.inside_def || toggled?(pairs) ? point : point.tap(&:class_body!)
-
-  def toggled?(pairs) = pairs.all? { |key, _| @operators.any? { it.toggles? && it.key == key } }
+  def toggled?(pairs) = pairs.all? { |key, _| @operators.any? { it.reach.toggles? && it.key == key } }
 
   def writable(node, pairs) = outcomes.writable(node, pairs, &DIRECTIVE)
 
@@ -118,14 +105,14 @@ class Kimera::RegistryScan::SourceFile
 
   def outcomes(kind = Kimera::Rewrite::Outcomes) = @_outcomes ||= kind.new(@source)
 
-  def attributes(node, pairs, name)
+  def attributes(node, pairs)
     location = node.location
     { point_id: @numbering.point, file: @file, operator: pairs.map(&:first).uniq.join("+") }
       .merge(node_type: node.type.to_s, location: Kimera::Location.parse(location), original_source: location.slice)
-      .merge(method_name: name, mutants: mint(pairs))
+      .merge(mutants: mint(pairs))
   end
 
   def mint(pairs)
-    pairs.map { |(_key, variant)| Kimera::Mutant.of(@numbering.mutant, variant) }
+    pairs.map { |(_key, variant)| Kimera::Mutant.new(id: @numbering.mutant, **variant.to_h) }
   end
 end

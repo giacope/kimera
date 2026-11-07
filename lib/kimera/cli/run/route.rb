@@ -25,7 +25,7 @@ class Kimera::CLI::Run::Route
 
   def patterns = Array(@options[:isolate_when_covered_by])
 
-  def critical?(id) = Kimera::SelfProtection.new(@registry.index.fetch(id).file).critical?
+  def critical?(id) = Kimera::SelfProtection.new(@registry[id].last).critical?
 
   def matches?(coverage, id, pattern)
     tests = coverage.fetch(id) { coverage.fetch(id.to_s, []) }

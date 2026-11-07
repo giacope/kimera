@@ -4,6 +4,9 @@ require "kimera/incremental/session"
 require "kimera/registry/builder"
 require "tmpdir"
 
+using ResultFields
+using PointFields
+
 RSpec.describe(Kimera::Incremental::Session) do
   let(:dir) { Dir.mktmpdir }
 
@@ -17,7 +20,7 @@ RSpec.describe(Kimera::Incremental::Session) do
     Kimera::RunReport.new(results: results, leaks: leaks)
   end
 
-  def judged(report, session = described_class.new) = session.judged(report.results.map(&:mutant_id)) { report }
+  def judged(report, session = described_class.new) = session.judged(report.to_a.map(&:mutant_id)) { report }
 
   def seed(dir, report, registry: Kimera::Registry.new, meta: {})
     path = File.join(dir, "session.json")
@@ -25,7 +28,7 @@ RSpec.describe(Kimera::Incremental::Session) do
     path
   end
 
-  def stored(session, ids = [1, 2, 3]) = session.report(ids, [], Kimera::Registry.new).results
+  def stored(session, ids = [1, 2, 3]) = session.report(ids, [], Kimera::Registry.new).to_a
 
   def pending(session, ids)
     [].tap { |left| session.judged(ids) { |remaining| left.concat(remaining).then { report([]) } } }
@@ -33,22 +36,22 @@ RSpec.describe(Kimera::Incremental::Session) do
 
   def done?(session, id) = pending(session, [id]).empty?
 
-  def leaks(session) = session.report([], [], Kimera::Registry.new).leaks
+  def leaks(session) = session.report([], [], Kimera::Registry.new).notes.to_h["leaks"]
 
   def stamped(stamp) = described_class.new(meta: { "stamp" => stamp })
 
   it "keeps each mutant's killing tests and the suite a test-quality run saw across a save", :aggregate_failures do
-    counted = result(1, :killed).tap { |killed| killed.killing_tests = %w[t1 t2] }
+    counted = result(1, :killed).with(killing_tests: %w[t1 t2])
     path = seed(dir, report([counted]).annotate(suite: %w[t1 t2 t3]))
     resumed = described_class.from(path).report([1], [], Kimera::Registry.new)
-    expect([resumed.results.first.killing_tests, resumed.notes.suite]).to(eq([%w[t1 t2], %w[t1 t2 t3]]))
+    expect([resumed.to_a.first.killing_tests, resumed.notes.to_h["suite"]]).to(eq([%w[t1 t2], %w[t1 t2 t3]]))
   end
 
   it "keeps the flaky tests a run found across a save and a resume", :aggregate_failures do
     found = { "runs" => 1, "seeds" => [2], "tests" => 1, "flaky" => [] }
     path = seed(dir, report([result(1, :killed)]).annotate(flaky: found))
-    expect(described_class.from(path).report([1], [], Kimera::Registry.new).notes.flaky).to(eq(found))
-    expect(judged(report([])).report([], [], Kimera::Registry.new).notes.flaky).to(be_nil)
+    expect(described_class.from(path).report([1], [], Kimera::Registry.new).notes.to_h["flaky"]).to(eq(found))
+    expect(judged(report([])).report([], [], Kimera::Registry.new).notes.to_h["flaky"]).to(be_nil)
   end
 
   it "creates the directory it saves into" do
@@ -64,7 +67,7 @@ RSpec.describe(Kimera::Incremental::Session) do
 
   it "drops verdicts saved under another stamp, and keeps those saved under the same", :aggregate_failures do
     registry = Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n", file: "x.rb")
-    id = registry.each.first.first.id
+    id = registry.each.first.first.to_i
     path = File.join(dir, "session.json")
     judged(report([result(id, :killed)]), stamped("one")).save(path, registry)
     expect(%w[two one].map { |stamp| done?(described_class.from(path, stamp: stamp).pruned(registry), id) })
@@ -73,7 +76,7 @@ RSpec.describe(Kimera::Incremental::Session) do
 
   it "stamps the session a run starts, so the next run under the same stamp keeps its verdicts" do
     registry = Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n", file: "x.rb")
-    id = registry.each.first.first.id
+    id = registry.each.first.first.to_i
     path = File.join(dir, "session.json")
     judged(report([result(id, :killed)]), described_class.from(path, stamp: "one")).save(path, registry)
     expect(done?(described_class.from(path, stamp: "one").pruned(registry), id)).to(be(true))
@@ -103,7 +106,7 @@ RSpec.describe(Kimera::Incremental::Session) do
   it "keeps the names of the tests its results cite across a resume" do
     named = { "t1" => { "name" => "N", "location" => "spec/n_spec.rb:2" } }
     path = seed(dir, Kimera::RunReport.new(results: [result(1, :killed)], tests: named))
-    expect(described_class.from(path).report([1], [], Kimera::Registry.new).tests).to(eq(named))
+    expect(described_class.from(path).report([1], [], Kimera::Registry.new).notes.to_h["tests"]).to(eq(named))
   end
 
   it "merges new results into resumed ones" do
@@ -116,9 +119,9 @@ RSpec.describe(Kimera::Incremental::Session) do
   describe "ignored mutants" do
     let(:registry) { Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n", file: "calc.rb") }
 
-    def ids = registry.each.map { |mutant, _point| mutant.id }
+    def ids = registry.each.map { |mutant, _point| mutant.to_i }
 
-    def waived(session) = session.report([], ids, registry).results
+    def waived(session) = session.report([], ids, registry).to_a
 
     it "reports an evaluated ignored mutant as ignored with its stored verdict", :aggregate_failures do
       first, second = ids
@@ -137,7 +140,7 @@ RSpec.describe(Kimera::Incremental::Session) do
     end
 
     def first(registry)
-      registry.each.first.first.id
+      registry.each.first.first.to_i
     end
 
     it "reuses results when the source (and thus fingerprint) is unchanged" do

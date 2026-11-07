@@ -18,9 +18,9 @@ class Kimera::GuardClause
 
   private
 
-  def directive = Kimera::Rewrite::Directive.new(@mutant.directive)
+  def directive = @mutant.rewrite(Kimera::Rewrite::Directive)
 
-  def test = "::Kimera::RUNTIME.active?(#{Integer(@mutant.id)})"
+  def test = "::Kimera::RUNTIME.active?(#{Integer(@mutant)})"
 
   def rescued
     clause = Kimera::Rescues.new(@node.rescue_clause).to_a[directive.position]

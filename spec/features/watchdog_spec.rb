@@ -4,13 +4,15 @@ require "json"
 require "kimera/execution/harness"
 require "kimera/registry/registry"
 
+using ResultFields
+
 RSpec.describe("Harness watchdog") do
   def location
     Kimera::Location.new(start_offset: 0, span: 1, start_line: 1, start_column: 0, end_line: 1, end_column: 1)
   end
 
   def catalog(ids)
-    Kimera::Registry.new(points: [point(ids)])
+    PointRegistry.of([point(ids)])
   end
 
   def point(ids)
@@ -48,12 +50,12 @@ RSpec.describe("Harness watchdog") do
   it "records clean results when nothing hangs" do
     catalog = catalog([1, 2, 3])
     report = harness(catalog, fake_spawner).run(ids: [1, 2, 3])
-    expect(report.killed.map(&:mutant_id)).to(contain_exactly(1, 2, 3))
+    expect(report.select(&:killed?).map(&:mutant_id)).to(contain_exactly(1, 2, 3))
   end
 
   it "hard-kills a hung worker, marks the in-flight mutant as timeout, and finishes the rest" do
     report = harness(catalog([1, 2, 3]), fake_spawner(timeout: 2)).run(ids: [1, 2, 3])
-    expect(report.results.to_h { |r| [r.mutant_id, r.status] }).to(eq(1 => :killed, 2 => :timeout, 3 => :killed))
+    expect(report.to_a.to_h { |r| [r.mutant_id, r.status] }).to(eq(1 => :killed, 2 => :timeout, 3 => :killed))
   end
 
   def stillborn
@@ -80,7 +82,7 @@ RSpec.describe("Harness watchdog") do
   it "leaves a worker that dies mid-mutant unjudged, then keeps going", :aggregate_failures do
     catalog = catalog([1, 2])
     report = harness(catalog, fake_spawner(crash: 1)).run(ids: [1, 2])
-    statuses = report.results.to_h { |r| [r.mutant_id, r.status] }
+    statuses = report.to_a.to_h { |r| [r.mutant_id, r.status] }
     expect(statuses[1]).to(eq(:harness_error))
     expect(statuses[2]).to(eq(:killed))
   end

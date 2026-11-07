@@ -5,6 +5,8 @@ require "kimera/cli"
 require "kimera/results/run_report"
 require "tmpdir"
 
+using ResultFields
+
 RSpec.describe(Kimera::CLI::Run::Cycle, "#narrowed") do
   around { |example| Dir.mktmpdir { |dir| Dir.chdir(dir) { example.run } } }
 
@@ -26,7 +28,7 @@ RSpec.describe(Kimera::CLI::Run::Cycle, "#narrowed") do
   def details(narrowed)
     tests = narrowed ? ["spec/a_spec.rb"] : ["spec/*_spec.rb"]
     options = { tests: tests, configured_tests: ["spec/*_spec.rb"], exclude_tests: [] }
-    described_class.new(options, nil, digest: nil).__send__(:narrowed, report).results.map(&:detail)
+    described_class.new(options, nil, digest: nil).__send__(:narrowed, report).to_a.map(&:detail)
   end
 
   it "says an uncovered mutant is not covered by the narrowed tests, keeping a reason it already has" do

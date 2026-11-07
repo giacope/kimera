@@ -22,8 +22,6 @@ class Kimera::Execution::Shift::CoverageChannel
   def serve(request, response)
     drain(request, response)
     emit(response, t: "done")
-  ensure
-    Kimera::RUNTIME.active = nil
   end
 
   private
@@ -39,17 +37,14 @@ class Kimera::Execution::Shift::CoverageChannel
     emit(response, t: "result", id: testid, **@zygote.call { measure(testid).to_h }.transform_keys(&:to_sym))
   end
 
-  def measure(testid)
-    Kimera::RUNTIME.active = nil
-    ledger = Kimera::RUNTIME.start!
-    reading(testid, ledger)
-  ensure
-    Kimera::RUNTIME.stop!(ledger)
+  def measure(testid, runtime = Kimera::RUNTIME)
+    ledger = Kimera::Runtime::Ledger.new
+    runtime.during(nil, ledger) { reading(testid, ledger) }
   end
 
   def reading(testid, ledger, watch = Kimera::Execution::Stopwatch.new)
     outcome, took = watch.lap { @adapter.run([testid]) }
-    Reading.new(outcome.passed?, ledger.drain!, outcome.failures[testid], took)
+    Reading.new(outcome.passed?, ledger.drain!, outcome.to_h.fetch("failures")[testid], took)
   end
 
   def emit(io, **fields)

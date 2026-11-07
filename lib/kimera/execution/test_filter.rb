@@ -14,7 +14,7 @@ class Kimera::Execution::TestFilter
   class << self
     def build(registry:, adapter:, root: ".", attribution: Kimera::Execution::OpenAttribution.new)
       base = "#{File.expand_path(root)}/"
-      locate = ->(test) { File.expand_path(adapter.test_file(test).to_s).delete_prefix(base) }
+      locate = ->(test) { File.expand_path(adapter[test].file).delete_prefix(base) }
       new(registry: registry, attribution: attribution, locate: locate)
     end
 
@@ -38,7 +38,7 @@ class Kimera::Execution::TestFilter
   end
 
   def settle(id, tests)
-    file = @registry.index[id]&.file
+    file = @registry[id] { [] }.last
     return if tests.empty? || keep(file, tests).any?
     steady = tests.reject { |test| @flaky.include?(test) }
     steady.empty? ? unsteady(id, file, tests) : foreign(id, file, steady)
@@ -51,7 +51,7 @@ class Kimera::Execution::TestFilter
   def screened(coverage)
     coverage.each_with_object([{}, {}]) do |(id, tests), (kept, settled)|
       verdict = settle(id, tests)
-      verdict ? settled[id] = verdict : kept[id] = keep(@registry.index[id]&.file, tests)
+      verdict ? settled[id] = verdict : kept[id] = keep(@registry[id] { [] }.last, tests)
     end
   end
 

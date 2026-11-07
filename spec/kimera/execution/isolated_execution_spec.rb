@@ -6,6 +6,9 @@ require "kimera/execution/test_filter"
 require "kimera/registry/builder"
 require "timeout"
 
+using ResultFields
+using PointFields
+
 RSpec.describe(Kimera::Execution::IsolatedExecution) do
   let(:registry) do
     Kimera::RegistryScan.new.source(<<~RUBY, file: "calc.rb")
@@ -24,11 +27,11 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
   end
 
   def test_all_ids
-    registry.each.map { |m, _p| m.id }
+    registry.each.map { |m, _p| m.to_i }
   end
 
   def first
-    registry.each.first.first.id
+    registry.each.first.first.to_i
   end
 
   def test_source_fixture
@@ -167,7 +170,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     it "drains the whole queue across workers and reports every verdict once", :aggregate_failures do
       report, progress, ids, r = parallel
-      expect(report.results.map(&:mutant_id)).to(match_array(ids))
+      expect(report.to_a.map(&:mutant_id)).to(match_array(ids))
       expect(progress.count { |e| e == %i[tick killed] }).to(eq(ids.size))
       expect(progress.last).to(eq([:finish]))
       expect(r.seen.values.flatten).to(match_array(ids))
@@ -380,7 +383,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     let(:ordered) { serial }
 
     it "evaluates every id in order and wraps a RunReport", :aggregate_failures do
-      expect(ordered[:report].results.map(&:mutant_id)).to(eq(ordered[:ids]))
+      expect(ordered[:report].to_a.map(&:mutant_id)).to(eq(ordered[:ids]))
       expect(ordered[:seen]).to(eq(ordered[:ids]))
     end
 
@@ -406,7 +409,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
         File.write(File.join(root, "calc.rb"), "def a(x, y) = x > y\n")
         verdict = ->(id) { id.even? ? :killed : :survived }
         test_canned_runner(root: root, jobs: jobs, &verdict)
-          .run(ids: test_all_ids).results.map { |r| [r.mutant_id, r.status] }.sort
+          .run(ids: test_all_ids).to_a.map { |r| [r.mutant_id, r.status] }.sort
       end
     end
 
@@ -455,7 +458,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     it "settles a mutant whose tests the screen drops, without staging or running it", :aggregate_failures do
       given = []
-      registry.index.fetch(first).revisit!(Kimera::MutationPoint::BOOT_REASON)
+      registry.index.fetch(first).mark!(Kimera::Reason.revisit(Kimera::Reason::BOOT_REASON))
       r = test_paced(given).new(
         registry: registry, root: ".", tests: %w[t1],
         filter: Kimera::Execution::TestFilter.new(registry: registry, flaky: %w[t1])
@@ -502,8 +505,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     it "bakes the mutant, takes the verdict, and restores the file afterward", :aggregate_failures do
       result, baked, restored = test_baking_evaluate(first)
-      expect(result)
-        .to(have_attributes(status: :killed, duration: 2.5, covering_tests: ["t1"], failing_tests: ["t1[1:1]"]))
+      expect(result).to(have_fields(status: :killed, duration: 2.5, covering_tests: ["t1"], failing_tests: ["t1[1:1]"]))
       expect(baked.first).not_to(eq(test_source_fixture))
       expect(restored).to(eq(test_source_fixture))
     end
@@ -695,7 +697,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     it "builds an :error result carrying the file and detail with zero duration", :aggregate_failures do
       result = test_invoke_private(runner, :error, 5, "calc.rb", "boom")
-      expect(result).to(have_attributes(status: :error, file: "calc.rb", detail: "boom", duration: 0.0))
+      expect(result).to(have_fields(status: :error, file: "calc.rb", detail: "boom", duration: 0.0))
     end
   end
 end

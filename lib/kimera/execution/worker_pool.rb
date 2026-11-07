@@ -18,18 +18,18 @@ class Kimera::Execution::WorkerPool
   end
 
   def run
-    bootstrap
+    fleet.bootstrap(@queue.size)
     poll while fleet.any?
   ensure
     fleet.disband
   end
 
   def assign(worker)
-    id = fleet.take(worker)
+    id, recheck = backlog.take(worker)
     return close(worker) unless id
     worker.claim(id, limit)
-    trace(worker.slot, id)
-    worker.offer(id, recheck: fleet.recheck?(id))
+    worker.trace(listeners, id)
+    worker.offer(id, recheck: recheck)
   end
 
   def lost(id, reason, stacks = []) = listeners.lost(id, reason, stacks)
@@ -40,27 +40,24 @@ class Kimera::Execution::WorkerPool
 
   def limit = @options.fetch(:hard_timeout)
 
+  def backlog = @_backlog ||= @options.fetch(:backlog) { Kimera::Execution::WorkerPool::Backlog.new(@queue) }
+
   def fleet = @_fleet ||= @options.fetch(:fleet) { manned }
 
   def manned
     Kimera::Execution::WorkerPool::Fleet.new(
-      queue: @queue, spawner: @spawner, jobs: @options.fetch(:jobs), pool: self
+      backlog: backlog, spawner: @spawner, jobs: @options.fetch(:jobs), pool: self
     )
   end
 
-  def bootstrap
-    fleet.bootstrap
-    fleet.each { |worker| assign(worker) }
-  end
-
   def poll
-    ready, = IO.select(fleet.keys, nil, nil, POLL_INTERVAL)
+    ready, = IO.select(fleet.map(&:first), nil, nil, POLL_INTERVAL)
     Array(ready).each { |pipe| service(pipe) }
     watch
   end
 
   def service(pipe)
-    worker = fleet.fetch(pipe)
+    worker = fleet[pipe]
     chunk = pipe.read_nonblock(CHUNK, exception: false)
     return hangup(pipe, worker) unless chunk
     worker.feed(chunk) { |line| deliver(worker, line) } unless chunk == :wait_readable
@@ -89,29 +86,28 @@ class Kimera::Execution::WorkerPool
 
   def requeue(worker, message)
     relay(message)
-    fleet.requeue(message["id"])
+    backlog.requeue(message["id"])
     close(worker)
   end
 
   def finish(worker, message)
-    fleet.done!(message["id"])
+    backlog.done!(message["id"])
     fleet.progress!
     relay(message)
     worker.idle!
   end
 
-  def trace(slot, id) = listeners.traced(slot, id)
-
   def close(worker) = shut(worker.retire(limit))
 
   def watch
     current = now
-    fleet.pairs { |pipe, worker| expire(pipe, worker.halt) if worker.expired?(current) }
+    fleet.to_a.each { |pipe, worker| expire(pipe, worker.halt) if worker.expired?(current) }
   end
 
   def expire(pipe, stacks) = fleet.remove(pipe, reason: :timeout, stacks: stacks)
 end
 
+require_relative "worker_pool/backlog"
 require_relative "worker_pool/fleet"
 require_relative "worker_pool/worker"
 require_relative "worker_pool/listeners"

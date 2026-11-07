@@ -5,6 +5,9 @@ require "kimera/cli/mutant"
 require "stringio"
 require "tmpdir"
 
+using ResultFields
+using PointFields
+
 RSpec.describe(Kimera::CLI::Mutant, :aggregate_failures) do
   let(:sample) { File.expand_path("../../../examples/sample_app", __dir__) }
   let(:provenance) do
@@ -13,8 +16,8 @@ RSpec.describe(Kimera::CLI::Mutant, :aggregate_failures) do
   end
 
   def reported(registry, mutant, point)
-    row = Kimera::MutantResult.new(mutant_id: mutant.id, status: :no_coverage, file: point.file)
-    Kimera::RunReport.new(results: [row], registry: registry).document(provenance)
+    row = Kimera::MutantResult.new(mutant_id: mutant.to_i, status: :no_coverage, file: point.file)
+    Kimera::RunReport.new(results: [row], registry: registry).annotate(run: provenance).to_h
   end
 
   def rerun(id, document)
@@ -29,13 +32,13 @@ RSpec.describe(Kimera::CLI::Mutant, :aggregate_failures) do
   def focused(options)
     registry = Kimera::CLI::Run::Sources.new.load(options)
     Kimera::CLI::Run::Cycle.new(options, registry, digest: nil).__send__(:focus, registry.index.keys) => [id]
-    [registry, *registry.point(id)]
+    [registry, *registry[id]]
   end
 
   def later_rerun
     full = Kimera::RegistryScan.new.build(Dir["app/**/*.rb"])
-    mutant, point = full.each.find { |found, spot| spot.file.end_with?("pricing.rb") && found.label == "> => >=" }
-    [full, mutant, point, rerun(mutant.id, reported(full, mutant, point))]
+    mutant, point = full.each.find { |found, spot| spot.file.end_with?("pricing.rb") && found.to_s == "> => >=" }
+    [full, mutant, point, rerun(mutant.to_i, reported(full, mutant, point))]
   end
 
   describe "a multi-file report" do
@@ -44,9 +47,10 @@ RSpec.describe(Kimera::CLI::Mutant, :aggregate_failures) do
     it "reruns a mutant from a later file", :aggregate_failures do
       full, mutant, point, argv = later_rerun
       alone, again, spot = focused(Kimera::CLI::Run::Arguments.new.parse(argv))
-      expect(argv.first(3)).to(eq(["app/services/pricing.rb", "--focus", full.keys[mutant.id]]))
-      expect([again.label, spot.location.start_line, alone.keys[again.id], mutant.id, again.id])
-        .to(eq([mutant.label, point.location.start_line, full.keys[mutant.id], 25, 3]))
+      key = Kimera::MutantKeys.of(full)[mutant.to_i]
+      expect(argv.first(3)).to(eq(["app/services/pricing.rb", "--focus", key]))
+      expect([again.to_s, spot.location.range.begin, Kimera::MutantKeys.of(alone)[again.to_i], mutant.to_i, again.to_i])
+        .to(eq([mutant.to_s, point.location.range.begin, key, 25, 3]))
     end
   end
 end

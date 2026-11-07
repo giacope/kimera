@@ -12,7 +12,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   let(:scripts) { Pbt.array(Pbt.tuple(warm, recheck), min: 1, max: 6) }
   let(:mutant) do
     Module.new do
-      def take(worker) = following || (worker.fresh? && rechecks.shift)
+      def chosen(worker) = following || (worker.fresh? && rechecks.shift)
     end
   end
 
@@ -80,7 +80,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   end
 
   def run(script, jobs, log, mutant)
-    Kimera::Execution::WorkerPool::Fleet.prepend(mutant) if mutant
+    Kimera::Execution::WorkerPool::Backlog.prepend(mutant) if mutant
     grandchildren = witness
     tally = { events: [], slots: [], error: nil, grandchildren: grandchildren }
     PoolTrace.record((1..script.size).to_a, jobs) { judge(tally, script, jobs, log) }
@@ -256,7 +256,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
     def shift(script, offers)
       Kimera::Execution::Shift.new(
-        adapter: FaultySuite.new(script, offers), registry: Struct.new(:index).new({}),
+        adapter: FaultySuite.new(script, offers), registry: Kimera::Registry.new,
         coverage: (1..script.size).to_h { [it, ["t"]] }, soft_timeout: soft
       )
     end

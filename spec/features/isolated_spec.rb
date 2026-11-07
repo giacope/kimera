@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+using ResultFields
+
 RSpec.describe("kimera run --isolated (end-to-end)") do
   it "reproduces the fast-path verdicts with fully out-of-process evaluation", :aggregate_failures do
     run = test_outcome(cwd: test_sample, arguments: ["--isolated"])

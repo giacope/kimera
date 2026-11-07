@@ -6,6 +6,8 @@ require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 require "stringio"
 
+using ResultFields
+
 RSpec.describe(Kimera::Execution::Shift) do
   let(:registry) do
     Kimera::RegistryScan.new.source(<<~RUBY, file: "calc.rb")
@@ -15,7 +17,7 @@ RSpec.describe(Kimera::Execution::Shift) do
     RUBY
   end
 
-  let(:target) { registry.each.first.first.id }
+  let(:target) { registry.each.first.first.to_i }
   let(:clock) { [0.0] }
   let(:budget) { Kimera::Execution::TimeBudget.new({ "t1" => 0.01, "t2" => 0.01 }, factor: 10.0, slack: 1.0) }
 

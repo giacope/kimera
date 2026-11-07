@@ -2,6 +2,8 @@
 
 require "kimera/synthesis/part_splice"
 
+using PointFields
+
 RSpec.describe(Kimera::PartSplice, :aggregate_failures) do
   def literal(source) = Prism.parse(source).value.statements.body.first.value
 

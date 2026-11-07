@@ -15,7 +15,7 @@ class Kimera::CLI::Run::InlineIgnores
   end
 
   def rules
-    @registry.files.flat_map do |file|
+    @registry.to_h.keys.flat_map do |file|
       Kimera::Syntax::Document.new(@root, file).result.comments.filter_map { |comment| rule(file, comment) }
     end
   end

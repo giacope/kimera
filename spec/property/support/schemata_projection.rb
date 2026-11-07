@@ -27,7 +27,7 @@ module SchemataProjection
 
   Case =
     Struct.new(:source, :registry, :overlay, :result) do
-      def schemata = @_schemata ||= SchemataProjection.read(result.source)
+      def schemata = @_schemata ||= SchemataProjection.read(result.to_s)
 
       def original
         map = Kimera::SourceMap.new(source)
@@ -39,7 +39,7 @@ module SchemataProjection
       def projected(id) = SchemataProjection.normal(SchemataProjection.project(schemata, id))
 
       def mismatches
-        result.mutant_ids.filter_map do |id|
+        result.to_h.fetch(:mutant_ids).filter_map do |id|
           got = projected(id)
           want = baked(id)
           [id, got, want] unless got == want

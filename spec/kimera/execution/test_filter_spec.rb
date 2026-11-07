@@ -4,11 +4,13 @@ require "kimera/execution/test_filter"
 require "kimera/registry/builder"
 require "kimera/execution/attribution"
 
+using ResultFields
+
 RSpec.describe(Kimera::Execution::TestFilter, :aggregate_failures) do
   let(:registry) do
     Kimera::RegistryScan.new.source("def big?(total)\n  total > 50\nend\n", file: "app/models/order.rb")
   end
-  let(:id) { registry.each.first.first.id }
+  let(:id) { registry.each.first.first.to_i }
   let(:files) do
     {
       "own" => "spec/models/order_spec.rb", "request" => "spec/requests/orders_spec.rb",
@@ -19,7 +21,7 @@ RSpec.describe(Kimera::Execution::TestFilter, :aggregate_failures) do
   let(:adapter) do
     named = { "own" => "./spec/models/order_spec.rb", "request" => "spec/requests/orders_spec.rb" }
       .merge("abs" => File.expand_path("spec/models/order_spec.rb"), "else" => "/elsewhere/spec/models/order_spec.rb")
-    Struct.new(:named) { def test_file(test) = named.fetch(test, "") }.new(named)
+    Struct.new(:named) { def [](test) = Data.define(:file).new(named.fetch(test, "")) }.new(named)
   end
 
   def filter(attribution: Kimera::Execution::Attribution.new, flaky: [])

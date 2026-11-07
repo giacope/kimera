@@ -17,8 +17,8 @@ RSpec.describe(Kimera::Rewrite::MutantText) do
 
   def texts(code, keys)
     scanned(code, keys) do |registry|
-      registry.each.map do |mutant, point|
-        [mutant.label, described_class.new(point, mutant, root: registry.root).texts.first]
+      registry.each.map do |mutant, _point|
+        [mutant.to_s, registry.texts(mutant.to_i, described_class).first]
       end
     end
   end
@@ -49,8 +49,8 @@ RSpec.describe(Kimera::Rewrite::MutantText) do
   def kinds = "class Relay\n  def kinds = %i[fast slow].size\nend\n"
 
   def changed(registry)
-    File.write(File.join(registry.root, "relay.rb"), kinds.sub("fast", "fist"))
-    registry.each.map { |mutant, point| described_class.new(point, mutant, root: registry.root).texts.first }
+    File.write(File.join(JSON.parse(registry.to_json).fetch("root"), "relay.rb"), kinds.sub("fast", "fist"))
+    registry.each.map { |mutant, _point| registry.texts(mutant.to_i, described_class).first }
   end
 
   it "is nothing when its file changed where the point was" do
@@ -59,7 +59,7 @@ RSpec.describe(Kimera::Rewrite::MutantText) do
 
   def survivor(registry)
     mutant = registry.each.first.first
-    result = Kimera::MutantResult.new(mutant_id: mutant.id, status: :survived, file: "relay.rb", duration: 0.1)
+    result = Kimera::MutantResult.new(mutant_id: mutant.to_i, status: :survived, file: "relay.rb", duration: 0.1)
     Kimera::RunReport.new(results: [result], registry: registry)
   end
 

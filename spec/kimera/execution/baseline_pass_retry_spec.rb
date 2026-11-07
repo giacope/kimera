@@ -4,6 +4,8 @@ require "kimera/execution/baseline_pass"
 require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 
+using ResultFields
+
 RSpec.describe(Kimera::Execution::BaselinePass) do
   let(:registry) do
     Kimera::RegistryScan.new.source(<<~RUBY, file: "calc.rb")
@@ -13,13 +15,13 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     RUBY
   end
 
-  let(:ids) { registry.each.map { |m, _p| m.id } }
+  let(:ids) { registry.each.map { |m, _p| m.to_i } }
 
   let(:adapter) do
     tests = %w[t1 t2 t3]
     Class.new(Kimera::Frameworks::Suite) do
       define_method(:test_ids) { tests }
-      define_method(:reproduce) { |failed| "rspec #{failed.join(" ")}" }
+      define_method(:[]) { |*failed| "rspec #{failed.join(" ")}" }
     end.new
   end
 
@@ -58,7 +60,7 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     expect(rounds.size).to(eq(1))
     expect(rounds.first).to(include(queue: %w[t1 t2 t3], jobs: nil))
     expect(rounds.first[:trace]).to(respond_to(:call))
-    expect(result.recovered).to(eq({}))
+    expect(result.to_h.fetch(:recovered)).to(eq({}))
   end
 
   it "reruns only the tests that hit the hard timeout, alone and untraced", :aggregate_failures do
@@ -69,8 +71,8 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
   it "keeps a test that passes alone, with its stacks, and its coverage", :aggregate_failures do
     result, = measure({ "t2" => :timeout })
 
-    expect(result.recovered).to(eq("t2" => ["stacks of t2"]))
-    expect(result.coverage[ids.first]).to(contain_exactly("t1", "t2", "t3"))
+    expect(result.to_h.fetch(:recovered)).to(eq("t2" => ["stacks of t2"]))
+    expect(result.to_h.fetch(:coverage)[ids.first]).to(contain_exactly("t1", "t2", "t3"))
   end
 
   it "ticks each test once, however many rounds it takes", :aggregate_failures do
@@ -96,14 +98,14 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
 
   it "keeps the stacks of the run that lost the test", :aggregate_failures do
     pass = relapsed(described_class.new(adapter: adapter, registry: registry))
-    expect(pass.__send__(:losses).stacks).to(eq("t1" => ["stacks alone"], "t2" => []))
+    expect(pass.__send__(:losses).to_h.fetch(:stacks)).to(eq("t1" => ["stacks alone"], "t2" => []))
   end
 
   it "doesn't count a test that fails alone as recovered", :aggregate_failures do
     result, = measure({ "t1" => :timeout }, { "t1" => :stray })
 
-    expect(result.recovered).to(eq({}))
-    expect(result.irrelevant.keys).to(eq(["t1"]))
+    expect(result.to_h.fetch(:recovered)).to(eq({}))
+    expect(result.to_h.fetch(:irrelevant).keys).to(eq(["t1"]))
   end
 
   it "fails the baseline on a test that fails when rerun alone", :aggregate_failures do
@@ -123,7 +125,7 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
   it "counts a crash as the parallel loss it was, not a rerun one" do
     pass = described_class.new(adapter: adapter, registry: registry)
     pass.__send__(:lost, Kimera::Execution::NullProgress::UNSEEN, "t1", :crash)
-    expect(pass.__send__(:tally).messages["t1"]).to(eq("its worker died before reporting a result"))
+    expect(pass.__send__(:tally).to_h.fetch(:messages)["t1"]).to(eq("its worker died before reporting a result"))
   end
 
   it "names --jobs 1 as the check when a baseline on several workers is red", :aggregate_failures do

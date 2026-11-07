@@ -15,7 +15,7 @@ class Kimera::Incremental::Selection
     @since = since
   end
 
-  def ids(registry) = registry.points.flat_map { |point| touched(point) }
+  def ids(registry) = registry.each.filter_map { |mutant, point, file| mutant.to_i if touched?(point, file) }
 
   def files(found) = found.select { |file| @changes.key?(yield(file)) }
 
@@ -27,9 +27,5 @@ class Kimera::Incremental::Selection
 
   private
 
-  def touched(point)
-    lines = @changes[point.file]
-    return [] unless lines && point.location.range.any? { |line| lines.include?(line) }
-    point.ids
-  end
+  def touched?(point, file) = @changes.key?(file) && point.fits?(lines: @changes.fetch(file))
 end

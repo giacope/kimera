@@ -10,7 +10,7 @@ class Kimera::IgnoreList::Placement
     @pairs = pairs
   end
 
-  def ids = hits.map { |mutant, _point| mutant.id }
+  def ids = hits.map { |mutant, _point| mutant.to_i }
 
   def lapsed(kept) = stale? || !kept.include?(self) ? [@rule] : []
 
@@ -18,7 +18,7 @@ class Kimera::IgnoreList::Placement
 
   def moved
     return [] unless exact.empty?
-    drifted.first(1).map { |_mutant, point| Kimera::IgnoreList::Shift.new(@rule, point.location.start_line) }
+    drifted.first(1).map { |_mutant, point| Kimera::IgnoreList::Shift.new(@rule, point.to_h.dig("location", "start_line")) }
   end
 
   private

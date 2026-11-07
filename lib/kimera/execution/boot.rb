@@ -14,7 +14,7 @@ class Kimera::Execution::Boot
   def suite(test_files)
     @adapter.source(test_files)
     found!(test_files)
-    @adapter.start
+    @adapter.hooks.start
     load!
     keep!
   end
@@ -47,7 +47,9 @@ class Kimera::Execution::Boot
 
   def keep!
     memory = Kimera::Execution::MemoryDatabases
+    # rubocop:disable-next Kata/NoMonkeyPatch -- Active Record discards every pool a fork inherits, and a forked worker would lose the in-memory database the suite loaded its schema into; it has no setting to keep one
     ActiveRecord::ConnectionAdapters::PoolConfig.prepend(memory::INHERITED) if defined?(ActiveRecord::ConnectionAdapters::PoolConfig)
+    # rubocop:disable-next Kata/NoMonkeyPatch -- sqlite3 >= 2 closes every writable handle a fork inherits, the in-memory schema with it, and offers no setting to spare one
     SQLite3::ForkSafety.singleton_class.prepend(memory::SPARED) if defined?(SQLite3::ForkSafety)
   end
 

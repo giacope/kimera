@@ -17,5 +17,5 @@ class Kimera::Operators::RailsValidation < Kimera::Operators::RailsDeclaration
     dropped.map { |key| mutation("validates: drop #{key}:", "kwarg_pair_drop", key:) }
   end
 
-  def named(node) = keywords(node)&.elements.to_a.filter_map { |assoc| unescaped(assoc.key) if assoc.is_a?(AssocNode) }
+  def named(node) = keywords(node).elements.filter_map { |assoc| unescaped(assoc.key) if assoc.is_a?(AssocNode) }
 end

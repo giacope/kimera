@@ -3,6 +3,8 @@
 require "kimera/registry/builder"
 require "kimera/scope/ignore_list"
 
+using PointFields
+
 RSpec.describe(Kimera::IgnoreList) do
   let(:source) do
     <<~RUBY
@@ -22,7 +24,7 @@ RSpec.describe(Kimera::IgnoreList) do
 
   let(:first_column) do
     all = ids(file: "calc.rb", line: 3)
-    registry.index[all.first].location.start_column
+    registry.index[all.first].location.to_h.fetch("start_column")
   end
 
   def ids(rule)
@@ -31,7 +33,7 @@ RSpec.describe(Kimera::IgnoreList) do
 
   it "matches by file + line + label" do
     ids = ids(file: "calc.rb", line: 3, label: "> => <")
-    labels = ids.map { |id| registry.mutant(id).label }
+    labels = ids.map { |id| registry[id].first.to_s }
     expect(labels).to(eq(["> => <"]))
   end
 
@@ -44,7 +46,7 @@ RSpec.describe(Kimera::IgnoreList) do
     multi = Kimera::RegistryScan.new.source("def m(a)\n  if a\n    a > 1\n  end\nend\n", file: "m.rb")
     starting = described_class.new([{ file: "m.rb", starts: 3 }]).resolve(multi).to_h[:ids]
     spanning = described_class.new([{ file: "m.rb", line: 3 }]).resolve(multi).to_h[:ids]
-    expect(starting.map { |id| multi.index[id].location.start_line }.uniq).to(eq([3]))
+    expect(starting.map { |id| multi.index[id].location.range.begin }.uniq).to(eq([3]))
     expect(spanning.size).to(be > starting.size)
   end
 
@@ -60,7 +62,7 @@ RSpec.describe(Kimera::IgnoreList) do
 
   it "matches by enclosing method name, independent of line position", :aggregate_failures do
     ids = ids(file: "calc.rb", method: "b", label: "< => >")
-    labels = ids.map { |id| registry.mutant(id).label }
+    labels = ids.map { |id| registry[id].first.to_s }
     expect(labels).to(eq(["< => >"]))
     expect(ids(file: "calc.rb", method: "a", label: "< => >")).to(be_empty)
   end
@@ -102,7 +104,7 @@ RSpec.describe(Kimera::IgnoreList) do
   it "pins a single point by column when a line has several matches", :aggregate_failures do
     pinned = ids(file: "calc.rb", line: 3, column: first_column + 1)
     expect(pinned).not_to(be_empty)
-    expect(pinned.map { |id| registry.index[id].location.start_column }.uniq).to(eq([first_column]))
+    expect(pinned.map { |id| registry.index[id].location.to_h.fetch("start_column") }.uniq).to(eq([first_column]))
   end
 
   it "reads the column 1-based, as the report prints it, not 0-based" do
@@ -162,7 +164,7 @@ RSpec.describe(Kimera::IgnoreList) do
     def resolve(*rules) = described_class.new(rules).resolve(registry)
 
     def labeled(label, line)
-      registry.each.find { |mutant, point| mutant.label == label && point.location.start_line == line }.first.id
+      registry.each.find { |mutant, point| mutant.to_s == label && point.location.range.begin == line }.first.to_i
     end
 
     it "re-anchors a drifted line when the label singles out one mutant", :aggregate_failures do
@@ -193,7 +195,7 @@ RSpec.describe(Kimera::IgnoreList) do
     it "keeps a label-less rule stale even when its file holds a single mutant", :aggregate_failures do
       lone = Kimera::RegistryScan.new.source("def m(a)\n  !a\nend\n", file: "lone.rb")
       rule = { file: "lone.rb", line: 9 }
-      expect(lone.count).to(eq(1))
+      expect(lone.each.count).to(eq(1))
       expect(described_class.new([rule]).resolve(lone).to_h.values_at(:ids, :stale)).to(eq([[], [rule]]))
     end
 

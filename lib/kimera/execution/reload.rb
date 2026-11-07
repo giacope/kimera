@@ -51,37 +51,36 @@ class Kimera::Execution::Reload
 
   def run(id, deadline:, tests: @adapter.test_ids)
     errand = Errand.new(id, tests, *IO.pipe(Encoding::UTF_8))
-    collect(errand, child(errand), deadline)
+    collect(id, errand, child(id, errand), deadline)
   end
 
   private
 
-  def child(errand)
-    fork { work(errand) }.tap { errand.parent! }
+  def child(id, errand)
+    fork { work(id, errand) }.tap { errand.parent! }
   end
 
-  def work(errand)
+  def work(id, errand)
     lead
     errand.child!
     silence!
-    errand.emit(report(errand))
+    errand.emit(report(id, errand))
     exit!(0)
   end
 
-  def report(errand)
+  def report(id, errand)
     started = monotonic
-    status, fails, detail = evaluate(errand)
-    JSON.generate(
-      id: errand.id, status: status.to_s, fails: Array(fails).map { |fail| fail.to_s.scrub }, detail: detail,
-      ms: monotonic - started, cover: errand.reached
+    status, fails, detail = evaluate(id, errand)
+    errand.report(
+      status: status.to_s, fails: Array(fails).map { |fail| fail.to_s.scrub }, detail: detail, ms: monotonic - started
     )
   end
 
   def monotonic(reading = Process.clock_gettime(Process::CLOCK_MONOTONIC)) = reading
 
-  def collect(errand, pid, deadline)
+  def collect(id, errand, pid, deadline)
     line = hear(errand, pid, deadline)
-    verdict(errand.id, line, bury(pid), deadline)
+    verdict(id, line, bury(pid), deadline)
   end
 
   def hear(errand, pid, deadline)
@@ -91,40 +90,38 @@ class Kimera::Execution::Reload
     raise
   end
 
-  def evaluate(errand)
-    failed = mutate(errand)
+  def evaluate(id, errand)
+    failed = mutate(id, errand)
     return failed.fetch(0).verdict unless failed.empty?
-    errand.reached.empty? ? [:no_coverage, [], UNCALLED] : [:survived, []]
+    errand.covered? ? [:survived, []] : [:no_coverage, [], UNCALLED]
   rescue Kimera::Overlay::Unbakeable => error
-    [:unmutatable, [], verdicts.point(errand.id).unmutatable(error.message)]
+    [:unmutatable, [], Kimera::Reason.unmutatable(error.message).to_s]
   rescue StandardError, ScriptError => error
     Failure.new(error).verdict
   end
 
-  def mutate(errand)
-    id = errand.id
-    file = verdicts.point(id).file
+  def mutate(id, errand, runtime = Kimera::RUNTIME)
+    file = @registry[id].last
     watch = overlay(file, @workspace.path(file), id)
-    Kimera::RUNTIME.active = nil
-    @isolation.around { hunt(errand, watch) }
+    runtime.during(nil) { @isolation.around { hunt(errand, watch) } }
   end
 
   def hunt(errand, watch)
-    errand.tests.lazy.map { |test| trial(test, errand, watch) }.reject(&:passed?).first(1)
+    errand.failures { |test| trial(test, errand, watch) }
   end
 
-  def trial(test, errand, watch)
+  def trial(test, errand, watch, runtime = Kimera::RUNTIME)
     errand.tick(test)
-    ledger = Kimera::RUNTIME.start!
-    @adapter.run([test]).tap { errand.reach(test) if watch.reached?(Kimera::RUNTIME.stop!(ledger)) }
+    ledger = Kimera::Runtime::Ledger.new
+    runtime.during(nil, ledger) { @adapter.run([test]) }.tap { errand.reach(test) if watch.reached?(ledger.drain!) }
   end
 
   def overlay(file, path, id) = watched(file, path, id).tap { |watch| install(watch.source, path) }
 
   def watched(file, path, id, trims = Kimera::BodyTrim)
-    location = verdicts.point(id).location
-    source = trims.new(File.read(path, encoding: Encoding::UTF_8), [location]).trim(path)
-    Kimera::Execution::CallWatch.new(Kimera::Overlay.new(@registry).bake(file, source, id), location.start_offset, id)
+    point = verdicts.point(id)
+    source = trims.new(File.read(path, encoding: Encoding::UTF_8), [point]).trim(path)
+    Kimera::Execution::CallWatch.new(Kimera::Overlay.new(@registry).bake(file, source, id), point, id)
   end
 
   def install(source, path, guards = Kimera::Execution::OverlayGuards.new)

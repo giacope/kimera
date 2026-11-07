@@ -8,7 +8,7 @@ require_relative "null_selection"
 
 class Kimera::CLI::Run::Bench
   def initialize(
-    suites: Kimera::Frameworks::SUITES, harnesses: Kimera::Execution::Harness, diffs: Kimera::Incremental::Selection
+    suites: Kimera::Frameworks::SuiteRegistry.new, harnesses: Kimera::Execution::Harness, diffs: Kimera::Incremental::Selection
   )
     @suites = suites
     @harnesses = harnesses

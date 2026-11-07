@@ -46,7 +46,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
   def mutants = Kimera::RegistryScan.new.source(File.read("calc.rb"), file: "calc.rb").each.to_a
 
-  def ids(*labels) = mutants.filter_map { |mutant, _point| mutant.id if labels.include?(mutant.label) }
+  def ids(*labels) = mutants.filter_map { |mutant, _point| mutant.to_i if labels.include?(mutant.to_s) }
 
   before { configure }
 
@@ -70,7 +70,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
     it "evaluates ignored mutants" do
       expect(evaluating.first).to(eq(0))
-      expect(runner).to(evaluated(mutants.map { |mutant, _point| mutant.id }))
+      expect(runner).to(evaluated(mutants.map { |mutant, _point| mutant.to_i }))
     end
 
     it "keeps them ignored, with their verdict" do

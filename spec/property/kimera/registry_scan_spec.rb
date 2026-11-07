@@ -3,6 +3,8 @@
 require_relative "../property_helper"
 require "kimera/registry/builder"
 
+using PointFields
+
 RSpec.describe(Kimera::RegistryScan) do
   def unscanned_reason = "kimera could not scan it, so nothing in it is mutated (a kimera bug, please report it): "
 
@@ -78,16 +80,16 @@ RSpec.describe(Kimera::RegistryScan) do
   gems = gems.uniq.select { |path| File.size(path) < 60_000 }.sort
   sampled = fixtures.sample(count, random: Random.new(seed)) + gems.sample(count * 3, random: Random.new(seed))
 
-  def reasons(registry) = registry.unmutated.map { |region| region.to_h["reason"] }
+  def reasons(registry) = registry.regions(&:itself).map { |region| region.to_h["reason"] }
 
   def unscanned(path, source)
     registry = described_class.new(operators: Kimera::Operators.build(keys: ["all"])).source(source, file: path)
     tripped = reasons(registry).select { |reason| reason.start_with?(unscanned_reason) }
-    tripped + registry.points.reject { |point| anchored?(point, source) }.map { "point #{it.point_id} moved" }
+    tripped + registry.to_a.reject { |point| anchored?(point, source) }.map { "point #{it.point_id} moved" }
   end
 
   def anchored?(point, source)
-    source.byteslice(point.location.start_offset, point.location.span) == point.original_source
+    source.byteslice(*point.location.to_h.values_at("start_offset", "length")) == point.original_source
   end
 
   shapes.each do |shape, source|

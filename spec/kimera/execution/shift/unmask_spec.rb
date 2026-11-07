@@ -4,12 +4,14 @@ require "kimera/execution/shift"
 require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 
+using ResultFields
+
 RSpec.describe(Kimera::Execution::Shift::Unmask) do
   let(:registry) do
     Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n", file: "calc.rb")
   end
 
-  let(:target) { registry.each.first.first.id }
+  let(:target) { registry.each.first.first.to_i }
 
   def scripted(script)
     Class.new do

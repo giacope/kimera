@@ -6,13 +6,16 @@ require "kimera/report/formats"
 require "kimera/results/run_report"
 require "stringio"
 
+using ResultFields
+using PointFields
+
 RSpec.describe(Kimera::Report::Formats, :aggregate_failures) do
   let(:registry) { Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n", file: "app/calc.rb") }
   let(:mutant) { registry.each.first.first }
   let(:report) do
     Kimera::RunReport.new(
       registry: registry,
-      results: [Kimera::MutantResult.new(mutant_id: mutant.id, status: :survived, file: "app/calc.rb")]
+      results: [Kimera::MutantResult.new(mutant_id: mutant.to_i, status: :survived, file: "app/calc.rb")]
     )
   end
 
@@ -24,7 +27,7 @@ RSpec.describe(Kimera::Report::Formats, :aggregate_failures) do
 
   it "emits one parseable JSON document" do
     document = JSON.parse(output("json"))
-    expect(document.fetch("results").first).to(include("mutant_id" => mutant.id, "status" => "survived"))
+    expect(document.fetch("results").first).to(include("mutant_id" => mutant.to_i, "status" => "survived"))
   end
 
   it "emits newline-delimited summary and result records" do
@@ -34,7 +37,7 @@ RSpec.describe(Kimera::Report::Formats, :aggregate_failures) do
 
   it "emits a GitHub annotation per line, titled and placed by column, with the diff" do
     annotation = "::error file=app/calc.rb,line=2,col=3,title=Kimera%3A 1 surviving mutant(s)::" \
-      "survived mutant ##{mutant.id} at app/calc.rb:2: > => >=%0A- a > b%0A+ a >= b\n"
+      "survived mutant ##{mutant.to_i} at app/calc.rb:2: > => >=%0A- a > b%0A+ a >= b\n"
     expect(output("github")).to(eq(annotation))
   end
 
@@ -62,9 +65,9 @@ RSpec.describe(Kimera::Report::Formats, :aggregate_failures) do
       Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n\ndef n(a)\n  a || b\nend\n", file: "app/calc.rb")
     end
     let(:report) do
-      status = ->(point) { point.location.start_line == 2 ? :survived : :no_coverage }
-      results = registry.each.map { |found, point| Kimera::MutantResult.new(mutant_id: found.id, status: status.call(point)) }
-      Kimera::RunReport.new(registry: registry, results: results.each { |result| result.file = "app/calc.rb" })
+      status = ->(point) { point.location.range.begin == 2 ? :survived : :no_coverage }
+      results = registry.each.map { |found, point| Kimera::MutantResult.new(mutant_id: found.to_i, status: status.call(point)) }
+      Kimera::RunReport.new(registry: registry, results: results.map { |result| result.with(file: "app/calc.rb") })
     end
 
     it "folds the mutants on one line into one annotation, a warning for uncovered ones", :aggregate_failures do
@@ -76,7 +79,7 @@ RSpec.describe(Kimera::Report::Formats, :aggregate_failures) do
     end
 
     it "annotates a mutant only other units' tests reach as an error, like a survivor", :aggregate_failures do
-      results = report.results.map { |result| result.dup.tap { |copy| copy.status = :uncovered_by_unit } }
+      results = report.to_a.map { |result| result.with(status: :uncovered_by_unit) }
       lines = emitted("github", Kimera::RunReport.new(registry: registry, results: results)).lines
       title = "title=Kimera%3A 2 unit-uncovered mutant(s)"
       expect(lines.first).to(start_with("::error file=app/calc.rb,line=2,col=3,#{title}"))
@@ -137,7 +140,7 @@ RSpec.describe(Kimera::Report::Formats, :aggregate_failures) do
 
   context "with a mutant judged again in a fresh mirror" do
     let(:report) do
-      noted = Kimera::MutantResult.new(mutant_id: mutant.id, status: :survived, file: "app/calc.rb", note: "50%")
+      noted = Kimera::MutantResult.new(mutant_id: mutant.to_i, status: :survived, file: "app/calc.rb", note: "50%")
       Kimera::RunReport.new(registry: registry, results: [noted])
     end
 
@@ -147,10 +150,10 @@ RSpec.describe(Kimera::Report::Formats, :aggregate_failures) do
     end
 
     it "appends the note to the GitHub annotation and the SARIF message" do
-      noted = "::survived mutant ##{mutant.id} at app/calc.rb:2: > => >= (50%25)%0A- a > b%0A+ a >= b\n"
+      noted = "::survived mutant ##{mutant.to_i} at app/calc.rb:2: > => >= (50%25)%0A- a > b%0A+ a >= b\n"
       expect(output("github")).to(end_with(noted))
       message = JSON.parse(output("sarif")).fetch("runs").first.fetch("results").first.dig("message", "text")
-      expect(message).to(eq("survived mutant ##{mutant.id} at app/calc.rb:2: > => >= (50%)\n- a > b\n+ a >= b"))
+      expect(message).to(eq("survived mutant ##{mutant.to_i} at app/calc.rb:2: > => >= (50%)\n- a > b\n+ a >= b"))
     end
   end
 

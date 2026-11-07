@@ -8,10 +8,12 @@ require_relative "../exits/test_exit"
 require_relative "mirror_database"
 
 Minitest.seed ||= 1
+# rubocop:disable-next Kata/NoMonkeyPatch -- a mutant that calls exit inside a test is a failure of that test, and only Minitest::Test#capture_exceptions, which lets SystemExit through, can record it as one
 Minitest::Test.prepend(Kimera::TestExit::Test)
 begin
   Minitest.class_variable_set(:@@installed_at_exit, :installed)
 rescue NameError, ArgumentError
+  # rubocop:disable-next Kata/NoMonkeyPatch -- minitest/autorun's at_exit would run the whole suite again after the child's tests; a Minitest without @@installed_at_exit has no other switch
   Minitest.singleton_class.prepend(Module.new { def run(*) = true })
 end
 

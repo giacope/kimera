@@ -7,6 +7,8 @@ require "kimera/synthesis/body_trim"
 require "kimera/synthesis/overlay"
 require "property/support/schemata_projection"
 
+using PointFields
+
 RSpec.describe(Kimera::Operators::Visibility) do
   def scan(code)
     Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: ["visibility"])).source(code, file: "vis.rb")
@@ -61,14 +63,14 @@ RSpec.describe(Kimera::Operators::Visibility) do
   end
 
   it "is judged warm: its point is schema-safe although it sits in a class body", :aggregate_failures do
-    point = scan("class A\n  def shown = 1\nend\n").each.first.last
+    point = scan("class A\n  def shown = 1\nend\n").each.first[1]
     expect(point.safe?).to(be(true))
     expect(point.original_source).to(eq("def shown = 1"))
   end
 
   it "renders the method followed by its private call" do
     mutant, point = scan("class A\n  def shown\n    1\n  end\nend\n").each.first
-    expect(Kimera::Rewrite::Directive.new(mutant.directive).render(point.original_source).first)
+    expect(mutant.rewrite(Kimera::Rewrite::Directive).render(point.original_source).first)
       .to(eq("def shown\n    1\n  end\nprivate(:shown)\n"))
   end
 
@@ -83,12 +85,12 @@ RSpec.describe(Kimera::Operators::Visibility) do
       end
     RUBY
     let(:catalog) { scan(code) }
-    let(:ids) { catalog.each.to_h { |m, p| [p.method_name, m.id] } }
+    let(:ids) { catalog.each.to_h { |m, p| [p.method_name, m.to_i] } }
     let!(:ledger) { Kimera::RUNTIME.start! }
 
     before do
       stub_const("VisibilityOps", Class.new)
-      Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("vis.rb", code).source).evaluate("vis.rb")
+      Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("vis.rb", code).to_s).evaluate("vis.rb")
     end
 
     after do
@@ -118,7 +120,7 @@ RSpec.describe(Kimera::Operators::Visibility) do
       id = ids.fetch("part")
       runtime = "::Kimera::RUNTIME"
       probe = /def part = \(#{runtime}\.active\?\(#{id}\); 1\); #{runtime}\.privatize\(#{id}, self, :part\)$/
-      expect(Kimera::Overlay.new(catalog).synthesize("vis.rb", code).source).to(match(probe))
+      expect(Kimera::Overlay.new(catalog).synthesize("vis.rb", code).to_s).to(match(probe))
     end
   end
 
@@ -130,8 +132,8 @@ RSpec.describe(Kimera::Operators::Visibility) do
 
   it "keeps a mutated method when the class body is trimmed for a second load" do
     code = "class A\n  def shown = 1\n  def other = 2\nend\n"
-    location = scan(code).each.first.last.location
-    trimmed = Kimera::BodyTrim.new(code, [location]).trimmed
+    point = scan(code).each.first[1]
+    trimmed = Kimera::BodyTrim.new(code, [point]).trimmed
     expect(trimmed).to(include("def shown = 1"))
   end
 end

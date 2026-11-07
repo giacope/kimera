@@ -3,6 +3,8 @@
 require "kimera/registry/builder"
 require "kimera/synthesis/overlay"
 
+using PointFields
+
 RSpec.describe(Kimera::Overlay) do
   def unmatched = "no node to guard: kimera found nothing of its kind where the point was scanned"
 
@@ -20,15 +22,15 @@ RSpec.describe(Kimera::Overlay) do
     let(:synth) { described_class.new(registry) }
 
     it "applies exactly the requested mutant directly into the source", :aggregate_failures do
-      mutant = registry.each.find { |m, _p| m.label == "> => <" }.first
-      baked = synth.bake("x.rb", source, mutant.id)
+      mutant = registry.each.find { |m, _p| m.to_s == "> => <" }.first
+      baked = synth.bake("x.rb", source, mutant.to_i)
       expect(baked).to(include("a < b"))
       expect(baked).not_to(include("active?"))
     end
 
     it "applies the boundary variant when that mutant is chosen" do
-      mutant = registry.each.find { |m, _p| m.label == "> => >=" }.first
-      expect(synth.bake("x.rb", source, mutant.id)).to(include("a >= b"))
+      mutant = registry.each.find { |m, _p| m.to_s == "> => >=" }.first
+      expect(synth.bake("x.rb", source, mutant.to_i)).to(include("a >= b"))
     end
 
     it "returns the source verbatim for an unknown mutant id" do
@@ -47,7 +49,7 @@ RSpec.describe(Kimera::Overlay) do
       [
         program,
         described_class.new(catalog).bake(
-          "x.rb", program, catalog.points.find { |x| x.original_source == "false" }.mutants.first.id
+          "x.rb", program, catalog.to_a.find { |x| x.original_source == "false" }.mutants.first.to_i
         )
       ]
     end
@@ -63,7 +65,7 @@ RSpec.describe(Kimera::Overlay) do
     def prune(program, keys, needle)
       catalog = selected(keys, program)
       described_class.new(catalog).bake(
-        "x.rb", program, catalog.points.find { |point| point.original_source == needle }.mutants.first.id
+        "x.rb", program, catalog.to_a.find { |point| point.original_source == needle }.mutants.first.to_i
       )
     end
 
@@ -95,39 +97,39 @@ RSpec.describe(Kimera::Overlay) do
     it "collapses a fully emptied juxtaposition to an empty string literal" do
       program = "def m\n  \"\" \"b\"\nend\n"
       catalog = selected(%w[string_literal], program)
-      segment = catalog.points.find { |p| p.original_source == '"b"' }
-      baked = described_class.new(catalog).bake("x.rb", program, segment.mutants.first.id)
+      segment = catalog.to_a.find { |p| p.original_source == '"b"' }
+      baked = described_class.new(catalog).bake("x.rb", program, segment.mutants.first.to_i)
       expect(baked).to(include('""'))
     end
 
     it "keeps an empty-string argument outside any interpolated literal" do
       program = "def m(a, b)\n  q(\"\", a > b)\nend\n"
       catalog = build(program)
-      mutant = catalog.each.find { |m, _p| m.label == "> => <" }.first
-      baked = described_class.new(catalog).bake("x.rb", program, mutant.id)
+      mutant = catalog.each.find { |m, _p| m.to_s == "> => <" }.first
+      baked = described_class.new(catalog).bake("x.rb", program, mutant.to_i)
       expect(baked).to(include('q("", a < b)'))
     end
 
     it "leaves a plain xstr untouched by pruning" do
       program = "def m(a, b)\n  [`ls`, a > b]\nend\n"
       catalog = build(program)
-      mutant = catalog.each.find { |m, _p| m.label == "> => <" }.first
-      baked = described_class.new(catalog).bake("x.rb", program, mutant.id)
+      mutant = catalog.each.find { |m, _p| m.to_s == "> => <" }.first
+      baked = described_class.new(catalog).bake("x.rb", program, mutant.to_i)
       expect(baked).to(include("[`ls`, a < b]"))
     end
 
     it "bakes a file with an array range endpoint" do
       program = "def m(a, b)\n  r = ([a, a]...a)\n  a > b\nend\n"
       catalog = build(program)
-      mutant = catalog.each.find { |m, _p| m.label == "> => <" }.first
-      expect(described_class.new(catalog).bake("x.rb", program, mutant.id)).to(include("r = ([a, a]...a)", "a < b"))
+      mutant = catalog.each.find { |m, _p| m.to_s == "> => <" }.first
+      expect(described_class.new(catalog).bake("x.rb", program, mutant.to_i)).to(include("r = ([a, a]...a)", "a < b"))
     end
 
     it "bakes a file interpolating a range with an array endpoint" do
       program = "def m(a, b)\n  \"x\#{([a]...[b]).size}y\"\n  a > b\nend\n"
       catalog = build(program)
-      mutant = catalog.each.find { |m, _p| m.label == "> => <" }.first
-      expect(described_class.new(catalog).bake("x.rb", program, mutant.id)).to(include("([a]...[b]).size", "a < b"))
+      mutant = catalog.each.find { |m, _p| m.to_s == "> => <" }.first
+      expect(described_class.new(catalog).bake("x.rb", program, mutant.to_i)).to(include("([a]...[b]).size", "a < b"))
     end
 
     it "bakes a swapped connective with the grouping it had", :aggregate_failures do
@@ -148,25 +150,27 @@ RSpec.describe(Kimera::Overlay) do
       it "bakes a literal mutant under #{shape} as the program it names", :aggregate_failures do
         program = "def m\n  #{body}\nend\n"
         catalog = selected(%w[numeric_literal], program)
-        mutant = catalog.points.find { |p| p.original_source == needle }.mutants.find { |m| m.label == label }
-        baked = described_class.new(catalog).bake("x.rb", program, mutant.id)
+        mutant = catalog.to_a.find { |p| p.original_source == needle }.mutants.find { |m| m.to_s == label }
+        baked = described_class.new(catalog).bake("x.rb", program, mutant.to_i)
         expect([baked.include?(written), Object.new.extend(Module.new.tap { |mod| mod.module_eval(baked) }).m])
           .to(eq([true, value]))
       end
     end
 
+    def literal(mutant) = mutant.to_h.dig("directive", "value")
+
     it "bakes the literal inside `--1`" do
       program = "def m\n  --1\nend\n"
       catalog = selected(%w[numeric_literal], program)
-      mutant = catalog.points.find { |p| p.original_source == "-1" }.mutants.first
-      baked = described_class.new(catalog).bake("x.rb", program, mutant.id)
-      expect(Object.new.extend(Module.new.tap { |mod| mod.module_eval(baked) }).m).to(eq(-mutant.directive["value"]))
+      mutant = catalog.to_a.find { |p| p.original_source == "-1" }.mutants.first
+      baked = described_class.new(catalog).bake("x.rb", program, mutant.to_i)
+      expect(Object.new.extend(Module.new.tap { |mod| mod.module_eval(baked) }).m).to(eq(-literal(mutant)))
     end
 
     it "raises Unbakeable for a point with no node of its kind where it was scanned" do
       program = "def m\n  1\nend\n"
       catalog = selected(%w[numeric_literal], program)
-      point = catalog.points.first
+      point = catalog.to_a.first
       point.define_singleton_method(:node_type) { "float_node" }
       expect { described_class.new(catalog).bake("x.rb", program, point.ids.first) }.to(
         raise_error(described_class::Unbakeable, unmatched)
@@ -176,7 +180,7 @@ RSpec.describe(Kimera::Overlay) do
     it "bakes a file with a string escape that is invalid UTF-8" do
       program = "def scaled(size, data) = data.start_with?(\"\\xFF\\xD8\".b) ? size * 2 : size\n"
       catalog = selected(%w[arithmetic], program)
-      baked = described_class.new(catalog).bake("x.rb", program, catalog.each.first.first.id)
+      baked = described_class.new(catalog).bake("x.rb", program, catalog.each.first.first.to_i)
       expect(baked).to(include('data.start_with?("\xFF\xD8".b)', "size / 2"))
     end
 
@@ -211,10 +215,10 @@ RSpec.describe(Kimera::Overlay) do
       end
 
       def bake(needle)
-        point = catalog.points.find { |p| p.original_source == needle }
+        point = catalog.to_a.find { |p| p.original_source == needle }
         synth = described_class.new(catalog)
         unwritable
-        synth.bake("x.rb", program, point.mutants.first.id)
+        synth.bake("x.rb", program, point.mutants.first.to_i)
       end
 
       it "writes the method that holds the point and keeps the rest verbatim", :aggregate_failures do
@@ -236,10 +240,10 @@ RSpec.describe(Kimera::Overlay) do
       end
 
       it "raises Unbakeable when the spliced method would not parse" do
-        point = catalog.points.find { |p| p.original_source == "size * LIMIT" }
+        point = catalog.to_a.find { |p| p.original_source == "size * LIMIT" }
         synth = described_class.new(catalog)
         unwritable("def broken(")
-        expect { synth.bake("x.rb", program, point.mutants.first.id) }
+        expect { synth.bake("x.rb", program, point.mutants.first.to_i) }
           .to(raise_error(described_class::Unbakeable, /could not write its bake/))
       end
     end
@@ -247,7 +251,7 @@ RSpec.describe(Kimera::Overlay) do
     it "raises Unbakeable, naming the failure, when kimera can't write the bake" do
       mutant = registry.each.first.first
       failing_scribe { KeyError.new("key not found: :lvar") }
-      expect { synth.bake("x.rb", source, mutant.id) }.to(
+      expect { synth.bake("x.rb", source, mutant.to_i) }.to(
         raise_error(described_class::Unbakeable, "kimera could not write its bake (KeyError: key not found: :lvar)")
       )
     end
@@ -260,8 +264,8 @@ RSpec.describe(Kimera::Overlay) do
     it "is refused, file and method alike" do
       splicing
       stub_const("Kimera::Readback", Class.new(Kimera::Readback) { def faithful?(_text) = false })
-      mutant = registry.each.find { |m, _p| m.label == "> => <" }.first
-      expect { described_class.new(registry).bake("x.rb", source, mutant.id) }
+      mutant = registry.each.find { |m, _p| m.to_s == "> => <" }.first
+      expect { described_class.new(registry).bake("x.rb", source, mutant.to_i) }
         .to(raise_error(described_class::Unbakeable, /reads back as another program/))
     end
   end
@@ -289,7 +293,7 @@ RSpec.describe(Kimera::Overlay) do
     let(:registry) { selected(%w[symbol_literal string_literal], source) }
 
     def baked(label)
-      id = registry.each.find { |mutant, _| mutant.label == label }.first.id
+      id = registry.each.find { |mutant, _| mutant.to_s == label }.first.to_i
       described_class.new(registry).bake("x.rb", source, id)
     end
 

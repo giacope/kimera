@@ -8,28 +8,30 @@ module Kimera
 end
 
 class Kimera::Execution::Verdicts
-  WIRE = { "id" => "mutant_id", "ms" => "duration", "fails" => "failing_tests", "cover" => "covering_tests" }.freeze
+  WIRE = {
+    "id" => "mutant_id", "ms" => "duration", "fails" => "failing_tests", "cover" => "covering_tests",
+    "kills" => "killing_tests"
+  }.freeze
 
   def initialize(registry)
     @registry = registry
   end
 
   def parse(message)
-    Kimera::MutantResult.from_h(message.transform_keys(WIRE).merge("file" => point(message["id"]).file))
+    Kimera::MutantResult.from_h(message.transform_keys(WIRE).merge("file" => @registry[message["id"]] { [] }.last))
   end
 
   def timeout(id, duration, stacks = [])
-    Kimera::MutantResult.new(
-      mutant_id: id, status: :timeout, file: point(id).file,
-      duration: duration, detail: ["hard watchdog timeout", *stacks].join("\n")
-    )
+    result(id, status: :timeout, duration: duration, detail: ["hard watchdog timeout", *stacks].join("\n"))
   end
 
-  def unjudged(id, detail)
-    Kimera::MutantResult.new(mutant_id: id, status: :harness_error, file: point(id).file, detail: detail)
-  end
+  def unjudged(id, detail) = result(id, status: :harness_error, detail: detail)
 
   def point(id)
     @registry.index[id] || Kimera::MutationPoint.none
   end
+
+  private
+
+  def result(id, **outcome) = Kimera::MutantResult.new(mutant_id: id, file: @registry[id] { [] }.last, **outcome)
 end

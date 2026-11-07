@@ -5,20 +5,22 @@ require "kimera/registry/builder"
 require "kimera/runtime"
 require "kimera/synthesis/overlay"
 
+using PointFields
+
 RSpec.describe(Kimera::Operators) do
   def scan(code, *keys)
     Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(code, file: "v.rb")
   end
 
-  def labels(code, *keys) = scan(code, *keys).each.map { |m, _p| m.label }
+  def labels(code, *keys) = scan(code, *keys).each.map { |m, _p| m.to_s }
 
   def sources(code, *keys) = scan(code, *keys).each.map { |_m, p| p.original_source }
 
   def live(code, *keys)
     stub_const("ValueOps", Class.new)
     catalog = scan(code, *keys)
-    Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("v.rb", code).source).evaluate("v.rb")
-    yield(catalog.each.to_h { |m, p| [p.original_source, m.id] })
+    Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("v.rb", code).to_s).evaluate("v.rb")
+    yield(catalog.each.to_h { |m, p| [p.original_source, m.to_i] })
   end
 
   def active(id, &) = Kimera::RUNTIME.during(id, &)
@@ -75,7 +77,7 @@ RSpec.describe(Kimera::Operators) do
       code = "def name=(value)\n  @name = value\nend\n"
       catalog = scan(code, "assignment_deletion")
       mutant, point = catalog.each.first
-      expect(Kimera::Rewrite::Directive.new(mutant.directive).render(point.original_source).first).to(eq("value"))
+      expect(mutant.rewrite(Kimera::Rewrite::Directive).render(point.original_source).first).to(eq("value"))
     end
 
     it "leaves a name's first write, a write inside an expression, and a memo store alone" do

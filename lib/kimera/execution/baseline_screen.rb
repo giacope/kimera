@@ -27,13 +27,13 @@ class Kimera::Execution::BaselineScreen
   def call(failures)
     return if failures.empty?
     plainly!(failures)
-    Kimera::Execution::BaselineExclusions.new(failures, @adapter.reproduce(failures.keys)).to_s
+    Kimera::Execution::BaselineExclusions.new(failures, @adapter[*failures.keys].to_s).to_s
   end
 
   def plainly!(failures)
     ids = failures.keys
     passed = ids - rerun(ids)
-    raise(Kimera::Execution::BaselineFailure, harness(passed, failures, @adapter.reproduce(ids))) unless passed.empty?
+    raise(Kimera::Execution::BaselineFailure, harness(passed, failures, @adapter[*ids].to_s)) unless passed.empty?
   end
 
   private
@@ -41,7 +41,7 @@ class Kimera::Execution::BaselineScreen
   def rerun(ids, dirs = Dir)
     dirs.mktmpdir("kimera-plain") do |dir|
       out = File.join(dir, "plain.json")
-      argv = @adapter.plain(ids, out)
+      argv = @adapter[*ids].plain(out)
       return ids if argv.empty?
       output, status = @suite.call(*argv, chdir: @root)
       status.success? ? [] : failing(ids, output, out)
@@ -51,7 +51,7 @@ class Kimera::Execution::BaselineScreen
   end
 
   def failing(ids, output, out)
-    named = @adapter.failed_plainly(output, out) & ids
+    named = @adapter[*ids].failed(output, out) & ids
     named.empty? ? ids : named
   end
 

@@ -2,30 +2,35 @@
 
 require "kimera/registry/builder"
 
+using PointFields
+
 RSpec.describe(Kimera::MutantKeys, :aggregate_failures) do
   let(:sample) { File.expand_path("../../examples/sample_app", __dir__) }
 
   def scan(source, file: "a.rb") = Kimera::RegistryScan.new.source(source, file: file)
 
-  def keys(registry) = registry.each.map { |mutant, _point| registry.keys[mutant.id] }
+  def keys(registry)
+    keys = described_class.of(registry)
+    registry.each.map { |mutant, _point| keys[mutant.to_i] }
+  end
 
   def digests(registry) = keys(registry).map { |key| key[/\h{8}\z/] }
 
   def point(**changes)
-    facts = { file: "a.rb", method_name: "a", operator: "comparison", original_source: "x > 1" }
+    facts = { file: "a.rb", method_name: "a", operator: "comparison", original_source: "x > 1", mutants: [] }
     Kimera::MutationPoint.new(**facts, location: Kimera::Location.new(start_line: 2), **changes)
   end
 
   def key(changed = point, label: "> => >=")
-    described_class::Fingerprint.new(changed, Kimera::Mutant.new(label: label)).key(1)
+    described_class::Fingerprint.new(changed.to_h, Kimera::Mutant.new(label: label)).key(1)
   end
 
   it "names a mutant the same whether its file was scanned alone or with others" do
     alone = Kimera::RegistryScan.new(root: sample).build([File.join(sample, "app/services/pricing.rb")])
     full = Kimera::RegistryScan.new(root: sample).build(Dir[File.join(sample, "app/**/*.rb")])
-    ids = full.at("app/services/pricing.rb").flat_map(&:ids)
-    expect(ids.map { |id| full.keys[id] }).to(eq(keys(alone)))
-    expect(ids.first).not_to(eq(alone.each.first.first.id))
+    ids = full.to_h.fetch("app/services/pricing.rb").flat_map(&:ids)
+    expect(ids.map { |id| described_class.of(full)[id] }).to(eq(keys(alone)))
+    expect(ids.first).not_to(eq(alone.each.first.first.to_i))
   end
 
   it "keys by path, line, and a digest that ignores the line" do
@@ -46,15 +51,16 @@ RSpec.describe(Kimera::MutantKeys, :aggregate_failures) do
   it "keeps a mutant's digest when lines shift or an identical method is added above it" do
     alone = scan("def b(x)\n  x > 1\nend\n")
     moved = scan("def a(x)\n  x > 1\nend\n\ndef b(x)\n  x > 1\nend\n")
-    expect(digests(moved).last(alone.count)).to(eq(digests(alone)))
-    expect(digests(moved).first(alone.count)).not_to(eq(digests(alone)))
+    expect(digests(moved).last(alone.each.count)).to(eq(digests(alone)))
+    expect(digests(moved).first(alone.each.count)).not_to(eq(digests(alone)))
     expect(keys(moved).last).to(start_with("a.rb:6:"))
   end
 
   it "tells identical mutants in one method apart" do
     twice = scan("def a(x)\n  x > 1 && x > 1\nend\n")
     comparisons = twice.each.select { |_mutant, spot| spot.original_source == "x > 1" }
-    expect(comparisons.map { |mutant, _spot| twice.keys[mutant.id][/\h{8}\z/] }.uniq.size).to(eq(comparisons.size))
+    keys = described_class.of(twice)
+    expect(comparisons.map { |mutant, _spot| keys[mutant.to_i][/\h{8}\z/] }.uniq.size).to(eq(comparisons.size))
   end
 
   describe "#id" do

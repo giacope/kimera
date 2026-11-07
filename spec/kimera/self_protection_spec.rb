@@ -64,10 +64,12 @@ RSpec.describe(Kimera::SelfProtection) do
         lib/kimera/exits/test_exit.rb
         lib/kimera/execution/shift.rb
         lib/kimera/execution/harness.rb
+        lib/kimera/execution/survey.rb
         lib/kimera/execution/stopwatch.rb
         lib/kimera/execution/time_budget.rb
         lib/kimera/execution/worker_pool.rb
         lib/kimera/execution/worker_pool/fleet.rb
+        lib/kimera/execution/worker_pool/backlog.rb
         lib/kimera/execution/child_process.rb
         lib/kimera/execution/rig.rb
         lib/kimera/registry/builder.rb
@@ -88,30 +90,30 @@ RSpec.describe(Kimera::SelfProtection) do
   describe "integration with the registry builder" do
     it "builds no mutation points for the runtime selector" do
       registry = Kimera::RegistryScan.new(root: ".").build([Kimera::Runtime::SOURCE_PATH])
-      expect(registry.count).to(eq(0))
+      expect(registry.each.count).to(eq(0))
     end
 
     it "builds no warm mutation points for the Minitest child entrypoint" do
       child = described_class::OUT_OF_PROCESS_ENTRYPOINTS.find { |path| path.end_with?("isolated_child_minitest.rb") }
       registry = Kimera::RegistryScan.new(root: ".").build([child])
-      expect(registry.count).to(eq(0))
+      expect(registry.each.count).to(eq(0))
     end
 
     it "keeps the runtime out of a whole-lib registry" do
       lib = File.expand_path("../../lib", __dir__)
       registry = Kimera::RegistryScan.new(root: lib).build(Dir["#{lib}/**/*.rb"])
-      expect(registry.files).not_to(include(a_string_matching(/runtime\.rb\z/)))
+      expect(registry.to_h.keys).not_to(include(a_string_matching(/runtime\.rb\z/)))
     end
 
     it "includes the runtime when shielding is disabled" do
       registry = Kimera::RegistryScan.new(root: ".", shielded: false).build([Kimera::Runtime::SOURCE_PATH])
-      expect(registry.count).to(be > 0)
+      expect(registry.each.count).to(be > 0)
     end
 
     it "includes the Minitest child entrypoint when shielding is disabled" do
       child = described_class::OUT_OF_PROCESS_ENTRYPOINTS.find { |path| path.end_with?("isolated_child_minitest.rb") }
       registry = Kimera::RegistryScan.new(root: ".", shielded: false).build([child])
-      expect(registry.count).to(be > 0)
+      expect(registry.each.count).to(be > 0)
     end
   end
 end

@@ -8,7 +8,7 @@ require "tmpdir"
 RSpec.describe(Kimera::CLI::Run::Emission, :aggregate_failures) do
   let(:registry) { Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n", file: "calc.rb") }
   let(:report) do
-    survivor = Kimera::MutantResult.new(mutant_id: registry.each.first.first.id, status: :survived, file: "calc.rb")
+    survivor = Kimera::MutantResult.new(mutant_id: registry.each.first.first.to_i, status: :survived, file: "calc.rb")
     Kimera::RunReport.new(results: [survivor], registry: registry)
   end
   let(:narration) { StringIO.new }

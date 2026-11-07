@@ -5,6 +5,8 @@ require "kimera/execution/schemata"
 require "kimera/registry/builder"
 require "tmpdir"
 
+using PointFields
+
 RSpec.describe(Kimera::Execution::Schemata) do
   let(:dir) { Dir.mktmpdir }
   let(:notices) { StringIO.new }
@@ -34,7 +36,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
   end
 
   def flipped(registry, label = "> => <", &)
-    Kimera::RUNTIME.during(registry.each.find { |mutant, _point| mutant.label == label }.first.id, &)
+    Kimera::RUNTIME.during(registry.each.find { |mutant, _point| mutant.to_s == label }.first.to_i, &)
   end
 
   def outcomes(registry, label = "> => <", &) = [yield, flipped(registry, label, &)]
@@ -47,7 +49,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
     stub_const("SchemataTarget", Class.new)
     write("sl_target.rb", greater("SchemataTarget"))
     registry, live = overlaid("sl_target.rb")
-    expect(live).to(match_array(registry.each.map { |m, _p| m.id }))
+    expect(live).to(match_array(registry.each.map { |m, _p| m.to_i }))
     expect(outcomes(registry) { SchemataTarget.new.gt(2, 1) }).to(eq([true, false]))
   end
 
@@ -86,7 +88,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
 
   it "judges again the mutants of a method another file's wrapper holds", :aggregate_failures do
     registry = memoized
-    expect(registry.points.map(&:revisit).uniq).to(eq([Kimera::Execution::Overrides::Held::WRAPPED]))
+    expect(registry.to_a.map { PointVerdict.new(it).revisit }.uniq).to(eq([Kimera::Execution::Overrides::Held::WRAPPED]))
     expect(flipped(registry) { SchemataMemo.new.gt(2, 1) }).to(be(true))
   end
 
@@ -99,7 +101,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
   end
 
   it "leaves the mutants an alias of the wrapped method reaches as warm judges them" do
-    expect(chained.points.map(&:revisit).uniq).to(eq([nil]))
+    expect(chained.to_a.map { PointVerdict.new(it).revisit }.uniq).to(eq([nil]))
   end
 
   describe "a file the suite requires only later" do
@@ -108,7 +110,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
     def lazily(root)
       registry = Kimera::RegistryScan.new(root: root).build([File.join(root, "sl_lazy.rb")])
       described_class.new(registry, root: root).overlay!
-      registry.each.find { |m, _p| m.label == "> => <" }.first.id
+      registry.each.find { |m, _p| m.to_s == "> => <" }.first.to_i
     end
 
     def lazy
@@ -151,7 +153,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
 
   it "never overlays a self-protected file" do
     registry = shielded
-    expect([registry.points.empty?, schemata(registry).overlay!]).to(eq([false, []]))
+    expect([registry.to_a.empty?, schemata(registry).overlay!]).to(eq([false, []]))
   end
 
   describe "a top-level script that aborts when overlaid" do
@@ -178,7 +180,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
 
     it "does not stop the files after it" do
       registry, loader = scripted
-      point = registry.points.find { |p| p.file == "sl_after.rb" }
+      point = registry.to_a.find { |p| p.file == "sl_after.rb" }
       expect(noisily(loader)).to(include(*point.ids))
     end
 
@@ -232,15 +234,15 @@ RSpec.describe(Kimera::Execution::Schemata) do
 
     it "does not stop the rest from being overlaid", :aggregate_failures do
       registry, loader = synthesized
-      point = registry.points.find { |p| p.file == "sl_synth_ok.rb" }
+      point = registry.to_a.find { |p| p.file == "sl_synth_ok.rb" }
       expect(noisily(loader)).to(include(*point.ids))
-      expect(point).to(be_safe)
+      expect(point).to(satisfy(&:safe?))
     end
 
     it "leaves its points unmutatable, with the reason" do
       registry, loader = synthesized
       noisily(loader)
-      reasons = registry.points.select { |p| p.file == "sl_synth_bad.rb" }.map(&:unsafe_reason).uniq
+      reasons = registry.to_a.select { |p| p.file == "sl_synth_bad.rb" }.map { PointVerdict.new(it).unsafe_reason }.uniq
       expect(reasons).to(eq(["unmutatable: schemata setup failed (ArgumentError: kimera cannot write a foo node)"]))
     end
   end

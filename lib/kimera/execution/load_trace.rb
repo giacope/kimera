@@ -20,7 +20,7 @@ class Kimera::Execution::LoadTrace
       @holes = holes
     end
 
-    def holds?(point) = point.inside?([range]) && !point.inside?(holes)
+    def holds?(point) = point.fits?(within: [range]) && !point.fits?(within: holes)
 
     private
 
@@ -41,7 +41,7 @@ class Kimera::Execution::LoadTrace
 
   def quarantine!(coverage)
     runs.each do |file, lines|
-      loaded(file, lines).each { |point| point.loading!(coverage) }
+      loaded(file, lines).each { |point| point.mark!(Kimera::Reason.loading.unless_covered(coverage, Kimera::Reason.booted)) }
     end
     Kimera::Execution::MacroLambdas.new(@registry, root).quarantine!(coverage)
     Kimera::Execution::BlockUse.new(@registry, root).revisit!
@@ -56,7 +56,7 @@ class Kimera::Execution::LoadTrace
   def root = @_root ||= File.expand_path(@root)
 
   def sources
-    @registry.files.each_with_object({}) do |file, found|
+    @registry.to_h.keys.each_with_object({}) do |file, found|
       path = File.join(root, file)
       [path, *(File.realpath(path) if File.exist?(path))].each { |known| found[known] = file }
     end
@@ -72,7 +72,8 @@ class Kimera::Execution::LoadTrace
 
   def loaded(file, lines)
     spans = spans(Kimera::Syntax.parse(File.read(File.join(root, file), encoding: Encoding::UTF_8)).value, lines)
-    @registry.at(file).select { |point| point.safe? && spans.any? { |span| span.holds?(point) } }
+    points = @registry.to_h.fetch(file, [])
+    points.select { |point| point.fits?(safe: true) && spans.any? { |span| span.holds?(point) } }
   end
 
   def spans(node, lines)

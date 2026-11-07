@@ -6,19 +6,21 @@ require "kimera/cli/run"
 require "kimera/registry/builder"
 require "kimera/results/run_report"
 
+using ResultFields
+
 RSpec.describe(Kimera::RunReport, :aggregate_failures) do
   let(:schema) { JSON.parse(File.read(File.expand_path("../../schema/report.schema.json", __dir__))) }
   let(:properties) { schema.fetch("properties") }
   let(:registry) { Kimera::RegistryScan.new.source("def gt(a, b)\n  a > b\nend\n", file: "cmp.rb") }
-  let(:id) { registry.each.first.first.id }
+  let(:id) { registry.each.first.first.to_i }
   let(:document) do
     rich =
       result(:ignored, verdict: :killed, failing_tests: ["t1"], covering_tests: ["t1"], detail: "d", note: "n")
-        .tap { |row| row.killing_tests = ["t1"] }
+        .with(killing_tests: ["t1"])
     report = described_class.new(results: [rich], registry: registry, tests: { "t1" => { "name" => "one" } })
     flake = { "test" => "t1", "failed_runs" => 1, "seeds" => [2], "failure" => "f" }
     flaky = { "runs" => 1, "seeds" => [2], "tests" => 1, "flaky" => [flake] }
-    JSON.parse(JSON.generate(report.annotate(flaky: flaky, suite: ["t1"]).document("jobs" => 1)))
+    JSON.parse(JSON.generate(report.annotate(flaky: flaky, suite: ["t1"]).annotate(run: { "jobs" => 1 }).to_h))
   end
 
   def result(status, **fields)
@@ -31,7 +33,7 @@ RSpec.describe(Kimera::RunReport, :aggregate_failures) do
   end
 
   it "names every count, and every status a count or result can hold" do
-    statuses = (Kimera::RunReport::REPORTED + [:killed]).map(&:to_s)
+    statuses = (Kimera::RunReport::Score::REPORTED + [:killed]).map(&:to_s)
     expect(properties.dig("counts", "properties").keys).to(match_array(document.fetch("counts").keys))
     expect(properties.dig("results", "items", "properties", "status", "enum")).to(match_array(statuses))
   end

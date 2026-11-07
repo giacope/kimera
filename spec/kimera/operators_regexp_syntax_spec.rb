@@ -5,13 +5,15 @@ require "kimera/registry/builder"
 require "kimera/runtime"
 require "kimera/synthesis/overlay"
 
+using PointFields
+
 RSpec.describe(Kimera::Operators) do
   def scan(code, *keys)
     Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(code, file: "r.rb")
   end
 
   def patterns(code, *keys)
-    scan(code, *keys).each.map { |m, p| Kimera::Rewrite::Directive.new(m.directive).render(p.original_source).first }
+    scan(code, *keys).each.map { |m, p| m.rewrite(Kimera::Rewrite::Directive).render(p.original_source).first }
   end
 
   def tokens(source) = Kimera::Operators::RegexpTokens.new(source).tokens.map(&:to_a)
@@ -84,7 +86,7 @@ RSpec.describe(Kimera::Operators) do
   end
 
   def overlaid(catalog, code)
-    Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("r.rb", code).source).evaluate("r.rb")
+    Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("r.rb", code).to_s).evaluate("r.rb")
   end
 
   def accepts?(text, label = nil)
@@ -92,7 +94,7 @@ RSpec.describe(Kimera::Operators) do
     code = "class RegexpOps\n  def code?(s) = s.match?(/\\A[A-Z]{3}\\z/)\nend\n"
     catalog = scan(code, "regexp_anchor", "regexp_quantifier")
     overlaid(catalog, code)
-    Kimera::RUNTIME.during(label && catalog.each.find { |m, _p| m.label == label }.first.id) do
+    Kimera::RUNTIME.during(label && catalog.each.find { |m, _p| m.to_s == label }.first.to_i) do
       RegexpOps.new.code?(text)
     end
   end

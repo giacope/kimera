@@ -15,7 +15,7 @@ class Kimera::Operators::RailsAssociation < Kimera::Operators::RailsDeclaration
   end
 
   def dependent?(node)
-    keywords(node)&.elements.to_a.any? do |assoc|
+    keywords(node).elements.any? do |assoc|
       assoc.is_a?(AssocNode) && unescaped(assoc.key) == "dependent"
     end
   end

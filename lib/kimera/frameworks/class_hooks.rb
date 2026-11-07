@@ -20,10 +20,6 @@ class Kimera::Frameworks::ClassHooks
 
     def passed? = @results.all? { |result| result.passed? || result.skipped? }
 
-    def reporters = []
-
-    def synchronize = yield
-
     def outcome = @results.find { |result| !result.passed? && !result.skipped? } || @results.last
   end
 
@@ -42,7 +38,7 @@ class Kimera::Frameworks::ClassHooks
 
   def test(name, &prepare)
     reporter = Transcript.new(prepare || proc {})
-    serially { suite(reporter, /\A#{Regexp.escape(name)}\z/) }
+    serially { suite(Minitest::CompositeReporter.new(reporter), /\A#{Regexp.escape(name)}\z/) }
     reporter.outcome
   end
 

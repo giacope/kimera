@@ -5,6 +5,8 @@ require "kimera/registry/builder"
 require "kimera/runtime"
 require "kimera/synthesis/overlay"
 
+using PointFields
+
 RSpec.describe(Kimera::Operators) do
   let(:contract_src) { <<~RUBY }
     class Contracts
@@ -41,19 +43,19 @@ RSpec.describe(Kimera::Operators) do
   def built(key) = scan(key)
 
   def labels(key)
-    built(key).each.map { |m, _p| m.label }
+    built(key).each.map { |m, _p| m.to_s }
   end
 
   def overlaid(catalog, code, file)
     synthesized = Kimera::Overlay.new(catalog).synthesize(file, code)
-    Kimera::Overlay::Source.new(synthesized.source).evaluate(File.expand_path(file))
+    Kimera::Overlay::Source.new(synthesized.to_s).evaluate(File.expand_path(file))
   end
 
   def under(key, label = nil)
     stub_const("Contracts", Class.new)
     catalog = built(key)
     overlaid(catalog, contract_src, "contracts.rb")
-    id = label && catalog.each.to_h { |m, _p| [m.label, m.id] }.fetch(label)
+    id = label && catalog.each.to_h { |m, _p| [m.to_s, m.to_i] }.fetch(label)
     active(id) { yield(Contracts.new) }
   end
 
@@ -80,7 +82,7 @@ RSpec.describe(Kimera::Operators) do
 
     it "carries the bare directive and skips writes, multi-index reads and splats", :aggregate_failures do
       m = built("index_fetch").each.first.first
-      expect(m.directive).to(eq("type" => "index_to_fetch"))
+      expect(m.to_h.fetch("directive")).to(eq("type" => "index_to_fetch"))
 
       code = <<~RUBY
         def m(h, a, keys)
@@ -118,13 +120,13 @@ RSpec.describe(Kimera::Operators) do
         stub_const("Spellings", Class.new)
         catalog = scan("index_fetch", spellings, "spellings.rb")
         overlaid(catalog, spellings, "spellings.rb")
-        id = source && catalog.each.to_h { |m, p| [p.original_source, m.id] }.fetch(source)
+        id = source && catalog.each.to_h { |m, p| [p.original_source, m.to_i] }.fetch(source)
         active(id) { yield(Spellings.new) }
       end
 
       it "rewrites both, preserving &." do
         catalog = scan("index_fetch", spellings, "spellings.rb")
-        sources = catalog.each.map { |m, p| Kimera::Rewrite::Directive.new(m.directive).render(p.original_source).first }
+        sources = catalog.each.map { |m, p| m.rewrite(Kimera::Rewrite::Directive).render(p.original_source).first }
         expect(sources).to(contain_exactly("h.fetch(k)", "h&.fetch(k)"))
       end
 
@@ -170,7 +172,7 @@ RSpec.describe(Kimera::Operators) do
       RUBY
       catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["kernel_coercion"]))
         .source(code, file: "k.rb")
-      expect(catalog.each.map { |m, _p| m.label }).to(eq(["delete String()"]))
+      expect(catalog.each.map { |m, _p| m.to_s }).to(eq(["delete String()"]))
     end
 
     it "rejects a splatted argument" do
@@ -242,12 +244,12 @@ RSpec.describe(Kimera::Operators) do
       expect(catalog.each.map { |_m, p| p.original_source }).to(contain_exactly(":silver", "copper", ":tin"))
 
       result = Kimera::Overlay.new(catalog).synthesize("s.rb", code)
-      expect(result.mutant_ids.size).to(eq(catalog.each.count))
+      expect(result.to_h.fetch(:mutant_ids).size).to(eq(catalog.each.count))
     end
 
     it "carries the renamed value and leaves an empty symbol alone", :aggregate_failures do
-      m = built("symbol_literal").each.find { |mu, _p| mu.label.start_with?(":ok") }.first
-      expect(m.directive).to(eq("type" => "symbol_literal", "value" => "ok__kimera__"))
+      m = built("symbol_literal").each.find { |mu, _p| mu.to_s.start_with?(":ok") }.first
+      expect(m.to_h.fetch("directive")).to(eq("type" => "symbol_literal", "value" => "ok__kimera__"))
 
       catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["symbol_literal"]))
         .source("def m\n  :\"\"\nend\n", file: "s.rb")
@@ -287,7 +289,7 @@ RSpec.describe(Kimera::Operators) do
     def greets
       catalog = built("default_argument")
       overlay = Kimera::Overlay.new(catalog)
-      catalog.each.to_h { |m, _p| [m.label, overlay.bake("contracts.rb", contract_src, m.id)[/def greet.*/]] }
+      catalog.each.to_h { |m, _p| [m.to_s, overlay.bake("contracts.rb", contract_src, m.to_i)[/def greet.*/]] }
     end
 
     it "bakes to a genuinely required parameter" do
@@ -301,7 +303,7 @@ RSpec.describe(Kimera::Operators) do
 
     it "renders a report line for a parameter slice, which is not a parseable expression" do
       m = built("default_argument").each.first.first
-      expect(Kimera::Rewrite::Directive.new(m.directive).render("name = \"world\"")).to(eq(["name (default removed)"]))
+      expect(m.rewrite(Kimera::Rewrite::Directive).render("name = \"world\"")).to(eq(["name (default removed)"]))
     end
   end
 
@@ -344,7 +346,7 @@ RSpec.describe(Kimera::Operators) do
       end
     RUBY
 
-    def safe(catalog) = catalog.points.select(&:safe?).flat_map(&:ids)
+    def safe(catalog) = catalog.to_a.select(&:safe?).flat_map(&:ids)
 
     it "hold more than ten schema-safe points" do
       expect(safe(scan(contract_keys, awkward, "awkward.rb")).size).to(be > 10)
@@ -353,8 +355,8 @@ RSpec.describe(Kimera::Operators) do
     it "are all applied by the overlay, into source that parses", :aggregate_failures do
       catalog = scan(contract_keys, awkward, "awkward.rb")
       result = Kimera::Overlay.new(catalog).synthesize("awkward.rb", awkward)
-      expect(result.mutant_ids).to(match_array(safe(catalog)))
-      expect { RubyVM::AbstractSyntaxTree.parse(result.source) }.not_to(raise_error)
+      expect(result.to_h.fetch(:mutant_ids)).to(match_array(safe(catalog)))
+      expect { RubyVM::AbstractSyntaxTree.parse(result.to_s) }.not_to(raise_error)
     end
   end
 
@@ -369,7 +371,7 @@ RSpec.describe(Kimera::Operators) do
     catalog = scan(contract_keys)
     overlay = Kimera::Overlay.new(catalog)
     expect(catalog.each.count).to(be > 5)
-    baked = catalog.each.to_h { |mutant, _point| [mutant.label, overlay.bake("contracts.rb", contract_src, mutant.id)] }
+    baked = catalog.each.to_h { |found, _| [found.to_s, overlay.bake("contracts.rb", contract_src, found.to_i)] }
     expect(baked.reject { |_label, source| parses?(source) }.keys).to(be_empty)
   end
 end

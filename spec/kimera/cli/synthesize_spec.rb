@@ -61,7 +61,7 @@ RSpec.describe(Kimera::CLI::Synthesize, :aggregate_failures) do
 
   it "skips registry entries whose source file is missing from disk" do
     manifest = File.join(dir, "reg.json")
-    catalog(file: "ghost.rb").write(manifest)
+    File.write(manifest, JSON.pretty_generate(catalog(file: "ghost.rb")))
     out, _error, status = run("--registry", manifest, "--out", File.join(dir, "out"))
     expect(status).to(eq(0))
     expect(out).to(include("0 mutants on the schema path."))
@@ -106,7 +106,7 @@ RSpec.describe(Kimera::CLI::Synthesize, :aggregate_failures) do
 
   it "loads an existing registry with --registry instead of building" do
     manifest = File.join(dir, "reg.json")
-    catalog.write(manifest)
+    File.write(manifest, JSON.pretty_generate(catalog))
     out, _error, status = run("--registry", manifest, "--out", File.join(dir, "out"))
     expect(status).to(eq(0))
     expect(out).to(include("Synthesized 1 files"))

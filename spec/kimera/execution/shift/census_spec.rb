@@ -6,9 +6,11 @@ require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 require "stringio"
 
+using ResultFields
+
 RSpec.describe(Kimera::Execution::Shift::Census) do
   let(:registry) { Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n", file: "calc.rb") }
-  let(:target) { registry.each.first.first.id }
+  let(:target) { registry.each.first.first.to_i }
 
   def adapter(runs = [])
     Class.new(Kimera::Frameworks::Suite) do

@@ -2,8 +2,9 @@
 (***************************************************************************)
 (* The warm worker pool: the parent's scheduling loop                      *)
 (* (lib/kimera/execution/worker_pool.rb, worker_pool/fleet.rb,             *)
-(* worker_pool/worker.rb, worker_pool/stillborn_guard.rb) and the worker   *)
-(* side of the pipe protocol (lib/kimera/execution/shift.rb).              *)
+(* worker_pool/backlog.rb, worker_pool/worker.rb,                          *)
+(* worker_pool/stillborn_guard.rb) and the worker side of the pipe         *)
+(* protocol (lib/kimera/execution/shift.rb).                               *)
 (*                                                                         *)
 (* Each worker is a forked child joined to the parent by two FIFO pipes.   *)
 (* The parent offers one mutant id at a time; the child answers with       *)
@@ -82,10 +83,10 @@ Part        == [kind |-> "part", id |-> None]
 NoTask      == Offer(None, FALSE)
 
 VARIABLES
-  queue,      \* Fleet#queue: warm ids not taken yet, heaviest first
-  done,       \* Fleet#done
-  rechecks,   \* Fleet#rechecks
-  rechecked,  \* Fleet#rechecked
+  queue,      \* Backlog#queue: warm ids not taken yet, heaviest first
+  done,       \* Backlog#done
+  rechecks,   \* Backlog#rechecks
+  rechecked,  \* Backlog#rechecked
   fleet,      \* Fleet#workers: the workers the parent polls
   free,       \* Fleet#slots, a FIFO: spawn takes the head, remove appends
   inflight,   \* Worker#inflight
@@ -117,21 +118,21 @@ parent == <<queue, done, rechecks, rechecked, fleet, free, inflight, served,
 (* The parent's helpers. Each yields the next values of the variables it   *)
 (* writes, so actions can compose them.                                    *)
 
-\* Fleet#following: shift ids off the queue until one is not done.
+\* Backlog#following: shift ids off the queue until one is not done.
 RECURSIVE Following(_)
 Following(q) ==
   IF q = <<>> THEN [id |-> None, queue |-> <<>>]
   ELSE IF Head(q) \in done THEN Following(Tail(q))
   ELSE [id |-> Head(q), queue |-> Tail(q)]
 
-\* Fleet#take: a fresh worker takes a recheck first.
+\* Backlog#take: a fresh worker takes a recheck first.
 Take(fresh) ==
   IF fresh /\ rechecks # <<>>
     THEN [id |-> Head(rechecks), queue |-> queue, rechecks |-> Tail(rechecks)]
     ELSE LET f == Following(queue)
          IN  [id |-> f.id, queue |-> f.queue, rechecks |-> rechecks]
 
-\* Fleet#pending?
+\* Backlog#pending?
 Pending == rechecks # <<>> \/ \E i \in Range(queue) : i \notin done
 
 \* WorkerPool#assign for worker w, whose served flag is fresh = ~served[w].
@@ -273,7 +274,7 @@ Service(w) ==
             /\ line
             /\ UNCHANGED <<done, rechecked, fleet, free, child, task, refill,
                            verdicts, requeues, stillborn, progressed, aborted>>
-       [] m.kind = "requeue" ->          \* WorkerPool#relay + Fleet#requeue, close
+       [] m.kind = "requeue" ->          \* WorkerPool#relay + Backlog#requeue, close
             /\ rechecks' = Append(rechecks, m.id)
             /\ rechecked' = rechecked \cup {m.id}
             /\ requeues' = [requeues EXCEPT ![m.id] = @ + 1]

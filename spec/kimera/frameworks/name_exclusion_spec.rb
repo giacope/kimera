@@ -7,8 +7,12 @@ RSpec.describe(Kimera::Frameworks::NameExclusion, :aggregate_failures) do
   let(:adapter) do
     Class.new(Kimera::Frameworks::Suite) do
       def test_ids = %w[./dir_spec.rb[1:1] ./dir_spec.rb[1:2] ./other_spec.rb[1:1]]
-      def describe(id)
-        { "./dir_spec.rb[1:1]" => "Directory serves a file", "./dir_spec.rb[1:2]" => "Directory 404s unreadable" }[id]
+      def [](id)
+        names = {
+          "./dir_spec.rb[1:1]" => "Directory serves a file",
+          "./dir_spec.rb[1:2]" => "Directory 404s unreadable"
+        }
+        Data.define(:name).new(names[id])
       end
       def run(ids) = ids
     end.new

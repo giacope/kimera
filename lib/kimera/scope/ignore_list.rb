@@ -9,20 +9,11 @@ module Kimera
       end
 
       def rule?(rule)
-        ANCHORS.all? do |field, matcher|
-          value = rule[field]
-          !value || __send__(matcher, value)
-        end
+        given = rule.slice(*ANCHORS).select { |_field, value| value }
+        label = given.delete(:label)
+        (!label || label == mutant.to_s) && point.fits?(**given)
       end
       private
-      def line?(value) = point.location.range.include?(Integer(value))
-      def starts?(value) = point.location.start_line == Integer(value)
-      def operator?(value) = Array(value).map(&:to_s).include?(point.operator)
-      def column?(value) = point.location.start_column + 1 == Integer(value)
-      def label?(value) = value == mutant.label
-      def method?(value) = value.to_s == point.method_name
-      def original?(value) = squeeze(value) == squeeze(point.original_source)
-      def squeeze(source) = source.to_s.split.join(" ")
 
       attr_reader :point, :mutant
     end
@@ -57,8 +48,7 @@ module Kimera
       attr_reader :rule, :line
     end
 
-    ANCHORS = { line: :line?, column: :column?, label: :label? }.merge(method: :method?, original: :original?)
-      .merge(starts: :starts?, operator: :operator?).freeze
+    ANCHORS = %i[line column label method original starts operator].freeze
 
     def initialize(rules)
       @rules = rules
@@ -90,8 +80,8 @@ module Kimera
     end
 
     def pairs(registry, glob)
-      files = glob ? registry.files.select { |file| File.fnmatch?(glob, file, File::FNM_PATHNAME) } : []
-      files.flat_map { |file| registry.at(file).flat_map { |point| point.mutants.map { |mutant| [mutant, point] } } }
+      matched = registry.to_h.select { |file, _| glob && File.fnmatch?(glob, file, File::FNM_PATHNAME) }
+      matched.values.flatten(1).flat_map { |point| point.each.map { |mutant| [mutant, point] } }
     end
   end
 end

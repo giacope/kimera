@@ -5,7 +5,7 @@ require "kimera/registry/builder"
 
 RSpec.describe(Kimera::CLI::Run::Route) do
   let(:registry) { Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n", file: "app/x.rb") }
-  let(:ids) { registry.each.map { |mutant, _point| mutant.id } }
+  let(:ids) { registry.each.map { |mutant, _point| mutant.to_i } }
 
   it "isolates the mutants a pool-unsafe test covers, reading coverage only for a pattern", :aggregate_failures do
     reads = 0

@@ -63,6 +63,8 @@ class FakeHarness
     @answer.call(ids)
   end
 
+  def survey = self
+
   def isolated(**settings) = @isolation.built(settings)
 
   def noted(report) = report.annotate(flaky: @flakes&.to_h)
@@ -77,6 +79,20 @@ class FailingHarness < FakeHarness
   def warm!(*, **) = raise(@failure)
 end
 
+class FakeSelection
+  def initialize(ids, catalog, files)
+    @ids = ids
+    @catalog = catalog
+    @files = files
+  end
+
+  def name = @catalog.dig(@ids.first, "name")
+
+  def file = @files[@ids.first].to_s
+
+  def to_h = @catalog.slice(*@ids)
+end
+
 class FakeSuite
   def initialize(test_ids = [], catalog: {}, files: {})
     @test_ids = test_ids
@@ -89,13 +105,11 @@ class FakeSuite
 
   def source(_files) = self
 
+  def hooks = self
+
   def start = self
 
-  def catalog(ids) = @catalog.slice(*ids)
-
-  def describe(id) = @catalog.dig(id, "name")
-
-  def test_file(id) = @files[id]
+  def [](*ids) = FakeSelection.new(ids, @catalog, @files)
 
   def finish = (@finished = true)
 

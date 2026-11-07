@@ -5,6 +5,8 @@ require "kimera/execution/schemata"
 require "kimera/registry/builder"
 require "tmpdir"
 
+using PointFields
+
 RSpec.describe(Kimera::Execution::BlockMethods) do
   let(:dir) { Dir.mktmpdir }
   let(:file) { File.join(dir, "shared.rb") }
@@ -69,11 +71,11 @@ RSpec.describe(Kimera::Execution::BlockMethods) do
   def made(index = 0) = BlockMethodsDsl.made.fetch(index)
 
   def flipped(label, line, &)
-    found = registry.each.find { |mutant, point| mutant.label == label && point.location.start_line == line }
-    Kimera::RUNTIME.during(found.first.id, &)
+    found = registry.each.find { |mutant, point| mutant.to_s == label && point.location.range.begin == line }
+    Kimera::RUNTIME.during(found.first.to_i, &)
   end
 
-  def blocks(woven = source, text = source) = described_class.new(file, text, woven, registry.each.map { _2.location })
+  def blocks(woven = source, text = source) = described_class.new(file, text, woven, registry.each.map { _2 })
 
   it "defines the woven method on each module the block ran on", :aggregate_failures do
     overlay!
@@ -212,7 +214,7 @@ RSpec.describe(Kimera::Execution::BlockMethods) do
   def searched(*texts)
     walks do
       texts.each do |text|
-        located = Kimera::RegistryScan.new.source(text, file: "x.rb").each.map { _2.location }
+        located = Kimera::RegistryScan.new.source(text, file: "x.rb").each.map { _2 }
         described_class.new(file, text, text, located).adopt { :installed }
       end
     end

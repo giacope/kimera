@@ -6,12 +6,14 @@ require "kimera/runtime"
 require "kimera/support/warnings"
 require "kimera/synthesis/overlay"
 
+using PointFields
+
 RSpec.describe(Kimera::Operators) do
   def registry(code, keys)
     Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: keys)).source(code, file: "app.rb")
   end
 
-  def flipped(catalog, label, &) = Kimera::RUNTIME.during(catalog.each.find { |m, _p| m.label == label }.first.id, &)
+  def flipped(catalog, label, &) = Kimera::RUNTIME.during(catalog.each.find { |m, _p| m.to_s == label }.first.to_i, &)
 
   describe "rails_permit" do
     let(:permit_src) { <<~RUBY }
@@ -24,7 +26,7 @@ RSpec.describe(Kimera::Operators) do
 
     it "drops one permitted key per variant", :aggregate_failures do
       catalog = registry(permit_src, ["rails_permit"])
-      expect(catalog.each.map { |m, _p| m.label }).to(contain_exactly("permit: drop :name", "permit: drop :admin"))
+      expect(catalog.each.map { |m, _p| m.to_s }).to(contain_exactly("permit: drop :name", "permit: drop :admin"))
       expect(catalog.each.map { |_m, p| p.safe? }.uniq).to(eq([true]))
     end
 
@@ -43,7 +45,7 @@ RSpec.describe(Kimera::Operators) do
     def controller(catalog)
       stub_const("UsersController", Class.new)
       overlay = Kimera::Overlay.new(catalog).synthesize("app.rb", permit_src)
-      Kimera::Warnings.silenced.during { TOPLEVEL_BINDING.eval(overlay.source, "app.rb") }
+      Kimera::Warnings.silenced.during { TOPLEVEL_BINDING.eval(overlay.to_s, "app.rb") }
       params = fake_params
       UsersController.new.tap { |users| users.define_singleton_method(:params) { params.new } }
     end
@@ -71,25 +73,25 @@ RSpec.describe(Kimera::Operators) do
 
     it "creates points marked for the isolated oracle", :aggregate_failures do
       catalog = registry(model_src, %w[rails_validation rails_callback])
-      expect(catalog.each.map { |m, _p| m.label }).to(
+      expect(catalog.each.map { |m, _p| m.to_s }).to(
         contain_exactly(
           "delete `validates :email, presence: true`",
           "delete `before_action :authenticate_user!`",
           "delete `after_commit :notify`"
         )
       )
-      expect(catalog.points.map { |point| [point.safe?, point.body?, point.unsafe_reason] }.uniq)
-        .to(eq([[false, true, Kimera::MutationPoint::CLASS_BODY_REASON]]))
+      expect(catalog.to_a.map { |point| PointVerdict.new(point).then { [it.safe?, it.unsafe_reason] } }.uniq)
+        .to(eq([[false, Kimera::Reason::CLASS_BODY_REASON]]))
     end
 
     it "matches nothing when only default operators are active" do
       catalog = registry(model_src, described_class.build.map(&:key))
-      expect(catalog.each.map { |m, _p| m.label }).not_to(include(a_string_matching(/validates|before_action/)))
+      expect(catalog.each.map { |m, _p| m.to_s }).not_to(include(a_string_matching(/validates|before_action/)))
     end
 
     it "bakes the deletion into standalone source for the oracle", :aggregate_failures do
       catalog = registry(model_src, ["rails_validation"])
-      id = catalog.each.first.first.id
+      id = catalog.each.first.first.to_i
       baked = Kimera::Overlay.new(catalog).bake("app.rb", model_src, id)
       expect(baked).not_to(include("validates"))
       expect(baked).to(include("before_action"))
@@ -118,7 +120,7 @@ RSpec.describe(Kimera::Operators) do
     RUBY
 
     it "drops each option a validates call keeps a validator without", :aggregate_failures do
-      labels = registry(validated_src, ["rails_validation"]).each.map { |m, _p| m.label }
+      labels = registry(validated_src, ["rails_validation"]).each.map { |m, _p| m.to_s }
       expect(labels).to(
         contain_exactly(
           "delete `validates :name, :user_name, presence: true, length: { maximum: 100 }, if: :named?`",
@@ -132,7 +134,7 @@ RSpec.describe(Kimera::Operators) do
 
     it "bakes the call without that option for the oracle", :aggregate_failures do
       catalog = registry(validated_src, ["rails_validation"])
-      id = catalog.each.find { |m, _p| m.label == "validates: drop length:" }.first.id
+      id = catalog.each.find { |m, _p| m.to_s == "validates: drop length:" }.first.to_i
       baked = Kimera::Overlay.new(catalog).bake("app.rb", validated_src, id)
       expect(baked).to(include("validates :name, :user_name, presence: true, if: :named?", "validates :email"))
       expect(baked).not_to(include("length:"))
@@ -149,7 +151,7 @@ RSpec.describe(Kimera::Operators) do
 
     it "offers one drop per scoped action alongside the whole-filter deletion" do
       catalog = registry(scoped_src, ["rails_callback"])
-      expect(catalog.each.map { |m, _p| m.label }).to(
+      expect(catalog.each.map { |m, _p| m.to_s }).to(
         contain_exactly(
           "delete `before_action :authorize!, only: [:edit, :update]`",
           "before_action: drop :edit from only:",
@@ -162,7 +164,7 @@ RSpec.describe(Kimera::Operators) do
 
     it "bakes the narrowed action list for the oracle", :aggregate_failures do
       catalog = registry(scoped_src, ["rails_callback"])
-      id = catalog.each.find { |m, _p| m.label == "before_action: drop :edit from only:" }.first.id
+      id = catalog.each.find { |m, _p| m.to_s == "before_action: drop :edit from only:" }.first.to_i
       baked = Kimera::Overlay.new(catalog).bake("app.rb", scoped_src, id)
       expect(baked).to(include("only: [:update]", "except: [:index]"))
       expect(baked).not_to(include(":edit"))
@@ -181,12 +183,12 @@ RSpec.describe(Kimera::Operators) do
     it "targets only associations that declare dependent:", :aggregate_failures do
       catalog = registry(assoc_src, ["rails_association"])
       expect(catalog.each.count).to(eq(2))
-      catalog.points.each { |point| expect(point.body?).to(be(true)) }
+      catalog.to_a.each { |point| expect(point.reasons(Kimera::Reason.class_body).any?).to(be(true)) }
     end
 
     it "bakes the option away, dropping an emptied options hash entirely", :aggregate_failures do
       catalog = registry(assoc_src, ["rails_association"])
-      posts = catalog.each.find { |_m, p| p.original_source.include?(":posts") }.first.id
+      posts = catalog.each.find { |_m, p| p.original_source.include?(":posts") }.first.to_i
       baked = Kimera::Overlay.new(catalog).bake("app.rb", assoc_src, posts)
       expect(baked).not_to(include("dependent: :destroy"))
       expect(baked).to(match(/has_many[( ]:posts\)?\s*$/m).and(include("dependent: :nullify")))
@@ -194,7 +196,7 @@ RSpec.describe(Kimera::Operators) do
 
     it "keeps sibling options when dropping dependent: from a fuller hash", :aggregate_failures do
       catalog = registry(assoc_src, ["rails_association"])
-      drafts = catalog.each.find { |_m, p| p.original_source.include?(":drafts") }.first.id
+      drafts = catalog.each.find { |_m, p| p.original_source.include?(":drafts") }.first.to_i
       baked = Kimera::Overlay.new(catalog).bake("app.rb", assoc_src, drafts)
       expect(baked).not_to(include("dependent: :nullify"))
       expect(baked).to(include("inverse_of: :author"))
@@ -215,12 +217,12 @@ RSpec.describe(Kimera::Operators) do
     it "treats lambda bodies as re-executing, schemata-safe code", :aggregate_failures do
       catalog = pricing
       expect(catalog.each.count).to(eq(2))
-      expect(catalog.points.map(&:safe?)).to(all(be(true)))
+      expect(catalog.to_a.map(&:safe?)).to(all(be(true)))
     end
 
     it "runs a lambda body's mutant live" do
       catalog = pricing
-      evaluated(Kimera::Overlay.new(catalog).synthesize("pricing.rb", pricing_code).source)
+      evaluated(Kimera::Overlay.new(catalog).synthesize("pricing.rb", pricing_code).to_s)
       plain = Pricing::DISCOUNT.call(100)
       expect([plain, flipped(catalog, "> => >=") { Pricing::DISCOUNT.call(100) }]).to(eq([0, 10]))
     end
@@ -290,7 +292,7 @@ RSpec.describe(Kimera::Operators) do
       code = "class Foo\n  before_action :check, **defaults, only: [:edit]\nend\n"
       catalog = nil
       expect { catalog = registry(code, ["rails_callback"]) }.not_to(raise_error)
-      expect(catalog.each.map { |m, _p| m.label }).to(
+      expect(catalog.each.map { |m, _p| m.to_s }).to(
         contain_exactly(
           "delete `before_action :check, **defaults, only: [:edit]`",
           "before_action: drop :edit from only:"
@@ -300,7 +302,7 @@ RSpec.describe(Kimera::Operators) do
 
     it "ignores array options under keys other than only:/except:" do
       code = "class Foo\n  before_action :log, subset: [:index]\nend\n"
-      expect(registry(code, ["rails_callback"]).each.map { |m, _p| m.label })
+      expect(registry(code, ["rails_callback"]).each.map { |m, _p| m.to_s })
         .to(eq(["delete `before_action :log, subset: [:index]`"]))
     end
 
@@ -308,12 +310,12 @@ RSpec.describe(Kimera::Operators) do
       code = "class Foo\n  before_action :log, only: :index\nend\n"
       catalog = nil
       expect { catalog = registry(code, ["rails_callback"]) }.not_to(raise_error)
-      expect(catalog.each.map { |m, _p| m.label }).to(eq(["delete `before_action :log, only: :index`"]))
+      expect(catalog.each.map { |m, _p| m.to_s }).to(eq(["delete `before_action :log, only: :index`"]))
     end
 
     it "ignores a string-keyed \"only\" option (symbol keys only)" do
       code = "class Foo\n  before_action :log, \"only\" => [:index]\nend\n"
-      expect(registry(code, ["rails_callback"]).each.map { |m, _p| m.label })
+      expect(registry(code, ["rails_callback"]).each.map { |m, _p| m.to_s })
         .to(eq(["delete `before_action :log, \"only\" => [:index]`"]))
     end
   end

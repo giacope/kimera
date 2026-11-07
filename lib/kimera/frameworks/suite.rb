@@ -2,17 +2,16 @@
 
 require_relative "../error"
 require_relative "seed"
+require_relative "bare_selection"
 
 module Kimera
   module Frameworks
     RunOutcome =
-      Struct.new(:passed, :failed_ids, :failures, keyword_init: true) do
+      Data.define(:passed, :failed_ids, :failures) do
+        def initialize(passed:, failed_ids:, failures: {}) = super
+        private(*members)
         def passed?
           passed
-        end
-
-        def failures
-          self[:failures] || {}
         end
 
         def verdict
@@ -20,6 +19,15 @@ module Kimera
         end
 
         def expired? = false
+
+        def to_h = { "passed" => passed?, "failed_ids" => failed_ids, "failures" => failures }
+      end
+
+    Unhooked =
+      Data.define do
+        def start; end
+
+        def finish; end
       end
   end
 end
@@ -37,31 +45,13 @@ class Kimera::Frameworks::Suite
     raise(NotImplementedError)
   end
 
-  def start; end
-
-  def finish; end
-
   def run(ids)
     raise(NotImplementedError)
   end
 
-  def describe(id)
-    id
-  end
+  def hooks = Kimera::Frameworks::Unhooked.new
 
-  def locate(_id) = {}
-
-  def test_file(_id) = ""
-
-  def catalog(ids) = (ids & test_ids).to_h { |id| [id, { "name" => describe(id) }.merge(locate(id))] }
-
-  def reproduce(ids)
-    "rspec #{(ids & test_ids).join(" ")} --order defined"
-  end
-
-  def plain(_ids, _out) = []
-
-  def failed_plainly(_output, _out) = []
+  def [](*ids) = Kimera::Frameworks::BareSelection.new(ids, self)
 
   HARNESS = File.expand_path("..", __dir__)
   FRAMES = 5
@@ -84,10 +74,10 @@ class Kimera::Frameworks::Suite
 
   def each_test_file(files, &)
     ARGV.clear
-    Array(files).each { |file| load_test_file(file, &) }
+    Array(files).each { |file| guarded(file, &) }
   end
 
-  def load_test_file(file)
+  def guarded(file)
     yield(File.expand_path(file))
   rescue StandardError, ScriptError => error
     raise(Kimera::Error, "cannot load test file #{file} (#{error.class}: #{error.message})#{clash(error)}")
