@@ -132,7 +132,7 @@ class FakeBench
     @loading = loading || proc {}
   end
 
-  def change(since, _root)
+  def change(since, _root, _scope = "lines")
     since ? Kimera::Incremental::Selection.new(@changed, since) : Kimera::CLI::Run::NullSelection.new
   end
 

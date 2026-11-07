@@ -38,7 +38,11 @@ RSpec.describe(Kimera::Incremental::CoverageCache) do
     Struct.new(:coverage).new({ ids("lib/a.rb").first => %w[t1], ids("lib/b.rb").last => %w[t2 t1], 999 => %w[t3] })
   end
 
-  def keep(**) = cache(reuse_coverage: true, **).keep(harness, Struct.new(:test_ids).new(%w[t1 t2 t3]))
+  def adapter
+    Struct.new(:test_ids) { def [](id) = Struct.new(:file).new("./spec/#{id}_spec.rb") }.new(%w[t1 t2 t3])
+  end
+
+  def keep(**) = cache(reuse_coverage: true, **).keep(harness, adapter)
 
   def changed(*files) = Kimera::Registry.new(files: registry.to_h.slice(*files))
 
@@ -50,6 +54,12 @@ RSpec.describe(Kimera::Incremental::CoverageCache) do
     keep
     expect(JSON.parse(File.read(map)).values_at("coverage", "tests"))
       .to(eq([{ "lib/a.rb" => %w[t1], "lib/b.rb" => %w[t2 t1] }, %w[t1 t2 t3]]))
+  end
+
+  it "stores the file each test lives in, so a later run can tell which tests a change touched" do
+    keep
+    expect(JSON.parse(File.read(map))["test_files"])
+      .to(eq("t1" => "./spec/t1_spec.rb", "t2" => "./spec/t2_spec.rb", "t3" => "./spec/t3_spec.rb"))
   end
 
   it "stores nothing without --reuse-coverage, or on an incremental run", :aggregate_failures do

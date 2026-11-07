@@ -10,6 +10,7 @@ class Kimera::CLI::Run::Given
   SEEDS = 2**31
   DEFAULT_TESTS = ["spec/**/*_spec.rb"].freeze
   UNMEASURED = "needs the coverage baseline; drop --no-coverage"
+  SCOPES = %w[lines files impact].freeze
 
   def initialize(flags, rest, random, formats)
     @flags = flags
@@ -19,7 +20,7 @@ class Kimera::CLI::Run::Given
   end
 
   def settings
-    chosen = scoped.merge(attribution: attribution.mode, unit_tests: attribution.rules)
+    chosen = scoped.merge(attribution: attribution.mode, unit_tests: attribution.rules, since_scope: extent)
     require_coverage!("--attribution unit") if chosen[:attribution] == "unit"
     Kimera::CLI::Run::Settings.new(chosen.merge(flaky_runs: reruns).merge(seed: @flags[:seed]&.then { seed(it) }))
   end
@@ -27,6 +28,12 @@ class Kimera::CLI::Run::Given
   private
 
   def attribution = Kimera::Config::Attribution.new(@flags)
+
+  def extent
+    scope = String(@flags[:since_scope])
+    taken = SCOPES.join(", ")
+    SCOPES.find { it == scope } || raise(Kimera::UsageError, "--since-scope takes #{taken}; got #{scope.inspect}")
+  end
 
   def seed(value)
     return @random.rand(SEEDS) if value.to_s == "random"

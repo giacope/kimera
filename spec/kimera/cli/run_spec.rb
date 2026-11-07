@@ -58,7 +58,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         relative_timeout: true, timeout_factor: nil, timeout_slack: nil,
         registry: nil, report: "tmp/kimera/report.json", format: "text", focus: [], gate: true, coverage: true,
         require: [],
-        since: nil, session: nil, max_survivors: nil, max_ignored: nil,
+        since: nil, since_scope: "lines", session: nil, max_survivors: nil, max_ignored: nil,
         max_errors: 0, evaluate_ignored: false, baseline: nil,
         jobs: 1, exclude: [], exclude_tests: [], exclude_test_names: [], config: nil, ignore: [],
         isolate_db: false,
@@ -139,6 +139,14 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(cli.__send__(:parse, %w[--attribution any --no-coverage])[:coverage]).to(be(false))
       expect(cli.__send__(:parse, %w[--attribution unit])[:coverage]).to(be(true))
       expect { cli.__send__(:parse, %w[--attribution all]) }.to(raise_error(Kimera::UsageError, /unknown attribution/))
+    end
+
+    it "takes the scope of --since from the flag or the config, and only one it knows", :aggregate_failures do
+      expect(parsed("--since-scope", "impact")[:since_scope]).to(eq("impact"))
+      File.write("scoped.yml", "since_scope: files\n")
+      expect(parsed("--config", "scoped.yml")[:since_scope]).to(eq("files"))
+      expect { parsed("--since-scope", "everything") }
+        .to(raise_error(Kimera::UsageError, "--since-scope takes lines, files, impact; got \"everything\""))
     end
 
     it "applies exactly the documented defaults" do

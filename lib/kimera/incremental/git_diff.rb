@@ -14,6 +14,7 @@ class Kimera::Incremental::GitDiff
   FILE_HEADER = %r{\A\+\+\+ b/(.*)\n?\z}
   HUNK_HEADER = /\A@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/
   BASEFLAGS = %w[diff --relative --unified=0 --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/].freeze
+  NAMEFLAGS = %w[diff --relative --name-only -z --no-renames --no-color --no-ext-diff].freeze
 
   class << self
     def parse(text) = Changes.new.feed(text.dup.force_encoding(Encoding::UTF_8).scrub)
@@ -58,15 +59,13 @@ class Kimera::Incremental::GitDiff
     @paths = paths
   end
 
-  def lines
-    out, ok = read
-    raise(failure) unless ok
-    self.class.parse(out)
-  end
+  def lines = self.class.parse(listed(BASEFLAGS))
 
   def files
     lines.keys
   end
+
+  def names = listed(NAMEFLAGS).force_encoding(Encoding::UTF_8).scrub.split("\0").reject(&:empty?)
 
   private
 
@@ -83,15 +82,21 @@ class Kimera::Incremental::GitDiff
     yield
   end
 
-  def read
-    out, _error, status = Open3.capture3(*command)
+  def listed(flags)
+    out, ok = read(flags)
+    raise(failure) unless ok
+    out
+  end
+
+  def read(flags)
+    out, _error, status = Open3.capture3(*command(flags))
     [out, status.success?]
   rescue Errno::ENOENT
     ["", false]
   end
 
-  def command
-    invocation = ["git", "-C", @root.to_s, *BASEFLAGS, base]
+  def command(flags)
+    invocation = ["git", "-C", @root.to_s, *flags, base]
     invocation += ["--", *@paths] unless @paths.empty?
     invocation
   end

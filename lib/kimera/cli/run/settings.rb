@@ -31,7 +31,7 @@ class Kimera::CLI::Run::Settings
 
   def plugins = Kimera::Plugins.new(@values[:require], root: @values[:source_root])
 
-  def change(bench) = bench.change(@values[:since], @values[:source_root])
+  def change(bench) = bench.change(@values[:since], @values[:source_root], @values[:since_scope])
 
   def scan
     operators = Kimera::Operators.build(keys: @values[:operators])

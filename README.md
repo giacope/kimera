@@ -467,6 +467,32 @@ bundle exec kimera run --reuse-coverage       # a full run (on main) stores the 
 bundle exec kimera changed --reuse-coverage   # a branch reruns only what its change reaches
 ```
 
+### What an incremental run mutates
+
+`--since` mutates the lines a change touched. That misses what a change does
+to the lines around them: a guard added on one line can make the rescue two
+lines down unreachable, a rewritten spec can stop killing a mutant on a line
+nobody edited, and a hunk that only deletes lines touches no line at all. A
+full run on the base branch finds those survivors after the merge.
+`--since-scope` (`since_scope:`) widens what `--since`, `kimera ci` and
+`kimera changed` mutate:
+
+- `lines` (the default): the lines the change added or edited.
+- `files`: every line of each file the change touched, files that only lost
+  lines included.
+- `impact`: those files, and every source file that a test the change edited
+  or deleted reached, per the coverage map a full run with `--reuse-coverage`
+  stores (above; it records the file each test lives in). With no map, or one
+  from a kimera that did not record test files, the run says so and keeps
+  only the changed files.
+
+```sh
+bundle exec kimera ci --since-scope impact   # on a pull request, with main's map restored
+```
+
+`files` and `impact` cost more than `lines` in proportion to the size of the
+files a change touches, not to the size of the change.
+
 The incremental run says what it reused, for example `kimera: reusing the
 coverage map from 1a2b3c4 (2 source file(s) changed since): the baseline runs
 38 of 1,204 tests`. When the map cannot hold (none is stored, another Ruby,
@@ -696,6 +722,10 @@ count_no_coverage: true
 # rerun only the baseline tests that reach the changed files, while the tests,
 # support and config files, settings and Ruby still match it.
 # reuse_coverage: true
+# What --since, ci and changed mutate: the changed lines (lines), every line
+# of each changed file (files), or those files and the source files the
+# changed tests reach in the stored coverage map (impact).
+# since_scope: lines
 # Extra folders for the load path, beside each test file's nearest test/ or
 # spec/ and the project's own test/ and spec/. doctor and the printed
 # reproduce commands use the same load path.

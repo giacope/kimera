@@ -32,7 +32,9 @@ class Kimera::Incremental::CoverageCache
 
   def keep(harness, adapter)
     return unless @options[:reuse_coverage] && !@options[:since]
-    measured = { "coverage" => by_file(harness.coverage), "tests" => adapter.test_ids }
+    tests = adapter.test_ids
+    measured = { "coverage" => by_file(harness.coverage), "tests" => tests }
+      .merge("test_files" => tests.to_h { [it, adapter[it].file] })
     Kimera::Incremental::CoverageMap.new(fingerprint.merge(measured)).write(path)
   end
 
