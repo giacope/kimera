@@ -3,18 +3,7 @@
 require_relative "../error"
 
 class Kimera::Frameworks::SuiteRegistry
-  LOADERS = {
-    "rspec" => lambda do
-      require_relative "rspec_suite"
-      Kimera::Frameworks::RSpecSuite
-    end,
-    "minitest" => lambda do
-      require_relative "minitest_suite"
-      Kimera::Frameworks::MinitestSuite
-    end
-  }.freeze
-
-  def initialize(loaders = LOADERS)
+  def initialize(loaders = built_in)
     @loaders = loaders
   end
 
@@ -25,6 +14,19 @@ class Kimera::Frameworks::SuiteRegistry
   end
 
   private
+
+  def built_in
+    {
+      "rspec" => lambda do
+        require_relative("rspec_suite")
+        Kimera::Frameworks::RSpecSuite
+      end,
+      "minitest" => lambda do
+        require_relative("minitest_suite")
+        Kimera::Frameworks::MinitestSuite
+      end
+    }
+  end
 
   def unloadable(name, error)
     "framework #{name} is configured but cannot be loaded (#{error.message}); " \

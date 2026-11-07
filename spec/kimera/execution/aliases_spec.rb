@@ -50,13 +50,14 @@ RSpec.describe(Kimera::Execution::Aliases) do
     expect(aliased.new.cost(1)).to(eq(4))
   end
 
-  # An alias whose method its holder no longer has is no alias to re-point.
+  # An alias whose method its holder no longer has is no alias to re-point. The class holding the alias
+  # stays referenced: collected before the tracker walks the object space, it left nothing to look at.
   it "follows no alias whose method is gone from its holder" do
-    origin = costing.first.tap { |declaring| declaring.remove_method(:price) }
+    origin, aliased = costing.tap { |(declaring, _)| declaring.remove_method(:price) }
     aliases = described_class.new([path]).tap { |tracker| tracker.follow { overlay(origin) } }
     definition = origin.instance_method(:price)
     aliases.witness([held(origin, :price, definition)])
-    expect(aliases.reaches?(definition)).to(be(false))
+    expect([aliases.reaches?(definition), aliased.instance_method(:cost).original_name]).to(eq([false, :price]))
   end
 
   describe "an alias's visibility" do
