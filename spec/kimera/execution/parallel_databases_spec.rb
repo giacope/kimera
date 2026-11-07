@@ -89,6 +89,11 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
 
     def handle(filename, closed: false, alive: true) = FakeRails::Handle.new(filename, closed, alive)
 
+    it "holds no handle the collector takes between its checks" do
+      collected = handle("").tap { |db| db.define_singleton_method(:closed?) { raise(WeakRef::RefError, "collected") } }
+      expect(described_class::HELD.call(collected)).to(be(false))
+    end
+
     it "holds an open, live in-memory handle only" do
       expect(described_class::HELD.call(handle(""))).to(be(true))
       expect(described_class::HELD.call(handle("/db/test.sqlite3"))).to(be(false))
