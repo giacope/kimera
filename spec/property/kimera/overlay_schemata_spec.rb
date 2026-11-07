@@ -16,7 +16,7 @@ RSpec.describe(Kimera::Overlay) do
     "mutant #{id} reduces to\n#{got.inspect}\nbut its bake is\n#{want.inspect}"
   end
 
-  def every_id(registry) = registry.each.map { |mutant, _| mutant.id }
+  def every_id(registry) = registry.each.map { |mutant, _| mutant.to_i }
 
   # Every mutant is applied once and guarded, or skipped: none twice, none lost.
   # Each mutant reduces to its bake, and the program with none active to the original.
@@ -27,8 +27,9 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   def accounted(schemata)
-    applied = schemata.result.mutant_ids.sort
-    reported = (applied + schemata.result.skipped_unsafe).sort
+    ids, skipped = schemata.result.to_h.values_at(:mutant_ids, :skipped_unsafe)
+    applied = ids.sort
+    reported = (applied + skipped).sort
     expect(applied: applied, guarded: schemata.guards.uniq.sort, reported: reported)
       .to(eq(accounting(applied, schemata.registry)))
   end
@@ -83,8 +84,8 @@ RSpec.describe(Kimera::Overlay) do
 
     # The mutants that, flipped live, answer the calls unlike their bakes.
     def unlike_bakes(schemata, calls)
-      live = loaded(schemata.result.source)
-      schemata.result.mutant_ids.reject do |id|
+      live = loaded(schemata.result.to_s)
+      schemata.result.to_h.fetch(:mutant_ids).reject do |id|
         bake = loaded(schemata.overlay.bake("x.rb", schemata.source, id))
         flipped(live, id, calls) == calls.map { |call| outcome(bake, call) }
       end

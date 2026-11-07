@@ -24,7 +24,7 @@ class Kimera::Execution::Sweep
 
   def record(result)
     @lock.synchronize { results << result }
-    @tick.call(result.status)
+    result.tick(@tick)
   end
 
   private

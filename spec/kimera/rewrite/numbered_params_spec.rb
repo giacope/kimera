@@ -59,8 +59,8 @@ RSpec.describe(Kimera::Rewrite::NumberedParams) do
     RUBY
     registry = Kimera::RegistryScan.new.source(source, file: "x.rb")
     result = Kimera::Overlay.new(registry).synthesize("x.rb", source)
-    expect(result.mutant_ids).not_to(be_empty)
-    expect { Kimera::Scribe.parse(result.source) }.not_to(raise_error)
+    expect(result.to_h.fetch(:mutant_ids)).not_to(be_empty)
+    expect { Kimera::Scribe.parse(result.to_s) }.not_to(raise_error)
   end
 
   it "tells text that spells kimera's name for a numbered parameter from the source's own", :aggregate_failures do

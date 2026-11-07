@@ -22,17 +22,19 @@ class Kimera::Report::FileTable
   end
 
   class Row < Line
-    def initialize(file, report)
+    def initialize(file, score)
       super()
       @file = file
-      @report = report
+      @score = score
     end
 
-    def rank = [-@report.survived.size, -@report.uncovered.size, @file]
+    def rank = [-count(:survived), -count(:no_coverage), @file]
 
     private
 
-    def cells = [@report.survived.size, @report.uncovered.size, @report.killed.size, @report.percent]
+    def cells = [count(:survived), count(:no_coverage), count(:killed), @score.percent]
+
+    def count(status) = @score.to_h.fetch(status)
 
     def label = @file
   end
@@ -42,7 +44,7 @@ class Kimera::Report::FileTable
   end
 
   def show(report)
-    rows = report.by_file.map { |file, part| Row.new(file, part) }
+    rows = report.score.by_file.map { |file, part| Row.new(file, part) }
     table(rows.sort_by(&:rank)) if rows.size > 1
   end
 

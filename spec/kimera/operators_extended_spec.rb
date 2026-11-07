@@ -6,6 +6,8 @@ require "kimera/runtime"
 require "kimera/support/warnings"
 require "kimera/synthesis/overlay"
 
+using PointFields
+
 # Each family also runs live, since one variant rendering bad source breaks the whole file's overlay.
 RSpec.describe(Kimera::Operators) do
   let(:ext_source) { <<~RUBY }
@@ -75,7 +77,7 @@ RSpec.describe(Kimera::Operators) do
   end
 
   def labels(key)
-    built(key).each.map { |m, _p| m.label }
+    built(key).each.map { |m, _p| m.to_s }
   end
 
   def scan(keys, code, file)
@@ -84,10 +86,10 @@ RSpec.describe(Kimera::Operators) do
 
   def evaluated(catalog, code, file)
     synthesized = Kimera::Overlay.new(catalog).synthesize(file, code)
-    Kimera::Overlay::Source.new(synthesized.source).evaluate(file)
+    Kimera::Overlay::Source.new(synthesized.to_s).evaluate(file)
   end
 
-  def pick(catalog, wanted) = catalog.each.find { |m, p| m.label == wanted || p.original_source == wanted }.first.id
+  def pick(catalog, wanted) = catalog.each.find { |m, p| m.to_s == wanted || p.original_source == wanted }.first.to_i
 
   # What the block answers for an ExtOps under the key's overlay, with the
   # mutant of that label (or source) active, or none.
@@ -95,7 +97,7 @@ RSpec.describe(Kimera::Operators) do
     stub_const("ExtOps", Class.new)
     catalog = built(key)
     overlay = Kimera::Overlay.new(catalog).synthesize("ext_ops.rb", ext_source)
-    Kimera::Warnings.silenced.during { TOPLEVEL_BINDING.eval(overlay.source, "ext_ops.rb") }
+    Kimera::Warnings.silenced.during { TOPLEVEL_BINDING.eval(overlay.to_s, "ext_ops.rb") }
     active(wanted && pick(catalog, wanted)) { yield(ExtOps.new) }
   end
 
@@ -148,12 +150,12 @@ RSpec.describe(Kimera::Operators) do
       stub_const("Linker", Class.new)
       catalog = scan("conditional", linker, "linker.rb")
       result = Kimera::Overlay.new(catalog).synthesize("linker.rb", linker)
-      TOPLEVEL_BINDING.eval(result.source, "linker.rb")
-      [result, catalog.each.to_h { |m, p| [[p.method_name, m.label], m.id] }]
+      TOPLEVEL_BINDING.eval(result.to_s, "linker.rb")
+      [result, catalog.each.to_h { |m, p| [[p.method_name, m.to_s], m.to_i] }]
     end
 
     it "is overlaid, not skipped as unsafe" do
-      expect(linked.first.skipped_unsafe).to(be_empty)
+      expect(linked.first.to_h.fetch(:skipped_unsafe)).to(be_empty)
     end
 
     it "keeps the assignment when pinned true" do
@@ -201,7 +203,7 @@ RSpec.describe(Kimera::Operators) do
   it "numeric_literal perturbs one to zero and two" do
     one = Kimera::RegistryScan.new(operators: described_class.build(keys: ["numeric_literal"]))
       .source("def m\n  1\nend\n", file: "one.rb")
-    expect(one.each.map { |m, _p| m.label }).to(contain_exactly("1 => 0", "1 => 2"))
+    expect(one.each.map { |m, _p| m.to_s }).to(contain_exactly("1 => 0", "1 => 2"))
   end
 
   it "numeric_literal runs live" do
@@ -272,7 +274,7 @@ RSpec.describe(Kimera::Operators) do
     code = "def m(rest)\n  a = [1]\n  b = [2, *rest]\n  [a, b]\nend\n"
     catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["element_drop"]))
       .source(code, file: "e.rb")
-    expect(catalog.each.map { |m, _p| m.label }).to(contain_exactly("drop `a`", "drop `b`"))
+    expect(catalog.each.map { |m, _p| m.to_s }).to(contain_exactly("drop `a`", "drop `b`"))
   end
 
   it "argument_drop removes one positional argument at a time" do
@@ -289,7 +291,7 @@ RSpec.describe(Kimera::Operators) do
       operators: described_class.build(keys: %w[rails_permit argument_drop])
     ).source(code, file: "p.rb")
     # The more specific rails label wins.
-    expect(catalog.each.map { |m, _p| m.label }).to(contain_exactly("permit: drop :name", "permit: drop :admin"))
+    expect(catalog.each.map { |m, _p| m.to_s }).to(contain_exactly("permit: drop :name", "permit: drop :admin"))
   end
 
   # The only family that mutates mid-expression, so it is checked on rendered source.
@@ -302,7 +304,7 @@ RSpec.describe(Kimera::Operators) do
 
     def rendered(catalog)
       catalog.each.map do |m, p|
-        Kimera::Rewrite::Directive.new(m.directive).render(p.original_source).first
+        m.rewrite(Kimera::Rewrite::Directive).render(p.original_source).first
       end
     end
 
@@ -313,7 +315,7 @@ RSpec.describe(Kimera::Operators) do
         end
       RUBY
 
-      expect(catalog.each.map { |m, _p| m.label })
+      expect(catalog.each.map { |m, _p| m.to_s })
         .to(
           contain_exactly(
             "drop chain link `.should_fetch_replies`",
@@ -332,7 +334,7 @@ RSpec.describe(Kimera::Operators) do
     it "skips a link carrying a block, and drops one past it" do
       catalog = chained("def m(xs)\n  xs.map { |x| x }.first.to_s\nend\n")
 
-      expect(catalog.each.map { |m, _p| m.label }).to(eq(["drop chain link `.first`"]))
+      expect(catalog.each.map { |m, _p| m.to_s }).to(eq(["drop chain link `.first`"]))
     end
 
     it "leaves operator-named links to their own families" do
@@ -373,6 +375,6 @@ RSpec.describe(Kimera::Operators) do
     RUBY
     catalog = Kimera::RegistryScan.new(operators: described_class.build(keys: ["method_unwrap"]))
       .source(code, file: "work.rb")
-    expect(catalog.each.map { |m, _p| m.label }).to(eq(["delete .uniq"]))
+    expect(catalog.each.map { |m, _p| m.to_s }).to(eq(["delete .uniq"]))
   end
 end

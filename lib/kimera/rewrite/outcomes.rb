@@ -29,7 +29,7 @@ class Kimera::Rewrite::Outcomes
   private
 
   def misread?(node, directive)
-    applied = Kimera::Rewrite::Fit.new(directive).applied(node) { return false }
+    applied = Kimera::Rewrite::Fit.new(Kimera::Rewrite::Directive.new(directive)).applied(node) { return false }
     Kimera::Rewrite::Conditions.new(applied, tested: tested[node]).misread?
   end
 

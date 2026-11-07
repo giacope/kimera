@@ -20,8 +20,8 @@ class Kimera::CLI::Run::Pass
   end
 
   def call(remaining)
-    with_adapter { harness.noted(perform(remaining)).annotate(**suite) }
-      .then { |judged| judged.described(@adapter.catalog(judged.test_ids)) }
+    with_adapter { harness.survey.noted(perform(remaining)).annotate(**suite) }
+      .then { |judged| judged.annotate(tests: @adapter[*judged.notes.test_ids].to_h) }
   end
 
   private
@@ -31,7 +31,7 @@ class Kimera::CLI::Run::Pass
   def with_adapter
     yield
   ensure
-    @adapter&.finish
+    @adapter&.hooks&.finish
   end
 
   def perform(remaining)
@@ -71,7 +71,7 @@ class Kimera::CLI::Run::Pass
   def warm(remaining)
     if @options[:isolated] || @options[:coverage]
       harness.warm!(files, scope: remaining)
-      cache.keep(harness, @adapter)
+      cache.keep(harness.survey, @adapter)
     else
       harness.without_coverage!(files)
     end
@@ -84,15 +84,15 @@ class Kimera::CLI::Run::Pass
   end
 
   def pooled(remaining, isolated)
-    apart, together = route.split(remaining) { harness.coverage }
+    apart, together = route.split(remaining) { harness.survey.coverage }
     return deferred(rejudged(harness.run(ids: together, label: "mutants"))) if apart.empty?
-    deferred(rejudged(harness.run(ids: together, label: "mutants (warm)"))).merge(isolated.call(apart))
+    deferred(rejudged(harness.run(ids: together, label: "mutants (warm)"))).revise(isolated.call(apart))
   end
 
   def deferred(report)
-    pending = report.statuses(:isolated_only).map(&:mutant_id)
+    pending = report.select { |result| result.status?(:isolated_only) }.to_h(&:entry).keys
     return report if pending.empty? || !route.judging?
-    report.revise(judge(pending).results)
+    report.revise(judge(pending))
   end
 
   def route(kind = Kimera::CLI::Run::Route) = @_route ||= kind.new(@registry, @options)
@@ -103,17 +103,16 @@ class Kimera::CLI::Run::Pass
   end
 
   def rejudged(report)
-    unjudged = report.errors + revisited(report)
+    unjudged = report.select { |result| result.status?(:harness_error) } + revisited(report)
     return report if unjudged.empty?
     return report.revise(unjudged) if @options[:rejudge] == false
     report.revise(isolation.rejudge(unjudged, label: "mutants (re-judged)"))
   end
 
   def revisited(report)
-    (report.survived + report.uncovered).filter_map do |result|
-      reason = @registry.index.fetch(result.mutant_id).revisit
-      result.dup.tap { |copy| copy.detail = reason } if reason
-    end
+    reason = ->(result) { result.from(@registry.index).reasons(Kimera::Reason.revisiting).first }
+    %i[survived no_coverage].flat_map { |status| report.select { |result| result.status?(status) } }
+      .filter_map { |result| reason.call(result)&.then { result.with(detail: it) } }
   end
 
   def judge(ids)
@@ -122,7 +121,7 @@ class Kimera::CLI::Run::Pass
   end
 
   def isolation
-    @_isolation ||= harness.isolated(**core, **limits)
+    @_isolation ||= harness.survey.isolated(**core, **limits)
   end
 
   def core
@@ -131,7 +130,7 @@ class Kimera::CLI::Run::Pass
       .merge(framework: @options[:framework], test_files: files, filter: filter, test_paths: paths, warnings: warnings)
   end
 
-  def paths = ->(id) { @adapter.test_file(id).to_s }
+  def paths = ->(id) { @adapter[id].file }
 
   def warnings
     @options[:framework] == "minitest" ? Kimera::Frameworks::TestTask.new(@options[:source_root]).flags : []

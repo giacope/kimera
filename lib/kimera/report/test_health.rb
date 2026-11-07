@@ -16,34 +16,36 @@ class Kimera::Report::TestHealth
   end
 
   def flaky(report)
-    found = report.notes.flaky
+    notes = report.notes
+    found = notes.to_h["flaky"]
     return unless found
     flakes = found.fetch("flaky")
     @io.puts
     @io.puts(headline(flakes, reruns(found)))
-    flakes.each { |flake| @io.puts("  #{flake_line(report, flake)}") }
+    flakes.each { |flake| @io.puts("  #{flake_line(notes, flake)}") }
     @io.puts("  Each passed the baseline but failed a rerun, so it kills no mutant.") if flakes.any?
   end
 
   def quality(report)
-    suite = report.notes.suite
+    notes = report.notes
+    suite = notes.to_h["suite"]
     return unless suite
-    found = report.quality
+    found = notes.quality
     idle, redundant = found.values_at("kills_nothing", "redundant")
     @io.puts("", @palette.bold("Test quality (#{suite.size} tests):"))
     @io.puts(
       "  #{idle.size} kill none of the mutants they cover; #{redundant.size} are redundant (another test " \
         "kills each mutant they kill); #{found.fetch("covers_nothing").size} cover no mutant in scope."
     )
-    { "Kill nothing" => idle, "Redundant" => redundant }.each { |title, tests| listed(report, title, tests) }
+    { "Kill nothing" => idle, "Redundant" => redundant }.each { |title, tests| listed(notes, title, tests) }
   end
 
   private
 
-  def listed(report, title, tests)
+  def listed(notes, title, tests)
     return if tests.empty?
     @io.puts("  #{title}:")
-    tests.first(SHOWN).each { |test| @io.puts("    #{Kimera::Readout::Label.new(test, report.test(test)).text}") }
+    tests.first(SHOWN).each { |test| @io.puts("    #{Kimera::Readout::Label.new(test, notes.test(test)).text}") }
     hidden = tests.size - SHOWN
     @io.puts("    (+#{hidden} more; the JSON report's test_quality lists them all)") if hidden.positive?
   end
@@ -57,10 +59,10 @@ class Kimera::Report::TestHealth
       "seeds #{found.fetch("seeds").join(", ")}"
   end
 
-  def flake_line(report, flake)
+  def flake_line(notes, flake)
     test = flake.fetch("test")
     reason = Kimera::Readout.new(flake.fetch("failure")).lines.first || "no message"
-    "#{Kimera::Readout::Label.new(test, report.test(test)).text}  failed #{flake.fetch("failed_runs")} " \
+    "#{Kimera::Readout::Label.new(test, notes.test(test)).text}  failed #{flake.fetch("failed_runs")} " \
       "(seed #{flake.fetch("seeds").join(", ")}): #{reason}"
   end
 end

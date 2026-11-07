@@ -52,7 +52,7 @@ class Kimera::Operators::Audit
   end
 
   def audit(source, file: "audit.rb")
-    scan(source, file).points.flat_map { |point| findings(point) }
+    scan(source, file).to_a.flat_map { |point| findings(point) }
   end
 
   def faults(source) = audit(source).reject(&:ok?)
@@ -66,9 +66,10 @@ class Kimera::Operators::Audit
   end
 
   def findings(point)
-    key, original, mutants = point.project(:operator, :original_source, :mutants)
-    mutants.map do |mutant|
-      Finding.new(key, original, mutant.label, Kimera::Rewrite::Directive.new(mutant.directive).render(original).first)
+    row = point.to_h
+    original = row["original_source"]
+    point.each.map do |mutant|
+      Finding.new(row["operator"], original, mutant.to_s, mutant.rewrite(Kimera::Rewrite::Directive).render(original).first)
     end
   end
 end

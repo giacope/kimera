@@ -5,6 +5,8 @@ require "kimera/runtime"
 require "kimera/synthesis/overlay"
 require "kimera/synthesis/unwoven"
 
+using PointFields
+
 # R6B6-M2: a dropped rescue or ensure clause is guarded on the clause alone
 # (`rescue *(active ? [] : [IndexError])`, an ensure body under `if !active`),
 # and its bake blanks the clause's lines, so the method runs its own body on
@@ -17,7 +19,7 @@ RSpec.describe(Kimera::GuardClause) do
     Kimera::Overlay.new(Kimera::RegistryScan.new(operators: operators).source(code, file: "c.rb"))
   end
 
-  def woven(code) = overlay(code).synthesize("c.rb", code).source
+  def woven(code) = overlay(code).synthesize("c.rb", code).to_s
 
   def baked(code, id) = overlay(code).bake("c.rb", code, id)
 
@@ -153,12 +155,12 @@ RSpec.describe(Kimera::GuardClause) do
     result = nil
     expect { result = Kimera::Overlay.new(catalog).synthesize("c.rb", code) }
       .to(output(/1 mutation point\(s\) at line 2 are unguardable/).to_stderr)
-    [result, catalog.points.find { |point| point.mutants.first.label == "drop `ensure`" }]
+    [result, catalog.to_a.find { |point| point.mutants.first.to_s == "drop `ensure`" }]
   end
 
   it "leaves unguarded the empty ensure of a loop's begin, which still runs once" do
     result, dropped = emptied_loop
-    looping = Object.new.extend(Module.new.tap { |mod| mod.module_eval(result.source) })
-    expect([result.skipped_unsafe, looping.m(5)]).to(eq([dropped.ids, 6]))
+    looping = Object.new.extend(Module.new.tap { |mod| mod.module_eval(result.to_s) })
+    expect([result.to_h.fetch(:skipped_unsafe), looping.m(5)]).to(eq([dropped.ids, 6]))
   end
 end

@@ -20,14 +20,14 @@ class Kimera::RegistryScan
     scans = paths.sort.flat_map { |path| ingest(path, numbering) { [] } }
     Kimera::Registry.new(
       operators: @operators.map(&:key), root: located,
-      points: scans.flat_map(&:points), unmutated: scans.flat_map(&:regions)
+      files: filed(scans), unmutated: scans.flat_map { |_file, scan| scan.regions }
     )
   end
 
   def source(source, file:)
     scanned = scan(source, file, @numbering)
     Kimera::Registry.new(
-      operators: @operators.map(&:key), root: located, points: scanned.points, unmutated: scanned.regions
+      operators: @operators.map(&:key), root: located, files: filed([[file, scanned]]), unmutated: scanned.regions
     )
   end
 
@@ -38,13 +38,19 @@ class Kimera::RegistryScan
 
   def own?(path) = Kimera::SelfProtection.new(path).own?
 
+  def filed(scans)
+    found = scans.map { |file, scan| [file, scan.points] }.reject { |_file, points| points.empty? }
+    found.group_by(&:first).transform_values { |pairs| pairs.flat_map(&:last) }
+  end
+
   def ingest(path, numbering)
+    file = relative(path)
     return [] if @shielded && Kimera::SelfProtection.new(path).protected?
-    [scan(File.read(path, encoding: Encoding::UTF_8), relative(path), numbering)]
+    [[file, scan(File.read(path, encoding: Encoding::UTF_8), file, numbering)]]
   rescue Errno::ENOENT
     yield
   rescue SystemCallError, IOError => error
-    [Kimera::RegistryScan::Unread.new(relative(path), error.message)]
+    [[file, Kimera::RegistryScan::Unread.new(file, error.message)]]
   end
 
   def scan(source, file, numbering)

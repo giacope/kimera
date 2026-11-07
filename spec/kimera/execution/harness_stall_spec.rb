@@ -14,11 +14,15 @@ RSpec.describe(Kimera::Execution::Harness) do
     RUBY
   end
 
+  # A baseline that measured nothing but the tests that stalled and then passed alone.
+  def measured(recovered)
+    Kimera::Execution::BaselineTally::Measured.new(coverage: {}, irrelevant: {}, recovered: recovered, timings: {})
+  end
+
   it "prints the stall notice with the run's hard timeout and width", :aggregate_failures do
     errors = StringIO.new
     harness = described_class.build(registry: registry, adapter: nil, errio: errors, hard_timeout: 7.0, jobs: 3)
-    harness.__send__(:state).recovered = { "A#t" => ["trace"] }
-    harness.__send__(:notice, nil)
+    harness.__send__(:notice, nil, measured({ "A#t" => ["trace"] }))
     expect(errors.string).to(
       start_with("kimera: 1 baseline test(s) hit the hard timeout (7.0s) with 3 workers")
         .and(end_with("  A#t:\n    trace\n"))
@@ -27,7 +31,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   it "prints nothing when no baseline test stalled" do
     errors = StringIO.new
-    described_class.build(registry: registry, adapter: nil, errio: errors).__send__(:notice, nil)
+    described_class.build(registry: registry, adapter: nil, errio: errors).__send__(:notice, nil, measured({}))
     expect(errors.string).to(be_empty)
   end
 end

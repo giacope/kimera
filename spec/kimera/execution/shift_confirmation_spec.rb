@@ -6,6 +6,8 @@ require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 require "stringio"
 
+using ResultFields
+
 # Each mutant runs in a process of its own; a kill counts only if the killing
 # test fails again with the mutant on in another fresh process, alone, or
 # after the same covering tests, which then pass it with the mutant off.
@@ -22,7 +24,7 @@ RSpec.describe(Kimera::Execution::Shift) do
     RUBY
   end
 
-  let(:ids) { registry.each.map { |m, _p| m.id } }
+  let(:ids) { registry.each.map { |m, _p| m.to_i } }
 
   # +script+ maps a test to the outcomes of its successive runs, consumed in
   # order; unscripted runs pass.

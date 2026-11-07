@@ -5,12 +5,15 @@ require "tmpdir"
 module Kimera
 end
 
-# rubocop:disable-next Kata/FrozenState, Kata/NoSetter -- the process-wide mutation switch every thread and Ractor reads
+# rubocop:disable-next Kata/FrozenState -- the process-wide mutation switch every thread and Ractor reads
 class Kimera::Runtime < Module
   SOURCE_PATH = File.expand_path(__FILE__)
 
   Ledger =
     Struct.new(:ids, :spill) do
+      private(*members)
+      def initialize(ids = {}, spill = nil) = super
+
       def push(id)
         ids[id] = true
       end
@@ -22,6 +25,8 @@ class Kimera::Runtime < Module
         touched
       end
 
+      def spilled = Kimera::Runtime::Spill.new(leak, {})
+      private
       def leak(dir = Dir.tmpdir, random = Random)
         self.spill ||= File.join(dir, "kimera-ledger-#{Process.pid}-#{object_id}-#{random.rand(1 << 32)}")
       end
@@ -35,16 +40,19 @@ class Kimera::Runtime < Module
 
   Spill =
     Struct.new(:leak, :ids) do
+      private(*members)
       def push(id)
         return if ids.key?(id)
         ids[id] = true
-        File.write(leak, "#{id}\n", mode: "a")
+        write(id)
       end
+
+      def write(id) = File.write(leak, "#{id}\n", mode: "a")
+
+      def spilled = Kimera::Runtime::Spill.new(leak, {})
     end
 
   NONE = [].freeze
-
-  attr_reader :active
 
   def initialize
     super
@@ -53,56 +61,56 @@ class Kimera::Runtime < Module
     @spills = NONE
   end
 
-  def active=(id)
+  def active?(id)
+    record(id) # rubocop:disable Kata/CommandQuery -- the woven guard's one call marks its mutant reached and answers whether it is on; two calls would double every guard's cost
+    @active == id
+  end
+
+  def during(id, *ledgers)
+    previous = @active
+    choose(id)
+    opened(ledgers)
+    yield
+  ensure
+    closed(ledgers)
+    choose(previous)
+  end
+
+  def privatize(id, owner, name)
+    hidden.register(Integer(id), owner, Flip.new(owner, owner.instance_method(name), []), @active)
+    self
+  end
+
+  def forking
+    hidden.survey
+    spills = @ledgers.map(&:spilled)
+    yield.tap { |pid| forked!(spills) if pid.zero? && spills.any? }
+  end
+
+  private
+
+  def choose(id)
     chosen = id && Integer(id)
     hidden.switch(chosen) unless chosen == @active
     @active = chosen
   end
 
-  def active?(id)
-    record(id)
-    @active == id
-  end
-
-  def start!
-    ledger = Ledger.new({})
-    @ledgers = [*@ledgers, ledger].freeze
-    publish
-    ledger
-  end
-
-  def stop!(ledger)
-    return if @ledgers.empty?
-    @ledgers = @ledgers.reject { |open| open.equal?(ledger) }.freeze
-    publish
-    ledger.drain!
-  end
-
-  def reset! = self.active = nil
-
-  def during(id)
-    previous = @active
-    self.active = id
-    yield
-  ensure
-    self.active = previous
-  end
-
-  def privatize(id, owner, name)
-    hidden.register(Integer(id), Flip.new(owner, owner.instance_method(name), []), @active)
-    self
-  end
-
-  def survey! = hidden.survey
-
-  def leaks = @ledgers.map(&:leak)
-
-  def forked!(paths)
-    @ledgers = paths.map { Spill.new(it, {}) }
+  def opened(ledgers)
+    return if ledgers.empty?
+    @ledgers = [*@ledgers, *ledgers].freeze
     publish
   end
 
-  private
+  def closed(ledgers)
+    return if ledgers.empty?
+    @ledgers = @ledgers.reject { |open| ledgers.any? { open.equal?(it) } }.freeze
+    publish
+  end
+
+  def forked!(spills)
+    @ledgers = spills.freeze
+    publish
+  end
 
   def record(id)
     @ledgers.each { |ledger| ledger.push(id) }
@@ -114,68 +122,68 @@ class Kimera::Runtime < Module
     seen = Ractor.current[:kimera_reached] ||= {}
     return if seen.key?(id)
     seen[id] = true
-    @spills.each { |path| File.write(path, "#{id}\n", mode: "a") }
+    @spills.each { |spill| spill.write(id) }
   end
 
-  def publish = @spills = Ractor.make_shareable(leaks)
+  def publish = @spills = Ractor.make_shareable(@ledgers.map(&:spilled))
 
-  def hidden(kind = Hidden) = @_hidden ||= kind.new({}, [])
+  def hidden(kind = Hidden) = @_hidden ||= kind.new({}, [], {}.compare_by_identity)
 end
 
 Kimera::Runtime::Hidden =
-  Struct.new(:flips, :concealed) do
+  Struct.new(:flips, :concealed, :homes) do
+    private(*members)
     def switch(id)
       concealed.each(&:reveal).clear
-      flip = flips[id]
-      concealed << flip.tap(&:conceal) if flip
+      owner, flip = flips[id]
+      concealed << flip.tap { it.conceal(holders(owner, flip)) } if flip
     end
 
-    def register(id, flip, active)
-      flips[id] = flip
-      concealed << flip.tap { it.conceal([flip.owner]) } if active == id
+    def register(id, owner, flip, active)
+      flips[id] = [owner, flip]
+      concealed << flip.tap { it.conceal([owner]) } if active == id
     end
 
-    def survey = Kimera::Runtime::Survey.new(flips.values.reject(&:holders)).run
+    def survey
+      pending = flips.values.reject { |_, flip| homes.key?(flip) }
+      return if pending.empty?
+      found = Kimera::Runtime::Survey.new(pending.map(&:first).uniq).run
+      pending.each { |owner, flip| homes[flip] = found.fetch(owner) }
+    end
+    private
+    def holders(owner, flip) = homes[flip] ||= Kimera::Runtime::Survey.new([owner]).run.fetch(owner)
   end
 
 Kimera::Runtime::Survey =
-  Data.define(:flips) do
+  Data.define(:owners) do
+    private(*members)
     inherits = Module.instance_method(:<)
     def run
-      return if flips.empty?
-      found = below
-      flips.each { |flip| flip.holders = found.fetch(flip.owner) }
-    end
-
-    def below
-      owners = flips.map(&:owner).uniq
       found = owners.to_h { |owner| [owner, [owner]] }.compare_by_identity
-      ObjectSpace.each_object(Module) { |each| place(owners, found, each) }
+      ObjectSpace.each_object(Module) { |each| place(found, each) }
       found
     end
-    define_method(:place) do |owners, found, each|
+    define_method(:place) do |found, each|
       owners.each { |owner| found[owner] << each if inherits.bind_call(each, owner) }
     end
+    private :place
   end
 
 Kimera::Runtime::Flip =
-  Struct.new(:owner, :definition, :names, :holders) do
-    def conceal(within = surveyed)
+  Struct.new(:owner, :definition, :names) do
+    private(*members)
+    def conceal(within)
       self.names = within.flat_map { |holder| held(holder).map { |name| [holder, name] } }
       expose(:private)
-    end
-
-    def surveyed
-      Kimera::Runtime::Survey.new([self]).run unless holders
-      holders
     end
 
     def reveal
       expose(:public)
       names.clear
     end
-
+    private
     def expose(visibility)
+      # rubocop:disable-next Kata/NoReflection -- a visibility mutant makes the project's own method private in its class, as the mutated source would
       names.each { |holder, name| holder.__send__(visibility, name) }
       [owner, *names.map(&:first)].uniq.each { |holder| cleared(holder) }
     end
@@ -193,11 +201,7 @@ Kimera::Runtime::Flip =
   end
 
 module Kimera::Runtime::Forks
-  def _fork
-    Kimera::RUNTIME.survey!
-    leaks = Kimera::RUNTIME.leaks
-    super.tap { |pid| Kimera::RUNTIME.forked!(leaks) if pid.zero? && leaks.any? }
-  end
+  def _fork(runtime = Kimera::RUNTIME) = runtime.forking { super() }
 end
 
 Kimera::RUNTIME = Kimera::Runtime.new unless Kimera.const_defined?(:RUNTIME, false)

@@ -4,6 +4,8 @@ require "kimera/execution/shift"
 require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 
+using ResultFields
+
 # A covering test that runs past the soft timeout with the mutant on counts
 # as detected only when, alone and with the mutant off, it passes in well
 # under that timeout. A test that is slow without the mutant too cannot tell
@@ -17,7 +19,7 @@ RSpec.describe(Kimera::Execution::Shift) do
     RUBY
   end
 
-  let(:target) { registry.each.first.first.id }
+  let(:target) { registry.each.first.first.to_i }
   let(:clock) { [0.0] }
 
   before { stub_const("Kimera::Execution::Stopwatch::CLOCK", -> { clock.first }) }

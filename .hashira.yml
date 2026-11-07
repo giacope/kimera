@@ -1,5 +1,7 @@
 # Every kind on but change_coupling, which reads git history: CI checks out a
 # single commit, so a gate there would see none of it. Run it locally instead.
+# The strict set too: kimera holds itself to every kind and reading hashira has.
+strict: true
 checks:
   all: true
   change_coupling: false

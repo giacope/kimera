@@ -5,6 +5,8 @@ require "kimera/execution/block_use"
 require "kimera/registry/builder"
 require "tmpdir"
 
+using PointFields
+
 # R6B2-M3: Ruby settles whether a method uses the block passed to it as it
 # compiles the method, and the warm overlay compiles every mutant of a method
 # into one. A mutant that leaves the method no `yield` warns, under a suite that
@@ -55,7 +57,7 @@ RSpec.describe(Kimera::Execution::BlockUse) do
 
   def revisited(scan = registry)
     described_class.new(scan, dir).revisit!
-    scan.points.select(&:revisit).map { |point| [point.location.start_line, point.operator] }
+    scan.to_a.select { PointVerdict.new(it).revisit }.map { |point| [point.location.range.begin, point.operator] }
   end
 
   def warnings(strict:, verbose:)
@@ -69,7 +71,7 @@ RSpec.describe(Kimera::Execution::BlockUse) do
 
   it "sends a warm survivor whose mutant leaves its method no yield to a fresh mirror", :aggregate_failures do
     expect(revisited).to(eq([[3, "conditional"], [12, "statement_deletion"], [12, "conditional"]]))
-    expect(registry.points.filter_map(&:revisit).uniq).to(eq([Kimera::MutationPoint::BLOCK_REASON]))
+    expect(registry.to_a.filter_map { PointVerdict.new(it).revisit }.uniq).to(eq([Kimera::Reason::BLOCK_REASON]))
   end
 
   it "judges them warm when the suite reports no ignored block", :aggregate_failures do
@@ -79,11 +81,11 @@ RSpec.describe(Kimera::Execution::BlockUse) do
   end
 
   it "leaves a point sent elsewhere already, for a reason or a revisit of its own", :aggregate_failures do
-    first, second = registry.points.select { |point| point.location.start_line == 12 }
-    first.unsafe!(Kimera::MutationPoint::LOAD_REASON)
-    second.revisit!(Kimera::MutationPoint::BOOT_REASON)
+    first, second = registry.to_a.select { |point| point.location.range.begin == 12 }
+    first.mark!(Kimera::Reason.unsafe(Kimera::Reason::LOAD_REASON))
+    second.mark!(Kimera::Reason.revisit(Kimera::Reason::BOOT_REASON))
     expect(revisited).to(eq([[3, "conditional"], [12, "conditional"]]))
-    expect(second.revisit).to(eq(Kimera::MutationPoint::BOOT_REASON))
+    expect(second.reasons(Kimera::Reason.revisiting).first).to(eq(Kimera::Reason::BOOT_REASON))
   end
 
   def dropped(body) = revisited(scanned("class BlockUseOne\n#{body}\nend\n", "one.rb"))
@@ -156,9 +158,16 @@ RSpec.describe(Kimera::Execution::BlockUse) do
   end
 
   it "takes a mutant it cannot apply as leaving the method no yield" do
-    join = registry.points.find { |point| point.location.start_line == 3 }
+    join = registry.to_a.find { |point| point.location.range.begin == 3 }
     odd = join.to_h.merge("mutants" => [{ "id" => 1, "label" => "odd", "directive" => { "type" => "odd" } }])
     tree = Kimera::Execution::BlockUse::Source.new(Kimera::Syntax.parse(source).value)
     expect(tree.drops?(Kimera::MutationPoint.from_h(odd))).to(be(true))
+  end
+
+  it "leaves alone a point whose node the tree no longer holds" do
+    join = registry.to_a.find { |point| point.location.range.begin == 3 }
+    odd = join.to_h.merge("mutants" => [{ "id" => 1, "label" => "odd", "directive" => { "type" => "odd" } }])
+    tree = Kimera::Execution::BlockUse::Source.new(Kimera::Syntax.parse("x = 1\n").value)
+    expect(tree.drops?(Kimera::MutationPoint.from_h(odd))).to(be(false))
   end
 end

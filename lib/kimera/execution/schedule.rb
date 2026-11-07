@@ -7,8 +7,17 @@ require_relative "triage"
 require_relative "verdicts"
 
 class Kimera::Execution::Schedule
-  Ledger = Struct.new(:results, :leaks)
-  Batch = Struct.new(:safe, :reloadable, :deferred, :ledger, :coverage)
+  Ledger =
+    Struct.new(:results, :leaks) do
+      private(*members)
+      def record(id, result) = results.store(id, result)
+
+      def leak(report) = leaks << report
+
+      def report(triage, registry)
+        Kimera::RunReport.new(results: triage.reclassified(results).values, leaks: leaks, registry: registry)
+      end
+    end
 
   LOSSES = { timeout: :expired }.freeze
 
@@ -22,10 +31,10 @@ class Kimera::Execution::Schedule
   def run(ids, coverage:, label: "mutants")
     kept, settled = screened(coverage)
     progress.during(ids.size, label) do |tick|
-      batch = plan(ids - settled.keys, kept)
-      settled.slice(*ids).each { |id, result| record(batch.ledger, id, result, tick) }
-      process(batch, tick)
-      finish(batch.ledger)
+      tiers = plan(ids - settled.keys, kept)
+      ledger = settle(settled.slice(*ids), tick)
+      process(tiers, kept, ledger, tick)
+      ledger.report(triage, @registry)
     end
   end
 
@@ -45,33 +54,31 @@ class Kimera::Execution::Schedule
 
   def triage = Kimera::Execution::Triage.new(verdicts)
 
-  def plan(ids, coverage, ledger = Ledger.new({}, []))
+  def plan(ids, coverage)
     safe, reloadable, deferred = triage.tiers(ids)
-    Batch.new(prioritized(safe, coverage), reloadable, deferred, ledger, coverage)
+    [prioritized(safe, coverage), reloadable, deferred]
+  end
+
+  def settle(settled, tick, ledger = Ledger.new({}, []))
+    ledger.tap { settled.each { |id, result| record(ledger, id, result, tick) } }
   end
 
   def prioritized(safe, coverage) = Kimera::Execution::Priority.new(coverage).order(safe)
 
-  def process(batch, tick)
-    ledger = batch.ledger
-    pool(batch.safe, ledger, tick)
-    reload(batch, tick)
-    defer(batch.deferred, ledger, tick)
-  end
-
-  def finish(ledger)
-    results = triage.reclassified(ledger.results).values
-    Kimera::RunReport.new(results: results, leaks: ledger.leaks, registry: @registry)
+  def process((safe, reloadable, deferred), coverage, ledger, tick)
+    pool(safe, ledger, tick)
+    reload(reloadable, coverage, ledger, tick)
+    defer(deferred, ledger, tick)
   end
 
   def record(ledger, id, result, tick)
-    ledger.results[id] = result
-    tick.call(result.status)
+    ledger.record(id, result)
+    result.tick(tick)
   end
 
-  def reload(batch, tick)
-    kinship = Kimera::Execution::Kinship.new(@registry, batch.coverage)
-    batch.reloadable.each { |id| record(batch.ledger, id, rerun(id, kinship), tick) }
+  def reload(ids, coverage, ledger, tick)
+    kinship = Kimera::Execution::Kinship.new(@registry, coverage)
+    ids.each { |id| record(ledger, id, rerun(id, kinship), tick) }
   end
 
   def rerun(id, kinship)
@@ -80,7 +87,7 @@ class Kimera::Execution::Schedule
   end
 
   def settled(filter, id, tests)
-    filter.settle(id, tests) || reloader.run(id, deadline: hard, tests: filter.keep(verdicts.point(id).file, tests))
+    filter.settle(id, tests) || reloader.run(id, deadline: hard, tests: filter.keep(@registry[id] { [] }.last, tests))
   end
 
   def defer(ids, ledger, tick)
@@ -98,16 +105,12 @@ class Kimera::Execution::Schedule
   def resolve(message, ledger, tick)
     case message["t"]
     when "result" then parse(message, ledger, tick)
-    when "leak", "requeue" then ledger.leaks << Kimera::LeakReport.new(
-      mutant_id: message["id"],
-      detail: message["detail"]
-    )
+    when "leak", "requeue" then ledger.leak(Kimera::LeakReport.new(mutant_id: message["id"], detail: message["detail"]))
     end
   end
 
   def parse(message, ledger, tick)
-    result = verdicts.parse(message).tap { |parsed| parsed.killing_tests = message["kills"] }
-    record(ledger, result.mutant_id, result, tick)
+    record(ledger, *verdicts.parse(message).entry, tick)
   end
 
   def lost(id, reason, stacks) = __send__(LOSSES.fetch(reason, :crashed), id, stacks)

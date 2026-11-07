@@ -3,35 +3,29 @@
 require_relative "../error"
 
 class Kimera::Frameworks::SuiteRegistry
-  BUILT_IN = { "rspec" => "rspec_suite", "minitest" => "minitest_suite" }.freeze
-
-  def initialize(built_in = BUILT_IN)
-    @built_in = built_in
-    @suites = {}
+  def initialize(loaders = built_in)
+    @loaders = loaders
   end
 
   def load(name)
-    built_in(name.to_s)
-    fetch(name).build
+    @loaders.fetch(name.to_s) { raise(Kimera::Error, "unknown test framework adapter: #{name}") }.call.build
   rescue LoadError => error
     raise(Kimera::Error, unloadable(name, error))
   end
 
-  def register(name, klass)
-    @suites[name.to_s] ||= klass
-  end
-
-  def fetch(name)
-    @suites.fetch(name.to_s) do
-      raise(Kimera::Error, "unknown test framework adapter: #{name}")
-    end
-  end
-
   private
 
-  def built_in(name)
-    return unless @built_in.key?(name)
-    require_relative(@built_in.fetch(name))
+  def built_in
+    {
+      "rspec" => lambda do
+        require_relative("rspec_suite")
+        Kimera::Frameworks::RSpecSuite
+      end,
+      "minitest" => lambda do
+        require_relative("minitest_suite")
+        Kimera::Frameworks::MinitestSuite
+      end
+    }
   end
 
   def unloadable(name, error)
@@ -39,5 +33,3 @@ class Kimera::Frameworks::SuiteRegistry
       "set framework: rspec or minitest in .kimera.yml, or add it to the Gemfile"
   end
 end
-
-Kimera::Frameworks::SUITES = Kimera::Frameworks::SuiteRegistry.new

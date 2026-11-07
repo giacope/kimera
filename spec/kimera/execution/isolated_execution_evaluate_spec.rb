@@ -4,6 +4,8 @@ require "kimera/execution/isolated"
 require "kimera/registry/builder"
 require "tmpdir"
 
+using ResultFields
+
 # An error raised outside every test (a load error, a hook) is not taken for
 # a kill on its first sighting: the mutant runs once more, and only an error
 # that recurs kills it.
@@ -12,7 +14,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#evaluate", :aggregate_fai
     Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n", file: "calc.rb")
   end
 
-  let(:id) { registry.each.map { |mutant, _point| mutant.id }.first }
+  let(:id) { registry.each.map { |mutant, _point| mutant.to_i }.first }
   let(:outside) { Kimera::Execution::IsolatedOutcome.new(:outside, [], "an error outside every test: boom") }
 
   def test_bay(mirror) = Kimera::Execution::Bay.new(mirror, 3, Kimera::Overlay.new(registry))

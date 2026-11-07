@@ -17,9 +17,7 @@ class Kimera::Incremental::Session::Payload
   end
 
   def results
-    keys(@data["results"]) do |hash|
-      Kimera::MutantResult.from_h(hash).tap { |result| result.killing_tests = hash["killing_tests"] }
-    end
+    keys(@data["results"]) { |hash| Kimera::MutantResult.from_h(hash) }
   end
 
   def leaks

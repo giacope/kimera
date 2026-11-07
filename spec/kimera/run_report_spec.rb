@@ -5,6 +5,9 @@ require "kimera/registry/builder"
 require "kimera/results/run_report"
 require "tmpdir"
 
+using ResultFields
+using PointFields
+
 RSpec.describe(Kimera::RunReport) do
   def result(id, status)
     Kimera::MutantResult.new(mutant_id: id, status: status, file: "x.rb", duration: 0.1)
@@ -22,14 +25,14 @@ RSpec.describe(Kimera::RunReport) do
 
   describe "status partitions" do
     it "groups by status and via the killed/survived/no_coverage helpers", :aggregate_failures do
-      expect(report.killed.map(&:mutant_id)).to(contain_exactly(1, 2, 4, 5))
-      expect(report.survived.map(&:mutant_id)).to(contain_exactly(3))
-      expect(report.uncovered.map(&:mutant_id)).to(contain_exactly(6))
-      expect(report.statuses(:ignored).map(&:mutant_id)).to(contain_exactly(7))
+      expect(report.select(&:killed?).map(&:mutant_id)).to(contain_exactly(1, 2, 4, 5))
+      expect(report.select { it.status?(:survived) }.map(&:mutant_id)).to(contain_exactly(3))
+      expect(report.select { it.status?(:no_coverage) }.map(&:mutant_id)).to(contain_exactly(6))
+      expect(report.select { it.status?(:ignored) }.map(&:mutant_id)).to(contain_exactly(7))
     end
 
     it "treats killed/timeout/error/survived as evaluable; not no_coverage/ignored" do
-      expect(report.covered.map(&:mutant_id)).to(contain_exactly(1, 2, 3, 4, 5))
+      expect(report.select(&:covered?).map(&:mutant_id)).to(contain_exactly(1, 2, 3, 4, 5))
     end
   end
 
@@ -41,20 +44,25 @@ RSpec.describe(Kimera::RunReport) do
       results = [result(1, :harness_error), result(2, :killed)]
       warm = described_class.new(results: results, leaks: [leak], registry: registry)
       revised = warm.revise([result(1, :survived)])
-      expect(revised.results.map { |r| [r.mutant_id, r.status] }).to(eq([[1, :survived], [2, :killed]]))
-      expect([revised.leaks, revised.registry]).to(eq([[leak], registry]))
+      expect(revised.map { |r| [r.mutant_id, r.status] }).to(eq([[1, :survived], [2, :killed]]))
+      expect([revised.notes.to_h["leaks"], revised.instance_variable_get(:@registry)]).to(eq([[leak], registry]))
+    end
+
+    it "adds the revised results it did not hold, after the rest" do
+      revised = described_class.new(results: [result(2, :killed)]).revise([result(1, :survived)])
+      expect(revised.map { |r| [r.mutant_id, r.status] }).to(eq([[2, :killed], [1, :survived]]))
     end
   end
 
   describe "#score" do
     it "is killed / evaluable" do
       # 4 killed out of 5 evaluable
-      expect(report.score).to(be_within(1e-9).of(4.0 / 5))
+      expect(report.score.to_f).to(be_within(1e-9).of(4.0 / 5))
     end
 
     it "is 1.0 when there is nothing to evaluate" do
       empty = described_class.new(results: [result(1, :no_coverage)])
-      expect(empty.score).to(eq(1.0))
+      expect(empty.score.to_f).to(eq(1.0))
     end
   end
 
@@ -74,29 +82,29 @@ RSpec.describe(Kimera::RunReport) do
     end
 
     it "counts each status plus leaks" do
-      expect(rep_with_leak.counts).to(eq(counts))
+      expect(rep_with_leak.score.to_h).to(eq(counts))
     end
 
     it "renders a summary line naming each status count" do
-      expect(rep_with_leak.summary).to(include(*tokens))
+      expect(rep_with_leak.score.to_s).to(include(*tokens))
     end
 
     it "renders a summary line with the score" do
-      expect(rep_with_leak.summary).to(include("score=80.0%"))
+      expect(rep_with_leak.score.to_s).to(include("score=80.0%"))
     end
 
     # Otherwise a run that killed nothing could read 100%.
     it "annotates the score with the uncovered count" do
-      expect(report.summary).to(include("score=80.0% (1 uncovered not scored)"))
+      expect(report.score.to_s).to(include("score=80.0% (1 uncovered not scored)"))
     end
 
     describe "test quality" do
       it "reports it, naming the suite and each killing test, only once a run looked", :aggregate_failures do
-        counted = results.first.tap { |killed| killed.killing_tests = ["k1"] }
+        counted = results.first.with(killing_tests: ["k1"])
         quality = described_class.new(results: [counted]).annotate(suite: %w[k1 s2])
         expect(quality.to_h.fetch("test_quality")).to(include("tests" => 2, "covers_nothing" => %w[k1 s2]))
-        expect([quality.quality, quality.test_ids]).to(eq([quality.to_h.fetch("test_quality"), %w[k1 s2]]))
-        expect([report.to_h.key?("test_quality"), report.quality]).to(eq([false, nil]))
+        expect([quality.notes.quality, quality.notes.test_ids]).to(eq([quality.to_h.fetch("test_quality"), %w[k1 s2]]))
+        expect([report.to_h.key?("test_quality"), report.notes.quality]).to(eq([false, nil]))
       end
     end
 
@@ -108,60 +116,60 @@ RSpec.describe(Kimera::RunReport) do
 
       it "lists them in the document, and their ids for the catalog, only once looked for", :aggregate_failures do
         expect(flaky.to_h.fetch("flaky_tests")).to(eq(found))
-        expect(flaky.test_ids).to(include("t7"))
+        expect(flaky.notes.test_ids).to(include("t7"))
         expect(report.to_h).not_to(have_key("flaky_tests"))
-        expect(flaky.merge(described_class.new(results: [])).counting([:no_coverage]).notes.flaky).to(eq(found))
+        expect(flaky.revise(described_class.new(results: [])).annotate(counted: [:no_coverage]).notes.to_h["flaky"])
+          .to(eq(found))
       end
     end
 
     describe "counting uncovered mutants (count_no_coverage)" do
-      let(:counting) { report.counting([:no_coverage]) }
+      let(:counting) { report.annotate(counted: [:no_coverage]) }
 
       it "scores them as not killed", :aggregate_failures do
-        expect(counting.score).to(be_within(1e-9).of(4.0 / 6))
-        expect(counting.covered.map(&:mutant_id)).to(contain_exactly(1, 2, 3, 4, 5, 6))
-        expect(counting.summary).to(include("score=66.7% (1 uncovered scored as not killed)"))
+        expect(counting.score.to_f).to(be_within(1e-9).of(4.0 / 6))
+        expect(counting.score.to_s).to(include("score=66.7% (1 uncovered scored as not killed)"))
         expect(counting.to_h["mutation_score"]).to(be_within(1e-9).of(4.0 / 6))
       end
 
       it "keeps counting them in each file's report and after a merge", :aggregate_failures do
-        expect(counting.by_file.fetch("x.rb").score).to(be_within(1e-9).of(4.0 / 6))
-        merged = counting.merge(described_class.new(results: [result(8, :no_coverage)]))
-        expect(merged.score).to(be_within(1e-9).of(4.0 / 7))
-        expect(counting.counted).to(eq([:no_coverage]))
+        expect(counting.score.by_file.fetch("x.rb").to_f).to(be_within(1e-9).of(4.0 / 6))
+        merged = counting.revise(described_class.new(results: [result(8, :no_coverage)]))
+        expect(merged.score.to_f).to(be_within(1e-9).of(4.0 / 7))
       end
 
       it "still keeps ignored mutants out of the score" do
-        expect(counting.covered.map(&:mutant_id)).not_to(include(7))
+        unignored = described_class.new(results: results.first(6)).annotate(counted: [:no_coverage])
+        expect(counting.score.to_f).to(eq(unignored.score.to_f))
       end
 
       it "scores a run whose only mutants are uncovered at 0%, not n/a", :aggregate_failures do
-        only = described_class.new(results: [result(1, :no_coverage)]).counting([:no_coverage])
-        expect(only.score).to(eq(0.0))
-        expect(only.percent).to(eq("0.0%"))
+        only = described_class.new(results: [result(1, :no_coverage)]).annotate(counted: [:no_coverage])
+        expect(only.score.to_f).to(eq(0.0))
+        expect(only.score.percent).to(eq("0.0%"))
       end
     end
 
     it "leaves the score unannotated when every mutant was covered", :aggregate_failures do
       rep = described_class.new(results: [result(1, :killed)])
-      expect(rep.summary).to(include("score=100.0%"))
-      expect(rep.summary).not_to(include("uncovered"))
+      expect(rep.score.to_s).to(include("score=100.0%"))
+      expect(rep.score.to_s).not_to(include("uncovered"))
     end
 
     it "reports score=n/a, not a perfect score, when there was nothing to mutate", :aggregate_failures do
       empty = described_class.new(results: [])
-      expect(empty.summary).to(end_with("score=n/a (nothing to mutate)"))
-      expect(empty.percent).to(eq("n/a"))
-      expect(described_class.new(results: [result(1, :killed), result(2, :survived)]).percent).to(eq("50.0%"))
+      expect(empty.score.to_s).to(end_with("score=n/a (nothing to mutate)"))
+      expect(empty.score.percent).to(eq("n/a"))
+      expect(described_class.new(results: [result(1, :killed), result(2, :survived)]).score.percent).to(eq("50.0%"))
     end
 
     it "reports score=n/a when mutants exist but none were evaluated" do
       rep = described_class.new(results: [result(1, :no_coverage), result(2, :no_coverage)])
-      expect(rep.summary).to(include("score=n/a (0 of 2 mutants evaluated)"))
+      expect(rep.score.to_s).to(include("score=n/a (0 of 2 mutants evaluated)"))
     end
 
     it "omits ignored, isolated_only, and leaks from the summary when there are none", :aggregate_failures do
-      summary = described_class.new(results: [result(1, :killed)]).summary
+      summary = described_class.new(results: [result(1, :killed)]).score.to_s
       expect(%w[ignored= isolated_only= unmutatable= leaks= unjudged=].select { |field| summary.include?(field) })
         .to(be_empty)
     end
@@ -171,16 +179,16 @@ RSpec.describe(Kimera::RunReport) do
 
       it "keeps them out of both the numerator and the denominator", :aggregate_failures do
         rep = described_class.new(results: unjudged)
-        expect(rep.score).to(eq(1.0))
-        expect(rep.killed.map(&:mutant_id)).to(eq([1]))
-        expect(rep.covered.map(&:mutant_id)).to(eq([1]))
+        expect(rep.score.to_f).to(eq(1.0))
+        expect(rep.select(&:killed?).map(&:mutant_id)).to(eq([1]))
+        expect(rep.select(&:covered?).map(&:mutant_id)).to(eq([1]))
       end
 
       it "counts and announces them", :aggregate_failures do
         rep = described_class.new(results: unjudged)
-        expect(rep.errors.map(&:mutant_id)).to(eq([2]))
-        expect(rep.counts[:harness_error]).to(eq(1))
-        expect(rep.summary).to(include("unjudged=1"))
+        expect(rep.select { it.status?(:harness_error) }.map(&:mutant_id)).to(eq([2]))
+        expect(rep.score.to_h[:harness_error]).to(eq(1))
+        expect(rep.score.to_s).to(include("unjudged=1"))
       end
     end
   end
@@ -212,17 +220,17 @@ RSpec.describe(Kimera::RunReport) do
       let(:mutant_and_point) { registry.each.first }
       let(:enriched) do
         mutant = mutant_and_point.first
-        described_class.new(results: [result(mutant.id, :survived)], registry: registry).to_h["results"].first
+        described_class.new(results: [result(mutant.to_i, :survived)], registry: registry).to_h["results"].first
       end
 
       after { FileUtils.remove_entry(dir) }
 
       it "carries key, line, operator, and label", :aggregate_failures do
         mutant, point = mutant_and_point
-        expect(enriched["key"]).to(eq(registry.keys[mutant.id]).and(match(/\Acmp\.rb:3:\h{8}\z/)))
-        expect(enriched["line"]).to(eq(point.location.start_line))
+        expect(enriched["key"]).to(eq(Kimera::MutantKeys.of(registry)[mutant.to_i]).and(match(/\Acmp\.rb:3:\h{8}\z/)))
+        expect(enriched["line"]).to(eq(point.location.range.begin))
         expect(enriched["operator"]).to(eq(point.operator))
-        expect(enriched["label"]).to(eq(mutant.label))
+        expect(enriched["label"]).to(eq(mutant.to_s))
       end
 
       it "places the mutant by 1-based column, end and enclosing method", :aggregate_failures do
@@ -231,7 +239,7 @@ RSpec.describe(Kimera::RunReport) do
       end
 
       it "carries the original->mutated diff", :aggregate_failures do
-        point = mutant_and_point.last
+        point = mutant_and_point[1]
         expect(enriched["original"]).to(eq(point.original_source))
         expect(enriched["mutated"]).to(be_a(String))
       end
@@ -250,8 +258,8 @@ RSpec.describe(Kimera::RunReport) do
       end
 
       def cited
-        killed = result(1, :killed).tap { |judged| judged.failing_tests = ["t2"] }
-        [result(2, :survived).tap { |judged| judged.covering_tests = %w[t1 t2] }, killed]
+        killed = result(1, :killed).with(failing_tests: ["t2"])
+        [result(2, :survived).with(covering_tests: %w[t1 t2]), killed]
       end
 
       it "lists only the tests a result cites" do
@@ -263,12 +271,12 @@ RSpec.describe(Kimera::RunReport) do
         expect(described_class.new(results: cited).to_h).not_to(have_key("tests"))
       end
 
-      it "keeps the names through merge, revise and described", :aggregate_failures do
+      it "keeps the names through revise and annotate, which adds to them", :aggregate_failures do
         base = described_class.new(results: cited, tests: named.slice("t1"))
-        merged = base.merge(described_class.new(results: [], tests: named.slice("t2")))
-        expect([merged.tests.keys, merged.revise([]).tests.keys, base.described(named.slice("t9")).tests.keys])
-          .to(eq([%w[t1 t2], %w[t1 t2], %w[t1 t9]]))
-        expect([base.test("t1"), base.test("t5")]).to(eq([{ "name" => "one" }, {}]))
+        added = base.annotate(tests: named.slice("t2"))
+        expect([added.notes.to_h["tests"].keys, added.revise([]).notes.to_h["tests"].keys])
+          .to(eq([%w[t1 t2], %w[t1 t2]]))
+        expect([base.notes.test("t1"), base.notes.test("t5")]).to(eq([{ "name" => "one" }, {}]))
       end
     end
 

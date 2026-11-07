@@ -17,7 +17,7 @@ class Kimera::Frameworks::NameExclusion < SimpleDelegator
     adapter = __getobj__
     adapter.test_ids.reject do |id|
       expressions.any? do |pattern|
-        pattern.match?(id) || pattern.match?(adapter.describe(id).to_s)
+        pattern.match?(id) || pattern.match?(adapter[id].name.to_s)
       end
     end
   end

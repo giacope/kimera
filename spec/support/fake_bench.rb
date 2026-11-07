@@ -73,6 +73,8 @@ class FakeHarness
     @answer.call(ids)
   end
 
+  def survey = self
+
   def isolated(**settings) = @isolation.built(settings)
 
   def noted(report) = report.annotate(flaky: @flakes&.to_h)
@@ -89,9 +91,24 @@ class FailingHarness < FakeHarness
   def warm!(*, **) = raise(@failure)
 end
 
+# Some tests of a FakeSuite: named from its catalog, each placed in its file.
+class FakeSelection
+  def initialize(ids, catalog, files)
+    @ids = ids
+    @catalog = catalog
+    @files = files
+  end
+
+  def name = @catalog.dig(@ids.first, "name")
+
+  def file = @files[@ids.first].to_s
+
+  def to_h = @catalog.slice(*@ids)
+end
+
 # A suite of the tests a spec names: it loads no file and starts nothing, lists
 # them, names them from its catalog, places each in its file, and knows whether
-# the run finished it.
+# the run finished it (it is its own hooks).
 class FakeSuite
   def initialize(test_ids = [], catalog: {}, files: {})
     @test_ids = test_ids
@@ -104,20 +121,18 @@ class FakeSuite
 
   def source(_files) = self
 
+  def hooks = self
+
   def start = self
 
-  def catalog(ids) = @catalog.slice(*ids)
-
-  def describe(id) = @catalog.dig(id, "name")
-
-  def test_file(id) = @files[id]
+  def [](*ids) = FakeSelection.new(ids, @catalog, @files)
 
   def finish = (@finished = true)
 
   def finished? = @finished
 end
 
-# The suites of the frameworks, as Kimera::Frameworks::SUITES holds them: each
+# The suites of the frameworks, as Kimera::Frameworks::SuiteRegistry builds them: each
 # framework loads the one suite it was given.
 class FakeSuites
   def initialize(suite = FakeSuite.new)

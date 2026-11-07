@@ -29,29 +29,29 @@ class Kimera::Execution::Schemata
   end
 
   def aliases(kind = Kimera::Execution::Aliases)
-    @_aliases ||= kind.new(@registry.files.map { |path| File.join(root, path) })
+    @_aliases ||= kind.new(files.map { |path| File.join(root, path) })
   end
 
   private
 
   def reachable
-    unasked = @registry.files.reject { |path| asked?(path) }
+    unasked = files.reject { |path| asked?(path) }
     marks = unasked.to_h { |path| [path, fire(path)] }
     shut = unasked.reject { |path| required?(path) || definitions?(path) }
     shut.each { |path| unload(path, &marks[path]) }
-    @registry.files - shut
+    files - shut
   end
 
   def asked?(path) = @loaded.call(path) || !File.file?(File.join(root, path))
 
   def fire(path, autoloads = Kimera::Execution::PendingAutoload)
     autoloads.new(File.join(root, path)).fire!
-    :unloaded!.to_proc
+    ->(point) { point.mark!(Kimera::Reason.unloaded) }
   rescue StandardError, ScriptError => error
     failed("#{error.class}: #{error.message}")
   end
 
-  def failed(reason) = ->(point) { point.unloadable!(reason) }
+  def failed(reason) = ->(point) { point.mark!(Kimera::Reason.unloadable(reason)) }
 
   def required?(path)
     file = File.join(root, path)
@@ -62,7 +62,7 @@ class Kimera::Execution::Schemata
     kind.new(File.read(File.join(root, path), encoding: Encoding::UTF_8)).only?
   end
 
-  def unload(path, &) = @registry.at(path).select(&:safe?).each(&)
+  def unload(path, &) = safe(path).each(&)
 
   def weave(paths) = paths.flat_map { |path| load(path) }
 
@@ -74,7 +74,7 @@ class Kimera::Execution::Schemata
     skipped.each do |path, reason|
       next unload(path, &failed(reason)) unless @loaded.call(path)
       notice(path, reason)
-      @registry.at(path).select(&:safe?).each { |point| point.unmutatable!("schemata setup failed (#{reason})") }
+      unload(path) { |point| point.mark!(Kimera::Reason.unmutatable("schemata setup failed (#{reason})")) }
     end
   end
 
@@ -89,9 +89,9 @@ class Kimera::Execution::Schemata
   def overlay(path, file)
     loaded = trimmed(path, file)
     result = synth.synthesize(path, loaded)
-    return [] if result.mutant_ids.empty?
-    blocks = Kimera::Execution::BlockMethods.new(file, loaded, result.source, locations(path))
-    apply(result, file, blocks).tap { preempt(file) }
+    return [] if result.empty?
+    blocks = Kimera::Execution::BlockMethods.new(file, loaded, result.to_s, safe(path))
+    apply(result, path, file, blocks).tap { preempt(file) }
   rescue StandardError, ScriptError, SystemExit => error
     skip(path, "#{error.class}: #{error.message}")
     []
@@ -100,20 +100,20 @@ class Kimera::Execution::Schemata
   def preempt(file) = $LOADED_FEATURES.concat([file, File.realpath(file)].uniq - $LOADED_FEATURES)
 
   def trimmed(path, file, trims = Kimera::BodyTrim)
-    trims.new(File.read(file, encoding: Encoding::UTF_8), locations(path)).trim(file)
+    trims.new(File.read(file, encoding: Encoding::UTF_8), safe(path)).trim(file)
   end
 
-  def locations(path) = @registry.at(path).select(&:safe?).map(&:location)
+  def safe(path) = points(path).select { |point| point.fits?(safe: true) }
 
-  def apply(result, file, blocks)
-    overrides = Kimera::Execution::Overrides.new(file, result.source)
+  def apply(result, path, file, blocks)
+    overrides = Kimera::Execution::Overrides.new(file, result.to_s)
     installed, displaced = silence { overrides.keep { blocks.adopt { result.install(file) } } }
-    installed.tap { settle(displaced, result.file) }
+    installed.tap { settle(displaced, path) }
   end
 
   def settle(displaced, path)
     aliases.witness(displaced)
-    displaced.reject { |held| held.reached?(aliases) }.each { it.revisit!(@registry.at(path)) }
+    displaced.reject { |held| held.reached?(aliases) }.each { it.revisit!(points(path)) }
   end
 
   def skip(path, reason) = skipped.store(path, reason)
@@ -126,6 +126,10 @@ class Kimera::Execution::Schemata
   end
 
   def root = @_root ||= File.expand_path(@root)
+
+  def files = @registry.to_h.keys
+
+  def points(path) = @registry.to_h.fetch(path, [])
 
   def synth(overlays = Kimera::Overlay) = @_synth ||= overlays.new(@registry)
 

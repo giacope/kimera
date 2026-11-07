@@ -24,9 +24,9 @@ class Kimera::Execution::BlockUse::Source
   end
 
   def drops?(point)
-    node, holder = nodes[[point.location.start_offset, point.location.finish, point.node_type.to_sym]]
+    node, holder = point.anchored(nodes) { return false }
     return false unless holder && taker?(holder)
-    point.mutants.any? { |mutant| dropped?(holder, node, mutant.directive) }
+    point.each.any? { |mutant| dropped?(holder, node, mutant.rewrite(Kimera::Rewrite::Directive)) }
   end
 
   private
@@ -35,7 +35,7 @@ class Kimera::Execution::BlockUse::Source
 
   def entries(node, holder)
     inner = node.type == :def_node ? node : holder
-    place = [node.location.start_offset, node.location.end_offset, node.type]
+    place = [node.location.start_offset, node.location.end_offset, node.type.to_s]
     [[place, [node, holder]], *node.compact_child_nodes.flat_map { |child| entries(child, inner) }]
   end
 

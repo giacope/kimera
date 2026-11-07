@@ -6,7 +6,19 @@ class Kimera::Execution::WorkerPool::StillbornGuard
   SILENT = "; it said nothing before it died. `kimera doctor --check-baseline` loads the suite " \
     "outside the pool and prints the error."
 
-  Seen = Struct.new(:stillborn, :progressed, keyword_init: true)
+  Seen =
+    Struct.new(:stillborn, :progressed, keyword_init: true) do
+      private(*members)
+      def progress!
+        self.progressed = true
+      end
+
+      def track(jobs)
+        return if progressed
+        self.stillborn += 1
+        yield(stillborn) if stillborn > jobs
+      end
+    end
 
   def initialize(jobs, seen = Seen.new(stillborn: 0, progressed: false))
     @jobs = jobs
@@ -14,25 +26,21 @@ class Kimera::Execution::WorkerPool::StillbornGuard
   end
 
   def progress!
-    seen.progressed = true
+    @seen.progress!
   end
 
   def track(status, words = nil)
-    return if seen.progressed
-    seen.stillborn += 1
-    abort!(status, words) if seen.stillborn > @jobs
+    @seen.track(@jobs) { |stillborn| abort!(status, words, stillborn) }
   end
 
   private
 
-  attr_reader :seen
-
-  def abort!(status, words)
-    raise(Kimera::Error, message(status) + (words ? ". The last one died of:\n#{words}" : SILENT))
+  def abort!(status, words, stillborn)
+    raise(Kimera::Error, message(status, stillborn) + (words ? ". The last one died of:\n#{words}" : SILENT))
   end
 
-  def message(status)
-    "#{seen.stillborn} warm workers died before reporting a result " \
+  def message(status, stillborn)
+    "#{stillborn} warm workers died before reporting a result " \
       "(last exit: #{describe(status)}). The app raises during " \
       "fork or the suite aborts on load"
   end

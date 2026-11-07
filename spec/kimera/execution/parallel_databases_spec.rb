@@ -13,6 +13,8 @@ require "kimera/execution/worker_databases"
 require "stringio"
 require "tmpdir"
 
+using PointFields
+
 RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
   # A warm worker (kimera's own, running this suite) carries its own
   # TEST_ENV_NUMBER; each example starts without one and leaves it as found.
@@ -352,10 +354,12 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       expect(pool).not_to(be_disconnected)
     end
 
-    it "does nothing without Active Record, and survives a pool that will not let go" do
-      expect { described_class.new.release! }.not_to(raise_error)
-      pools(FakeRails::Pools.new([FakeRails::BusyPool.new]))
-      expect { described_class.new.release! }.not_to(raise_error)
+    it "does nothing without Active Record, and lets go of every pool but one that will not", :aggregate_failures do
+      expect(described_class.new.release!).to(eq([]))
+      FakeRails.errors(self)
+      pool = FakeRails::Pool.new
+      pools(FakeRails::Pools.new([FakeRails::BusyPool.new, pool]))
+      expect([described_class.new.release!, pool.disconnected?]).to(eq([[pool], true]))
     end
   end
 

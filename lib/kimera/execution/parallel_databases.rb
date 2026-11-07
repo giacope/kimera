@@ -27,7 +27,7 @@ class Kimera::Execution::ParallelDatabases
     return true unless @record
     configs = @record.configurations.configs_for(env_name: ActiveRecord::ConnectionHandling::DEFAULT_ENV.call)
     configs.any? && configs.all? { |config| File.exist?(ActiveRecord::Tasks::DatabaseTasks.schema_dump_path(config)) }
-  rescue StandardError
+  rescue NameError, ActiveRecord::ActiveRecordError
     false
   end
 

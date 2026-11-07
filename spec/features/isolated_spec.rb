@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+using ResultFields
+
 RSpec.describe("kimera run --isolated (end-to-end)") do
   # The sample's known boundary survivor is mutant 3.
   it "reproduces the fast-path verdicts with fully out-of-process evaluation", :aggregate_failures do

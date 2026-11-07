@@ -15,17 +15,12 @@ end
 
 class Kimera::Frameworks::RSpecSuite < Kimera::Frameworks::Suite
   class << self
-    def build = new.configured
+    def build(settings = Kimera::Frameworks::DotRspec.new) = settings.configure(RSpec.configuration).then { new }
   end
 
   def initialize
     super
     @suites = Set.new
-  end
-
-  def configured
-    configure
-    self
   end
 
   def source(files)
@@ -39,34 +34,9 @@ class Kimera::Frameworks::RSpecSuite < Kimera::Frameworks::Suite
     examples.keys
   end
 
-  def describe(id)
-    ex = examples[id]
-    ex ? ex.full_description : id
-  end
+  def hooks = Hooks.new(@suites)
 
-  def locate(id) = { "location" => examples.fetch(id).location.delete_prefix("./") }
-
-  def test_file(id) = examples[id]&.metadata&.fetch(:rerun_file_path, nil) || id[/\A(.+?)\[/, 1]
-
-  def start
-    return unless @suites.add?(Process.pid)
-    hooks(:@before_suite_hooks)
-  end
-
-  def finish
-    return unless @suites.include?(Process.pid)
-    hooks(:@after_suite_hooks)
-  end
-
-  def plain(ids, out)
-    bundle = defined?(Bundler) ? %w[bundle exec] : []
-    [*bundle, "rspec", "--format", "json", "--out", out, "--order", "defined", *(ids & test_ids)]
-  end
-
-  def failed_plainly(_output, out)
-    examples = JSON.parse(File.read(out, encoding: Encoding::UTF_8)).fetch("examples", [])
-    examples.filter_map { |example| example["id"] if example["status"] == "failed" }
-  end
+  def [](*ids) = Selection.new(ids, examples)
 
   def run(ids)
     selected = ids.filter_map { |id| examples[id] }
@@ -79,15 +49,7 @@ class Kimera::Frameworks::RSpecSuite < Kimera::Frameworks::Suite
 
   private
 
-  def configure(settings = Kimera::Frameworks::DotRspec.new) = settings.configure(RSpec.configuration)
-
   def preload(settings = Kimera::Frameworks::DotRspec.new) = settings.preload(RSpec.configuration)
-
-  def hooks(store)
-    config = RSpec.configuration
-    context = RSpec::Core::SuiteHookContext.new(store.to_s, config.reporter)
-    config.instance_variable_get(store).each { |hook| hook.run(context) }
-  end
 
   def failure(example)
     exception = example.execution_result.exception
@@ -120,6 +82,7 @@ class Kimera::Frameworks::RSpecSuite < Kimera::Frameworks::Suite
   end
 
   def clear(examples)
+    # rubocop:disable-next Kata/NoReflection -- an RSpec example keeps the last run's failure in this field and offers no way to clear it before it runs again in a warm worker
     examples.each { |ex| ex.instance_variable_set(:@exception, nil) }
   end
 
@@ -131,4 +94,5 @@ class Kimera::Frameworks::RSpecSuite < Kimera::Frameworks::Suite
   end
 end
 
-Kimera::Frameworks::SUITES.register(:rspec, Kimera::Frameworks::RSpecSuite)
+require_relative "rspec_suite/hooks"
+require_relative "rspec_suite/selection"

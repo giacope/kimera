@@ -9,16 +9,16 @@ module Kimera
 end
 
 class Kimera::Execution::BlockMethods
-  def initialize(file, loaded, woven, locations)
+  def initialize(file, loaded, woven, points)
     @file = file
     @loaded = loaded
     @woven = woven
-    @locations = locations
+    @points = points
   end
 
   def adopt
     held = holders
-    yield.tap { held.each { |entry| install(entry) } }
+    yield.tap { held.each { |entry| entry.install(@file) } }
   end
 
   private
@@ -31,7 +31,7 @@ class Kimera::Execution::BlockMethods
     ObjectSpace.each_object(Module).flat_map { |holder| wanted.flat_map { |site| site.held(holder, path) } }
   end
 
-  def sites = pairs.filter_map { |(site, woven)| site.over(woven) if site.live?(@locations) }
+  def sites = pairs.filter_map { |(site, woven)| site.over(woven) if site.live?(@points) }
 
   def pairs
     woven = Kimera::Execution::BlockMethods::Survey.new(@woven).named
@@ -39,11 +39,5 @@ class Kimera::Execution::BlockMethods
       theirs = woven.fetch(name, [])
       theirs.size == mine.size ? mine.zip(theirs) : []
     end
-  end
-
-  def install(entry)
-    entry.install(@file)
-  rescue StandardError, ScriptError
-    nil
   end
 end

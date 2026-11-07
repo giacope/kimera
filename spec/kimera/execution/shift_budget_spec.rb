@@ -6,6 +6,8 @@ require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 require "stringio"
 
+using ResultFields
+
 # A covering test that passes but runs past its relative budget (baseline ×
 # factor + slack) makes the mutant a timeout, once the same test ran within
 # budget with the mutant switched off and past it again with it on. A single
@@ -19,7 +21,7 @@ RSpec.describe(Kimera::Execution::Shift) do
     RUBY
   end
 
-  let(:target) { registry.each.first.first.id }
+  let(:target) { registry.each.first.first.to_i }
   let(:clock) { [0.0] }
   let(:budget) { Kimera::Execution::TimeBudget.new({ "t1" => 0.01, "t2" => 0.01 }, factor: 10.0, slack: 1.0) }
 

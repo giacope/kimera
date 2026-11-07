@@ -6,6 +6,9 @@ require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 require "stringio"
 
+using ResultFields
+using PointFields
+
 # No fork needed: feed a fake adapter, read the newline-JSON from a StringIO.
 RSpec.describe(Kimera::Execution::Shift) do
   # A test fails when the active mutant is in its catch set. Runs with no
@@ -43,7 +46,7 @@ RSpec.describe(Kimera::Execution::Shift) do
     RUBY
   end
 
-  let(:ids) { registry.each.map { |m, _p| m.id } }
+  let(:ids) { registry.each.map { |m, _p| m.to_i } }
   let(:io) { StringIO.new }
   let(:response) { StringIO.new }
 
@@ -129,12 +132,12 @@ RSpec.describe(Kimera::Execution::Shift) do
       expect(results.map { |m| [m["id"], m["status"]] }).to(eq([[ids.first, "killed"], [ids.last, "survived"]]))
     end
 
-    it "resets the active mutant when the request pipe closes" do
+    it "switches each mutant on only while it judges it, and hands the switch back as it found it" do
       target = ids.first
       Kimera::RUNTIME.active = 999
       request = StringIO.new("#{JSON.generate(id: target)}\n")
       worker(catches: { "t1" => [] }, coverage: { target => ["t1"] }).serve(request, response)
-      expect(Kimera::RUNTIME.active).to(be_nil)
+      expect(Kimera::RUNTIME.active).to(eq(999))
     end
   end
 
@@ -204,7 +207,7 @@ RSpec.describe(Kimera::Execution::Shift) do
       target = ids.first
       adapter = test_adapter_class.new(catches: { "t1" => [] }, timeout: target)
       result = worker(adapter: adapter, coverage: { target => ["t1"] }, soft_timeout: 0.2).evaluate(target)
-      expect(result).to(have_attributes(status: :timeout, duration: be >= 0.2, file: "calc.rb"))
+      expect(result).to(have_fields(status: :timeout, duration: be >= 0.2, file: "calc.rb"))
     end
 
     it "records the point's file on a normal verdict" do
@@ -422,13 +425,24 @@ RSpec.describe(Kimera::Execution::Shift) do
         .not_to(change { Array(Kimera::RUNTIME.instance_variable_get(:@ledgers)).size })
     end
 
-    it "resets active and stops coverage when the request pipe closes", :aggregate_failures do
-      request = StringIO.new("#{JSON.generate(id: "t1")}\n")
+    # A suite that writes down the mutant switched on as each run starts.
+    def watching(seen)
+      Class.new do
+        define_method(:test_ids) { %w[t1] }
+        define_method(:run) do |_ids|
+          seen << Kimera::RUNTIME.active
+          Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+        end
+      end.new
+    end
+
+    it "measures with no mutant on, hands the switch back and closes with done", :aggregate_failures do
+      seen = []
       # No mutant has this id (they count from 1): when self-hosted, a real id would
       # switch that mutant on for the rest of the example.
       Kimera::RUNTIME.active = -1
-      worker(catches: { "t1" => [] }).coverage(request, response)
-      expect(Kimera::RUNTIME.active).to(be_nil)
+      worker(adapter: watching(seen)).coverage(request("t1"), response)
+      expect([seen, Kimera::RUNTIME.active]).to(eq([[nil], -1]))
       expect(messages(response).last).to(eq("t" => "done"))
     end
 

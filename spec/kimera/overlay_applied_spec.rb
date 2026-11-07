@@ -12,7 +12,7 @@ RSpec.describe(Kimera::Overlay, :aggregate_failures) do
     registry = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: %w[visibility comparison]))
       .source(source, file: "shown.rb")
     result = described_class.new(registry).synthesize("shown.rb", source)
-    expect(result.mutant_ids.sort).to(eq(registry.each.map { |mutant, _point| mutant.id }.sort))
-    expect(result.source).to(include("privatize"))
+    expect(result.to_h.fetch(:mutant_ids).sort).to(eq(registry.each.map { |mutant, _point| mutant.to_i }.sort))
+    expect(result.to_s).to(include("privatize"))
   end
 end

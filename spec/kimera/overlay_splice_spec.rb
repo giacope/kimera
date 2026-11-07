@@ -3,6 +3,8 @@
 require "kimera/registry/builder"
 require "kimera/synthesis/overlay"
 
+using PointFields
+
 # Overlays and bakes are spliced into the original source: only rewritten
 # spans change, so every line, comment, magic comment and `__END__` section
 # outside them stays where it was.
@@ -13,8 +15,8 @@ RSpec.describe(Kimera::Overlay) do
 
   def bake(source, keys, label)
     catalog = scan(source, keys)
-    mutant = catalog.each.find { |m, _| m.label == label }&.first
-    described_class.new(catalog).bake("x.rb", source, mutant.id)
+    mutant = catalog.each.find { |m, _| m.to_s == label }&.first
+    described_class.new(catalog).bake("x.rb", source, mutant.to_i)
   end
 
   def woven(source, keys) = [described_class.new(registry = scan(source, keys)).synthesize("x.rb", source), registry]
@@ -110,7 +112,7 @@ RSpec.describe(Kimera::Overlay) do
       catalog = scan(source, %w[comparison])
       mutant = catalog.each.first.first
       stub_const("Kimera::Guardrail", Class.new(Kimera::Guardrail) { def changes(*) = [] })
-      expect { described_class.new(catalog).bake("x.rb", source, mutant.id) }
+      expect { described_class.new(catalog).bake("x.rb", source, mutant.to_i) }
         .to(raise_error(described_class::Unbakeable, "kimera could not write it (the mutant reads as the original)"))
     end
 
@@ -118,7 +120,7 @@ RSpec.describe(Kimera::Overlay) do
       program = "def one = 1\n# two\ndef big?(x) = x > 1\n"
       catalog = scan(program, %w[comparison])
       splicing
-      expect { described_class.new(catalog).bake("x.rb", program, catalog.each.first.first.id) }
+      expect { described_class.new(catalog).bake("x.rb", program, catalog.each.first.first.to_i) }
         .to(
           raise_error(
             described_class::Unbakeable,
@@ -130,7 +132,7 @@ RSpec.describe(Kimera::Overlay) do
     it "reports a bake that does not parse as unmutatable" do
       catalog = scan(source, %w[comparison])
       splicing("def (")
-      expect { described_class.new(catalog).bake("x.rb", source, catalog.each.first.first.id) }
+      expect { described_class.new(catalog).bake("x.rb", source, catalog.each.first.first.to_i) }
         .to(raise_error(described_class::Unbakeable, "kimera could not write it (what it wrote does not parse)"))
     end
   end
@@ -143,16 +145,16 @@ RSpec.describe(Kimera::Overlay) do
 
     it "keeps every line where it was and the original as written", :aggregate_failures do
       result, = woven(source, %w[comparison boolean_connective default_argument])
-      expect(result.source.lines.size).to(eq(source.lines.size))
-      expect(changed(result.source, source)).to(eq([5, 6]))
-      expect(result.source).to(include("::Kimera::RUNTIME.active?(3) || ::Kimera::RUNTIME.active?(4)) ? (n > limit) :"))
+      expect(result.to_s.lines.size).to(eq(source.lines.size))
+      expect(changed(result.to_s, source)).to(eq([5, 6]))
+      expect(result.to_s).to(include("::Kimera::RUNTIME.active?(3) || ::Kimera::RUNTIME.active?(4)) ? (n > limit) :"))
     end
 
-    def flip(registry, label, &) = Kimera::RUNTIME.during(registry.each.find { |m, _| m.label == label }.first.id, &)
+    def flip(registry, label, &) = Kimera::RUNTIME.during(registry.each.find { |m, _| m.to_s == label }.first.to_i, &)
 
     it "behaves as the original with no mutant on and as each mutant with it on", :aggregate_failures do
       result, registry = woven(source, %w[comparison default_argument])
-      gate = Module.new.tap { |mod| mod.module_eval(result.source, "x.rb", 1) }::Gate.new
+      gate = Module.new.tap { |mod| mod.module_eval(result.to_s, "x.rb", 1) }::Gate.new
       expect([gate.open?(4), gate.open?(3), gate.line]).to(eq([true, false, 9]))
       expect(flip(registry, "> => >=") { gate.open?(4, 4) }).to(be(true))
       expect { flip(registry, "default => required (limit)") { gate.open?(4) } }.to(raise_error(ArgumentError, /limit/))
@@ -161,12 +163,12 @@ RSpec.describe(Kimera::Overlay) do
     it "guards a named-capture regexp with its whole match, so the capture still binds" do
       program = "def number(s)\n  if /(?<num>\\d+)/ =~ s then num.to_i end\nend\n"
       result, = woven(program, %w[regexp_quantifier regexp_anchor])
-      expect([loaded(result.source).number("x21"), result.source]).to(match([21, include("? (/(?<num>\\d+)/ =~ s) :")]))
+      expect([loaded(result.to_s).number("x21"), result.to_s]).to(match([21, include("? (/(?<num>\\d+)/ =~ s) :")]))
     end
 
     it "writes a visibility mutant's probe and registration on the method's own lines", :aggregate_failures do
       program = "class Probed\n  def one(a)\n    a\n  end\n  def two = 2\nend\n"
-      written = woven(program, %w[visibility]).first.source
+      written = woven(program, %w[visibility]).first.to_s
       expect(written.lines.size).to(eq(program.lines.size))
       expect(written).to(include("def one(a); #{runtime}.active?(1)\n", "  end; #{runtime}.privatize(1, self, :one)\n"))
       expect(written).to(include("def two = (#{runtime}.active?(2); 2); #{runtime}.privatize(2, self, :two)"))
@@ -175,8 +177,8 @@ RSpec.describe(Kimera::Overlay) do
     it "writes a definition whole when a point in it can't be guarded where it stands", :aggregate_failures do
       program = "def safe(x)\n  x.call\nrescue ArgumentError\n  x > 1\nend\n\ndef other(y) = y > 2\n"
       result, registry = woven(program, %w[rescue_clause comparison])
-      expect(result.mutant_ids).to(match_array(registry.points.flat_map(&:ids)))
-      expect(result.source).to(
+      expect(result.to_h.fetch(:mutant_ids)).to(match_array(registry.to_a.flat_map(&:ids)))
+      expect(result.to_s).to(
         end_with(
           "\n\ndef other(y) = (!(::Kimera::RUNTIME.active?(4) || ::Kimera::RUNTIME.active?(5)) ? (y > 2) : " \
             "::Kimera::RUNTIME.active?(4) ? (y >= 2) : (y < 2))\n"
@@ -198,12 +200,12 @@ RSpec.describe(Kimera::Overlay) do
         )
       end
 
-      def whole = Module.new.tap { |mod| mod.module_eval(written.first.source) }::Whole
+      def whole = Module.new.tap { |mod| mod.module_eval(written.first.to_s) }::Whole
 
-      def id(label) = written.last.each.find { |mutant, _| mutant.label == label }.first.id
+      def id(label) = written.last.each.find { |mutant, _| mutant.to_s == label }.first.to_i
 
       it "keeps every mutant in it live" do
-        expect(written.first.mutant_ids).to(match_array(written.last.points.flat_map(&:ids)))
+        expect(written.first.to_h.fetch(:mutant_ids)).to(match_array(written.last.to_a.flat_map(&:ids)))
       end
 
       it "raises for its default argument's mutant" do
@@ -215,7 +217,7 @@ RSpec.describe(Kimera::Overlay) do
         hidden = id("public => private (gated)")
         held = whole
         expect(Kimera::RUNTIME.during(hidden) { held.private_method_defined?(:gated) }).to(be(true))
-        expect(written.first.source).to(include("#{runtime}.active?(#{hidden}); nil; else; nil; end"))
+        expect(written.first.to_s).to(include("#{runtime}.active?(#{hidden}); nil; else; nil; end"))
       end
     end
 
@@ -235,12 +237,12 @@ RSpec.describe(Kimera::Overlay) do
       end
       let(:written) { woven(program, %w[rescue_clause default_argument visibility]) }
 
-      def kept = Module.new.tap { |mod| mod.module_eval(written.first.source) }::Kept
+      def kept = Module.new.tap { |mod| mod.module_eval(written.first.to_s) }::Kept
 
       it "is guarded in place, every mutant live, on its lines", :aggregate_failures do
-        expect(written.first.mutant_ids).to(eq(written.last.points.flat_map(&:ids).sort))
+        expect(written.first.to_h.fetch(:mutant_ids)).to(eq(written.last.to_a.flat_map(&:ids).sort))
         guarded = /\A  rescue \*\(::Kimera::RUNTIME\.active\?\(\d+\) \? \[\] : \[TypeError\]\)\n\z/
-        expect(written.first.source.lines.values_at(3, 6)).to(match([guarded, "end\n"]))
+        expect(written.first.to_s.lines.values_at(3, 6)).to(match([guarded, "end\n"]))
       end
 
       it "answers as written, and raises once its clause is dropped", :aggregate_failures do
@@ -253,7 +255,7 @@ RSpec.describe(Kimera::Overlay) do
     it "leaves a file with no point to guard as written" do
       program = "module Kept\n  Point = Data.define(:x) do\n    def big? = x.positive?\n  end\nend\n"
       result, = woven(program, %w[comparison])
-      expect([result.source, result.mutant_ids]).to(eq([program, []]))
+      expect([result.to_s, result.to_h.fetch(:mutant_ids)]).to(eq([program, []]))
     end
 
     # A registry scanned before the file changed: its first point now lies in
@@ -263,14 +265,15 @@ RSpec.describe(Kimera::Overlay) do
       result = nil
       expect { result = described_class.new(registry).synthesize("x.rb", "#ef a(x) = x > 1\ndef b(y) = y > 2\n") }
         .to(output(/x\.rb: 1 mutation point\(s\) at line 1 are unguardable/).to_stderr)
-      expect([result.mutant_ids, result.skipped_unsafe]).to(eq([registry.points.last.ids, registry.points.first.ids]))
+      expect(result.to_h.values_at(:mutant_ids, :skipped_unsafe))
+        .to(eq([registry.to_a.last.ids, registry.to_a.first.ids]))
     end
 
     it "guards a `begin`'s clause outside every definition where it stands", :aggregate_failures do
       program = "CHECK = ->(x) do\n  begin\n    x.call\n  rescue ArgumentError\n    x > 1\n  end\nend\nX = __LINE__\n"
       result, registry = woven(program, %w[rescue_clause comparison])
-      expect([result.mutant_ids.size, changed(result.source, program)]).to(eq([registry.count, [4, 5]]))
-      expect(result.source.lines[3]).to(eq("  rescue *(::Kimera::RUNTIME.active?(1) ? [] : [ArgumentError])\n"))
+      expect([result.to_h.fetch(:mutant_ids).size, changed(result.to_s, program)]).to(eq([registry.each.count, [4, 5]]))
+      expect(result.to_s.lines[3]).to(eq("  rescue *(::Kimera::RUNTIME.active?(1) ? [] : [ArgumentError])\n"))
     end
 
     # R6B5-M2: written whole, a class sat on its first line and `__LINE__` in
@@ -286,8 +289,8 @@ RSpec.describe(Kimera::Overlay) do
       result = nil
       expect { result, = woven(held, %w[rescue_clause]) }
         .to(output(/1 mutation point\(s\) at line 4 are unguardable/).to_stderr)
-      expect([changed(result.source, held), result.mutant_ids]).to(eq([[1], [1]]))
-      expect(result.source).to(start_with("class Held; CHECK = ->(x) {; if ::Kimera::RUNTIME.active?(1); x.call;"))
+      expect([changed(result.to_s, held), result.to_h.fetch(:mutant_ids)]).to(eq([[1], [1]]))
+      expect(result.to_s).to(start_with("class Held; CHECK = ->(x) {; if ::Kimera::RUNTIME.active?(1); x.call;"))
     end
 
     it "writes a definition whole, on its lines, when an alternative must break a line", :aggregate_failures do
@@ -296,8 +299,8 @@ RSpec.describe(Kimera::Overlay) do
       expect { result, = woven(program, %w[boolean_connective]) }.not_to(output.to_stderr)
       expect(
         [
-          result.source.lines.size,
-          result.source
+          result.to_s.lines.size,
+          result.to_s
         ]
       ).to(match([4, start_with("def m(s); if ::Kimera::RUNTIME.active?(1); ")]))
     end
@@ -307,20 +310,20 @@ RSpec.describe(Kimera::Overlay) do
       result = nil
       expect { result, = woven(program, %w[boolean_connective comparison]) }
         .to(output(/1 mutation point\(s\) at line 1 are unguardable/).to_stderr)
-      expect([changed(result.source, program), result.mutant_ids.size]).to(eq([[2, 3], 4]))
+      expect([changed(result.to_s, program), result.to_h.fetch(:mutant_ids).size]).to(eq([[2, 3], 4]))
     end
 
     it "guards a call across a heredoc's lines in place, its alternatives on one line", :aggregate_failures do
       program = "def m(a)\n  a.push([1,\n    2], <<~TEXT)\n    body\n  TEXT\nend\n"
       result, registry = woven(program, %w[argument_drop])
-      expect([changed(result.source, program), loaded(result.source).m([])]).to(eq([[2, 3], [[1, 2], "body\n"]]))
-      expect(flip(registry, registry.each.first.first.label) { loaded(result.source).m([]) }).to(eq(["body\n"]))
+      expect([changed(result.to_s, program), loaded(result.to_s).m([])]).to(eq([[2, 3], [[1, 2], "body\n"]]))
+      expect(flip(registry, registry.each.first.first.to_s) { loaded(result.to_s).m([]) }).to(eq(["body\n"]))
     end
 
     it "writes an alternative whose kept text breaks a line afresh, on one line" do
       program = "def open?(a, b, c)\n  a.positive? &&\n    b.positive? && c.positive?\nend\n\ndef here = __LINE__\n"
       result, = woven(program, %w[boolean_connective])
-      expect([result.source.lines.size, loaded(result.source).here]).to(eq([6, 6]))
+      expect([result.to_s.lines.size, loaded(result.to_s).here]).to(eq([6, 6]))
     end
   end
 end

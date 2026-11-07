@@ -89,11 +89,9 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     expect(silenced_output).to(eq("before|"))
   end
 
-  it "exposes the harness skip map and hands the rig the spawner it was given" do
+  it "hands the rig the spawner it was given" do
     token = Object.new
     harness = Kimera::Execution::Harness.build(registry: Object.new, adapter: Object.new, spawner: token)
-
-    expect(harness.skipped).to(eq({}))
     expect(harness.__send__(:rig).spawner).to(equal(token))
   end
 
@@ -126,7 +124,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     end
 
     it "report unavailable per-worker database support with exception detail" do
-      stub_const("ActiveRecord::Base", Class.new)
+      FakeRails.unconnected(self)
       parallelization('LoadError, "missing helper"')
       databases.__send__(:register!)
       expect(errors.string).to(eq(unavailable))
@@ -300,9 +298,10 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     # The reload child of the errand: whether the parent's writer is closed, what the child wrote (until the
     # pipe closes, or 10 s), and how it exited.
     def worked
-      pid = reload.__send__(:child, errand)
-      said = Timeout.timeout(10) { errand.reader.readlines(chomp: true) }
-      [errand.writer.closed?, said, Process.wait2(pid).last.exitstatus]
+      pid = reload.__send__(:child, 9, errand)
+      _, _, reader, writer = errand.to_a
+      said = Timeout.timeout(10) { reader.readlines(chomp: true) }
+      [writer.closed?, said, Process.wait2(pid).last.exitstatus]
     end
 
     it "leads its process group before it takes the child's pipe ends" do
@@ -338,7 +337,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     node = Kimera::Syntax.parse("true").value.statements.body.first
 
     expect(operator.key).to(eq("boolean_literal"))
-    expect(operator.variants(node).map(&:label)).to(eq(["true => false"]))
+    expect(operator.variants(node).map { it.to_h.fetch(:label) }).to(eq(["true => false"]))
   end
 
   it "builds frozen directive lookup tables from alternating entries" do

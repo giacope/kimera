@@ -16,13 +16,21 @@ using Kimera::Execution::Fault
 
 Kimera::Execution::Pool::Duty =
   Struct.new(:entry, :index, :pipes) do
-    def run(shift)
-      shift.public_send(entry, pipes.req_r, pipes.res_w)
+    private(*members)
+    def run(shift) = pipes.serve(shift, entry)
+
+    def parent! = pipes.parent!
+
+    def child! = pipes.child!
+
+    def prepare(database)
+      database.after_fork(index)
+    rescue StandardError, ScriptError => error
+      unprepared = "worker #{index}'s after-fork setup raised #{error.class}: #{error.message}"
+      raise(Kimera::Execution::Pool::Unprepared, unprepared, error.backtrace)
     end
 
-    def pulse
-      pipes.res_w.puts(JSON.generate(t: "tick"))
-    end
+    def pulse = pipes.say(JSON.generate(t: "tick"))
 
     def retire(database, error)
       finish(database, error)
@@ -32,11 +40,11 @@ Kimera::Execution::Pool::Duty =
     def finish(database, error)
       confess(error) unless words(error).empty?
       database.before_exit(index)
-      pipes.res_w.close
+      pipes.close
     end
 
     def confess(error)
-      pipes.res_w.puts(JSON.generate(t: "crash", detail: words(error)))
+      pipes.say(JSON.generate(t: "crash", detail: words(error)))
     rescue IOError, Errno::EPIPE, Errno::EBADF
       nil
     end

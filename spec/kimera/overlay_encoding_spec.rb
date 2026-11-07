@@ -8,6 +8,8 @@ require "kimera/synthesis/project"
 require "kimera/synthesis/overlay"
 require "tmpdir"
 
+using PointFields
+
 # Source must parse even when a C locale makes default_external US-ASCII.
 RSpec.describe(Kimera::Overlay) do
   let(:dir) { Dir.mktmpdir }
@@ -51,22 +53,22 @@ RSpec.describe(Kimera::Overlay) do
     registry = Kimera::RegistryScan.new.source(source, file: "u.rb")
     result = Kimera::Overlay.new(registry).synthesize("u.rb", source)
     mod = Module.new
-    mod.module_eval(result.source)
+    mod.module_eval(result.to_s)
     [registry, result, Object.new.extend(mod)]
   end
 
   def test_expect_toggle(registry, object)
     expect(object.gt(2, 1)).to(be(true))
-    Kimera::RUNTIME.during(registry.each.find { |m, _p| m.label == "> => <" }.first.id) do
+    Kimera::RUNTIME.during(registry.each.find { |m, _p| m.to_s == "> => <" }.first.to_i) do
       expect(object.gt(2, 1)).to(be(false))
     end
   end
 
   it "builds a registry from a UTF-8 file regardless of default_external", :aggregate_failures do
     test_write_source("widget.rb")
-    point = test_registry_for("widget.rb").points.find { |p| p.original_source == "a > b" }
+    point = test_registry_for("widget.rb").to_a.find { |p| p.original_source == "a > b" }
     expect(point).not_to(be_nil)
-    expect(point.mutants.map(&:label)).to(contain_exactly("> => >=", "> => <"))
+    expect(point.mutants.map(&:to_s)).to(contain_exactly("> => >=", "> => <"))
   end
 
   it "synthesizes a UTF-8 file to a mirror tree without an EncodingError", :aggregate_failures do
@@ -84,14 +86,14 @@ RSpec.describe(Kimera::Overlay) do
   # byte offsets.
   it "synthesizes a working guard for a point after a multibyte character", :aggregate_failures do
     registry, result, object = test_synthesized_module
-    expect(result.mutant_ids).not_to(be_empty)
+    expect(result.to_h.fetch(:mutant_ids)).not_to(be_empty)
     test_expect_toggle(registry, object)
   end
 
   it "round-trips a registry with non-ASCII source snippets through disk" do
     test_write_source("widget.rb")
     registry = test_registry_for("widget.rb")
-    path = File.join(dir, "reg.json").tap { |p| registry.write(p) }
-    expect(Kimera::Registry.from_file(path).count).to(eq(registry.count))
+    path = File.join(dir, "reg.json").tap { |p| File.write(p, JSON.pretty_generate(registry)) }
+    expect(Kimera::Registry.from_file(path).each.count).to(eq(registry.each.count))
   end
 end

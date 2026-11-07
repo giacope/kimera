@@ -14,14 +14,15 @@ class Kimera::Execution::Kinship
   end
 
   def order(id, tests)
-    (related(@registry.index.fetch(id) { Kimera::MutationPoint.none }) & tests) | tests
+    _mutant, point, file = @registry[id] { return tests.uniq }
+    (related(point, file) & tests) | tests
   end
 
   private
 
-  def related(point)
-    siblings = @registry.at(point.file).sort_by { |other| other.method_name == point.method_name ? 0 : 1 }
+  def related(point, file)
+    siblings = @registry.to_h.fetch(file, []).sort_by { |other| other.fits?(kin: point) ? 0 : 1 }
     known = @coverage.to_h
-    siblings.flat_map { |other| other.ids.flat_map { |mutant| Array(known[mutant]) } }
+    siblings.flat_map { |other| other.each.flat_map { |mutant| Array(known[mutant.to_i]) } }
   end
 end

@@ -7,6 +7,8 @@ require "kimera/registry/builder"
 require "stringio"
 require "tmpdir"
 
+using PointFields
+
 RSpec.describe(Kimera::Incremental::CoverageCache) do
   let(:errors) { StringIO.new }
   let(:registry) { Kimera::RegistryScan.new.build(%w[lib/a.rb lib/b.rb lib/c.rb]) }
@@ -30,7 +32,7 @@ RSpec.describe(Kimera::Incremental::CoverageCache) do
     described_class.new(registry: scope, options: full.merge(options), sources: sources, errors: errors)
   end
 
-  def ids(file) = registry.at(file).flat_map(&:ids)
+  def ids(file) = registry.to_h.fetch(file, []).flat_map(&:ids)
 
   def harness
     Struct.new(:coverage).new({ ids("lib/a.rb").first => %w[t1], ids("lib/b.rb").last => %w[t2 t1], 999 => %w[t3] })
@@ -38,7 +40,7 @@ RSpec.describe(Kimera::Incremental::CoverageCache) do
 
   def keep(**) = cache(reuse_coverage: true, **).keep(harness, Struct.new(:test_ids).new(%w[t1 t2 t3]))
 
-  def changed(*files) = Kimera::Registry.new(points: files.flat_map { |file| registry.at(file) })
+  def changed(*files) = Kimera::Registry.new(files: registry.to_h.slice(*files))
 
   def reuse(scope = changed("lib/c.rb"))
     cache(scope: scope, reuse_coverage: true, since: "HEAD").measured(%w[t1 t2 t3 t4])

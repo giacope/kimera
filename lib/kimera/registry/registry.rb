@@ -9,97 +9,53 @@ class Kimera::Registry
   FORMAT_VERSION = 1
   ROWS = ->(list, kind) { Array(list).map { |row| kind.from_h(row) } }
 
-  attr_reader :points, :operators, :root, :unmutated
-
-  def initialize(points: [], operators: [], root: ".", unmutated: [])
-    @points = points
+  def initialize(files: {}, operators: [], root: ".", unmutated: [])
+    @files = files
     @operators = operators
     @root = root
     @unmutated = unmutated
   end
 
-  def narrowed(changed)
-    kept = @unmutated.select { |region| region.touched?(changed) }
-    self.class.new(points: @points, operators: @operators, root: @root, unmutated: kept)
-  end
-
-  def size
-    @points.size
-  end
-
-  def count
-    @points.sum { |p| p.mutants.size }
-  end
-
-  def files
-    groups.keys
-  end
-
-  def summary
-    "Found #{count} mutants at #{size} mutation " \
-      "points across #{files.size} files."
-  end
-
-  def at(file)
-    groups.fetch(file, [])
-  end
-
-  def start_lines(file) = at(file).map { |point| point.location.start_line }.uniq.sort
-
-  def method_names = @points.filter_map(&:method_name).uniq.sort
-
   def index
     @_index ||= by_mutant_id { |_mutant, point| point }
   end
 
-  def mutant(id)
-    lookup.fetch(id)
+  def texts(id, kind)
+    mutant, point, file = paired.fetch(id)
+    kind.new(point, mutant, file: file, root: @root).texts
   end
 
-  def point(id, &)
-    paired.fetch(id, &)
+  def regions = yield(@unmutated)
+
+  def narrowed(changed)
+    kept = @unmutated.select { |region| region.touched?(changed) }
+    self.class.new(files: @files, operators: @operators, root: @root, unmutated: kept)
   end
 
-  def keys
-    @_keys ||= Kimera::MutantKeys.of(self)
-  end
+  def [](id, &) = paired.fetch(id, &)
 
   def each
     return enum_for(:each) unless block_given?
-    @points.each do |point|
-      point.mutants.each { |m| yield(m, point) }
+    @files.each do |file, points|
+      points.each { |point| point.each { |mutant| yield(mutant, point, file) } }
     end
   end
 
-  def to_h
-    identity.merge(stats)
-  end
+  def to_a = @files.values.flatten(1)
 
-  def identity
-    { "format_version" => FORMAT_VERSION, "root" => root, "operators" => operators }
-  end
+  def to_h = @files
 
-  def stats
-    {
-      "stats" => { "files" => files.size, "points" => size, "mutants" => count },
-      "points" => points.map(&:to_h), "unmutated" => unmutated.map(&:to_h)
-    }
-  end
+  def to_s = "Found #{count} mutants at #{to_a.size} mutation points across #{@files.size} files."
 
   def to_json(*)
-    JSON.generate(to_h, *)
-  end
-
-  def write(path)
-    File.write(path, JSON.pretty_generate(to_h))
-    self
+    JSON.generate(identity.merge(stats), *)
   end
 
   class << self
     def from_h(hash)
-      points = ROWS.call(hash["points"], Kimera::MutationPoint)
+      files = Array(hash["points"]).group_by { |row| row["file"] }.transform_values { ROWS.call(it, Kimera::MutationPoint) }
       unmutated = ROWS.call(hash["unmutated"], Kimera::Unmutated)
-      new(root: hash["root"] || ".", operators: hash["operators"] || [], points: points, unmutated: unmutated)
+      new(root: hash["root"] || ".", operators: hash["operators"] || [], files: files, unmutated: unmutated)
     end
 
     def parse(json) = from_h(JSON.parse(json))
@@ -109,19 +65,24 @@ class Kimera::Registry
 
   private
 
-  def groups
-    @_groups ||= @points.group_by(&:file)
+  def count = each.count
+
+  def identity
+    { "format_version" => FORMAT_VERSION, "root" => @root, "operators" => @operators }
+  end
+
+  def stats
+    {
+      "stats" => { "files" => @files.size, "points" => to_a.size, "mutants" => count },
+      "points" => to_a.map(&:to_h), "unmutated" => @unmutated.map(&:to_h)
+    }
   end
 
   def paired
-    @_paired ||= by_mutant_id { |mutant, point| [mutant, point] }
-  end
-
-  def lookup
-    @_lookup ||= by_mutant_id { |mutant, _point| mutant }
+    @_paired ||= by_mutant_id { |mutant, point, file| [mutant, point, file] }
   end
 
   def by_mutant_id
-    each.with_object({}) { |(mutant, point), hash| hash[mutant.id] = yield(mutant, point) }
+    each.with_object({}) { |(mutant, point, file), hash| hash[mutant.to_i] = yield(mutant, point, file) }
   end
 end

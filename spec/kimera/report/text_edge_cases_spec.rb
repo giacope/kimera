@@ -5,6 +5,9 @@ require "kimera/report/text"
 require "kimera/results/run_report"
 require "stringio"
 
+using ResultFields
+using PointFields
+
 RSpec.describe(Kimera::Report::Text) do
   let(:registry) do
     Kimera::RegistryScan.new.source(<<~RUBY, file: "calc.rb")
@@ -13,7 +16,7 @@ RSpec.describe(Kimera::Report::Text) do
       end
     RUBY
   end
-  let(:mutant) { registry.each.find { |m, _| m.label == "<= => <" }.first }
+  let(:mutant) { registry.each.find { |m, _| m.to_s == "<= => <" }.first }
 
   def render(results: [], leaks: [], scope: [], color: false)
     io = StringIO.new
@@ -26,7 +29,7 @@ RSpec.describe(Kimera::Report::Text) do
 
   def survivor(covering: [])
     Kimera::MutantResult.new(
-      mutant_id: mutant.id, status: :survived, file: "calc.rb",
+      mutant_id: mutant.to_i, status: :survived, file: "calc.rb",
       duration: 0.1, covering_tests: covering
     )
   end
@@ -56,14 +59,14 @@ RSpec.describe(Kimera::Report::Text) do
   end
 
   it "lists survivors in ascending mutant-id order" do
-    low, high = registry.each.map { |m, _| m.id }.minmax
+    low, high = registry.each.map { |m, _| m.to_i }.minmax
     out = render(results: [high, low].map { |id| result(id) })
     expect(out.index("##{low}  ")).to(be < out.index("##{high}  "))
   end
 
   it "separates the survivors section and each entry with a blank line" do
     out = render(results: [survivor])
-    expect(out).to(match(/\n\nSurviving mutants \(1\):\n\n  survived ##{mutant.id}/))
+    expect(out).to(match(/\n\nSurviving mutants \(1\):\n\n  survived ##{mutant.to_i}/))
   end
 
   it "truncates the covering-test list and notes the remainder", :aggregate_failures do
@@ -78,7 +81,7 @@ RSpec.describe(Kimera::Report::Text) do
     io = StringIO.new
     described_class.new(registry, io: io, color: false)
       .saved(Kimera::RunReport.new(results: [survivor(covering: tests)]), "r.json")
-    expect(io.string).to(include("(+1 more; all of them: kimera mutant #{mutant.id} --report r.json)"))
+    expect(io.string).to(include("(+1 more; all of them: kimera mutant #{mutant.to_i} --report r.json)"))
   end
 
   it "names each covering test by location and description when the report knows them", :aggregate_failures do
@@ -90,21 +93,21 @@ RSpec.describe(Kimera::Report::Text) do
   end
 
   it "places a survivor at its line, 1-based column and method" do
-    expect(render(results: [survivor])).to(include("survived ##{mutant.id}  calc.rb:2:3  in a  [<= => <]"))
+    expect(render(results: [survivor])).to(include("survived ##{mutant.to_i}  calc.rb:2:3  in a  [<= => <]"))
   end
 
   it "places a mutant outside any method without naming one" do
     lambda = Kimera::RegistryScan.new.source("check = -> { a > b }\n", file: "l.rb")
     found = lambda.each.first.first
     run = Kimera::RunReport.new(
-      results: [Kimera::MutantResult.new(mutant_id: found.id, status: :survived, file: "l.rb")]
+      results: [Kimera::MutantResult.new(mutant_id: found.to_i, status: :survived, file: "l.rb")]
     )
     io = StringIO.new.tap { |sink| described_class.new(lambda, io: sink, color: false).report(run) }
-    expect(io.string).to(include("survived ##{found.id}  l.rb:1:14  [#{found.label}]"))
+    expect(io.string).to(include("survived ##{found.to_i}  l.rb:1:14  [#{found}]"))
   end
 
   def mixed_results(both)
-    uncovered = both.each.find { |_, point| point.file == "b.rb" }.first.id
+    uncovered = both.each.find { |_, point| point.file == "b.rb" }.first.to_i
     [
       Kimera::MutantResult.new(mutant_id: uncovered, status: :no_coverage, file: "b.rb"),
       survivor, Kimera::MutantResult.new(mutant_id: 99, status: :killed, file: "calc.rb")
@@ -113,7 +116,7 @@ RSpec.describe(Kimera::Report::Text) do
 
   def mixed
     other = Kimera::RegistryScan.new.source("def b(x)\n  x > 1\nend\n", file: "b.rb")
-    both = Kimera::Registry.new(points: registry.points + other.points)
+    both = PointRegistry.of(registry.to_a + other.to_a)
     results = mixed_results(both)
     io = StringIO.new
     described_class.new(both, io: io, color: false).report(Kimera::RunReport.new(results: results))
@@ -217,7 +220,7 @@ RSpec.describe(Kimera::Report::Text) do
 
   def output
     io = StringIO.new
-    described_class.new(Kimera::Registry.new(points: [point]), io: io, color: false)
+    described_class.new(PointRegistry.of([point]), io: io, color: false)
       .report(Kimera::RunReport.new(results: [unknown]))
     io.string
   end

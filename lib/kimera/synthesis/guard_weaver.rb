@@ -25,7 +25,7 @@ class Kimera::Guardrail
 
     def apply(rebuilt, original)
       return rebuilt unless ANCHOR.call(original) == anchor
-      Kimera::Rewrite::Directive.new(directive).apply(rebuilt)
+      directive.apply(rebuilt)
     end
 
     private
@@ -46,14 +46,13 @@ class Kimera::Guardrail
   end
 
   def bake(point, directive)
-    target = target(point)
-    overlay(target, directive) if anchors.include?(target)
+    node = point.anchored(nodes) { return }
+    overlay(ANCHOR.call(node), directive)
   end
 
   def changes(point, directive)
-    target = target(point)
-    return unless anchors.include?(target)
-    patch = Patch.new(target, directive)
+    node = point.anchored(nodes) { return }
+    patch = Patch.new(ANCHOR.call(node), directive)
     changed = []
     Kimera::Rewrite::AstWalk.new(@map.ast).rebuild do |rebuilt, original|
       patch.apply(rebuilt, original).tap { |node| changed << [original, node] unless node.equal?(original) }
@@ -71,11 +70,6 @@ class Kimera::Guardrail
 
   def transform(node) = weave(node).fetch(0)
 
-  def target(point)
-    location = point.location
-    [location.start_offset, location.finish, point.node_type]
-  end
-
   def activation(node)
     return unless node.type == :call_node && node.name == :active? && runtime?(node.receiver)
     node.arguments.arguments.first.value
@@ -83,8 +77,8 @@ class Kimera::Guardrail
 
   def runtime?(node) = node&.type == :constant_path_node && node.name == :RUNTIME && node.parent&.name == :Kimera
 
-  def anchors
-    Set.new.tap { |found| Kimera::Rewrite::AstWalk.new(@map.ast).visit { |node| found << ANCHOR.call(node) } }
+  def nodes
+    {}.tap { |found| Kimera::Rewrite::AstWalk.new(@map.ast).visit { |node| found[ANCHOR.call(node)] = node } }
   end
 
   def weave(node)
@@ -113,5 +107,10 @@ class Kimera::Guardrail
     end
   end
 
-  def points(node) = (@_anchored ||= group(@points)).fetch(ANCHOR.call(node), [])
+  def points(node) = (@_anchored ||= anchored(nodes)).fetch(ANCHOR.call(node), [])
+
+  def anchored(nodes)
+    placed = @points.map { |point| [point.anchored(nodes) { next }, point] }.select(&:first)
+    placed.group_by { |node, _point| ANCHOR.call(node) }.transform_values { |pairs| pairs.map(&:last) }
+  end
 end

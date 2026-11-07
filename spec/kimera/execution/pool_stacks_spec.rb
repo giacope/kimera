@@ -57,7 +57,8 @@ RSpec.describe(Kimera::Execution::Pool) do
   # The worker's request pipe closes at once, so it exits without work.
   # Spawns the pool's real workers, noting each one's stack dump.
   def launching(pool, launched)
-    ->(slot) { pool.worker(slot).tap { |worker| launched << worker.last }.tap { |worker| worker[1].close } }
+    spawner = pool.spawner(:serve)
+    ->(slot) { spawner.call(slot).tap { |worker| launched << worker.last }.tap { |worker| worker[1].close } }
   end
 
   describe "its own workers' stack dump" do

@@ -48,7 +48,7 @@ module PoolTrace
       trace = PoolTrace.recorder
       return super unless trace&.unassigned&.delete(worker)
       trace.sent = ["none"]
-      super.tap { trace.log("spawn", worker.slot, reply: trace.sent) }
+      super.tap { trace.log("spawn", worker.__send__(:slot), reply: trace.sent) }
     end
 
     private
@@ -56,9 +56,9 @@ module PoolTrace
     def service(pipe)
       trace = PoolTrace.recorder
       return super unless trace
-      worker = fleet.fetch(pipe)
+      worker = fleet[pipe]
       before = [trace.steps.size, partial?(worker)]
-      super.tap { trace.log("read", worker.slot, kind: "part") if started?(worker, *before) }
+      super.tap { trace.log("read", worker.__send__(:slot), kind: "part") if started?(worker, *before) }
     end
 
     def deliver(worker, line)
@@ -66,10 +66,10 @@ module PoolTrace
       return super unless trace
       message = parse(line) { return super }
       trace.sent = ["none"]
-      super.tap { trace.log("read", worker.slot, kind: message["t"], id: message["id"], reply: trace.sent) }
+      super.tap { trace.log("read", worker.__send__(:slot), kind: message["t"], id: message["id"], reply: trace.sent) }
     end
 
-    def partial?(worker) = !worker.unread.to_s.empty?
+    def partial?(worker) = !worker.__send__(:unread).to_s.empty?
 
     # A new line was started: nothing was buffered, or a line was dispatched
     # since (and so the buffered start before it was finished).
@@ -85,7 +85,7 @@ module PoolTrace
     def remove(pipe, reason: :crash, stacks: [])
       worker = workers.fetch(pipe)
       act, kind = reason == :timeout ? ["expire", ""] : %w[read eof]
-      PoolTrace.recorder&.log(act, worker.slot, kind: kind, id: worker.inflight)
+      PoolTrace.recorder&.log(act, worker.__send__(:slot), kind: kind, id: worker.__send__(:inflight))
       super
     end
 

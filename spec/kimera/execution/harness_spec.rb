@@ -8,6 +8,9 @@ require "kimera/frameworks/suite"
 require "kimera/registry/builder"
 require "tmpdir"
 
+using ResultFields
+using PointFields
+
 RSpec::Matchers.define_negated_matcher(:not_output, :output)
 
 RSpec.describe(Kimera::Execution::Harness) do
@@ -18,7 +21,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       end
     RUBY
   end
-  let(:ids) { registry.each.map { |m, _p| m.id } }
+  let(:ids) { registry.each.map { |m, _p| m.to_i } }
 
   # Running a test touches the mutant ids it covers, like a synthesized guard.
   def adapter(coverage: {}, failing: [], message: nil)
@@ -119,7 +122,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   # Before its warm pass measures anything, every test may cover any mutant.
   it "answers unmeasured coverage until its warm pass measures it" do
-    expect(harness(adapter(coverage: { "t1" => [], "t2" => [] })).coverage.fetch(ids.first)).to(eq(%w[t1 t2]))
+    expect(harness(adapter(coverage: { "t1" => [], "t2" => [] })).survey.coverage.fetch(ids.first)).to(eq(%w[t1 t2]))
   end
 
   describe "hard_timeout default" do
@@ -143,8 +146,8 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "builds a mutant => covering-tests map from the touch-log", :aggregate_failures do
       h = harness(adapter(coverage: { "t1" => [ids.first], "t2" => ids }))
       h.__send__(:measure!)
-      expect(h.coverage[ids.first]).to(contain_exactly("t1", "t2"))
-      expect(h.coverage[ids.last]).to(contain_exactly("t2"))
+      expect(h.survey.coverage[ids.first]).to(contain_exactly("t1", "t2"))
+      expect(h.survey.coverage[ids.last]).to(contain_exactly("t2"))
     end
 
     it "raises BaselineFailure listing failing tests that cover an in-scope mutant" do
@@ -173,10 +176,19 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect { h.__send__(:measure!) }.to(raise_error(Kimera::Execution::BaselineFailure, /rspec t2 --order defined/))
     end
 
+    # An adapter whose selections write down the ids each was asked for.
+    def reproducing(asked)
+      adapter(coverage: { "t2" => [ids.first] }, failing: ["t2"]).tap do |fake|
+        fake.define_singleton_method(:[]) do |*shown|
+          Class.new(Kimera::Frameworks::BareSelection) { define_method(:to_s) { (asked << shown) && "ruby -n t2" } }
+            .new(shown, self)
+        end
+      end
+    end
+
     it "asks the adapter for its framework's reproduce command, first ids only", :aggregate_failures do
-      fake = adapter(coverage: { "t2" => [ids.first] }, failing: ["t2"])
       asked = []
-      fake.define_singleton_method(:reproduce) { |shown| (asked << shown) && "ruby -n t2" }
+      fake = reproducing(asked)
       expect { harness(fake).__send__(:measure!) }
         .to(raise_error(Kimera::Execution::BaselineFailure, /reproduce without kimera: ruby -n t2\z/))
       expect(asked).to(eq([["t2"]]))
@@ -215,29 +227,29 @@ RSpec.describe(Kimera::Execution::Harness) do
     # An unrelated red spec gates nothing, so it must not abort a scoped run.
     it "excludes a failing test that covers no in-scope mutant from the baseline", :aggregate_failures do
       h = harness(adapter(coverage: { "t1" => [ids.first], "t2" => [] }, failing: ["t2"]))
-      expect { h.__send__(:measure!) }.not_to(raise_error)
-      expect do
-        h.__send__(:notice, h.__send__(:screen))
-      end.to(output(/1 test\(s\) fail in the baseline.*excluded/).to_stderr)
-      expect(h.coverage[ids.first]).to(include("t1"))
+      measured = nil
+      expect { measured = h.__send__(:measure!) }.not_to(raise_error)
+      expect { noticed(h, measured) }.to(output(/1 test\(s\) fail in the baseline.*excluded/).to_stderr)
+      expect(h.survey.coverage[ids.first]).to(include("t1"))
     end
 
-    # Seven failing tests, each failing with a two-line message.
+    # What the harness says of the baseline it measured: the tests it excluded, and the ones that stalled.
+    def noticed(harness, measured) = harness.__send__(:notice, measured.screened(harness.__send__(:screen)), measured)
+
+    # Seven failing tests, each failing with a two-line message: the harness, and what it measured.
     def crowded
       failing = %w[t2 t3 t4 t5 t6 t7 t8]
       coverage = failing.to_h { |id| [id, []] }.merge("t1" => [ids.first])
-      harness(adapter(coverage: coverage, failing: failing, message: "boom\nframe")).tap { |h| h.__send__(:measure!) }
+      h = harness(adapter(coverage: coverage, failing: failing, message: "boom\nframe"))
+      [h, h.__send__(:measure!)]
     end
 
     it "names each excluded failing test with its failure" do
-      h = crowded
-      expect { h.__send__(:notice, h.__send__(:screen)) }.to(output(/coverage is unknown.*:\n  t2: boom\n/).to_stderr)
+      expect { noticed(*crowded) }.to(output(/coverage is unknown.*:\n  t2: boom\n/).to_stderr)
     end
 
     it "names failing tests up to a limit, then counts the rest and gives their plain run" do
-      h = crowded
-      expect { h.__send__(:notice, h.__send__(:screen)) }
-        .to(output(/\n  t6: boom\n  … and 2 more\n  plain run: rspec t2 /).to_stderr)
+      expect { noticed(*crowded) }.to(output(/\n  t6: boom\n  … and 2 more\n  plain run: rspec t2 /).to_stderr)
     end
 
     it "closes its own ledger afterward" do
@@ -267,8 +279,8 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "keeps coverage recorded by an example that resets the runtime", :aggregate_failures do
       h = harness(resetting)
       h.__send__(:measure!)
-      expect(h.coverage[42]).to(contain_exactly("t_reset"))
-      expect(h.coverage[99]).to(contain_exactly("t_after"))
+      expect(h.survey.coverage[42]).to(contain_exactly("t_reset"))
+      expect(h.survey.coverage[99]).to(contain_exactly("t_after"))
     end
 
     # Kimera's own harness specs measure coverage inside the measured suite.
@@ -289,7 +301,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "keeps coverage for an example that runs its own nested measurement" do
       h = harness(nested)
       h.__send__(:measure!)
-      expect(h.coverage[7]).to(contain_exactly("t_nested"))
+      expect(h.survey.coverage[7]).to(contain_exactly("t_nested"))
     end
 
     # The loop deselects at the top of each iteration; the suite undoes that.
@@ -297,7 +309,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       progress = journal
       h = harness(reselecting(coverage: { "t1" => [ids.first], "t2" => [] }), progress: progress)
       expect { h.__send__(:measure!) }.not_to(change { Array(Kimera::RUNTIME.instance_variable_get(:@ledgers)).size })
-      expect(h.coverage[ids.first]).to(eq(["t1"]))
+      expect(h.survey.coverage[ids.first]).to(eq(["t1"]))
       expect(progress.events).to(eq([[:start, 2, "baseline"], [:tick, nil], [:tick, nil], [:finish]]))
     end
 
@@ -323,7 +335,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "discards touches recorded between examples" do
       h = harness(adapter(coverage: { "t1" => [], "t2" => [] }), progress: ticker)
       h.__send__(:measure!)
-      expect(h.coverage).not_to(have_key(9_999_991))
+      expect(h.survey.coverage).not_to(have_key(9_999_991))
     end
 
     # The workers fork from a process no test has run in, so no test's
@@ -348,7 +360,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       before = Array(Kimera::RUNTIME.instance_variable_get(:@ledgers)).size
 
       expect { h.__send__(:measure!) }.not_to(raise_error)
-      [before, Array(Kimera::RUNTIME.instance_variable_get(:@ledgers)).size, h.coverage, progress.events]
+      [before, Array(Kimera::RUNTIME.instance_variable_get(:@ledgers)).size, h.survey.coverage, progress.events]
     end
 
     it "passes trivially on an empty suite: no raise, no coverage, balanced ledger", :aggregate_failures do
@@ -371,14 +383,14 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "banks a failing test that covers an in-scope mutant as a failure", :aggregate_failures do
       tally = banked("t1", [ids.first])
-      expect(tally.failures).to(eq(["t1"]))
-      expect(tally.irrelevant).to(be_empty)
+      expect(tally.to_h.fetch(:failures)).to(eq(["t1"]))
+      expect(tally.to_h.fetch(:irrelevant)).to(be_empty)
     end
 
     it "routes a failing test touching no in-scope mutant to irrelevant", :aggregate_failures do
       tally = banked("t2", [])
-      expect(tally.failures).to(be_empty)
-      expect(tally.irrelevant).to(eq(["t2"]))
+      expect(tally.to_h.fetch(:failures)).to(be_empty)
+      expect(tally.to_h.fetch(:irrelevant)).to(eq(["t2"]))
     end
 
     it "charges a lost parallel test and advances progress", :aggregate_failures do
@@ -386,7 +398,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       lost = Kimera::Execution::BaselinePass.new(adapter: adapter, registry: registry)
       lost.__send__(:lost, ->(status = nil) { ticks << status }, "t2", :crash)
 
-      expect(lost.__send__(:tally).failures).to(eq(["t2"]))
+      expect(lost.__send__(:tally).to_h.fetch(:failures)).to(eq(["t2"]))
       expect(ticks).to(eq([nil]))
     end
 
@@ -397,7 +409,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       lost.__send__(:lost, tick, "t1", :timeout, nil)
       lost.__send__(:relapse, tick, "t1", :timeout)
       lost.__send__(:lost, tick, "t2", :crash, nil)
-      lost.__send__(:tally).messages
+      lost.__send__(:tally).to_h.fetch(:messages)
     end
 
     it "explains a test whose worker hit the hard timeout twice" do
@@ -418,7 +430,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     def measurement(coverage)
       h = described_class.build(registry: registry, adapter: adapter(coverage: coverage), jobs: 2)
       h.__send__(:measure!)
-      h.coverage
+      h.survey.coverage
     end
 
     it "fans the coverage pass across the pool and matches the serial map", :aggregate_failures do
@@ -508,24 +520,24 @@ RSpec.describe(Kimera::Execution::Harness) do
       progress = journal
       [
         described_class.build(registry: registry, adapter: adapter, progress: progress)
-          .run(ids: [registry.each.first.first.id]),
+          .run(ids: [registry.each.first.first.to_i]),
         progress
       ]
     end
 
     it "reports class-body mutants as :isolated_only without evaluating them", :aggregate_failures do
       report, progress = body
-      result = report.results.first
+      result = report.to_a.first
       expect(result.status).to(eq(:isolated_only))
-      expect(result.detail).to(eq(Kimera::MutationPoint::CLASS_BODY_REASON))
+      expect(result.detail).to(eq(Kimera::Reason::CLASS_BODY_REASON))
       expect(progress.events).to(include(%i[tick isolated_only]))
     end
 
     it "neither gates nor drags the score", :aggregate_failures do
       report, = body
-      expect(report.survived).to(be_empty)
-      expect(report.score).to(eq(1.0))
-      expect(report.summary).to(include("isolated_only=1"))
+      expect(report.select { it.status?(:survived) }).to(be_empty)
+      expect(report.score.to_f).to(eq(1.0))
+      expect(report.score.to_s).to(include("isolated_only=1"))
     end
   end
 
@@ -550,14 +562,14 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry = Kimera::RegistryScan.new(root: dir).build([path])
       h = described_class.build(registry: registry, adapter: loading(path), source_root: dir, leak_every: 0)
       h.warm!(["t1"])
-      h.run.results
+      h.run.to_a
     end
 
     it "reports the mutants of a method the suite ran while loading as isolated-only", :aggregate_failures do
       stub_const("HarnessMacro", Module.new)
       results = warmed
       expect(results.map(&:status).uniq).to(eq([:isolated_only]))
-      expect(results.first.detail).to(eq(Kimera::MutationPoint::LOAD_REASON))
+      expect(results.first.detail).to(eq(Kimera::Reason::LOAD_REASON))
     end
   end
 
@@ -604,7 +616,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       target = ids.first
       h = harness(dawdling(target), timeout_factor: 2.0, timeout_slack: 0.1, **)
       h.__send__(:measure!)
-      h.run(ids: [target]).results.first
+      h.run(ids: [target]).to_a.first
     end
 
     it "times each baseline test and holds each covering test to its budget", :aggregate_failures do
@@ -695,6 +707,8 @@ RSpec.describe(Kimera::Execution::Harness) do
       proc do
         attr_reader(:booted)
 
+        def hooks = self
+
         def start = @booted = true
       end
     end
@@ -722,10 +736,10 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     def default(name)
       registry = catalog(name)
-      mid = registry.each.map { |m, _p| m.id }.first
+      mid = registry.each.map { |m, _p| m.to_i }.first
       h = inline(registry: registry, adapter: active(mid), source_root: dir)
       h.warm!(["t1"])
-      [mid, h.coverage]
+      [mid, h.survey.coverage]
     end
 
     it "measures coverage by default when no flag is given" do
@@ -745,7 +759,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def database(name)
-      stub_const("ActiveRecord::Base", Class.new)
+      FakeRails.unconnected(self)
       inline(registry: catalog(name), adapter: green, source_root: dir, isolate_db: true)
     end
 
@@ -756,7 +770,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(h.__send__(:isolation)).to(be_a(Kimera::Execution::CompositeIsolation))
     end
 
-    def first(registry) = registry.each.map { |m, _p| m.id }.first
+    def first(registry) = registry.each.map { |m, _p| m.to_i }.first
 
     def ungated(name)
       registry = catalog(name)
@@ -786,16 +800,16 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   describe "#isolate!" do
     it "wraps isolation in a rolled-back transaction when isolate_db is on" do
-      stub_const("ActiveRecord::Base", Class.new)
+      FakeRails.unconnected(self)
       h = harness(adapter, isolate_db: true)
-      h.isolate!
+      h.__send__(:isolate!)
       expect(h.__send__(:isolation)).to(be_a(Kimera::Execution::CompositeIsolation))
     end
 
     it "leaves isolation alone by default even with ActiveRecord loaded", :aggregate_failures do
-      stub_const("ActiveRecord::Base", Class.new)
+      FakeRails.unconnected(self)
       h = harness(adapter)
-      h.isolate!
+      h.__send__(:isolate!)
       expect(h.__send__(:isolation)).to(be_a(Kimera::Execution::Isolation))
       expect(h.__send__(:isolation)).not_to(be_a(Kimera::Execution::CompositeIsolation))
     end
@@ -803,7 +817,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "stays a no-op when isolate_db is on but ActiveRecord is absent", :aggregate_failures do
       hide_const("ActiveRecord") if defined?(ActiveRecord)
       h = harness(adapter, isolate_db: true)
-      expect { h.isolate! }.not_to(raise_error)
+      expect { h.__send__(:isolate!) }.not_to(raise_error)
       expect(h.__send__(:isolation)).not_to(be_a(Kimera::Execution::CompositeIsolation))
     end
   end
@@ -980,7 +994,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     def registration
       parallelization(true)
       stub(after: [])
-      stub_const("ActiveRecord::Base", Class.new)
+      FakeRails.unconnected(self)
       registered = fake_feature("active_record/test_databases")
       yield(database(jobs: 2))
       loaded?(registered).tap { $LOADED_FEATURES.delete(registered) }
@@ -1012,7 +1026,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       parallelization(true)
       stub(before: -> { before << :before }, after: ->(_i) {})
       driver = described_class.build(registry: registry, adapter: adapter, jobs: 2).__send__(:driver)
-      reap(*driver.worker(0).first(3))
+      reap(*driver.spawner(:serve).call(0).first(3))
       [before.dup, fleet(driver, before)]
     end
 
@@ -1025,7 +1039,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     def fleet(driver, before)
       listeners = Kimera::Execution::WorkerPool::Listeners.new(resolve: ->(_m) {}, lost: ->(*) {}, trace: nil)
-      driver.drive([], driver.method(:worker), listeners)
+      driver.drive([], driver.spawner(:serve), listeners)
       before
     end
 
@@ -1166,7 +1180,7 @@ RSpec.describe(Kimera::Execution::Harness) do
           @t ||= compute(a > b)
         end
       RUBY
-      unsafe = memo.each.first.first.id
+      unsafe = memo.each.first.first.to_i
       expect(triage(memo).tiers([unsafe]).first).to(be_empty)
     end
   end
@@ -1303,9 +1317,9 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     it "is false for a class-body point and true for a method-body point", :aggregate_failures do
-      body = mixed_registry.each.find { |_m, p| p.body? }.first.id
-      method = mixed_registry.each.find { |_m, p| !p.body? }.first.id
-      mixed_registry.index.fetch(method).unsafe!("memoized")
+      body = mixed_registry.each.find { |_m, p| p.reasons(Kimera::Reason.class_body).any? }.first.to_i
+      method = mixed_registry.each.find { |_m, p| p.reasons(Kimera::Reason.class_body).none? }.first.to_i
+      mixed_registry.index.fetch(method).mark!(Kimera::Reason.unsafe("memoized"))
       expect(triage(mixed_registry).tiers([body, method]).drop(1)).to(eq([[method], [body]]))
     end
 
@@ -1315,34 +1329,34 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     # Reload bakes the same source the overlay could not emit.
     it "is false for an unmutatable method-body point" do
-      mutant, point = mixed_registry.each.find { |_m, p| !p.body? }
-      point.unmutatable!("kimera could not write its guard")
-      expect(triage(mixed_registry).tiers([mutant.id]).last).to(eq([mutant.id]))
+      mutant, point = mixed_registry.each.find { |_m, p| p.reasons(Kimera::Reason.class_body).none? }
+      point.mark!(Kimera::Reason.unmutatable("kimera could not write its guard"))
+      expect(triage(mixed_registry).tiers([mutant.to_i]).last).to(eq([mutant.to_i]))
     end
   end
 
   describe "unmutatable mutants" do
     def unmutatable
       registry = Kimera::RegistryScan.new.source("def gt(a, b)\n  a > b\nend\n", file: "u.rb")
-      registry.points.each { |point| point.unmutatable!("schemata setup failed (boom)") }
+      registry.to_a.each { |point| point.mark!(Kimera::Reason.unmutatable("schemata setup failed (boom)")) }
       progress = journal
-      ids = registry.each.map { |mutant, _point| mutant.id }
+      ids = registry.each.map { |mutant, _point| mutant.to_i }
       [described_class.build(registry: registry, adapter: adapter, progress: progress).run(ids: ids), progress]
     end
 
     it "reports them as :unmutatable, with the reason, without evaluating them", :aggregate_failures do
       report, progress = unmutatable
-      expect(report.results.map(&:status).uniq).to(eq([:unmutatable]))
-      expect(report.results.first.detail).to(eq("unmutatable: schemata setup failed (boom)"))
-      expect(report.results.first.file).to(eq("u.rb"))
+      expect(report.to_a.map(&:status).uniq).to(eq([:unmutatable]))
+      expect(report.to_a.first.detail).to(eq("unmutatable: schemata setup failed (boom)"))
+      expect(report.to_a.first.file).to(eq("u.rb"))
       expect(progress.events).to(include(%i[tick unmutatable]))
     end
 
     it "keeps them out of no_coverage and the score, but names them", :aggregate_failures do
       report, = unmutatable
-      expect(report.uncovered).to(be_empty)
-      expect(report.score).to(eq(1.0))
-      expect(report.summary).to(include("unmutatable=2"))
+      expect(report.select { it.status?(:no_coverage) }).to(be_empty)
+      expect(report.score.to_f).to(eq(1.0))
+      expect(report.score.to_s).to(include("unmutatable=2"))
     end
   end
 
@@ -1357,7 +1371,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     def stubbed(name)
       stub_const(name, Class.new)
       registry = fixture(name)
-      [registry, registry.each.map { |m, _p| m.id }]
+      [registry, registry.each.map { |m, _p| m.to_i }]
     end
 
     def fixture(name)
@@ -1385,9 +1399,9 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     def mutants
       registry = fixture("WarmTarget")
-      ids = registry.each.map { |m, _p| m.id }
+      ids = registry.each.map { |m, _p| m.to_i }
       h = inline(registry: registry, adapter: touching(ids), source_root: dir)
-      [h.warm!(["t1"]), ids, h.coverage]
+      [h.warm!(["t1"]), ids, h.survey.coverage]
     end
 
     it "loads the suite, overlays schemata, and returns the live mutant ids", :aggregate_failures do
@@ -1418,13 +1432,14 @@ RSpec.describe(Kimera::Execution::Harness) do
       end.new(mids)
     end
 
+    def revisits(registry) = registry.to_a.map { PointVerdict.new(it).revisit }.uniq
+
     def in_order
       registry, ids = stubbed("WarmOrdered")
       progress = journal
       h = inline(registry: registry, adapter: ordered(ids), source_root: dir, progress: progress)
       h.warm!(%w[t1 t2])
-      revisits = registry.points.map(&:revisit).uniq
-      { events: progress.events, covered: h.coverage.slice(*ids).values.flatten, revisits: revisits }
+      { events: progress.events, covered: h.survey.coverage.slice(*ids).values.flatten, revisits: revisits(registry) }
     end
 
     it "notes the baseline run of the whole suite in order" do
@@ -1432,7 +1447,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     it "sends a mutant only the suite run in order reaches to a second look" do
-      expect(in_order).to(include(covered: [], revisits: [Kimera::MutationPoint::ORDER_REASON]))
+      expect(in_order).to(include(covered: [], revisits: [Kimera::Reason::ORDER_REASON]))
     end
 
     # Both tests kill every mutant; "slow" comes first in coverage order.
@@ -1453,11 +1468,11 @@ RSpec.describe(Kimera::Execution::Harness) do
     def screening(name, flaky)
       stub_const(name, Class.new)
       registry = fixture(name)
-      ids = registry.each.map { |m, _p| m.id }
+      ids = registry.each.map { |m, _p| m.to_i }
       progress = journal
       h = inline(registry: registry, adapter: racing(ids), **screened(registry, flaky, progress))
       h.warm!(%w[t1], scope: ids)
-      [h.run(ids: ids).results, ids, progress.events]
+      [h.run(ids: ids).to_a, ids, progress.events]
     end
 
     def screened(registry, flaky, progress)
@@ -1491,13 +1506,13 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "reruns the covering tests under other seeds and names the test that changed its result" do
       h, = shaken
-      flaky = h.noted(Kimera::RunReport.new(results: [])).notes.flaky
+      flaky = h.survey.noted(Kimera::RunReport.new(results: [])).notes.to_h["flaky"]
       expect([flaky["flaky"].map { |flake| flake["test"] }, flaky["seeds"]]).to(eq([["shaky"], [6]]))
     end
 
     it "lets no test that changed its result kill" do
       h, ids = shaken
-      expect(h.run(ids: ids).results.map(&:failing_tests).uniq).to(eq([["steady"]]))
+      expect(h.run(ids: ids).to_a.map(&:failing_tests).uniq).to(eq([["steady"]]))
     end
 
     it "lets only the tests a screen keeps kill a warm mutant", :aggregate_failures do
@@ -1518,7 +1533,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry, ids = stubbed("WarmCensus")
       h = inline(registry: registry, adapter: racing(ids), source_root: dir, soft_timeout: nil, test_quality: true)
       h.warm!(%w[t1], scope: ids)
-      results = h.run(ids: ids).results
+      results = h.run(ids: ids).to_a
       expect(results.map { |result| [result.status, result.failing_tests, result.killing_tests] }.uniq)
         .to(eq([[:killed, ["fast"], %w[slow fast]]]))
     end
@@ -1527,31 +1542,31 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry, ids = stubbed("WarmRacing")
       h = inline(registry: registry, adapter: racing(ids), source_root: dir, soft_timeout: nil)
       h.warm!(%w[t1], scope: ids)
-      expect(h.timings.fetch("slow")).to(be > h.timings.fetch("fast"))
-      expect(h.run(ids: ids).results.map(&:failing_tests).uniq).to(eq([["fast"]]))
+      expect(h.survey.__send__(:timings).fetch("slow")).to(be > h.survey.__send__(:timings).fetch("fast"))
+      expect(h.run(ids: ids).to_a.map(&:failing_tests).uniq).to(eq([["fast"]]))
     end
 
     def scoped(name, adapter, scope)
       registry = fixture(name)
       progress = journal
-      ids = registry.each.map { |m, _p| m.id }
+      ids = registry.each.map { |m, _p| m.to_i }
       described_class
         .build(registry: registry, adapter: adapter.call(ids), source_root: dir, progress: progress)
         .warm!(%w[t1 t2], scope: scope.call(registry))
-      [progress.events, registry.points.map(&:revisit).uniq]
+      [progress.events, revisits(registry)]
     end
 
     it "runs the suite in order when a mutant in scope has no single test's coverage", :aggregate_failures do
       stub_const("WarmScoped", Class.new)
-      events, reasons = scoped("WarmScoped", method(:ordered), ->(registry) { registry.each.map { |m, _p| m.id } })
+      events, reasons = scoped("WarmScoped", method(:ordered), ->(registry) { registry.each.map { |m, _p| m.to_i } })
       expect(events).to(include([:note, "baseline (whole suite, in order)"]))
-      expect(reasons).to(eq([Kimera::MutationPoint::ORDER_REASON]))
+      expect(reasons).to(eq([Kimera::Reason::ORDER_REASON]))
     end
 
     # Its marks would reach no mutant the run judges, so it could change no verdict.
     it "skips the run in order when every mutant in scope is covered", :aggregate_failures do
       stub_const("WarmCovered", Class.new)
-      events, reasons = scoped("WarmCovered", method(:touching), ->(registry) { registry.each.map { |m, _p| m.id } })
+      events, reasons = scoped("WarmCovered", method(:touching), ->(registry) { registry.each.map { |m, _p| m.to_i } })
       expect(events).not_to(include([:note, "baseline (whole suite, in order)"]))
       expect(reasons).to(eq([nil]))
     end
@@ -1574,7 +1589,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "records a leak message emitted by a pool worker" do
       spawner = responder(status: "killed", extra: "state leaked")
       report = harness(adapter, spawner: spawner).run(ids: ids)
-      expect(report.leaks.map(&:detail)).to(include("state leaked"))
+      expect(report.notes.to_h["leaks"].map(&:detail)).to(include("state leaked"))
     end
   end
 
@@ -1585,11 +1600,11 @@ RSpec.describe(Kimera::Execution::Harness) do
           x > y
         end
       RUBY
-      rid = registry.each.map { |m, _p| m.id }.first
+      rid = registry.each.map { |m, _p| m.to_i }.first
       report =
         described_class.build(registry: registry, adapter: adapter, spawner: responder(status: "survived"))
           .run(ids: [rid])
-      report.results.find { |r| r.mutant_id == rid }
+      report.to_a.find { |r| r.mutant_id == rid }
     end
 
     it "downgrades a warm survivor on a harness-critical file", :aggregate_failures do
@@ -1601,7 +1616,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   # One schema-safe comparison and one memoized (schema-unsafe) one.
   def unsafe_id(registry, label = nil)
-    registry.each.find { |mutant, point| !point.safe? && (label.nil? || mutant.label == label) }.first.id
+    registry.each.find { |mutant, point| !point.safe? && (label.nil? || mutant.to_s == label) }.first.to_i
   end
 
   def writing(dir, klass)
@@ -1649,16 +1664,17 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "warms up and kills the schema-safe mutants via a pool worker", :aggregate_failures do
       stub_const("HarnessE2E", Class.new)
       report = outcome
-      expect(report.results).not_to(be_empty)
-      expect(report.statuses(:error)).to(be_empty)
-      expect(report.killed).not_to(be_empty)
+      expect(report.to_a).not_to(be_empty)
+      expect(report.select { it.status?(:error) }).to(be_empty)
+      expect(report.select(&:killed?)).not_to(be_empty)
     end
   end
 
   describe "#evaluate_reload (reload fallback child logic, run in-process)" do
-    # An in-process errand: the tests it names, and ticks that go nowhere.
+    # The mutant an in-process errand runs, and the errand: the tests it names, and ticks that go nowhere.
     def errand(id, tests = ["t1"])
-      Kimera::Execution::Reload::Errand.new(id, tests, nil, nil).tap { |e| e.define_singleton_method(:tick) { |test| ran << test } }
+      silent = Kimera::Execution::Reload::Errand.new(id, tests, nil, nil)
+      [id, silent.tap { |e| e.define_singleton_method(:tick) { |test| ran << test } }]
     end
 
     let(:dir) { Dir.mktmpdir }
@@ -1672,7 +1688,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       # The constant must exist before the bake is overlaid.
       load(File.join(dir, "harnessreload.rb"))
       reloading = reloader(observer("HarnessReload"), catalog: registry, root: dir)
-      reloading.__send__(:evaluate, errand(unsafe_id(registry, "< => >")))
+      reloading.__send__(:evaluate, *errand(unsafe_id(registry, "< => >")))
     end
 
     it "bakes the mutation, reloads, and classifies the outcome" do
@@ -1693,7 +1709,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "re-runs only the reloaded method of a file that was already required", :aggregate_failures do
       registry = required
       status, = reloader(observer("HarnessRequired"), catalog: registry, root: dir)
-        .__send__(:evaluate, errand(unsafe_id(registry, "< => >")))
+        .__send__(:evaluate, *errand(unsafe_id(registry, "< => >")))
       expect(status).to(eq(:killed))
       expect(HarnessRequired.instance_variable_get(:@loads)).to(eq(1))
     end
@@ -1701,7 +1717,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     def aliased_verdict(registry)
       aliases = Kimera::Execution::Aliases.new([File.join(dir, "harnessaliased.rb")]).tap { |a| a.follow { :captured } }
       runner = reloader(observer("HarnessAliasing"), catalog: registry, root: dir, aliases: aliases)
-      runner.__send__(:evaluate, errand(unsafe_id(registry, "< => >")))
+      runner.__send__(:evaluate, *errand(unsafe_id(registry, "< => >")))
     end
 
     it "reaches the reloaded method through an alias declared in another file" do
@@ -1716,7 +1732,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       stub_const(name, Class.new)
       registry = writing(dir, name)
       load(File.join(dir, "#{name.downcase}.rb"))
-      [registry, registry.each.map { |m, _p| m.id }.find { |id| !registry.index[id].safe? }]
+      [registry, registry.each.map { |m, _p| m.to_i }.find { |id| !registry.index[id].safe? }]
     end
 
     # A test of +name+ that calls its memoized method, as one that reaches the mutant does.
@@ -1738,7 +1754,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry, unsafe = reload("HarnessReselGreen")
       suite = plain(passed: true, reach: calling("HarnessReselGreen"))
       runner = reloader(suite, catalog: registry, root: dir, isolation: reselection)
-      expect(runner.__send__(:evaluate, errand(unsafe))).to(eq([:survived, []]))
+      expect(runner.__send__(:evaluate, *errand(unsafe))).to(eq([:survived, []]))
     end
 
     # The reload child watches the method that holds the mutant: a green suite
@@ -1747,7 +1763,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry, unsafe = reload("HarnessReloadUncalled")
       runner = reloader(plain(passed: true), catalog: registry, root: dir, isolation: reselection)
       uncalled = Kimera::Execution::Reload::UNCALLED
-      expect(runner.__send__(:evaluate, errand(unsafe))).to(eq([:no_coverage, [], uncalled]))
+      expect(runner.__send__(:evaluate, *errand(unsafe))).to(eq([:no_coverage, [], uncalled]))
     end
 
     def counting(tests, failing, calls, reach: {})
@@ -1767,7 +1783,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry, unsafe = reload("HarnessReloadFast")
       calls = []
       runner = reloader(counting(%w[t1 t2 t3], ["t2"], calls), catalog: registry, root: dir, isolation: reselection)
-      expect(runner.__send__(:evaluate, errand(unsafe, %w[t1 t2 t3]))).to(eq([:killed, ["t2"]]))
+      expect(runner.__send__(:evaluate, *errand(unsafe, %w[t1 t2 t3]))).to(eq([:killed, ["t2"]]))
       expect(calls).to(eq([["t1"], ["t2"]]))
     end
 
@@ -1778,7 +1794,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry, unsafe = reload("HarnessReloadReport")
       suite = counting(%w[t1 t2 t3 t4], ["t3"], [], reach: { "t2" => calling("HarnessReloadReport") })
       runner = reloader(suite, catalog: registry, root: dir, isolation: reselection)
-      report = JSON.parse(runner.__send__(:report, errand(unsafe, %w[t1 t2 t3 t4])))
+      report = JSON.parse(runner.__send__(:report, *errand(unsafe, %w[t1 t2 t3 t4])))
       expect(report.values_at("status", "fails", "cover", "ms")).to(match(["killed", ["t3"], ["t2"], be >= 0]))
     end
 
@@ -1788,7 +1804,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       reader, writer = IO.pipe
       errand = Kimera::Execution::Reload::Errand.new(unsafe, %w[t1 t2 t3], reader, writer)
       reloader(counting(%w[t1 t2 t3], [], []), catalog: registry, root: dir, isolation: reselection)
-        .__send__(:evaluate, errand)
+        .__send__(:evaluate, unsafe, errand)
       writer.close
       [errand.ran, reader.read.lines.size]
     end
@@ -1800,7 +1816,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "orders tests covering the mutant's method, then its file, before the rest" do
       registry, unsafe = reload("HarnessReloadOrder")
       point = registry.index[unsafe]
-      other = registry.at(point.file).find { |p| p.method_name != point.method_name }
+      other = registry.to_h.fetch(point.file, []).find { |p| p.method_name != point.method_name }
       kinship = Kimera::Execution::Kinship.new(registry, { other.ids.first => ["t4"], point.ids.first => %w[t3 t9] })
       expect(kinship.order(unsafe, %w[t1 t2 t3 t4])).to(eq(%w[t3 t4 t1 t2]))
     end
@@ -1808,13 +1824,13 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "keeps the suite order for an unknown mutant or missing coverage", :aggregate_failures do
       registry, unsafe = reload("HarnessReloadAlone")
       expect(Kimera::Execution::Kinship.new(registry, nil).order(unsafe, %w[t2 t1])).to(eq(%w[t2 t1]))
-      expect(Kimera::Execution::Kinship.new(registry, {}).order(10_000_000, %w[t2 t1])).to(eq(%w[t2 t1]))
+      expect(Kimera::Execution::Kinship.new(registry, {}).order(10_000_000, %w[t2 t1 t2])).to(eq(%w[t2 t1]))
     end
 
     it "classifies a failing re-selecting suite as killed with its failures" do
       registry, unsafe = reload("HarnessReselRed")
       runner = reloader(plain(passed: false), catalog: registry, root: dir, isolation: reselection)
-      expect(runner.__send__(:evaluate, errand(unsafe))).to(eq([:killed, ["t1"]]))
+      expect(runner.__send__(:evaluate, *errand(unsafe))).to(eq([:killed, ["t1"]]))
     end
 
     def cold
@@ -1834,7 +1850,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       filter = Kimera::Execution::TestFilter.new(registry: registry, flaky: flaky)
       settings = { source_root: dir, soft_timeout: nil, coverage: {}, filter: filter }
       suite = counting(%w[t1 t2], ["t1"], [], reach: %w[t1 t2].to_h { |test| [test, calling(name)] })
-      described_class.build(registry: registry, adapter: suite, **settings).run(ids: [unsafe]).results.first
+      described_class.build(registry: registry, adapter: suite, **settings).run(ids: [unsafe]).to_a.first
     end
 
     it "runs a reloaded mutant against the tests the screen keeps, or settles it when it keeps none",
@@ -1852,7 +1868,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "runs the reload path end-to-end without a prior warm-up", :aggregate_failures do
       report, progress = cold
-      expect(report.results.first.status).to(eq(:survived))
+      expect(report.to_a.first.status).to(eq(:survived))
       expect(progress.events).to(include(%i[tick survived]))
     end
 
@@ -1863,8 +1879,8 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "reports a mutant kimera can't bake as unmutatable, with the reason", :aggregate_failures do
       unwritten
       report, progress = cold
-      expect(report.results.first).to(
-        have_attributes(
+      expect(report.to_a.first).to(
+        have_fields(
           status: :unmutatable,
           detail: "unmutatable: kimera could not write its bake (KeyError: key not found: :lvar)"
         )
@@ -1885,7 +1901,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry = writing(dir, "HarnessBoom")
       load(File.join(dir, "harnessboom.rb"))
       reloading = reloader(boom, catalog: registry, root: dir, isolation: reselection)
-      reloading.__send__(:evaluate, errand(unsafe_id(registry)))
+      reloading.__send__(:evaluate, *errand(unsafe_id(registry)))
     end
 
     it "captures an exception during reload as an :error result, saying where it happened", :aggregate_failures do
@@ -2007,7 +2023,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       h.warm!(["t1"])
       unsafe = unsafe_id(registry)
       report = h.run(ids: [unsafe])
-      [report.results.find { |r| r.mutant_id == unsafe }, progress]
+      [report.to_a.find { |r| r.mutant_id == unsafe }, progress]
     end
 
     it "routes the memoized mutant through the reload fallback", :aggregate_failures do
@@ -2021,8 +2037,8 @@ RSpec.describe(Kimera::Execution::Harness) do
         registry: registry, adapter: observer("HarnessReaching"), source_root: dir, soft_timeout: nil, leak_every: 0
       )
       h.warm!(["t1"])
-      unsafe = registry.each.find { |m, p| !p.safe? && m.label == "< => >" }.first.id
-      h.run(ids: [unsafe]).results.first.status
+      unsafe = registry.each.find { |m, p| !p.safe? && m.to_s == "< => >" }.first.to_i
+      h.run(ids: [unsafe]).to_a.first.status
     end
 
     it "re-points an alias declared in another file at the reloaded mutant" do
@@ -2043,7 +2059,7 @@ RSpec.describe(Kimera::Execution::Harness) do
   describe "#run partitioning" do
     it "evaluates only schema-safe mutants through the pool scheduler" do
       report = harness(adapter, spawner: responder(status: "killed")).run(ids: ids)
-      expect(report.killed.map(&:mutant_id)).to(match_array(ids))
+      expect(report.select(&:killed?).map(&:mutant_id)).to(match_array(ids))
     end
   end
 
@@ -2063,7 +2079,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "evaluates every registry mutant when no explicit ids are given" do
       report = harness(adapter, spawner: responder(status: "killed")).run
-      expect(report.killed.map(&:mutant_id)).to(match_array(ids))
+      expect(report.select(&:killed?).map(&:mutant_id)).to(match_array(ids))
     end
 
     def hanging
@@ -2092,7 +2108,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(progress.events).to(include(%i[tick timeout]))
       expect(progress.events.last).to(eq([:finish]))
       # Not overwritten by a later verdict.
-      expect(report.results.map(&:status)).to(eq([:timeout]))
+      expect(report.to_a.map(&:status)).to(eq([:timeout]))
     end
   end
 
@@ -2114,7 +2130,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     it "reports the signal and exception that ended a real pool worker", :aggregate_failures do
-      result = harness(terminating, soft_timeout: nil).run(ids: [ids.first]).results.first
+      result = harness(terminating, soft_timeout: nil).run(ids: [ids.first]).to_a.first
       expect(result.status).to(eq(:harness_error))
       expect(result.detail).to(start_with("worker crashed before result: died on signal 15 (SIGTERM)\n"))
       expect(result.detail).to(include("\nSignalException: SIGTERM\n"))
@@ -2123,8 +2139,8 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "forks a real serving pool worker when none is injected", :aggregate_failures do
       report = unstubbed
-      expect(report.results.map(&:mutant_id)).to(eq([ids.first]))
-      expect(report.results.first.status).to(eq(:survived))
+      expect(report.to_a.map(&:mutant_id)).to(eq([ids.first]))
+      expect(report.to_a.first.status).to(eq(:survived))
       expect { Process.wait }.to(raise_error(Errno::ECHILD))
     end
   end
@@ -2152,16 +2168,16 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     let(:crashrecoveryreport) { harness(adapter, spawner: crash, jobs: 1).run(ids: ids.first(2)) }
-    let(:byid) { crashrecoveryreport.results.to_h { |r| [r.mutant_id, r.status] } }
+    let(:byid) { crashrecoveryreport.to_a.to_h { |r| [r.mutant_id, r.status] } }
 
     it "charges the crashed id as an error and lets the replacement worker kill the rest", :aggregate_failures do
       expect(byid[ids[0]]).to(eq(:harness_error))
       expect(byid[ids[1]]).to(eq(:killed))
-      expect(crashrecoveryreport.results.size).to(eq(2))
+      expect(crashrecoveryreport.to_a.size).to(eq(2))
     end
 
     it "says how the crashed worker died and what it raised" do
-      detail = crashrecoveryreport.results.find { |r| r.mutant_id == ids[0] }.detail
+      detail = crashrecoveryreport.to_a.find { |r| r.mutant_id == ids[0] }.detail
       expect(detail).to(eq("worker crashed before result: exited 3\nBoom: from the worker"))
     end
 
@@ -2191,9 +2207,9 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "reaps an idle worker without fabricating a nil result", :aggregate_failures do
       report = dormant
-      expect(report.results.size).to(eq(1))
-      expect(report.results.first.mutant_id).to(eq(ids.first))
-      expect(report.results.first.status).to(eq(:killed))
+      expect(report.to_a.size).to(eq(1))
+      expect(report.to_a.first.mutant_id).to(eq(ids.first))
+      expect(report.to_a.first.status).to(eq(:killed))
     end
 
     # A mutated app may fork a grandchild that holds the result pipe open.
@@ -2221,7 +2237,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "removes a wedged worker at the deadline, not when its pipe finally closes", :aggregate_failures do
       report, elapsed = deadline
-      expect(report.results.map(&:status)).to(eq([:timeout]))
+      expect(report.to_a.map(&:status)).to(eq([:timeout]))
       expect(elapsed).to(be < 3.0)
     end
   end

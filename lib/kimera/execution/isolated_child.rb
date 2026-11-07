@@ -19,6 +19,7 @@ redirect =
 redirect.call
 begin
   RSpec::Core::ConfigurationOptions.new([]).configure(RSpec.configuration)
+# rubocop:disable-next Kata/FailFast -- a project's .rspec the child cannot apply leaves RSpec's defaults: the tests require their helpers themselves and raise there
 rescue StandardError, ScriptError
   nil
 end

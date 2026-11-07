@@ -6,6 +6,8 @@ require "kimera/registry/builder"
 require "open3"
 require "tmpdir"
 
+using PointFields
+
 RSpec.describe(Kimera::Incremental::Selection) do
   let(:registry) do
     Kimera::RegistryScan.new.source(<<~RUBY, file: "calc.rb")

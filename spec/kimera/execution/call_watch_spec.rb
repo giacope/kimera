@@ -21,7 +21,11 @@ RSpec.describe(Kimera::Execution::CallWatch) do
 
   let(:probe) { "::Kimera::RUNTIME.active?(7)" }
 
-  def watched(text, held = source) = described_class.new(held, held.byteindex(text), 7)
+  def at(text, held = source)
+    Kimera::MutationPoint.new(location: Kimera::Location.new(start_offset: held.byteindex(text)), mutants: [])
+  end
+
+  def watched(text, held = source) = described_class.new(held, at(text, held), 7)
 
   it "calls the probe first in the innermost method that holds the point, on the lines it had", :aggregate_failures do
     expect(watched("@outer").source).to(eq(source.sub("def outer\n", "def outer; #{probe}\n")))
@@ -39,7 +43,7 @@ RSpec.describe(Kimera::Execution::CallWatch) do
   def unbalanced = Struct.new(:node, :ids) { def watch = [[0, 0, "("]] }
 
   it "leaves the source unwatched when the probed text would not parse" do
-    unwatched = described_class.new(source, source.byteindex("@outer"), 7, unbalanced)
+    unwatched = described_class.new(source, at("@outer"), 7, unbalanced)
     expect([unwatched.source, unwatched.watching?, unwatched.reached?([])]).to(eq([source, false, true]))
   end
 

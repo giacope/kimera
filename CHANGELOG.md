@@ -4,6 +4,23 @@
 
 Fixed while holding kimera to its own strict lint profiles:
 
+- **One busy database pool no longer keeps the parent from letting go of
+  the others before a fork.** The parent disconnected its pools in turn
+  and stopped at the first that raised; each pool now lets go on its own,
+  and only Active Record's `ExclusiveConnectionTimeoutError` is let pass.
+- **A block method kimera cannot reinstall says so.** A method defined in
+  a block whose woven copy failed to reinstall kept its unwoven body in
+  that holder, so its mutants could only survive there; the error now
+  reaches the overlay, which reports the file's mutants unmutatable with
+  the reason.
+- **Rescues around the project's database name the error they expect**
+  (Active Record's for a connection the suite has not established,
+  sqlite3's and WeakRef's for a handle a fork inherited), so a bug in that
+  code raises instead of reading as "no database".
+- **The mutation switch is scoped.** A mutant is on only for the block
+  that judges it and the switch is handed back as it was found, so no
+  worker resets it afterwards in case one was left on.
+
 - **A progress bar cut short no longer erases the output above the next
   one.** On a tty, a bar wider than the terminal wraps onto several rows,
   and each new frame climbs those rows to erase the one before it. A phase

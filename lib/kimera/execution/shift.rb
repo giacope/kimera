@@ -45,15 +45,12 @@ class Kimera::Execution::Shift
       memory
     end
     emit(io, t: "done")
-  ensure
-    Kimera::RUNTIME.active = nil
   end
 
   def judged(id, memory)
-    result, memory = safely(id, Subject.new(id, @registry.index[id]&.file), memory)
+    result, memory = safely(id, Subject.new(id, @registry[id] { [] }.last), memory)
     [tally(result), memory]
   ensure
-    Kimera::RUNTIME.active = nil
     isolation.reset!
   end
 
@@ -72,8 +69,7 @@ class Kimera::Execution::Shift
 
   def tally(result)
     return result unless @options[:quality] && result.killed?
-    killers = census.killers(result.mutant_id, available(result.mutant_id), Array(result.failing_tests))
-    result.tap { |found| found.killing_tests = killers }
+    result.credit { |id, failing| census.killers(id, available(id), failing) }
   end
 
   def census = @_census ||= staged(self.class::Census)

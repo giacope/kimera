@@ -3,6 +3,8 @@
 require "kimera/incremental/selection"
 require "kimera/registry/builder"
 
+using PointFields
+
 RSpec.describe(Kimera::Incremental::Selection) do
   let(:source) do
     <<~RUBY

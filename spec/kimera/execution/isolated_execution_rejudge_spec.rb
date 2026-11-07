@@ -7,6 +7,8 @@ require "kimera/report/progress"
 require "stringio"
 require "tmpdir"
 
+using ResultFields
+
 # The warm pass hands over what it could not judge; each mutant is judged
 # again in a mirror of its own, and a kill stands only if its tests pass in
 # another fresh mirror without the mutant.
@@ -19,7 +21,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
     RUBY
   end
 
-  let(:ids) { registry.each.map { |mutant, _point| mutant.id }.first(2) }
+  let(:ids) { registry.each.map { |mutant, _point| mutant.to_i }.first(2) }
   let(:note) { "judged in a fresh isolated mirror; the warm pass could not: warm " }
 
   def test_bar(sink) = ProgressJournal.new(sink)
@@ -80,7 +82,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#rejudge", :aggregate_fail
   def test_quiet = { progress: test_bar([]) }
 
   def test_revisited(warm, isolated)
-    registry.points.each { |point| point.revisit!(Kimera::MutationPoint::BLOCK_REASON) }
+    registry.to_a.each { |point| point.mark!(Kimera::Reason.revisit(Kimera::Reason::BLOCK_REASON)) }
     Dir.mktmpdir do |root|
       File.write(File.join(root, "calc.rb"), "def a(x, y) = x > y\n")
       test_engine([], isolated: isolated, control: Kimera::Execution::IsolatedOutcome.new(:survived))

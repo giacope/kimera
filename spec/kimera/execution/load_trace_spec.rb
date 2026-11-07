@@ -5,6 +5,8 @@ require "kimera/execution/load_trace"
 require "kimera/registry/builder"
 require "tmpdir"
 
+using PointFields
+
 RSpec.describe(Kimera::Execution::LoadTrace) do
   # A macro a class body calls while it loads, a method it never calls, and a
   # memoized (schema-unsafe) method the macro calls too.
@@ -35,7 +37,7 @@ RSpec.describe(Kimera::Execution::LoadTrace) do
 
   after { FileUtils.remove_entry(dir) }
 
-  def point(text) = registry.points.find { |found| found.original_source == text }
+  def point(text) = registry.to_a.find { |found| found.original_source == text }
 
   def macro(trace, path = file)
     trace.record do
@@ -50,25 +52,25 @@ RSpec.describe(Kimera::Execution::LoadTrace) do
 
   it "sends the uncovered mutants of a method that ran while loading to the isolated tier", :aggregate_failures do
     traced
-    expect(point("flag ? 1 : 2")).to(have_attributes(safe?: false, unsafe_reason: Kimera::MutationPoint::LOAD_REASON))
-    expect(point("flag ? 1 : 2").reloadable?).to(be(false))
+    expect(PointVerdict.new(point("flag ? 1 : 2"))).to(have_attributes(safe?: false, unsafe_reason: Kimera::Reason::LOAD_REASON))
+    expect(point("flag ? 1 : 2").reasons(Kimera::Reason.unreloadable).empty?).to(be(false))
   end
 
   it "leaves a method that did not run while loading", :aggregate_failures do
     traced
-    expect(point("a > b")).to(have_attributes(safe?: true, unsafe_reason: nil, revisit: nil))
+    expect(PointVerdict.new(point("a > b"))).to(have_attributes(safe?: true, unsafe_reason: nil, revisit: nil))
   end
 
   # A test covers it too, so it stays warm; what it computed at load did not see the mutant.
   it "marks a covered point of a method that ran while loading", :aggregate_failures do
     ternary = point("flag ? 1 : 2")
     traced({ ternary.ids.first => ["t1"] })
-    expect(ternary).to(have_attributes(safe?: true, revisit: Kimera::MutationPoint::BOOT_REASON))
+    expect(PointVerdict.new(ternary)).to(have_attributes(safe?: true, revisit: Kimera::Reason::BOOT_REASON))
   end
 
   it "leaves a point already sent elsewhere for a reason of its own" do
     traced
-    expect(point("flag == true").unsafe_reason).not_to(eq(Kimera::MutationPoint::LOAD_REASON))
+    expect(point("flag == true").reasons(Kimera::Reason.unsafety).first).not_to(eq(Kimera::Reason::LOAD_REASON))
   end
 
   it "leaves a point a test covers, by integer or string id", :aggregate_failures do
@@ -98,7 +100,7 @@ RSpec.describe(Kimera::Execution::LoadTrace) do
     trace = described_class.new(linked, File.join(dir, "linked"))
     macro(trace, File.realpath(File.join(dir, "real", "fees.rb")))
     trace.quarantine!({})
-    expect(linked.points.find { |found| found.original_source == "flag ? 1 : 2" }.safe?).to(be(false))
+    expect(linked.to_a.find { |found| found.original_source == "flag ? 1 : 2" }.safe?).to(be(false))
   end
 
   it "accepts a registry file that is not on disk" do
@@ -109,13 +111,13 @@ RSpec.describe(Kimera::Execution::LoadTrace) do
   it "also quarantines the uncovered lambdas a class-body macro is handed" do
     File.write(file, "class LoadTraceBoost\n  belongs_to :booster, default: -> { Current.user }\nend\n")
     described_class.new(registry, dir).quarantine!({})
-    expect(point("Current.user").unsafe_reason).to(eq(Kimera::MutationPoint::MACRO_REASON))
+    expect(point("Current.user").reasons(Kimera::Reason.unsafety).first).to(eq(Kimera::Reason::MACRO_REASON))
   end
 
   # R6B2-M3: kimera's suite turns on Warning[:strict_unused_block] (spec/support/strict_blocks.rb).
   it "also sends a warm survivor whose mutant leaves its method no yield to a fresh mirror" do
     File.write(file, "class LoadTraceJoin\n  def join(list)\n    list.each { |x| yield x }\n  end\nend\n")
     described_class.new(registry, dir).quarantine!({})
-    expect(point("list.each { |x| yield x }").revisit).to(eq(Kimera::MutationPoint::BLOCK_REASON))
+    expect(point("list.each { |x| yield x }").reasons(Kimera::Reason.revisiting).first).to(eq(Kimera::Reason::BLOCK_REASON))
   end
 end

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "weakref"
+
 module Kimera
   module Execution
   end
@@ -10,8 +12,8 @@ class Kimera::Execution::MemoryDatabases
   NAMED = ->(config) { config.adapter.to_s.start_with?("sqlite") && config.database.to_s.match?(NAMES) }
   HELD =
     lambda do |handle|
-      handle.weakref_alive? && !handle.closed? && handle.filename.to_s.empty?
-    rescue StandardError
+      handle.respond_to?(:weakref_alive?) && handle.weakref_alive? && !handle.closed? && handle.filename.to_s.empty?
+    rescue WeakRef::RefError, SQLite3::Exception
       false
     end
 
@@ -38,7 +40,7 @@ class Kimera::Execution::MemoryDatabases
 
   def current?
     !@record.nil? && NAMED.call(@record.connection_db_config)
-  rescue StandardError
+  rescue ActiveRecord::ActiveRecordError
     false
   end
 end

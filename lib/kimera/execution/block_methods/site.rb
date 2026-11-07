@@ -14,7 +14,7 @@ class Kimera::Execution::BlockMethods::Site
     @source = source
   end
 
-  def live?(locations) = locations.any? { |location| location.inside?(*@span) }
+  def live?(points) = points.any? { |point| point.fits?(inside: @span) }
 
   def over(woven) = woven.placed(@line)
 

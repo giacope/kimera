@@ -34,20 +34,19 @@ class Kimera::Report::Text
 
   def written(report, scope, coverage, saved)
     header(report, scope)
-    survivors(report, Kimera::Report::TestList.new(report, saved))
+    survivors(report, Kimera::Report::TestList.new(report.notes, saved))
     footer(report, coverage, saved, narrowed: !scope.empty?)
   end
 
   def header(report, scope)
     scope.each { |line| @io.puts(line) }
-    @io.puts(@palette.bold(report.summary))
+    @io.puts(@palette.bold(report.score.to_s))
     Kimera::Report::FileTable.new(io: @io).show(report)
   end
 
   def footer(report, coverage, saved, narrowed:)
     entries.public_send(COVERAGE_SECTIONS.fetch(coverage), report, saved, narrowed: narrowed)
-    remarks.regions(report.unmutated)
-    remarks.leaks(report.leaks)
+    report.notes.remark(remarks)
     health.flaky(report)
     health.quality(report)
     Kimera::Report::Actions.new(io: @io).show(report, saved)

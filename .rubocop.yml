@@ -2,6 +2,10 @@
 plugins:
   - rubocop-kata
 
+# kimera holds itself to kata's whole profile, the strict one included.
+inherit_gem:
+  rubocop-kata: config/strict.yml
+
 AllCops:
   TargetRubyVersion: 3.4
   Exclude:

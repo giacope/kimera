@@ -8,15 +8,15 @@ require "kimera/execution/pool_driver"
 RSpec.describe(Kimera::Execution::Pool::Duty) do
   let(:database) { Class.new { def before_exit(index) = index }.new }
 
-  def duty
-    request, response = Array.new(2) { IO.pipe }
-    described_class.new(:serve, 0, Kimera::Execution::Pool::Channels.new(*request, *response))
-  end
+  # The pipe the duty answers on: the parent's end, then its own.
+  let(:response) { IO.pipe }
+
+  def duty = described_class.new(:serve, 0, Kimera::Execution::Pool::Channels.new(*IO.pipe, *response))
 
   it "sends the exception it dies of, then closes its end", :aggregate_failures do
     duty = duty()
     duty.finish(database, RuntimeError.new("boom"))
-    message = JSON.parse(duty.pipes.res_r.read)
+    message = JSON.parse(response.first.read)
     expect(message).to(include("t" => "crash"))
     expect(message["detail"]).to(start_with("RuntimeError: boom"))
   end
@@ -24,34 +24,34 @@ RSpec.describe(Kimera::Execution::Pool::Duty) do
   it "says nothing when it finishes normally" do
     duty = duty()
     duty.finish(database, nil)
-    expect(duty.pipes.res_r.read).to(eq(""))
+    expect(response.first.read).to(eq(""))
   end
 
   it "ticks before each covering test, so the parent's watchdog times one test at a time" do
     duty = duty()
     duty.pulse
     duty.finish(database, nil)
-    expect(duty.pipes.res_r.read).to(eq("#{JSON.generate(t: "tick")}\n"))
+    expect(response.first.read).to(eq("#{JSON.generate(t: "tick")}\n"))
   end
 
   it "retires by finishing, then dying the way the test process it ran died", :aggregate_failures do
     duty = duty()
     pid = fork { duty.retire(database, Kimera::Execution::Zygote::Died.new("SIGTERM in t1", code: 3)) }
-    duty.pipes.res_w.close
-    expect(JSON.parse(duty.pipes.res_r.read)).to(include("t" => "crash", "detail" => "SIGTERM in t1"))
+    response.last.close
+    expect(JSON.parse(response.first.read)).to(include("t" => "crash", "detail" => "SIGTERM in t1"))
     expect(Process.wait2(pid).last.exitstatus).to(eq(3))
   end
 
   it "still shuts down when the parent is no longer listening" do
     duty = duty()
-    duty.pipes.res_r.close
+    response.first.close
     expect { duty.finish(database, RuntimeError.new("boom")) }.not_to(raise_error)
   end
 
   it "sends a dead test process's own words, not the exception carrying them" do
     duty = duty()
     duty.finish(database, Kimera::Execution::Zygote::Died.new("SIGTERM in t1"))
-    expect(JSON.parse(duty.pipes.res_r.read)).to(include("detail" => "SIGTERM in t1"))
+    expect(JSON.parse(response.first.read)).to(include("detail" => "SIGTERM in t1"))
   end
 
   # Retires a duty on +error+ in a fork that exits 99 if it lives on: what the duty said, and how the fork ended.
@@ -63,14 +63,14 @@ RSpec.describe(Kimera::Execution::Pool::Duty) do
       ensure
         exit!(99)
       end
-    duty.pipes.res_w.close
-    [JSON.parse(duty.pipes.res_r.read), Process.wait2(pid).last]
+    response.last.close
+    [JSON.parse(response.first.read), Process.wait2(pid).last]
   end
 
   it "dies of SIGKILL when the test process it ran was killed, though no process may trap that signal" do
     duty = duty()
     pid = fork { duty.retire(database, Kimera::Execution::Zygote::Died.new("killed", signal: 9)) }
-    duty.pipes.res_w.close
+    response.last.close
     expect(Process.wait2(pid).last.termsig).to(eq(9))
   end
 

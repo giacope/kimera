@@ -9,6 +9,9 @@ require "kimera/execution/verdicts"
 require "kimera/registry/builder"
 require "tmpdir"
 
+using ResultFields
+using PointFields
+
 # R3K2: a lambda a class body calls to build a constant ran only while the
 # file loaded, before warm coverage starts, and read as "no covering test".
 RSpec.describe(Kimera::Execution::LoadTrace, :aggregate_failures) do
@@ -37,7 +40,7 @@ RSpec.describe(Kimera::Execution::LoadTrace, :aggregate_failures) do
 
   after { FileUtils.remove_entry(dir) }
 
-  def point(text) = registry.points.find { |found| found.original_source == text }
+  def point(text) = registry.to_a.find { |found| found.original_source == text }
 
   def loaded(coverage = {})
     trace.record { load(file) }
@@ -46,24 +49,24 @@ RSpec.describe(Kimera::Execution::LoadTrace, :aggregate_failures) do
 
   it "sends the uncovered mutants of a block that ran while loading to the isolated tier" do
     loaded
-    expect(point("val >= 0")).to(have_attributes(safe?: false, unsafe_reason: Kimera::MutationPoint::LOAD_REASON))
+    expect(PointVerdict.new(point("val >= 0"))).to(have_attributes(safe?: false, unsafe_reason: Kimera::Reason::LOAD_REASON))
   end
 
   it "leaves a lambda that did not run, and a method a running block only defines" do
     loaded
-    expect(point("n > 1")).to(have_attributes(unsafe_reason: nil, revisit: nil))
-    expect(point("a > 9")).to(have_attributes(unsafe_reason: nil, revisit: nil))
+    expect(PointVerdict.new(point("n > 1"))).to(have_attributes(unsafe_reason: nil, revisit: nil))
+    expect(PointVerdict.new(point("a > 9"))).to(have_attributes(unsafe_reason: nil, revisit: nil))
   end
 
   it "judges again a covered point of a block that ran while loading" do
     loaded(point("val >= 0").ids.to_h { |id| [id, ["t1"]] })
-    expect(point("val >= 0").revisit).to(eq(Kimera::MutationPoint::BOOT_REASON))
+    expect(point("val >= 0").reasons(Kimera::Reason.revisiting).first).to(eq(Kimera::Reason::BOOT_REASON))
   end
 
   it "ignores what runs outside the in-scope files while the suite loads" do
     trace.record { load(file) && [1].each { |n| n + 1 } }
     expect { trace.quarantine!({}) }.not_to(raise_error)
-    expect(point("val >= 0").unsafe_reason).to(eq(Kimera::MutationPoint::LOAD_REASON))
+    expect(point("val >= 0").reasons(Kimera::Reason.unsafety).first).to(eq(Kimera::Reason::LOAD_REASON))
   end
 
   # A macro that defines a method with def at load: the method holds what
@@ -85,8 +88,8 @@ RSpec.describe(Kimera::Execution::LoadTrace, :aggregate_failures) do
     nested = macro_file
     scan, watched = recorded([nested], [nested])
     watched.quarantine!({})
-    expect(scan.points.find { |found| found.original_source == "a > 1" }.unsafe_reason)
-      .to(eq(Kimera::MutationPoint::LOAD_REASON))
+    expect(scan.to_a.find { |found| found.original_source == "a > 1" }.reasons(Kimera::Reason.unsafety).first)
+      .to(eq(Kimera::Reason::LOAD_REASON))
   end
 
   it "knows which in-scope files the suite loaded" do
@@ -142,10 +145,10 @@ RSpec.describe(Kimera::Execution::LoadTrace, :aggregate_failures) do
   # K3-7: a file the suite never loads is uncovered, and never evaluated.
   it "reports a never-loaded point uncovered, not isolated, and never reloads it" do
     found = point("val >= 0")
-    found.unloaded!
+    found.mark!(Kimera::Reason.unloaded)
     result = Kimera::Execution::Triage.new(Kimera::Execution::Verdicts.new(registry)).quarantine(found.ids.first)
-    expect(result).to(have_attributes(status: :no_coverage, detail: Kimera::MutationPoint::NEVER_LOADED))
-    expect(found.reloadable?).to(be(false))
+    expect(result).to(have_fields(status: :no_coverage, detail: Kimera::Reason::NEVER_LOADED))
+    expect(found.reasons(Kimera::Reason.unreloadable).empty?).to(be(false))
   end
 
   it "gives a never-loaded point no test to run in a mirror" do
@@ -154,7 +157,7 @@ RSpec.describe(Kimera::Execution::LoadTrace, :aggregate_failures) do
       registry: registry, layout: Kimera::Execution::MirrorLayout.new(dir, registry), tests: ["t1"],
       framework: "rspec", test_files: [], coverage: {}
     )
-    steps = [-> {}, -> { found.unsafe!(Kimera::MutationPoint::LOAD_REASON) }, -> { found.unloaded! }]
+    steps = [-> {}, -> { found.mark!(Kimera::Reason.loading) }, -> { found.mark!(Kimera::Reason.unloaded) }]
     expect(steps.map { |step| step.call.then { plan.tests(found.ids.first, found) } }).to(eq([nil, ["t1"], nil]))
   end
 end

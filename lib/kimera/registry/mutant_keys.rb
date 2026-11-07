@@ -8,26 +8,26 @@ class Kimera::MutantKeys
   LINE = /:\d+:(?=\h{8}\z)/
 
   class Fingerprint
-    def initialize(point, mutant)
-      @point = point
+    def initialize(row, mutant)
+      @row = row
       @mutant = mutant
     end
 
-    def key(repeat) = "#{point.file}:#{point.location.start_line}:#{digest(repeat)}"
+    def key(repeat) = "#{row["file"]}:#{row.dig("location", "start_line")}:#{digest(repeat)}"
 
-    def facts = [point.file, point.method_name, point.operator, point.original_source.split.join(" "), mutant.label]
+    def facts = [*row.values_at("file", "method_name", "operator"), row["original_source"].split.join(" "), mutant.to_s]
     private
     def digest(repeat) = Digest::SHA256.hexdigest([*facts, repeat].join("\n"))[0, 8]
 
-    attr_reader :point, :mutant
+    attr_reader :row, :mutant
   end
 
   def self.of(registry)
     repeats = Hash.new(0)
     new(
       registry.each.to_h do |mutant, point|
-        fingerprint = Fingerprint.new(point, mutant)
-        [mutant.id, fingerprint.key(repeats[fingerprint.facts] += 1)]
+        fingerprint = Fingerprint.new(point.to_h, mutant)
+        [mutant.to_i, fingerprint.key(repeats[fingerprint.facts] += 1)]
       end
     )
   end
