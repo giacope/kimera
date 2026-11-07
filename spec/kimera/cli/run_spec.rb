@@ -58,7 +58,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         relative_timeout: true, timeout_factor: nil, timeout_slack: nil,
         registry: nil, report: "tmp/kimera/report.json", format: "text", focus: [], gate: true, coverage: true,
         require: [],
-        since: nil, since_scope: "lines", session: nil, max_survivors: nil, max_ignored: nil,
+        since: nil, since_scope: "files", session: nil, max_survivors: nil, max_ignored: nil,
         max_errors: 0, evaluate_ignored: false, baseline: nil,
         jobs: 1, exclude: [], exclude_tests: [], exclude_test_names: [], config: nil, ignore: [],
         isolate_db: false,

@@ -17,4 +17,5 @@ hard_timeout: 30.0
 max_survivors: 0
 max_ignored: 0
 fail_on_no_coverage: true
+since_scope: impact
 ignore: []

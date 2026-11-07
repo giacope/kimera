@@ -197,7 +197,7 @@
       "type": "boolean"
     },
     "since_scope": {
-      "description": "What an incremental run (--since, kimera ci, kimera changed) mutates: lines (default), the lines the change added or edited; files, every line of each file it touched, files that only lost lines included; impact, those files and every source file a test the change edited or deleted reached, per the coverage map a full run with reuse_coverage stores (with no map, the run says so and keeps the changed files).",
+      "description": "What an incremental run (--since, kimera ci, kimera changed) mutates: files (default), every line of each file the change touched, files that only lost lines included; impact, those files and every source file a test the change edited or deleted reached, per the coverage map a full run with reuse_coverage stores (with no map, the run says so and keeps the changed files); lines, only the lines the change added or edited.",
       "enum": [
         "lines",
         "files",

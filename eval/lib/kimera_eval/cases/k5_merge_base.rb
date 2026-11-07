@@ -14,7 +14,8 @@ module KimeraEval
     def call
       dir = history(sandbox.copy(fixture("diff")))
       path = File.join(dir, "tmp", "since.json")
-      exit, = checkout.cli("run", "--since", "main", "--report", path, "--no-progress", chdir: dir)
+      arguments = ["run", "--since", "main", "--since-scope", "lines", "--report", path, "--no-progress"]
+      exit, = checkout.cli(*arguments, chdir: dir)
       judge(File.exist?(path) ? methods(path) : []).merge(exit.exited)
     end
 

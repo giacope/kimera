@@ -58,19 +58,26 @@ RSpec.describe("kimera run --since (incremental CI mode)") do
       raise(Kimera::Error, "git #{arguments} failed")
   end
 
-  def resumed
+  def resumed(*scope)
     Dir.mktmpdir("kimera-incr") do |dir|
       test_build_repository(dir)
-      arguments = ["--since", "HEAD", "--session", File.join(dir, "session.json")]
+      arguments = ["--since", "HEAD", *scope, "--session", File.join(dir, "session.json")]
       first = test_outcome(cwd: dir, arguments: arguments)
       [first, File.exist?(File.join(dir, "session.json")), test_outcome(cwd: dir, arguments: arguments)]
     end
   end
 
-  it "evaluates only mutants on changed lines, and resumes from a session", :aggregate_failures do
-    first, saved, again = resumed
+  it "evaluates only the changed lines with --since-scope lines, and resumes from a session", :aggregate_failures do
+    first, saved, again = resumed("--since-scope", "lines")
     expect(first.output).to(match(/Incremental: \d+ mutants on lines changed/))
     expect([first.report&.fetch("counts")&.values_at("total", "killed"), first.status, saved]).to(eq([[2, 2], 0, true]))
     expect(again.report&.fetch("counts")&.values_at("total", "killed")).to(eq([2, 2]))
+  end
+
+  it "judges by default all of each changed file, so the unchanged method's survivor fails", :aggregate_failures do
+    first, = resumed
+    counts = first.report&.fetch("counts")&.values_at("total", "killed", "survived")
+    expect(first.output).to(include("Incremental: 4 mutants in the 1 files changed since HEAD"))
+    expect([counts, first.status]).to(eq([[4, 3, 1], 2]))
   end
 end

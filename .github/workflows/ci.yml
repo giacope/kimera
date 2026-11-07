@@ -140,7 +140,7 @@ jobs:
           key: kimera-coverage-${{ github.event.pull_request.base.sha }}
           restore-keys: kimera-coverage-
       - name: Mutation-test the changed files and what the changed tests reach
-        run: bundle exec kimera run --since origin/${{ github.base_ref }} --since-scope impact --fail-on-no-coverage
+        run: bundle exec kimera run --since origin/${{ github.base_ref }} --fail-on-no-coverage
 
   # Property specs at 10x their CI run counts, over a fresh seed and a wider
   # corpus sample. Trigger manually from the Actions tab.

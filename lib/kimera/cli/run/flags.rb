@@ -16,11 +16,11 @@ module Kimera::CLI::RunOptions
     Kimera::Flag.shared(:registry),
     Kimera::Flag.shared(:operators),
     Kimera::Flag.shared(:require),
-    Kimera::Flag.build("--since REF", :since, "Incremental: only mutate lines changed vs REF (git diff)"),
+    Kimera::Flag.build("--since REF", :since, "Incremental: mutate what changed vs REF (git diff; see --since-scope)"),
     Kimera::Flag.build(
       "--since-scope SCOPE", :since_scope,
-      "What --since mutates: the changed lines (lines, the default), every line of each changed file (files), " \
-        "or those files and the files the changed tests reach in the stored coverage map (impact)"
+      "What --since mutates: every line of each changed file (files, the default), those files and the files " \
+        "the changed tests reach in the stored coverage map (impact), or only the changed lines (lines)"
     ),
     Kimera::Flag.build("--session FILE", :session, "Persist/resume per-mutant results in FILE"),
     Kimera::Flag.repeated("--focus ID|KEY", :focus, "Evaluate only these mutants, by ID or report key (repeatable)"),
