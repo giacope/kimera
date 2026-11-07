@@ -93,6 +93,7 @@ RSpec.describe(Kimera::Incremental::Selection) do
     write("spec/other_spec.rb", "it { c(2) }\n")
     expect(selected("impact")).to(eq([]))
     expect(errors.string).to(include("no coverage map is stored at tmp/kimera/coverage.json", "--reuse-coverage"))
+    expect(errors.string.lines.size).to(eq(1))
   end
 
   it "says so when the stored map names no test's file, as one from an older kimera", :aggregate_failures do
@@ -105,7 +106,7 @@ RSpec.describe(Kimera::Incremental::Selection) do
   it "says so when the stored map is not JSON", :aggregate_failures do
     write("tmp/kimera/coverage.json", "{")
     expect(selected("impact")).to(eq([]))
-    expect(errors.string).to(include("tmp/kimera/coverage.json is not JSON"))
+    expect(errors.string.lines).to(contain_exactly(a_string_including("tmp/kimera/coverage.json is not JSON")))
   end
 
   it "reads the scope from .from_diff, in the root given" do

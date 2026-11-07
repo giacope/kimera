@@ -27,6 +27,7 @@ class Kimera::Incremental::Extent
     MAP = "tmp/kimera/coverage.json"
     LACKING = "kimera: --since-scope impact: %s, so the tests changed since add no files; " \
       "a full run with --reuse-coverage stores a map that does"
+    NONE = { "coverage" => {}, "test_files" => {} }.freeze
 
     def initialize(root, errors)
       @root = root
@@ -54,9 +55,9 @@ class Kimera::Incremental::Extent
     def read
       JSON.parse(File.read(File.join(@root.to_s, MAP), encoding: Encoding::UTF_8))
     rescue Errno::ENOENT
-      {}.tap { lacking("no coverage map is stored at #{MAP}") }
+      NONE.tap { lacking("no coverage map is stored at #{MAP}") }
     rescue JSON::ParserError
-      {}.tap { lacking("#{MAP} is not JSON") }
+      NONE.tap { lacking("#{MAP} is not JSON") }
     end
 
     def lacking(reason) = @errors.puts(format(LACKING, reason))
