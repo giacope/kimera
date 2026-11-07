@@ -3,23 +3,15 @@
 require_relative "../error"
 
 class Kimera::Frameworks::SuiteRegistry
-  NO_LOADER = -> {}
-  LOADERS = {
-    "rspec" => lambda do
-      require_relative "rspec_suite"
-    end,
-    "minitest" => lambda do
-      require_relative "minitest_suite"
-    end
-  }.freeze
+  BUILT_IN = { "rspec" => "rspec_suite", "minitest" => "minitest_suite" }.freeze
 
-  def initialize(loaders = LOADERS)
-    @loaders = loaders
+  def initialize(built_in = BUILT_IN)
+    @built_in = built_in
     @suites = {}
   end
 
   def load(name)
-    @loaders.fetch(name.to_s, NO_LOADER).call
+    built_in(name.to_s)
     fetch(name).build
   rescue LoadError => error
     raise(Kimera::Error, unloadable(name, error))
@@ -36,6 +28,11 @@ class Kimera::Frameworks::SuiteRegistry
   end
 
   private
+
+  def built_in(name)
+    return unless @built_in.key?(name)
+    require_relative(@built_in.fetch(name))
+  end
 
   def unloadable(name, error)
     "framework #{name} is configured but cannot be loaded (#{error.message}); " \

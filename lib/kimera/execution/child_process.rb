@@ -13,7 +13,7 @@ module Kimera
         $stderr = discard(2)
       end
 
-      def discard(descriptor) = IO.for_fd(descriptor, autoclose: false).reopen(File::NULL, "w")
+      def discard(descriptor) = IO.for_fd(descriptor).reopen(File::NULL, "w")
 
       def lead
         Process.setpgid(0, 0)
