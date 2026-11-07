@@ -545,7 +545,7 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     expect(arguments).to(eq(["--format", "sarif", "--max-survivors", "2", "--fail-on-no-coverage"]))
   end
 
-  it "mutates a pull request's changed lines and summarizes the job when GitHub Actions says how" do
+  it "mutates what a pull request changed and summarizes the job when GitHub Actions says how" do
     arguments, = ci_given("GITHUB_BASE_REF" => "main", "GITHUB_STEP_SUMMARY" => "/tmp/step.md")
     expect(arguments).to(include("--since", "origin/main", "--summary", "/tmp/step.md"))
   end

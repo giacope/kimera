@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Changed: `--since`, `kimera ci` and `kimera changed` now mutate every line
+  of each changed file (`since_scope: files`), not only the changed lines.**
+  The changed lines missed the survivors a change leaves on the lines around
+  it, which only a full run found after the merge. A pull request now also
+  answers for the survivors already in the files it touches; record existing
+  ones with `kimera baseline create`, or keep the old selection with
+  `since_scope: lines`.
+
 - **`--since-scope files|impact` catches, on the pull request, survivors that
   only a full run on main used to find.** `--since` mutates the changed lines,
   so a change that made an untouched line's mutant unkillable passed its gate:
@@ -10,8 +18,8 @@
   `files` mutates every line of each changed file; `impact` adds the source
   files that the changed or deleted tests reached, per the coverage map a full
   run with `--reuse-coverage` stores, which now records each test's file.
-  `lines` stays the default. kimera's own CI stores the map on main and runs
-  pull requests with `impact`.
+  `lines` keeps the old selection. kimera's own CI stores the map on main, and
+  its `.kimera.yml` sets `since_scope: impact`.
 
 Fixed while holding kimera to its own strict lint profiles:
 

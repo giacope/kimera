@@ -19,7 +19,7 @@ class Kimera::CLI::CI
   BANNER = "Usage: kimera ci [paths...] [options]\n" \
     "kimera run with gate defaults: --max-survivors 0 --fail-on-no-coverage --format github.\n" \
     "The pull request's base comes from #{LOOKED} (a branch, read as origin/BRANCH;\n" \
-    "KIMERA_BASE is any ref). With a base, ci mutates the changed lines, judges class-body DSL in fresh\n" \
+    "KIMERA_BASE is any ref). With a base, ci mutates the changed files, judges class-body DSL in fresh\n" \
     "mirrors and confirms survivors, as --since does. With none, ci says so and runs a full run:\n" \
     "#{UNGATED}.\n" \
     "Exit codes: 0 gates passed, 1 usage or setup error, 2 gate failed".freeze

@@ -121,7 +121,7 @@ bundle exec kimera doctor --check-baseline
 **4. Run it.** Start with the code your branch changed, then widen.
 
 ```sh
-bundle exec kimera changed          # lines changed since the branch left origin/main (or main)
+bundle exec kimera changed          # files changed since the branch left origin/main (or main)
 bundle exec kimera run app/models   # one directory
 bundle exec kimera run              # every path in .kimera.yml
 ```
@@ -164,8 +164,9 @@ line in the source (see [Configuration](#configuration)).
 **6. Gate pull requests.** `kimera ci` fails on any survivor or uncovered
 mutant. It writes `tmp/kimera/report.json`, prints GitHub annotations beside
 the text report, and adds a Markdown summary to the job. On a pull request it
-mutates only the PR's lines (`--since origin/$GITHUB_BASE_REF`), which needs
-the base branch's history. The base comes from `--since`, `KIMERA_BASE` (any
+mutates the files the PR changed (`--since origin/$GITHUB_BASE_REF`; see
+[What an incremental run mutates](#what-an-incremental-run-mutates)), which
+needs the base branch's history. The base comes from `--since`, `KIMERA_BASE` (any
 ref), GitHub's `GITHUB_BASE_REF`, GitLab's `CI_MERGE_REQUEST_TARGET_BRANCH_NAME`
 or Buildkite's `BUILDKITE_PULL_REQUEST_BASE_BRANCH`; with none, `ci` says so
 and runs a full run, which leaves class-body DSL (validations, associations,
@@ -211,7 +212,7 @@ bundle exec kimera run app --tests 'spec/**/*_spec.rb'
 # Minitest
 bundle exec kimera run app --framework minitest --tests 'test/**/*_test.rb'
 
-# Incremental: mutate only lines changed since the merge-base with main, gate
+# Incremental: mutate the files changed since the merge-base with main, gate
 # CI, resume on retry (a session is resumed only while the sources, every file
 # under the test roots, .rspec, Gemfile.lock and the judging settings match)
 bundle exec kimera run app --since origin/main \
@@ -265,7 +266,7 @@ bundle exec kimera run app --isolated
 ### Daily and CI workflows
 
 ```sh
-# Mutate only the PR's changed lines (origin/main, falling back to main)
+# Mutate the PR's changed files (origin/main, falling back to main)
 bundle exec kimera changed
 
 # Strict gate: zero survivors, no uncovered mutants, a JSON artifact, GitHub
@@ -467,32 +468,6 @@ bundle exec kimera run --reuse-coverage       # a full run (on main) stores the 
 bundle exec kimera changed --reuse-coverage   # a branch reruns only what its change reaches
 ```
 
-### What an incremental run mutates
-
-`--since` mutates the lines a change touched. That misses what a change does
-to the lines around them: a guard added on one line can make the rescue two
-lines down unreachable, a rewritten spec can stop killing a mutant on a line
-nobody edited, and a hunk that only deletes lines touches no line at all. A
-full run on the base branch finds those survivors after the merge.
-`--since-scope` (`since_scope:`) widens what `--since`, `kimera ci` and
-`kimera changed` mutate:
-
-- `lines` (the default): the lines the change added or edited.
-- `files`: every line of each file the change touched, files that only lost
-  lines included.
-- `impact`: those files, and every source file that a test the change edited
-  or deleted reached, per the coverage map a full run with `--reuse-coverage`
-  stores (above; it records the file each test lives in). With no map, or one
-  from a kimera that did not record test files, the run says so and keeps
-  only the changed files.
-
-```sh
-bundle exec kimera ci --since-scope impact   # on a pull request, with main's map restored
-```
-
-`files` and `impact` cost more than `lines` in proportion to the size of the
-files a change touches, not to the size of the change.
-
 The incremental run says what it reused, for example `kimera: reusing the
 coverage map from 1a2b3c4 (2 source file(s) changed since): the baseline runs
 38 of 1,204 tests`. When the map cannot hold (none is stored, another Ruby,
@@ -508,6 +483,37 @@ new method that overrides an inherited one, a changed constant), or through a
 changed file outside the source, test and config sets (a view, a data file).
 Leaving such a test out can only turn a kill into a survivor or an uncovered
 mutant, never the reverse: confirm a surprising one without the flag.
+
+### What an incremental run mutates
+
+`--since`, `kimera ci` and `kimera changed` mutate every line of each file the
+change touched, files that only lost lines included. Mutating only the changed
+lines misses what a change does to the lines around them: a guard added on one
+line can make the rescue two lines down unreachable, a rewritten spec can stop
+killing a mutant on a line nobody edited, and a hunk that only deletes lines
+touches no line at all. A full run on the base branch then finds those
+survivors after the merge. `--since-scope` (`since_scope:`) picks what is
+mutated:
+
+- `files` (the default): every line of each changed file. A survivor already
+  in such a file fails the gate too; record existing ones with
+  `kimera baseline create` when adopting.
+- `impact`: those files, and every source file that a test the change edited
+  or deleted reached, per the coverage map a full run with `--reuse-coverage`
+  stores (above; it records the file each test lives in). With no map, or one
+  from a kimera that did not record test files, the run says so and keeps
+  only the changed files.
+- `lines`: only the lines the change added or edited, as kimera did before
+  `since_scope` existed.
+
+```yaml
+# .kimera.yml, with main's map restored from the CI cache on pull requests
+since_scope: impact
+```
+
+The run grows with the size of the files a change touches, not with the size
+of the change; on a Rails app, a changed model brings its class-body DSL
+(validations, callbacks) into the isolated tier.
 
 ### Per-test soft limit
 
@@ -722,10 +728,10 @@ count_no_coverage: true
 # rerun only the baseline tests that reach the changed files, while the tests,
 # support and config files, settings and Ruby still match it.
 # reuse_coverage: true
-# What --since, ci and changed mutate: the changed lines (lines), every line
-# of each changed file (files), or those files and the source files the
-# changed tests reach in the stored coverage map (impact).
-# since_scope: lines
+# What --since, ci and changed mutate: every line of each changed file
+# (files), those files and the source files the changed tests reach in the
+# stored coverage map (impact), or only the changed lines (lines).
+# since_scope: files
 # Extra folders for the load path, beside each test file's nearest test/ or
 # spec/ and the project's own test/ and spec/. doctor and the printed
 # reproduce commands use the same load path.
