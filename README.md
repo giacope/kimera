@@ -1399,8 +1399,9 @@ sample; they don't prove.
 [`formal/`](formal/README.md) holds a TLA+ model of the warm worker pool.
 TLC checks it exhaustively for three small configurations of mutants and
 jobs, which says nothing about other sizes or about the Ruby code directly.
-`spec/property/worker_pool_spec.rb` runs the real pool against scripted
-children that inject the model's faults (fault injection, not conformance).
+`spec/property/kimera/execution/worker_pool_spec.rb` runs the real pool
+against scripted children that inject the model's faults (fault injection,
+not conformance).
 
 `examples/` holds the runnable fixtures the integration tests drive
 (`sample_app` for RSpec, `minitest_app` for Minitest) and a Rails app CI runs

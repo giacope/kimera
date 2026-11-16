@@ -168,10 +168,10 @@ The model abstracts away:
 
 ## How the model relates to the code
 
-`spec/property/worker_pool_spec.rb` runs the real parent (`WorkerPool`,
-`Fleet`, `Worker`, `StillbornGuard`) against forked children, each mutant
-with a random script: what happens when it is offered warm, and again on a
-recheck. The children come in two kinds:
+`spec/property/kimera/execution/worker_pool_spec.rb` runs the real parent
+(`WorkerPool`, `Fleet`, `Worker`, `StillbornGuard`) against forked children,
+each mutant with a random script: what happens when it is offered warm, and
+again on a recheck. The children come in two kinds:
 - scripts that speak `Shift`'s pipe protocol, drawn from the model's child
   actions (result, leak, tainted, requeue, crash, hang, and half a line then
   silence);

@@ -4,7 +4,7 @@ module KimeraEval
   class FormalCase < Case
     ID = "K8"
     TITLE = "TLA+ model and trace checks run reproducibly"
-    TRACES = "spec/property/worker_pool_spec.rb"
+    TRACES = "spec/property/kimera/execution/worker_pool_spec.rb"
 
     def call
       steps = { "fetch" => fetch, "traces" => specs(*shell.run("bundle", "exec", "ruby", "bin/spec", TRACES)) }
