@@ -11,7 +11,6 @@ class Kimera::Execution::Aliases
   OWN = Module.instance_method(:instance_methods)
   HIDDEN = Module.instance_method(:private_instance_methods)
   LOOKUP = Module.instance_method(:instance_method)
-  SINGLETON = Kernel.instance_method(:singleton_class)
   INHERITED = false
 
   module Repointing
@@ -126,11 +125,9 @@ class Kimera::Execution::Aliases
   end
 
   def capture
-    ObjectSpace.each_object(Module) do |mod|
-      [mod, SINGLETON.bind_call(mod)].each do |holder|
-        names = OWN.bind_call(holder, INHERITED) + HIDDEN.bind_call(holder, INHERITED)
-        names.each { |name| track(holder, LOOKUP.bind_call(holder, name)) }
-      end
+    ObjectSpace.each_object(Module) do |holder|
+      names = OWN.bind_call(holder, INHERITED) + HIDDEN.bind_call(holder, INHERITED)
+      names.each { |name| track(holder, LOOKUP.bind_call(holder, name)) }
     end
   end
 

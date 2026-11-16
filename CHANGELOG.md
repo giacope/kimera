@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **A run no longer opens a singleton class on every class each time it
+  overlays a file.** To find the names a project took of a method before
+  kimera redefined it, the alias scan asked every module for its singleton
+  class, which creates one where none existed, and did so again at each
+  overlay. It now reads only the singleton classes that already exist. On
+  kimera's own suite (4 vCPUs, Ruby 4.0.2): `bin/spec spec/kimera` 280 s to
+  62 s and 1,466 MB to 154 MB of peak RSS (818,000 live classes to 7,700),
+  all of `bin/spec` 644 s to 375 s, and the self-host run of
+  `lib/kimera/operators lib/kimera/rewrite` at `--jobs 4` 380 s to 95 s,
+  with the same verdicts but one (`killed` to `timeout`, both detected).
+
 - **Changed: `--since`, `kimera ci` and `kimera changed` now mutate every line
   of each changed file (`since_scope: files`), not only the changed lines.**
   The changed lines missed the survivors a change leaves on the lines around

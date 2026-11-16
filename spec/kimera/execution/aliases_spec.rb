@@ -105,6 +105,16 @@ RSpec.describe(Kimera::Execution::Aliases) do
     expect(klass.cost(1)).to(eq(3))
   end
 
+  def opened?(klass)
+    ObjectSpace.each_object(Class).any? { |each| each.singleton_class? && each.attached_object.equal?(klass) }
+  end
+
+  it "opens no singleton class to look for an alias" do
+    klass = Class.new
+    described_class.new([path]).follow { :looked }
+    expect(opened?(klass)).to(be(false))
+  end
+
   def reclaim(origin, aliased)
     overlay(origin)
     aliased.define_method(:cost) { |_a| :mine }
