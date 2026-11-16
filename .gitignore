@@ -9,3 +9,4 @@ tmp/
 /tmp_self_report.json
 Gemfile.lock
 *.gemfile.lock
+.amp/portals/
