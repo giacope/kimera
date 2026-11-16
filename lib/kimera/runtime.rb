@@ -59,10 +59,11 @@ class Kimera::Runtime < Module
     @active = nil
     @ledgers = NONE
     @spills = NONE
+    @idle = true
   end
 
   def active?(id)
-    record(id) # rubocop:disable Kata/CommandQuery -- the woven guard's one call marks its mutant reached and answers whether it is on; two calls would double every guard's cost
+    record(id) unless @idle # rubocop:disable Kata/CommandQuery -- the woven guard's one call marks its mutant reached and answers whether it is on; two calls would double every guard's cost
     @active == id
   end
 
@@ -97,20 +98,15 @@ class Kimera::Runtime < Module
 
   def opened(ledgers)
     return if ledgers.empty?
-    @ledgers = [*@ledgers, *ledgers].freeze
-    publish
+    publish([*@ledgers, *ledgers])
   end
 
   def closed(ledgers)
     return if ledgers.empty?
-    @ledgers = @ledgers.reject { |open| ledgers.any? { open.equal?(it) } }.freeze
-    publish
+    publish(@ledgers.reject { |open| ledgers.any? { open.equal?(it) } })
   end
 
-  def forked!(spills)
-    @ledgers = spills.freeze
-    publish
-  end
+  def forked!(spills) = publish(spills)
 
   def record(id)
     @ledgers.each { |ledger| ledger.push(id) }
@@ -125,7 +121,11 @@ class Kimera::Runtime < Module
     @spills.each { |spill| spill.write(id) }
   end
 
-  def publish = @spills = Ractor.make_shareable(@ledgers.map(&:spilled))
+  def publish(ledgers)
+    @ledgers = ledgers.freeze
+    @idle = ledgers.empty?
+    @spills = Ractor.make_shareable(ledgers.map(&:spilled))
+  end
 
   def hidden(kind = Hidden) = @_hidden ||= kind.new({}, [], {}.compare_by_identity)
 end

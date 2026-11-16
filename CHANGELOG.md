@@ -12,6 +12,11 @@
   all of `bin/spec` 644 s to 375 s, and the self-host run of
   `lib/kimera/operators lib/kimera/rewrite` at `--jobs 4` 380 s to 95 s,
   with the same verdicts but one (`killed` to `timeout`, both detected).
+- **A guard costs less while no coverage is being recorded.** With no
+  ledger open the runtime skips the recording call: a method with nine
+  guards takes 404 ns a call instead of 735 ns (69 ns unmutated), and the
+  hot-loop fixture (`eval/fixtures/loop`, `--jobs 1`) 8.8 s instead of
+  12.5 s, with the same 7 of 7 killed.
 
 - **Changed: `--since`, `kimera ci` and `kimera changed` now mutate every line
   of each changed file (`since_scope: files`), not only the changed lines.**
