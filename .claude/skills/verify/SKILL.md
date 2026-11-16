@@ -27,9 +27,12 @@ bundle exec kimera run app --tests 'spec/**/*_spec.rb' --report /tmp/report.json
 cd examples/minitest_app
 bundle exec kimera run app --framework minitest --tests 'test/**/*_test.rb'
 
-# Self-host (~2,550 mutants, several minutes with jobs:4 from .kimera.yml;
-# gated at max_survivors: 0, so exit 0):
+# Self-host (about 7,250 mutants, gated at max_survivors: 0, so exit 0; CI's
+# job took 63 minutes at b701df4, so run it only when asked):
 bundle exec kimera run --report /tmp/self.json
+
+# A self-host subset (776 mutants, about 100 s with --jobs 4 on 4 vCPUs):
+bundle exec kimera run lib/kimera/operators lib/kimera/rewrite --jobs 4
 ```
 
 Cross-check modes: on sample_app, `--jobs 4` and `--isolated` must produce
@@ -57,11 +60,14 @@ BUNDLE_GEMFILE=<kimera repo>/Gemfile bundle exec kimera run app --tests '...'
 - Survivors gate via `--max-survivors`. `no_coverage` mutants also gate and
   score as not killed by default (`count_no_coverage: true`); pass
   `--no-count-no-coverage` to report them without scoring them.
-- `--since REF` silently selects 0 mutants when the project root is a
-  subdirectory of the git repo (git emits repo-root-relative paths; the
-  registry uses project-relative ones). Test `--since` only in a repo whose
-  root is the project root.
-- `examples/sample_app` sits inside this repo, so `--since` can't be tested
-  there; copy it out and `git init`.
+- `--since REF` works when the project root is a subdirectory of the git
+  repo (a copy of `examples/sample_app` at `services/shop` of a fresh repo
+  selects the changed file's 22 mutants). To test it on a fixture, copy the
+  fixture out and `git init`, so the edit that makes the diff stays out of
+  this checkout.
+- A change to `lib/kimera` changes the suite a self-host run uses as its
+  tests: a switch read from `ENV` in `lib` also reaches kimera's own specs
+  and turns the baseline red. Time such an experiment on another project
+  (`eval/tmp/dry-inflector`, set up as eval case S1 does).
 - In zsh, `time cmd | head` mangles `$?`/pipestatus; capture exit codes
   without `time` or pipes.
