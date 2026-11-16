@@ -17,14 +17,11 @@ class KimeraEval::Bake
   def call(id)
     point = @registry.index[id]
     return { "error" => "unknown mutant" } unless point
-    { "file" => point.file, "source" => baked(point, id) }
-  rescue StandardError => error
+    file = point.to_h.fetch("file")
+    { "file" => file, "source" => @overlay.bake(file, File.read(file, encoding: Encoding::UTF_8), id) }
+  rescue Kimera::Overlay::Unbakeable => error
     { "error" => "#{error.class}: #{error.message}" }
   end
-
-  private
-
-  def baked(point, id) = @overlay.bake(point.file, File.read(point.file, encoding: Encoding::UTF_8), id)
 end
 
 options = Kimera::CLI::Run::Arguments.new.parse(ARGV.dup)

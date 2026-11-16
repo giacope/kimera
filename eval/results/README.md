@@ -88,6 +88,26 @@ order, and the killing example alone); none is the oracle's doing:
   against constants the original code built, and no example checks those
   comparisons directly.
 
+A run at b701df4 (Ruby 4.0.2, 4 vCPUs, the same flags) judged all 10
+projects: 1,422 mutants, 1,376 compared, 1,370 agree (99.6%), 2 false
+survived and 4 false killed. q03 runs (152 of 152 compared agree) and q05
+agrees on all 210. What is left: q01's `prepend` case (now 2 mutants), q02's
+3, and one in q04 that is not the same on every run. `lib/fx.rb:23`
+(`Thread.current[:fx_cache]` to `Thread.current.fetch(:fx_cache)`) is covered
+by two examples, and "restores the outer state after an exception" fails
+under it only when it runs before the one that seeds the thread's cache.
+Kimera runs a mutant's covering tests in one process, the tests that killed
+that worker's last mutants first and then the fastest by baseline time, so
+the order of those two examples follows timing noise and each worker's
+history. Over 30 runs at `--jobs 2` on a loaded machine the mutant was
+killed in 6 and survived in 24; with `--confirm-survivors`, which reruns a
+survivor's covering tests alone, all 30 runs killed it ("failed alone in a
+fresh process"). A fixed order (fewest covered mutants first, no memory of
+killers), tried and not kept, also gave one verdict in 30 of 30, but on
+dry-inflector's 857 mutants it took 73.6 s where today's order takes 55.7 s,
+with the same verdicts; `--confirm-survivors` took 71.2 s against 54.1 s
+there. Neither is the default on a full run.
+
 ## Gaps
 
 | Gap | What is measured | main | branch |
@@ -215,7 +235,7 @@ on machine speed:
 
 ```sh
 gem install rspec -v "~> 3.13"   # H1's oracle runs plain rspec, outside the bundle
-ruby eval/run --kimera . --only H1,K1,K2,K4,K5,K6,K7,K11,X1 \
+ruby eval/run --kimera . --only H1,K1,K2,K4,K5,K6,K7,K11,K12,X1 \
   --baseline eval/results/after.json --out tmp/eval.json
 ```
 
@@ -226,13 +246,14 @@ wrong `--since` selection. About 5 minutes on a
 the 441 MB it guards against. Left out: S1 measures wall time; K3 and K13 need
 `examples/rails_app` (the `rails` job runs it end to end); K8 needs Java and
 downloads tla2tools.jar (the `model-check` job); K10 resolves gems from
-rubygems.org; K9 is retired. H2 is
-deterministic and takes 2 minutes, but it fails today, and a pass/fail gate
-cannot hold a case that already fails; once kimera passes it, record it in
-`after.json` and add it to the job's `CASES`. K12 is out for the same reason:
-since c5cf269 put `require "tmpdir"` in `lib/kimera/runtime.rb`, loading
-kimera also adds the top-level constants `Etc` and `FileUtils`. Put it back in
-`CASES` once that is fixed.
+rubygems.org; K9 is retired. H2 takes 2 minutes, but it fails today, and a
+pass/fail gate cannot hold a case that already fails; once kimera passes it,
+record it in `after.json` and add it to the job's `CASES`. Its count of
+false kills also moves between 3 and 4 from run to run (see H2 above).
+
+A case whose oracle judged none of its mutants fails with an error. From
+1de8a8f until the baker was repaired it did not: every mutant came back
+`unbakeable`, and K1, K2 and K11 passed in this job with nothing compared.
 
 Before a release, run every case on the previous release and on the
 candidate, one after the other on the same machine, then update the tables

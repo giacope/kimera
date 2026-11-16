@@ -21,6 +21,16 @@
   level.** c5cf269 put `require "tmpdir"` in `lib/kimera/runtime.rb`; it is
   now loaded when a coverage ledger is first opened, which only a kimera
   run does. Eval case K12 passes again and is back in CI's `eval` job.
+- **Fixed: the eval's oracle compared nothing.** Since 1de8a8f made
+  `MutationPoint#file` private, `eval/lib/kimera_eval/bake.rb` failed on
+  every mutant, each was counted `unbakeable`, and K1, K2, K3, K11 and S1
+  passed with no mutant compared. The baker reads the file from the
+  point's public `to_h`, rescues only `Kimera::Overlay::Unbakeable`, and a
+  run in which the oracle judged no mutant now fails its case. K2 and K11
+  run with `--judge-isolated-only`, so the oracle again compares all 28 and
+  all 11 of their mutants, as `eval/results/after.json` records.
+- **Fixed: eval cases K8 and K10.** K8 named a spec file 3962b76 moved; K10
+  read the README without an encoding and crashed where `LANG` is unset.
 
 - **Changed: `--since`, `kimera ci` and `kimera changed` now mutate every line
   of each changed file (`since_scope: files`), not only the changed lines.**

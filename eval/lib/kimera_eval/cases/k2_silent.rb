@@ -25,7 +25,7 @@ module KimeraEval
 
     def verdicts
       dir = fixture("silent")
-      run = differential(target(dir), [%w[--jobs 1]], oracle(dir)).values.first
+      run = differential(target(dir), [%w[--jobs 1 --judge-isolated-only]], oracle(dir)).values.first
       { "differential" => run.except("disagreements"), "disagreements" => run["disagreements"] }
     end
 

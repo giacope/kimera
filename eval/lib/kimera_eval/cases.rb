@@ -66,7 +66,8 @@ module KimeraEval
     end
 
     def headline(total)
-      total.slice("mutants", "false_survived", "false_killed", "abstained").merge(Differential::Agreement.new(total).to_h)
+      total.slice("mutants", "false_survived", "false_killed", "abstained", "unbakeable")
+        .merge(Differential::Agreement.new(total).to_h)
     end
 
     def specs(...) = Specs.new(...).to_h

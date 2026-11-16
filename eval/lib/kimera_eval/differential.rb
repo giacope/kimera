@@ -22,7 +22,8 @@ module KimeraEval
       end
 
       def baked(checkout, script, ids)
-        _, printed = checkout.script(script, *@arguments, chdir: @project, stdin: JSON.generate(ids))
+        exit, printed = checkout.script(script, *@arguments, chdir: @project, stdin: JSON.generate(ids))
+        raise(SetupError, "the oracle's baker failed:\n#{printed.output.lines.last(8).join}") unless exit.ok?
         JSON.parse(printed.to_s)
       end
 
@@ -50,8 +51,13 @@ module KimeraEval
     def compare(report, exit, _printed, usage)
       results = report.fetch("results")
       truth = @oracle.verdicts(bake(results.map { |result| result["mutant_id"] }))
-      summary(results.map { |result| row(result, truth.fetch(result["mutant_id"].to_s)) }, exit, usage)
+      summary(judged(results.map { |result| row(result, truth.fetch(result["mutant_id"].to_s)) }), exit, usage)
         .merge(notes(report))
+    end
+
+    def judged(rows)
+      return rows unless rows.any? && rows.all? { |row| row["verdict"] == "unbakeable" }
+      raise(SetupError, "the oracle judged none of the #{rows.size} mutants: every one was unbakeable")
     end
 
     def notes(report)

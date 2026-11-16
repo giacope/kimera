@@ -9,7 +9,7 @@ module KimeraEval
 
     def call
       closure = resolve
-      readme = File.read(File.join(checkout.to_s, "README.md"))
+      readme = File.read(File.join(checkout.to_s, "README.md"), encoding: Encoding::UTF_8)
       missing = closure.reject { |name| readme.match?(/\b#{Regexp.escape(name)}\b/i) }
       { "pass" => missing.empty?, "summary" => { "closure" => closure.size, "unnamed" => missing.join(" ") } }
         .merge("closure" => closure)
