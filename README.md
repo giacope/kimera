@@ -437,14 +437,20 @@ tallies these mutants, and `github`/`sarif` findings append the note.
 
 A mutant's covering tests run together in one forked process, so an earlier
 test can load what the mutant broke and hide the kill: a run-once guard, a
-lazy registry, an autoloader. Under `--confirm-survivors`
-(`confirm_survivors: true`), each warm survivor's covering tests then run
+lazy registry, an autoloader. So each warm survivor's covering tests then run
 alone in a fresh fork with the mutant on, fastest first and at most 50. A test
 that fails alone kills the mutant only if it passes alone with the mutant
 off; the detail starts "failed alone in a fresh process (an earlier covering
-test masked it ...)". It is on by default for incremental runs (`--since`,
-`kimera ci`, `kimera changed`), where survivors are few, and off for full
-runs unless asked; the report's run section records the choice.
+test masked it ...)". It also makes a verdict the same on every run: the
+order a mutant's covering tests run in follows their baseline times and the
+tests that killed that worker's last mutants, so without it a mutant only one
+order kills is killed on some runs and survives on others.
+
+It is on for every run. It costs time in proportion to the survivors: on
+dry-inflector (857 mutants, 95 survivors) a run took 71 s with it and 54 s
+without, with the same verdicts, and nothing on a suite with no survivor.
+`--no-confirm-survivors` (`confirm_survivors: false`) turns it off; the
+report's run section records the choice.
 
 ### Reusing coverage on incremental runs
 
@@ -722,8 +728,9 @@ count_no_coverage: true
 # ci and changed; off for full runs.
 # judge_isolated_only: true
 # Run each warm survivor's covering tests alone in a fresh process, so an
-# earlier test cannot mask a kill. Unset: on for --since, ci and changed.
-# confirm_survivors: true
+# earlier test cannot mask a kill and a verdict is the same on every run
+# (default: true). false saves the time on a suite with many survivors.
+# confirm_survivors: false
 # Keep a full run's coverage map in tmp/kimera; --since, ci and changed then
 # rerun only the baseline tests that reach the changed files, while the tests,
 # support and config files, settings and Ruby still match it.

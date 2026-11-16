@@ -189,7 +189,7 @@
       "type": "boolean"
     },
     "confirm_survivors": {
-      "description": "Run each warm survivor's covering tests alone in a fresh process with the mutant on, fastest first and at most 50, so state an earlier test left cannot mask a kill; a test that fails alone kills only if it passes alone with the mutant off. Unset, it is on for incremental runs (--since, kimera ci, kimera changed) and off for full runs.",
+      "description": "Run each warm survivor's covering tests alone in a fresh process with the mutant on, fastest first and at most 50, so state an earlier test left cannot mask a kill; a test that fails alone kills only if it passes alone with the mutant off. It also keeps a verdict from depending on the order the covering tests ran in (default: true).",
       "type": "boolean"
     },
     "reuse_coverage": {

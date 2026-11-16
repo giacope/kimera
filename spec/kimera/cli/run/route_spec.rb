@@ -26,10 +26,11 @@ RSpec.describe(Kimera::CLI::Run::Route) do
     expect(described_class.new(registry, judge_isolated_only: true).judging?).to(be(true))
   end
 
-  it "confirms survivors on incremental runs unless told otherwise", :aggregate_failures do
+  it "confirms survivors on every run unless told otherwise", :aggregate_failures do
     expect(described_class.new(registry, since: "origin/main").confirming?).to(be(true))
-    expect(described_class.new(registry, {}).confirming?).to(be(false))
+    expect(described_class.new(registry, {}).confirming?).to(be(true))
+    expect(described_class.new(registry, confirm_survivors: nil).confirming?).to(be(true))
     expect(described_class.new(registry, since: "origin/main", confirm_survivors: false).confirming?).to(be(false))
-    expect(described_class.new(registry, confirm_survivors: true).confirming?).to(be(true))
+    expect(described_class.new(registry, confirm_survivors: false).confirming?).to(be(false))
   end
 end

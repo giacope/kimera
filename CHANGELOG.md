@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **Changed: every run confirms its survivors (`confirm_survivors` is on by
+  default), so a verdict is the same on every run.** A mutant's covering
+  tests run in one process, the tests that killed that worker's last mutants
+  first and then the fastest by baseline time, so two tests can swap places
+  between runs. Where one of them fails only when it runs first, the mutant
+  was killed on some runs and survived on others: holdout q04's
+  `lib/fx.rb:23` was killed in 6 of 30 runs at `--jobs 2` on a busy machine.
+  Each warm survivor's covering tests now also run alone in a fresh process
+  on full runs, as they did on incremental ones, and all 30 runs kill it.
+  The cost follows the survivors: dry-inflector (857 mutants, 95 survivors)
+  takes 71 s instead of 54 s with the same verdicts, and a suite with no
+  survivor pays nothing. `--no-confirm-survivors` (`confirm_survivors:
+  false`) restores the old full run. H1 still agrees on 456 of 456 mutants;
+  on H2 one of q01's two false survivors is now killed, as its oracle says,
+  and q04's mutant is killed on every run, which its oracle (the suite in
+  file order) calls a survivor.
 - **A run no longer opens a singleton class on every class each time it
   overlays a file.** To find the names a project took of a method before
   kimera redefined it, the alias scan asked every module for its singleton

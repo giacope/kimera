@@ -59,11 +59,11 @@ RSpec.describe("kimera run confirming survivors (end-to-end)", :aggregate_failur
     }
   end
 
-  it "kills what an earlier test masked once each covering test runs alone" do
-    plain = run_lexer
+  it "kills what an earlier test masked once each covering test runs alone, which a run does unless told not to" do
+    plain = run_lexer("--no-confirm-survivors")
     masked = plain.verdicts.select { |_id, status| status == "survived" }.keys
     expect(masked).not_to(be_empty, plain.output)
-    expect(confirmation(run_lexer("--confirm-survivors"), masked)).to(
+    expect(confirmation(run_lexer, masked)).to(
       match(statuses: ["killed"], confirmed: true, details: include(start_with("failed alone in a fresh process")))
     )
   end

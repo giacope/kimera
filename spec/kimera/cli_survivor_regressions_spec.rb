@@ -309,7 +309,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
             "framework" => "rspec", "source_root" => ".", "tests" => ["spec/**/*_spec.rb"],
             "exclude_tests" => [], "operators" => ["comparison"], "coverage" => true,
             "isolated" => false, "jobs" => 1, "narrowed" => false,
-            "judge_isolated_only" => false, "confirm_survivors" => false
+            "judge_isolated_only" => false, "confirm_survivors" => true
           )
         )
       end

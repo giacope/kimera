@@ -150,11 +150,12 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   that verdict plus a `note` with the warm detail. It stays `harness_error`
   only if the tests also fail in a fresh mirror without the mutant.
   `--no-rejudge` (`rejudge: false`) turns this off.
-- On incremental runs (`--since`, `ci`, `changed`) each warm survivor's
-  covering tests also run alone in a fresh process (`confirm_survivors`), so
-  an earlier test's state can't mask a kill; a kill found that way says
-  "failed alone in a fresh process". Turn it on for a full run with
-  `--confirm-survivors` when a library has lazy registries or run-once guards.
+- Each warm survivor's covering tests also run alone in a fresh process
+  (`confirm_survivors`, on by default), so an earlier test's state can't mask
+  a kill and a verdict doesn't change with the order the tests ran in; a kill
+  found that way says "failed alone in a fresh process". It costs time per
+  survivor; `--no-confirm-survivors` turns it off, and a survivor it leaves
+  may then be killed on another run.
 - `unjudged` in the text report and gate is the JSON status `harness_error`;
   `kimera report --status unjudged` lists them.
 - "Not mutated" (`unmutated` in the JSON report) lists code the scan holds

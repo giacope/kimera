@@ -106,7 +106,11 @@ fresh process"). A fixed order (fewest covered mutants first, no memory of
 killers), tried and not kept, also gave one verdict in 30 of 30, but on
 dry-inflector's 857 mutants it took 73.6 s where today's order takes 55.7 s,
 with the same verdicts; `--confirm-survivors` took 71.2 s against 54.1 s
-there. Neither is the default on a full run.
+there. Confirming survivors is now the default on every run. With it H2
+measures 1 false survived and 4 false killed: one of q01's two survivors is
+killed, as the oracle says, and q04's mutant is killed on every run, where
+the oracle, which runs the suite in file order, never runs that example
+first.
 
 ## Gaps
 
@@ -248,8 +252,9 @@ the 441 MB it guards against. Left out: S1 measures wall time; K3 and K13 need
 downloads tla2tools.jar (the `model-check` job); K10 resolves gems from
 rubygems.org; K9 is retired. H2 takes 2 minutes, but it fails today, and a
 pass/fail gate cannot hold a case that already fails; once kimera passes it,
-record it in `after.json` and add it to the job's `CASES`. Its count of
-false kills also moves between 3 and 4 from run to run (see H2 above).
+record it in `after.json` and add it to the job's `CASES`. What it still
+gets wrong comes from suites whose examples depend on the order they run in
+(see H2 above).
 
 A case whose oracle judged none of its mutants fails with an error. From
 1de8a8f until the baker was repaired it did not: every mutant came back

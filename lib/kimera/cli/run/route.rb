@@ -12,7 +12,7 @@ class Kimera::CLI::Run::Route
 
   def judging? = incremental(:judge_isolated_only)
 
-  def confirming? = incremental(:confirm_survivors)
+  def confirming? = @options[:confirm_survivors] != false
 
   private
 

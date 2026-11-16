@@ -595,8 +595,8 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
 
   it "records the effective survivor confirmation and DSL judging", :aggregate_failures do
     expect(effective(since: "HEAD~1")).to(eq("judge_isolated_only" => true, "confirm_survivors" => true))
-    expect(effective({})).to(eq("judge_isolated_only" => false, "confirm_survivors" => false))
-    expect(effective(since: "HEAD~1", confirm_survivors: false)).to(include("confirm_survivors" => false))
+    expect(effective({})).to(eq("judge_isolated_only" => false, "confirm_survivors" => true))
+    expect(effective(confirm_survivors: false)).to(include("confirm_survivors" => false))
   end
 
   it "prints shell completion scripts" do

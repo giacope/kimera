@@ -44,8 +44,8 @@ module Kimera::CLI::RunOptions
     Kimera::Flag.build(
       "--[no-]confirm-survivors", :confirm_survivors,
       "Run each survivor's covering tests alone in a fresh process with the mutant on, fastest first " \
-        "(up to 50), so an earlier test cannot mask a kill " \
-        "(default: on for --since and changed, and for ci when it finds a pull request's base)"
+        "(up to 50), so an earlier test cannot mask a kill and a verdict does not depend on the order " \
+        "they ran in (default: on)"
     )
   ].freeze
 
