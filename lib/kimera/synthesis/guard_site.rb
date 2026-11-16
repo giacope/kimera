@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "splice_diff"
+require_relative "../rewrite/conditions"
 
 class Kimera::GuardSite
   STOPS = %i[statements_node def_node class_node module_node singleton_class_node block_node lambda_node].freeze
@@ -22,13 +23,13 @@ class Kimera::GuardSite
 
   def of(node, mutated)
     path = Kimera::SpliceDiff.new(node, mutated).path
-    lifted(*(path.reverse.find { |each, _| site?(each) } || path.first))
+    lifted(*(path.reverse.find { |each, changed| site?(each, changed) } || path.first))
   end
 
   private
 
   def lifted(node, mutated)
-    until site?(node)
+    until site?(node, mutated)
       parent = @index.parent(node)
       return if STOPS.include?(parent.type)
       mutated = parent.copy(**replaced(parent, node, mutated))
@@ -46,7 +47,10 @@ class Kimera::GuardSite
 
   def swapped(items, child, mutated) = items.map { |item| item.equal?(child) ? mutated : item }
 
-  def site?(node) = node.type == :begin_node ? clauses?(node) : placeable?(node)
+  def site?(node, mutated)
+    return false if [node, mutated].any? { |each| Kimera::Rewrite::Conditions.new(each).misread? }
+    node.type == :begin_node ? clauses?(node) : placeable?(node)
+  end
 
   def placeable?(node)
     type = node.type

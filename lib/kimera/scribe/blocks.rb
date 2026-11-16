@@ -1,28 +1,54 @@
 # frozen_string_literal: true
 
+require_relative "default_locals"
+
 module Kimera
   class Scribe
-    class Block < Form
+    class Closure < Form
+      private
+
+      def closure = @_closure ||= DefaultLocals.new(@node, @scope).node
+
+      def parameters
+        node = closure.parameters
+        explicit = node&.type == :block_parameters_node
+        locals = shadowed
+        return unless explicit || locals.any?
+        own = explicit ? part(node) : ""
+        separator = explicit && node.locals.any? ? ", " : "; "
+        appended(own, locals.join(", "), separator)
+      end
+
+      def shadowed
+        node = closure
+        declared = @scope.scoped([node.parameters])
+        node.locals.select { |name| @scope.local?(name) && !declared.local?(name) }
+      end
+    end
+
+    class Block < Closure
       def suffix
-        kept = @pen.slice(@node, @scope) { return braced(@node.body, @scope.with([@node.parameters]), bars) }
+        node = closure
+        kept = @pen.slice(node, @scope) { return braced(node.body, @scope.with([node.parameters]), bars) }
         " #{kept}"
       end
 
       private
 
       def bars
-        parameters = @node.parameters
-        parameters&.type == :block_parameters_node ? " |#{part(parameters)}|" : ""
+        written = parameters
+        written ? " |#{written}|" : ""
       end
     end
 
-    class Lambda < Form
+    class Lambda < Closure
       TYPES = %i[lambda_node].freeze
 
       def text
-        parameters = @node.parameters
-        listed = parameters&.type == :block_parameters_node ? "(#{part(parameters)})" : ""
-        "->#{listed}#{braced(@node.body, @scope.with([parameters]))}"
+        written = parameters
+        listed = written ? "(#{written})" : ""
+        node = closure
+        "->#{listed}#{braced(node.body, @scope.with([node.parameters]))}"
       end
     end
 

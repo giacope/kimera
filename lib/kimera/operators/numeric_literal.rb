@@ -37,6 +37,7 @@ class Kimera::Operators::NumericLiteral < Kimera::Operators::Base
 
   def floats(value)
     shifted = value + 1.0
+    return if shifted == value
     solo("#{value} => #{shifted}", "float_literal", value: shifted)
   end
 end

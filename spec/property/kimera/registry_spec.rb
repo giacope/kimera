@@ -40,8 +40,8 @@ RSpec.describe(Kimera::Registry) do
   end
 
   it "round-trips through its JSON form" do
-    for_all(programs, runs: 150) do |program|
-      registry = scan(render(program))
+    for_all(programs, Pbt.integer(min: -400, max: 400), runs: 150) do |program, exponent|
+      registry = scan("#{render(program)}\ndef extreme = 1e#{exponent}\n")
       expect(JSON.parse(described_class.parse(registry.to_json).to_json)).to(eq(JSON.parse(registry.to_json)))
     end
   end

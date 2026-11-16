@@ -22,6 +22,7 @@ module Kimera
       def called(node)
         type = node.type
         own = type == :call_node && node.variable_call? ? Set[node.name] : Set.new
+        own.merge(node.locals) if %i[block_node lambda_node].include?(type)
         inner = SEALED.include?(type) ? [] : node.compact_child_nodes
         inner.reduce(own) { |names, child| names | calls(child) }
       end

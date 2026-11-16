@@ -6,6 +6,7 @@ module Kimera
       TESTS = %i[if_node unless_node while_node until_node].freeze
       PASSAGES = %i[and_node or_node parentheses_node program_node].freeze
       READ_AS_CONDITIONS = %i[range_node regular_expression_node interpolated_regular_expression_node].freeze
+      READ_AS_VALUES = %i[flip_flop_node match_last_line_node interpolated_match_last_line_node].freeze
 
       def initialize(root, tested: false)
         @root = root
@@ -17,11 +18,9 @@ module Kimera
         marks(@root, @tested).each_with_object({}.compare_by_identity) { |(node, test), found| found[node] = test }
       end
 
-      def misread? = places.any? { |node, test| test && literal?(node) }
+      def misread? = places.any? { |node, test| (test ? READ_AS_CONDITIONS : READ_AS_VALUES).include?(node.type) }
 
       private
-
-      def literal?(node) = READ_AS_CONDITIONS.include?(node.type)
 
       def marks(node, tested)
         [[node, tested]] + node.compact_child_nodes.flat_map { |child| marks(child, carried(node, child, tested)) }

@@ -46,6 +46,15 @@ RSpec.describe(Kimera::Overlay) do
       Pbt.array(Pbt.tuple(Pbt.array(Pbt.one_of(*values), max: 3), Pbt.one_of(:omitted, *values)), min: 1, max: 5)
     end
 
+    let(:default_closures) do
+      Pbt.one_of(
+        "->(arg = (x = %d)) { @v = -> { x }.call; false }.call",
+        "->(arg: (x = %d)) { @v = ->(other = x) { other }.call; false }.call",
+        "[1].any? { |ignored, arg = (x = %d); kept| @v = ->(x) { x }.call(99); false }",
+        "->(arg = (x = %d; -> { x += 1 }.call; x)) { @v = x; false }.call"
+      )
+    end
+
     def outcome(receiver, (positional, keyword))
       [:returned, plain(receiver.m(*positional, **(keyword == :omitted ? {} : { c: keyword })))]
     rescue StandardError => error
@@ -74,6 +83,17 @@ RSpec.describe(Kimera::Overlay) do
     it "behaves exactly like its bake on every input" do
       for_all(programs, inputs, runs: 40) do |program, calls|
         expect(unlike_bakes(SchemataProjection.check(render(program)), calls)).to(be_empty)
+      end
+    end
+
+    it "preserves closure default locals, nested captures and explicit shadowing across guard branches" do
+      for_all(
+        default_closures, Pbt.integer(min: -10, max: 10), Pbt.one_of("", "x = 7;"),
+        runs: 40
+      ) do |closure, value, prefix|
+        source = "def m; #{prefix} (#{format(closure, value)} || (x = 50)); [x, @v]; end"
+        operators = Kimera::Operators.build(keys: ["boolean_connective"])
+        expect(unlike_bakes(SchemataProjection.check(source, operators: operators), [[[], :omitted]])).to(be_empty)
       end
     end
   end

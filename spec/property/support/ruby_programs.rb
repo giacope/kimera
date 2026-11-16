@@ -14,14 +14,16 @@ class RubyPrograms < Pbt::Arbitrary::Arbitrary
   DEFAULTS = { literal: %w[1 2 nil], any: ["2", "3", "nil", '"s"', "(1 / a)", "a.to_s", "(a + 1)"] }.freeze
   LEAVES = [
     "a", "b", "c", "0", "1", "2", "-1", "7", "nil", "true", "false", '"s"', '"\xFF"', ":k", "[]", "{}",
-    "@v"
+    "@v", "2.5"
   ].freeze
   UNARY = [
     "(!%1)", "(-%1)", "%1.to_s", "%1.to_s.size", "%1.abs", "%1&.succ", "%1.to_s.upcase", "Integer(%1)",
     "String(%1)", "%1.to_s.to_sym", "[%1].first", '"x#{%1}y"', "%1.to_s.match?(/1/)", "%1.nil?",
     "%1.to_s.to_i", "%1.respond_to?(:abs)", "Array(%1)", "(a...b).cover?(%1)", "%1.to_s.split(\"\").first",
     "(!(a...b).cover?(%1))", "%1.to_s.match?(/\\A-?\\d+\\z/)", "%1.to_s[/\\d{1,2}5?/]", "(Integer(%1) rescue -2)",
-    "Integer(%1.to_s, exception: false)", "%1.to_s.lines(chomp: true)"
+    "Integer(%1.to_s, exception: false)", "%1.to_s.lines(chomp: true)", "-> { %1 }.call", "((%1) in [x])",
+    "(case %1; in [x] then x; else nil; end)", "(if ((a == 1)..(b == 2)); %1; else c; end)",
+    "(unless !((a == 1)...(b == 2)); %1; end)"
   ].freeze
   BINARY = [
     "(%1 + %2)", "(%1 - %2)", "(%1 * %2)", "(%1 / %2)", "(%1 % %2)", "(%1 == %2)", "(%1 != %2)",

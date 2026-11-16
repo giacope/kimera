@@ -73,6 +73,14 @@ RSpec.describe("kimera run --operators all (end-to-end)") do
     end
   end
 
+  def both_modes(source, tests, operator)
+    test_tree({ "app/subject.rb" => source, "spec/subject_spec.rb" => tests }) do |root|
+      [[], ["--isolated"]].map do |mode|
+        test_outcome(cwd: root, arguments: ["--operators", operator, *mode])
+      end
+    end
+  end
+
   it "synthesizes and evaluates every operator family without errors", :aggregate_failures do
     run = ran
     counts = run.report&.fetch("counts") || {}
@@ -80,5 +88,83 @@ RSpec.describe("kimera run --operators all (end-to-end)") do
       .to(eq({ "error" => 0, "timeout" => 0, "no_coverage" => 0 }), run.output)
     expect(counts["total"]).to(be > 25)
     expect(counts["killed"]).to(be > counts["survived"])
+  end
+
+  it "keeps parenthesized flip-flops and implicit regexp matches conditional in both execution modes" do
+    source = <<~RUBY
+      class Windows
+        def selected(values)
+          values.select do |value|
+            if ((value == 2)..(value == 4))
+              true
+            else
+              false
+            end
+          end
+        end
+
+        def excluded(values)
+          values.select do |value|
+            if !((value == 2)..(value == 4))
+              true
+            else
+              false
+            end
+          end
+        end
+
+        def matching(words)
+          words.select do |word|
+            $_ = word
+            if (/a/)
+              true
+            else
+              false
+            end
+          end
+        end
+      end
+    RUBY
+    tests = <<~RUBY
+      require_relative "../app/subject"
+      RSpec.describe Windows do
+        it { expect(Windows.new.selected([0, 1, 2, 3, 4, 5])).to eq([2, 3, 4]) }
+        it { expect(Windows.new.excluded([0, 1, 2, 3, 4, 5])).to eq([0, 1, 5]) }
+        it { expect(Windows.new.matching(["no", "cat", "yes", "apple"])).to eq(["cat", "apple"]) }
+      end
+    RUBY
+    both_modes(source, tests, "conditional,negation").each do |run|
+      expect([run.status, run.counts.values_at("total", "killed")]).to(eq([0, [7, 7]]), run.output)
+    end
+  end
+
+  it "does not capture a closure's local from another branch of its guard" do
+    source = <<~RUBY
+      class Captures
+        def value
+          (-> { [1] in [x]; false }.call || ([2] in [x]))
+          x
+        end
+
+        def block_value
+          ([1].any? { |number; kept| x = number; false } || ([2] in [x]))
+          x
+        end
+
+        def default_value
+          (->(arg = (x = 1)) { raise "lost default local" unless -> { x }.call == arg; false }.call || (x = 2))
+          x
+        end
+      end
+    RUBY
+    tests = <<~RUBY
+      require_relative "../app/subject"
+      RSpec.describe Captures do
+        it { expect([Captures.new.value, Captures.new.block_value, Captures.new.default_value]).not_to include(nil) }
+      end
+    RUBY
+    both_modes(source, tests, "boolean_connective").each do |run|
+      expect([run.status, run.counts.values_at("total", "killed")]).to(eq([0, [3, 3]]), run.output)
+    end
   end
 end

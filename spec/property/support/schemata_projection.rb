@@ -118,6 +118,7 @@ module SchemataProjection
 
   def normal(node)
     return node unless node.is_a?(Prism::Node)
+    return nil if node.type == :block_parameters_node && node.parameters.nil?
     inner = lone(node)
     return normal(inner) unless inner.equal?(node)
     simplify(node)

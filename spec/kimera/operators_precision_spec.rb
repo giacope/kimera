@@ -39,6 +39,16 @@ RSpec.describe(Kimera::Operators) do
     it "flips the float live through an overlay" do
       expect(live("def rate\n  2.5\nend\n", "numeric_literal", &:rate)).to(eq([2.5, 3.5]))
     end
+
+    it "leaves floats unchanged when adding one rounds back to the same value" do
+      values = %w[1e999 -1e999 9007199254740992.0 -18014398509481984.0]
+      expect(values.flat_map { |value| mutants("def rate = #{value}", "numeric_literal") }).to(be_empty)
+    end
+
+    it "still shifts large floats when the next integer is representable" do
+      expect(live("def rate = 9007199254740991.0", "numeric_literal", &:rate))
+        .to(eq([9_007_199_254_740_991.0, 9_007_199_254_740_992.0]))
+    end
   end
 
   describe "integer_literal full directive" do
