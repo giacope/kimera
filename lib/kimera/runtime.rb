@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "tmpdir"
-
 module Kimera
 end
 
@@ -27,9 +25,11 @@ class Kimera::Runtime < Module
 
       def spilled = Kimera::Runtime::Spill.new(leak, {})
       private
-      def leak(dir = Dir.tmpdir, random = Random)
-        self.spill ||= File.join(dir, "kimera-ledger-#{Process.pid}-#{object_id}-#{random.rand(1 << 32)}")
+      def leak(home = Dir, random = Random)
+        self.spill ||= File.join(scratch(home), "kimera-ledger-#{Process.pid}-#{object_id}-#{random.rand(1 << 32)}")
       end
+
+      def scratch(home) = require("tmpdir").then { home.tmpdir }
 
       def absorb
         return unless spill && File.exist?(spill)

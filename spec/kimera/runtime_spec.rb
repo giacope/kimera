@@ -5,8 +5,31 @@ require "kimera/execution/zygote"
 RSpec.describe(Kimera::Runtime) do
   let(:runtime) { described_class.new }
 
-  it "is the one process-wide runtime, and the only constant kimera defines outside its namespace is Kimera" do
+  it "is the one process-wide runtime" do
     expect(Kimera::RUNTIME).to(be_a(described_class))
+  end
+
+  describe "in a process that only requires kimera" do
+    def fresh(script)
+      command = [Gem.ruby, "-I", File.expand_path("../../lib", __dir__), "-e", script]
+      output, status = Bundler.with_unbundled_env { Open3.capture2e(*command) }
+      expect(status).to(be_success, output)
+      output.split
+    end
+
+    it "defines no top-level constant but Kimera" do
+      expect(fresh('before = Object.constants; require "kimera"; puts(Object.constants - before)')).to(eq(["Kimera"]))
+    end
+
+    it "still collects what a forked child reaches" do
+      script = <<~RUBY
+        require "kimera"
+        ledger = Kimera::Runtime::Ledger.new
+        Kimera::RUNTIME.during(nil, ledger) { Process.wait(fork { Kimera::RUNTIME.active?(7) }) }
+        puts(ledger.drain!)
+      RUBY
+      expect(fresh(script)).to(eq(["7"]))
+    end
   end
 
   it "keeps the runtime a second copy of this file finds already bound" do

@@ -17,6 +17,10 @@
   guards takes 404 ns a call instead of 735 ns (69 ns unmutated), and the
   hot-loop fixture (`eval/fixtures/loop`, `--jobs 1`) 8.8 s instead of
   12.5 s, with the same 7 of 7 killed.
+- **Fixed: `require "kimera"` defined `Etc` and `FileUtils` at the top
+  level.** c5cf269 put `require "tmpdir"` in `lib/kimera/runtime.rb`; it is
+  now loaded when a coverage ledger is first opened, which only a kimera
+  run does. Eval case K12 passes again and is back in CI's `eval` job.
 
 - **Changed: `--since`, `kimera ci` and `kimera changed` now mutate every line
   of each changed file (`since_scope: files`), not only the changed lines.**
