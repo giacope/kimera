@@ -1,0 +1,76 @@
+# Working on kimera
+
+Kimera is a mutation-testing gem for Ruby (RSpec and Minitest). The CLI is
+`exe/kimera`; everything else is under `lib/kimera`. `README.md` is the user
+manual, `skills/kimera/SKILL.md` is the agent skill the gem ships
+(`.claude/skills/kimera` is a symlink to it), and
+`.claude/skills/verify/SKILL.md` says how to drive the CLI against the
+fixtures in `examples/`.
+
+## Checks
+
+Run what your change can break. Times are from a 4 vCPU machine, Ruby 4.0.2.
+
+| Command | What it checks | Time |
+| --- | --- | --- |
+| `bin/spec` | all specs, about 3,400 examples | 6 to 8 min |
+| `bin/spec spec/kimera/path/to_spec.rb` | one file | seconds |
+| `bundle exec rubocop` | style, with the strict `rubocop-kata` profile | under 1 min |
+| `bundle exec hashira --fail-on all` | architecture boundaries (`.hashira.yml`) | 10 s |
+| `bundle exec kimera run --since origin/main --fail-on-no-coverage` | kimera on its own changed files; no survivor is allowed | 1 min and up |
+| `examples/rails_app/bin/e2e` | a Rails app end to end | 2 min |
+| `ruby eval/run --kimera . --out tmp/eval.json` | verdicts against oracles; `--only H1,K2` runs a subset | 17 min |
+| `bin/model-check` | TLA+ model of the worker pool (needs Java) | not measured here |
+
+CI (`.github/workflows/ci.yml`) runs all of these, and on `main` a full
+self-host run (`bundle exec kimera run --judge-isolated-only`, about an hour).
+
+## Rules the linters enforce
+
+`.rubocop.yml` inherits `rubocop-kata`'s strict profile, which rejects code
+ordinary Ruby style accepts. Run `bundle exec rubocop` on the files you touch
+before the suite. The cops hit most often:
+
+- No comments in `lib` (`Kata/NoComments`); a `rubocop:disable` needs a
+  reason after `--` (`Kata/JustifiedDirective`).
+- Names are whole words, no abbreviations (`Kata/RealWords`).
+- A class has at most 4 instance variables, 4 public methods and 100 lines;
+  a method at most 10 lines, with no blank line inside.
+- Collaborators are handed in, usually as `@options.fetch(:name) { build }`
+  (`Kata/NoHardWiring`); a constructor only stores them
+  (`Kata/ConstructorDiscipline`).
+- A method either answers or acts, not both (`Kata/CommandQuery`). No
+  getters, setters, boolean flags, `nil` arguments or `nil` returns.
+- `ENV`, the clock and IO are read at the edges only (`Kata/EnvDiscipline`,
+  `Kata/ClockDiscipline`, `Kata/IoDiscipline`).
+- Specs use no mocks (`Kata/NoMock`); an example is at most 5 lines and a
+  line at most 120 columns.
+
+`.kimera.yml` gates kimera on itself at `max_survivors: 0` and
+`max_ignored: 0`: a new line of `lib` needs a test that fails when the line
+is mutated, and no `ignore:` entry or `kimera:disable` comment is accepted.
+
+`lib/kimera/runtime.rb` is loaded into every project kimera tests. Requiring
+it may define no constant outside `Kimera` (eval case K12 checks this).
+
+## Things that are easy to get wrong
+
+- A file the warm workers run through while they judge a mutant cannot be
+  judged by them. List it in `Kimera::SelfProtection::HARNESS_CRITICAL_SUFFIXES`
+  so its mutants go to the isolated tier.
+- Kimera's own specs are the test suite of a self-host run, so a switch read
+  from `ENV` in `lib` reaches them and turns the baseline red. Time an
+  experiment on another project (eval case S1 sets up dry-inflector).
+- Do not edit a tracked file of the project a kimera run is judging while
+  it runs (for a self-host run, any file of this repository): the run
+  reports the change and exits 1.
+- `lib/kimera/runtime.rb` and the two isolated-child entrypoints are judged
+  in the isolated tier, each mutant against the whole suite: a change there
+  costs about 4 minutes of `kimera run lib/kimera/runtime.rb --jobs 4`.
+- A change that alters verdicts needs an eval run: compare the scoreboard
+  with `eval/results/after.json`, which CI uses as its baseline, and do not
+  edit that file to make a case pass.
+- A behavior change gets a `CHANGELOG.md` entry under "Unreleased" with the
+  numbers that justify it, and the README, the skill and
+  `schema/kimera.schema.json` say the same thing as the code
+  (`spec/kimera/usage_drift_spec.rb` checks flags and keys).
