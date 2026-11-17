@@ -103,6 +103,15 @@
   shape. This is the one shape among them that behaves differently; on a
   fixture of the others (`rescue` and `ensure` drops, a guarded symbol key)
   the warm pool and `--isolated` agree on 55 of 55 mutants.
+- **Fixed: `kimera doctor --check-baseline` listed a red suite's failing
+  examples in quotes unless the shell was bash, ksh or fish.** RSpec quotes
+  the ids in its rerun lines (`rspec './spec/a_spec.rb[1:3]' # ...`) for any
+  other `SHELL`, zsh and an unset one included, and doctor copied the quotes
+  into its "failing tests" list. Kimera's own
+  `spec/features/shared_state_spec.rb:106` failed there too: `bin/spec`
+  under `env -i` ended with 3,420 examples and 1 failure, and eval case K7,
+  which runs that file under two locales, with 2. Doctor now lists the id
+  itself, as every other report does.
 - **Changed: every run confirms its survivors (`confirm_survivors` is on by
   default), so a verdict is the same on every run.** A mutant's covering
   tests run in one process, the tests that killed that worker's last mutants

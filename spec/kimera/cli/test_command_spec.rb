@@ -166,6 +166,12 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     )
   end
 
+  it "names them without the quotes RSpec puts around an id for zsh" do
+    output = "2 examples, 2 failures\n\nrspec './spec/a_spec.rb[1:1]' # A adds\nrspec ./spec/a_spec.rb[1:2] # A cuts\n"
+    listed = "failing tests:\n    ./spec/a_spec.rb[1:1]\n    ./spec/a_spec.rb[1:2]"
+    expect(baseline("rspec", output)).to(end_with(listed))
+  end
+
   it "names the failing Minitest tests, failures and errors alike" do
     output = <<~OUT
         1) Failure:

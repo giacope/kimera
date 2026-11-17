@@ -12,7 +12,7 @@ class Kimera::CLI::TestCommand
   LOADER = "ARGV.map { |f| File.expand_path(f) }.tap { ARGV.clear }.each { |f| require(f) }"
   COUNT_LINE = /\d+ (?:failures?|examples?)\b/i
   SUMMARIES = [/did not exit within/, COUNT_LINE, /failed|Error\b/i].freeze
-  RSPEC_RERUN = /^rspec (\S+) #/
+  RSPEC_RERUN = /^rspec '?(\S+?)'? #/
   MINITEST_HEADER = /^\s*(?:\d+\) )?(?:Failure|Error):\n(.+?)(?: \[[^\]]*\])?:$/
   CULPRITS = [RSPEC_RERUN, MINITEST_HEADER].freeze
   OUTSIDE = "occurred outside of examples"
