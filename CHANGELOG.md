@@ -83,6 +83,26 @@
   75 killed, 7 survived and 1 `harness_error` before; 75, 8 and 0 after,
   and the oracle calls that mutant a survivor. A project with no Gemfile
   is unchanged: its children inherit the bundle.
+- **Fixed: a mutant that leaves a bare `self` in front of a call was killed
+  by an error the real edit never raises.** `method_unwrap` turns
+  `self.to_s.upcase` into `self.upcase`, which may call a private `upcase`.
+  The warm guard in its place, `(on ? self : self.to_s).upcase`, may not:
+  Ruby grants that to a literal `self` receiver only. In a class whose
+  private `upcase` answers what the public chain does, the mutant survives
+  by hand and under `--isolated`, and the warm pool reported it `killed`
+  ("NoMethodError: private method 'upcase' called for an instance of Tag").
+  A call on a literal `self`, without arguments or a block, that is another
+  call's receiver now goes to the reload tier, which bakes the mutant. The
+  shape is rare: 23 of the 13,337 `method_unwrap` sites in the 6,413 files
+  of this Ruby's gems and standard library. With every operator on, 3 of the
+  181,126 mutants in 1,677 files of seven gems move to reload, and none of
+  kimera's own, where the pass costs 0.19 s of a 14.4 s scan. It came out of
+  running the scan, the weave and the bake over 237 of those files (15,781
+  mutants) with the property specs' own check: no crash, no schemata that
+  fail to parse, and 169 mutants whose schemata differ from their bake in
+  shape. This is the one shape among them that behaves differently; on a
+  fixture of the others (`rescue` and `ensure` drops, a guarded symbol key)
+  the warm pool and `--isolated` agree on 55 of 55 mutants.
 - **Changed: every run confirms its survivors (`confirm_survivors` is on by
   default), so a verdict is the same on every run.** A mutant's covering
   tests run in one process, the tests that killed that worker's last mutants

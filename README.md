@@ -1041,8 +1041,11 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
    that method are its covering tests, and a mutant no test calls is
    `no_coverage`. It runs one test at a time until one fails: the tests that
    reached the mutant's method in the baseline, then those that reached its
-   file, then the rest, each group fastest first. Code that only runs while
-   the suite loads goes to the isolated tier.
+   file, then the rest, each group fastest first. So does a mutant that
+   leaves a bare `self` in front of a call (`self.to_s.upcase => self.upcase`):
+   a literal `self` may call a private method and the guard's expression may
+   not, so only the baked edit behaves as the real one. Code that only runs
+   while the suite loads goes to the isolated tier.
 3. **Execution.** Load the suite once and overlay the schemata. From then on
    the parent runs no test: it stays in the post-boot, pre-test state, and
    every test runs in a process forked from it. Fork `--jobs` workers (each

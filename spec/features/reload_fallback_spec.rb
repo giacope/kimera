@@ -62,4 +62,35 @@ RSpec.describe("reload fallback for memoized mutants") do
     covering = ["./spec/meter_spec.rb[1:1]"]
     expect(readings(run)).to(eq([["survived", covering], ["killed", covering]]), run.output)
   end
+
+  def tag = {
+    "app/tag.rb" => <<~RUBY,
+      # frozen_string_literal: true
+      class Tag
+        def initialize(text) = @text = text
+
+        def to_s = @text
+
+        def shout = self.to_s.upcase
+
+        private
+
+        def upcase = @text.upcase
+      end
+    RUBY
+    "spec/tag_spec.rb" => <<~RUBY
+      # frozen_string_literal: true
+      require_relative "../app/tag"
+
+      RSpec.describe Tag do
+        it { expect(Tag.new("q3").shout).to eq("Q3") }
+      end
+    RUBY
+  }
+
+  it "lets a mutant that leaves a bare self call the private method the real edit would" do
+    run = test_tree(tag, "kimera-tag") { |tree| test_outcome(cwd: tree, arguments: %w[--operators method_unwrap]) }
+    unwrapped = run.results.to_h { |row| [row["label"], row.values_at("status", "detail")] }
+    expect(unwrapped.fetch("delete .to_s")).to(eq(["survived", nil]), run.output)
+  end
 end

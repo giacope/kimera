@@ -7,6 +7,7 @@ require_relative "memoization"
 require_relative "syntax_guard"
 require_relative "../rewrite/outcomes"
 require_relative "mutation_point"
+require_relative "self_link"
 require_relative "skipped"
 require_relative "walking"
 
@@ -28,11 +29,13 @@ class Kimera::RegistryScan::SourceFile
 
   private
 
-  def tainted = @_tainted ||= Kimera::Memoization.new(@source).ranges + removals.ranges
+  def tainted = @_tainted ||= Kimera::Memoization.new(@source).ranges + removals.ranges + links.ranges
 
   def guards = @_guards ||= Kimera::MemoGuard::Source.new(@source).exemptions + removals.exemptions
 
   def removals(kind = Kimera::DefaultRemoval::Source) = @_removals ||= kind.new(@source)
+
+  def links(kind = Kimera::SelfLink) = kind.new(@source)
 
   def scanned = @_scanned ||= attempt
 

@@ -21,7 +21,7 @@ module Kimera
       InstanceVariableReadNode InstanceVariableWriteNode IntegerNode KeywordHashNode
       LambdaNode LocalVariableReadNode MatchPredicateNode MatchRequiredNode NilNode Node
       OptionalKeywordParameterNode OptionalParameterNode OrNode ParametersNode ParenthesesNode
-      RangeNode RegularExpressionNode ReturnNode SplatNode StatementsNode StringNode
+      RangeNode RegularExpressionNode ReturnNode SelfNode SplatNode StatementsNode StringNode
       SymbolNode TrueNode UnlessNode
     ].each { |name| const_set(name, Prism.const_get(name)) }
 
