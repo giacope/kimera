@@ -325,6 +325,30 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     end
   end
 
+  describe "Pace#cheapest" do
+    def cheapest(tests, timings = {}) = Kimera::Execution::Pace.new(timings).cheapest(tests)
+
+    def ids = %w[a.rb[1:1] b.rb[1:1] a.rb[1:2] c.rb[1:1] b.rb[1:2]]
+
+    it "keeps a spec file's tests together, the file with the least total baseline time first" do
+      timings = { ids[0] => 0.001, ids[2] => 5.0, ids[1] => 0.4, ids[4] => 0.3, ids[3] => 1.0 }
+      expect(cheapest(ids, timings)).to(eq(%w[b.rb[1:2] b.rb[1:1] c.rb[1:1] a.rb[1:1] a.rb[1:2]]))
+    end
+
+    it "puts a file with an unmeasured test last" do
+      expect(cheapest(ids, { ids[0] => 0.1, ids[3] => 9.0 })).to(eq([ids[3], ids[0], ids[2], ids[1], ids[4]]))
+    end
+
+    it "keeps the given order of files without times" do
+      expect(cheapest(ids)).to(eq([ids[0], ids[2], ids[1], ids[4], ids[3]]))
+    end
+
+    it "orders ids that name no file one by one, fastest first" do
+      timings = { "A#slow" => 2.0, "A#fast" => 0.1, "B#mid" => 0.5 }
+      expect(cheapest(%w[A#slow A#fast B#mid], timings)).to(eq(%w[A#fast B#mid A#slow]))
+    end
+  end
+
   def layout(over = registry) = Kimera::Execution::MirrorLayout.new(".", over)
 
   describe "MirrorLayout#mutables" do

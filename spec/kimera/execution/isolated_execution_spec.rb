@@ -456,6 +456,24 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       expect([given, result.covering_tests]).to(eq([%w[fast slow], %w[slow fast]]))
     end
 
+    def filed
+      tests = %w[a.rb[1:1] b.rb[1:1] a.rb[1:2]]
+      { coverage: { first => tests }, timings: tests.zip([0.001, 0.5, 3.0]).to_h }
+    end
+
+    def filed_trial(given)
+      Dir.mktmpdir do |root|
+        File.write(File.join(root, "calc.rb"), test_source_fixture)
+        test_mirrored(test_paced(given).new(registry: registry, root: root, tests: [], **filed), root, first)
+      end
+    end
+
+    it "hands the child whole spec files, the one that costs least in total first" do
+      given = []
+      filed_trial(given)
+      expect(given).to(eq(%w[b.rb[1:1] a.rb[1:1] a.rb[1:2]]))
+    end
+
     it "settles a mutant whose tests the screen drops, without staging or running it", :aggregate_failures do
       given = []
       registry.index.fetch(first).mark!(Kimera::Reason.revisit(Kimera::Reason::BOOT_REASON))

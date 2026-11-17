@@ -51,7 +51,7 @@ module Kimera
 
       def measure(id, bay, tests, file)
         started = now
-        ordered = Kimera::Execution::Pace.new(timings).fastest(tests)
+        ordered = Kimera::Execution::Pace.new(timings).cheapest(tests)
         [cleared(bay, ordered, with_mutant(id, bay, file) { settle(bay, ordered) }), now - started]
       rescue Kimera::Overlay::Unbakeable => error
         [IsolatedOutcome.new(:unmutatable, nil, Kimera::Reason.unmutatable(error.message).to_s), nil]

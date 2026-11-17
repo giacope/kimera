@@ -369,8 +369,12 @@ exception is a directory that holds a mutated file, which is always copied.
 Before judging any mutant, `--isolated` runs the unmutated suite once in a
 mirror: the tests its mutants will run, in suite order (every test, when one
 of them needs the whole suite). If it isn't green there, the run stops with
-exit 1 and the error. A mutant's mirror then runs its covering tests fastest
-first and stops at the first that fails.
+exit 1 and the error. A mutant's mirror then runs its covering tests one test
+file after another, the file whose covering tests took the least baseline
+time first, and stops at the first test that fails. (RSpec in defined order
+runs a file's examples together wherever their ids stand in the list, so the
+order that counts is the order of files; under `config.order = :random`
+RSpec picks its own.)
 
 A mirror is as safe as a warm worker:
 

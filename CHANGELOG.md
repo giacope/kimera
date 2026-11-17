@@ -16,6 +16,28 @@
   warm process loaded it. A plain `kimera run` of the three files at
   `--jobs 4` kills 91 of 91, 7 of 7 and 18 of 18 mutants, for 981
   worker-seconds (about 4 minutes of a full self-host run).
+- **The isolated tier runs a mutant's covering tests one test file after
+  another, the cheapest file first.** It handed the child its test ids
+  fastest first, but RSpec in defined order runs a file's examples together,
+  the files in the order they first appear among the ids (ids `c[1:3]
+  a[1:2] c[1:1] b[1:1] a[1:1]` run as c1 c3 a1 a2 b1). One sub-millisecond
+  example pulled its whole file to the front, so files ran in the order of
+  their single fastest example and the killing test of kimera's own
+  harness-critical files sat behind most of the suite:
+  `frameworks/rspec_suite.rb` and `group_scope.rb` (46 mutants, `--jobs 4`)
+  took 415 s, a median of 29.0 s a mutant. Files are now ordered by the
+  total baseline time of their covering tests. The same run takes 207 s
+  (its mutants phase 98 s instead of 317 s), 330 worker-seconds instead of
+  1,200 and a median of 5.7 s, with the same verdicts but one (`killed` to
+  `timeout`, both detected: without `world.inclusion_filter.clear`,
+  `selected` calls itself forever). Priced on CI's full self-host report,
+  whose 47 harness-critical files take 7,780 of 11,616 worker-seconds, the
+  order cuts the test time of their 754 killed mutants from 2,027 s to
+  1,157 s (an upper bound: a file that runs before the recorded killer is
+  counted as passing in full). Minitest ids name no file and still run
+  fastest first. Tried and not kept: rounds of 1, 2, 4 mutants per source
+  file that try each file's known killers first, which took 409 s on the
+  same run because the order it gave RSpec was not the order RSpec ran.
 - **Changed: every run confirms its survivors (`confirm_survivors` is on by
   default), so a verdict is the same on every run.** A mutant's covering
   tests run in one process, the tests that killed that worker's last mutants
