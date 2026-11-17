@@ -72,6 +72,17 @@
   from exit 2 to exit 1. And a project file that was already modified
   before the run could be rewritten during it unnoticed. The guard now asks
   git for the project's files only and reads them by the project's paths.
+- **Fixed: an isolated child ran under the project's own `Gemfile` when
+  kimera ran under one outside the project.** The warm pass ran under
+  `BUNDLE_GEMFILE`, every isolated child and mirror re-judge under
+  `<mirror>/Gemfile`, whose gems need not be installed. The eval runs
+  dry-inflector that way, and `lib/dry/inflector/inflections.rb:82`
+  (`condition => true`) came back `harness_error` ("Could not find gem
+  'simplecov-cobertura'") on every scoreboard. A child now runs under the
+  Gemfile kimera runs under there too. On `inflections.rb` (83 mutants):
+  75 killed, 7 survived and 1 `harness_error` before; 75, 8 and 0 after,
+  and the oracle calls that mutant a survivor. A project with no Gemfile
+  is unchanged: its children inherit the bundle.
 - **Changed: every run confirms its survivors (`confirm_survivors` is on by
   default), so a verdict is the same on every run.** A mutant's covering
   tests run in one process, the tests that killed that worker's last mutants

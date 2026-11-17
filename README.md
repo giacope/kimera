@@ -1084,7 +1084,8 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   (`BUNDLE_GEMFILE=Gemfile.rails-8.1 bundle exec kimera run` runs them under
   the mirror's `Gemfile.rails-8.1`), and under the project's own one when
   its lockfile resolved a gem by a relative `path:` out of the project (a
-  monorepo's engines), so that gem resolves there too.
+  monorepo's engines), so that gem resolves there too. A Gemfile outside
+  the project (`BUNDLE_GEMFILE=~/tools/Gemfile`) is used as it is.
 - **Kimera writes its own Ruby.** Every rewrite and guard is made on Prism's
   own tree, the one the registry scanned, and `Kimera::Scribe` writes it back
   as source that reads as the very same tree: it groups operators, signs and powers by precedence

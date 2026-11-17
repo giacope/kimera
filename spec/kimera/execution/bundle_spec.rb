@@ -30,11 +30,27 @@ RSpec.describe(Kimera::Execution::Bundle) do
     expect(chosen(plain, "ROOT/Gemfile")).to(eq("MIRROR/Gemfile"))
   end
 
-  it "runs under the project's Gemfile when kimera names none, or one outside the project", :aggregate_failures do
+  it "runs under the project's Gemfile when kimera names none, or names no file", :aggregate_failures do
     expect(chosen(plain, nil)).to(eq("MIRROR/Gemfile"))
     expect(chosen(plain, "/elsewhere/Gemfile")).to(eq("MIRROR/Gemfile"))
     expect(chosen(plain, "ROOT")).to(eq("MIRROR/Gemfile"))
     expect(chosen({ "Gemfile.ci" => "" }, nil)).to(be_nil)
+  end
+
+  def apart(files)
+    Dir.mktmpdir do |elsewhere|
+      outer = File.join(elsewhere, "Gemfile.tools")
+      File.write(outer, "gem 'rspec'\n")
+      chosen(files, outer)&.sub(elsewhere, "ELSEWHERE")
+    end
+  end
+
+  it "runs under the Gemfile kimera runs under when it lies outside the project, not under the project's own" do
+    expect(apart(plain)).to(eq("ELSEWHERE/Gemfile.tools"))
+  end
+
+  it "leaves the child the bundle it inherits when the project has no Gemfile" do
+    expect(apart({ "lib/a.rb" => "" })).to(be_nil)
   end
 
   def nested(remote)

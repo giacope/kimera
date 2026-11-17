@@ -18,16 +18,20 @@ class Kimera::Execution::Bundle
   def gemfile(mirror)
     copy = File.join(mirror, named)
     return unless File.file?(copy)
+    return given if apart?
     own = File.join(home, named)
     File.file?(own) && outward?(own) ? own : copy
   end
 
   private
 
-  def named
-    given = File.expand_path(@env.fetch("BUNDLE_GEMFILE", GEMFILE), home)
-    given.start_with?("#{home}/") ? given.delete_prefix("#{home}/") : GEMFILE
-  end
+  def given = @_given ||= File.expand_path(@env.fetch("BUNDLE_GEMFILE", GEMFILE), home)
+
+  def inside? = given.start_with?("#{home}/")
+
+  def apart? = !inside? && File.file?(given)
+
+  def named = inside? ? given.delete_prefix("#{home}/") : GEMFILE
 
   def outward?(gemfile)
     lock = "#{gemfile}.lock"

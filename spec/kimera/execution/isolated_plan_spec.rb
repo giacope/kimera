@@ -210,6 +210,7 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
     end
 
     def bundled(locations, root: Dir.mktmpdir)
+      running(File.join(root, "Gemfile"))
       Dir.mktmpdir do |mirror|
         gemfile = File.join(mirror, "Gemfile")
         File.write(gemfile, "source 'https://rubygems.org'\n")
