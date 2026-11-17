@@ -546,12 +546,12 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(registry.to_h.keys).to(eq(["calc.rb"]))
     end
 
-    it "protects the runtime selector except in isolated mode" do
+    it "scans the runtime selector in every mode, for the isolated tier to judge" do
       runtime = Kimera::Runtime::SOURCE_PATH
-      protected = sources.load(options(paths: [runtime]))
+      warm = sources.load(options(paths: [runtime]))
       isolated = sources.load(options(paths: [runtime], isolated: true))
-      expect(protected.each.count).to(eq(0))
-      expect(isolated.each.count).to(be > 0)
+      expect(warm.each.count).to(be > 0)
+      expect(warm.each.count).to(eq(isolated.each.count))
     end
   end
 

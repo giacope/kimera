@@ -43,14 +43,13 @@ class Kimera::Execution::IsolatedPlan
   private
 
   def candidates(id, point)
+    return @tests if own?(id)
     return if point.reasons(Kimera::Reason.unloaded).any?
-    return @tests if everything?(id, point)
+    return @tests if point.reasons(Kimera::Reason.ordered).any?
     whole?(point) ? kin.tests(file(id)) : selection.recorded(id) { return }
   end
 
-  def everything?(id, point, protection = Kimera::SelfProtection)
-    point.reasons(Kimera::Reason.ordered).any? || protection.new(File.join(@layout.root, file(id))).protected?
-  end
+  def own?(id, protection = Kimera::SelfProtection) = protection.new(File.join(@layout.root, file(id))).protected?
 
   def whole?(point)
     !point.fits?(safe: true) || point.reasons(Kimera::Reason.revisiting).any?

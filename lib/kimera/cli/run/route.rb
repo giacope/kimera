@@ -21,11 +21,14 @@ class Kimera::CLI::Run::Route
     chosen.nil? ? !@options[:since].nil? : chosen
   end
 
-  def apart?(id, coverage) = critical?(id) || patterns.any? { |pattern| matches?(coverage.call, id, pattern) }
+  def apart?(id, coverage) = own?(id) || patterns.any? { |pattern| matches?(coverage.call, id, pattern) }
 
   def patterns = Array(@options[:isolate_when_covered_by])
 
-  def critical?(id) = Kimera::SelfProtection.new(@registry[id].last).critical?
+  def own?(id, guard = Kimera::SelfProtection)
+    file = @registry[id].last
+    guard.new(file).critical? || guard.new(File.expand_path(file, @options[:source_root] || ".")).protected?
+  end
 
   def matches?(coverage, id, pattern)
     tests = coverage.fetch(id) { coverage.fetch(id.to_s, []) }

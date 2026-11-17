@@ -136,6 +136,15 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       expect(pt.file).to(eq("lib/kimera/runtime.rb"))
     end
 
+    it "runs the whole suite for a protected file the suite never loads: a child process runs it",
+      :aggregate_failures do
+      protected, root = runtime
+      pt = protected.to_a.find(&:safe?).tap { |found| found.mark!(Kimera::Reason.unloaded) }
+      expect(plan(registry: protected, root: root).tests(pt.mutants.first.to_i, pt)).to(eq(%w[t1 t2 t3]))
+      point.mark!(Kimera::Reason.unloaded)
+      expect(plan(coverage: { mutant_id => ["t1"] }).tests(mutant_id, point)).to(be_nil)
+    end
+
     it "ignores recorded coverage for a protected file (self-host contamination)" do
       protected, root = runtime
       pt = protected.to_a.find(&:safe?)

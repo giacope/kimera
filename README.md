@@ -1371,9 +1371,11 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
 Kimera gates itself at zero survivors (`bundle exec kimera run`, configured by
 the repo's `.kimera.yml`). The warm path can't judge its own harness: the
 runtime selector would recurse, and a mutant in the RSpec adapter can disable
-the runner judging it. Those files are excluded or reported as
-`isolated_only`. `bundle exec kimera run --isolated` judges them in fresh
-subprocesses that share nothing with Kimera's runtime.
+the runner judging it. Every run sends those files' mutants to the isolated
+tier instead, which judges them in fresh subprocesses that share nothing with
+Kimera's runtime: the runtime selector (`lib/kimera/runtime.rb`), the two
+isolated-child entrypoints, and the harness-critical files
+`Kimera::SelfProtection` lists. No file of `lib/` is left out of the gate.
 
 ## Development
 

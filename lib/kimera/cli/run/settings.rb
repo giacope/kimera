@@ -35,6 +35,6 @@ class Kimera::CLI::Run::Settings
 
   def scan
     operators = Kimera::Operators.build(keys: @values[:operators])
-    Kimera::RegistryScan.new(operators: operators, root: @values[:source_root] || ".", shielded: !@values[:isolated])
+    Kimera::RegistryScan.new(operators: operators, root: @values[:source_root] || ".", shielded: false)
   end
 end

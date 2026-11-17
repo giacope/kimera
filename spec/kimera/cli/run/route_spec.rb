@@ -2,6 +2,7 @@
 
 require "kimera/cli/run"
 require "kimera/registry/builder"
+require "tmpdir"
 
 RSpec.describe(Kimera::CLI::Run::Route) do
   let(:registry) { Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n", file: "app/x.rb") }
@@ -17,6 +18,24 @@ RSpec.describe(Kimera::CLI::Run::Route) do
   it "reads no coverage without a pattern" do
     expect { described_class.new(registry, {}).split(ids) { raise(ArgumentError, "coverage read without a pattern") } }
       .not_to(raise_error)
+  end
+
+  def own(path, root)
+    scanned = Kimera::RegistryScan.new(root: root, shielded: false).build([path])
+    described_class.new(scanned, source_root: root).split(scanned.each.map { |mutant, _point| mutant.to_i }) { {} }
+  end
+
+  it "judges kimera's own runtime and child entrypoints apart, where the warm pool cannot weave them" do
+    lib = File.expand_path("../../../../lib", __dir__)
+    paths = [Kimera::Runtime::SOURCE_PATH, *Kimera::SelfProtection::OUT_OF_PROCESS_ENTRYPOINTS]
+    expect(paths.map { |path| own(path, lib) }).to(all(match([be_any, be_empty])))
+  end
+
+  it "keeps a project's own runtime.rb in the warm pool" do
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, "runtime.rb"), "def m(a, b)\n  a > b\nend\n")
+      expect(own(File.join(dir, "runtime.rb"), dir)).to(match([be_empty, be_any]))
+    end
   end
 
   it "judges isolated-only mutants on incremental runs unless told otherwise", :aggregate_failures do

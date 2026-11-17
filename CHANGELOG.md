@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **Changed: the self-host gate judges kimera's runtime selector and its two
+  isolated-child entrypoints.** `Kimera::SelfProtection` kept
+  `lib/kimera/runtime.rb` (208 lines), `execution/isolated_child.rb` and
+  `execution/isolated_child_minitest.rb` out of every registry but an
+  `--isolated` run's, and no report listed them as skipped: CI's full
+  self-host report has rows for 422 of 451 `lib` files and none for these
+  three. Every run now scans them and sends their mutants to the isolated
+  tier, as it does the harness-critical files; a project's own `runtime.rb`
+  stays in the warm pool. The entrypoints, which only a child process runs,
+  were then scored "the suite never loads this file" (25 `no_coverage`): a
+  protected file is now judged against the whole suite whether or not the
+  warm process loaded it. A plain `kimera run` of the three files at
+  `--jobs 4` kills 91 of 91, 7 of 7 and 18 of 18 mutants, for 981
+  worker-seconds (about 4 minutes of a full self-host run).
 - **Changed: every run confirms its survivors (`confirm_survivors` is on by
   default), so a verdict is the same on every run.** A mutant's covering
   tests run in one process, the tests that killed that worker's last mutants
