@@ -52,6 +52,16 @@
   7 s, with the same 98 verdicts. In CI's report the reload tier is 53
   mutants and 355 of 11,616 worker-seconds, but it runs on one core after
   the pool, and three mutants are 324 s of it.
+- **A guard costs less while coverage is being recorded.** With a ledger
+  open the runtime called a block per open ledger on every guard; it now
+  calls the one open ledger directly (nested ledgers still each record). A
+  method with nine guards takes about 1,320 ns a call instead of 2,000 to
+  2,200 ns (85 ns unmutated; 440 to 500 ns with no ledger open, unchanged),
+  and the baseline of the hot-loop fixture (`eval/fixtures/loop`,
+  `--jobs 1`) 2.5 to 2.9 s instead of 4.1 to 4.4 s, the whole run 8.8 to
+  9.3 s instead of 10.2 to 11.0 s, with the same 7 of 7 killed.
+  dry-inflector's baseline, which is mostly forks, does not change (4.6 s
+  and 4.7 s against 4.2 s and 4.7 s).
 - **Changed: every run confirms its survivors (`confirm_survivors` is on by
   default), so a verdict is the same on every run.** A mutant's covering
   tests run in one process, the tests that killed that worker's last mutants

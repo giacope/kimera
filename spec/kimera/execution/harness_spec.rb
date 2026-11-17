@@ -239,7 +239,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "closes its own ledger afterward" do
       h = harness(adapter(coverage: { "t1" => [ids.first] }))
-      expect { h.__send__(:measure!) }.not_to(change { Array(Kimera::RUNTIME.instance_variable_get(:@ledgers)).size })
+      expect { h.__send__(:measure!) }.not_to(change { Kimera::RUNTIME.ledgers.size })
     end
 
     def resetting
@@ -289,7 +289,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "keeps the loop's bookkeeping observable when the suite re-selects a mutant", :aggregate_failures do
       progress = journal
       h = harness(reselecting(coverage: { "t1" => [ids.first], "t2" => [] }), progress: progress)
-      expect { h.__send__(:measure!) }.not_to(change { Array(Kimera::RUNTIME.instance_variable_get(:@ledgers)).size })
+      expect { h.__send__(:measure!) }.not_to(change { Kimera::RUNTIME.ledgers.size })
       expect(h.survey.coverage[ids.first]).to(eq(["t1"]))
       expect(progress.events).to(eq([[:start, 2, "baseline"], [:tick, nil], [:tick, nil], [:finish]]))
     end
@@ -335,10 +335,10 @@ RSpec.describe(Kimera::Execution::Harness) do
     def empty
       progress = journal
       h = harness(adapter(coverage: {}), progress: progress)
-      before = Array(Kimera::RUNTIME.instance_variable_get(:@ledgers)).size
+      before = Kimera::RUNTIME.ledgers.size
 
       expect { h.__send__(:measure!) }.not_to(raise_error)
-      [before, Array(Kimera::RUNTIME.instance_variable_get(:@ledgers)).size, h.survey.coverage, progress.events]
+      [before, Kimera::RUNTIME.ledgers.size, h.survey.coverage, progress.events]
     end
 
     it "passes trivially on an empty suite: no raise, no coverage, balanced ledger", :aggregate_failures do

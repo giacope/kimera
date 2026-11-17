@@ -395,8 +395,7 @@ RSpec.describe(Kimera::Execution::Shift) do
     it "leaves no ledger behind when the request pipe closes" do
       worker = worker(catches: { "t1" => [] })
       request = StringIO.new("#{JSON.generate(id: "t1")}\n")
-      expect { worker.coverage(request, StringIO.new) }
-        .not_to(change { Array(Kimera::RUNTIME.instance_variable_get(:@ledgers)).size })
+      expect { worker.coverage(request, StringIO.new) }.not_to(change { Kimera::RUNTIME.ledgers.size })
     end
 
     def watching(seen)

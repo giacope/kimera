@@ -139,7 +139,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
       response.string.lines.map { |line| JSON.parse(line) }
     end
 
-    def ledgers = Array(Kimera::RUNTIME.instance_variable_get(:@ledgers)).size
+    def ledgers = Kimera::RUNTIME.ledgers.size
 
     it "reports the test's result and what it touched" do
       result = served.first

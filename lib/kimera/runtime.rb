@@ -16,6 +16,8 @@ class Kimera::Runtime < Module
         ids[id] = true
       end
 
+      def fan = [self]
+
       def drain!
         absorb
         touched = ids.keys
@@ -38,26 +40,12 @@ class Kimera::Runtime < Module
       end
     end
 
-  Spill =
-    Struct.new(:leak, :ids) do
-      private(*members)
-      def push(id)
-        return if ids.key?(id)
-        ids[id] = true
-        write(id)
-      end
-
-      def write(id) = File.write(leak, "#{id}\n", mode: "a")
-
-      def spilled = Kimera::Runtime::Spill.new(leak, {})
-    end
-
   NONE = [].freeze
 
   def initialize
     super
     @active = nil
-    @ledgers = NONE
+    @sink = MUTE
     @spills = NONE
     @idle = true
   end
@@ -84,7 +72,7 @@ class Kimera::Runtime < Module
 
   def forking
     hidden.survey
-    spills = @ledgers.map(&:spilled)
+    spills = @sink.fan.map(&:spilled)
     yield.tap { |pid| forked!(spills) if pid.zero? && spills.any? }
   end
 
@@ -98,18 +86,18 @@ class Kimera::Runtime < Module
 
   def opened(ledgers)
     return if ledgers.empty?
-    publish([*@ledgers, *ledgers])
+    publish([*@sink.fan, *ledgers])
   end
 
   def closed(ledgers)
     return if ledgers.empty?
-    publish(@ledgers.reject { |open| ledgers.any? { open.equal?(it) } })
+    publish(@sink.fan.reject { |open| ledgers.any? { open.equal?(it) } })
   end
 
   def forked!(spills) = publish(spills)
 
   def record(id)
-    @ledgers.each { |ledger| ledger.push(id) }
+    @sink.push(id)
   rescue Ractor::IsolationError
     remote(id)
   end
@@ -121,14 +109,40 @@ class Kimera::Runtime < Module
     @spills.each { |spill| spill.write(id) }
   end
 
-  def publish(ledgers)
-    @ledgers = ledgers.freeze
+  def publish(ledgers, fans = Fan)
+    @sink = ledgers.reduce { |outer, inner| fans.new([*outer.fan, inner]) } || MUTE
     @idle = ledgers.empty?
     @spills = Ractor.make_shareable(ledgers.map(&:spilled))
   end
 
   def hidden(kind = Hidden) = @_hidden ||= kind.new({}, [], {}.compare_by_identity)
 end
+
+Kimera::Runtime::Spill =
+  Struct.new(:leak, :ids) do
+    private(*members)
+    def push(id)
+      return if ids.key?(id)
+      ids[id] = true
+      write(id)
+    end
+
+    def write(id) = File.write(leak, "#{id}\n", mode: "a")
+
+    def spilled = Kimera::Runtime::Spill.new(leak, {})
+
+    def fan = [self]
+  end
+
+Kimera::Runtime::Fan =
+  Struct.new(:ledgers) do
+    private(*members)
+    def push(id) = ledgers.each { |ledger| ledger.push(id) }
+
+    def fan = [*ledgers]
+  end
+
+Kimera::Runtime::MUTE = Kimera::Runtime::Fan.new([].freeze).freeze
 
 Kimera::Runtime::Hidden =
   Struct.new(:flips, :concealed, :homes) do

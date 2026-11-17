@@ -188,28 +188,39 @@ RSpec.describe(Kimera::Runtime) do
       expect(isolation).to(eq([2]))
     end
 
-    def preserve
-      saved = runtime.instance_variable_get(:@ledgers)
-      runtime.instance_variable_set(:@ledgers, Kimera::Runtime::NONE)
-      yield
-    ensure
-      runtime.instance_variable_set(:@ledgers, saved)
-    end
-
     it "tolerates closing a ledger when no coverage pass is active" do
-      preserve do
-        ledger = runtime.start!
-        runtime.stop!(ledger)
-        expect { runtime.stop!(ledger) }.not_to(raise_error)
-      end
+      ledger = runtime.start!
+      runtime.stop!(ledger)
+      expect { runtime.stop!(ledger) }.not_to(raise_error)
     end
 
     it "leaves no ledger open once the last one closes" do
-      preserve do
-        ledger = runtime.start!
-        runtime.stop!(ledger)
-        expect(runtime.leaks).to(be_empty)
-      end
+      ledger = runtime.start!
+      runtime.stop!(ledger)
+      expect(runtime.ledgers).to(be_empty)
+    end
+
+    def left(opened) = runtime.ledgers.map { |ledger| opened.index(ledger) }
+
+    def stacked
+      opened = Array.new(3) { runtime.start! }
+      runtime.active?(7)
+      middle = runtime.stop!(opened[1])
+      runtime.active?(8)
+      [middle, opened.map(&:drain!), left(opened)]
+    ensure
+      opened.each { |ledger| runtime.stop!(ledger) }
+    end
+
+    it "records on each of three open ledgers, and on the two left when the middle one closes" do
+      expect(stacked).to(eq([[7], [[7, 8], [], [7, 8]], [0, 2]]))
+    end
+
+    it "records straight on the one open ledger, and on nothing once it closes", :aggregate_failures do
+      ledger = runtime.start!
+      expect(runtime.instance_variable_get(:@sink)).to(equal(ledger))
+      runtime.stop!(ledger)
+      expect(runtime.instance_variable_get(:@sink)).to(equal(described_class::MUTE))
     end
 
     def reset

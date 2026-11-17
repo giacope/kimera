@@ -16,7 +16,9 @@ module RuntimeControls
     ledger.drain!
   end
 
-  def leaks = @ledgers.map(&:spilled)
+  def ledgers = @sink.fan
+
+  def leaks = ledgers.map(&:spilled)
 end
 
 Kimera::Runtime.include(RuntimeControls)
