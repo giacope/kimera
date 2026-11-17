@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Prepares an Amp orb to build, test and lint kimera: the Ruby that
-# .ruby-version pins, Java for TLC, the root bundle, the Rails example's
-# bundle and tla2tools.jar. Amp snapshots the result, so new orbs start with
+# .ruby-version pins, Ruby 3.4 (the oldest the gemspec allows, for bin/spec
+# before each push), Java for TLC, the root bundle under both Rubies, the
+# Rails example's bundle and tla2tools.jar. Amp snapshots the result, so new orbs start with
 # all of it in place (https://ampcode.com/docs/orbs/customizing).
 #
 # Safe to run again: each step checks what is already there first.
@@ -10,15 +11,17 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 ruby_version="$(tr -d '[:space:]' < .ruby-version)"
+oldest_ruby_version=3.4.12
 case "$(uname -m)" in
   x86_64) arch=x64 ;;
   aarch64 | arm64) arch=arm64 ;;
   *) echo "setup: ruby/ruby-builder has no Linux build for $(uname -m)" >&2 && exit 1 ;;
 esac
-# The path ruby/setup-ruby installs to in CI. The build has it compiled in, so
+# The path ruby/setup-ruby installs to. The build has it compiled in, so
 # it cannot live anywhere else.
-toolcache="/opt/hostedtoolcache/Ruby/$ruby_version"
-ruby_bin="$toolcache/$arch/bin"
+toolcache() { echo "/opt/hostedtoolcache/Ruby/$1"; }
+ruby_bin="$(toolcache "$ruby_version")/$arch/bin"
+oldest_ruby_bin="$(toolcache "$oldest_ruby_version")/$arch/bin"
 
 step() {
   local name="$1" started=$SECONDS
@@ -28,23 +31,26 @@ step() {
   echo "==> $name: done in $((SECONDS - started))s"
 }
 
-# The build ruby/setup-ruby downloads in CI. Orbs run Debian 12 or 13, and the
+# The build ruby/setup-ruby downloads. Orbs run Debian 12 or 13, and the
 # Ubuntu 22.04 build (glibc 2.35) runs on both. It unpacks beside its final
 # place and moves in whole, so an interrupted download leaves no half a Ruby.
 install_ruby() {
-  [[ -x "$ruby_bin/ruby" ]] && return 0
-  local url="https://github.com/ruby/ruby-builder/releases/download/ruby-$ruby_version/ruby-$ruby_version-ubuntu-22.04-$arch.tar.gz"
-  sudo mkdir -p "$toolcache"
-  sudo chown "$(id -u):$(id -g)" "$toolcache"
-  rm -rf "$toolcache/unpack"
-  mkdir "$toolcache/unpack"
-  curl -fsSL --retry 3 "$url" | tar -xz -C "$toolcache/unpack"
-  mv "$toolcache/unpack/$arch" "$toolcache/$arch"
-  rmdir "$toolcache/unpack"
+  local version="$1" dir
+  dir="$(toolcache "$version")"
+  [[ -x "$dir/$arch/bin/ruby" ]] && return 0
+  local url="https://github.com/ruby/ruby-builder/releases/download/ruby-$version/ruby-$version-ubuntu-22.04-$arch.tar.gz"
+  sudo mkdir -p "$dir"
+  sudo chown "$(id -u):$(id -g)" "$dir"
+  rm -rf "$dir/unpack"
+  mkdir "$dir/unpack"
+  curl -fsSL --retry 3 "$url" | tar -xz -C "$dir/unpack"
+  mv "$dir/unpack/$arch" "$dir/$arch"
+  rmdir "$dir/unpack"
 }
 
 # A snapshot keeps the directories ~/.bash_profile adds to PATH and nothing
-# else of that file, which is all Ruby needs: gems install inside $toolcache.
+# else of that file, which is all Ruby needs: gems install inside the
+# toolcache. Ruby 3.4 stays off PATH; AGENTS.md says how to run it.
 persist_path() {
   local line="export PATH=\"$ruby_bin:\$PATH\""
   grep -Fqx "$line" "$HOME/.bash_profile" 2> /dev/null || echo "$line" >> "$HOME/.bash_profile"
@@ -59,13 +65,14 @@ install_java() {
 }
 
 # Gemfile.lock is not committed, so the first install resolves the newest gems
-# the Gemfile allows, as CI does; later runs keep the lock they find.
+# the Gemfile allows; later runs keep the lock they find.
 install_bundle() {
   (cd "$1" && { bundle check > /dev/null 2>&1 || bundle install --jobs "$(nproc)"; })
 }
 
 versions() {
   ruby --version
+  "$oldest_ruby_bin/ruby" --version
   bundle --version
   java -version 2>&1 | head -n 1
 }
@@ -74,11 +81,16 @@ versions() {
 step "Java (default-jre-headless)" install_java &
 java_install=$!
 
-step "Ruby $ruby_version" install_ruby
+step "Ruby $oldest_ruby_version" install_ruby "$oldest_ruby_version" &
+oldest_ruby_install=$!
+
+step "Ruby $ruby_version" install_ruby "$ruby_version"
 export PATH="$ruby_bin:$PATH"
 persist_path
 
 step "Bundle" install_bundle .
+wait "$oldest_ruby_install"
+step "Bundle under Ruby $oldest_ruby_version" env PATH="$oldest_ruby_bin:$PATH" bash -c "$(declare -f install_bundle); install_bundle ."
 step "Bundle for examples/rails_app" install_bundle examples/rails_app
 step "tmp/tla2tools.jar" ruby bin/model-check --fetch
 

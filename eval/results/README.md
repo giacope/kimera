@@ -1,8 +1,8 @@
 # Evaluation results
 
 `before.json` is `main` at 758df8f; `after.json` is the branch merged in #44,
-at 8099360. They are a snapshot of those two commits, not of later ones; CI
-re-checks part of them on every change (see the last section). Both ran with
+at 8099360. They are a snapshot of those two commits, not of later ones; the
+pre-push gate re-checks part of them on every change (see the last section). Both ran with
 `ruby eval/run --kimera PATH --out FILE` (full mode), one after
 the other on the same 4-vCPU Xeon VM (2.8 GHz, 15 GB, Ruby 3.4.7). Each
 case's oracle runs plain `rspec`/`ruby -Itest` in a fresh process on a copy of
@@ -231,9 +231,9 @@ table is equivalent plus noise.
   0.8.1, 0.8.2 and 0.9.0, and every file of kimera's `lib` and
   `examples` reduces to each of its mutants' bakes under all operators.
 
-## In CI, and before a release
+## Before every push, and before a release
 
-CI's `eval` job runs, on every push to main and every pull request, the
+The pre-push gate (`AGENTS.md`, "Shipping") runs, before every push to main, the
 cases that need no network, Java or Rails app and whose result does not ride
 on machine speed:
 
@@ -248,11 +248,11 @@ survivor, false kill or false `no_coverage`, a silent line, a stale verdict, a
 wrong `--since` selection. About 5 minutes on a
 4-vCPU machine. K4 passes under 150 MB of peak RSS (46 MB measured), far from
 the 441 MB it guards against. Left out: S1 measures wall time; K3 and K13 need
-`examples/rails_app` (the `rails` job runs it end to end); K8 needs Java and
-downloads tla2tools.jar (the `model-check` job); K10 resolves gems from
+`examples/rails_app` (`examples/rails_app/bin/e2e` runs it end to end); K8 needs Java and
+downloads tla2tools.jar (`bin/model-check` covers it); K10 resolves gems from
 rubygems.org; K9 is retired. H2 takes 2 minutes, but it fails today, and a
 pass/fail gate cannot hold a case that already fails; once kimera passes it,
-record it in `after.json` and add it to the job's `CASES`. What it still
+record it in `after.json` and add it to the gate's `--only` list in `AGENTS.md`. What it still
 gets wrong comes from suites whose examples depend on the order they run in
 (see H2 above).
 

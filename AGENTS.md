@@ -22,8 +22,34 @@ Run what your change can break. Times are from a 4 vCPU machine, Ruby 4.0.2.
 | `ruby eval/run --kimera . --out tmp/eval.json` | verdicts against oracles; `--only H1,K2` runs a subset | 17 min |
 | `bin/model-check` | TLA+ model of the worker pool (needs Java) | not measured here |
 
-CI (`.github/workflows/ci.yml`) runs all of these, and on `main` a full
-self-host run (`bundle exec kimera run --judge-isolated-only`, about an hour).
+## Shipping
+
+Kimera is developed trunk-based, and there is no GitHub CI: every change is
+committed on `main` and pushed straight to `origin/main` from an Amp orb, and
+the agent that pushes is the CI. Before each push, rebase onto `origin/main`
+and run, one after another, everything below. Push only when all of them
+pass; when one fails, check it on `origin/main` without your change before
+calling it not yours, and say so.
+
+1. `bundle exec rubocop` and `bundle exec hashira --fail-on all`
+2. `bin/spec`, then again on Ruby 3.4, the oldest the gemspec allows, which
+   `.agents/setup` installs off `PATH`:
+   `PATH="$(echo /opt/hostedtoolcache/Ruby/3.4.*/x64/bin):$PATH" bin/spec`
+3. `bundle exec kimera run --since origin/main --fail-on-no-coverage`
+4. `examples/rails_app/bin/e2e`
+5. `gem install rspec -v "~> 3.13" --no-document` (once per orb), then
+   `ruby eval/run --kimera . --only H1,K1,K2,K4,K5,K6,K7,K11,K12,X1 --baseline eval/results/after.json --out tmp/eval.json`
+   (about 5 minutes; `eval/results/README.md` says why these cases)
+6. `bin/model-check`
+
+A change to Markdown files only needs `bin/spec spec/kimera/usage_drift_spec.rb`.
+If the push is rejected because `main` moved, rebase and run the gate again.
+
+Too slow to gate each push, and run when asked or after a change to what they
+cover: the full self-host run (`bundle exec kimera run --judge-isolated-only
+--reuse-coverage --report tmp/selfhost.json`, about an hour, which also stores
+the coverage map later `--since` runs reuse), `bin/model-check --deep`, and
+`PBT_SCALE=10 bin/spec spec/property`.
 
 ## Rules the linters enforce
 
@@ -68,7 +94,7 @@ it may define no constant outside `Kimera` (eval case K12 checks this).
   in the isolated tier, each mutant against the whole suite: a change there
   costs about 4 minutes of `kimera run lib/kimera/runtime.rb --jobs 4`.
 - A change that alters verdicts needs an eval run: compare the scoreboard
-  with `eval/results/after.json`, which CI uses as its baseline, and do not
+  with `eval/results/after.json`, which the pre-push gate uses as its baseline, and do not
   edit that file to make a case pass.
 - A behavior change gets a `CHANGELOG.md` entry under "Unreleased" with the
   numbers that justify it, and the README, the skill and

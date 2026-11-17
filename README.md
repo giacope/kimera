@@ -24,7 +24,7 @@ and flips them at runtime, so your app boots once, not once per mutant.
   heaviest-first queue. A single large file spreads across every core.
 - **Rails-ready.** Opt-in transaction rollback (`--isolate-db`), per-worker
   test databases via Rails' parallel-testing hooks, and 4 Rails operator
-  families (strong params, validations, callbacks, associations). CI runs it
+  families (strong params, validations, callbacks, associations). Every push runs it
   end to end on a Rails 8.1 app ([`examples/rails_app`](examples/rails_app)),
   with Minitest and RSpec, in every mode.
 - **Built for CI.** `kimera changed` mutates only the lines a PR touched.
@@ -37,7 +37,7 @@ and flips them at runtime, so your app boots once, not once per mutant.
   can't judge is reported separately, never scored, and code it doesn't
   mutate is listed with the reason. `--isolated` re-checks any mutant in a
   fresh process.
-- **Small.** Ruby >= 3.4 (CI covers 3.4 and 4.0), RSpec or Minitest, and one
+- **Small.** Ruby >= 3.4 (each push is checked on 3.4 and 4.0), RSpec or Minitest, and one
   dependency: [Prism](https://github.com/ruby/prism). Kimera mutates Prism's
   tree and writes it back as Ruby itself (`Kimera::Scribe`).
 
@@ -1423,7 +1423,7 @@ against scripted children that inject the model's faults (fault injection,
 not conformance).
 
 `examples/` holds the runnable fixtures the integration tests drive
-(`sample_app` for RSpec, `minitest_app` for Minitest) and a Rails app CI runs
+(`sample_app` for RSpec, `minitest_app` for Minitest) and a Rails app every push runs
 end to end (`rails_app`, `bin/e2e`).
 
 `eval/run` measures a kimera checkout (give it the checkout's path)

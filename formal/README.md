@@ -10,7 +10,7 @@ the model relates to the code").
 
 ```sh
 bin/model-check              # the instances CI checks (about 2 minutes)
-bin/model-check --deep       # larger instances, run by hand or from the Actions tab
+bin/model-check --deep       # larger instances, run by hand
 bin/model-check 4 2          # any N (mutants) and Jobs: invariants and Termination
 bin/model-check --safety 5 3 # invariants only, with symmetry reduction
 ```
