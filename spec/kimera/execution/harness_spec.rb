@@ -1743,6 +1743,23 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(kinship.order(unsafe, %w[t1 t2 t3 t4])).to(eq(%w[t3 t4 t1 t2]))
     end
 
+    def covered(registry, unsafe)
+      point = registry.index[unsafe]
+      other = registry.to_h.fetch(point.file, []).find { |p| p.method_name != point.method_name }
+      { other.ids.first => %w[t4 t5], point.ids.first => %w[t3 t6] }
+    end
+
+    def paced(name)
+      registry, unsafe = reload(name)
+      pace = Kimera::Execution::Pace.new(%w[t2 t5 t6 t3 t4 t1].each_with_index.to_h)
+      [Kimera::Execution::Kinship.new(registry, covered(registry, unsafe), pace), unsafe]
+    end
+
+    it "tries the fastest test first among those covering its method, then its file, then the rest" do
+      kinship, unsafe = paced("HarnessReloadPaced")
+      expect(kinship.order(unsafe, %w[t1 t2 t3 t4 t5 t6])).to(eq(%w[t6 t3 t5 t4 t2 t1]))
+    end
+
     it "keeps the suite order for an unknown mutant or missing coverage", :aggregate_failures do
       registry, unsafe = reload("HarnessReloadAlone")
       expect(Kimera::Execution::Kinship.new(registry, nil).order(unsafe, %w[t2 t1])).to(eq(%w[t2 t1]))
@@ -1953,6 +1970,29 @@ RSpec.describe(Kimera::Execution::Harness) do
       h.warm!(["t1"])
       unsafe = registry.each.find { |m, p| !p.safe? && m.to_s == "< => >" }.first.to_i
       h.run(ids: [unsafe]).to_a.first.status
+    end
+
+    def racing(name)
+      Class.new(Kimera::Frameworks::Suite) do
+        def source(_files) = self
+        def test_ids = %w[slow fast]
+        define_method(:run) do |ids|
+          sleep(0.05) if ids == ["slow"]
+          ok = Object.const_get(name).new.memo(1, 2) == true
+          Kimera::Frameworks::RunOutcome.new(passed: ok, failed_ids: ok ? [] : ids)
+        end
+      end.new
+    end
+
+    def raced(registry, name)
+      h = described_class.build(registry: registry, adapter: racing(name), source_root: dir, soft_timeout: nil)
+      h.warm!(["t1"])
+      h.run(ids: [unsafe_id(registry, "< => >")]).to_a.first
+    end
+
+    it "kills a reloaded mutant with the test the baseline timed fastest, whatever the suite's order" do
+      stub_const("HarnessRaced", Class.new)
+      expect(raced(writing(dir, "HarnessRaced"), "HarnessRaced").failing_tests).to(eq(["fast"]))
     end
 
     it "re-points an alias declared in another file at the reloaded mutant" do

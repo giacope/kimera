@@ -28,12 +28,12 @@ class Kimera::Execution::Schedule
     @options = options
   end
 
-  def run(ids, coverage:, label: "mutants")
+  def run(ids, coverage:, label: "mutants", pace: Kimera::Execution::Pace.new({}))
     kept, settled = screened(coverage)
     progress.during(ids.size, label) do |tick|
       tiers = plan(ids - settled.keys, kept)
       ledger = settle(settled.slice(*ids), tick)
-      process(tiers, kept, ledger, tick)
+      process(tiers, Kimera::Execution::Kinship.new(@registry, kept, pace), ledger, tick)
       ledger.report(triage, @registry)
     end
   end
@@ -65,9 +65,9 @@ class Kimera::Execution::Schedule
 
   def prioritized(safe, coverage) = Kimera::Execution::Priority.new(coverage).order(safe)
 
-  def process((safe, reloadable, deferred), coverage, ledger, tick)
+  def process((safe, reloadable, deferred), kinship, ledger, tick)
     pool(safe, ledger, tick)
-    reload(reloadable, coverage, ledger, tick)
+    reload(reloadable, kinship, ledger, tick)
     defer(deferred, ledger, tick)
   end
 
@@ -76,8 +76,7 @@ class Kimera::Execution::Schedule
     result.tick(tick)
   end
 
-  def reload(ids, coverage, ledger, tick)
-    kinship = Kimera::Execution::Kinship.new(@registry, coverage)
+  def reload(ids, kinship, ledger, tick)
     ids.each { |id| record(ledger, id, rerun(id, kinship), tick) }
   end
 

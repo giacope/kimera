@@ -1039,8 +1039,10 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
    expressions (`@x ||= …`) go to a reload fallback that bakes the mutant into
    a fresh process and watches the method that holds it: the tests that call
    that method are its covering tests, and a mutant no test calls is
-   `no_coverage`. Code that only runs while the suite loads goes to the
-   isolated tier.
+   `no_coverage`. It runs one test at a time until one fails: the tests that
+   reached the mutant's method in the baseline, then those that reached its
+   file, then the rest, each group fastest first. Code that only runs while
+   the suite loads goes to the isolated tier.
 3. **Execution.** Load the suite once and overlay the schemata. From then on
    the parent runs no test: it stays in the post-boot, pre-test state, and
    every test runs in a process forked from it. Fork `--jobs` workers (each

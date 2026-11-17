@@ -55,7 +55,7 @@ class Kimera::Execution::Harness
 
   def without_coverage!(test_files) = overlay!(test_files).tap { verify! }
 
-  def run(ids: mutants, label: "mutants") = schedule.run(ids, coverage: coverage, label: label)
+  def run(ids: mutants, label: "mutants") = schedule.run(ids, coverage: coverage, label: label, pace: survey.pace)
 
   def survey = Kimera::Execution::Survey.new(options, adapter)
 

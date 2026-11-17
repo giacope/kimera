@@ -38,6 +38,20 @@
   fastest first. Tried and not kept: rounds of 1, 2, 4 mutants per source
   file that try each file's known killers first, which took 409 s on the
   same run because the order it gave RSpec was not the order RSpec ran.
+- **The reload tier tries the tests that reach a mutant fastest first.** A
+  memoized mutant (`@x ||= ...`) is judged alone in a fork of the parent,
+  one test at a time until one fails, and those tests ran in suite order
+  within each group (the tests that reached its method in the baseline,
+  then its file's, then the rest), so a killer that stands late in the
+  suite ran last: `rewrite/outcomes.rb:48` and `:66` ran 703 passing tests
+  before a 3 ms one that kills them, 20.8 s each (129 s each in CI's
+  self-host run), and `execution/schemata.rb:17` 53 before its killer. Each
+  group now runs fastest first by baseline time. `kimera run
+  lib/kimera/rewrite/outcomes.rb lib/kimera/execution/schemata.rb --jobs 4`
+  (98 mutants, 4 of them reloaded): 92 s to 50 s, its mutants phase 52 s to
+  7 s, with the same 98 verdicts. In CI's report the reload tier is 53
+  mutants and 355 of 11,616 worker-seconds, but it runs on one core after
+  the pool, and three mutants are 324 s of it.
 - **Changed: every run confirms its survivors (`confirm_survivors` is on by
   default), so a verdict is the same on every run.** A mutant's covering
   tests run in one process, the tests that killed that worker's last mutants
