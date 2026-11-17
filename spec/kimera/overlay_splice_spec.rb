@@ -161,6 +161,93 @@ RSpec.describe(Kimera::Overlay) do
       expect([loaded(result.to_s).number("x21"), result.to_s]).to(match([21, include("? (/(?<num>\\d+)/ =~ s) :")]))
     end
 
+    def closure_outcomes(program)
+      result, registry = woven(program, %w[boolean_connective])
+      receiver = loaded(result.to_s)
+      [result.to_h.fetch(:mutant_ids).size, receiver.m, flip(registry, "|| => &&") { receiver.m }]
+    end
+
+    it "preserves closure-owned locals when another guard branch declares the same name", :aggregate_failures do
+      closures = [
+        "-> { x = 3; @seen = x; false }.call",
+        "->(arg) { x = arg; @seen = x; false }.call(3)",
+        "[3].any? { x = 3; @seen = x; false }",
+        "[3].any? { |arg| x = arg; @seen = x; false }",
+        "[3].any? { |arg; kept| kept = arg; x = kept; @seen = x; false }",
+        "->(arg = (x = 3)) { @seen = -> { x }.call; false }.call",
+        "->(arg: (x = 3)) { @seen = ->(other = x) { other }.call; false }.call",
+        "[3].any? { |arg, other = (x = arg); kept| @seen = x; false }"
+      ]
+      closures.each do |closure|
+        program = "def m; (#{closure} || (x = 2)); [x, @seen]; end"
+        expect(closure_outcomes(program)).to(eq([1, [2, 3], [nil, 3]]), closure)
+      end
+    end
+
+    it "keeps empty bodies, nested captures and shadowing parameters in rewritten defaults", :aggregate_failures do
+      closures = {
+        "->(arg = (x = 3)) {}.call" => nil,
+        "->(arg = (x = 3)) { @seen = [x, -> { x }.call, ->(x) { x }.call(4)]; false }.call" => [3, 3, 4],
+        "->(arg: (x = 3)) { @seen = [arg, x]; false }.call(arg: 9)" => [9, nil],
+        "->(arg = (x = 3)) { def value(x: 4); x; end; @seen = [x, value]; false }.call" => [3, 4]
+      }
+      closures.each do |closure, seen|
+        program = "def m; (#{closure} || (x = 2)); [x, @seen]; end"
+        expect(closure_outcomes(program)).to(eq([1, [2, seen], [nil, seen]]), closure)
+      end
+    end
+
+    it "keeps body-owned locals separate while renaming a default's locals" do
+      program = "def m; (->(arg = (x = 3)) { y = 4; @seen = [x, y]; false }.call || (x, y = 2, 5)); [x, y, @seen]; end"
+      expect(closure_outcomes(program)).to(eq([1, [2, 5, [3, 4]], [nil, nil, [3, 4]]]))
+    end
+
+    it "preserves shorthand bindings and named captures in rewritten defaults", :aggregate_failures do
+      closures = {
+        "->(arg = (x = 3)) { @seen = {x:}; false }.call" => { x: 3 },
+        "->(arg = (({x: 3} in {x:}); x)) { @seen = ->(**kw) { kw }.call(x:); false }.call" => { x: 3 },
+        "->(arg = (/(?<x>a)/ =~ 'za')) { @seen = [arg, x, $~.names]; false }.call" => [1, "a", ["x"]],
+        "->(arg = (/(?<x>a)/ =~ 'z')) { @seen = [arg, x, $~]; false }.call" => [nil, nil, nil],
+        "->(arg = (x = 3; /(?<x>a)(?<y>b)/ =~ 'zab')) { @seen = [arg, x, y]; false }.call" => [1, "a", "b"],
+        "->(arg = (x = 3)) { @seen = [-> { /(?<x>a)/ =~ 'a'; x }.call, x]; false }.call" => %w[a a]
+      }
+      closures.each do |closure, seen|
+        program = "def m; (#{closure} || (x = 2)); [x, @seen]; end"
+        expect(closure_outcomes(program)).to(eq([1, [2, seen], [nil, seen]]), closure)
+      end
+    end
+
+    it "does not reuse a generated default-local name that the surrounding scope or closure already owns" do
+      closures = [
+        ["def m; __kimera_default_x_160 = :kept; (", "@seen = [x, __kimera_default_x_160]", [3, :kept]],
+        ["def m; (", "__kimera_default_x_160 = 9; @seen = x", 3]
+      ]
+      closures.each do |prefix, body, seen|
+        program = "#{prefix.ljust(160)}->(arg = (x = 3)) { #{body}; false }.call || (x = 2)); [x, @seen]; end"
+        expect(closure_outcomes(program)).to(eq([1, [2, seen], [nil, seen]]))
+      end
+    end
+
+    it "does not reuse renamed default locals for match-result temporaries" do
+      prefix = "def m; (->(arg = (x = 3; match_160 = 7; "
+      program = "#{prefix.ljust(160)}/(?<x>a)/ =~ 'za')) { @seen = [x, match_160]; false }.call || " \
+        "(x, match_160 = 2, 5)); [x, match_160, @seen]; end"
+      expect(closure_outcomes(program)).to(eq([1, [2, 5, ["a", 7]], [nil, nil, ["a", 7]]]))
+    end
+
+    it "keeps parenthesized flip-flops and implicit regexp matches in conditional positions", :aggregate_failures do
+      programs = {
+        "def m; [0, 1, 2, 3, 4, 5].select { |n| if ((n == 2)..(n == 4)); true; else; false; end }; end" => [2, 3, 4],
+        'def m; ["no", "cat", "yes", "apple"].select { |word| $_ = word; if (/a/); true; else; false; end }; end' => %w[
+          cat apple
+        ]
+      }
+      programs.each do |program, selected|
+        result, registry = woven(program, %w[conditional])
+        expect([result.to_h.fetch(:mutant_ids).size, loaded(result.to_s).m]).to(eq([registry.each.count, selected]))
+      end
+    end
+
     it "writes a visibility mutant's probe and registration on the method's own lines", :aggregate_failures do
       program = "class Probed\n  def one(a)\n    a\n  end\n  def two = 2\nend\n"
       written = woven(program, %w[visibility]).first.to_s

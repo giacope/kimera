@@ -247,6 +247,36 @@ RSpec.describe(Kimera::RegistryScan) do
     end
   end
 
+  describe "syntax-sensitive mutations" do
+    cases = {
+      "defined? arguments, but not adjacent expressions" => [
+        "arithmetic", "1 + 2; defined?((3 + 4)); 5 + 6", [true, false, true]
+      ],
+      "nested defined? arguments" => ["arithmetic", "defined?(defined?((1 + 2)))", [false]],
+      "replacing the whole defined? expression" => ["return_value", "defined?(name)", [true]],
+      "an expression enclosing defined?" => ["arithmetic", "defined?(name) + 3", [true]],
+      "flip-flop endpoints, but not the body or adjacent literals" => [
+        "numeric_literal", "7; if 1...3; 9; end; 11", [true, false, false, true, true]
+      ],
+      "a bare capture name read before the regexp binds it" => [
+        "boolean_connective", '/(?<x>a)/ =~ (x || "a"); true || false', [false, true]
+      ],
+      "an expression enclosing that capture" => [
+        "boolean_connective", '(/(?<x>a)/ =~ (x || "a")) || false', [false, false]
+      ],
+      "an already-bound capture name" => ["boolean_connective", 'x = "a"; /(?<x>a)/ =~ (x || "a")', [true]],
+      "an explicit method call sharing a capture name" => ["boolean_connective", '/(?<x>a)/ =~ (x() || "a")', [true]],
+      "a different bare name" => ["boolean_connective", '/(?<x>a)/ =~ (y || "a")', [true]]
+    }
+    cases.each do |shape, (operator, code, safety)|
+      it "routes #{shape} to the appropriate evaluation mode" do
+        scanned = described_class.new(operators: Kimera::Operators.build(keys: [operator]))
+          .source("def m; #{code}; end", file: "x.rb")
+        expect(scanned.to_a.map(&:safe?)).to(eq(safety))
+      end
+    end
+  end
+
   describe "tainting" do
     def spot
       Kimera::MutationPoint.new(

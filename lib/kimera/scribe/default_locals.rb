@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "captured_locals"
+
 module Kimera
   class Scribe
     class DefaultLocals
@@ -35,9 +37,9 @@ module Kimera
         @_renames ||= names.to_h { |name| [name, fresh(name)] }
       end
 
-      def fresh(name)
+      def fresh(name, reserved = occupied)
         candidate = :"__kimera_default_#{name}_#{@node.location.start_offset}"
-        candidate = :"#{candidate}_" while @scope.local?(candidate) || occupied.include?(candidate)
+        candidate = :"#{candidate}_" while @scope.local?(candidate) || reserved.include?(candidate)
         candidate
       end
 
@@ -54,7 +56,14 @@ module Kimera
         fields = rewritten_fields(node, depth)
         name = renames[node.name] if node.respond_to?(:depth) && node.respond_to?(:name) && node.depth == depth
         fields[:name] = name if name
-        node.copy(**fields)
+        expanded(node, node.copy(**fields))
+      end
+
+      def expanded(original, changed)
+        return changed.value if original.type == :implicit_node
+        return changed unless original.type == :match_write_node
+        temporary = fresh(:"match_#{original.location.start_offset}", occupied | renames.values)
+        CapturedLocals.new(original, changed, temporary).node
       end
 
       def rewritten_fields(node, depth)

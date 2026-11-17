@@ -42,7 +42,7 @@ module Kimera
 
         def locals(scope, names = NO_NAMES)
           return names if scope.equal?(@node)
-          children = scope.compact_child_nodes
+          children = scope.type == :match_write_node ? [scope.call] : scope.compact_child_nodes
           earlier = children.select { |child| before?(child) }
           seen = earlier.reduce(opened(scope, names)) { |all, child| all | seen(child) }
           inner = children.find { |child| around?(child) }

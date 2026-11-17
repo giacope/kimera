@@ -4,6 +4,7 @@ require "prism"
 require_relative "default_removal"
 require_relative "memo_guard"
 require_relative "memoization"
+require_relative "syntax_guard"
 require_relative "../rewrite/outcomes"
 require_relative "mutation_point"
 require_relative "skipped"
@@ -86,8 +87,11 @@ class Kimera::RegistryScan::SourceFile
 
   def taints(node)
     location = node.location
-    tainted.lazy.flat_map { |range| range.reasons(location.start_offset, location.end_offset) }.first(1)
+    reasons = tainted.lazy.flat_map { |range| range.reasons(location.start_offset, location.end_offset) }.first(1)
+    reasons.empty? ? syntax_guard.reasons(node) : reasons
   end
+
+  def syntax_guard(kind = Kimera::SyntaxGuard) = @_syntax_guard ||= kind.new(@source)
 
   def hold(node, cursor) = cursor.held(@operators, node)
 

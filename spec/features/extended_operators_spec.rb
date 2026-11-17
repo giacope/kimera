@@ -138,6 +138,82 @@ RSpec.describe("kimera run --operators all (end-to-end)") do
     end
   end
 
+  it "keeps numeric flip-flop endpoints as line-number comparisons" do
+    source = <<~RUBY
+      class Windows
+        def selected(lines)
+          lines.select do |line|
+            $. = line
+            if (1...3)
+              true
+            else
+              false
+            end
+          end
+        end
+      end
+    RUBY
+    tests = <<~RUBY
+      require_relative "../app/subject"
+      RSpec.describe Windows do
+        it do
+          previous = $.
+          expect(Windows.new.selected([0, 1, 2, 3, 4])).to eq([1, 2, 3])
+        ensure
+          $. = previous
+        end
+      end
+    RUBY
+    both_modes(source, tests, "numeric_literal").each do |run|
+      expect([run.status, run.counts.values_at("total", "killed")]).to(eq([0, [5, 5]]), run.output)
+    end
+  end
+
+  it "lets defined? inspect the mutated syntax instead of a runtime guard" do
+    source = <<~RUBY
+      class Inspection
+        def operation
+          defined?((1 + 2))
+        end
+
+        def rescued
+          defined?((nil.to_s rescue 2))
+        end
+      end
+    RUBY
+    tests = <<~RUBY
+      require_relative "../app/subject"
+      RSpec.describe Inspection do
+        it { expect(Inspection.new.operation).to eq("method") }
+        it { expect(Inspection.new.rescued).to eq("expression") }
+      end
+    RUBY
+    both_modes(source, tests, "arithmetic,rescue_clause,method_unwrap").each do |run|
+      expect([run.status, run.counts.values_at("total", "killed", "survived")]).to(eq([2, [3, 1, 2]]), run.output)
+    end
+  end
+
+  it "preserves missing-variable errors before a regexp declares its named captures" do
+    source = <<~RUBY
+      class Captures
+        def missing
+          /(?<x>a+)/ =~ (x || "a")
+        rescue NameError => error
+          error.class
+        end
+      end
+    RUBY
+    tests = <<~RUBY
+      require_relative "../app/subject"
+      RSpec.describe Captures do
+        it { expect(Captures.new.missing).to eq(NameError) }
+      end
+    RUBY
+    both_modes(source, tests, "regexp,regexp_quantifier").each do |run|
+      expect([run.status, run.counts.values_at("total", "killed", "survived")]).to(eq([2, [3, 0, 3]]), run.output)
+    end
+  end
+
   it "does not capture a closure's local from another branch of its guard" do
     source = <<~RUBY
       class Captures
@@ -155,16 +231,34 @@ RSpec.describe("kimera run --operators all (end-to-end)") do
           (->(arg = (x = 1)) { raise "lost default local" unless -> { x }.call == arg; false }.call || (x = 2))
           x
         end
+
+        def regexp_value
+          (->(arg = (/(?<x>a)/ =~ "a")) { @seen = x; false }.call || (x = 50))
+          @seen
+        end
+
+        def shorthand_value
+          (->(arg = (x = 3)) { @seen = {x:}; false }.call || (x = 50))
+          @seen
+        end
+
+        def missing_capture
+          /(?<x>a)/ =~ (x || "a")
+        rescue NameError => error
+          error.class
+        end
       end
     RUBY
     tests = <<~RUBY
       require_relative "../app/subject"
       RSpec.describe Captures do
         it { expect([Captures.new.value, Captures.new.block_value, Captures.new.default_value]).not_to include(nil) }
+        it { expect([Captures.new.regexp_value, Captures.new.shorthand_value]).to eq(["a", {x: 3}]) }
+        it { expect(Captures.new.missing_capture).to eq(NameError) }
       end
     RUBY
     both_modes(source, tests, "boolean_connective").each do |run|
-      expect([run.status, run.counts.values_at("total", "killed")]).to(eq([0, [3, 3]]), run.output)
+      expect([run.status, run.counts.values_at("total", "killed", "survived")]).to(eq([2, [6, 3, 3]]), run.output)
     end
   end
 end

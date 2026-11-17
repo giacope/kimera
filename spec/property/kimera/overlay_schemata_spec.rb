@@ -51,14 +51,21 @@ RSpec.describe(Kimera::Overlay) do
         "->(arg = (x = %d)) { @v = -> { x }.call; false }.call",
         "->(arg: (x = %d)) { @v = ->(other = x) { other }.call; false }.call",
         "[1].any? { |ignored, arg = (x = %d); kept| @v = ->(x) { x }.call(99); false }",
-        "->(arg = (x = %d; -> { x += 1 }.call; x)) { @v = x; false }.call"
+        "->(arg = (x = %d; -> { x += 1 }.call; x)) { @v = x; false }.call",
+        "->(arg = (x = %d)) { @v = {x:}; false }.call",
+        "->(arg = (({x: %d} in {x:}); x)) { @v = ->(**kw) { kw }.call(x:); false }.call",
+        "->(arg = (x = %d; /(?<x>a)/ =~ (x.zero? ? 'za' : 'a'))) { @v = [arg, x, $~.names]; false }.call",
+        "->(arg = (x = %d; /(?<x>a)/ =~ 'z')) { @v = [arg, x, $~]; false }.call",
+        "->(arg = (x = %d; /(?<x>a)(?<y>b)/ =~ (y || 'ab'))) { @v = [arg, x, y]; false }.call",
+        "->(arg = (x = %d; /(?<x>a)(?<y>b)/ =~ 'zab')) { @v = [arg, x, y, $~.named_captures]; false }.call",
+        "->(arg = (x = %d)) { @v = [-> { /(?<x>a)/ =~ 'a'; x }.call, x]; false }.call"
       )
     end
 
     def outcome(receiver, (positional, keyword))
       [:returned, plain(receiver.m(*positional, **(keyword == :omitted ? {} : { c: keyword })))]
     rescue StandardError => error
-      [:raised, error.class, SchemataProjection.worded(error)]
+      [:raised, error.class, SchemataProjection.worded(error).sub(receiver.inspect, "self")]
     end
 
     def plain(value) = value.instance_of?(Object) ? Object : value
@@ -88,8 +95,8 @@ RSpec.describe(Kimera::Overlay) do
 
     it "preserves closure default locals, nested captures and explicit shadowing across guard branches" do
       for_all(
-        default_closures, Pbt.integer(min: -10, max: 10), Pbt.one_of("", "x = 7;"),
-        runs: 40
+        default_closures, Pbt.integer(min: -10, max: 10), Pbt.one_of("", "x = 7;", "y = 'ab';"),
+        runs: 80
       ) do |closure, value, prefix|
         source = "def m; #{prefix} (#{format(closure, value)} || (x = 50)); [x, @v]; end"
         operators = Kimera::Operators.build(keys: ["boolean_connective"])

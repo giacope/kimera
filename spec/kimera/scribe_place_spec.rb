@@ -55,6 +55,13 @@ RSpec.describe(Kimera::Scribe) do
       expect(locals("def m\n  (v = 1) && 2\nend\n", "(v = 1) && 2", after: true)).to(eq(%i[v]))
     end
 
+    it "binds a regexp's captures after matching, not while evaluating its argument", :aggregate_failures do
+      source = 'def m; /(?<x>a)/ =~ (x || "a"); x; end'
+      expect(locals(source, 'x || "a"')).to(eq([]))
+      expect(locals(source, '/(?<x>a)/ =~ (x || "a")', after: true)).to(eq(%i[x]))
+      expect(locals('def m; x = "a"; /(?<x>a)/ =~ (x || "a"); end', 'x || "a"')).to(eq(%i[x]))
+    end
+
     it "writes a call named like a bound local with parentheses" do
       expect(written("def m(d)\n  e\nend\n", "e") { read("d") }).to(eq("d()"))
     end

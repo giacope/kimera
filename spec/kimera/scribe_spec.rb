@@ -504,8 +504,12 @@ RSpec.describe(Kimera::Scribe) do
         "x.each { |*|\n}",
       "x.each { |a; b| }" =>
         "x.each { |a; b|\n}",
+      "x.each { |a = (b = 3)| b }" =>
+        "x.each { |a = (b = 3)|\n  b\n}",
       "->(a, b = 1) { a }" =>
         "->(a, b = 1) {\n  a\n}",
+      "->(a = (b = 3)) { b }" =>
+        "->(a = (b = 3)) {\n  b\n}",
       "-> { }" =>
         "-> {\n}",
       "->(a; b) { }" =>
