@@ -52,6 +52,37 @@ RSpec.describe(Kimera::WorkTree, :aggregate_failures) do
     end
   end
 
+  def seeded(shop)
+    %w[a.rb tmp/kimera/report.json].each do |path|
+      FileUtils.mkdir_p(File.dirname(File.join(shop, path)))
+      File.write(File.join(shop, path), "1\n")
+    end
+  end
+
+  def nested
+    project(git: true) do |repository|
+      shop = File.join(repository, "services", "shop")
+      seeded(shop)
+      commit(repository)
+      yield(repository, shop)
+    end
+  end
+
+  it "sees, of a project in a subdirectory of its repository, only the project's own files" do
+    nested do |repository, shop|
+      expect(changes(shop) { File.write(File.join(repository, "b.rb"), "22\n") }).to(be_empty)
+      expect(changes(shop) { File.write(File.join(shop, "tmp/kimera/report.json"), "{}") }).to(be_empty)
+      expect(changes(shop) { File.write(File.join(shop, "a.rb"), "22\n") }).to(eq(["a.rb"]))
+    end
+  end
+
+  it "sees a file of such a project that was modified before the run change again" do
+    nested do |_repository, shop|
+      File.write(File.join(shop, "a.rb"), "dirty\n")
+      expect(changes(shop) { File.write(File.join(shop, "a.rb"), "dirtier!\n") }).to(eq(["a.rb"]))
+    end
+  end
+
   it "leaves the files kimera itself writes" do
     project(git: false) do |root|
       report = File.join(root, "report.json")

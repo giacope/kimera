@@ -62,6 +62,16 @@
   9.3 s instead of 10.2 to 11.0 s, with the same 7 of 7 killed.
   dry-inflector's baseline, which is mostly forks, does not change (4.6 s
   and 4.7 s against 4.2 s and 4.7 s).
+- **Fixed: the work-tree guard misread a project that is a subdirectory of
+  its git repository.** `git status --porcelain` names files from the top of
+  the repository, and the guard looked for them under the project. A file
+  that changed anywhere else in the repository during the run failed it
+  with exit 1 ("the run changed 1 tracked file(s) in the project"): an edit
+  to kimera's own `README.md` while `bin/spec` ran turned
+  `spec/features/isolated_spec.rb`, which runs in `examples/sample_app`,
+  from exit 2 to exit 1. And a project file that was already modified
+  before the run could be rewritten during it unnoticed. The guard now asks
+  git for the project's files only and reads them by the project's paths.
 - **Changed: every run confirms its survivors (`confirm_survivors` is on by
   default), so a verdict is the same on every run.** A mutant's covering
   tests run in one process, the tests that killed that worker's last mutants

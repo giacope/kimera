@@ -50,11 +50,17 @@ module Kimera
     end
 
     def tracked
-      out, = Open3.capture2("git", "-C", root, "status", "--porcelain", "--untracked-files=no", "-z")
+      out, = Open3.capture2("git", "-C", root, "status", "--porcelain", "--untracked-files=no", "-z", "--", ".")
+      inside = prefix
       out.split("\0").each_with_object({}) do |entry, found|
-        path = entry[3..]
+        path = entry[3..].delete_prefix(inside)
         found[path] = [entry[0, 2], *stat(path)]
       end
+    end
+
+    def prefix
+      out, = Open3.capture2("git", "-C", root, "rev-parse", "--show-prefix")
+      out.chomp
     end
 
     def walked
