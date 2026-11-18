@@ -40,12 +40,14 @@ RSpec.describe(Kimera::Runtime) do
 
   describe "inside a non-main Ractor" do
     def in_ractor(shared, id)
-      experimental = Warning[:experimental]
+      child = fork { exit!(asked(shared, id) ? 0 : 7) }
+      { 0 => true, 7 => false }.fetch(Process.wait2(child).last.exitstatus)
+    end
+
+    def asked(shared, id)
       Warning[:experimental] = false
-      ractor = Ractor.new(shared, id) { |runtime, asked| runtime.active?(asked) }
+      ractor = Ractor.new(shared, id) { |runtime, mutant| runtime.active?(mutant) }
       ractor.respond_to?(:value) ? ractor.value : ractor.take
-    ensure
-      Warning[:experimental] = experimental
     end
 
     it "is shareable, and answers which mutant is active", :aggregate_failures do
