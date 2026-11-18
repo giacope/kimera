@@ -13,7 +13,7 @@ class Kimera::Runtime < Module
       def initialize(ids = {}, spill = nil) = super
 
       def push(id)
-        ids[id] = true
+        ids[id] = id
       end
 
       def fan = [self]
@@ -35,7 +35,7 @@ class Kimera::Runtime < Module
 
       def absorb
         return unless spill && File.exist?(spill)
-        File.foreach(spill) { |line| ids[Integer(line)] = true }
+        File.foreach(spill) { |line| push(Integer(line)) }
         File.delete(spill)
       end
     end
@@ -84,15 +84,9 @@ class Kimera::Runtime < Module
     @active = chosen
   end
 
-  def opened(ledgers)
-    return if ledgers.empty?
-    publish([*@sink.fan, *ledgers])
-  end
+  def opened(ledgers) = publish([*@sink.fan, *ledgers])
 
-  def closed(ledgers)
-    return if ledgers.empty?
-    publish(@sink.fan.reject { |open| ledgers.any? { open.equal?(it) } })
-  end
+  def closed(ledgers) = publish(@sink.fan.reject { |open| ledgers.any? { open.equal?(it) } })
 
   def forked!(spills) = publish(spills)
 
@@ -104,7 +98,7 @@ class Kimera::Runtime < Module
 
   def remote(id)
     seen = Ractor.current[:kimera_reached] ||= {}
-    return if seen.key?(id)
+    return if seen[id]
     seen[id] = true
     @spills.each { |spill| spill.write(id) }
   end
@@ -122,7 +116,7 @@ Kimera::Runtime::Spill =
   Struct.new(:leak, :ids) do
     private(*members)
     def push(id)
-      return if ids.key?(id)
+      return if ids[id]
       ids[id] = true
       write(id)
     end
@@ -191,10 +185,7 @@ Kimera::Runtime::Flip =
       expose(:private)
     end
 
-    def reveal
-      expose(:public)
-      names.clear
-    end
+    def reveal = expose(:public)
     private
     def expose(visibility)
       # rubocop:disable-next Kata/NoReflection -- a visibility mutant makes the project's own method private in its class, as the mutated source would
