@@ -38,16 +38,16 @@ RSpec.describe(Kimera::Runtime) do
     expect(Kimera::RUNTIME).to(equal(bound))
   end
 
-  describe "inside a non-main Ractor" do
-    def in_ractor(shared, id)
-      child = fork { exit!(asked(shared, id) ? 0 : 7) }
-      { 0 => true, 7 => false }.fetch(Process.wait2(child).last.exitstatus)
-    end
+  def asked(shared, *ids)
+    Warning[:experimental] = false
+    ractor = Ractor.new(shared, ids) { |runtime, mutants| mutants.map { runtime.active?(it) }.last }
+    ractor.respond_to?(:value) ? ractor.value : ractor.take
+  end
 
-    def asked(shared, id)
-      Warning[:experimental] = false
-      ractor = Ractor.new(shared, id) { |runtime, mutant| runtime.active?(mutant) }
-      ractor.respond_to?(:value) ? ractor.value : ractor.take
+  describe "inside a non-main Ractor" do
+    def in_ractor(shared, *ids)
+      child = fork { exit!(asked(shared, *ids) ? 0 : 7) }
+      { 0 => true, 7 => false }.fetch(Process.wait2(child).last.exitstatus)
     end
 
     it "is shareable, and answers which mutant is active", :aggregate_failures do
@@ -63,6 +63,14 @@ RSpec.describe(Kimera::Runtime) do
       expect([in_ractor(runtime, 4), in_ractor(runtime, 9)]).to(eq([true, false]))
       expect(runtime.stop!(ledger)).to(contain_exactly(4, 9))
       expect(in_ractor(runtime, 4)).to(be(true))
+    end
+
+    it "writes an id it reaches twice to the open ledger's spill once" do
+      ledger = runtime.start!
+      in_ractor(runtime, 4, 4)
+      expect(File.read(ledger.__send__(:spill))).to(eq("4\n"))
+    ensure
+      runtime.stop!(ledger)
     end
   end
 
@@ -83,6 +91,18 @@ RSpec.describe(Kimera::Runtime) do
       runtime.active = "7"
       expect(runtime.active).to(eq(7))
       expect(runtime.active?(7)).to(be(true))
+    end
+
+    def pushes(&)
+      count = 0
+      TracePoint.new(:call) { |call| count += 1 if call.method_id == :push }.enable(&)
+      count
+    end
+
+    it "asks nothing of its sink while no ledger is open, before the first one and after the last" do
+      fresh = pushes { runtime.active?(1) }
+      runtime.stop!(runtime.start!)
+      expect([fresh, pushes { runtime.active?(1) }]).to(eq([0, 0]))
     end
   end
 
@@ -274,6 +294,21 @@ RSpec.describe(Kimera::Runtime) do
       expect(touched).to(include(42))
     end
 
+    def ractor(mutant) = -> { asked(Kimera::RUNTIME, mutant).then { exit!(0) } }
+
+    it "reach it from a Ractor the child starts" do
+      touched, = forked(&ractor(43))
+      expect(touched).to(include(43))
+    end
+
+    it "leave the parent recording on its own ledger" do
+      ledger = Kimera::RUNTIME.start!
+      Process.wait(fork(&child(44)))
+      expect(Kimera::RUNTIME.ledgers.count { it.equal?(ledger) }).to(eq(1))
+    ensure
+      Kimera::RUNTIME.stop!(ledger)
+    end
+
     it "are not looked for while no ledger is open" do
       expect(runtime.leaks).to(be_empty)
     end
@@ -371,6 +406,18 @@ RSpec.describe(Kimera::Runtime) do
       runtime.privatize(7, mixin, :sized)
       runtime.active = 7
       expect(box.public_method_defined?(:sized)).to(be(true))
+    end
+
+    def outsiders
+      stranger = Class.new.tap { it.define_method(:copy, mixin.instance_method(:sized)) }
+      [stranger, Class.new(stranger).include(mixin)]
+    end
+
+    it "leaves the copy a class outside its family defined from it public, there and in an includer below it" do
+      holders = outsiders
+      runtime.privatize(7, mixin, :sized)
+      runtime.active = 7
+      expect(visible(holders, :copy)).to(eq([true, true]))
     end
 
     it "flips a method registered while its mutant is active, and every one of them back", :aggregate_failures do
