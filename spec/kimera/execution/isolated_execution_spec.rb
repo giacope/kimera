@@ -505,7 +505,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
         define_method(:verdict) do |bay, _locations, first: false|
           sink << [File.read(File.join(seated.call(bay).first, "calc.rb")), first]
           sleep(pause) if pause
-          Kimera::Execution::IsolatedOutcome.new(:killed, ["t1[1:1]"])
+          Kimera::Execution::IsolatedOutcome.new(*(sink.size > 1 ? [:survived] : [:killed, ["t1[1:1]"]]))
         end
         define_method(:now) { |*| readings.shift } unless pause
       end.new(registry: registry, root: root, tests: ["t1"], coverage: { id => ["t1"] }, **quality)

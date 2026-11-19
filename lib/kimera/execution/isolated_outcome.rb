@@ -19,8 +19,9 @@ class Kimera::Execution::IsolatedOutcome
   def retried = outside? ? yield : self
 
   def cleared
-    return self unless outside?
+    return self unless outside? || named?
     control = yield
+    return beyond(control) if named?
     control.survived? ? recurred : environmental(control)
   end
 
@@ -37,11 +38,24 @@ class Kimera::Execution::IsolatedOutcome
 
   def survived? = status == :survived
 
+  def failed = Array(failing)
+
   private
 
   attr_reader :status, :failing, :detail
 
   def outside? = status == :outside
+
+  def named? = failed.any?
+
+  def beyond(control)
+    kept = failing - control.failed
+    return self.class.new(:killed, kept, detail) if kept.any?
+    self.class.new(
+      :harness_error, nil,
+      "#{self}; without the mutant too, after the same tests in a fresh mirror, so it is no kill"
+    )
+  end
 
   def timeout? = status == :timeout
 

@@ -14,6 +14,10 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#evaluate", :aggregate_fai
   let(:id) { registry.each.map { |mutant, _point| mutant.to_i }.first }
   let(:outside) { Kimera::Execution::IsolatedOutcome.new(:outside, [], "an error outside every test: boom") }
 
+  let(:clean) { Kimera::Execution::IsolatedOutcome.new(:survived) }
+
+  def killed(*tests) = Kimera::Execution::IsolatedOutcome.new(:killed, tests)
+
   def test_bay(mirror) = Kimera::Execution::Bay.new(mirror, 3, Kimera::Overlay.new(registry))
 
   def test_runner(root, outcomes, seen)
@@ -42,8 +46,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#evaluate", :aggregate_fai
   it "takes the second run's verdict when the first broke outside every test" do
     result, seen = test_settled(outside, Kimera::Execution::IsolatedOutcome.new(:survived))
     expect([result.status, seen]).to(eq([:survived, [[3, false, true], [3, false, true]]]))
-    expect(test_settled(outside, Kimera::Execution::IsolatedOutcome.new(:killed, ["t1"])).first.failing_tests)
-      .to(eq(["t1"]))
+    expect(test_settled(outside, killed("t1"), clean).first.failing_tests).to(eq(["t1"]))
   end
 
   it "kills the mutant when the error recurs and a fresh mirror without the mutant runs clean", :aggregate_failures do
@@ -66,7 +69,29 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#evaluate", :aggregate_fai
   end
 
   it "runs once when the first verdict is inside a test" do
-    _result, seen = test_settled(Kimera::Execution::IsolatedOutcome.new(:killed, ["t1"]))
+    _result, seen = test_settled(Kimera::Execution::IsolatedOutcome.new(:survived))
     expect(seen).to(eq([[3, false, true]]))
+  end
+
+  it "keeps a kill once the same tests run clean without the mutant in a fresh mirror" do
+    result, seen = test_settled(killed("t1"), clean)
+    expect([result.status, result.failing_tests, seen]).to(eq([:killed, ["t1"], [[3, false, true], [3, true, false]]]))
+  end
+
+  it "leaves it unjudged when its failing test fails without the mutant too, after the same tests" do
+    result, = test_settled(killed("t1"), killed("t1", "t0"))
+    expect([result.status, result.failing_tests]).to(eq([:harness_error, nil]))
+    expect(result.detail)
+      .to(eq("failing: t1; without the mutant too, after the same tests in a fresh mirror, so it is no kill"))
+  end
+
+  it "keeps only the failing tests that pass without the mutant" do
+    result, = test_settled(killed("t1", "t2"), killed("t2"))
+    expect([result.status, result.failing_tests]).to(eq([:killed, ["t1"]]))
+  end
+
+  it "keeps a kill whose control could not run" do
+    result, = test_settled(killed("t1"), Kimera::Execution::IsolatedOutcome.new(:timeout))
+    expect([result.status, result.failing_tests]).to(eq([:killed, ["t1"]]))
   end
 end

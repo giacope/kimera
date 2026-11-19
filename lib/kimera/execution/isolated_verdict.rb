@@ -62,8 +62,10 @@ module Kimera
       end
 
       def cleared(bay, tests, outcome)
-        outcome.cleared { with_mirror { |mirror| verdict(bay.moved(mirror), tests) } }
+        outcome.cleared { controls[tests] ||= with_mirror { |mirror| verdict(bay.moved(mirror), tests) } }
       end
+
+      def controls = @_controls ||= {}
 
       def with_mutant(id, bay, file)
         original, target = bay.stage(layout.root, file, id)

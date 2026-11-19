@@ -395,6 +395,10 @@ A mirror is as safe as a warm worker:
   mutant. Clean there, the mutant broke loading and is killed, the detail
   saying so; failing there too, it is the environment and the mutant stays
   `harness_error`.
+- A kill is checked the same way: a fresh mirror runs the same tests, in the
+  same order, without the mutant (once per list of tests). A failing test that
+  fails there too failed because of the tests before it, not the mutant, and
+  kills nothing; when every failing test does, the mutant is `harness_error`.
 - A mutant with no coverage of its own (class-body DSL, a memoized value,
   code the suite runs while it loads) runs every test in the test files that
   cover its source file, plus the file's conventional spec or test file

@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **Fixed: the isolated tier counted a test that fails without the mutant as
+  a kill.** It orders a mutant's tests by their baseline time, which varies
+  from run to run, while its baseline ran them in plan order, so a test that
+  fails only after certain other tests passed the baseline and then "killed"
+  mutants. At fc44972, `kimera run lib/kimera/runtime.rb --jobs 4` killed 94
+  of 94, 15 of them only through `captured_methods_spec.rb[1:2]`, which fails
+  whenever `runtime_spec.rb`'s Ractor examples ran first; the next run of the
+  line-16 mutant called it survived. A kill naming tests now runs the same
+  ordered tests without the mutant in a fresh mirror, once per list of tests;
+  a test that fails there too kills nothing, and a mutant left with no
+  failing test is `harness_error`. With `runtime_spec.rb` forced first, that
+  mutant went from killed to `harness_error` ("without the mutant too, after
+  the same tests in a fresh mirror, so it is no kill"). A real kill in that tier now
+  costs one more run of its tests, shared by mutants with the same tests (every
+  mutant of `runtime.rb` and the two child entrypoints runs the whole suite).
 - **Fixed: the "took as a Method object" diagnosis went silent once a
   Ractor had run.** Once a process has started a Ractor, Ruby stays in
   multi-Ractor mode, and `ObjectSpace.each_object` yields only shareable

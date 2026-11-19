@@ -315,7 +315,9 @@ gap: test that side effect.
   a child that crashes before reporting (read its `detail` for the stderr).
   An error outside every test (a load error, a suite hook) kills only when it
   recurs with the mutant on and a fresh mirror without the mutant runs clean;
-  otherwise it is `harness_error`. Concurrent mirrors get their own test
+  otherwise it is `harness_error`. A failing test kills only if it passes when
+  a fresh mirror runs the same tests in the same order without the mutant;
+  if none does, it is `harness_error`. Concurrent mirrors get their own test
   database (Rails parallel testing) and a read-only view of `.git`.
   Kimera
   sets `KIMERA=1` wherever it loads the suite (warm, `--isolated`, doctor), so
