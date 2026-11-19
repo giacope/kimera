@@ -63,7 +63,7 @@ class Kimera::CLI::Run::Pass
   def base
     { registry: @registry, adapter: @adapter, source_root: @options[:source_root] }
       .merge(soft_timeout: @options[:soft_timeout], jobs: @options[:jobs])
-      .merge(isolate_db: @options[:isolate_db], progress: progress, filter: filter)
+      .merge(isolate_db: @options[:isolate_db], isolated: @options[:isolated], progress: progress, filter: filter)
       .merge(@options.to_h.slice(:relative_timeout, :timeout_factor, :timeout_slack, :seed, :flaky_runs, :test_quality))
       .merge(confirm_survivors: route.confirming?, measured: cache.method(:measured))
   end

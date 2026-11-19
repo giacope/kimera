@@ -10,20 +10,24 @@ module Kimera
 end
 
 class Kimera::Execution::OrderTrace
-  NOTE = "baseline (whole suite, in order)"
+  NOTE = "baseline (whole suite, in order, beside the mutants)"
+  WAIT = "baseline (in order)"
+  NONE = proc {}
+  private_constant(:NONE)
 
   def initialize(registry)
     @registry = registry
   end
 
   def follow!(baseline, coverage, scope: nil, progress: Kimera::Execution::NullProgress.new)
-    return unless wanted?(scope, coverage)
+    return NONE unless wanted?(scope, coverage)
     progress.note(NOTE)
-    mark!(baseline, coverage)
+    run = baseline.sequence(hatching)
+    -> { progress.during(1, WAIT) { |tick| tick.call.tap { mark!(run, coverage) } } }
   end
 
-  def mark!(baseline, coverage)
-    reached(baseline) { [] }.each do |id|
+  def mark!(run, coverage)
+    reached(run) { [] }.each do |id|
       point = @registry.index[id]
       point.mark!(Kimera::Reason.ordered) if point&.fits?(safe: true) && uncovered?(id, coverage)
     end
@@ -37,8 +41,10 @@ class Kimera::Execution::OrderTrace
     point&.fits?(safe: true) && point.each.any? { |mutant| uncovered?(mutant.to_i, coverage) }
   end
 
-  def reached(baseline)
-    Array(baseline.sequence["touched"])
+  def hatching(cells = Kimera::Execution::Zygote) = cells.new.method(:hatch)
+
+  def reached(run)
+    Array(run.call["touched"])
   rescue Kimera::Execution::Zygote::Died, Kimera::Execution::Zygote::Raised, Timeout::Error
     yield
   end

@@ -14,7 +14,7 @@ RSpec.describe(Kimera::Execution::OrderTrace) do
 
   def reasons = registry.to_a.map { it.reasons(Kimera::Reason.revisiting).first }
 
-  def ran(touched) = Struct.new(:sequence).new({ "touched" => touched })
+  def ran(touched) = -> { { "touched" => touched } }
 
   it "marks a point the ordered run reached that no test covers" do
     first, last = ids
@@ -58,9 +58,22 @@ RSpec.describe(Kimera::Execution::OrderTrace) do
     end
   end
 
+  it "starts the run in order, marking only once it is settled", :aggregate_failures do
+    baseline = Struct.new(:touched) { def sequence(cell) = cell.call { { "touched" => touched } } }.new(ids)
+    settle = described_class.new(registry).follow!(baseline, {})
+    expect(reasons).to(eq([nil, nil]))
+    settle.call
+    expect(reasons).to(eq([Kimera::Reason::ORDER_REASON] * 2))
+  end
+
+  it "starts nothing, and marks nothing when settled, when no mutant in scope is uncovered" do
+    every = registry.each.map { |mutant,| mutant.to_i }
+    described_class.new(registry).follow!(nil, every.to_h { [it, ["t1"]] }, scope: every).call
+    expect(reasons).to(eq([nil, nil]))
+  end
+
   it "marks nothing when the run in order dies" do
-    dead = Object.new.tap { |run| run.define_singleton_method(:sequence) { raise(Kimera::Execution::Zygote::Died, "") } }
-    described_class.new(registry).mark!(dead, {})
+    described_class.new(registry).mark!(-> { raise(Kimera::Execution::Zygote::Died, "") }, {})
     expect(reasons).to(eq([nil, nil]))
   end
 end

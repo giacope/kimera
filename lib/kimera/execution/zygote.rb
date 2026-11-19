@@ -57,6 +57,8 @@ class Kimera::Execution::Zygote
       writer.close
     end
 
+    def seal = writer.close
+
     def take
       writer.close
       reader.read.tap { reader.close }
@@ -71,20 +73,28 @@ class Kimera::Execution::Zygote
     @exits = exits
   end
 
-  def call(&)
-    pipe = Pipe.new(*IO.pipe(Encoding::UTF_8))
+  def call
     saved = Signal.trap(SIGNAL, "IGNORE")
-    collect(pipe, born(pipe, saved, &))
+    hatch do
+      restore(saved)
+      yield
+    end.call
   ensure
     restore(saved)
   end
 
+  def hatch(&)
+    pipe = Pipe.new(*IO.pipe(Encoding::UTF_8))
+    pid = born(pipe, &)
+    pipe.seal
+    -> { collect(pipe, pid) }
+  end
+
   private
 
-  def born(pipe, saved, &) = fork { spawned(pipe, saved, &) }
+  def born(pipe, &) = fork { spawned(pipe, &) }
 
-  def spawned(pipe, saved, &)
-    restore(saved)
+  def spawned(pipe, &)
     pipe.post(JSON.generate(outcome(&)))
     @exits.exit!(0)
   end

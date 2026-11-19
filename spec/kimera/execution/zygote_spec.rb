@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "kimera/execution/zygote"
+require "timeout"
 
 RSpec.describe(Kimera::Execution::Zygote) do
   subject(:zygote) { described_class.new }
@@ -15,6 +16,26 @@ RSpec.describe(Kimera::Execution::Zygote) do
 
   it "returns what the block returns in its own process, as JSON brings it back" do
     expect(zygote.call { { "pid" => Process.pid, "ids" => [1, 2] } }).to(include("ids" => [1, 2]))
+  end
+
+  it "hatches the block in another process at once, bringing back its value when asked", :aggregate_failures do
+    reader, writer = IO.pipe
+    collected = zygote.hatch { Process.pid.tap { writer.puts(it) } }
+    started = Integer(reader.gets)
+    expect([started == Process.pid, collected.call]).to(eq([false, started]))
+  end
+
+  def beside
+    bystander = fork { sleep(30) }
+    yield
+  ensure
+    Process.kill("KILL", bystander)
+    Process.wait(bystander)
+  end
+
+  it "keeps its pipe out of a process forked before the value is collected, which would hold the read open" do
+    collected = zygote.hatch { 1 }
+    expect(beside { Timeout.timeout(5) { collected.call } }).to(eq(1))
   end
 
   it "runs the block in another process" do
@@ -95,19 +116,18 @@ RSpec.describe(Kimera::Execution::Zygote) do
   describe "the child's half, run here" do
     let(:exits) { FakeExits.new }
 
-    def spawned(saved)
+    it "replies and exits without unwinding", :aggregate_failures do
       reader, writer = IO.pipe
-      described_class.new(exits).__send__(:spawned, described_class::Pipe.new(reader.dup, writer), saved) { 7 }
-      reader.read
-    end
-
-    it "hands back the caller's QUIT handler, replies, and exits without unwinding", :aggregate_failures do
-      handler = proc {}
-      previous = Signal.trap("QUIT", "IGNORE")
-      reply = spawned(handler)
-      expect([Signal.trap("QUIT", previous), JSON.parse(reply)]).to(eq([handler, { "value" => 7 }]))
+      described_class.new(exits).__send__(:spawned, described_class::Pipe.new(reader.dup, writer)) { 7 }
+      expect(JSON.parse(reader.read)).to(eq("value" => 7))
       expect(exits.codes).to(eq([0]))
     end
+  end
+
+  it "hands the child the caller's QUIT handler, which the caller ignores while it waits", :aggregate_failures do
+    previous = Signal.trap("QUIT", proc {})
+    seen = zygote.call { Signal.trap("QUIT", "IGNORE").class.name }
+    expect([seen, Signal.trap("QUIT", previous).class]).to(eq(["Proc", Proc]))
   end
 
   describe described_class::Pipe do

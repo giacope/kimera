@@ -38,6 +38,16 @@
   with a map stored by a full run of `lib/kimera/report`: 2.2 s, the baseline
   33 of 3,246 tests, the same 29 verdicts and covering tests. The map's
   format is 2; a map from before is not read.
+- **The run of the whole suite in order goes on beside the mutants.** When a
+  mutant in scope has no covering test, the suite runs once more in order,
+  in one process, to find code only an earlier test's state reaches; it ran
+  before the first mutant, with no progress line, and on kimera's own suite
+  it takes 70 to 80 s. It now starts as the pool does and is waited for after
+  it, as the `baseline (in order)` phase; `--isolated`, whose plan reads its
+  marks, still waits for it first. `kimera run lib/kimera/report --operators
+  all --jobs 4 --no-reuse-coverage` (1,661 mutants, 5 uncovered): 152.6 s on
+  main and 123.5 s now, one after the other under the same load, with the
+  same 1,661 verdicts.
 - **Guards go in as a file first loads.** Kimera evaluated each mutated file
   a second time, after the suite loaded, to install its guards, so what a
   class body took at load kept the unguarded code: a lambda a constant holds,

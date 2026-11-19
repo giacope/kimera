@@ -55,7 +55,10 @@ class Kimera::Execution::Harness
 
   def without_coverage!(test_files) = overlay!(test_files).tap { verify! }
 
-  def run(ids: mutants, label: "mutants") = schedule.run(ids, coverage: coverage, label: label, pace: survey.pace)
+  def run(ids: mutants, label: "mutants")
+    settle = follow!
+    schedule.run(ids, coverage: coverage, label: label, pace: survey.pace).tap { settle.call }
+  end
 
   def survey = Kimera::Execution::Survey.new(options, adapter)
 
@@ -125,9 +128,16 @@ class Kimera::Execution::Harness
 
   def sift!(scope)
     trace.quarantine!(coverage)
-    Kimera::Execution::OrderTrace.new(registry).follow!(baseline, coverage, scope: scope, progress: progress)
+    options[:ordering] = ordering(scope)
+    follow!.call if options[:isolated]
     options[:flakes] = rig.hunt(coverage, scope, reruns)
   end
+
+  def ordering(scope, traces = Kimera::Execution::OrderTrace)
+    -> { traces.new(registry).follow!(baseline, coverage, scope:, progress:) }
+  end
+
+  def follow! = options.delete(:ordering) { -> { proc {} } }.call
 
   def reruns = Kimera::Execution::FlakeRuns.new(*options.values_at(:seed, :flaky_runs, :filter))
 

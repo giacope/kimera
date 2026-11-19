@@ -683,6 +683,9 @@ bar redrawn in place, and completed phases stay visible:
 - `mutants (warm)` uses the shared worker pool.
 - `mutants (isolated)` evaluates the subset routed to fresh mirrors.
 - `mutants (re-judged)` judges again what the warm pass could not.
+- `baseline (in order)` waits, once the mutants are done, for the run of the
+  whole suite in order that started beside them (when a mutant in scope has
+  no covering test).
 
 The warm and isolated labels appear only when a run uses both strategies. Output the
 suite prints during mutant evaluation is swallowed, since mutated code warns,
@@ -1060,13 +1063,17 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
    a literal `self` may call a private method and the guard's expression may
    not, so only the baked edit behaves as the real one. Code that only runs
    while the suite loads goes to the isolated tier.
-3. **Execution.** Load the suite once and overlay the schemata. From then on
+3. **Execution.** Load the suite once, weaving the guards into each file in
+   scope as Ruby first loads it, and overlay the schemata on the files loaded
+   before that (see below). From then on
    the parent runs no test: it stays in the post-boot, pre-test state, and
    every test runs in a process forked from it. Fork `--jobs` workers (each
    sets up its own test database on Rails). For the baseline, each worker
    forks a child per test, which runs it and reports its coverage; so a
    cache an earlier test filled can't hide a later caller. The whole suite
-   then runs once more, in order, in one fresh process: code that run reaches
+   then runs once more, in order, in one fresh process, beside the mutants
+   (its wait, once they are done, is the `baseline (in order)` phase): code
+   that run reaches
    but no single test does (a cache hit only an earlier test's state sets up)
    is judged in the isolated tier against the whole suite (skipped when
    every mutant in scope has a covering test: it could change no verdict).
