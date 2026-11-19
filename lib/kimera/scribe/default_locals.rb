@@ -53,7 +53,7 @@ module Kimera
 
       def rewritten(node, depth = 0)
         return unless node
-        fields = rewritten_fields(node, depth)
+        fields = rebuilt(node, depth)
         name = renames[node.name] if node.respond_to?(:depth) && node.respond_to?(:name) && node.depth == depth
         fields[:name] = name if name
         expanded(node, node.copy(**fields))
@@ -66,7 +66,7 @@ module Kimera
         CapturedLocals.new(original, changed, temporary).node
       end
 
-      def rewritten_fields(node, depth)
+      def rebuilt(node, depth)
         inner = depth + (CLOSURES.include?(node.type) ? 1 : 0)
         children = children(node).to_h { |child| [child, rewritten(child, inner)] }
         node.deconstruct_keys(nil).transform_values do |value|

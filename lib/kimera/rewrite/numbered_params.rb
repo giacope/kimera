@@ -59,11 +59,13 @@ module Kimera
 
       def renamed(node, renames)
         case node.type
-        when :local_variable_read_node then renames.key?(node.name) ? node.copy(name: renames.fetch(node.name)) : node
+        when :local_variable_read_node then aliased(node, renames)
         when :it_local_variable_read_node then local(renames.fetch(:it)).copy(location: node.location)
         else node
         end
       end
+
+      def aliased(node, renames) = renames.key?(node.name) ? node.copy(name: renames.fetch(node.name)) : node
     end
   end
 end

@@ -80,8 +80,8 @@ module Kimera
       def text
         value = Operands.new(@node).to_a.last
         dot = @node.safe_navigation? ? "&." : "."
-        owner = @node.receiver ? receiver_part(@node.receiver) : "self"
-        "#{owner}#{dot}#{@node.name.to_s.delete_suffix("=")} = #{part(value, value_floor(value))}"
+        owner = @node.receiver ? primary(@node.receiver) : "self"
+        "#{owner}#{dot}#{@node.name.to_s.delete_suffix("=")} = #{part(value, precedence(value))}"
       end
     end
 
@@ -92,13 +92,13 @@ module Kimera
 
       def text
         *keys, value = Operands.new(@node).to_a
-        return "#{head(keys)} = #{part(value, value_floor(value))}" unless @node.name == :[]
-        "#{head([*keys, value].compact)}#{Block.new(@node.block, @pen, @scope, @mode).suffix if literal_block}"
+        return "#{head(keys)} = #{part(value, precedence(value))}" unless @node.name == :[]
+        "#{head([*keys, value].compact)}#{Block.new(@node.block, @pen, @scope, @mode).suffix if attachment}"
       end
 
       private
 
-      def head(keys) = "#{receiver_part(@node.receiver)}[#{listed([*keys, block_argument].compact)}]"
+      def head(keys) = "#{primary(@node.receiver)}[#{listed([*keys, forwarded].compact)}]"
     end
 
     class Message < Form
@@ -106,20 +106,20 @@ module Kimera
 
       def fits? = true
 
-      def text = "#{head}#{arguments}#{attached(literal_block) if literal_block}"
+      def text = "#{head}#{arguments}#{attached(attachment) if attachment}"
 
       private
 
       def head
         receiver = @node.receiver
         name = @node.name
-        receiver ? "#{receiver_part(receiver)}#{dot}#{name}" : name.to_s
+        receiver ? "#{primary(receiver)}#{dot}#{name}" : name.to_s
       end
 
       def dot = @node.safe_navigation? ? "&." : "."
 
       def arguments
-        listing = present([@node.arguments, block_argument])
+        listing = present([@node.arguments, forwarded])
         return "(#{listing.map { |node| part(node) }.join(", ")})" if listing.any?
         bare? ? "" : "()"
       end
@@ -128,7 +128,7 @@ module Kimera
         name = @node.name
         return true if @node.receiver
         return false if @scope.local?(name) || name.match?(CAPITAL)
-        @node.variable_call? || literal_block || name.end_with?("?", "!")
+        @node.variable_call? || attachment || name.end_with?("?", "!")
       end
     end
 
@@ -139,16 +139,16 @@ module Kimera
       def text
         return "super#{suffix}" if type == :forwarding_super_node
         return "defined?(#{part(@node.value, ASSIGNMENT)})" if type == :defined_node
-        listing.empty? && type == :yield_node ? "yield" : "#{WORDS.fetch(type)}(#{listed_parts})#{suffix}"
+        listing.empty? && type == :yield_node ? "yield" : "#{WORDS.fetch(type)}(#{joined})#{suffix}"
       end
 
       private
 
-      def listing = present([@node.arguments, (@node.block if block_argument?)])
+      def listing = present([@node.arguments, (@node.block if forwarding?)])
 
-      def listed_parts = listing.map { |node| part(node) }.join(", ")
+      def joined = listing.map { |node| part(node) }.join(", ")
 
-      def block_argument? = @node.respond_to?(:block) && @node.block&.type == :block_argument_node
+      def forwarding? = @node.respond_to?(:block) && @node.block&.type == :block_argument_node
 
       def suffix
         block = @node.block if @node.respond_to?(:block)

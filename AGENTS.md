@@ -15,8 +15,10 @@ Run what your change can break. Times are from a 4 vCPU machine, Ruby 4.0.2.
 | --- | --- | --- |
 | `bin/spec` | all specs, about 3,400 examples | 6 to 8 min |
 | `bin/spec spec/kimera/path/to_spec.rb` | one file | seconds |
-| `bundle exec rubocop` | style, with sekisho's strict profile | under 1 min |
-| `bundle exec sekisho design --fail-on all` | architecture boundaries (`.sekisho.yml`) | 10 s |
+| `bundle exec rubocop` | style, with sekisho's dogmatic profile; lists the spec backlog too | under 1 min |
+| `bundle exec sekisho lint --ratchet` | lint against `.sekisho_baseline.json`: no cop may gain an offense | under 1 min |
+| `bundle exec sekisho doctor` | dead lint configuration, and the inline-disable budget | under 1 min |
+| `bundle exec sekisho design --fail-on all` | design and architecture (`.sekisho.yml`); `crap` needs a `COVERAGE=1 bin/spec` run first | 10 s |
 | `bundle exec kimera run --since origin/main --fail-on-no-coverage` | kimera on its own changed files; no survivor is allowed | 1 min and up |
 | `examples/rails_app/bin/e2e` | a Rails app end to end | 2 min |
 | `ruby eval/run --kimera . --out tmp/eval.json` | verdicts against oracles; `--only H1,K2` runs a subset | 17 min |
@@ -31,9 +33,11 @@ and run, one after another, everything below. Push only when all of them
 pass; when one fails, check it on `origin/main` without your change before
 calling it not yours, and say so.
 
-1. `bundle exec rubocop` and `bundle exec sekisho design --fail-on all`
-2. `bin/spec`, then again on Ruby 3.4, the oldest the gemspec allows, which
-   `.agents/setup` installs off `PATH`:
+1. `bundle exec sekisho lint --ratchet`, `bundle exec sekisho doctor`
+2. `COVERAGE=1 bin/spec`, then `bundle exec sekisho design --fail-on all`,
+   which reads that run's coverage for `crap`; then `bin/spec` again on
+   Ruby 3.4, the oldest the gemspec allows, which `.agents/setup` installs
+   off `PATH`:
    `PATH="$(echo /opt/hostedtoolcache/Ruby/3.4.*/x64/bin):$PATH" bin/spec`
 3. `bundle exec kimera run --since origin/main --fail-on-no-coverage`
 4. `examples/rails_app/bin/e2e`
@@ -53,13 +57,23 @@ the coverage map later `--since` runs reuse), `bin/model-check --deep`, and
 
 ## Rules the linters enforce
 
-`.rubocop.yml` inherits sekisho's strict profile, which rejects code
-ordinary Ruby style accepts. Run `bundle exec rubocop` on the files you touch
-before the suite. The cops hit most often:
+`.rubocop.yml` inherits sekisho's dogmatic profile, its strictest: the
+strict Elegant Objects profile plus one-word names, one level of nesting, and
+tests with no hooks, sleeps or reflection. `lib` and `exe` keep zero
+offenses. The specs written before it carry a backlog that
+`.sekisho_baseline.json` records per cop and file: `sekisho lint --ratchet`
+fails when a cop gains an offense, and exits 3 when one is fixed until
+`bundle exec sekisho lint --update-baseline` records the lower count. Run
+`bundle exec rubocop` on the files you touch before the suite. The cops hit
+most often:
 
 - No comments in `lib` (`Sekisho/NoComments`); a `rubocop:disable` needs a
   reason after `--` (`Sekisho/JustifiedDirective`).
-- Names are whole words, no abbreviations (`Sekisho/RealWords`).
+- Names are whole words, no abbreviations (`Sekisho/RealWords`), and a method
+  or variable name is one word (`Sekisho/GoodMethodName`,
+  `Sekisho/GoodVariableName`).
+- No branch inside a branch (`Metrics/BlockNesting`, `Max: 1`); a modifier
+  `if` is not a level.
 - A class has at most 4 instance variables, 4 public methods and 100 lines;
   a method at most 10 lines, with no blank line inside.
 - Collaborators are handed in, usually as `@options.fetch(:name) { build }`
@@ -69,8 +83,12 @@ before the suite. The cops hit most often:
   getters, setters, boolean flags, `nil` arguments or `nil` returns.
 - `ENV`, the clock and IO are read at the edges only (`Sekisho/EnvDiscipline`,
   `Sekisho/ClockDiscipline`, `Sekisho/IoDiscipline`).
-- Specs use no mocks (`Sekisho/NoMock`); an example is at most 5 lines and a
-  line at most 120 columns.
+- Specs use no mocks (`Sekisho/NoMock`), no `before`/`after`/`around` hooks
+  (`Sekisho/NoTestHook`), no timed `sleep` (`Sekisho/NoTestSleep`) and no
+  `__send__` to a private method (`Sekisho/NoReflection`); an example is at most
+  5 lines and a line at most 120 columns.
+- `Sekisho/JustifiedDirective: MaxDisables` holds the inline disables at their
+  count; `sekisho doctor` fails past it. Raise it in the change that adds one.
 
 `.kimera.yml` gates kimera on itself at `max_survivors: 0` and
 `max_ignored: 0`: a new line of `lib` needs a test that fails when the line

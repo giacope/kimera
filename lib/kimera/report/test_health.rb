@@ -22,7 +22,7 @@ class Kimera::Report::TestHealth
     flakes = found.fetch("flaky")
     @io.puts
     @io.puts(headline(flakes, reruns(found)))
-    flakes.each { |flake| @io.puts("  #{flake_line(notes, flake)}") }
+    flakes.each { |flake| @io.puts("  #{entry(notes, flake)}") }
     @io.puts("  Each passed the baseline but failed a rerun, so it kills no mutant.") if flakes.any?
   end
 
@@ -59,7 +59,7 @@ class Kimera::Report::TestHealth
       "seeds #{found.fetch("seeds").join(", ")}"
   end
 
-  def flake_line(notes, flake)
+  def entry(notes, flake)
     test = flake.fetch("test")
     reason = Kimera::Readout.new(flake.fetch("failure")).lines.first || "no message"
     "#{Kimera::Readout::Label.new(test, notes.test(test)).text}  failed #{flake.fetch("failed_runs")} " \

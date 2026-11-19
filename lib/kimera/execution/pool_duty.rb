@@ -60,5 +60,5 @@ Kimera::Execution::Pool::Duty =
 
     def exit_with(code) = exit!(code)
 
-    def words(error) = error ? error.last_words : ""
+    def words(error) = error ? error.epitaph : ""
   end

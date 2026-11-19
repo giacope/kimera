@@ -8,16 +8,16 @@ using PointFields
 RSpec.describe(Kimera::Frameworks) do
   describe Kimera::Frameworks::RunOutcome do
     it "exposes passed? mirroring the passed field", :aggregate_failures do
-      expect(described_class.new(passed: true, failed_ids: []).passed?).to(be(true))
-      expect(described_class.new(passed: false, failed_ids: ["a"]).passed?).to(be(false))
+      expect(described_class.new(passed: true, failed: []).passed?).to(be(true))
+      expect(described_class.new(passed: false, failed: ["a"]).passed?).to(be(false))
     end
   end
 
   describe "RunOutcome#to_h" do
     it "prints whether it passed, the failed ids and their failures, which it keeps to itself", :aggregate_failures do
-      failed = Kimera::Frameworks::RunOutcome.new(passed: false, failed_ids: ["a"], failures: { "a" => "boom" })
+      failed = Kimera::Frameworks::RunOutcome.new(passed: false, failed: ["a"], failures: { "a" => "boom" })
       expect(failed.to_h).to(eq("passed" => false, "failed_ids" => ["a"], "failures" => { "a" => "boom" }))
-      expect(Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: []).to_h)
+      expect(Kimera::Frameworks::RunOutcome.new(passed: true, failed: []).to_h)
         .to(eq("passed" => true, "failed_ids" => [], "failures" => {}))
       expect(failed.public_methods.intersect?(Kimera::Frameworks::RunOutcome.members)).to(be(false))
       expect(failed.expired?).to(be(false))
@@ -34,8 +34,8 @@ RSpec.describe(Kimera::Frameworks) do
 
   describe "RunOutcome#verdict" do
     it "is survived when passed and killed with the failing ids otherwise", :aggregate_failures do
-      expect(Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: []).verdict).to(eq([:survived, []]))
-      expect(Kimera::Frameworks::RunOutcome.new(passed: false, failed_ids: ["a"]).verdict).to(eq([:killed, ["a"]]))
+      expect(Kimera::Frameworks::RunOutcome.new(passed: true, failed: []).verdict).to(eq([:survived, []]))
+      expect(Kimera::Frameworks::RunOutcome.new(passed: false, failed: ["a"]).verdict).to(eq([:killed, ["a"]]))
     end
   end
 

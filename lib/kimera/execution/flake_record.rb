@@ -7,14 +7,14 @@ end
 
 class Kimera::Execution::FlakeRecord
   class Flake
-    def initialize(test, failed_runs, seeds, failure)
+    def initialize(test, failed, seeds, failure)
       @test = test
-      @failed_runs = failed_runs
+      @failed = failed
       @seeds = seeds
       @failure = failure
     end
 
-    def to_h = { "test" => @test, "failed_runs" => @failed_runs, "seeds" => @seeds, "failure" => @failure }
+    def to_h = { "test" => @test, "failed_runs" => @failed, "seeds" => @seeds, "failure" => @failure }
   end
 
   LOST = { timeout: "timed out (--hard-timeout)" }.freeze

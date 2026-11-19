@@ -59,36 +59,36 @@ class Kimera::CLI::Init
 
   def detected
     DOCUMENT.call(
-      framework: framework, paths: sources, tests: tests, **left_out, operators: operators,
+      framework: framework, paths: sources, tests: tests, **exclusions, operators: operators,
       jobs: [@processors, JOBS].min, max_survivors: 0, max_errors: 0, count_no_coverage: true
     )
   end
 
-  def left_out
-    present = BROWSER_TESTS.fetch(framework, []).select { |glob| rails_app? && Dir.glob(File.join(@root, glob)).any? }
+  def exclusions
+    present = BROWSER_TESTS.fetch(framework, []).select { |glob| rails? && Dir.glob(File.join(@root, glob)).any? }
     [*present, *Kimera::CLI::RspecOptions.new(@root).excluded].then { |left| left.empty? ? {} : { exclude_tests: left } }
   end
 
-  def rails_app? = Kimera::CLI::RailsLayout.new(@root).rails?
+  def rails? = Kimera::CLI::RailsLayout.new(@root).rails?
 
-  def operators = [*Kimera::Operators.build.map(&:key), *FURTHER.map { it.new.key }, *("rails" if rails_app?)]
+  def operators = [*Kimera::Operators.build.map(&:key), *FURTHER.map { it.new.key }, *("rails" if rails?)]
 
   def framework = @_framework ||= declared.fetch(0) { bundled.fetch(0) { layout } }
 
   def declared
     return ["rspec"] if File.file?(File.join(@root, ".rspec"))
-    return ["minitest"] if minitest_only?
-    present(HELPERS).flat_map { |helper| framework_named_in(File.read(helper, encoding: Encoding::UTF_8).scrub) }
+    return ["minitest"] if minitest?
+    present(HELPERS).flat_map { |helper| mentioned(File.read(helper, encoding: Encoding::UTF_8).scrub) }
   end
 
-  def minitest_only?
+  def minitest?
     return false if File.directory?(File.join(@root, "spec"))
     Dir.glob(File.join(@root, "test", "**", "*.rb")).first(200).any? { |path| text(path).match?(MINITEST) }
   end
 
   def text(path) = File.read(path, encoding: Encoding::UTF_8).scrub
 
-  def framework_named_in(text)
+  def mentioned(text)
     return ["minitest"] if text.match?(MINITEST)
     return ["rspec"] if text.match?(/\bRSpec\b|require\s*\(?\s*["']rspec/)
     text.match?(/minitest/i) ? ["minitest"] : []

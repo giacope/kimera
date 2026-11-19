@@ -12,7 +12,7 @@ module Kimera
         value = @node.value
         target = type == :constant_path_write_node ? part(@node.target) : @node.name.to_s
         own = type == :local_variable_write_node ? Set[@node.name] : NO_NAMES
-        "#{target} = #{bound(value, own, value_floor(value))}"
+        "#{target} = #{bound(value, own, precedence(value))}"
       end
 
       def level = ASSIGNMENT
@@ -32,7 +32,7 @@ module Kimera
 
       def text
         value = @node.value
-        "#{target} #{operator}= #{bound(value, Set[*own], value_floor(value))}"
+        "#{target} #{operator}= #{bound(value, Set[*own], precedence(value))}"
       end
 
       def level = ASSIGNMENT
@@ -48,8 +48,8 @@ module Kimera
 
       def target
         case type
-        when /\Acall_/ then "#{receiver_part(@node.receiver)}#{@node.safe_navigation? ? "&." : "."}#{@node.read_name}"
-        when /\Aindex_/ then "#{receiver_part(@node.receiver)}[#{listed(arguments)}]"
+        when /\Acall_/ then "#{primary(@node.receiver)}#{@node.call_operator}#{@node.read_name}"
+        when /\Aindex_/ then "#{primary(@node.receiver)}[#{listed(arguments)}]"
         when /\Aconstant_path_/ then part(@node.target)
         else @node.name.to_s
         end
@@ -69,7 +69,7 @@ module Kimera
     class Multiple < Form
       TYPES = %i[multi_write_node].freeze
 
-      def text = "#{Targets.new(@node, @pen, @scope, @mode).items} = #{part(@node.value, value_floor(@node.value))}"
+      def text = "#{Targets.new(@node, @pen, @scope, @mode).items} = #{part(@node.value, precedence(@node.value))}"
 
       def level = STATEMENT
     end
@@ -78,7 +78,7 @@ module Kimera
       TYPES = %i[call_target_node index_target_node].freeze
 
       def text
-        receiver = receiver_part(@node.receiver)
+        receiver = primary(@node.receiver)
         if type == :index_target_node
           return "#{receiver}[#{listed([*@node.arguments&.arguments, @node.block].compact)}]"
         end

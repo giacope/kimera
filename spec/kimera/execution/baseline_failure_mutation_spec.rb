@@ -92,11 +92,11 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
 
   describe "an attempt" do
     def picky
-      passed = Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+      passed = Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
       Object.new.tap do |adapter|
         adapter.define_singleton_method(:run) do |ids|
           next passed if ids == ["a"] || Kimera::RUNTIME.active.nil?
-          Kimera::Frameworks::RunOutcome.new(passed: false, failed_ids: ids, failures: { ids.first => "boom" })
+          Kimera::Frameworks::RunOutcome.new(passed: false, failed: ids, failures: { ids.first => "boom" })
         end
       end
     end
@@ -127,7 +127,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
       Object.new.tap do |adapter|
         adapter.define_singleton_method(:run) do |_ids|
           Kimera::RUNTIME.active?(7)
-          Kimera::Frameworks::RunOutcome.new(passed: false, failed_ids: ["t"], failures: { "t" => "boom" })
+          Kimera::Frameworks::RunOutcome.new(passed: false, failed: ["t"], failures: { "t" => "boom" })
         end
       end
     end

@@ -54,7 +54,7 @@ module Kimera
       def step(at, repeatable)
         char = @source[at]
         return escape(at) if char == "\\"
-        return [class_end(at + 1), true] if char == "["
+        return [closing(at + 1), true] if char == "["
         return [group(at), false] if char == "("
         return anchor(at, char) if ANCHORS.key?(char)
         return repeat(at) if repeatable && quantifier?(at)
@@ -89,7 +89,7 @@ module Kimera
         opener ? opener.end(0) : at + 1
       end
 
-      def class_end(at)
+      def closing(at)
         at = opening(at)
         depth = 1
         at, depth = nested(at, depth) while depth.positive? && @source[at]

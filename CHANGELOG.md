@@ -27,6 +27,18 @@
   clause's lines and leaves every other branch where it was. The warm guard
   still writes the mutant's `case` on one line, as every guard writes its
   alternatives.
+- Development tooling: kimera's lint and design checks come from
+  [sekisho](https://github.com/giacope/sekisho)'s `main`, which merges
+  rubocop-kata and hashira, instead of the two gems. kimera holds itself to
+  sekisho's dogmatic lint profile, its strictest: 674 offenses on the code
+  as it was, of which `lib` and `exe` had 54 (two-word names, nested
+  branches) and now have none. The 620 in the specs (265 calls to private
+  methods, 138 hooks, 46 timed sleeps, the rest two-word names) are recorded
+  in `.sekisho_baseline.json`, and `sekisho lint --ratchet` fails when one
+  grows. The design check (`.sekisho.yml`, formerly `.hashira.yml`) turns on
+  every kind, `change_coupling` and `crap` among them, with no finding
+  suppressed; the specs record method coverage (SimpleCov 1.x) for `crap`.
+  No behavior of the gem changes.
 - **Fixed: the isolated tier counted a test that fails without the mutant as
   a kill.** It orders a mutant's tests by their baseline time, which varies
   from run to run, while its baseline ran them in plan order, so a test that

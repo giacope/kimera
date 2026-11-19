@@ -35,7 +35,7 @@ RSpec.describe(Kimera::Execution::Shift) do
         @log << [id, Kimera::RUNTIME.active]
         took, passed = @script.fetch(id, []).shift || [0.0, true]
         now[0] += took
-        Kimera::Frameworks::RunOutcome.new(passed: passed, failed_ids: passed ? [] : [id])
+        Kimera::Frameworks::RunOutcome.new(passed: passed, failed: passed ? [] : [id])
       end
     end.new
   end

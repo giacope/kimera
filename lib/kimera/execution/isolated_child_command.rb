@@ -47,8 +47,8 @@ class Kimera::Execution::IsolatedPlan::ChildCommand
 
   def request_path(ledger) = "#{ledger}.request"
 
-  def environment(slot, suite_env = Kimera::Execution::SuiteEnv.new, databases = Kimera::Execution::ParallelDatabases.new)
-    suite_env.to_h.merge(slot ? databases.numbered(slot) : {})
+  def environment(slot, variables = Kimera::Execution::SuiteEnv.new, databases = Kimera::Execution::ParallelDatabases.new)
+    variables.to_h.merge(slot ? databases.numbered(slot) : {})
   end
 
   def bundled(mirror, env, argv)

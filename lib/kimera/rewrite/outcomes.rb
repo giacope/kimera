@@ -94,7 +94,9 @@ class Kimera::Rewrite::Outcomes
   def contents(node)
     case node.type
     when :statements_node then node.body
-    when :parentheses_node then node.body ? contents(node.body) : [NOTHING]
+    when :parentheses_node then enclosed(node)
     end
   end
+
+  def enclosed(node) = node.body ? contents(node.body) : [NOTHING]
 end

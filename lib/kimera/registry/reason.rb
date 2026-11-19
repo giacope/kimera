@@ -39,7 +39,7 @@ class Kimera::Reason
   WARM = Regexp.union(*[BLOCK_REASON, MACRO_KEPT].map(&EXACT))
 
   class << self
-    def class_body = new(:reason, CLASS_BODY_REASON)
+    def body = new(:reason, CLASS_BODY_REASON)
 
     def bound = new(:reason, BOUND_REASON)
 

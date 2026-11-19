@@ -3,22 +3,22 @@
 require_relative "baseline_failure"
 
 Kimera::Execution::BaselineLosses =
-  Struct.new(:stalled_stacks, :stacks) do
+  Struct.new(:stalls, :stacks) do
     losses = { timeout: "its worker was killed at the hard timeout (--hard-timeout) before reporting a result" }.freeze
     crash = "its worker died before reporting a result"
     alone = ", and again when rerun alone"
     private(*members)
-    def initialize(stalled_stacks = {}, stacks = {}) = super
+    def initialize(stalls = {}, stacks = {}) = super
 
-    def stall(test_id, found) = stalled_stacks.store(test_id, found)
+    def stall(test_id, found) = stalls.store(test_id, found)
 
-    def stalled = stalled_stacks.keys
+    def stalled = stalls.keys
     define_method(:charge) do |test_id, reason, found|
       stacks[test_id] = found
       lost = losses.fetch(reason, crash)
-      stalled_stacks.key?(test_id) ? lost + alone : lost
+      stalls.key?(test_id) ? lost + alone : lost
     end
-    def recovered(failed) = stalled_stacks.reject { |test_id, _stacks| failed.key?(test_id) }
+    def recovered(failed) = stalls.reject { |test_id, _stacks| failed.key?(test_id) }
 
     def told(test_id, message)
       found = stacks.fetch(test_id, [])

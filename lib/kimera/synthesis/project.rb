@@ -10,24 +10,24 @@ end
 
 class Kimera::Synthesis::Project
   class Manifest
-    def initialize(files = {}.freeze, mutant_files = {}.freeze, unsafe_mutants = [].freeze)
+    def initialize(files = {}.freeze, placements = {}.freeze, unsafe = [].freeze)
       @files = files
-      @mutant_files = mutant_files
-      @unsafe_mutants = unsafe_mutants
+      @placements = placements
+      @unsafe = unsafe
     end
 
-    def recorded(file, destination, mutant_ids, unsafe)
-      placed = mutant_ids.to_h { |id| [id, file] }
+    def recorded(file, destination, ids, unsafe)
+      placed = ids.to_h { |id| [id, file] }
       self.class.new(
-        @files.merge(file => destination).freeze, @mutant_files.merge(placed).freeze,
-        [*@unsafe_mutants, *unsafe].freeze
+        @files.merge(file => destination).freeze, @placements.merge(placed).freeze,
+        [*@unsafe, *unsafe].freeze
       )
     end
 
     def summary(written, out)
-      unsafe = @unsafe_mutants.size
+      unsafe = @unsafe.size
       routed = unsafe.zero? ? [] : ["  #{unsafe} mutants routed to reload fallback (memoization)."]
-      ["Synthesized #{written} files to #{out}.", "  #{@mutant_files.size} mutants on the schema path.", *routed]
+      ["Synthesized #{written} files to #{out}.", "  #{@placements.size} mutants on the schema path.", *routed]
     end
   end
 

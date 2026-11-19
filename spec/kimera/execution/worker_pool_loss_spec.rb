@@ -19,13 +19,17 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
   it "hands a timed-out worker's stacks to the loss" do
     worker = nil
-    spawner = ->(_slot) { worker = forked { sleep(30) }.push(stacks) }
+    spawner = ->(_slot) { worker = forked { sleep }.push(stacks) }
     _, lost = Timeout.timeout(10) { pool(queue: [1], spawner: spawner, deadline: 0.3) }
     expect(lost).to(eq([[1, :timeout, ["stacks of #{worker.first}"]]]))
   end
 
   describe "a crash" do
-    after { Process.waitall }
+    def reaped
+      yield
+    ensure
+      Process.waitall
+    end
 
     def untouchable
       Object.new.tap do |never|
@@ -34,7 +38,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     end
 
     it "is lost with how the worker died, never its stacks, even from an armed worker" do
-      _, lost = pool(queue: [1], spawner: ->(_slot) { forked { exit!(1) }.push(untouchable) })
+      _, lost = reaped { pool(queue: [1], spawner: ->(_slot) { forked { exit!(1) }.push(untouchable) }) }
       expect(lost).to(eq([[1, :crash, ["exited 1"]]]))
     end
   end

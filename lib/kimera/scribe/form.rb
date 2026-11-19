@@ -51,7 +51,7 @@ module Kimera
         Shape.new(child).prefix? && !Token.new(child).spelled?("not") ? part(child) : trailing(child, floor)
       end
 
-      def receiver_part(child) = leading(child, PRIMARY)
+      def primary(child) = leading(child, PRIMARY)
 
       def listed(nodes, floor = ASSIGNMENT) = nodes.map { |node| form_of(node, OPEN).written(floor) }.join(", ")
 
@@ -71,9 +71,9 @@ module Kimera
 
       def present(nodes) = nodes.compact.reject { |node| node.type == :arguments_node && node.arguments.empty? }
 
-      def block_argument = (@node.block if @node.block&.type == :block_argument_node)
+      def forwarded = (@node.block if @node.block&.type == :block_argument_node)
 
-      def literal_block = (@node.block if @node.block&.type == :block_node)
+      def attachment = (@node.block if @node.block&.type == :block_node)
 
       def attached(block) = Block.new(block, @pen, scope_of(block), @mode).suffix
 
@@ -89,7 +89,7 @@ module Kimera
         "(#{@pen.form(statements, @scope, OPEN).text})"
       end
 
-      def value_floor(node) = node.type == :rescue_modifier_node ? STATEMENT : ASSIGNMENT
+      def precedence(node) = node.type == :rescue_modifier_node ? STATEMENT : ASSIGNMENT
 
       def enclosed(kind) = "(#{kind.new(@node, @pen, @scope, @mode).text})"
 

@@ -80,7 +80,7 @@ module Kimera
 
       def text
         parent = @node.parent
-        parent ? "#{receiver_part(parent)}::#{@node.name}" : "::#{@node.name}"
+        parent ? "#{primary(parent)}::#{@node.name}" : "::#{@node.name}"
       end
     end
   end

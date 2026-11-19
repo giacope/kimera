@@ -1,12 +1,13 @@
 # frozen_string_literal: true
 
-if ENV["COVERAGE"]
+if ENV["COVERAGE"] && RSpec.configuration.files_to_run.size == Dir.glob(File.join(__dir__, "**/*_spec.rb")).size
   require "simplecov"
   SimpleCov.start do
     enable_coverage :branch
-    add_filter %r{/spec/}
-    add_filter %r{/examples/}
-    track_files "lib/**/*.rb"
+    enable_coverage :method
+    skip %r{/spec/}
+    skip %r{/examples/}
+    cover "lib/**/*.rb"
   end
 end
 

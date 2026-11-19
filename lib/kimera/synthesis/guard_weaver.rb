@@ -91,13 +91,8 @@ class Kimera::Guardrail
   def woven?(value) = value.is_a?(Kimera::Syntax::Node) || (value.is_a?(Array) && value.all?(Kimera::Syntax::Node))
 
   def split(value)
-    if value.is_a?(Array)
-      value.map do |item|
-        weave(item)
-      end.transpose.then { |pair| pair.empty? ? [[], []] : pair }
-    else
-      weave(value)
-    end
+    return weave(value) unless value.is_a?(Array)
+    value.map { |item| weave(item) }.transpose.then { |pair| pair.empty? ? [[], []] : pair }
   end
 
   def overlay(target, directive)

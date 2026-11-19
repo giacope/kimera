@@ -222,7 +222,7 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
   end
 
   describe "the whole suite, run once in order" do
-    def outcome(failed) = Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed, failures: {})
+    def outcome(failed) = Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed: failed, failures: {})
 
     def scripted(failed, touch: [], alone: false)
       whole = outcome(failed)

@@ -27,7 +27,7 @@ RSpec.describe(Kimera::Execution::Shift::Unmask) do
         @log << [id, Kimera::RUNTIME.active]
         passed = @script.fetch(id, []).shift != :fail
         failed = passed ? [] : [id]
-        Kimera::Frameworks::RunOutcome.new(passed: passed, failed_ids: failed, failures: failed.to_h { [it, "boom"] })
+        Kimera::Frameworks::RunOutcome.new(passed: passed, failed: failed, failures: failed.to_h { [it, "boom"] })
       end
     end.new
   end
@@ -72,7 +72,7 @@ RSpec.describe(Kimera::Execution::Shift::Unmask) do
       define_method(:run) do |_ids|
         @runs += 1
         raise(error) if @runs > 2
-        Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+        Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
       end
     end.new
   end
@@ -82,13 +82,13 @@ RSpec.describe(Kimera::Execution::Shift::Unmask) do
     expect([result.status, result.detail]).to(eq([:error, "ArgumentError: broken fixture"]))
   end
 
-  def raising_once(error)
+  def flaky(error)
     Class.new do
       define_method(:initialize) { @runs = 0 }
 
       define_method(:run) do |_ids|
         raise(error) if (@runs += 1) == 3
-        Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+        Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
       end
     end.new
   end
@@ -96,7 +96,7 @@ RSpec.describe(Kimera::Execution::Shift::Unmask) do
   it "judges the next mutant as usual after a test raised while one ran alone" do
     ids = registry.each.map { |mutant, _point| mutant.to_i }.first(2)
     shift = Kimera::Execution::Shift.new(
-      adapter: raising_once(ArgumentError.new("broken fixture")), registry:, coverage: ids.to_h { [it, %w[t1 t2]] },
+      adapter: flaky(ArgumentError.new("broken fixture")), registry:, coverage: ids.to_h { [it, %w[t1 t2]] },
       soft_timeout: nil, zygote: InlineZygote.new, confirm: true
     )
     shift.run(ids, io = StringIO.new)
@@ -121,7 +121,7 @@ RSpec.describe(Kimera::Execution::Shift::Unmask) do
         define_method(:run) do |ids|
           took, passed = @script.fetch(ids.first, []).shift || [0.0, true]
           now[0] += took
-          Kimera::Frameworks::RunOutcome.new(passed: passed, failed_ids: passed ? [] : ids)
+          Kimera::Frameworks::RunOutcome.new(passed: passed, failed: passed ? [] : ids)
         end
       end.new
     end

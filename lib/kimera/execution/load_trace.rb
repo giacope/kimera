@@ -97,9 +97,9 @@ class Kimera::Execution::LoadTrace
     RAN.any? { |event, kinds| kinds.any? { |kind| node.is_a?(kind) } && lines.include?([event, line]) }
   end
 
-  def holes(node) = node.is_a?(Prism::DefNode) ? [] : defined_within(node)
+  def holes(node) = node.is_a?(Prism::DefNode) ? [] : definitions(node)
 
-  def defined_within(node)
-    node.compact_child_nodes.flat_map { |child| child.is_a?(Prism::DefNode) ? [child.location] : defined_within(child) }
+  def definitions(node)
+    node.compact_child_nodes.flat_map { |child| child.is_a?(Prism::DefNode) ? [child.location] : definitions(child) }
   end
 end

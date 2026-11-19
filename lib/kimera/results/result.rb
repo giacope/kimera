@@ -70,9 +70,9 @@ module Kimera
 
       def noting(judged, reason) = judged.with(note: "#{reason}#{detail}")
 
-      def unreached = with(detail: unreached_detail)
+      def unreached = with(detail: unvisited)
 
-      def narrowed(note) = detail.nil? || detail == unreached_detail ? with(detail: note) : self
+      def narrowed(note) = detail.nil? || detail == unvisited ? with(detail: note) : self
 
       def waive
         self.class.new(
@@ -95,7 +95,7 @@ module Kimera
       private
       def took = duration || 0.0
 
-      def unreached_detail
+      def unvisited
         "no test reached the code it mutates (other code on its line may have run); its file was loaded at boot"
       end
 

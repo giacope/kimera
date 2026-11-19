@@ -20,7 +20,7 @@ RSpec.describe(Kimera::Execution::Shift::Census) do
         raise(ArgumentError, "boom") if ids == ["raise"]
         sleep(1) if ids == ["hang"]
         failed = ids & %w[t1 t2]
-        Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed)
+        Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed: failed)
       end
     end.new
   end

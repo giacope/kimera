@@ -21,7 +21,7 @@ class Kimera::CLI::Run::Given
 
   def settings
     chosen = scoped.merge(attribution: attribution.mode, unit_tests: attribution.rules, since_scope: extent)
-    require_coverage!("--attribution unit") if chosen[:attribution] == "unit"
+    coverage!("--attribution unit") if chosen[:attribution] == "unit"
     Kimera::CLI::Run::Settings.new(chosen.merge(flaky_runs: reruns).merge(seed: @flags[:seed]&.then { seed(it) }))
   end
 
@@ -45,13 +45,13 @@ class Kimera::CLI::Run::Given
   def reruns
     value = @flags[:flaky_runs]
     runs = Integer(value.to_s, 10).tap { |count| raise(ArgumentError) if count.negative? }
-    require_coverage!("--flaky-runs") if runs.positive?
+    coverage!("--flaky-runs") if runs.positive?
     runs
   rescue ArgumentError
     raise(Kimera::UsageError, "--flaky-runs takes a whole number of reruns, got #{value.inspect}")
   end
 
-  def require_coverage!(setting)
+  def coverage!(setting)
     raise(Kimera::UsageError, "#{setting} #{UNMEASURED}") if @flags[:coverage] == false
   end
 

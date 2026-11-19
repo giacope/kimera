@@ -11,15 +11,12 @@ begin
 rescue LoadError, StandardError => error
   raise unless error.is_a?(LoadError) || (defined?(Bundler::BundlerError) && error.is_a?(Bundler::BundlerError))
   advice =
-    if error.message.include?("bundle update")
-      []
-    else
-      [
-        "Kimera runs inside your project's bundle: add `gem \"kimera\", group: :test` to the Gemfile, " \
-          "run `bundle install`, then `bundle exec kimera`."
-      ]
-    end
-  warn("kimera: could not load its dependencies (#{error.message.lines.first.strip})", *advice)
+    "Kimera runs inside your project's bundle: add `gem \"kimera\", group: :test` to the Gemfile, " \
+      "run `bundle install`, then `bundle exec kimera`."
+  warn(
+    "kimera: could not load its dependencies (#{error.message.lines.first.strip})",
+    *(advice unless error.message.include?("bundle update"))
+  )
   exit(1)
 end
 

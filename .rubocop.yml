@@ -2,12 +2,13 @@
 plugins:
   - sekisho
 
-# kimera holds itself to sekisho's strict profile.
+# kimera holds itself to sekisho's whole lint profile: the dogmatic one, the strict one under it.
 inherit_gem:
-  sekisho: config/strict.yml
+  sekisho: config/dogmatic.yml
 
 AllCops:
   TargetRubyVersion: 3.4
+  SuggestExtensions: false
   Exclude:
     # Fixture apps: specs pin their exact source (lines, operators, mutant counts).
     - examples/**/*
@@ -46,3 +47,16 @@ Sekisho/RealWords:
     # Ruby calls RubyVM::InstructionSequence.load_iseq, when it is defined, for each file it loads; the weave
     # that guards a file as it first loads defines it, so the name is Ruby's (protocol).
     - load_iseq
+
+Sekisho/GoodMethodName:
+  inherit_mode:
+    merge:
+      - AllowedNames
+  AllowedNames:
+    # Active Record calls ConnectionHandler#discard_pool! on each pool a fork inherits; kimera's override keeps
+    # the in-memory one, so the name is Active Record's (lib/kimera/execution/memory_databases.rb).
+    - discard_pool!
+
+# Each inline disable is a reviewed exception: raise this in the change that adds one.
+Sekisho/JustifiedDirective:
+  MaxDisables: 18

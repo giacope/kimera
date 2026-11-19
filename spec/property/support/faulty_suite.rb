@@ -37,7 +37,7 @@ class FaultySuite
   def run(ids)
     active = Kimera::RUNTIME.active
     failed = active ? on(active) : behavior(@offers.id) == :suspect
-    Kimera::Frameworks::RunOutcome.new(passed: !failed, failed_ids: failed ? ids : [])
+    Kimera::Frameworks::RunOutcome.new(passed: !failed, failed: failed ? ids : [])
   end
 
   private

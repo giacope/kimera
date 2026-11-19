@@ -23,7 +23,7 @@ class Kimera::Execution::Zygote
       @code = code
     end
 
-    def last_words = message
+    def epitaph = message
 
     def echo(duty) = signal ? duty.die_of(signal) : duty.exit_with(code || 1)
 

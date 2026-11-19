@@ -22,7 +22,7 @@ class Kimera::Execution::StandardStreams
     $stdout, $stderr = swap
   end
 
-  def holding_errors
+  def withholding
     original = $stderr
     $stderr = @errors
     yield.tap { original.write(@errors.string) }

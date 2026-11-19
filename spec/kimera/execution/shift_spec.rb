@@ -30,7 +30,7 @@ RSpec.describe(Kimera::Execution::Shift) do
         raise(RuntimeError, "boom") if active && active == @failure
         sleep(5) if active && active == @timeout
         failed = ids.select { |id| Array(@catches[id]).include?(active) }
-        Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed)
+        Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed: failed)
       end
     end
   end
@@ -221,7 +221,7 @@ RSpec.describe(Kimera::Execution::Shift) do
           t = test_ids.first
           Kimera::RUNTIME.reset! if t == "t_reset"
           failed = t == "t_catch" && Kimera::RUNTIME.active ? [t] : []
-          Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed)
+          Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed: failed)
         end
       end.new
     end
@@ -403,7 +403,7 @@ RSpec.describe(Kimera::Execution::Shift) do
         define_method(:test_ids) { %w[t1] }
         define_method(:run) do |_ids|
           seen << Kimera::RUNTIME.active
-          Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+          Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
         end
       end.new
     end
@@ -422,7 +422,7 @@ RSpec.describe(Kimera::Execution::Shift) do
         define_method(:run) do |test_ids|
           Kimera::RUNTIME.active?(7) if test_ids == ["t1"]
           Kimera::RUNTIME.active?(8) if test_ids == ["t2"]
-          Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+          Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
         end
       end.new
     end

@@ -18,11 +18,11 @@ class Kimera::CLI::RailsLayout
 
   def application? = File.file?(File.join(@root, "config", "application.rb"))
 
-  def engine? = dummy? && Dir.glob(File.join(@root, "lib", "**", "*.rb")).first(SCANNED).any? { engine_class?(it) }
+  def engine? = dummy? && Dir.glob(File.join(@root, "lib", "**", "*.rb")).first(SCANNED).any? { defines?(it) }
 
   private
 
   def dummy? = DUMMIES.any? { File.file?(File.join(@root, it, "config", "application.rb")) }
 
-  def engine_class?(path) = File.read(path, encoding: Encoding::UTF_8).scrub.match?(ENGINE)
+  def defines?(path) = File.read(path, encoding: Encoding::UTF_8).scrub.match?(ENGINE)
 end

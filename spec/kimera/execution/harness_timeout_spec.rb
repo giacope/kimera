@@ -29,7 +29,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
       def run(_ids)
         wedge if Kimera::RUNTIME.active
-        Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+        Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
       end
 
       def wedge = sleep(30)

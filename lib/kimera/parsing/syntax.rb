@@ -57,11 +57,7 @@ module Kimera
       end
       private
       def logger?(receiver, loggers)
-        while receiver
-          return true if named?(receiver, loggers)
-          receiver = receiver.is_a?(CallNode) ? receiver.receiver : nil
-        end
-        false
+        named?(receiver, loggers) || (receiver.is_a?(CallNode) && logger?(receiver.receiver, loggers))
       end
 
       def named?(receiver, names)

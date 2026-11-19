@@ -309,7 +309,7 @@ RSpec.describe(Kimera::RegistryScan) do
     end
 
     it "keeps an unsafe reason it already carries" do
-      claimed = spot.tap { it.mark!(Kimera::Reason.class_body) }
+      claimed = spot.tap { it.mark!(Kimera::Reason.body) }
       claimed.mark!(Kimera::Reason::Guarded.tainted("memoized via ||="))
       expect(claimed.reasons(Kimera::Reason.unsafety)).to(eq([Kimera::Reason::CLASS_BODY_REASON]))
     end

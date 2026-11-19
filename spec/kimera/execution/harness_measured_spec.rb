@@ -16,7 +16,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       define_method(:test_ids) { %w[t1 t2] }
       define_method(:run) do |ids|
         Kimera::RUNTIME.active?(id)
-        Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [], failures: {}) if ids
+        Kimera::Frameworks::RunOutcome.new(passed: true, failed: [], failures: {}) if ids
       end
     end.new
   end

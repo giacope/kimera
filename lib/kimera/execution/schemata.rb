@@ -137,6 +137,6 @@ class Kimera::Execution::Schemata
   def synth(overlays = Kimera::Overlay) = @_synth ||= overlays.new(@registry)
 
   def silence(streams = Kimera::Execution::StandardStreams.new, guards = Kimera::Execution::OverlayGuards.new, &)
-    streams.holding_errors { guards.overlay(&) }
+    streams.withholding { guards.overlay(&) }
   end
 end

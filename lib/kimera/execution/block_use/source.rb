@@ -69,9 +69,11 @@ class Kimera::Execution::BlockUse::Source
     case node.type
     when :call_node then [*node.arguments&.arguments]
     when :array_node then node.elements
-    else node.body&.body&.one? ? node.body.body : []
+    else lone(node)
     end
   end
+
+  def lone(node) = node.body&.body&.one? ? node.body.body : []
 
   def use?(node) = node.type == :yield_node || (SUPERS.include?(node.type) && node.block.nil?)
 

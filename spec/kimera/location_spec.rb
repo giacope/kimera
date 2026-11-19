@@ -37,11 +37,11 @@ RSpec.describe(Kimera::Location) do
 
   it "covers the offsets it spans, and starts between the bounds it is given", :aggregate_failures do
     expect([9, 10, 14, 15].map { sample.covers?(it) }).to(eq([false, true, true, false]))
-    expect([[0, 9], [0, 10], [10, 20], [11, 20]].map { sample.starts_between?(*it) }).to(eq([false, true, true, false]))
+    expect([[0, 9], [0, 10], [10, 20], [11, 20]].map { sample.entered?(*it) }).to(eq([false, true, true, false]))
   end
 
   it "starts on its line, at its offset and column counted from one", :aggregate_failures do
-    expect([1, 2, 3].map { sample.starts_on?(it) }).to(eq([false, true, false]))
+    expect([1, 2, 3].map { sample.line?(it) }).to(eq([false, true, false]))
     expect([9, 10, 11].map { sample.starts_at?(it) }).to(eq([false, true, false]))
     expect([4, 5, 6].map { sample.column?(it) }).to(eq([false, true, false]))
   end

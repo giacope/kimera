@@ -7,20 +7,20 @@ require_relative "bare_selection"
 module Kimera
   module Frameworks
     RunOutcome =
-      Data.define(:passed, :failed_ids, :failures) do
-        def initialize(passed:, failed_ids:, failures: {}) = super
+      Data.define(:passed, :failed, :failures) do
+        def initialize(passed:, failed:, failures: {}) = super
         private(*members)
         def passed?
           passed
         end
 
         def verdict
-          passed? ? [:survived, []] : [:killed, failed_ids]
+          passed? ? [:survived, []] : [:killed, failed]
         end
 
         def expired? = false
 
-        def to_h = { "passed" => passed?, "failed_ids" => failed_ids, "failures" => failures }
+        def to_h = { "passed" => passed?, "failed_ids" => failed, "failures" => failures }
       end
 
     Unhooked =
@@ -65,7 +65,7 @@ class Kimera::Frameworks::Suite
   end
 
   def outcome(failed)
-    Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed.map(&:first), failures: failed.to_h)
+    Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed: failed.map(&:first), failures: failed.to_h)
   end
 
   def frames(backtrace)

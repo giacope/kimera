@@ -42,17 +42,17 @@ class Kimera::RegistryScan::SourceFile
   def attempt
     scan(Kimera::Syntax.parse(@source))
   rescue StandardError, SystemStackError => error
-    [[], [Kimera::Unmutated.whole(@file, last_line, :unscanned, "#{error.class}: #{error.message.lines.first&.chomp}")]]
+    [[], [Kimera::Unmutated.whole(@file, extent, :unscanned, "#{error.class}: #{error.message.lines.first&.chomp}")]]
   end
 
   def scan(parsed)
-    return [[], [Kimera::Unmutated.whole(@file, last_line, :unparsed, parsed.errors.first&.message)]] if parsed.failure?
+    return [[], [Kimera::Unmutated.whole(@file, extent, :unparsed, parsed.errors.first&.message)]] if parsed.failure?
     root = parsed.value
     operators = @operators.map { |operator| operator.survey(root) }
     self.class.new(@source, file: @file, operators: operators, numbering: @numbering).mined(root)
   end
 
-  def last_line = [@source.lines.size, 1].max
+  def extent = [@source.lines.size, 1].max
 
   def unmutated(held)
     held.group_by { |block, _| block.location.start_offset }.values.flat_map { |pairs| runs(pairs.map(&:last)) }
@@ -91,10 +91,10 @@ class Kimera::RegistryScan::SourceFile
   def taints(node)
     location = node.location
     reasons = tainted.lazy.flat_map { |range| range.reasons(location.start_offset, location.end_offset) }.first(1)
-    reasons.empty? ? syntax_guard.reasons(node) : reasons
+    reasons.empty? ? sentry.reasons(node) : reasons
   end
 
-  def syntax_guard(kind = Kimera::SyntaxGuard) = @_syntax_guard ||= kind.new(@source)
+  def sentry(kind = Kimera::SyntaxGuard) = @_sentry ||= kind.new(@source)
 
   def hold(node, cursor) = cursor.held(@operators, node)
 

@@ -114,8 +114,8 @@ class Kimera::CLI::Run::Cycle
       .merge("judge_isolated_only" => route.judging?, "confirm_survivors" => route.confirming?)
   end
 
-  def harness(remaining, bench, env: ENV, suite_env: Kimera::Execution::SuiteEnv.new(env))
-    suite_env.install(@options[:seed], @options[:load_path])
+  def harness(remaining, bench, env: ENV, variables: Kimera::Execution::SuiteEnv.new(env))
+    variables.install(@options[:seed], @options[:load_path])
     suite = bench.suite(@options[:framework], Array(@options[:exclude_test_names]))
     Kimera::CLI::Run::Pass.new(@registry, @options, suite, bench).call(remaining)
   end

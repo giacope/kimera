@@ -46,7 +46,7 @@ module Kimera::RegistryWalking
 
       def named(attributes) = attributes.merge(method_name: defname)
 
-      def classed(point, toggled) = inside_def || toggled ? point : point.tap { it.mark!(Kimera::Reason.class_body) }
+      def classed(point, toggled) = inside_def || toggled ? point : point.tap { it.mark!(Kimera::Reason.body) }
       private
       def holds?(node) = !inside_def && !block && node.is_a?(Kimera::SyntaxTypes::BlockNode)
       private(*members)

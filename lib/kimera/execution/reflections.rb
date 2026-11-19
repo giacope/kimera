@@ -14,7 +14,7 @@ module Kimera
 
         def stale? = !@stale.nil?
 
-        def pass_down(heir)
+        def bequeath(heir)
           held = heir._reflections
           return unless held[@key].equal?(@stale)
           heir.clear_reflections_cache
@@ -46,7 +46,7 @@ module Kimera
         return unless declared.stale?
         held = @owner._reflections
         @owner._reflections = before.to_h { |name, _| [name, held[name]] }.merge(held)
-        @owner.descendants.each { |heir| declared.pass_down(heir) }
+        @owner.descendants.each { |heir| declared.bequeath(heir) }
       end
     end
   end

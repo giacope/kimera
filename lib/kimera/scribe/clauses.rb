@@ -33,9 +33,9 @@ module Kimera
       end
 
       def cleanup(handlers)
-        ensure_clause = @node.ensure_clause
-        return "" unless ensure_clause
-        "#{keyword("ensure")}#{@pen.lines(ensure_clause.statements, after([*handlers, @node.else_clause]))}"
+        clause = @node.ensure_clause
+        return "" unless clause
+        "#{keyword("ensure")}#{@pen.lines(clause.statements, after([*handlers, @node.else_clause]))}"
       end
 
       def after(nodes) = @scope.with([@node.statements, *nodes.compact])

@@ -35,7 +35,7 @@ RSpec.describe(Kimera::Execution::Harness) do
         test_ids.each { |t| Array(@coverage[t]).each { |mid| Kimera::RUNTIME.active?(mid) } }
         failed = test_ids & @failing
         Kimera::Frameworks::RunOutcome.new(
-          passed: failed.empty?, failed_ids: failed,
+          passed: failed.empty?, failed: failed,
           failures: failed.to_h { |t| [t, message || "assertion failed in #{t}"] }
         )
       end
@@ -57,7 +57,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     Kimera::RUNTIME.active = outer
     test_ids.each { |t| Array(coverage[t]).each { |mid| Kimera::RUNTIME.active?(mid) } }
     failed = test_ids & failing
-    Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed)
+    Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed: failed)
   end
 
   def reselecting(coverage: {}, failing: [])
@@ -75,7 +75,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       def test_ids = ["t1"]
       define_method(:run) do |_ids|
         pids << Process.pid
-        Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+        Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
       end
     end.new
   end
@@ -253,7 +253,7 @@ RSpec.describe(Kimera::Execution::Harness) do
             end
             Kimera::RUNTIME.active?(99) if t == "t_after"
           end
-          Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+          Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
         end
       end.new
     end
@@ -274,7 +274,7 @@ RSpec.describe(Kimera::Execution::Harness) do
           Kimera::RUNTIME.active?(7)
           inner.drain!
           Kimera::RUNTIME.stop!(inner)
-          Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+          Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
         end
       end.new
     end
@@ -457,7 +457,7 @@ RSpec.describe(Kimera::Execution::Harness) do
           $stdout.puts("SUITE NOISE out")
 
           warn "SUITE NOISE err"
-          Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+          Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
         end
       end.new
     end
@@ -524,7 +524,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       Class.new(Kimera::Frameworks::Suite) do
         define_method(:source) { |_files| load(path) && HarnessMacro.charges(true) && self }
         def test_ids = ["t1"]
-        def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+        def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
       end.new
     end
 
@@ -575,7 +575,7 @@ RSpec.describe(Kimera::Execution::Harness) do
         def test_ids = %w[t1]
         define_method(:run) do |_test_ids|
           sleep(0.3) if Kimera::RUNTIME.active?(target)
-          Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+          Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
         end
       end.new
     end
@@ -632,7 +632,7 @@ RSpec.describe(Kimera::Execution::Harness) do
           self
         end
         def test_ids = ["t1"]
-        def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+        def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
       end.new(sink)
     end
 
@@ -651,7 +651,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
-        def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: false, failed_ids: ["t1"])
+        def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: false, failed: ["t1"])
       end.new
     end
 
@@ -666,7 +666,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
-        def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+        def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
         class_exec(&mods) if mods
       end.new
     end
@@ -696,7 +696,7 @@ RSpec.describe(Kimera::Execution::Harness) do
         def test_ids = ["t1"]
         define_method(:run) do |test_ids|
           Kimera::RUNTIME.active?(@id) if test_ids.any?
-          Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+          Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
         end
       end.new(id)
     end
@@ -1094,7 +1094,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
-        def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: false, failed_ids: ["t1"])
+        def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: false, failed: ["t1"])
       end.new
     end
 
@@ -1259,8 +1259,8 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     it "is false for a class-body point and true for a method-body point", :aggregate_failures do
-      body = mixed_registry.each.find { |_m, p| p.reasons(Kimera::Reason.class_body).any? }.first.to_i
-      method = mixed_registry.each.find { |_m, p| p.reasons(Kimera::Reason.class_body).none? }.first.to_i
+      body = mixed_registry.each.find { |_m, p| p.reasons(Kimera::Reason.body).any? }.first.to_i
+      method = mixed_registry.each.find { |_m, p| p.reasons(Kimera::Reason.body).none? }.first.to_i
       mixed_registry.index.fetch(method).mark!(Kimera::Reason.unsafe("memoized"))
       expect(triage(mixed_registry).tiers([body, method]).drop(1)).to(eq([[method], [body]]))
     end
@@ -1270,7 +1270,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     it "is false for an unmutatable method-body point" do
-      mutant, point = mixed_registry.each.find { |_m, p| p.reasons(Kimera::Reason.class_body).none? }
+      mutant, point = mixed_registry.each.find { |_m, p| p.reasons(Kimera::Reason.body).none? }
       point.mark!(Kimera::Reason.unmutatable("kimera could not write its guard"))
       expect(triage(mixed_registry).tiers([mutant.to_i]).last).to(eq([mutant.to_i]))
     end
@@ -1332,7 +1332,7 @@ RSpec.describe(Kimera::Execution::Harness) do
         def test_ids = ["t1"]
         define_method(:run) do |_ids|
           @mids.each { |m| Kimera::RUNTIME.active?(m) }
-          Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+          Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
         end
       end.new(mids)
     end
@@ -1355,7 +1355,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
-        def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+        def run(_ids) = Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
       end.new
     end
 
@@ -1366,7 +1366,7 @@ RSpec.describe(Kimera::Execution::Harness) do
         def test_ids = %w[t1 t2]
         define_method(:run) do |ids|
           @mids.each { |m| Kimera::RUNTIME.active?(m) } if ids.size > 1
-          Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+          Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
         end
       end.new(mids)
     end
@@ -1412,7 +1412,7 @@ RSpec.describe(Kimera::Execution::Harness) do
         define_method(:run) do |ids|
           sleep(0.05) if ids == ["slow"]
           hit = @mids.map { |m| Kimera::RUNTIME.active?(m) }.any?
-          Kimera::Frameworks::RunOutcome.new(passed: !hit, failed_ids: hit ? ids : [])
+          Kimera::Frameworks::RunOutcome.new(passed: !hit, failed: hit ? ids : [])
         end
       end.new(mids)
     end
@@ -1442,7 +1442,7 @@ RSpec.describe(Kimera::Execution::Harness) do
         def test_ids = %w[steady shaky]
         define_method(:run) do |ids|
           hit = @mids.map { |m| Kimera::RUNTIME.active?(m) }.any? || (ids == ["shaky"] && ENV["KIMERA_SEED"] == "6")
-          Kimera::Frameworks::RunOutcome.new(passed: !hit, failed_ids: hit ? ids : [])
+          Kimera::Frameworks::RunOutcome.new(passed: !hit, failed: hit ? ids : [])
         end
       end.new(mids)
     end
@@ -1582,7 +1582,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       define_method(:run) do |_ids|
         object = Object.const_get(@klass).new
         ok = (object.gt(2, 1) == true) && (object.memo(1, 2) == true)
-        Kimera::Frameworks::RunOutcome.new(passed: ok, failed_ids: ok ? [] : ["t1"])
+        Kimera::Frameworks::RunOutcome.new(passed: ok, failed: ok ? [] : ["t1"])
       end
     end.new
   end
@@ -1679,7 +1679,7 @@ RSpec.describe(Kimera::Execution::Harness) do
         def test_ids = ["t1"]
         define_method(:run) do |_ids|
           reach.call
-          Kimera::Frameworks::RunOutcome.new(passed: @passed, failed_ids: @passed ? [] : ["t1"])
+          Kimera::Frameworks::RunOutcome.new(passed: @passed, failed: @passed ? [] : ["t1"])
         end
       end.new
     end
@@ -1706,7 +1706,7 @@ RSpec.describe(Kimera::Execution::Harness) do
           calls << ids
           ids.each { |id| reach[id]&.call }
           failed = ids & failing
-          Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed)
+          Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed: failed)
         end
       end.new
     end
@@ -1900,7 +1900,7 @@ RSpec.describe(Kimera::Execution::Harness) do
         def test_ids = ["t1"]
         define_method(:run) do |_ids|
           at_exit { File.write(marker, "ran") }
-          Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+          Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
         end
       end.new
     end
@@ -1924,7 +1924,7 @@ RSpec.describe(Kimera::Execution::Harness) do
         define_method(:run) do |_ids|
           sleep(pause)
           Object.const_get(name).new.memo(1, 2)
-          Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+          Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
         end
       end.new
     end
@@ -1985,7 +1985,7 @@ RSpec.describe(Kimera::Execution::Harness) do
         define_method(:run) do |ids|
           sleep(0.05) if ids == ["slow"]
           ok = Object.const_get(name).new.memo(1, 2) == true
-          Kimera::Frameworks::RunOutcome.new(passed: ok, failed_ids: ok ? [] : ids)
+          Kimera::Frameworks::RunOutcome.new(passed: ok, failed: ok ? [] : ids)
         end
       end.new
     end

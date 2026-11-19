@@ -186,7 +186,7 @@ RSpec.describe(Kimera::Operators) do
     it "targets only associations that declare dependent:", :aggregate_failures do
       catalog = registry(assoc_src, ["rails_association"])
       expect(catalog.each.count).to(eq(2))
-      catalog.to_a.each { |point| expect(point.reasons(Kimera::Reason.class_body).any?).to(be(true)) }
+      catalog.to_a.each { |point| expect(point.reasons(Kimera::Reason.body).any?).to(be(true)) }
     end
 
     it "bakes the option away, dropping an emptied options hash entirely", :aggregate_failures do

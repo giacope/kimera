@@ -41,7 +41,7 @@ RSpec.describe(Kimera::Execution::Shift) do
         @log << [id, Kimera::RUNTIME.active]
         failed = @script.fetch(id, []).shift == :fail ? [id] : []
         messages = failed.to_h { |t| [t, @failures.fetch(t, "boom in #{t}")] }
-        Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed_ids: failed, failures: messages)
+        Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed: failed, failures: messages)
       end
     end
   end
@@ -176,9 +176,9 @@ RSpec.describe(Kimera::Execution::Shift) do
         define_method(:run) do |ids|
           on = Kimera::RUNTIME.active
           sleep(delay) if ids == ["t1"] && on
-          Kimera::Frameworks::RunOutcome.new(passed: !on, failed_ids: ids, failures: { ids.first => "interrupted" })
+          Kimera::Frameworks::RunOutcome.new(passed: !on, failed: ids, failures: { ids.first => "interrupted" })
         rescue Timeout::ExitException
-          Kimera::Frameworks::RunOutcome.new(passed: false, failed_ids: ids, failures: { ids.first => "interrupted" })
+          Kimera::Frameworks::RunOutcome.new(passed: false, failed: ids, failures: { ids.first => "interrupted" })
         end
       end.new
     end
@@ -219,7 +219,7 @@ RSpec.describe(Kimera::Execution::Shift) do
           on = Kimera::RUNTIME.active
           nap.call unless on
           passed = !on || ids == ["t0"] || (runs[ids] += 1) > 1
-          Kimera::Frameworks::RunOutcome.new(passed: passed, failed_ids: passed ? [] : ids)
+          Kimera::Frameworks::RunOutcome.new(passed: passed, failed: passed ? [] : ids)
         end
       end
     end

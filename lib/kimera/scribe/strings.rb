@@ -9,7 +9,7 @@ module Kimera
 
       def inner(delimiter)
         pieces = segments
-        pieces.each_with_index.sum("") { |piece, index| piece_text(piece, pieces[index + 1], delimiter) }
+        pieces.each_with_index.sum("") { |piece, index| spelled(piece, pieces[index + 1], delimiter) }
       end
 
       def segments
@@ -19,7 +19,7 @@ module Kimera
 
       def content(part) = Kimera::Unescaped.new(part).text
 
-      def piece_text(piece, following, delimiter)
+      def spelled(piece, following, delimiter)
         piece.is_a?(::String) ? escaped(piece, delimiter) : embedded(piece, following)
       end
 
@@ -91,11 +91,11 @@ module Kimera
       def segments = PLAIN.include?(type) ? [@node.content] : super
 
       def content(part)
-        read = read_parts[@node.parts.index { |each| each.equal?(part) }]
+        read = reparsed[@node.parts.index { |each| each.equal?(part) }]
         read&.type == :string_node && read.unescaped.b == part.unescaped.b ? part.content : "\#{#{part(part)}}"
       end
 
-      def read_parts = @_read_parts ||= Kimera::Syntax.parse(@node.slice).value.statements.body.first.parts
+      def reparsed = @_reparsed ||= Kimera::Syntax.parse(@node.slice).value.statements.body.first.parts
 
       def escaped(piece, _delimiter) = piece
     end

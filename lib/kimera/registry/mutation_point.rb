@@ -18,9 +18,9 @@ module Kimera
 
       def covers?(offset) = offset.between?(start_offset, finish - 1)
 
-      def starts_between?(from, to) = start_offset.between?(from, to)
+      def entered?(from, to) = start_offset.between?(from, to)
 
-      def starts_on?(line) = start_line == line
+      def line?(line) = start_line == line
 
       def starts_at?(offset) = start_offset == offset
 
@@ -152,7 +152,7 @@ class Kimera::MutationPoint
 
   def line?(line) = location.range.include?(Integer(line))
 
-  def starts?(line) = location.starts_on?(Integer(line))
+  def starts?(line) = location.line?(Integer(line))
 
   def column?(column) = location.column?(Integer(column))
 
@@ -176,7 +176,7 @@ class Kimera::MutationPoint
 
   def covers?(offset) = location.covers?(offset)
 
-  def entered?(span) = location.starts_between?(*span)
+  def entered?(span) = location.entered?(*span)
 
   def node?(node)
     location.starts_at?(node.location.start_offset) && node.type.to_s == node_type && node.slice == original_source

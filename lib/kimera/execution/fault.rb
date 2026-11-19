@@ -9,7 +9,7 @@ module Kimera::Execution::Fault
   refine(Exception) do
     def headline = "#{self.class}: #{message}"
 
-    def last_words = Kimera::Execution::LastWords.new(self).to_s
+    def epitaph = Kimera::Execution::LastWords.new(self).to_s
 
     def echo(_duty) = self
   end
