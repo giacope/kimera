@@ -265,7 +265,10 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
 
   describe "a reload worker" do
     let(:reload) do
-      Kimera::Execution::Reload.new(registry: Object.new, adapter: Object.new, isolation: Object.new, workspace: nil)
+      trial = Kimera::Execution::Reload::Trial.new(
+        registry: Object.new, adapter: Object.new, isolation: Object.new, workspace: nil
+      )
+      Kimera::Execution::Reload.new(registry: Object.new, adapter: Object.new, trial: trial)
     end
 
     let(:errand) do

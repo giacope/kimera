@@ -57,6 +57,7 @@ module Kimera
       kimera/execution/time_budget.rb
       kimera/execution/patience.rb
       kimera/execution/reload.rb
+      kimera/execution/reload_trial.rb
       kimera/execution/overlaying.rb
       kimera/execution/load_weave.rb
       kimera/execution/worker_databases.rb

@@ -112,9 +112,11 @@ class Kimera::Execution::Schedule
   def reloader = @_reloader ||= @options.fetch(:reloader) { reloading }
 
   def reloading
-    Kimera::Execution::Reload.new(
-      registry: @registry, adapter: @options.fetch(:adapter), isolation: @options.fetch(:isolation),
-      workspace: Kimera::Execution::Reload::Workspace.new(root: @options.fetch(:root), aliases: @options[:aliases])
+    adapter = @options.fetch(:adapter)
+    workspace = Kimera::Execution::Reload::Workspace.new(root: @options.fetch(:root), aliases: @options[:aliases])
+    trial = Kimera::Execution::Reload::Trial.new(
+      registry: @registry, adapter: adapter, isolation: @options.fetch(:isolation), workspace: workspace
     )
+    Kimera::Execution::Reload.new(registry: @registry, adapter: adapter, trial: trial)
   end
 end
