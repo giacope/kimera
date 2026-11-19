@@ -226,6 +226,10 @@ RSpec.describe(Kimera::Overlay) do
         "def m(a)\n  x = begin\n    a.call\n    a.size\n  rescue ArgumentError\n    0\n  end\n  x\nend\n",
         %w[rescue_clause], "drop `rescue ArgumentError`"
       ] => "def m(a)\n  x = (\n    a.call\n    a.size\n  ;\n\n  )\n  x\nend\n",
+      [
+        "def m(a)\n  x = begin\n    [a.call, __LINE__]\n  rescue ArgumentError\n    0\n  end\n  x\nend\n",
+        %w[rescue_clause], "drop `rescue ArgumentError`"
+      ] => "def m(a)\n  x = (\n    [a.call, __LINE__]\n  ;\n\n  )\n  x\nend\n",
       ["def m(a)\n  if a # why\n    1\n  end\nend\n", %w[conditional], "condition => true"] =>
         "def m(a)\n  if true # why\n    1\n  end\nend\n",
       [heredoc, %w[statement_deletion], "delete `mod.class_eval <<~RUBY, __FILE__, __LINE__ + 1`"] =>
