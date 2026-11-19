@@ -74,8 +74,6 @@ class Kimera::Execution::Harness
     loader.overlay!.tap { complete(loader) }
   end
 
-  def load! = boot.load!
-
   def isolate! = (options[:isolation] = boot.isolate(isolation))
 
   def root = options.fetch(:source_root, ".")

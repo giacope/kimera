@@ -46,6 +46,8 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
   end
 
   describe "#parse" do
+    subject(:parser) { Kimera::CLI::Run::Arguments.new }
+
     around do |example|
       Dir.mktmpdir { |dir| Dir.chdir(dir) { example.run } }
     end
@@ -73,7 +75,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       }
     end
 
-    def parsed(*arguments) = cli.__send__(:parse, arguments).to_h
+    def parsed(*arguments) = parser.parse(arguments).to_h
 
     def unit_config = File.write("custom.yml", %(attribution: unit\nunit_tests:\n  "lib/**/*.rb": "t/{name}_t.rb"\n))
 
@@ -108,7 +110,7 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
     it "rejects a seed that is no whole number in range" do
       %w[-1 2147483648 1.5 x].each do |bad|
-        expect { cli.__send__(:parse, ["--seed", bad]) }.to(
+        expect { parser.parse(["--seed", bad]) }.to(
           raise_error(
             Kimera::UsageError,
             "--seed takes a whole number from 0 to 2147483647, or random; got #{bad.inspect}"
@@ -135,11 +137,11 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
 
     it "rejects strict attribution without the coverage baseline, and an unknown mode", :aggregate_failures do
-      expect { cli.__send__(:parse, %w[--attribution unit --no-coverage]) }
+      expect { parser.parse(%w[--attribution unit --no-coverage]) }
         .to(raise_error(Kimera::UsageError, "--attribution unit needs the coverage baseline; drop --no-coverage"))
-      expect(cli.__send__(:parse, %w[--attribution any --no-coverage])[:coverage]).to(be(false))
-      expect(cli.__send__(:parse, %w[--attribution unit])[:coverage]).to(be(true))
-      expect { cli.__send__(:parse, %w[--attribution all]) }.to(raise_error(Kimera::UsageError, /unknown attribution/))
+      expect(parser.parse(%w[--attribution any --no-coverage])[:coverage]).to(be(false))
+      expect(parser.parse(%w[--attribution unit])[:coverage]).to(be(true))
+      expect { parser.parse(%w[--attribution all]) }.to(raise_error(Kimera::UsageError, /unknown attribution/))
     end
 
     it "takes the scope of --since from the flag or the config, and only one it knows", :aggregate_failures do
@@ -151,41 +153,41 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
 
     it "applies exactly the documented defaults" do
-      expect(cli.__send__(:parse, []).to_h).to(eq(defaults))
+      expect(parser.parse([]).to_h).to(eq(defaults))
     end
 
     it "reads --max-errors as the unjudged-mutant budget" do
-      expect(cli.__send__(:parse, ["--max-errors", "3"])[:max_errors]).to(eq(3))
+      expect(parser.parse(["--max-errors", "3"])[:max_errors]).to(eq(3))
     end
 
     it "splits --operators into an array of keys" do
-      parsed = cli.__send__(:parse, ["--operators", "comparison,regexp"])
+      parsed = parser.parse(["--operators", "comparison,regexp"])
       expect(parsed[:operators]).to(eq(%w[comparison regexp]))
     end
 
     it "merges config-file defaults, with flags overriding them" do
       File.write("custom.yml", "jobs: 7\nsoft_timeout: 3.5\n")
-      parsed = cli.__send__(:parse, ["--config", "custom.yml"])
+      parsed = parser.parse(["--config", "custom.yml"])
       expect(parsed[:jobs]).to(eq(7))
       expect(parsed[:soft_timeout]).to(eq(3.5))
-      expect(cli.__send__(:parse, ["--config", "custom.yml", "--jobs", "2"])[:jobs]).to(eq(2))
+      expect(parser.parse(["--config", "custom.yml", "--jobs", "2"])[:jobs]).to(eq(2))
     end
 
     it "replaces the config tests: glob when --tests is given" do
       File.write("custom.yml", %(tests: ["spec/config_spec.rb"]\n))
-      parsed = cli.__send__(:parse, ["--config", "custom.yml", "--tests", "spec/only_spec.rb"])
+      parsed = parser.parse(["--config", "custom.yml", "--tests", "spec/only_spec.rb"])
       expect(parsed[:tests]).to(eq(["spec/only_spec.rb"]))
     end
 
     it "keeps the config tests: glob to tell a narrowed run apart" do
       File.write("custom.yml", %(tests: ["spec/config_spec.rb"]\n))
-      parsed = cli.__send__(:parse, ["--config", "custom.yml", "--tests", "spec/only_spec.rb"])
+      parsed = parser.parse(["--config", "custom.yml", "--tests", "spec/only_spec.rb"])
       expect(parsed[:configured_tests]).to(eq(["spec/config_spec.rb"]))
     end
 
     it "keeps the config tests: glob when --tests is absent" do
       File.write("custom.yml", %(tests: ["spec/config_spec.rb"]\n))
-      expect(cli.__send__(:parse, ["--config", "custom.yml"])[:tests]).to(eq(["spec/config_spec.rb"]))
+      expect(parser.parse(["--config", "custom.yml"])[:tests]).to(eq(["spec/config_spec.rb"]))
     end
 
     def help
@@ -230,58 +232,58 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
 
     it "parses scalar, repeatable, and toggle flags" do
-      parsed = cli.__send__(:parse, arguments)
+      parsed = parser.parse(arguments)
       expect(parsed).to(include(framework: "minitest", source_root: "src", tests: ["a/**/*.rb", "b/**/*.rb"]))
       expect(parsed).to(include(soft_timeout: 2.5, hard_timeout: 9.0, coverage: false))
       expect(parsed).to(include(jobs: 4, max_survivors: 2, exclude: ["x.rb", "y.rb"], isolate_db: true))
     end
 
     it "toggles --fail-on-no-coverage on and back off" do
-      expect(cli.__send__(:parse, ["--fail-on-no-coverage"])[:fail_on_no_coverage]).to(be(true))
-      off = cli.__send__(:parse, ["--fail-on-no-coverage", "--no-fail-on-no-coverage"])
+      expect(parser.parse(["--fail-on-no-coverage"])[:fail_on_no_coverage]).to(be(true))
+      off = parser.parse(["--fail-on-no-coverage", "--no-fail-on-no-coverage"])
       expect(off[:fail_on_no_coverage]).to(be(false))
     end
 
     it "treats positional arguments as paths overriding the default" do
-      parsed = cli.__send__(:parse, ["app/models", "lib/core.rb"])
+      parsed = parser.parse(["app/models", "lib/core.rb"])
       expect(parsed[:paths]).to(eq(["app/models", "lib/core.rb"]))
     end
 
     it "keeps the config paths: when no positional paths are given" do
       File.write("custom.yml", %(paths: ["only/**/*.rb"]\n))
-      expect(cli.__send__(:parse, ["--config", "custom.yml"])[:paths]).to(eq(["only/**/*.rb"]))
+      expect(parser.parse(["--config", "custom.yml"])[:paths]).to(eq(["only/**/*.rb"]))
     end
 
     it "turns the isolated re-judge off with --no-rejudge or rejudge: false in the config" do
-      expect(cli.__send__(:parse, ["--no-rejudge"])[:rejudge]).to(be(false))
+      expect(parser.parse(["--no-rejudge"])[:rejudge]).to(be(false))
       File.write("custom.yml", "rejudge: false\n")
-      expect(cli.__send__(:parse, ["--config", "custom.yml"])[:rejudge]).to(be(false))
-      expect(cli.__send__(:parse, ["--config", "custom.yml", "--rejudge"])[:rejudge]).to(be(true))
+      expect(parser.parse(["--config", "custom.yml"])[:rejudge]).to(be(false))
+      expect(parser.parse(["--config", "custom.yml", "--rejudge"])[:rejudge]).to(be(true))
     end
 
     it "tunes the relative timeout, or turns it off, by flag or config", :aggregate_failures do
-      tuned = cli.__send__(:parse, ["--timeout-factor", "4", "--timeout-slack", "0.5"])
+      tuned = parser.parse(["--timeout-factor", "4", "--timeout-slack", "0.5"])
       expect(tuned).to(include(timeout_factor: 4.0, timeout_slack: 0.5))
-      expect(cli.__send__(:parse, ["--no-relative-timeout"])[:relative_timeout]).to(be(false))
+      expect(parser.parse(["--no-relative-timeout"])[:relative_timeout]).to(be(false))
       File.write("custom.yml", "relative_timeout: false\ntimeout_factor: 20\ntimeout_slack: 2.5\n")
-      expect(cli.__send__(:parse, ["--config", "custom.yml"]))
+      expect(parser.parse(["--config", "custom.yml"]))
         .to(include(relative_timeout: false, timeout_factor: 20, timeout_slack: 2.5))
     end
 
     it "defaults --isolated off and turns it on when given" do
-      expect(cli.__send__(:parse, [])[:isolated]).to(be(false))
-      expect(cli.__send__(:parse, ["--isolated"])[:isolated]).to(be(true))
+      expect(parser.parse([])[:isolated]).to(be(false))
+      expect(parser.parse(["--isolated"])[:isolated]).to(be(true))
     end
 
     it "parses --max-ignored and leaves it unset by default" do
-      expect(cli.__send__(:parse, [])[:max_ignored]).to(be_nil)
-      expect(cli.__send__(:parse, ["--max-ignored", "5"])[:max_ignored]).to(eq(5))
+      expect(parser.parse([])[:max_ignored]).to(be_nil)
+      expect(parser.parse(["--max-ignored", "5"])[:max_ignored]).to(eq(5))
     end
 
     it "leaves progress on auto by default and honors --[no-]progress" do
-      expect(cli.__send__(:parse, [])[:progress]).to(be_nil)
-      expect(cli.__send__(:parse, ["--progress"])[:progress]).to(be(true))
-      expect(cli.__send__(:parse, ["--no-progress"])[:progress]).to(be(false))
+      expect(parser.parse([])[:progress]).to(be_nil)
+      expect(parser.parse(["--progress"])[:progress]).to(be(true))
+      expect(parser.parse(["--no-progress"])[:progress]).to(be(false))
     end
   end
 

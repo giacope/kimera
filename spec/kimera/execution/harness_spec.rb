@@ -136,14 +136,14 @@ RSpec.describe(Kimera::Execution::Harness) do
   describe "#measure!" do
     it "builds a mutant => covering-tests map from the touch-log", :aggregate_failures do
       h = harness(adapter(coverage: { "t1" => [ids.first], "t2" => ids }))
-      h.__send__(:measure!)
+      h.warm!([])
       expect(h.survey.coverage[ids.first]).to(contain_exactly("t1", "t2"))
       expect(h.survey.coverage[ids.last]).to(contain_exactly("t2"))
     end
 
     it "raises BaselineFailure listing failing tests that cover an in-scope mutant" do
       h = harness(adapter(coverage: { "t1" => [], "t2" => [ids.first] }, failing: ["t2"]))
-      expect { h.__send__(:measure!) }.to(raise_error(Kimera::Execution::BaselineFailure, /t2/))
+      expect { h.warm!([]) }.to(raise_error(Kimera::Execution::BaselineFailure, /t2/))
     end
 
     it "names the worker that ran each failing test when the parallel baseline is red" do
@@ -151,18 +151,18 @@ RSpec.describe(Kimera::Execution::Harness) do
         registry: registry, jobs: 2,
         adapter: adapter(coverage: { "t1" => [], "t2" => [ids.first] }, failing: ["t2"])
       )
-      expect { h.__send__(:measure!) }
+      expect { h.warm!([]) }
         .to(raise_error(Kimera::Execution::BaselineFailure, /per worker.*\n    worker \d: ran \d; failed #\d t2/m))
     end
 
     it "includes the failing assertion message in the BaselineFailure" do
       h = harness(adapter(coverage: { "t2" => [ids.first] }, failing: ["t2"]))
-      expect { h.__send__(:measure!) }.to(raise_error(Kimera::Execution::BaselineFailure, /assertion failed in t2/))
+      expect { h.warm!([]) }.to(raise_error(Kimera::Execution::BaselineFailure, /assertion failed in t2/))
     end
 
     it "tells you how to reproduce the failure without kimera" do
       h = harness(adapter(coverage: { "t2" => [ids.first] }, failing: ["t2"]))
-      expect { h.__send__(:measure!) }.to(raise_error(Kimera::Execution::BaselineFailure, /rspec t2 --order defined/))
+      expect { h.warm!([]) }.to(raise_error(Kimera::Execution::BaselineFailure, /rspec t2 --order defined/))
     end
 
     def reproducing(asked)
@@ -177,19 +177,18 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "asks the adapter for its framework's reproduce command, first ids only", :aggregate_failures do
       asked = []
       fake = reproducing(asked)
-      expect { harness(fake).__send__(:measure!) }
+      expect { harness(fake).warm!([]) }
         .to(raise_error(Kimera::Execution::BaselineFailure, /reproduce without kimera: ruby -n t2\z/))
       expect(asked).to(eq([["t2"]]))
     end
 
     it "names the failing tests on the summary line" do
       h = harness(adapter(coverage: { "t2" => [ids.first] }, failing: ["t2"]))
-      expect { h.__send__(:measure!) }
-        .to(raise_error(Kimera::Execution::BaselineFailure, /baseline suite is not green: t2/))
+      expect { h.warm!([]) }.to(raise_error(Kimera::Execution::BaselineFailure, /baseline suite is not green: t2/))
     end
 
     def failure(harness)
-      harness.__send__(:measure!)
+      harness.warm!([])
       raise(RuntimeError, "expected BaselineFailure")
     rescue Kimera::Execution::BaselineFailure => error
       error
@@ -213,32 +212,27 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "excludes a failing test that covers no in-scope mutant from the baseline", :aggregate_failures do
       h = harness(adapter(coverage: { "t1" => [ids.first], "t2" => [] }, failing: ["t2"]))
-      measured = nil
-      expect { measured = h.__send__(:measure!) }.not_to(raise_error)
-      expect { noticed(h, measured) }.to(output(/1 test\(s\) fail in the baseline.*excluded/).to_stderr)
+      expect { h.warm!([]) }.to(output(/1 test\(s\) fail in the baseline.*excluded/).to_stderr)
       expect(h.survey.coverage[ids.first]).to(include("t1"))
     end
-
-    def noticed(harness, measured) = harness.__send__(:notice, measured.screened(harness.__send__(:screen)), measured)
 
     def crowded
       failing = %w[t2 t3 t4 t5 t6 t7 t8]
       coverage = failing.to_h { |id| [id, []] }.merge("t1" => [ids.first])
-      h = harness(adapter(coverage: coverage, failing: failing, message: "boom\nframe"))
-      [h, h.__send__(:measure!)]
+      harness(adapter(coverage: coverage, failing: failing, message: "boom\nframe"))
     end
 
     it "names each excluded failing test with its failure" do
-      expect { noticed(*crowded) }.to(output(/coverage is unknown.*:\n  t2: boom\n/).to_stderr)
+      expect { crowded.warm!([]) }.to(output(/coverage is unknown.*:\n  t2: boom\n/).to_stderr)
     end
 
     it "names failing tests up to a limit, then counts the rest and gives their plain run" do
-      expect { noticed(*crowded) }.to(output(/\n  t6: boom\n  … and 2 more\n  plain run: rspec t2 /).to_stderr)
+      expect { crowded.warm!([]) }.to(output(/\n  t6: boom\n  … and 2 more\n  plain run: rspec t2 /).to_stderr)
     end
 
     it "closes its own ledger afterward" do
       h = harness(adapter(coverage: { "t1" => [ids.first] }))
-      expect { h.__send__(:measure!) }.not_to(change { Kimera::RUNTIME.ledgers.size })
+      expect { h.warm!([]) }.not_to(change { Kimera::RUNTIME.ledgers.size })
     end
 
     def resetting
@@ -260,7 +254,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "keeps coverage recorded by an example that resets the runtime", :aggregate_failures do
       h = harness(resetting)
-      h.__send__(:measure!)
+      h.warm!([])
       expect(h.survey.coverage[42]).to(contain_exactly("t_reset"))
       expect(h.survey.coverage[99]).to(contain_exactly("t_after"))
     end
@@ -281,21 +275,21 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "keeps coverage for an example that runs its own nested measurement" do
       h = harness(nested)
-      h.__send__(:measure!)
+      h.warm!([])
       expect(h.survey.coverage[7]).to(contain_exactly("t_nested"))
     end
 
     it "keeps the loop's bookkeeping observable when the suite re-selects a mutant", :aggregate_failures do
       progress = journal
       h = harness(reselecting(coverage: { "t1" => [ids.first], "t2" => [] }), progress: progress)
-      expect { h.__send__(:measure!) }.not_to(change { Kimera::RUNTIME.ledgers.size })
+      expect { h.warm!([]) }.not_to(change { Kimera::RUNTIME.ledgers.size })
       expect(h.survey.coverage[ids.first]).to(eq(["t1"]))
       expect(progress.events).to(eq([[:start, 2, "baseline"], [:tick, nil], [:tick, nil], [:finish]]))
     end
 
     it "still gates on a failing example when the suite re-selects a mutant" do
       h = harness(reselecting(coverage: { "t1" => [ids.first] }, failing: ["t1"]))
-      expect { h.__send__(:measure!) }.to(raise_error(Kimera::Execution::BaselineFailure, /t1/))
+      expect { h.warm!([]) }.to(raise_error(Kimera::Execution::BaselineFailure, /t1/))
     end
 
     def ticker
@@ -313,21 +307,21 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "discards touches recorded between examples" do
       h = harness(adapter(coverage: { "t1" => [], "t2" => [] }), progress: ticker)
-      h.__send__(:measure!)
+      h.warm!([])
       expect(h.survey.coverage).not_to(have_key(9_999_991))
     end
 
     it "runs no baseline test in this process, even at jobs == 1" do
       pids = []
       h = harness(processes(pids))
-      h.__send__(:measure!)
+      h.warm!([])
       expect(pids).to(be_empty)
     end
 
     it "fans the baseline out to forked workers at jobs > 1" do
       pids = []
       h = described_class.build(registry: registry, adapter: processes(pids), jobs: 2)
-      h.__send__(:measure!)
+      h.warm!([])
       expect(pids).to(be_empty)
     end
 
@@ -336,7 +330,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       h = harness(adapter(coverage: {}), progress: progress)
       before = Kimera::RUNTIME.ledgers.size
 
-      expect { h.__send__(:measure!) }.not_to(raise_error)
+      expect { h.warm!([]) }.not_to(raise_error)
       [before, Kimera::RUNTIME.ledgers.size, h.survey.coverage, progress.events]
     end
 
@@ -349,13 +343,18 @@ RSpec.describe(Kimera::Execution::Harness) do
   end
 
   describe "BaselinePass#bank" do
-    let(:pass) do
-      Kimera::Execution::BaselinePass.new(adapter: adapter, registry: registry)
+    def kept = Kimera::Execution::BaselineTally.new(Hash.new { |h, k| h[k] = [] }, [], [], {}, {})
+
+    def driven(tally, progress: journal, &)
+      Kimera::Execution::BaselinePass.new(adapter: adapter, registry: registry, tally: tally, progress: progress)
+        .parallel!(1, &)
+    rescue Kimera::Execution::BaselineFailure
+      tally
     end
 
     def banked(test_id, touched)
-      pass.__send__(:bank, test_id, touched)
-      pass.__send__(:tally)
+      message = { "id" => test_id, "touched" => touched, "passed" => false, "took" => 0.1 }
+      kept.tap { |tally| driven(tally) { |_ids, _width, listeners| listeners.resolved(message) } }
     end
 
     it "banks a failing test that covers an in-scope mutant as a failure", :aggregate_failures do
@@ -371,21 +370,17 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     it "charges a lost parallel test and advances progress", :aggregate_failures do
-      ticks = []
-      lost = Kimera::Execution::BaselinePass.new(adapter: adapter, registry: registry)
-      lost.__send__(:lost, ->(status = nil) { ticks << status }, "t2", :crash)
-
-      expect(lost.__send__(:tally).to_h.fetch(:failures)).to(eq(["t2"]))
-      expect(ticks).to(eq([nil]))
+      progress = journal
+      tally = driven(kept, progress: progress) { |_ids, _width, listeners| listeners.lost("t2", :crash, []) }
+      expect(tally.to_h.fetch(:failures)).to(eq(["t2"]))
+      expect(progress.events).to(include([:tick, nil]))
     end
 
     def lost_messages
-      lost = Kimera::Execution::BaselinePass.new(adapter: adapter, registry: registry)
-      tick = Kimera::Execution::NullProgress::UNSEEN
-      lost.__send__(:lost, tick, "t1", :timeout, nil)
-      lost.__send__(:relapse, tick, "t1", :timeout)
-      lost.__send__(:lost, tick, "t2", :crash, nil)
-      lost.__send__(:tally).to_h.fetch(:messages)
+      driven(kept) do |_ids, width, listeners|
+        losses = width ? [%w[t1 timeout]] : [%w[t1 timeout], %w[t2 crash]]
+        losses.each { |test_id, reason| listeners.lost(test_id, reason.to_sym, []) }
+      end.to_h.fetch(:messages)
     end
 
     it "explains a test whose worker hit the hard timeout twice" do
@@ -405,7 +400,7 @@ RSpec.describe(Kimera::Execution::Harness) do
   describe "#measure! parallel path (jobs > 1)" do
     def measurement(coverage)
       h = described_class.build(registry: registry, adapter: adapter(coverage: coverage), jobs: 2)
-      h.__send__(:measure!)
+      h.warm!([])
       h.survey.coverage
     end
 
@@ -420,7 +415,7 @@ RSpec.describe(Kimera::Execution::Harness) do
         registry: registry, jobs: 2,
         adapter: adapter(coverage: { "t1" => [], "t2" => [ids.first] }, failing: ["t2"])
       )
-      expect { h.__send__(:measure!) }.to(raise_error(Kimera::Execution::BaselineFailure, /t2/))
+      expect { h.warm!([]) }.to(raise_error(Kimera::Execution::BaselineFailure, /t2/))
     end
 
     it "names the worker that ran each failing test when the parallel baseline is red" do
@@ -428,7 +423,7 @@ RSpec.describe(Kimera::Execution::Harness) do
         registry: registry, jobs: 2,
         adapter: adapter(coverage: { "t1" => [], "t2" => [ids.first] }, failing: ["t2"])
       )
-      expect { h.__send__(:measure!) }
+      expect { h.warm!([]) }
         .to(raise_error(Kimera::Execution::BaselineFailure, /per worker.*\n    worker \d: ran \d; failed #\d t2/m))
     end
   end
@@ -437,7 +432,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "starts a baseline phase, ticks per example, and clears the line" do
       progress = journal
       h = harness(adapter(coverage: { "t1" => [], "t2" => [] }), progress: progress)
-      h.__send__(:measure!)
+      h.warm!([])
 
       expect(progress.events).to(eq([[:start, 2, "baseline"], [:tick, nil], [:tick, nil], [:finish]]))
     end
@@ -445,7 +440,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     it "clears the progress line even when the baseline fails", :aggregate_failures do
       progress = journal
       h = harness(adapter(coverage: { "t1" => [ids.first] }, failing: ["t1"]), progress: progress)
-      expect { h.__send__(:measure!) }.to(raise_error(Kimera::Execution::BaselineFailure))
+      expect { h.warm!([]) }.to(raise_error(Kimera::Execution::BaselineFailure))
       expect(progress.events.last).to(eq([:finish]))
     end
 
@@ -464,7 +459,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "swallows suite writes to stdout/stderr during the serial baseline" do
       h = harness(noisy)
-      expect { h.__send__(:measure!) }.to(not_output.to_stdout.and(not_output.to_stderr))
+      expect { h.warm!([]) }.to(not_output.to_stdout.and(not_output.to_stderr))
     end
   end
 
@@ -550,28 +545,30 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "eager-loads a detected Rails application before overlaying" do
       app = FakeApplication.new
-      rails_with(app) && harness(adapter).__send__(:load!)
+      rails_with(app) && harness(adapter).without_coverage!([])
       expect(app.eager_loads).to(eq(1))
     end
 
     it "warns but continues when eager loading fails" do
       rails_with(FakeApplication.new(RuntimeError.new("boom")))
-      expect { harness(adapter).__send__(:load!) }.to(output(/eager_load! failed \(RuntimeError: boom\)/).to_stderr)
+      expect { harness(adapter).without_coverage!([]) }
+        .to(output(/eager_load! failed \(RuntimeError: boom\)/).to_stderr)
     end
 
     it "is a no-op outside Rails" do
-      expect { harness(adapter).__send__(:load!) }.not_to(output.to_stderr)
+      expect { harness(adapter).without_coverage!([]) }.not_to(output.to_stderr)
     end
 
     it "skips an application that cannot eager-load, without warning" do
       rails_with(Object.new)
-      expect { harness(adapter).__send__(:load!) }.not_to(output.to_stderr)
+      expect { harness(adapter).without_coverage!([]) }.not_to(output.to_stderr)
     end
   end
 
   describe "relative time budget" do
     def dawdling(target)
       Class.new(Kimera::Frameworks::Suite) do
+        def source(_files) = self
         def test_ids = %w[t1]
         define_method(:run) do |_test_ids|
           sleep(0.3) if Kimera::RUNTIME.active?(target)
@@ -583,7 +580,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     def judged(**)
       target = ids.first
       h = harness(dawdling(target), timeout_factor: 2.0, timeout_slack: 0.1, **)
-      h.__send__(:measure!)
+      h.warm!([])
       h.run(ids: [target]).to_a.first
     end
 
@@ -792,7 +789,7 @@ RSpec.describe(Kimera::Execution::Harness) do
   it "stays silent on stderr when no progress is injected" do
     expect do
       h = described_class.build(registry: registry, adapter: adapter(coverage: { "t1" => [] }))
-      h.__send__(:measure!)
+      h.warm!([])
     end.not_to(output.to_stderr)
   end
 
@@ -976,7 +973,10 @@ RSpec.describe(Kimera::Execution::Harness) do
       before = []
       parallelization(true)
       stub(before: -> { before << :before }, after: ->(_i) {})
-      driver = described_class.build(registry: registry, adapter: adapter, jobs: 2).__send__(:driver)
+      driver = Kimera::Execution::Rig.new(
+        registry: registry, adapter: adapter, isolation: Kimera::Execution::Isolation.new,
+        jobs: 2, hard: 30.0, soft: nil
+      ).driver
       reap(*driver.spawner(:serve).call(0).first(3))
       [before.dup, fleet(driver, before)]
     end
@@ -1066,28 +1066,28 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "passes silently when the suite is green" do
       h = harness(adapter(coverage: { "t1" => [] }))
-      expect { h.__send__(:verify!) }.not_to(raise_error)
+      expect { h.without_coverage!([]) }.not_to(raise_error)
     end
 
     it "notes the whole-suite run as a phase of its own" do
       progress = journal
-      harness(adapter(coverage: { "t1" => [] }), progress: progress).__send__(:verify!)
+      harness(adapter(coverage: { "t1" => [] }), progress: progress).without_coverage!([])
       expect(progress.events).to(eq([[:note, "baseline (whole suite, no coverage)"]]))
     end
 
     it "raises BaselineFailure when a test fails" do
       h = harness(adapter(coverage: { "t1" => [], "t2" => [] }, failing: ["t1"]))
-      expect { h.__send__(:verify!) }.to(raise_error(Kimera::Execution::BaselineFailure, /t1/))
+      expect { h.without_coverage!([]) }.to(raise_error(Kimera::Execution::BaselineFailure, /t1/))
     end
 
     it "still gates a failing suite that re-selects a mutant" do
       h = harness(reselecting(coverage: { "t1" => [] }, failing: ["t1"]))
-      expect { h.__send__(:verify!) }.to(raise_error(Kimera::Execution::BaselineFailure, /t1/))
+      expect { h.without_coverage!([]) }.to(raise_error(Kimera::Execution::BaselineFailure, /t1/))
     end
 
     it "stays silent for a green suite that re-selects a mutant" do
       h = harness(reselecting(coverage: { "t1" => [] }))
-      expect { h.__send__(:verify!) }.not_to(raise_error)
+      expect { h.without_coverage!([]) }.not_to(raise_error)
     end
 
     def red
@@ -1099,7 +1099,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def error
-      harness(red).__send__(:verify!)
+      harness(red).without_coverage!([])
       raise(RuntimeError, "expected BaselineFailure")
     rescue Kimera::Execution::BaselineFailure => error
       error
@@ -1493,7 +1493,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry, ids = stubbed("WarmRacing")
       h = inline(registry: registry, adapter: racing(ids), source_root: dir, soft_timeout: nil)
       h.warm!(%w[t1], scope: ids)
-      expect(h.survey.__send__(:timings).fetch("slow")).to(be > h.survey.__send__(:timings).fetch("fast"))
+      expect(h.survey.pace.fastest(%w[slow fast])).to(eq(%w[fast slow]))
       expect(h.run(ids: ids).to_a.map(&:failing_tests).uniq).to(eq([["fast"]]))
     end
 
