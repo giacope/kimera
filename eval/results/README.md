@@ -231,6 +231,46 @@ table is equivalent plus noise.
   0.8.1, 0.8.2 and 0.9.0, and every file of kimera's `lib` and
   `examples` reduces to each of its mutants' bakes under all operators.
 
+## Older families for the default set (O3)
+
+Four of the extended families were measured as O1 measured the new ones, to
+decide whether any joins the default set: `arithmetic`, `selector_swap`,
+`return_value` and `element_drop`. Each corpus ran once at 2465e8e with only
+those four (`--jobs 2`, Ruby 4.0.2, 4 vCPUs shared with other runs, load 0.3
+to 3.1): kimera's own `lib` (its `.kimera.yml`, 35 min 34 s),
+dry-inflector's `lib` at the S1 revision, and the 21 holdout projects (p01 to
+p12, q01 to q10 but q03). A mutant two families share counts for each. An
+independent reviewer, given only each survivor's code, the source around it
+and its covering tests' names, judged a random sample of 20 survivors per
+family (seed 1, across the corpora) as useful, equivalent or noise, as in O1.
+The oracle check was not run.
+
+| family | mutants (kimera / dry-inflector / holdouts) | survived | judged | useful | worker s per mutant (kimera) |
+| --- | --- | --- | --- | --- | --- |
+| `arithmetic` | 321 / 2 / 89 | 24 (5.8%) | 20 | 13 (65%) | 1.09 |
+| `selector_swap` | 584 / 4 / 11 | 115 (19.2%) | 20 | 5 (25%) | 1.86 |
+| `return_value` | 2,436 / 14 / 127 | 64 (2.5%) | 20 | 11 (55%) | 0.74 |
+| `element_drop` | 1,002 / 28 / 61 | 102 (9.3%) | 20 | 9 (45%) | 0.59 |
+
+The default set costs 0.35 worker s a mutant on dry-inflector in the same
+session (141 mutants); the four families 0.34 s (48).
+
+- **Noise by family.** `selector_swap`'s equivalents are `first` and `last`
+  of a list that holds one element or elements of one kind (9 of 20).
+  `return_value`'s are a `""` or `[]` tail that is only interpolated or
+  splatted, and a `self` no caller reads. `element_drop`'s are keys and
+  arguments no reader distinguishes. `arithmetic`'s useful survivors include
+  real holes in kimera's own suite: `kimera doctor` exits 0 when a test file
+  cannot load (`cli/doctor/examination.rb:28`, `+` to `-`), and an edit
+  distance off by one (`cli/suggestion.rb:33`).
+- **Decision: none of the four joins the default set.** O1 kept
+  `assignment_deletion` out at 10 useful of 17 judged (59%), adding 321
+  mutants to kimera's own gate. `arithmetic` adds the same 321, and 4 of its
+  13 useful survivors share one cause (`synthesis/clause_cut.rb:28`): 10 of
+  17 distinct causes, the same profile. `return_value` is below that bar and
+  would add 2,436 mutants (60 survivors) to kimera's gate; `element_drop` and
+  `selector_swap` are further below.
+
 ## Before every push, and before a release
 
 The pre-push gate (`AGENTS.md`, "Shipping") runs, before every push to main, the
