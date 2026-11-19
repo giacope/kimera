@@ -12,9 +12,7 @@ output = StringIO.new
 streams = { output_stream: output, error_stream: StringIO.new, deprecation_stream: StringIO.new }
 redirect =
   lambda do
-    streams.each do |name, stream|
-      RSpec.configuration.public_send(:"#{name}=", stream) unless RSpec.configuration.public_send(name).equal?(stream)
-    end
+    streams.each { |name, stream| RSpec.configuration.public_send(:"#{name}=", stream) }
   end
 redirect.call
 begin

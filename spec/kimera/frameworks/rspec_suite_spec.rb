@@ -195,19 +195,6 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
     expect(outcome.passed?).to(be(false))
   end
 
-  def failure
-    RSpec.world.non_example_failure = true
-    yield
-  ensure
-    RSpec.world.non_example_failure = false
-  end
-
-  it "clears a stuck non-example failure flag before each run" do
-    id = ids.find { |i| adapter[i].name == "KimeraDemo passes" }
-    failure { adapter.run([id]) }
-    expect(RSpec.world.non_example_failure).to(be(false))
-  end
-
   it "runs examples across sibling and nested groups together" do
     wanted = ["KimeraDemo passes", "KimeraDemo nested also passes"]
     selected = ids.select { |i| wanted.include?(adapter[i].name) }

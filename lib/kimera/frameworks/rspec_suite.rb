@@ -61,9 +61,7 @@ class Kimera::Frameworks::RSpecSuite < Kimera::Frameworks::Suite
   end
 
   def reset
-    world = RSpec.world
-    world.wants_to_quit = false
-    world.non_example_failure = false
+    RSpec.world.wants_to_quit = false
   end
 
   def load(file) = Kernel.load(File.expand_path(file))
