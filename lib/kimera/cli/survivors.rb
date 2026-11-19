@@ -5,6 +5,7 @@ require_relative "../error"
 require_relative "flag"
 require_relative "outcome"
 require_relative "report_file"
+require_relative "../report/palette"
 
 class Kimera::CLI::Survivors
   OPTIONS = Kimera::FlagTable.new(
@@ -15,6 +16,7 @@ class Kimera::CLI::Survivors
     flags: [
       Kimera::Flag.build("--id ID|KEY", :id, "Show one mutant, by ID or key, in full detail"),
       Kimera::Flag.build("--report FILE", :report, "Read this report (the same as naming it first)"),
+      Kimera::Flag.build("--[no-]color", :color, "Color the diffs (default: on a tty; respects NO_COLOR)"),
       Kimera::Flag.build(
         "--status NAME", :status,
         "List a different status (survived, uncovered_by_unit, no_coverage, " \
@@ -23,21 +25,25 @@ class Kimera::CLI::Survivors
     ]
   )
 
-  def initialize(listing: Kimera::CLI::Survivors::Panel.new, **)
-    @listing = listing
+  def initialize(io: $stdout, **)
+    @io = io
   end
 
   def run(argv)
     arguments, flags = OPTIONS.parse(argv, { status: "survived", id: nil, report: nil })
     path, filter = positional(arguments, flags[:report])
     report = load(path)
-    id = flags[:id]
-    return show(report, id) if id
-    selection = Selection.new(flags[:status], filter, path, report.narrowed?)
-    Kimera::CLI::Outcome::Said.new(*selection.listed(report.results, @listing))
+    return show(report, flags[:id], palette(flags)) if flags[:id]
+    listed(report, Selection.new(flags[:status], filter, path, report.narrowed?), palette(flags))
   end
 
   private
+
+  def listed(report, selection, palette)
+    Kimera::CLI::Outcome::Said.new(*selection.listed(report.results, Panel.new(palette: palette)))
+  end
+
+  def palette(flags) = Kimera::Report::Palette.new(@io, flags[:color])
 
   def positional(arguments, named)
     first, second = arguments
@@ -52,11 +58,11 @@ class Kimera::CLI::Survivors
     raise(Kimera::UsageError, "no such report: #{path} (run kimera run first, or pass REPORT.json)")
   end
 
-  def show(report, id)
+  def show(report, id, palette)
     row = report.row(id) { return Kimera::CLI::Outcome::Failed.new(1, "kimera: no mutant ##{id} in this report") }
     document = report.document
     root = document.dig("run", "source_root") || "."
-    panel = Kimera::CLI::Survivors::Panel.new(tests: document.fetch("tests", {}), root: root)
+    panel = Kimera::CLI::Survivors::Panel.new(tests: document.fetch("tests", {}), root: root, palette: palette)
     Kimera::CLI::Outcome::Said.new(*panel.describe(row))
   end
 end

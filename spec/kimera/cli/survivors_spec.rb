@@ -67,6 +67,25 @@ RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
     expect(out).not_to(include("covered by 0"))
   end
 
+  def extended
+    row = { "mutant_id" => 21, "status" => "survived", "file" => "app/models/aaa.rb", "line" => 1 }
+    row.merge("operator" => "string_literal", "label" => "\"x\" => \"\"", "original" => "\"x\"", "mutated" => "\"\"")
+  end
+
+  it "lists the default operators' survivors first, then the extended ones under their own heading" do
+    File.write(report_path, JSON.generate(report.merge("results" => report["results"] + [extended])))
+    out, = run(report_path)
+    expect(out).to(include("1 from the extended operators, which more often mark code no test can tell apart:"))
+    positions = ["#9", "#7", "extended operators", "#21"].map { out.index(it) }
+    expect(positions).to(eq(positions.compact.sort))
+  end
+
+  it "colors the diff's signs with --color, and not by default off a terminal or with --no-color" do
+    colored = run(report_path, "--color").first
+    expect(colored).to(include("\e[31m-\e[0m where(active: true)", "\e[32m+\e[0m (statement deleted)"))
+    expect([run(report_path).first, run(report_path, "--no-color").first]).to(all(satisfy { !it.include?("\e[") }))
+  end
+
   it "prints the no-mutants line, not an empty section, for a status with none" do
     out, status = run(report_path, "--status", "error")
     expect(status).to(eq(0))

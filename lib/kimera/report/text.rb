@@ -49,7 +49,13 @@ class Kimera::Report::Text
     report.notes.remark(remarks)
     health.flaky(report)
     health.quality(report)
+    spent(report.notes.to_h.fetch("phases", {}))
     Kimera::Report::Actions.new(io: @io).show(report, saved)
+  end
+
+  def spent(phases)
+    return if phases.empty?
+    @io.puts("", "Time: #{phases.map { |label, seconds| "#{label} #{format("%.1f", seconds)}s" }.join(", ")}")
   end
 
   def survivors(report, tests)

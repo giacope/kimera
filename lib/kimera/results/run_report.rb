@@ -52,7 +52,7 @@ class Kimera::RunReport
     named = found.to_h
     listed = named.fetch("tests").slice(*found.test_ids)
     (listed.empty? ? {} : { "tests" => listed })
-      .merge({ "test_quality" => found.quality, "flaky_tests" => named["flaky"] }.compact)
+      .merge({ "test_quality" => found.quality, "flaky_tests" => named["flaky"], "phases" => named["phases"] }.compact)
   end
 
   def rebuilt(results: @results, **changes)

@@ -20,7 +20,7 @@ class Kimera::CLI::Run::Pass
   end
 
   def call(remaining)
-    with_adapter { harness.survey.noted(perform(remaining)).annotate(**suite) }
+    with_adapter { harness.survey.noted(perform(remaining)).annotate(**suite, phases: progress.phases) }
       .then { |judged| judged.annotate(tests: @adapter[*judged.notes.test_ids].to_h) }
   end
 

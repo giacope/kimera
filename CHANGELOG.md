@@ -63,6 +63,17 @@
   with mutants and all of them are woven, every verdict of all ten e2e modes
   is as before: its 9 `isolated_only` mutants are validations, callbacks and
   associations, statements of the class body.
+- **The text report says how long each phase took, and the JSON report holds
+  it** (`Time: baseline 10.3s, mutants 0.5s`, and `phases` in report.json).
+  A resumed session that judges nothing shows no phases from the run that
+  saved it.
+- **`kimera report` lists the default operators' survivors first and colors
+  its diffs.** On `lib/kimera/report` under `--operators all`, the 6
+  survivors of the default operators were scattered among 105 of the
+  extended families (42 of those drop a `.to_s`, `.freeze`, `String()` or
+  `Integer()`, or turn `[]` into `fetch`); they now come first, the others
+  under their own heading. Its `-` and `+` are red and green on a terminal,
+  as `kimera run`'s are, and it takes `--[no-]color`, which it rejected.
 - **Changed: the self-host gate judges kimera's runtime selector and its two
   isolated-child entrypoints.** `Kimera::SelfProtection` kept
   `lib/kimera/runtime.rb` (208 lines), `execution/isolated_child.rb` and

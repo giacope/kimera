@@ -182,6 +182,14 @@ RSpec.describe(Kimera::Report::Text) do
     expect(render(killed)).not_to(include("flaky"))
   end
 
+  it "says how long each phase of the run took, and nothing when it knows no phase", :aggregate_failures do
+    timed = Kimera::RunReport.new(results: [killed]).annotate(phases: { "baseline" => 34.25, "mutants" => 2 })
+    io = StringIO.new
+    described_class.new(registry, io: io, color: false).report(timed)
+    expect(io.string).to(include("\nTime: baseline 34.2s, mutants 2.0s\n"))
+    expect(render(killed)).not_to(include("Time:"))
+  end
+
   it "omits the survivors section when everything is killed", :aggregate_failures do
     output = render(killed)
     expect(output).to(include("killed=1"))

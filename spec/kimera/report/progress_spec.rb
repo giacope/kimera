@@ -27,6 +27,13 @@ RSpec.describe(Kimera::Report::Progress) do
     [bar, io]
   end
 
+  it "sums each phase's wall time by its label, whether it shows or not" do
+    readings = [0.0, 1.0, 2.0, 4.5, 5.0, 5.5].each
+    bar, = progress(enabled: false, clock: -> { readings.next })
+    %w[baseline mutants baseline].each { |label| bar.during(3, label) { nil } }
+    expect(bar.phases).to(eq("baseline" => 1.5, "mutants" => 2.5))
+  end
+
   it "stays completely silent when disabled" do
     _bar, io = drive(10, "mutants", ticks: 10, status: :killed, enabled: false)
     expect(io.string).to(be_empty)

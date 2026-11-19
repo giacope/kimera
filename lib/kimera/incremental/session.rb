@@ -43,12 +43,12 @@ class Kimera::Incremental::Session
     results = evaluated.filter_map { |id| @results[id] }
     results += waived.map { |id| waiver(id, registry) }
     Kimera::RunReport.new(results: results, leaks: @leaks, registry: registry, tests: tests)
-      .annotate(flaky: @meta["flaky"], suite: @meta["suite"])
+      .annotate(flaky: @meta["flaky"], suite: @meta["suite"], phases: @meta["phases"])
   end
 
   def save(path, registry, meta: {})
     FileUtils.mkdir_p(File.dirname(path))
-    File.write(path, JSON.pretty_generate(payload(@meta.merge(meta), fingerprints(registry))))
+    File.write(path, JSON.pretty_generate(payload(@meta.merge(meta).except("phases"), fingerprints(registry))))
     self
   end
 
@@ -64,7 +64,8 @@ class Kimera::Incremental::Session
     meta = named.empty? ? @meta : @meta.merge("tests" => tests.merge(named))
     self.class.new(
       results: @results.merge(report.to_a.to_h(&:entry)),
-      leaks: @leaks + noted.fetch("leaks"), meta: meta.merge(noted.slice("flaky", "suite")), fingerprints: @fingerprints
+      leaks: @leaks + noted.fetch("leaks"), meta: meta.merge(noted.slice("flaky", "suite", "phases")),
+      fingerprints: @fingerprints
     )
   end
 

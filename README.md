@@ -140,6 +140,11 @@ bundle exec kimera run app/models/discount.rb:40-48   # only these lines
 bundle exec kimera run app --method apply             # only inside apply
 ```
 
+`kimera report` lists the survivors of the default operators first, then,
+under a heading of their own, those of the extended families, which more
+often mark code no test can tell apart; each group in file order. Its diffs
+are colored on a terminal, as `kimera run`'s are (`--no-color`, `NO_COLOR`).
+
 `kimera mutant` shows the diff, the source lines around the mutant, and the
 tests that cover it and kill it, by file, line and description. The diff's
 `+` line is the mutant's code: written alone when it parses alone (a call
@@ -711,7 +716,9 @@ kimera: mutants (warm) 1210/4124 29%  killed=801 survived=312 no_coverage=97  1.
 ```
 
 Phases with no count, such as `--isolated`'s unmutated baseline or the
-re-judge pass's reason, get one plain line each. `--no-progress` (or
+re-judge pass's reason, get one plain line each. The text report ends with
+the wall time of each phase (`Time: baseline 34.2s, mutants 29.1s, baseline
+(in order) 38.0s`), and the JSON report holds them under `phases`. `--no-progress` (or
 `progress: false` in `.kimera.yml`) silences all of it; `--progress` turns it
 back on over a config's `false`.
 

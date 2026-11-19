@@ -20,7 +20,8 @@ RSpec.describe(Kimera::RunReport, :aggregate_failures) do
     report = described_class.new(results: [rich], registry: registry, tests: { "t1" => { "name" => "one" } })
     flake = { "test" => "t1", "failed_runs" => 1, "seeds" => [2], "failure" => "f" }
     flaky = { "runs" => 1, "seeds" => [2], "tests" => 1, "flaky" => [flake] }
-    JSON.parse(JSON.generate(report.annotate(flaky: flaky, suite: ["t1"]).annotate(run: { "jobs" => 1 }).to_h))
+    annotated = report.annotate(flaky: flaky, suite: ["t1"], phases: { "baseline" => 1.5 })
+    JSON.parse(JSON.generate(annotated.annotate(run: { "jobs" => 1 }).to_h))
   end
 
   def result(status, **fields)

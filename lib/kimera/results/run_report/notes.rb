@@ -25,7 +25,10 @@ class Kimera::RunReport::Notes
     remarks.leaks(@leaks)
   end
 
-  def to_h = { "tests" => tests, "leaks" => @leaks, "flaky" => @context[:flaky], "suite" => @context[:suite] }.compact
+  def to_h
+    { "tests" => tests, "leaks" => @leaks, "flaky" => @context[:flaky], "suite" => @context[:suite] }
+      .merge("phases" => @context[:phases]).compact
+  end
 
   private
 

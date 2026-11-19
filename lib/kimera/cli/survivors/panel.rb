@@ -2,16 +2,23 @@
 
 require_relative "../../support/readout"
 require_relative "../../mutated_text"
+require_relative "../../operators"
+require_relative "../../report/palette"
 require_relative "context"
 
 class Kimera::CLI::Survivors::Panel
-  def initialize(tests: {}, root: ".")
+  EXTENDED = "%d from the extended operators, which more often mark code no test can tell apart:"
+
+  def initialize(tests: {}, root: ".", color: nil, palette: Kimera::Report::Palette.new($stdout, color))
     @tests = tests
     @root = root
+    @palette = palette
   end
 
   def announce(matching, selection)
-    [selection.heading(matching.size), *sorted(matching).flat_map { |row| entry(row) }, "", selection.detail]
+    core, extended = sorted(matching).partition { |row| core?(row) }
+    [selection.heading(matching.size), *core.flat_map { |row| entry(row) }, *aside(core, extended)]
+      .push("", selection.detail)
   end
 
   def describe(row)
@@ -22,6 +29,13 @@ class Kimera::CLI::Survivors::Panel
   private
 
   def entry(row) = ["", *brief(row)]
+
+  def core?(row, core = Kimera::Operators.build.map(&:key)) = row["operator"].to_s.split("+").intersect?(core)
+
+  def aside(core, extended)
+    return extended.flat_map { |row| entry(row) } if core.empty? || extended.empty?
+    ["", format(EXTENDED, extended.size), *extended.flat_map { |row| entry(row) }]
+  end
 
   def sorted(matching)
     matching.sort_by { |file, line,| [file, line] }.map { |_, _, row| row }
@@ -68,8 +82,8 @@ class Kimera::CLI::Survivors::Panel
 
   def diff(row, indent)
     original = row["original"]
-    mutated = original ? [source(Kimera::MutatedText.new(Array(row["mutated"])).to_s, "+", indent)] : []
-    [source(original, "-", indent), *mutated]
+    mutated = original ? [source(Kimera::MutatedText.new(Array(row["mutated"])).to_s, @palette.green("+"), indent)] : []
+    [source(original, @palette.red("-"), indent), *mutated]
   end
 
   def source(code, sign, indent) = Kimera::Readout.new(code).quoted(sign, indent)

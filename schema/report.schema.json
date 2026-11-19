@@ -442,6 +442,14 @@
         }
       }
     },
+    "phases": {
+      "description": "Wall seconds each phase of the run took, by the label its progress line shows: baseline, mutants, the wait for the in-order run of the whole suite once the mutants are done (baseline (in order)), and the isolated and re-judging tiers. A phase that ran more than once is summed.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0
+      }
+    },
     "run": {
       "description": "The settings the run was made with.",
       "type": "object",

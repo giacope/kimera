@@ -21,10 +21,13 @@ class Kimera::Report::Progress
   end
 
   def during(total, label = "mutants", &)
-    count = Integer(total)
-    return yield(UNSEEN) unless enabled? && count.positive?
-    shown(Kimera::Report::Phase.new(surface, Kimera::Report::Tally.new(count, label, @clock.call), frame), &)
+    started = @clock.call
+    shown(Integer(total), label, &)
+  ensure
+    spent[label] += @clock.call - started
   end
+
+  def phases = spent.transform_values { it.round(1) }
 
   def note(text)
     write(["kimera: #{text}\n"]) if enabled? && !screen.interactive?
@@ -36,12 +39,16 @@ class Kimera::Report::Progress
 
   def screen = @_screen ||= Kimera::Report::Screen.of(@io, @enabled != false)
 
+  def spent = @_spent ||= Hash.new(0.0)
+
   def surface = @_surface ||= screen.surface
 
   def frame = Kimera::Report::Frame.new(@cadence.call(surface))
 
-  def shown(phase, &)
-    painted, ink = phase.painted(@clock.call)
+  def shown(count, label, &)
+    return yield(UNSEEN) unless enabled? && count.positive?
+    painted, ink = Kimera::Report::Phase.new(surface, Kimera::Report::Tally.new(count, label, @clock.call), frame)
+      .painted(@clock.call)
     write(ink)
     ticking(painted, &)
   end

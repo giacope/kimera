@@ -54,6 +54,13 @@ RSpec.describe(Kimera::Incremental::Session) do
     expect(judged(report([])).report([], [], Kimera::Registry.new).notes.to_h["flaky"]).to(be_nil)
   end
 
+  it "reports this run's phases, and saves none, so a resume that runs nothing shows none", :aggregate_failures do
+    timed = report([result(1, :killed)]).annotate(phases: { "mutants" => 1.5 })
+    expect(judged(timed).report([1], [], Kimera::Registry.new).notes.to_h["phases"]).to(eq("mutants" => 1.5))
+    path = seed(dir, timed)
+    expect(described_class.from(path).report([1], [], Kimera::Registry.new).notes.to_h).not_to(have_key("phases"))
+  end
+
   it "creates the directory it saves into" do
     path = File.join(dir, "tmp", "kimera", "session.json")
     described_class.new.save(path, Kimera::Registry.new)
