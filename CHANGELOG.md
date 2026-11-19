@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Fixed: the "took as a Method object" diagnosis went silent once a
+  Ractor had run.** Once a process has started a Ractor, Ruby stays in
+  multi-Ractor mode, and `ObjectSpace.each_object` yields only shareable
+  objects, never a `Method` or `UnboundMethod` (3.4.12 and 4.0.2). The scan
+  now runs in a forked child, which Ruby puts back in single-Ractor mode, so
+  a suite that starts a Ractor keeps this cause for a red baseline.
 - **Changed: the self-host gate judges kimera's runtime selector and its two
   isolated-child entrypoints.** `Kimera::SelfProtection` kept
   `lib/kimera/runtime.rb` (208 lines), `execution/isolated_child.rb` and

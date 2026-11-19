@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "json"
 require_relative "redefinition"
 
 class Kimera::Execution::CapturedMethods
@@ -24,6 +25,20 @@ class Kimera::Execution::CapturedMethods
   def excludes(found) = found.map(&:last).uniq.map { |file| "--exclude #{file}" }.join(" ")
 
   def stale
+    IO.pipe do |reader, writer|
+      child = fork { reported(writer) }
+      writer.close
+      JSON.parse(reader.read).tap { Process.wait(child) }
+    end
+  end
+
+  def reported(writer)
+    writer.write(JSON.generate(scanned))
+  ensure
+    exit!(0)
+  end
+
+  def scanned
     GC.start
     home = "#{canonical(File.expand_path(@root))}/"
     KINDS.flat_map { |kind| ObjectSpace.each_object(kind).filter_map { |taken| described(taken, home) } }.uniq

@@ -54,6 +54,44 @@ RSpec.describe(Kimera::Execution::CapturedMethods) do
     )
   end
 
+  def after_ractor
+    Warning[:experimental] = false
+    child =
+      fork do
+        ractor = Ractor.new { 1 }
+        ractor.respond_to?(:value) ? ractor.value : ractor.take
+        exit!(yield ? 0 : 7)
+      end
+    Process.wait2(child).last.exitstatus
+  end
+
+  it "still names it in a process where a Ractor has run" do
+    load("def self.to_int(v) = Integer(v)\n")
+    held = taken(:to_int)
+    load("\ndef self.to_int(v) = Integer(v) + 0\n")
+    expect([after_ractor { cause }, held.size]).to(eq([0, 1]))
+  end
+
+  def reaped
+    Process.wait(-1, Process::WNOHANG)
+  rescue Errno::ECHILD
+    :none
+  end
+
+  def hooked(marker)
+    armed = true
+    at_exit { File.write(marker, "") if armed }
+    [cause, reaped]
+  ensure
+    armed = false
+  end
+
+  it "scans in a child it reaps, which runs none of the suite's exit hooks", :aggregate_failures do
+    marker = File.join(dir, "hooked")
+    expect(hooked(marker)).to(eq([nil, :none]))
+    expect(File.exist?(marker)).to(be(false))
+  end
+
   def unbound(*names)
     load(names.map { |name| "def #{name} = 1\n" }.join)
     held = names.map { |name| CapturedCoerce.instance_method(name) }
