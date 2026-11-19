@@ -162,6 +162,13 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     expect(error.string).to(eq(""))
   end
 
+  it "fails doctor, counting each, when the test files do not load and the baseline is red", :aggregate_failures do
+    project("app/a.rb" => "class A; end\n", "spec/a_spec.rb" => "it { }\n")
+    red = FakeCapture.new { ["LoadError: cannot load such file -- missing\n", ProcessStatuses.exited(1)] }
+    expect(doctor("--check-baseline", suite: red)).to(eq(1))
+    expect(error.string).to(include("doctor found 2 blocking issue(s)"))
+  end
+
   it "counts the default source scope when the configuration names no paths" do
     project(
       "app/thing.rb" => "class Thing; end\n", "lib/tool.rb" => "class Tool; end\n", ".kimera.yml" => "tests: []\n"
