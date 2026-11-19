@@ -92,7 +92,7 @@ RSpec.describe(Kimera::Incremental::Selection) do
   it "keeps only the changed files with impact when no map is stored, and says how to store one", :aggregate_failures do
     write("spec/other_spec.rb", "it { c(2) }\n")
     expect(selected("impact")).to(eq([]))
-    expect(errors.string).to(include("no coverage map is stored at tmp/kimera/coverage.json", "--reuse-coverage"))
+    expect(errors.string).to(include("no coverage map is stored at tmp/kimera/coverage.json", "a full run stores a map"))
     expect(errors.string.lines.size).to(eq(1))
   end
 

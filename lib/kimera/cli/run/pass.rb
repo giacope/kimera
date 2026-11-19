@@ -98,7 +98,8 @@ class Kimera::CLI::Run::Pass
   def route(kind = Kimera::CLI::Run::Route) = @_route ||= kind.new(@registry, @options)
 
   def cache(kind = Kimera::Incremental::CoverageCache)
-    sources = -> { Kimera::FileSet.new(@options[:paths], exclude: @options[:exclude]).relative_to(@options[:source_root]) }
+    root = @options[:source_root]
+    sources = ->(key) { Kimera::FileSet.new(@options[key], exclude: @options[:exclude]).relative_to(root) }
     @_cache ||= kind.new(registry: @registry, options: @options, sources: sources)
   end
 

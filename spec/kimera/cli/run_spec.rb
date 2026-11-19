@@ -67,8 +67,9 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         progress: nil, color: nil, quiet: false, verbose: false, log: nil,
         pidfile: nil, summary: nil,
         isolate_when_covered_by: [], methods: [], lines: {},
-        paths: ["app/**/*.rb", "lib/**/*.rb"], attribution: "any", unit_tests: {}, seed: nil, flaky_runs: 0,
-        test_quality: false, reuse_coverage: false
+        paths: ["app/**/*.rb", "lib/**/*.rb"], configured_paths: ["app/**/*.rb", "lib/**/*.rb"],
+        attribution: "any", unit_tests: {}, seed: nil, flaky_runs: 0,
+        test_quality: false, reuse_coverage: true
       }
     end
 

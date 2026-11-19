@@ -26,7 +26,7 @@ class Kimera::Incremental::Extent
   class Reached
     MAP = "tmp/kimera/coverage.json"
     LACKING = "kimera: --since-scope impact: %s, so the tests changed since add no files; " \
-      "a full run with --reuse-coverage stores a map that does"
+      "a full run stores a map that does"
     NONE = { "coverage" => {}, "test_files" => {} }.freeze
 
     def initialize(root, errors)

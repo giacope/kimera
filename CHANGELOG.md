@@ -23,6 +23,21 @@
   objects, never a `Method` or `UnboundMethod` (3.4.12 and 4.0.2). The scan
   now runs in a forked child, which Ruby puts back in single-Ractor mode, so
   a suite that starts a Ractor keeps this cause for a red baseline.
+- **Changed: every run keeps or reads the coverage map (`reuse_coverage` is
+  on by default), and a narrower run reads it too.** The map a full run
+  stored was read only by `--since`, `kimera ci` and `kimera changed` with
+  `--reuse-coverage`, and one edited spec threw it all away. So `kimera run
+  lib/kimera/report/tally.rb` (29 mutants, 33 covering tests) measured all
+  3,246 of kimera's tests first: 44.4 s, of which 35 s were baseline. A full
+  run now stores the map whatever its flags, any run narrower than the
+  configured paths and tests reads it and writes none (it overlays only its
+  own files, so it cannot measure the others), and an edited test file reruns
+  its own tests instead of the whole suite, unless it defines shared examples
+  another file may run. A support or config file that changed still reruns
+  every test, and with no map a run says nothing. The same `tally.rb` run
+  with a map stored by a full run of `lib/kimera/report`: 2.2 s, the baseline
+  33 of 3,246 tests, the same 29 verdicts and covering tests. The map's
+  format is 2; a map from before is not read.
 - **Changed: the self-host gate judges kimera's runtime selector and its two
   isolated-child entrypoints.** `Kimera::SelfProtection` kept
   `lib/kimera/runtime.rb` (208 lines), `execution/isolated_child.rb` and

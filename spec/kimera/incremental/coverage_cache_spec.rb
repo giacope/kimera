@@ -14,6 +14,7 @@ RSpec.describe(Kimera::Incremental::CoverageCache) do
   let(:registry) { Kimera::RegistryScan.new.build(%w[lib/a.rb lib/b.rb lib/c.rb]) }
   let(:full) { { source_root: ".", paths: ["lib/*.rb"], tests: ["spec/*_spec.rb"] } }
   let(:map) { "tmp/kimera/coverage.json" }
+  let(:narrowed) { { paths: ["lib/b.rb"], configured_paths: ["lib/*.rb"] } }
 
   around { |example| Dir.mktmpdir("kimera-cache") { |root| Dir.chdir(root) { example.run } } }
 
@@ -28,7 +29,7 @@ RSpec.describe(Kimera::Incremental::CoverageCache) do
   end
 
   def cache(scope: registry, **options)
-    sources = -> { %w[lib/a.rb lib/b.rb lib/c.rb] }
+    sources = ->(key) { Dir.glob(full.merge(configured_paths: ["lib/*.rb"]).merge(options).fetch(key)) }
     described_class.new(registry: scope, options: full.merge(options), sources: sources, errors: errors)
   end
 
@@ -59,7 +60,7 @@ RSpec.describe(Kimera::Incremental::CoverageCache) do
   it "stores the file each test lives in, so a later run can tell which tests a change touched" do
     keep
     expect(JSON.parse(File.read(map))["test_files"])
-      .to(eq("t1" => "./spec/t1_spec.rb", "t2" => "./spec/t2_spec.rb", "t3" => "./spec/t3_spec.rb"))
+      .to(eq("t1" => "spec/t1_spec.rb", "t2" => "spec/t2_spec.rb", "t3" => "spec/t3_spec.rb"))
   end
 
   it "stores nothing without --reuse-coverage, or on an incremental run", :aggregate_failures do
@@ -85,20 +86,15 @@ RSpec.describe(Kimera::Incremental::CoverageCache) do
     keep
     reuse(changed("lib/b.rb"))
     expect(errors.string).to(
-      eq("kimera: reusing the coverage map from  (0 source file(s) changed since): the baseline runs 3 of 4 tests\n")
+      eq(
+        "kimera: reusing the coverage map from  (0 source and 0 test file(s) changed since): " \
+          "the baseline runs 3 of 4 tests\n"
+      )
     )
   end
 
-  it "runs every test, saying why, when no map is stored" do
-    expect([reuse, errors.string]).to(
-      eq(
-        [
-          %w[t1 t2 t3 t4],
-          "kimera: not reusing the stored coverage map: none is stored at tmp/kimera/coverage.json; a full run " \
-            "with --reuse-coverage stores one; the baseline runs every test\n"
-        ]
-      )
-    )
+  it "runs every test, saying nothing, when no map is stored" do
+    expect([reuse, errors.string]).to(eq([%w[t1 t2 t3 t4], ""]))
   end
 
   it "runs every test, saying why, when the map is not JSON" do
@@ -107,11 +103,40 @@ RSpec.describe(Kimera::Incremental::CoverageCache) do
     expect(errors.string).to(include("not reusing the stored coverage map: tmp/kimera/coverage.json is not JSON;"))
   end
 
-  it "runs every test, naming the file, when a test file changed since" do
+  it "runs every test, naming the file, when a support file changed since" do
     keep
-    write("spec/a_spec.rb", "changed")
+    write("spec/helper.rb", "changed")
     expect([reuse.size, errors.string]).to(
-      eq([4, "kimera: not reusing the stored coverage map: spec/a_spec.rb changed; the baseline runs every test\n"])
+      eq([4, "kimera: not reusing the stored coverage map: spec/helper.rb changed; the baseline runs every test\n"])
     )
+  end
+
+  it "reruns only the tests an edited test file holds, beside those of the scope" do
+    write("spec/t2_spec.rb", "")
+    keep
+    write("spec/t2_spec.rb", "changed")
+    expect(reuse).to(eq(%w[t2 t4]))
+  end
+
+  it "runs every test when an edited test file defines shared examples, which other files may run" do
+    write("spec/t2_spec.rb", "")
+    keep
+    write("spec/t2_spec.rb", "RSpec.shared_examples(\"x\") {}")
+    expect([reuse.size, errors.string]).to(match([4, include("spec/t2_spec.rb changed")]))
+  end
+
+  it "reads the map on a run narrowed to some of the configured paths, and stores none from it", :aggregate_failures do
+    keep(configured_paths: ["lib/*.rb"])
+    write("lib/a.rb", "def a(x) = x >= 1\n")
+    keep(**narrowed)
+    expect(cache(scope: changed("lib/b.rb"), reuse_coverage: true, **narrowed).measured(%w[t1 t2 t3])).to(eq(%w[t1 t2]))
+    expect(JSON.parse(File.read(map))["sources"]["lib/a.rb"]).not_to(eq(Digest::SHA256.hexdigest(File.read("lib/a.rb"))))
+  end
+
+  it "runs every test when a file in scope lies outside the configured paths the map covers" do
+    keep
+    write("other/d.rb", "def d(x) = x > 1\n")
+    scope = Kimera::RegistryScan.new.build(%w[other/d.rb])
+    expect(cache(scope: scope, reuse_coverage: true, since: "HEAD").measured(%w[t1 t2]).size).to(eq(2))
   end
 end

@@ -56,7 +56,8 @@ module Kimera::CLI::RunOptions
     Kimera::Flag.build("--[no-]coverage", :coverage, "Run each mutant only against covering tests (default: on)"),
     Kimera::Flag.build(
       "--[no-]reuse-coverage", :reuse_coverage,
-      "Keep a full run's coverage map; --since then reruns only the tests it says reach changed code (default: off)"
+      "Keep a full run's coverage map; any narrower run then reruns only the tests it says reach changed or " \
+        "mutated code (default: on)"
     ),
     Kimera::Flag.build("--jobs N", :jobs, "Concurrent workers (warm pool / isolated mirrors)", type: Integer),
     Kimera::Flag.build(

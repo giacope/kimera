@@ -58,9 +58,11 @@ class Kimera::CLI::Run::Given
   def scoped
     targets = Kimera::CLI::Run::Targets.new(@rest)
     formatted.merge(tests: tests(@flags[:cli_tests]), configured_tests: tests([]))
-      .merge(paths: Kimera::FileSet.from_options(targets.paths, **@flags).to_a)
+      .merge(paths: sources(targets.paths), configured_paths: sources([]))
       .merge(lines: targets.lines).merge(arrays)
   end
+
+  def sources(given) = Kimera::FileSet.from_options(given, **@flags).to_a
 
   def formatted
     @flags.except(:cli_tests, :cli_unit_tests, :baseline_ignore).merge(format: @formats.normalize(@flags[:format]))

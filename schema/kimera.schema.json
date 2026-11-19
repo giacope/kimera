@@ -193,11 +193,11 @@
       "type": "boolean"
     },
     "reuse_coverage": {
-      "description": "Keep the per-test coverage map a full run's baseline measured, in tmp/kimera/coverage.json, and reuse it on incremental runs (--since, kimera ci, kimera changed): when Ruby, the settings that pick the tests and sources, and the test, support and config files (.rspec, the lockfile, config/, db/schema.rb) still match the stored map, the baseline reruns only the tests that reached a source file changed since it was built or one in scope, and tests it does not know; otherwise it runs every test and says why (default: false).",
+      "description": "Keep the per-test coverage map a full run's baseline measured (a run over every configured path and test), in tmp/kimera/coverage.json, and read it on every narrower run (some paths, --since, kimera ci, kimera changed), which never writes one: when Ruby, the settings that pick the tests and sources, and the support and config files (.rspec, the lockfile, config/, db/schema.rb) still match the stored map, the baseline reruns only the tests that reached a source file changed since it was built or one in scope, every test of a test file that changed (unless it defines shared examples), and tests it does not know; otherwise it runs every test and says why (default: true).",
       "type": "boolean"
     },
     "since_scope": {
-      "description": "What an incremental run (--since, kimera ci, kimera changed) mutates: files (default), every line of each file the change touched, files that only lost lines included; impact, those files and every source file a test the change edited or deleted reached, per the coverage map a full run with reuse_coverage stores (with no map, the run says so and keeps the changed files); lines, only the lines the change added or edited.",
+      "description": "What an incremental run (--since, kimera ci, kimera changed) mutates: files (default), every line of each file the change touched, files that only lost lines included; impact, those files and every source file a test the change edited or deleted reached, per the coverage map a full run stores (with no map, the run says so and keeps the changed files); lines, only the lines the change added or edited.",
       "enum": [
         "lines",
         "files",

@@ -460,36 +460,45 @@ without, with the same verdicts, and nothing on a suite with no survivor.
 `--no-confirm-survivors` (`confirm_survivors: false`) turns it off; the
 report's run section records the choice.
 
-### Reusing coverage on incremental runs
+### Reusing coverage
 
-An incremental run still measures the coverage baseline first: every test,
-once, under coverage, before any mutant runs. On a big suite that is most of
-the wait. Under `--reuse-coverage` (`reuse_coverage: true`) a full run keeps
-its baseline's coverage map in `tmp/kimera/coverage.json`: which tests reached
-each source file, every test the suite held, and what it was measured
-against: the commit, Ruby, the settings that pick the tests and sources, and a
-digest of each source and of each test, support and config file (everything
-under the test roots, `.rspec`, `Gemfile.lock`, `config/`, `db/schema.rb`;
-files git ignores are left out, since a suite rewrites some on every run). A
-later `--since`, `kimera ci` or `kimera changed` run with the flag reruns only
-the tests the map says reached a source file that changed since it was built,
-or one in scope, and the tests it does not know. Every test that can cover a
-changed line gets a fresh baseline, so no mutant is judged against old
-coverage.
+A run measures the coverage baseline first: every test, once, under coverage,
+before any mutant runs. On a big suite that is most of the wait, even when the
+run mutates one file. So a full run (one over every configured path and test)
+keeps its baseline's coverage map in `tmp/kimera/coverage.json`: which tests
+reached each source file, the file each test lives in, every test the suite
+held, and what it was measured against: the commit, Ruby, the settings that
+pick the tests and sources, and a digest of each source and of each test,
+support and config file (everything under the test roots, `.rspec`,
+`Gemfile.lock`, `config/`, `db/schema.rb`; files git ignores are left out,
+since a suite rewrites some on every run). Any narrower run, `kimera run
+app/models/order.rb` as much as `--since`, `kimera ci` or `kimera changed`,
+then reruns only the tests the map says reached a source file that changed
+since it was built or one in scope, every test of a test file that changed,
+and the tests it does not know. Every test that can cover a changed line gets
+a fresh baseline, so no mutant is judged against old coverage. A narrower run
+never writes the map: it overlays only its own files, so it cannot measure
+the others. `reuse_coverage: false` (`--no-reuse-coverage`) measures every
+test on every run and stores nothing.
 
 ```sh
-bundle exec kimera run --reuse-coverage       # a full run (on main) stores the map
-bundle exec kimera changed --reuse-coverage   # a branch reruns only what its change reaches
+bundle exec kimera run                        # a full run (on main) stores the map
+bundle exec kimera run app/models/order.rb    # reruns only the tests that reach order.rb
+bundle exec kimera changed                    # a branch reruns only what its change reaches
 ```
 
-The incremental run says what it reused, for example `kimera: reusing the
-coverage map from 1a2b3c4 (2 source file(s) changed since): the baseline runs
-38 of 1,204 tests`. When the map cannot hold (none is stored, another Ruby,
-other settings, or a test, support or config file changed, was added or was
-removed) it runs every test and says why in one line: `kimera: not reusing
-the stored coverage map: spec/support/auth.rb changed; the baseline runs every
-test`. Only a full run stores a map; in CI, cache `tmp/kimera/coverage.json`
-from the main branch's full run and restore it in pull requests.
+The run says what it reused, for example `kimera: reusing the coverage map
+from 1a2b3c4 (2 source and 1 test file(s) changed since): the baseline runs
+38 of 1,204 tests`. On kimera's own suite, `kimera run
+lib/kimera/report/tally.rb` takes 2.2 s with a map, 44 s without, with the
+same verdicts. When the map cannot hold (another Ruby, other settings, a
+support or config file that changed, was added or was removed, an edited test
+file that defines shared examples other files may run, or a file in scope
+outside the configured paths) it runs every test and says why in one line:
+`kimera: not reusing the stored coverage map: spec/support/auth.rb changed;
+the baseline runs every test`. With no map stored it measures every test and
+says nothing. In CI, cache `tmp/kimera/coverage.json` from the main branch's
+full run and restore it in pull requests.
 
 A map cannot see a test that reached none of the changed or in-scope files
 when it was built but reaches them now through code that ran only at load (a
@@ -513,8 +522,8 @@ mutated:
   in such a file fails the gate too; record existing ones with
   `kimera baseline create` when adopting.
 - `impact`: those files, and every source file that a test the change edited
-  or deleted reached, per the coverage map a full run with `--reuse-coverage`
-  stores (above; it records the file each test lives in). With no map, or one
+  or deleted reached, per the coverage map a full run stores (above; it
+  records the file each test lives in). With no map, or one
   from a kimera that did not record test files, the run says so and keeps
   only the changed files.
 - `lines`: only the lines the change added or edited, as kimera did before
@@ -739,10 +748,11 @@ count_no_coverage: true
 # earlier test cannot mask a kill and a verdict is the same on every run
 # (default: true). false saves the time on a suite with many survivors.
 # confirm_survivors: false
-# Keep a full run's coverage map in tmp/kimera; --since, ci and changed then
-# rerun only the baseline tests that reach the changed files, while the tests,
-# support and config files, settings and Ruby still match it.
-# reuse_coverage: true
+# Keep a full run's coverage map in tmp/kimera; any narrower run (some paths,
+# --since, ci, changed) then reruns only the baseline tests that reach the
+# changed or mutated files and the tests of the changed test files, while the
+# support and config files, settings and Ruby still match it (default: true).
+# reuse_coverage: false
 # What --since, ci and changed mutate: every line of each changed file
 # (files), those files and the source files the changed tests reach in the
 # stored coverage map (impact), or only the changed lines (lines).
