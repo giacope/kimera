@@ -67,7 +67,7 @@ class Kimera::Execution::Harness
 
   def overlay!(test_files)
     trace.record { boot.suite(test_files) }
-    loader = Kimera::Execution::Schemata.new(registry, root: root, errors: errors, loaded: trace.method(:loaded?))
+    loader = Kimera::Execution::Schemata.new(registry, root: root, errors: errors, trace: trace)
     loader.overlay!.tap { complete(loader) }
   end
 

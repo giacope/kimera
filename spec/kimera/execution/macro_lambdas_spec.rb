@@ -61,6 +61,11 @@ RSpec.describe(Kimera::Execution::MacroLambdas) do
     expect(point("order(:created_at)").safe?).to(be(true))
   end
 
+  it "leaves the lambdas of a file guarded as it loaded" do
+    described_class.new(registry, dir, ->(woven) { woven == "boost.rb" }).quarantine!({})
+    expect(point("Current.user").safe?).to(be(true))
+  end
+
   it "leaves the points of a file that is gone" do
     registry
     File.delete(file)

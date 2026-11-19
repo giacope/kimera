@@ -58,6 +58,7 @@ module Kimera
       kimera/execution/patience.rb
       kimera/execution/reload.rb
       kimera/execution/overlaying.rb
+      kimera/execution/load_weave.rb
       kimera/execution/worker_databases.rb
       kimera/execution/verdicts.rb
       kimera/execution/triage.rb

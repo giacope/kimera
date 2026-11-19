@@ -38,6 +38,21 @@
   with a map stored by a full run of `lib/kimera/report`: 2.2 s, the baseline
   33 of 3,246 tests, the same 29 verdicts and covering tests. The map's
   format is 2; a map from before is not read.
+- **Guards go in as a file first loads.** Kimera evaluated each mutated file
+  a second time, after the suite loaded, to install its guards, so what a
+  class body took at load kept the unguarded code: a lambda a constant holds,
+  the methods a class macro defines with `define_method`. Those mutants were
+  `isolated_only`. Kimera now answers Ruby's `load_iseq` for each file in
+  scope while the suite loads, and Ruby compiles the guarded text, every line
+  in place; a file loaded before, one another `load_iseq` hook (bootsnap)
+  serves first, or one it cannot weave is overlaid after the boot as before.
+  On `spec/features/load_time_spec.rb`'s fixture, 3 mutants inside a
+  macro's `define_method` blocks move from `isolated_only` to `killed`, as
+  `--isolated` judges them; statements that ran at load stay
+  `isolated_only`. On `examples/rails_app`, where Zeitwerk loads the 6 files
+  with mutants and all of them are woven, every verdict of all ten e2e modes
+  is as before: its 9 `isolated_only` mutants are validations, callbacks and
+  associations, statements of the class body.
 - **Changed: the self-host gate judges kimera's runtime selector and its two
   isolated-child entrypoints.** `Kimera::SelfProtection` kept
   `lib/kimera/runtime.rb` (208 lines), `execution/isolated_child.rb` and

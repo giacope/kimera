@@ -4,6 +4,7 @@ require "prism"
 require_relative "../registry/mutation_point"
 require_relative "../parsing/syntax"
 require_relative "block_use"
+require_relative "load_weave"
 require_relative "macro_lambdas"
 
 module Kimera
@@ -27,23 +28,33 @@ class Kimera::Execution::LoadTrace
     attr_reader :range, :holes
   end
 
-  def initialize(registry, root)
+  class Unrecorded
+    def loaded?(_file) = true
+
+    def woven(_file) = yield
+  end
+
+  def initialize(registry, root, weave = Kimera::Execution::LoadWeave.new(registry))
     @registry = registry
     @root = root
+    @weave = weave
   end
 
   def record(&)
     files = sources
-    TracePoint.new(:call, :b_call, :class) { |trace| hit(files[trace.path], trace) }.enable(&).tap { required(files) }
+    traced = TracePoint.new(:call, :b_call, :class) { |trace| hit(files[trace.path], trace) }
+    @weave.during(files) { traced.enable(&) }.tap { required(files) }
   end
 
   def loaded?(file) = touched.include?(file)
+
+  def woven(file, &) = @weave.woven(file, &)
 
   def quarantine!(coverage)
     runs.each do |file, lines|
       loaded(file, lines).each { |point| point.mark!(Kimera::Reason.loading.unless_covered(coverage, Kimera::Reason.booted)) }
     end
-    Kimera::Execution::MacroLambdas.new(@registry, root).quarantine!(coverage)
+    Kimera::Execution::MacroLambdas.new(@registry, root, ->(file) { woven(file) { false } }).quarantine!(coverage)
     Kimera::Execution::BlockUse.new(@registry, root).revisit!
   end
 

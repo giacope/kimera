@@ -39,3 +39,12 @@ Kata/FrozenState:
     # keeps nothing kimera can read after: the transcript a single test runs with has to collect what it is
     # handed (framework hook).
     - lib/kimera/frameworks/class_hooks.rb
+
+Kata/RealWords:
+  inherit_mode:
+    merge:
+      - AllowedNames
+  AllowedNames:
+    # Ruby calls RubyVM::InstructionSequence.load_iseq, when it is defined, for each file it loads; the weave
+    # that guards a file as it first loads defines it, so the name is Ruby's (protocol).
+    - load_iseq

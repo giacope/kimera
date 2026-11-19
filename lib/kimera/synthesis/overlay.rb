@@ -30,6 +30,8 @@ class Kimera::Overlay
 
       def empty? = mutant_ids.empty?
 
+      def guarded = mutant_ids
+
       def write(path) = File.write(path, source)
 
       def record(manifest, destination) = manifest.recorded(file, destination, mutant_ids, skipped_unsafe)

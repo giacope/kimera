@@ -8,17 +8,18 @@ require_relative "aliases"
 require_relative "block_methods"
 require_relative "bound_lambdas"
 require_relative "definitions"
+require_relative "load_trace"
 require_relative "overrides"
 require_relative "overlay_guards"
 require_relative "pending_autoload"
 require_relative "standard_streams"
 
 class Kimera::Execution::Schemata
-  def initialize(registry, root: ".", errors: $stderr, loaded: proc { true })
+  def initialize(registry, root: ".", errors: $stderr, trace: Kimera::Execution::LoadTrace::Unrecorded.new)
     @registry = registry
     @root = root
     @errors = errors
-    @loaded = loaded
+    @trace = trace
   end
 
   def skipped = @_skipped ||= {}
@@ -42,7 +43,7 @@ class Kimera::Execution::Schemata
     files - shut
   end
 
-  def asked?(path) = @loaded.call(path) || !File.file?(File.join(root, path))
+  def asked?(path) = @trace.loaded?(path) || !File.file?(File.join(root, path))
 
   def fire(path, autoloads = Kimera::Execution::PendingAutoload)
     autoloads.new(File.join(root, path)).fire!
@@ -72,7 +73,7 @@ class Kimera::Execution::Schemata
 
   def announce
     skipped.each do |path, reason|
-      next unload(path, &failed(reason)) unless @loaded.call(path)
+      next unload(path, &failed(reason)) unless @trace.loaded?(path)
       notice(path, reason)
       unload(path) { |point| point.mark!(Kimera::Reason.unmutatable("schemata setup failed (#{reason})")) }
     end
@@ -82,8 +83,10 @@ class Kimera::Execution::Schemata
     file = File.join(root, path)
     return [] unless File.file?(file)
     return [] if Kimera::SelfProtection.new(file).protected?
-    Kimera::Execution::BoundLambdas.new(@registry, root).hold!(path)
-    overlay(path, file)
+    @trace.woven(path) do
+      Kimera::Execution::BoundLambdas.new(@registry, root).hold!(path)
+      overlay(path, file)
+    end
   end
 
   def overlay(path, file)

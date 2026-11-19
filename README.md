@@ -1187,8 +1187,19 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   constants) or is memoized can't be toggled in a warm process. Kimera mutates
   only inside method bodies and routes memoized points to a fork-per-mutant
   reload fallback.
-- **Class bodies run once.** To install its guards, a warm worker evaluates
-  each mutated file again. For a file the suite already required, Kimera first
+- **Guards go in as a file first loads.** While the suite loads, Kimera
+  answers Ruby's `RubyVM::InstructionSequence.load_iseq` for each file in
+  scope: Ruby compiles the guarded text instead of the file's own, with every
+  line where it was. So what the class body keeps from that load (a lambda a
+  constant holds, the closure a macro's `define_method` captured, an alias, a
+  method a registry took) already carries the guards, and the warm pool
+  judges it. Code that ran while the file loaded still ran with every mutant
+  off, so a constant built from it is judged in the isolated tier, as below.
+  A file Ruby had loaded before (kimera's own, under self-host), one another
+  `load_iseq` hook serves first (bootsnap's cache), or one Kimera cannot
+  weave is overlaid after the boot instead.
+- **Class bodies run once.** To install its guards on a file the suite loaded
+  without the weave, a warm worker evaluates it again. For a file the suite already required, Kimera first
   blanks every class-body statement that holds no mutant, so `include`,
   `class_attribute`, `pre_check`, registrations and other DSL calls keep the
   state the real load left. What runs again: the methods and lambdas that

@@ -110,6 +110,13 @@ RSpec.describe(Kimera::Execution::LoadTrace) do
     expect(point("Current.user").reasons(Kimera::Reason.unsafety).first).to(eq(Kimera::Reason::MACRO_REASON))
   end
 
+  it "leaves the lambdas a class-body macro is handed in a file it guarded as it loaded" do
+    stub_const("LoadTraceBoost", Class.new { def self.belongs_to(*, **) = nil })
+    File.write(file, "class LoadTraceBoost\n  belongs_to :booster, default: -> { Current.user }\nend\n")
+    described_class.new(registry, dir).tap { |trace| trace.record { load(file) } }.quarantine!({})
+    expect(point("Current.user").reasons(Kimera::Reason.unsafety)).to(eq([]))
+  end
+
   it "also sends a warm survivor whose mutant leaves its method no yield to a fresh mirror" do
     File.write(file, "class LoadTraceJoin\n  def join(list)\n    list.each { |x| yield x }\n  end\nend\n")
     described_class.new(registry, dir).quarantine!({})

@@ -19,13 +19,21 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
     File.join(dir, relative)
   end
 
+  def booted(loaded)
+    Struct.new(:loaded) do
+      def loaded?(_file) = loaded.call
+
+      def woven(_file) = yield
+    end.new(loaded)
+  end
+
   def overlaid(loaded)
     files = [
       write("reach_template.rb", "ReachSettings[:greet] = -> { 1 > 0 ? \"from the template\" : \"\" }\n"),
       write("reach_defined.rb", "class ReachDefined\n  def big?(n) = n > 1\nend\n")
     ]
     registry = Kimera::RegistryScan.new(root: dir).build(files)
-    live = described_class.new(registry, root: dir, loaded: loaded).overlay!
+    live = described_class.new(registry, root: dir, trace: booted(loaded)).overlay!
     [registry, live]
   end
 
@@ -53,7 +61,7 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
   def unasked(name, body)
     path = write(name, body)
     registry = Kimera::RegistryScan.new(root: dir).build([path])
-    [registry, described_class.new(registry, root: dir, loaded: proc { false })]
+    [registry, described_class.new(registry, root: dir, trace: booted(proc { false }))]
   end
 
   def unsafe_reason(registry, file) = PointVerdict.new(point(registry, file)).unsafe_reason
@@ -145,7 +153,7 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
   it "knows such a file loaded by its real path too", :aggregate_failures do
     registry, = chained
     File.symlink(dir, link = File.join(dir, "linked"))
-    expect(described_class.new(registry, root: link, loaded: proc { false }).overlay!).not_to(be_empty)
+    expect(described_class.new(registry, root: link, trace: booted(proc { false })).overlay!).not_to(be_empty)
     expect(point(registry, "reach_rows.rb").reasons(Kimera::Reason.unloaded).any?).to(be(false))
   end
 

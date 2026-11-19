@@ -10,13 +10,14 @@ module Kimera
 end
 
 class Kimera::Execution::MacroLambdas
-  def initialize(registry, root)
+  def initialize(registry, root, woven = proc { false })
     @registry = registry
     @given = root
+    @woven = woven
   end
 
   def quarantine!(coverage)
-    @registry.to_h.each do |file, points|
+    @registry.to_h.reject { |file, _| @woven.call(file) }.each do |file, points|
       ranges = handed(file)
       points.each { |point| point.mark!(Kimera::Reason.macro.unless_covered(coverage, Kimera::Reason.kept)) if open?(point, ranges) }
     end

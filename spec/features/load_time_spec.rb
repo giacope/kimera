@@ -37,10 +37,14 @@ RSpec.describe("kimera run on code that runs while the suite loads (end-to-end)"
 
   def loaded(arguments = []) = test_tree(files, "kimera-load") { |root| test_outcome(cwd: root, arguments: arguments) }
 
-  it "judges load-time code in the isolated tier and never evaluates a file nothing loads", :aggregate_failures do
+  it "judges warm what a load-time macro defines, and never evaluates a file nothing loads", :aggregate_failures do
     run = loaded
-    expect(%w[app/flags.rb app/limits.rb app/setup.rb].map { |file| run.statuses(file) } << run.status)
-      .to(eq([["isolated_only"], ["isolated_only"], ["no_coverage"], 2]), run.output)
+    defined = run.rows("app/flags.rb").to_h { |row| [row["label"], row["status"]] }
+    expect([defined.values_at("== => !=", "true => false").uniq, defined.values.uniq.sort]).to(
+      eq([["killed"], %w[isolated_only killed]]), run.output
+    )
+    expect(%w[app/limits.rb app/setup.rb].map { |file| run.statuses(file) } << run.status)
+      .to(eq([["isolated_only"], ["no_coverage"], 2]), run.output)
     expect(run.rows("app/setup.rb").map { |r| r["detail"] }.uniq).to(eq([Kimera::Reason::NEVER_LOADED]))
   end
 
