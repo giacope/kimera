@@ -6,7 +6,7 @@ require "kimera/results/run_report"
 require "stringio"
 
 RSpec.describe(Kimera::Unmutated) do
-  def block_reason
+  def stray
     "code in a block outside any method runs at load or as a DSL callback " \
       "kimera can't swap, so it is not mutated"
   end
@@ -18,12 +18,12 @@ RSpec.describe(Kimera::Unmutated) do
   it "lists each region with its reason in the text report, after a blank line" do
     io = StringIO.new
     Kimera::Report::Text.new(registry, io: io, color: false).report(report)
-    expect(io.string).to(include("\n\nNot mutated (1 region(s)):\n  w.rb:2  #{block_reason}\n"))
+    expect(io.string).to(include("\n\nNot mutated (1 region(s)):\n  w.rb:2  #{stray}\n"))
   end
 
   it "lists them in the JSON report" do
     expect(report.to_h["unmutated"]).to(
-      eq([{ "file" => "w.rb", "start_line" => 2, "end_line" => 2, "reason" => block_reason }])
+      eq([{ "file" => "w.rb", "start_line" => 2, "end_line" => 2, "reason" => stray }])
     )
   end
 

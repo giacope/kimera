@@ -107,7 +107,7 @@ RSpec.describe(Kimera::Overlay) do
     ).to(include("const_defined?(:Opts, false)"))
   end
 
-  def named_capture
+  def captured
     whole!
     source = "def number(s); if /(?<num>\\d+)/ =~ s then num.to_i end; rescue ArgumentError; 0; end\n"
     catalog = scan(source, %w[regexp_quantifier rescue_clause])
@@ -118,7 +118,7 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   it "leaves a named capture's regexp unguarded when its definition is written whole", :aggregate_failures do
-    result, regexp, clause = named_capture
+    result, regexp, clause = captured
     expect([result.to_h.fetch(:mutant_ids), regexp.reasons(Kimera::Reason.unsafety).first])
       .to(eq([clause.ids, "unmutatable: #{Kimera::Overlay::FileWeave::UNGUARDABLE}"]))
     expect([result.to_s, Object.new.extend(Module.new.tap { |mod| mod.module_eval(result.to_s) }).number("x21")])
@@ -145,7 +145,7 @@ RSpec.describe(Kimera::Overlay) do
   }.each do |source, keys|
     it "reports a #{keys.first} point whose node is gone as unmutatable", :aggregate_failures do
       result, lost = gone(source, keys)
-      reason = PointVerdict.new(lost).unsafe_reason
+      reason = PointVerdict.new(lost).hazard
       expect([result.to_h.fetch(:skipped_unsafe), reason]).to(eq([lost.ids, "unmutatable: #{unmatched}"]))
     end
   end

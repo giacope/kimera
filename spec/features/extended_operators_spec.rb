@@ -43,7 +43,7 @@ RSpec.describe("kimera run --operators all (end-to-end)") do
     RUBY
   end
 
-  def toolbox_spec
+  def examples
     <<~RUBY
       # frozen_string_literal: true
       require_relative "../app/toolbox"
@@ -68,12 +68,12 @@ RSpec.describe("kimera run --operators all (end-to-end)") do
   end
 
   def ran
-    test_tree({ "app/toolbox.rb" => toolbox, "spec/toolbox_spec.rb" => toolbox_spec }, "kimera-extended-ops") do |root|
+    test_tree({ "app/toolbox.rb" => toolbox, "spec/toolbox_spec.rb" => examples }, "kimera-extended-ops") do |root|
       test_outcome(cwd: root, arguments: ["--operators", "all"])
     end
   end
 
-  def both_modes(source, tests, operator)
+  def modes(source, tests, operator)
     test_tree({ "app/subject.rb" => source, "spec/subject_spec.rb" => tests }) do |root|
       [[], ["--isolated"]].map do |mode|
         test_outcome(cwd: root, arguments: ["--operators", operator, *mode])
@@ -133,7 +133,7 @@ RSpec.describe("kimera run --operators all (end-to-end)") do
         it { expect(Windows.new.matching(["no", "cat", "yes", "apple"])).to eq(["cat", "apple"]) }
       end
     RUBY
-    both_modes(source, tests, "conditional,negation").each do |run|
+    modes(source, tests, "conditional,negation").each do |run|
       expect([run.status, run.counts.values_at("total", "killed")]).to(eq([0, [7, 7]]), run.output)
     end
   end
@@ -164,7 +164,7 @@ RSpec.describe("kimera run --operators all (end-to-end)") do
         end
       end
     RUBY
-    both_modes(source, tests, "numeric_literal").each do |run|
+    modes(source, tests, "numeric_literal").each do |run|
       expect([run.status, run.counts.values_at("total", "killed")]).to(eq([0, [5, 5]]), run.output)
     end
   end
@@ -188,7 +188,7 @@ RSpec.describe("kimera run --operators all (end-to-end)") do
         it { expect(Inspection.new.rescued).to eq("expression") }
       end
     RUBY
-    both_modes(source, tests, "arithmetic,rescue_clause,method_unwrap").each do |run|
+    modes(source, tests, "arithmetic,rescue_clause,method_unwrap").each do |run|
       expect([run.status, run.counts.values_at("total", "killed", "survived")]).to(eq([2, [3, 1, 2]]), run.output)
     end
   end
@@ -209,7 +209,7 @@ RSpec.describe("kimera run --operators all (end-to-end)") do
         it { expect(Captures.new.missing).to eq(NameError) }
       end
     RUBY
-    both_modes(source, tests, "regexp,regexp_quantifier").each do |run|
+    modes(source, tests, "regexp,regexp_quantifier").each do |run|
       expect([run.status, run.counts.values_at("total", "killed", "survived")]).to(eq([2, [3, 0, 3]]), run.output)
     end
   end
@@ -257,7 +257,7 @@ RSpec.describe("kimera run --operators all (end-to-end)") do
         it { expect(Captures.new.missing_capture).to eq(NameError) }
       end
     RUBY
-    both_modes(source, tests, "boolean_connective").each do |run|
+    modes(source, tests, "boolean_connective").each do |run|
       expect([run.status, run.counts.values_at("total", "killed", "survived")]).to(eq([2, [6, 3, 3]]), run.output)
     end
   end

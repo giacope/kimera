@@ -202,19 +202,18 @@ RSpec.describe(Kimera::RunReport) do
     end
 
     describe "enrichment from a registry" do
-      let(:dir) { Dir.mktmpdir }
       let(:registry) do
-        path = File.join(dir, "cmp.rb")
-        File.write(path, "class Cmp\n  def gt(a, b)\n    a > b\n  end\nend\n")
-        Kimera::RegistryScan.new(root: dir).build([path])
+        Dir.mktmpdir do |dir|
+          path = File.join(dir, "cmp.rb")
+          File.write(path, "class Cmp\n  def gt(a, b)\n    a > b\n  end\nend\n")
+          Kimera::RegistryScan.new(root: dir).build([path])
+        end
       end
       let(:mutant_and_point) { registry.each.first }
       let(:enriched) do
         mutant = mutant_and_point.first
         described_class.new(results: [result(mutant.to_i, :survived)], registry: registry).to_h["results"].first
       end
-
-      after { FileUtils.remove_entry(dir) }
 
       it "carries key, line, operator, and label", :aggregate_failures do
         mutant, point = mutant_and_point

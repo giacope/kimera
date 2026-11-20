@@ -90,12 +90,12 @@ RSpec.describe(Kimera::Registry) do
   def moves(program, shift)
     before = scan(render(program))
     after = scan(("\n" * shift) + render(program))
-    moved = unlined_keys(after)
+    moved = stripped(after)
     earlier, later = [before, after].map { Kimera::MutantKeys.of(it) }
     before.each.to_h { |mutant, _| [mutant.to_i, landing(earlier[mutant.to_i], moved, later)] }
   end
 
-  def unlined_keys(registry)
+  def stripped(registry)
     keys = Kimera::MutantKeys.of(registry)
     registry.each.map { |mutant, _| unlined(keys[mutant.to_i]) }
   end
@@ -115,7 +115,7 @@ RSpec.describe(Kimera::Registry) do
     values << node.statements.body.last.location.then { [it.start_offset, it.length] }
   end
 
-  def deleted_embeds(source)
+  def swallowed(source)
     deletions = scan(source).to_a.select { |point| point.operator.include?("statement_deletion") }
     spans = deletions.map { |point| point.location.to_h.values_at("start_offset", "length") }
     spans & embeds(Prism.parse(source).value)
@@ -123,7 +123,7 @@ RSpec.describe(Kimera::Registry) do
 
   it "never deletes the value an interpolation embeds" do
     for_all(programs, runs: 150) do |program|
-      expect(deleted_embeds(render(program))).to(be_empty)
+      expect(swallowed(render(program))).to(be_empty)
     end
   end
 
@@ -158,11 +158,11 @@ RSpec.describe(Kimera::Registry) do
   def baked(schemata)
     folded = "#{Kimera::Reason::UNMUTATABLE}#{unmatched}"
     schemata.registry.to_a.reject { |point| point.reasons(Kimera::Reason.unsafety).first == folded }.map do |point|
-      ["#{point.original_source}: #{point.mutants.map(&:to_s)}", bake_facts(point, schemata)]
+      ["#{point.original_source}: #{point.mutants.map(&:to_s)}", audited(point, schemata)]
     end
   end
 
-  def bake_facts(point, schemata)
+  def audited(point, schemata)
     bakes = point.mutants.map { |mutant| schemata.baked(mutant.to_i) }
     misread = bakes.map(&:inspect).grep(/flipflop|match_current_line/)
     { original: bakes.include?(schemata.original), repeated: bakes.size - bakes.uniq.size, misread: misread }

@@ -16,9 +16,10 @@ require "tmpdir"
 using PointFields
 
 RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
-  around do |example|
+  def unset
     inherited = ENV.delete("TEST_ENV_NUMBER")
-    example.run
+    yield
+  ensure
     inherited ? ENV.store("TEST_ENV_NUMBER", inherited) : ENV.delete("TEST_ENV_NUMBER")
   end
 
@@ -39,9 +40,9 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
             FakeRails::Config.new("postgresql", db, "primary")
           end
       end
-      define_method(:configs_for) do |env_name:, name: nil|
-        named = env_name == "test" ? @named : []
-        name ? named.first : named
+      define_method(:configs_for) do |**query|
+        named = query.fetch(:env_name) == "test" ? @named : []
+        query[:name] ? named.first : named
       end
     end
   end
@@ -115,12 +116,13 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       expect(kept).to(eq([""]))
     end
 
-    def pool_class
+    def kind
       pool =
         Class.new do
-          attr_reader :db_config, :discarded
+          attr_reader :discarded
 
-          def initialize(db_config) = @db_config = db_config
+          def initialize(settings) = @settings = settings
+          def db_config = @settings
           def discard! = @discarded = true
           def discard_pool! = discard!
         end
@@ -128,7 +130,7 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
     end
 
     it "keeps an in-memory pool when Active Record discards pools after a fork" do
-      pools = [":memory:", "db/t.sqlite3"].map { |name| pool_class.new(config("sqlite3", name)) }
+      pools = [":memory:", "db/t.sqlite3"].map { |name| kind.new(config("sqlite3", name)) }
       expect(pools.each(&:discard_pool!).map(&:discarded)).to(eq([nil, true]))
     end
   end
@@ -213,16 +215,18 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       ActiveSupport.define_singleton_method(:parallelize_test_databases) { flag }
     end
 
-    def after_hooks_only
+    def lopsided
       par = Module.new
       par.define_singleton_method(:after_fork_hooks) { [->(_i) {}] }
       stub_const("ActiveSupport::Testing::Parallelization", par)
     end
 
     it "forks on a Rails with no before-fork hooks" do
-      after_hooks_only
-      record("db/test.sqlite3")
-      expect { databases.before_fork }.not_to(raise_error)
+      unset do
+        lopsided
+        record("db/test.sqlite3")
+        expect { databases.before_fork }.not_to(raise_error)
+      end
     end
 
     def schemaless
@@ -231,16 +235,21 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       stub_const("ActiveRecord::Tasks::DatabaseTasks", FakeRails::Tasks.new("/no/such/schema.rb"))
     end
 
+    def warned = databases.before_fork.then { errors.string }
+
     it "stays off, and says the workers share one database, without a schema file to load from" do
-      schemaless
-      expect(databases.active?).to(be(false))
-      databases.before_fork
-      expect(errors.string).to(include("share one test database (app_test)"))
+      unset do
+        schemaless
+        expect(databases.active?).to(be(false))
+        expect(warned).to(include("share one test database (app_test)"))
+      end
     end
 
     it "turns on before Rails 8.1 once the hook is registered" do
-      parallelization(after: ->(_i) {})
-      expect(databases.active?).to(be(true))
+      unset do
+        parallelization(after: ->(_i) {})
+        expect(databases.active?).to(be(true))
+      end
     end
 
     def renamed(database)
@@ -252,16 +261,20 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
     end
 
     it "never renames an in-memory database, and still renames a file" do
-      expect(renamed(":memory:")).to(be_empty)
-      expect(renamed("db/test.sqlite3")).to(eq([1]))
+      unset do
+        expect(renamed(":memory:")).to(be_empty)
+        expect(renamed("db/test.sqlite3")).to(eq([1]))
+      end
     end
 
+    def numbering(workers, index) = workers.after_fork(index).then { ENV.fetch("TEST_ENV_NUMBER") }
+
     it "numbers each parallel worker, as parallel_tests does" do
-      parallelization
-      databases.after_fork(2)
-      expect(ENV.fetch("TEST_ENV_NUMBER")).to(eq("3"))
-      described_class.new(jobs: 1).after_fork(0)
-      expect(ENV.fetch("TEST_ENV_NUMBER")).to(eq("3"))
+      unset do
+        parallelization
+        expect(numbering(databases, 2)).to(eq("3"))
+        expect(numbering(described_class.new(jobs: 1), 0)).to(eq("3"))
+      end
     end
 
     def shared(database = "app_test", adapter: "mysql2")
@@ -271,23 +284,31 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
     end
 
     it "says once when workers would share one database" do
-      expect(shared.scan("share one test database (app_test)").size).to(eq(1))
+      unset do
+        expect(shared.scan("share one test database (app_test)").size).to(eq(1))
+      end
     end
 
     it "says nothing of an in-memory database: each fork has its own copy" do
-      expect(shared(":memory:", adapter: "sqlite3")).to(be_empty)
+      unset do
+        expect(shared(":memory:", adapter: "sqlite3")).to(be_empty)
+      end
     end
 
     it "closes the parent's connections before the workers fork" do
-      connections = FakeConnections.new
-      databases.before_fork(connections)
-      expect(connections.released).to(eq(1))
+      unset do
+        connections = FakeConnections.new
+        databases.before_fork(connections)
+        expect(connections.released).to(eq(1))
+      end
     end
 
     it "says nothing of one worker, which has the database to itself" do
-      record("app_test", adapter: "postgresql")
-      described_class.new(jobs: 1, errors: errors).before_fork
-      expect(errors.string).to(be_empty)
+      unset do
+        record("app_test", adapter: "postgresql")
+        described_class.new(jobs: 1, errors: errors).before_fork
+        expect(errors.string).to(be_empty)
+      end
     end
 
     def prepared
@@ -298,15 +319,23 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
     end
 
     it "creates and loads each numbered database once, before the workers fork" do
-      expect(prepared).to(eq(["app_test2"]))
-      expect(errors.string).to(be_empty)
+      unset do
+        expect(prepared).to(eq(["app_test2"]))
+        expect(errors.string).to(be_empty)
+      end
     end
 
-    it "moves a worker onto its numbered database when no Rails hook does" do
+    def renumbered
       parallelization
       rails(->(number) { ["app_test#{number}"] })
       databases.after_fork(1)
-      expect(ActiveRecord::Base.established).to(eq([nil]))
+    end
+
+    it "moves a worker onto its numbered database when no Rails hook does" do
+      unset do
+        renumbered
+        expect(ActiveRecord::Base.established).to(eq([nil]))
+      end
     end
   end
 
@@ -350,36 +379,50 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
 
     let(:errors) { StringIO.new }
 
+    def judged(names) = rails(names).then { numbered.numbered? }
+
     it "is numbered when database.yml names the database by TEST_ENV_NUMBER" do
-      rails(->(number) { ["app_test#{number}"] })
-      expect(numbered.numbered?).to(be(true))
-      rails(->(_number) { ["app_test"] })
-      expect(numbered.numbered?).to(be(false))
+      unset do
+        expect(judged(->(number) { ["app_test#{number}"] })).to(be(true))
+        expect(judged(->(_number) { ["app_test"] })).to(be(false))
+      end
     end
 
     it "is not numbered without Rails" do
-      expect(numbered.numbered?).to(be(false))
+      unset do
+        expect(numbered.numbered?).to(be(false))
+      end
     end
 
     it "creates and loads a worker's renamed database" do
+      unset do
+        rails(->(number) { ["app_test#{number}"] })
+        numbered.prepare(2)
+        expect(ActiveRecord::Tasks::DatabaseTasks.rebuilt.map(&:database)).to(eq(["app_test3"]))
+      end
+    end
+
+    def denied
       rails(->(number) { ["app_test#{number}"] })
-      numbered.prepare(2)
-      expect(ActiveRecord::Tasks::DatabaseTasks.rebuilt.map(&:database)).to(eq(["app_test3"]))
+      stub_const("ActiveRecord::Tasks::DatabaseTasks", FakeRails::Tasks.new(failure: RuntimeError.new("denied")))
     end
 
     it "says which worker's database it could not create" do
-      rails(->(number) { ["app_test#{number}"] })
-      stub_const("ActiveRecord::Tasks::DatabaseTasks", FakeRails::Tasks.new(failure: RuntimeError.new("denied")))
-      numbered.prepare(1)
-      expect(errors.string).to(eq("kimera: could not create the database for worker 1 (RuntimeError: denied)\n"))
+      unset do
+        denied
+        numbered.prepare(1)
+        expect(errors.string).to(eq("kimera: could not create the database for worker 1 (RuntimeError: denied)\n"))
+      end
     end
 
+    def adopting = rails(->(number) { ["app_test#{number}"] }).then { numbered.adopt(1) }
+
     it "reconnects a worker to its own database, leaving TEST_ENV_NUMBER as it found it" do
-      rails(->(number) { ["app_test#{number}"] })
-      numbered.adopt(1)
-      expect(ActiveRecord::Base.established).to(eq([nil]))
-      expect(ENV.key?("TEST_ENV_NUMBER")).to(be(false))
-      expect(ActiveRecord::Base.configurations.configs_for(env_name: "test").map(&:database)).to(eq(["app_test2"]))
+      unset do
+        adopting
+        expect([ActiveRecord::Base.established, ENV.key?("TEST_ENV_NUMBER")]).to(eq([[nil], false]))
+        expect(ActiveRecord::Base.configurations.configs_for(env_name: "test").map(&:database)).to(eq(["app_test2"]))
+      end
     end
 
     def adopted(env)
@@ -399,15 +442,19 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
     end
 
     it "is not numbered outside the test environment" do
-      rails(->(number) { ["app_test#{number}"] })
-      stub_const("ActiveRecord::ConnectionHandling::DEFAULT_ENV", -> { "development" })
-      expect(numbered.numbered?).to(be(false))
+      unset do
+        rails(->(number) { ["app_test#{number}"] })
+        stub_const("ActiveRecord::ConnectionHandling::DEFAULT_ENV", -> { "development" })
+        expect(numbered.numbered?).to(be(false))
+      end
     end
 
     it "stays on the parent's database when the name does not change" do
-      rails(->(_number) { ["app_test"] })
-      numbered.adopt(1)
-      expect(ActiveRecord::Base.established).to(eq([]))
+      unset do
+        rails(->(_number) { ["app_test"] })
+        numbered.adopt(1)
+        expect(ActiveRecord::Base.established).to(eq([]))
+      end
     end
   end
 
@@ -416,20 +463,23 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
       calls = []
       parallelization(after: ->(slot) { calls << slot })
       mirror = described_class.new(3, copies: FakeCopies.new)
-      fake_feature("active_record/test_databases")
-      databases.each do |database|
-        record(database)
-        mirror.adopt
+      fake_feature("active_record/test_databases") do
+        databases.each do |database|
+          record(database)
+          mirror.adopt
+        end
       end
       calls
     end
 
     it "renames a mirror's database before Rails 8.1, never an in-memory one" do
-      expect(renames(["db/test.sqlite3", ":memory:"])).to(eq([3]))
+      unset do
+        expect(renames(["db/test.sqlite3", ":memory:"])).to(eq([3]))
+      end
     end
   end
 
-  def mirror_environment(slot)
+  def environment(slot)
     Dir.mktmpdir do |dir|
       child = Kimera::Execution::IsolatedPlan::ChildCommand.new(framework: "rspec", test_files: [], root: dir)
       child.command(dir, child.request([], slot: slot), ledger: File.join(dir, "l"), paths: []).first
@@ -437,8 +487,10 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
   end
 
   it "hands each concurrent mirror its own TEST_ENV_NUMBER" do
-    expect([1, nil].map { |slot| mirror_environment(slot) })
-      .to(eq([{ "KIMERA" => "1", "TEST_ENV_NUMBER" => "2" }, { "KIMERA" => "1" }]))
+    unset do
+      expect([1, nil].map { |slot| environment(slot) })
+        .to(eq([{ "KIMERA" => "1", "TEST_ENV_NUMBER" => "2" }, { "KIMERA" => "1" }]))
+    end
   end
 
   it "names a database another session holds when a mirror cannot drop it" do

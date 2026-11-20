@@ -20,7 +20,7 @@ RSpec.describe(Kimera::Execution::IsolatedOutcome) do
   let(:failed) { test_exit("exit 1") }
   let(:clean) { test_exit("exit 0") }
 
-  def test_judge_unreported(exit, ledger, stderr = "")
+  def test_unreported(exit, ledger, stderr = "")
     Dir.mktmpdir do |dir|
       path = File.join(dir, "ledger.json")
       File.write(path, ledger) if ledger
@@ -49,7 +49,7 @@ RSpec.describe(Kimera::Execution::IsolatedOutcome) do
 
   it "explains an unreported child with its exit status and both ends of a long stderr", :aggregate_failures do
     stderr = (1..30).map { |n| "line #{n}\n" }.join
-    outcome = test_judge_unreported(failed, nil, stderr)
+    outcome = test_unreported(failed, nil, stderr)
     kept = [*(1..5).map { |n| "line #{n}" }, "…", *(16..30).map { |n| "line #{n}" }]
     expect(outcome.to_h[:failing_tests]).to(be_nil)
     expect(outcome.to_h[:detail]).to(eq("test child exited 1 without reporting results:\n#{kept.join("\n")}"))
@@ -57,12 +57,12 @@ RSpec.describe(Kimera::Execution::IsolatedOutcome) do
 
   it "keeps a stderr of exactly twenty lines whole" do
     stderr = (1..20).map { |n| "line #{n}\n" }.join
-    expect(test_judge_unreported(failed, nil, stderr).to_h[:detail])
+    expect(test_unreported(failed, nil, stderr).to_h[:detail])
       .to(end_with(":\n#{(1..20).map { |n| "line #{n}" }.join("\n")}"))
   end
 
   it "names the signal and omits an empty stderr for an unreported child" do
-    outcome = test_judge_unreported(test_exit("Process.kill(:KILL, Process.pid)"), nil, "  \n")
+    outcome = test_unreported(test_exit("Process.kill(:KILL, Process.pid)"), nil, "  \n")
     expect(outcome.to_h[:detail]).to(eq("test child died on signal 9 without reporting results"))
   end
 

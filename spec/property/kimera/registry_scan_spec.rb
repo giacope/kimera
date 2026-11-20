@@ -6,7 +6,7 @@ require "kimera/registry/builder"
 using PointFields
 
 RSpec.describe(Kimera::RegistryScan) do
-  def unscanned_reason = "kimera could not scan it, so nothing in it is mutated (a kimera bug, please report it): "
+  def failure = "kimera could not scan it, so nothing in it is mutated (a kimera bug, please report it): "
 
   shapes = {
     "an if whose only branch is its else (acts-as-taggable-on)" => <<~RUBY,
@@ -84,7 +84,7 @@ RSpec.describe(Kimera::RegistryScan) do
 
   def unscanned(path, source)
     registry = described_class.new(operators: Kimera::Operators.build(keys: ["all"])).source(source, file: path)
-    tripped = reasons(registry).select { |reason| reason.start_with?(unscanned_reason) }
+    tripped = reasons(registry).select { |reason| reason.start_with?(failure) }
     tripped + registry.to_a.reject { |point| anchored?(point, source) }.map { "point #{it.point_id} moved" }
   end
 

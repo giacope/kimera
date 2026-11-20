@@ -117,17 +117,17 @@ RSpec.describe(Kimera::MutationPoint) do
     it "knows its node: where it starts, of its kind, with its source", :aggregate_failures do
       expect([fits?(node: node("a > b")), fits?(node: node("a > c"))]).to(eq([true, false]))
       expect([fits?(node: node(" a > b")), fits?(node: node("[a > b]"))]).to(eq([false, false]))
-      expect(described_class.new(**sample_fields, node_type: "if_node").fits?(node: node("a > b"))).to(be(false))
+      expect(described_class.new(**fields, node_type: "if_node").fits?(node: node("a > b"))).to(be(false))
     end
 
     it "is kin to a point in the same method", :aggregate_failures do
-      expect(fits?(kin: described_class.new(**sample_fields, point_id: 9))).to(be(true))
-      expect(fits?(kin: described_class.new(**sample_fields, method_name: "other"))).to(be(false))
+      expect(fits?(kin: described_class.new(**fields, point_id: 9))).to(be(true))
+      expect(fits?(kin: described_class.new(**fields, method_name: "other"))).to(be(false))
       expect(fits?(kin: described_class.none)).to(be(false))
     end
   end
 
-  def sample_fields
+  def fields
     { file: "a.rb", node_type: "call_node", location: sample.location, original_source: "a > b" }
       .merge(method_name: "compare")
   end
@@ -148,6 +148,6 @@ RSpec.describe(Kimera::MutationPoint) do
 
   it "prints where it stands, and in which method", :aggregate_failures do
     expect(sample.to_s).to(eq("a.rb:1:1  in compare"))
-    expect(described_class.new(**sample_fields, method_name: nil).to_s).to(eq("a.rb:1:1"))
+    expect(described_class.new(**fields, method_name: nil).to_s).to(eq("a.rb:1:1"))
   end
 end

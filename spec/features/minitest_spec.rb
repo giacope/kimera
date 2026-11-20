@@ -2,7 +2,7 @@
 
 RSpec.describe("kimera run with the Minitest adapter") do
   def minitest
-    File.join(test_repository_root, "examples", "minitest_app")
+    File.join(test_root, "examples", "minitest_app")
   end
 
   it "drives a Minitest suite, killing caught mutants and reporting the survivor", :aggregate_failures do

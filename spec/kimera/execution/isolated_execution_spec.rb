@@ -20,7 +20,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
   def judged(id, **)
     Dir.mktmpdir do |root|
-      File.write(File.join(root, "calc.rb"), test_source_fixture)
+      File.write(File.join(root, "calc.rb"), original)
       described_class.new(registry: registry, root: root, tests: ["t1"], **).run(ids: [id]).to_a.first
     end
   end
@@ -47,7 +47,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end
   end
 
-  def test_all_ids
+  def mutants
     registry.each.map { |m, _p| m.to_i }
   end
 
@@ -55,14 +55,14 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     registry.each.first.first.to_i
   end
 
-  def test_source_fixture
+  def original
     "def a(x, y)\n  x > y\nend\n"
   end
 
-  def test_recording_bar(sink) = ProgressJournal.new(sink)
+  def journal(sink) = ProgressJournal.new(sink)
 
-  def test_canned_runner(root:, **options, &verdict)
-    options = { progress: test_recording_bar([]) }.merge(options)
+  def runner(root:, **options, &verdict)
+    options = { progress: journal([]) }.merge(options)
     Class.new(described_class) do
       define_method(:evaluate) do |id, _bay|
         Kimera::MutantResult.new(
@@ -74,14 +74,14 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
   end
 
   describe "#waitfor" do
-    def watchdog(hard_timeout:, poll_interval: 0.05)
-      Kimera::Execution::IsolatedWatchdog.new(hard_timeout, poll: poll_interval)
+    def watchdog(limit:, poll: 0.05)
+      Kimera::Execution::IsolatedWatchdog.new(limit, poll: poll)
     end
 
     def looked(poll)
       pid = Process.spawn("sleep", "0.1", pgroup: true)
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      status = watchdog(hard_timeout: 5.0, poll_interval: poll).waitfor(pid)
+      status = watchdog(limit: 5.0, poll: poll).waitfor(pid)
       [status, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started]
     end
 
@@ -92,23 +92,23 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end
 
     it "returns the exit status of a child that finishes in time" do
-      r = watchdog(hard_timeout: 5.0)
+      r = watchdog(limit: 5.0)
       pid = Process.spawn("true", pgroup: true)
       status = r.waitfor(pid)
       expect(status).to(be_success)
     end
 
-    def test_wedged_wait(timeout)
+    def wedged(timeout)
       pid = Process.spawn("sleep", "30", pgroup: true)
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       [
-        watchdog(hard_timeout: timeout).waitfor(pid),
+        watchdog(limit: timeout).waitfor(pid),
         Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, pid
       ]
     end
 
     it "hard-kills a wedged child group and returns :timeout", :aggregate_failures do
-      status, elapsed, pid = test_wedged_wait(0.3)
+      status, elapsed, pid = wedged(0.3)
       expect(status).to(eq(:timeout))
       expect(elapsed).to(be < 5.0)
       expect { Process.kill(0, pid) }.to(raise_error(Errno::ESRCH))
@@ -117,7 +117,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     def beating(pulse, beats)
       script = "for _ in $(seq #{beats}); do printf . >> \"$0\"; sleep 0.15; done"
       pid = Process.spawn("sh", "-c", script, pulse, pgroup: true)
-      watchdog(hard_timeout: 0.5, poll_interval: 0.01).waitfor(pid, pulse)
+      watchdog(limit: 0.5, poll: 0.01).waitfor(pid, pulse)
     end
 
     it "lets a child run past the hard timeout while each test starts within it" do
@@ -127,21 +127,23 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     it "kills what a child left running in its group once it exits", :aggregate_failures do
       witness = self.witness
       pid = Process.spawn("sh", "-c", "sleep 30 & exit 3", pgroup: true, out: witness.holder)
-      expect(watchdog(hard_timeout: 5.0).waitfor(pid).exitstatus).to(eq(3))
+      expect(watchdog(limit: 5.0).waitfor(pid).exitstatus).to(eq(3))
       expect(witness.outlived?).to(be(false))
     end
 
-    def interrupt_after(seconds)
+    def waiting?(thread) = thread.status == "sleep" && thread.backtrace.to_a.any? { it.include?("isolated_watchdog") }
+
+    def interrupting
       Thread.new(Thread.current) do |waiting|
-        sleep(seconds)
+        sleep(0.01) until waiting?(waiting)
         waiting.raise(Interrupt)
       end
     end
 
     it "takes a child's group down with it when kimera is interrupted", :aggregate_failures do
       pid = Process.spawn("sleep", "300", pgroup: true, out: File::NULL)
-      interrupt_after(0.2)
-      expect { Timeout.timeout(10) { watchdog(hard_timeout: 5.0).waitfor(pid) } }.to(raise_error(Interrupt))
+      interrupting
+      expect { Timeout.timeout(10) { watchdog(limit: 5.0).waitfor(pid) } }.to(raise_error(Interrupt))
       expect { Process.kill(0, pid) }.to(raise_error(Errno::ESRCH))
     end
   end
@@ -167,7 +169,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
         def evaluate(id, _bay)
           (@seen ||= Hash.new { |h, k| h[k] = [] })[Thread.current] << id
-          sleep(0.01)
+          Thread.pass
           Kimera::MutantResult.new(mutant_id: id, status: :killed, file: "calc.rb", duration: 0.0)
         end
       end
@@ -177,10 +179,8 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       Dir.mktmpdir do |root|
         File.write(File.join(root, "calc.rb"), "def a(x, y) = x > y\n")
         progress = []
-        r = canned.new(
-          registry: registry, root: root, tests: ["t1"], jobs: jobs, progress: test_recording_bar(progress)
-        )
-        ids = test_all_ids
+        r = canned.new(registry: registry, root: root, tests: ["t1"], jobs: jobs, progress: journal(progress))
+        ids = mutants
         [r.run(ids: ids), progress, ids, r]
       end
     end
@@ -231,13 +231,13 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     it "notes the phase on the progress output before it runs" do
       events = []
-      test_baseline(Kimera::Execution::IsolatedOutcome.new(:survived), progress: test_recording_bar(events))
+      test_baseline(Kimera::Execution::IsolatedOutcome.new(:survived), progress: journal(events))
       expect(events).to(eq([[:note, "isolated baseline (unmutated mirror)"]]))
     end
 
     it "aborts with the reason and the mirror layout when the unmutated suite is red", :aggregate_failures do
       red = Kimera::Execution::IsolatedOutcome.new(:timeout, nil, "timed out after 7s without a test finishing")
-      expect { test_baseline(red, progress: test_recording_bar([])) }.to(
+      expect { test_baseline(red, progress: journal([])) }.to(
         raise_error(Kimera::Execution::BaselineFailure) do |error|
           expect(error.message).to(
             include(
@@ -333,12 +333,12 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
         end
       end.new(
         registry: registry, root: root, tests: ["t1"],
-        jobs: jobs, progress: test_recording_bar([])
+        jobs: jobs, progress: journal([])
       )
     end
 
     def paths(root)
-      ids = test_all_ids
+      ids = mutants
       serial = routing(root, 1)
       serial.run(ids: ids)
       parallel = routing(root, 2)
@@ -364,7 +364,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
             Kimera::MutantResult.new(mutant_id: id, status: :killed, file: "calc.rb", duration: 0.0)
           end
         end.new(
-          registry: registry, root: root, tests: ["t1"], jobs: jobs, progress: test_recording_bar([])
+          registry: registry, root: root, tests: ["t1"], jobs: jobs, progress: journal([])
         ),
         seen
       ]
@@ -374,7 +374,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       Dir.mktmpdir do |root|
         r, seen = tracking(root)
         r.run
-        expect(seen).to(match_array(test_all_ids))
+        expect(seen).to(match_array(mutants))
       end
     end
 
@@ -398,7 +398,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
             Kimera::MutantResult.new(mutant_id: id, status: :survived, file: "calc.rb", duration: 0.0)
           end
         end.new(
-          registry: registry, root: root, tests: ["t1"], jobs: 1, progress: test_recording_bar(events)
+          registry: registry, root: root, tests: ["t1"], jobs: 1, progress: journal(events)
         ),
         seen
       ]
@@ -408,7 +408,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       Dir.mktmpdir do |root|
         events = []
         r, seen = records(root, events)
-        ids = test_all_ids
+        ids = mutants
         { report: r.run(ids: ids), seen: seen, events: events, ids: ids }
       end
     end
@@ -428,7 +428,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     def unannounced(root)
       File.write(File.join(root, "calc.rb"), "def a(x, y) = x > y\n")
-      test_canned_runner(root: root, jobs: 1, progress: Kimera::Execution::NullProgress.new)
+      runner(root: root, jobs: 1, progress: Kimera::Execution::NullProgress.new)
     end
 
     it "prints nothing per verdict; progress alone reports the run" do
@@ -437,17 +437,16 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       end
     end
 
-    def test_verdict_pairs(jobs)
+    def pairs(jobs)
       Dir.mktmpdir do |root|
         File.write(File.join(root, "calc.rb"), "def a(x, y) = x > y\n")
         verdict = ->(id) { id.even? ? :killed : :survived }
-        test_canned_runner(root: root, jobs: jobs, &verdict)
-          .run(ids: test_all_ids).to_a.map { |r| [r.mutant_id, r.status] }.sort
+        runner(root: root, jobs: jobs, &verdict).run(ids: mutants).to_a.map { |r| [r.mutant_id, r.status] }.sort
       end
     end
 
     it "produces the same verdicts serially and in parallel" do
-      expect(test_verdict_pairs(1)).to(eq(test_verdict_pairs(3)))
+      expect(pairs(1)).to(eq(pairs(3)))
     end
   end
 
@@ -473,16 +472,16 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     def paced = { coverage: { first => %w[slow fast] }, timings: { "fast" => 0.1, "slow" => 2.0 } }
 
-    def paced_trial(given)
+    def trial(given, **)
       Dir.mktmpdir do |root|
-        File.write(File.join(root, "calc.rb"), test_source_fixture)
-        test_mirrored(test_paced(given), root, first, tests: [], **paced).first
+        File.write(File.join(root, "calc.rb"), original)
+        test_mirrored(test_paced(given), root, first, tests: [], **).first
       end
     end
 
     it "hands the mutant's child its covering tests fastest first by baseline time" do
       given = []
-      result = paced_trial(given)
+      result = trial(given, **paced)
       expect([given, result.covering_tests]).to(eq([%w[fast slow], %w[slow fast]]))
     end
 
@@ -491,16 +490,9 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       { coverage: { first => tests }, timings: tests.zip([0.001, 0.5, 3.0]).to_h }
     end
 
-    def filed_trial(given)
-      Dir.mktmpdir do |root|
-        File.write(File.join(root, "calc.rb"), test_source_fixture)
-        test_mirrored(test_paced(given), root, first, tests: [], **filed)
-      end
-    end
-
     it "hands the child whole spec files, the one that costs least in total first" do
       given = []
-      filed_trial(given)
+      trial(given, **filed)
       expect(given).to(eq(%w[b.rb[1:1] a.rb[1:1] a.rb[1:2]]))
     end
 
@@ -541,10 +533,10 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       end
     end
 
-    def test_baking_evaluate(id, pause: nil, **)
+    def baking(id, pause: nil, **)
       baked = []
       Dir.mktmpdir do |root|
-        File.write(File.join(root, "calc.rb"), test_source_fixture)
+        File.write(File.join(root, "calc.rb"), original)
         result, restored =
           test_mirrored(test_baker(baked, pause), root, id, tests: ["t1"], coverage: { id => ["t1"] }, **)
         [result, baked.first, restored]
@@ -552,40 +544,40 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end
 
     it "bakes the mutant, takes the verdict, and restores the file afterward", :aggregate_failures do
-      result, baked, restored = test_baking_evaluate(first)
+      result, baked, restored = baking(first)
       expect(result).to(have_fields(status: :killed, duration: 2.5, covering_tests: ["t1"], failing_tests: ["t1[1:1]"]))
-      expect(baked.first).not_to(eq(test_source_fixture))
-      expect(restored).to(eq(test_source_fixture))
+      expect(baked.first).not_to(eq(original))
+      expect(restored).to(eq(original))
     end
 
     it "asks the mutant's test child to stop at the first failure" do
-      _result, (_source, first_failure), = test_baking_evaluate(first)
-      expect(first_failure).to(be(true))
+      _result, (_source, stopping), = baking(first)
+      expect(stopping).to(be(true))
     end
 
     it "has the child run every covering test and records the failing ones as killers under test quality",
       :aggregate_failures do
-      result, (_source, first_failure), = test_baking_evaluate(first, test_quality: true)
-      expect([first_failure, result.killing_tests]).to(eq([false, ["t1[1:1]"]]))
-      expect(test_baking_evaluate(first).first.killing_tests).to(be_nil)
+      result, (_source, stopping), = baking(first, test_quality: true)
+      expect([stopping, result.killing_tests]).to(eq([false, ["t1[1:1]"]]))
+      expect(baking(first).first.killing_tests).to(be_nil)
     end
 
     it "times the verdict on the monotonic clock", :aggregate_failures do
-      result, = test_baking_evaluate(first, pause: 0.05)
+      result, = baking(first, pause: 0.05)
       expect(result.status).to(eq(:killed))
       expect(result.duration).to(be_between(0.05, 5.0))
     end
 
-    def test_raising_evaluate(id)
+    def raised(id)
       Dir.mktmpdir do |root|
-        File.write(File.join(root, "calc.rb"), test_source_fixture)
+        File.write(File.join(root, "calc.rb"), original)
         raising = Class.new(described_class) { define_method(:verdict) { |*| raise RuntimeError, "boom" } }
         test_mirrored(raising, root, id, tests: ["t1"], coverage: { id => ["t1"] }).first
       end
     end
 
     it "captures a verdict-time exception as an :error result", :aggregate_failures do
-      result = test_raising_evaluate(first)
+      result = raised(first)
       expect(result).to(have_fields(status: :error, file: "calc.rb", detail: "RuntimeError: boom", duration: 0.0))
     end
 
@@ -600,11 +592,11 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end
 
     it "reports :unmutatable, with the reason, for a mutant kimera can't bake", :aggregate_failures do
-      result, baked, restored = test_baking_evaluate(first, overlays: unwritable)
+      result, baked, restored = baking(first, overlays: unwritable)
       expect([result.status, result.file, result.covering_tests, result.duration])
         .to(eq([:unmutatable, "calc.rb", ["t1"], 0.0]))
       expect(result.detail).to(eq("unmutatable: kimera could not write its bake (KeyError: key not found: :lvar)"))
-      expect([baked, restored]).to(eq([nil, test_source_fixture]))
+      expect([baked, restored]).to(eq([nil, original]))
     end
 
     def unreadable(id)
@@ -631,7 +623,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       judged(first, plan: scripted(invocation, control: control), **)
     end
 
-    def test_ledger_child(failures, failing, code)
+    def reporting(failures, failing, code)
       json = { failures: failures, failing: failing }.to_json
       ->(ledger) { [Gem.ruby, "-e", "File.write(ARGV[0], #{json.dump}); exit #{code}", ledger] }
     end
@@ -658,27 +650,27 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end
 
     it "kills on a reported failure and names the failing tests", :aggregate_failures do
-      clean = test_ledger_child(0, [], 0)
-      outcome = test_verdict_of(test_ledger_child(1, ["./spec/a_spec.rb[1:1]"], 1), control: clean)
+      clean = reporting(0, [], 0)
+      outcome = test_verdict_of(reporting(1, ["./spec/a_spec.rb[1:1]"], 1), control: clean)
       expect(outcome.status).to(eq(:killed))
       expect(outcome.failing_tests).to(eq(["./spec/a_spec.rb[1:1]"]))
     end
 
     it "keeps a clean reported run that exits zero :survived" do
-      expect(test_verdict_of(test_ledger_child(0, [], 0)).status).to(eq(:survived))
+      expect(test_verdict_of(reporting(0, [], 0)).status).to(eq(:survived))
     end
 
     it "reports a non-zero exit with zero failures as :harness_error, not a kill", :aggregate_failures do
-      outcome = test_verdict_of(test_ledger_child(0, [], 2))
+      outcome = test_verdict_of(reporting(0, [], 2))
       expect(outcome.status).to(eq(:harness_error))
       expect(outcome.detail).to(start_with("suite exited 2 with 0 failures"))
       expect(outcome.failing_tests).to(be_nil)
     end
 
     def asking(asked)
-      plan = scripted(test_ledger_child(0, [], 0), asked: asked)
+      plan = scripted(reporting(0, [], 0), asked: asked)
       Dir.mktmpdir do |root|
-        File.write(File.join(root, "calc.rb"), test_source_fixture)
+        File.write(File.join(root, "calc.rb"), original)
         described_class.new(registry: registry, root: root, tests: ["t1"], plan: plan).tap { |r| r.verify!([first]) }
           .run(ids: [first])
       end
@@ -698,7 +690,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
   end
 
   describe "#with_mirror" do
-    def test_mirrored_contents
+    def copied
       seen = []
       seated = method(:seat)
       engine =
@@ -719,7 +711,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end
 
     it "copies the project into a temp dir, yields it, and cleans up after", :aggregate_failures do
-      source, nested, mirror = test_mirrored_contents
+      source, nested, mirror = copied
       expect([source, nested]).to(eq(["x = 1\n", "y = 2\n"]))
       expect(Dir.exist?(mirror)).to(be(false))
     end

@@ -12,7 +12,11 @@ using PointFields
 RSpec.describe(Kimera::Execution::BoundLambdas, :aggregate_failures) do
   let(:dir) { Dir.mktmpdir }
 
-  after { FileUtils.remove_entry(dir) }
+  def inside
+    yield
+  ensure
+    FileUtils.remove_entry(dir)
+  end
 
   def scanned(source)
     path = File.join(dir, "bound_lookup.rb")
@@ -21,38 +25,40 @@ RSpec.describe(Kimera::Execution::BoundLambdas, :aggregate_failures) do
   end
 
   def reasons(registry)
-    registry.to_a.to_h { |point| [point.location.range.begin, PointVerdict.new(point).unsafe_reason] }
+    registry.to_a.to_h { |point| [point.location.range.begin, PointVerdict.new(point).hazard] }
   end
 
+  def hold(registry) = registry.tap { described_class.new(registry, dir).hold!("bound_lookup.rb") }
+
   it "judges a lambda or proc a constant holds in the isolated tier, and leaves other code alone" do
-    registry = scanned(<<~RUBY)
-      module BoundLookup
-        BY_SYMBOL = ->(record) { record.is_a?(Symbol) && record }
-        BoundLookup::BY_NAME ||= lambda { |record| record.is_a?(String) && record }
-        STEP = proc { |n| n > 1 }
-        def self.big?(n) = n > 10
-        def self.make = (local = ->(n) { n > 2 })
-      end
-    RUBY
-    described_class.new(registry, dir).hold!("bound_lookup.rb")
-    held = Kimera::Reason::BOUND_REASON
-    expect(reasons(registry)).to(eq(2 => held, 3 => held, 4 => held, 5 => nil, 6 => nil))
-    expect(registry.to_a.find { |point| point.location.range.begin == 2 }.reasons(Kimera::Reason.unreloadable).empty?).to(be(false))
+    inside do
+      registry = hold(scanned(<<~RUBY))
+        module BoundLookup
+          BY_SYMBOL = ->(record) { record.is_a?(Symbol) && record }
+          BoundLookup::BY_NAME ||= lambda { |record| record.is_a?(String) && record }
+          STEP = proc { |n| n > 1 }
+          def self.big?(n) = n > 10
+          def self.make = (local = ->(n) { n > 2 })
+        end
+      RUBY
+      expect(reasons(registry)).to(eq(2 => held, 3 => held, 4 => held, 5 => nil, 6 => nil))
+      expect(registry.to_a.find { |point| point.location.range.begin == 2 }.reasons(Kimera::Reason.unreloadable).empty?).to(be(false))
+    end
   end
 
   it "holds the parameter defaults of a constant's lambda too, which would otherwise go to the reload tier" do
-    registry = scanned(<<~RUBY)
-      module BoundLookup
-        INFER = ->(record, strict: false) {
-          strict && record
-        }
-        def self.find(record, strict: false) = strict && record
-      end
-    RUBY
-    before = reasons(registry)
-    described_class.new(registry, dir).hold!("bound_lookup.rb")
-    expect(before.values_at(2, 3)).to(eq(["constant assignment (computed once)", nil]))
-    expect(reasons(registry)).to(eq(2 => held, 3 => held, 5 => nil))
+    inside do
+      registry = scanned(<<~RUBY)
+        module BoundLookup
+          INFER = ->(record, strict: false) {
+            strict && record
+          }
+          def self.find(record, strict: false) = strict && record
+        end
+      RUBY
+      expect(reasons(registry).values_at(2, 3)).to(eq(["constant assignment (computed once)", nil]))
+      expect(reasons(hold(registry))).to(eq(2 => held, 3 => held, 5 => nil))
+    end
   end
 
   def held = Kimera::Reason::BOUND_REASON
@@ -72,7 +78,9 @@ RSpec.describe(Kimera::Execution::BoundLambdas, :aggregate_failures) do
   end
 
   it "keeps the constant bound to the lambda the suite took, and calls its mutants isolated_only" do
-    taken, status = chained
-    expect([BoundChain::STEP, status]).to(eq([taken, :isolated_only]))
+    inside do
+      taken, status = chained
+      expect([BoundChain::STEP, status]).to(eq([taken, :isolated_only]))
+    end
   end
 end

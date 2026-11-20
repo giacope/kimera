@@ -8,9 +8,7 @@ using ResultFields
 using PointFields
 
 RSpec.describe(Kimera::Incremental::Session) do
-  let(:dir) { Dir.mktmpdir }
-
-  after { FileUtils.remove_entry(dir) }
+  def inside(&) = Dir.mktmpdir("kimera-session", &)
 
   def result(id, status)
     Kimera::MutantResult.new(mutant_id: id, status: status, file: "x.rb", duration: 0.1)
@@ -28,6 +26,16 @@ RSpec.describe(Kimera::Incremental::Session) do
     path
   end
 
+  def reloaded(report, **) = inside { |dir| described_class.from(seed(dir, report, **)) }
+
+  def stamps(session, registry, *stamps)
+    inside do |dir|
+      path = File.join(dir, "session.json")
+      session.save(path, registry)
+      stamps.map { |stamp| described_class.from(path, stamp: stamp) }
+    end
+  end
+
   def stored(session, ids = [1, 2, 3]) = session.report(ids, [], Kimera::Registry.new).to_a
 
   def pending(session, ids)
@@ -40,75 +48,81 @@ RSpec.describe(Kimera::Incremental::Session) do
 
   it "keeps each mutant's killing tests and the suite a test-quality run saw across a save", :aggregate_failures do
     counted = result(1, :killed).with(killing_tests: %w[t1 t2])
-    path = seed(dir, report([counted]).annotate(suite: %w[t1 t2 t3]))
-    resumed = described_class.from(path).report([1], [], Kimera::Registry.new)
+    resumed = reloaded(report([counted]).annotate(suite: %w[t1 t2 t3])).report([1], [], Kimera::Registry.new)
     expect([resumed.to_a.first.killing_tests, resumed.notes.to_h["suite"]]).to(eq([%w[t1 t2], %w[t1 t2 t3]]))
   end
 
   it "keeps the flaky tests a run found across a save and a resume", :aggregate_failures do
     found = { "runs" => 1, "seeds" => [2], "tests" => 1, "flaky" => [] }
-    path = seed(dir, report([result(1, :killed)]).annotate(flaky: found))
-    expect(described_class.from(path).report([1], [], Kimera::Registry.new).notes.to_h["flaky"]).to(eq(found))
+    resumed = reloaded(report([result(1, :killed)]).annotate(flaky: found))
+    expect(resumed.report([1], [], Kimera::Registry.new).notes.to_h["flaky"]).to(eq(found))
     expect(judged(report([])).report([], [], Kimera::Registry.new).notes.to_h["flaky"]).to(be_nil)
   end
 
   it "reports this run's phases, and saves none, so a resume that runs nothing shows none", :aggregate_failures do
     timed = report([result(1, :killed)]).annotate(phases: { "mutants" => 1.5 })
     expect(judged(timed).report([1], [], Kimera::Registry.new).notes.to_h["phases"]).to(eq("mutants" => 1.5))
-    path = seed(dir, timed)
-    expect(described_class.from(path).report([1], [], Kimera::Registry.new).notes.to_h).not_to(have_key("phases"))
+    expect(reloaded(timed).report([1], [], Kimera::Registry.new).notes.to_h).not_to(have_key("phases"))
   end
 
   it "creates the directory it saves into" do
-    path = File.join(dir, "tmp", "kimera", "session.json")
-    described_class.new.save(path, Kimera::Registry.new)
-    expect(File).to(exist(path))
+    inside do |dir|
+      path = File.join(dir, "tmp", "kimera", "session.json")
+      described_class.new.save(path, Kimera::Registry.new)
+      expect(File).to(exist(path))
+    end
   end
 
   it "answers itself once it has saved" do
-    session = described_class.new
-    expect(session.save(File.join(dir, "session.json"), Kimera::Registry.new)).to(be(session))
+    inside do |dir|
+      session = described_class.new
+      expect(session.save(File.join(dir, "session.json"), Kimera::Registry.new)).to(be(session))
+    end
   end
 
   it "drops verdicts saved under another stamp, and keeps those saved under the same", :aggregate_failures do
     registry = Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n", file: "x.rb")
     id = registry.each.first.first.to_i
-    path = File.join(dir, "session.json")
-    judged(report([result(id, :killed)]), stamped("one")).save(path, registry)
-    expect(%w[two one].map { |stamp| done?(described_class.from(path, stamp: stamp).pruned(registry), id) })
-      .to(eq([false, true]))
+    sessions = stamps(judged(report([result(id, :killed)]), stamped("one")), registry, "two", "one")
+    expect(sessions.map { |session| done?(session.pruned(registry), id) }).to(eq([false, true]))
+  end
+
+  def started(registry, id)
+    inside do |dir|
+      path = File.join(dir, "session.json")
+      judged(report([result(id, :killed)]), described_class.from(path, stamp: "one")).save(path, registry)
+      described_class.from(path, stamp: "one")
+    end
   end
 
   it "stamps the session a run starts, so the next run under the same stamp keeps its verdicts" do
     registry = Kimera::RegistryScan.new.source("def a(x, y)\n  x > y\nend\n", file: "x.rb")
     id = registry.each.first.first.to_i
-    path = File.join(dir, "session.json")
-    judged(report([result(id, :killed)]), described_class.from(path, stamp: "one")).save(path, registry)
-    expect(done?(described_class.from(path, stamp: "one").pruned(registry), id)).to(be(true))
+    expect(done?(started(registry, id).pruned(registry), id)).to(be(true))
   end
 
   it "records, persists, and resumes results" do
-    path = seed(dir, report([result(1, :killed), result(2, :survived)]))
-    resumed = described_class.from(path)
+    resumed = reloaded(report([result(1, :killed), result(2, :survived)]))
     actual = [stored(resumed).map(&:mutant_id), done?(resumed, 1), done?(resumed, 3), stored(resumed, [2]).first.status]
     expect(actual).to(eq([[1, 2], true, false, :survived]))
   end
 
   it "preserves loaded meta when the session is saved again" do
-    path = seed(dir, report([result(1, :killed)]), meta: { "since" => "main" })
-    described_class.from(path).save(path, Kimera::Registry.new)
-    expect(JSON.parse(File.read(path))["meta"]).to(eq("since" => "main"))
+    inside do |dir|
+      path = seed(dir, report([result(1, :killed)]), meta: { "since" => "main" })
+      described_class.from(path).save(path, Kimera::Registry.new)
+      expect(JSON.parse(File.read(path))["meta"]).to(eq("since" => "main"))
+    end
   end
 
   it "keeps the names of the tests its results cite across a resume" do
     named = { "t1" => { "name" => "N", "location" => "spec/n_spec.rb:2" } }
-    path = seed(dir, Kimera::RunReport.new(results: [result(1, :killed)], tests: named))
-    expect(described_class.from(path).report([1], [], Kimera::Registry.new).notes.to_h["tests"]).to(eq(named))
+    resumed = reloaded(Kimera::RunReport.new(results: [result(1, :killed)], tests: named))
+    expect(resumed.report([1], [], Kimera::Registry.new).notes.to_h["tests"]).to(eq(named))
   end
 
   it "merges new results into resumed ones" do
-    path = seed(dir, report([result(1, :killed)]))
-    resumed = judged(report([result(2, :killed)]), described_class.from(path))
+    resumed = judged(report([result(2, :killed)]), reloaded(report([result(1, :killed)])))
     actual = [stored(resumed).map(&:mutant_id), stored(resumed).count(&:killed?)]
     expect(actual).to(eq([[1, 2], 2]))
   end
@@ -122,8 +136,7 @@ RSpec.describe(Kimera::Incremental::Session) do
 
     it "reports an evaluated ignored mutant as ignored with its stored verdict", :aggregate_failures do
       first, second = ids
-      path = seed(dir, report([result(first, :killed)]), registry: registry)
-      rows = waived(described_class.from(path).pruned(registry))
+      rows = waived(reloaded(report([result(first, :killed)]), registry: registry).pruned(registry))
       expect(rows.map { |row| [row.status, row.verdict, row.detail, row.file] }).to(
         eq([[:ignored, :killed, "ignored (killed)", "x.rb"], [:ignored, nil, "marked equivalent (ignored)", "calc.rb"]])
       )
@@ -143,38 +156,36 @@ RSpec.describe(Kimera::Incremental::Session) do
     it "reuses results when the source (and thus fingerprint) is unchanged" do
       registry = registry("def m(a, b)\n  a > b\nend\n")
       id = first(registry)
-      path = seed(dir, report([result(id, :killed)]), registry: registry)
-      resumed = described_class.from(path).pruned(registry)
+      resumed = reloaded(report([result(id, :killed)]), registry: registry).pruned(registry)
       expect(done?(resumed, id)).to(be(true))
     end
 
     it "drops a stored result whose mutation at that id changed" do
       origin = registry("def m(a, b)\n  a > b\nend\n")
       id = first(origin)
-      path = seed(dir, report([result(id, :killed)]), registry: origin)
-      resumed = described_class.from(path).pruned(registry("def m(a, b)\n  a < b\nend\n"))
+      saved = reloaded(report([result(id, :killed)]), registry: origin)
+      resumed = saved.pruned(registry("def m(a, b)\n  a < b\nend\n"))
       expect(done?(resumed, id)).to(be(false))
     end
 
     it "drops a stored result whose id the registry no longer has" do
       origin = registry("def m(a, b)\n  a > b\nend\n")
       id = first(origin)
-      path = seed(dir, report([result(id, :killed)]), registry: origin)
-      expect(done?(described_class.from(path).pruned(Kimera::Registry.new), id)).to(be(false))
+      resumed = reloaded(report([result(id, :killed)]), registry: origin)
+      expect(done?(resumed.pruned(Kimera::Registry.new), id)).to(be(false))
     end
 
     it "records no fingerprint for a result whose id is not in the registry" do
       registry = registry("def m(a, b)\n  a > b\nend\n")
-      path = seed(dir, report([result(999_999, :killed)]), registry: registry)
-      expect(JSON.parse(File.read(path))["fingerprints"]).to(eq({}))
+      written = inside { |dir| File.read(seed(dir, report([result(999_999, :killed)]), registry: registry)) }
+      expect(JSON.parse(written)["fingerprints"]).to(eq({}))
     end
 
     it "drops unfingerprinted (legacy) entries when a registry is supplied" do
       registry = registry("def m(a, b)\n  a > b\nend\n")
       id = first(registry)
-      path = seed(dir, report([result(id, :killed)]))
-      matched = done?(described_class.from(path).pruned(registry), id)
-      expect([matched, done?(described_class.from(path), id)]).to(eq([false, true]))
+      resumed = reloaded(report([result(id, :killed)]))
+      expect([done?(resumed.pruned(registry), id), done?(resumed, id)]).to(eq([false, true]))
     end
   end
 end

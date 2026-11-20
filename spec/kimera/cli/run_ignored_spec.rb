@@ -7,8 +7,13 @@ require "stringio"
 require "tmpdir"
 
 RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
-  around do |example|
-    Dir.mktmpdir { |dir| Dir.chdir(dir) { example.run } }
+  def inside
+    Dir.mktmpdir do |dir|
+      Dir.chdir(dir) do
+        configure
+        yield
+      end
+    end
   end
 
   let(:out) { StringIO.new }
@@ -48,17 +53,17 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
   def ids(*labels) = mutants.filter_map { |mutant, _point| mutant.to_i if labels.include?(mutant.to_s) }
 
-  before { configure }
-
   describe "by default" do
     it "skips ignored mutants, including the baseline's" do
-      status, = run
-      expect(status).to(eq(0))
-      expect(runner).to(evaluated(ids("< => <=", "< => >")))
+      inside do
+        status, = run
+        expect(status).to(eq(0))
+        expect(runner).to(evaluated(ids("< => <=", "< => >")))
+      end
     end
 
     it "reports them ignored as marked equivalent" do
-      _, document = run
+      _, document = inside { run }
       expect(rows(document, "ignored").map { |row| row["detail"] }).to(all(eq("marked equivalent (ignored)")))
       expect(out.string).to(include("Ignoring 2 mutant(s) marked equivalent."))
       expect(out.string).not_to(include("Evaluating them anyway", "are now killed"))
@@ -69,68 +74,86 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     def evaluating = run("--evaluate-ignored", "--max-ignored", "2")
 
     it "evaluates ignored mutants" do
-      expect(evaluating.first).to(eq(0))
-      expect(runner).to(evaluated(mutants.map { |mutant, _point| mutant.to_i }))
+      inside do
+        expect(evaluating.first).to(eq(0))
+        expect(runner).to(evaluated(mutants.map { |mutant, _point| mutant.to_i }))
+      end
     end
 
     it "keeps them ignored, with their verdict" do
-      document = evaluating.last
-      expect(rows(document, "ignored").map { |row| row.slice("verdict", "detail") })
-        .to(all(eq("verdict" => "killed", "detail" => "ignored (killed)")))
-      expect(document["counts"]).to(include("ignored" => 2, "killed" => 2))
+      inside do
+        document = evaluating.last
+        expect(rows(document, "ignored").map { |row| row.slice("verdict", "detail") })
+          .to(all(eq("verdict" => "killed", "detail" => "ignored (killed)")))
+        expect(document["counts"]).to(include("ignored" => 2, "killed" => 2))
+      end
     end
 
     it "says it evaluates them, and which are now killed" do
-      evaluating
-      expect(out.string).to(
-        include(
-          "Evaluating them anyway (--evaluate-ignored)",
-          "2 ignored mutant(s) are now killed (their entries can be pruned); 0 still survive."
+      inside do
+        evaluating
+        expect(out.string).to(
+          include(
+            "Evaluating them anyway (--evaluate-ignored)",
+            "2 ignored mutant(s) are now killed (their entries can be pruned); 0 still survive."
+          )
         )
-      )
+      end
     end
   end
 
   it "never gates an evaluated ignored survivor as a survivor" do
     flags = ["--evaluate-ignored", "--max-ignored", "2", "--max-survivors", "2"]
-    expect(run(*flags, judge: harness(:survived)).first).to(eq(0))
+    inside { expect(run(*flags, judge: harness(:survived)).first).to(eq(0)) }
     expect(out.string).to(include("0 ignored mutant(s) are now killed (their entries can be pruned); 2 still survive."))
   end
 
   it "still budgets an evaluated ignored survivor" do
-    flags = ["--evaluate-ignored", "--max-ignored", "1", "--max-survivors", "2"]
-    expect(run(*flags, judge: harness(:survived)).first).to(eq(2))
-    expect(errors.string).to(include("ignored=2 > max_ignored=1"))
+    inside do
+      flags = ["--evaluate-ignored", "--max-ignored", "1", "--max-survivors", "2"]
+      expect(run(*flags, judge: harness(:survived)).first).to(eq(2))
+      expect(errors.string).to(include("ignored=2 > max_ignored=1"))
+    end
   end
 
   it "judges the baseline's mutants like any other with --no-baseline" do
     runner = harness(:survived)
-    status, document = run("--no-baseline", judge: runner)
+    (status, document), expected = inside { [run("--no-baseline", judge: runner), ids("< => <=", "< => >", "> => >=")] }
     expect([status, rows(document, "survived").size]).to(eq([2, 3]))
-    expect(runner).to(evaluated(ids("< => <=", "< => >", "> => >=")))
+    expect(runner).to(evaluated(expected))
     expect(out.string).to(include("Ignoring 1 mutant(s) marked equivalent."))
   end
 
-  it "re-anchors a drifted ignore entry that still singles out one mutant" do
+  def drifted
     File.write("calc.rb", "\n#{File.read("calc.rb")}")
-    expect(rows(run.last, "ignored").size).to(eq(2))
+    run.last
+  end
+
+  it "re-anchors a drifted ignore entry that still singles out one mutant" do
+    expect(rows(inside { drifted }, "ignored").size).to(eq(2))
     expect(errors.string).to(include("kimera: warning: ignore entry re-anchored: calc.rb:2 → 3 [> => <]"))
     expect(errors.string).not_to(include("stale anchor"))
   end
 
   it "says nothing about evaluating ignored mutants when none are ignored" do
-    Kimera::CLI::Run::Digest.new(io: out, emission: nil).evaluating([])
-    expect(out.string).to(eq(""))
+    inside do
+      Kimera::CLI::Run::Digest.new(io: out, emission: nil).evaluating([])
+      expect(out.string).to(eq(""))
+    end
   end
 
   it "keeps the raw baseline entries out of the parsed options" do
-    parser = Kimera::CLI::Run::Arguments.new
-    expect(parser.parse(["--config", "custom.yml"]).to_h).not_to(have_key(:baseline_ignore))
-    expect(parser.parse(["--config", "custom.yml", "--evaluate-ignored"])[:evaluate_ignored]).to(be(true))
+    inside do
+      parser = Kimera::CLI::Run::Arguments.new
+      expect(parser.parse(["--config", "custom.yml"]).to_h).not_to(have_key(:baseline_ignore))
+      expect(parser.parse(["--config", "custom.yml", "--evaluate-ignored"])[:evaluate_ignored]).to(be(true))
+    end
   end
 
   it "records the --since ref in the report's run provenance" do
-    expect(run.last.dig("run", "since")).to(be_nil)
-    expect(run.last["run"]).to(have_key("since"))
+    inside do
+      expect(run.last.dig("run", "since")).to(be_nil)
+      expect(run.last["run"]).to(have_key("since"))
+    end
   end
 end

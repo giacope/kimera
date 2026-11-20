@@ -86,34 +86,37 @@ RSpec.describe(Kimera::Operators::Visibility) do
     RUBY
     let(:catalog) { scan(code) }
     let(:ids) { catalog.each.to_h { |m, p| [p.method_name, m.to_i] } }
-    let!(:ledger) { Kimera::RUNTIME.start! }
 
-    before do
+    def loaded
+      ledger = Kimera::RUNTIME.start!
       stub_const("VisibilityOps", Class.new)
-      Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("vis.rb", code).to_s).evaluate("vis.rb")
-    end
-
-    after do
+      Kimera::RUNTIME.contained do
+        Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("vis.rb", code).to_s).evaluate("vis.rb")
+        yield(VisibilityOps.new)
+      end
+    ensure
       Kimera::RUNTIME.stop!(ledger)
     end
 
     def active(name, &) = Kimera::RUNTIME.during(ids.fetch(name), &)
 
+    def hidden?(name) = VisibilityOps.private_method_defined?(name)
+
     it "stays public until its mutant is active" do
-      expect([VisibilityOps.new.part, VisibilityOps.public_method_defined?(:part)]).to(eq([1, true]))
+      seen = loaded { |object| [object.part, VisibilityOps.public_method_defined?(:part)] }
+      expect(seen).to(eq([1, true]))
     end
 
-    it "turns private while its mutant is active", :aggregate_failures do
-      object = VisibilityOps.new
-      active("part") do
-        expect([object.total, object.part]).to(eq([2, :ghost]))
-        expect(VisibilityOps.private_method_defined?(:part)).to(be(true))
-      end
+    it "turns private while its mutant is active" do
+      seen = loaded { |object| active("part") { [object.total, object.part, hidden?(:part)] } }
+      expect(seen).to(eq([2, :ghost, true]))
     end
 
     it "turns public again once its mutant is off" do
-      active("part") { VisibilityOps.new.part }
-      expect(VisibilityOps.public_method_defined?(:part)).to(be(true))
+      loaded do |object|
+        active("part") { object.part }
+        expect(VisibilityOps.public_method_defined?(:part)).to(be(true))
+      end
     end
 
     it "records a covering call through a probe that changes nothing" do

@@ -22,7 +22,7 @@ module ProcessFamily
         Process.setpgid(0, 0)
         witness.spawn
         signal.puts
-        block_given? ? yield : sleep(30)
+        block_given? ? yield : sleep
         exit!(0)
       end
     signal.close

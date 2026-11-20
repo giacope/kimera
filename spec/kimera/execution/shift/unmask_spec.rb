@@ -111,10 +111,9 @@ RSpec.describe(Kimera::Execution::Shift::Unmask) do
   describe "a test that hangs alone" do
     let(:clock) { [0.0] }
 
-    before { stub_const("Kimera::Execution::Stopwatch::CLOCK", -> { clock.first }) }
-
     def timed(script)
       now = clock
+      stub_const("Kimera::Execution::Stopwatch::CLOCK", -> { now.first })
       Class.new do
         define_method(:initialize) { @script = script.transform_values(&:dup) }
 

@@ -63,21 +63,21 @@ RSpec.describe(Kimera::Execution::IsolatedPlan) do
       expect([none.tests(mutant_id, point), none.settled(mutant_id, point).map(&:status)]).to(eq([[], [:no_coverage]]))
     end
 
-    def flaky_t2 = Kimera::Execution::TestFilter.new(registry: registry, flaky: %w[t2])
+    def screen = Kimera::Execution::TestFilter.new(registry: registry, flaky: %w[t2])
 
     it "screens the measured covering set too" do
-      screened = plan(coverage: { mutant_id => %w[t1 t2] }, filter: flaky_t2)
+      screened = plan(coverage: { mutant_id => %w[t1 t2] }, filter: screen)
       expect([screened.tests(mutant_id, point), screened.settled(mutant_id, point)]).to(eq([["t1"], []]))
     end
 
     it "settles a point only screened tests cover as no_coverage" do
-      flaky = plan(coverage: { mutant_id => ["t2"] }, filter: flaky_t2)
+      flaky = plan(coverage: { mutant_id => ["t2"] }, filter: screen)
       expect([flaky.tests(mutant_id, point), flaky.settled(mutant_id, point).map(&:status)])
         .to(eq([[], [:no_coverage]]))
     end
 
     it "leaves an uncovered point to no_coverage" do
-      uncovered = plan(filter: flaky_t2)
+      uncovered = plan(filter: screen)
       expect([uncovered.tests(mutant_id, point), uncovered.settled(mutant_id, point)]).to(eq([nil, []]))
     end
 

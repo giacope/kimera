@@ -12,15 +12,15 @@ RSpec.describe(Kimera::Execution::DatabaseCopies) do
   let(:exits) { [] }
   let(:base) { FakeRails::Base.new(config) }
 
-  before { stub_const("ActiveRecord::Base", base) }
-
   def copying(engine)
+    stub_const("ActiveRecord::Base", base)
     sink = exits
     hooks = Module.new { define_singleton_method(:at_exit) { |&block| sink << block } }
     described_class.new(errors: errors, hooks: hooks, engines: { /postg/i => engine })
   end
 
   def possible?(adapter, database)
+    stub_const("ActiveRecord::Base", base)
     config.adapter = adapter
     config.database = database
     described_class.new.possible?
@@ -37,19 +37,19 @@ RSpec.describe(Kimera::Execution::DatabaseCopies) do
     expect(engine.removed).to(eq(["app_test_1"]))
   end
 
-  def exited_fork
-    forked =
+  def forked
+    child =
       fork do
         exits.each(&:call)
       ensure
         exit!(engine.removed.empty? ? 0 : 1)
       end
-    Process.wait2(forked).last.exitstatus
+    Process.wait2(child).last.exitstatus
   end
 
   it "leaves the copies to the process that made them, not to a fork that exits" do
     copies.prepare([1])
-    expect([exited_fork, engine.removed]).to(eq([0, []]))
+    expect([forked, engine.removed]).to(eq([0, []]))
   end
 
   it "says when it cannot copy, and drops no copy it did not make", :aggregate_failures do

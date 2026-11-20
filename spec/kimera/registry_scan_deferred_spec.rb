@@ -9,7 +9,7 @@ using PointFields
 RSpec.describe(Kimera::RegistryScan) do
   def spans(registry) = registry.regions { it.map(&:to_h) }.map { it.values_at("start_line", "end_line") }
 
-  def block_reason
+  def stray
     "code in a block outside any method runs at load or as a DSL callback " \
       "kimera can't swap, so it is not mutated"
   end
@@ -51,7 +51,7 @@ RSpec.describe(Kimera::RegistryScan) do
     registry = scan("class W\n  LIMITS = [5].map { _1 > 1 ? 2 : 1 }\n  rule(:sane) do |size|\n    size > 0\n  end\nend")
     expect(registry.to_a.select(&:safe?)).to(be_empty)
     expect(spans(registry)).to(eq([[2, 2], [4, 4]]))
-    expect(registry.regions(&:itself).map { |region| region.to_h["reason"] }.uniq).to(eq([block_reason]))
+    expect(registry.regions(&:itself).map { |region| region.to_h["reason"] }.uniq).to(eq([stray]))
   end
 
   it "doesn't report a class-level block that only declares things" do
@@ -79,14 +79,14 @@ RSpec.describe(Kimera::RegistryScan) do
       end
     end
 
-    let(:dir) { Dir.mktmpdir }
-
-    after { FileUtils.remove_entry(dir) }
-
-    def built(files)
+    def scanned(dir, files)
       paths = files.map { |name, text| File.join(dir, name).tap { text ? File.write(it, text) : Dir.mkdir(it) } }
       described_class.new(operators: [faulty.new, *Kimera::Operators.build], root: dir).build(paths)
     end
+
+    def built(files) = Dir.mktmpdir { |dir| scanned(dir, files) }
+
+    def vanished(dir) = described_class.new(root: dir).build([File.join(dir, "gone.rb"), File.join(dir, "b.rb")])
 
     def fine = "def fine(a)\n  a > 2\nend\n"
 
@@ -101,8 +101,7 @@ RSpec.describe(Kimera::RegistryScan) do
     end
 
     it "reports a file it cannot read, and skips one that is gone", :aggregate_failures do
-      registry = built("a.rb" => nil, "b.rb" => fine)
-      gone = described_class.new(root: dir).build([File.join(dir, "gone.rb"), File.join(dir, "b.rb")])
+      registry, gone = Dir.mktmpdir { |dir| [scanned(dir, "a.rb" => nil, "b.rb" => fine), vanished(dir)] }
       expect([registry.to_h.keys, regions(registry).map { it.first(3) }]).to(eq([["b.rb"], [["a.rb", 1, 1]]]))
       expect(regions(registry).first.last).to(start_with(unread).and(include("Is a directory")))
       expect([gone.to_h.keys, gone.regions(&:itself)]).to(eq([["b.rb"], []]))

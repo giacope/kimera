@@ -11,11 +11,14 @@ RSpec.describe(Kimera::CLI::Run::Pass) do
   let(:id) { registry.index.keys.first }
   let(:harness) { FakeHarness.new(coverage: { id => ["t1"] }) }
 
-  around { |example| Dir.mktmpdir("kimera-pass") { |dir| Dir.chdir(dir) { example.run } } }
-
-  before do
-    File.write("x.rb", source)
-    File.write("x_spec.rb", "")
+  def inside
+    Dir.mktmpdir("kimera-pass") do |dir|
+      Dir.chdir(dir) do
+        File.write("x.rb", source)
+        File.write("x_spec.rb", "")
+        yield
+      end
+    end
   end
 
   def pass(**over)
@@ -26,15 +29,19 @@ RSpec.describe(Kimera::CLI::Run::Pass) do
   end
 
   it "stores the coverage map after a full run's baseline under --reuse-coverage" do
-    pass(reuse_coverage: true)
-    expect(JSON.parse(File.read("tmp/kimera/coverage.json")).values_at("coverage", "tests"))
-      .to(eq([{ "x.rb" => ["t1"] }, %w[t1 t2]]))
+    inside do
+      pass(reuse_coverage: true)
+      expect(JSON.parse(File.read("tmp/kimera/coverage.json")).values_at("coverage", "tests"))
+        .to(eq([{ "x.rb" => ["t1"] }, %w[t1 t2]]))
+    end
   end
 
   it "hands the harness the tests a --reuse-coverage run's baseline measures" do
-    pass(reuse_coverage: true)
-    pass(reuse_coverage: true, since: "HEAD")
-    expect { harness.settings.fetch(:measured).call(%w[t1]) }
-      .to(output(/reusing the coverage map from .*: the baseline runs 1 of 1 tests/).to_stderr_from_any_process)
+    inside do
+      pass(reuse_coverage: true)
+      pass(reuse_coverage: true, since: "HEAD")
+      expect { harness.settings.fetch(:measured).call(%w[t1]) }
+        .to(output(/reusing the coverage map from .*: the baseline runs 1 of 1 tests/).to_stderr_from_any_process)
+    end
   end
 end

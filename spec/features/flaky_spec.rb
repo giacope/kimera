@@ -9,7 +9,7 @@ RSpec.describe("kimera run --flaky-runs (end-to-end)", :aggregate_failures) do
 
   def seed = (0..).find { |s| shaky.all? { |t| heads?(s, t) && !(heads?(s + 1, t) && heads?(s + 2, t)) } }
 
-  def coin_files
+  def tree
     {
       "app/coin.rb" => "class Coin\n  def heads?(n)\n    n > 0\n  end\n\n  def big?(n)\n    n > 10\n  end\nend\n",
       "spec/coin_spec.rb" => <<~RUBY
@@ -24,7 +24,7 @@ RSpec.describe("kimera run --flaky-runs (end-to-end)", :aggregate_failures) do
     }
   end
 
-  def coin(arguments) = test_tree(coin_files, "kimera-flaky") { |root| test_outcome(cwd: root, arguments: arguments) }
+  def coin(arguments) = test_tree(tree, "kimera-flaky") { |root| test_outcome(cwd: root, arguments: arguments) }
 
   def by_method(report)
     report["results"].group_by { |r| r["method"] }.transform_values { |rs| rs.map { |r| r["status"] }.uniq }
@@ -68,7 +68,7 @@ RSpec.describe("kimera run --flaky-runs (end-to-end)", :aggregate_failures) do
     expect(by_method(run.report).fetch("big?")).to(eq(["killed"]), run.output)
   end
 
-  def seeded_verdicts
+  def replay
     report = coin(["--seed", seed.to_s]).report
     expect(report).not_to(have_key("flaky_tests"))
     expect(by_method(report).fetch("heads?")).to(include("killed"))
@@ -76,7 +76,7 @@ RSpec.describe("kimera run --flaky-runs (end-to-end)", :aggregate_failures) do
   end
 
   it "judges the same way twice with one --seed, and lets the flaky tests kill without --flaky-runs" do
-    verdicts = Array.new(2) { seeded_verdicts }
+    verdicts = Array.new(2) { replay }
     expect([verdicts.uniq.size, verdicts.first.size]).to(eq([1, 4]))
   end
 end

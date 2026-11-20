@@ -28,7 +28,7 @@ RSpec.describe(Kimera::Execution::Shift) do
         active = Kimera::RUNTIME.active
         (active ? @runs : @controls) << ids
         raise(RuntimeError, "boom") if active && active == @failure
-        sleep(5) if active && active == @timeout
+        sleep if active && active == @timeout
         failed = ids.select { |id| Array(@catches[id]).include?(active) }
         Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed: failed)
       end
@@ -85,23 +85,23 @@ RSpec.describe(Kimera::Execution::Shift) do
   end
 
   describe "#run result message shape" do
-    def killed_result
+    def verdict
       target = ids.first
       worker(catches: { "t1" => [target] }, coverage: { target => ["t1"] }).run([target], io)
       messages(io).find { |m| m["t"] == "result" }
     end
 
     it "emits every documented field on a result message" do
-      expect(killed_result.keys).to(contain_exactly("t", "id", "status", "ms", "fails", "cover", "detail"))
+      expect(verdict.keys).to(contain_exactly("t", "id", "status", "ms", "fails", "cover", "detail"))
     end
 
     it "names the mutant, its verdict, and its failing and covering tests" do
-      expect(killed_result.slice("id", "status", "fails", "cover"))
+      expect(verdict.slice("id", "status", "fails", "cover"))
         .to(eq("id" => ids.first, "status" => "killed", "fails" => ["t1"], "cover" => ["t1"]))
     end
 
     it "times the mutant in milliseconds" do
-      expect(killed_result["ms"]).to(be_a(Numeric).and(be >= 0.0).and(be < 1.0))
+      expect(verdict["ms"]).to(be_a(Numeric).and(be >= 0.0).and(be < 1.0))
     end
 
     it "reports the status as its string name (not a symbol or object)" do
@@ -130,10 +130,9 @@ RSpec.describe(Kimera::Execution::Shift) do
 
     it "switches each mutant on only while it judges it, and hands the switch back as it found it" do
       target = ids.first
-      Kimera::RUNTIME.active = 999
       request = StringIO.new("#{JSON.generate(id: target)}\n")
-      worker(catches: { "t1" => [] }, coverage: { target => ["t1"] }).serve(request, response)
-      expect(Kimera::RUNTIME.active).to(eq(999))
+      judge = worker(catches: { "t1" => [] }, coverage: { target => ["t1"] })
+      expect(Kimera::RUNTIME.during(999) { judge.serve(request, response).then { Kimera::RUNTIME.active } }).to(eq(999))
     end
   end
 
@@ -242,20 +241,20 @@ RSpec.describe(Kimera::Execution::Shift) do
       expect(adapter.runs).to(eq([["t1"]]))
     end
 
-    def killer_pair
+    def rivals
       a, b = ids.first(2)
       adapter = test_adapter_class.new(catches: { "slow" => [], "killer" => [a, b] })
       [adapter, worker(adapter: adapter, coverage: { a => %w[slow killer], b => %w[slow killer] })]
     end
 
     it "walks the covering set in order on the first mutant", :aggregate_failures do
-      adapter, shift = killer_pair
+      adapter, shift = rivals
       expect(shift.evaluate(ids.first).status).to(eq(:killed))
       expect(adapter.runs).to(eq([["slow"], ["killer"], ["killer"]]))
     end
 
     it "tries the most recent killer first on the next mutant", :aggregate_failures do
-      adapter, shift = killer_pair
+      adapter, shift = rivals
       shift.run(ids.first(2), io)
       expect(messages(io).first(2).map { |message| message["status"] }).to(eq(%w[killed killed]))
       expect(adapter.runs.drop(3)).to(eq([["killer"]]))
@@ -412,9 +411,8 @@ RSpec.describe(Kimera::Execution::Shift) do
 
     it "measures with no mutant on, hands the switch back and closes with done", :aggregate_failures do
       seen = []
-      Kimera::RUNTIME.active = -1
-      worker(adapter: watching(seen)).coverage(request("t1"), response)
-      expect([seen, Kimera::RUNTIME.active]).to(eq([[nil], -1]))
+      after = Kimera::RUNTIME.during(-1) { worker(adapter: watching(seen)).coverage(request("t1"), response).then { Kimera::RUNTIME.active } }
+      expect([seen, after]).to(eq([[nil], -1]))
       expect(messages(response).last).to(eq("t" => "done"))
     end
 

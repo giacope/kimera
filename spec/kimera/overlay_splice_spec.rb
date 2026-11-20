@@ -161,7 +161,7 @@ RSpec.describe(Kimera::Overlay) do
       expect([loaded(result.to_s).number("x21"), result.to_s]).to(match([21, include("? (/(?<num>\\d+)/ =~ s) :")]))
     end
 
-    def closure_outcomes(program)
+    def outcomes(program)
       result, registry = woven(program, %w[boolean_connective])
       receiver = loaded(result.to_s)
       [result.to_h.fetch(:mutant_ids).size, receiver.m, flip(registry, "|| => &&") { receiver.m }]
@@ -180,7 +180,7 @@ RSpec.describe(Kimera::Overlay) do
       ]
       closures.each do |closure|
         program = "def m; (#{closure} || (x = 2)); [x, @seen]; end"
-        expect(closure_outcomes(program)).to(eq([1, [2, 3], [nil, 3]]), closure)
+        expect(outcomes(program)).to(eq([1, [2, 3], [nil, 3]]), closure)
       end
     end
 
@@ -193,13 +193,13 @@ RSpec.describe(Kimera::Overlay) do
       }
       closures.each do |closure, seen|
         program = "def m; (#{closure} || (x = 2)); [x, @seen]; end"
-        expect(closure_outcomes(program)).to(eq([1, [2, seen], [nil, seen]]), closure)
+        expect(outcomes(program)).to(eq([1, [2, seen], [nil, seen]]), closure)
       end
     end
 
     it "keeps body-owned locals separate while renaming a default's locals" do
       program = "def m; (->(arg = (x = 3)) { y = 4; @seen = [x, y]; false }.call || (x, y = 2, 5)); [x, y, @seen]; end"
-      expect(closure_outcomes(program)).to(eq([1, [2, 5, [3, 4]], [nil, nil, [3, 4]]]))
+      expect(outcomes(program)).to(eq([1, [2, 5, [3, 4]], [nil, nil, [3, 4]]]))
     end
 
     it "preserves shorthand bindings and named captures in rewritten defaults", :aggregate_failures do
@@ -213,7 +213,7 @@ RSpec.describe(Kimera::Overlay) do
       }
       closures.each do |closure, seen|
         program = "def m; (#{closure} || (x = 2)); [x, @seen]; end"
-        expect(closure_outcomes(program)).to(eq([1, [2, seen], [nil, seen]]), closure)
+        expect(outcomes(program)).to(eq([1, [2, seen], [nil, seen]]), closure)
       end
     end
 
@@ -224,7 +224,7 @@ RSpec.describe(Kimera::Overlay) do
       ]
       closures.each do |prefix, body, seen|
         program = "#{prefix.ljust(160)}->(arg = (x = 3)) { #{body}; false }.call || (x = 2)); [x, @seen]; end"
-        expect(closure_outcomes(program)).to(eq([1, [2, seen], [nil, seen]]))
+        expect(outcomes(program)).to(eq([1, [2, seen], [nil, seen]]))
       end
     end
 
@@ -232,7 +232,7 @@ RSpec.describe(Kimera::Overlay) do
       prefix = "def m; (->(arg = (x = 3; match_160 = 7; "
       program = "#{prefix.ljust(160)}/(?<x>a)/ =~ 'za')) { @seen = [x, match_160]; false }.call || " \
         "(x, match_160 = 2, 5)); [x, match_160, @seen]; end"
-      expect(closure_outcomes(program)).to(eq([1, [2, 5, ["a", 7]], [nil, nil, ["a", 7]]]))
+      expect(outcomes(program)).to(eq([1, [2, 5, ["a", 7]], [nil, nil, ["a", 7]]]))
     end
 
     it "keeps parenthesized flip-flops and implicit regexp matches in conditional positions", :aggregate_failures do
@@ -279,7 +279,7 @@ RSpec.describe(Kimera::Overlay) do
         )
       end
 
-      def whole = Module.new.tap { |mod| mod.module_eval(written.first.to_s) }::Whole
+      def whole = Kimera::RUNTIME.contained { yield(Module.new.tap { it.module_eval(written.first.to_s) }::Whole) }
 
       def id(label) = written.last.each.find { |mutant, _| mutant.to_s == label }.first.to_i
 
@@ -288,14 +288,13 @@ RSpec.describe(Kimera::Overlay) do
       end
 
       it "raises for its default argument's mutant" do
-        expect { Kimera::RUNTIME.during(id("default => required (limit)")) { whole.new.gated(nil) } }
+        expect { whole { |held| Kimera::RUNTIME.during(id("default => required (limit)")) { held.new.gated(nil) } } }
           .to(raise_error(ArgumentError, "missing argument: limit"))
       end
 
       it "probes its visibility mutant and turns it private with it on", :aggregate_failures do
         hidden = id("public => private (gated)")
-        held = whole
-        expect(Kimera::RUNTIME.during(hidden) { held.private_method_defined?(:gated) }).to(be(true))
+        whole { |held| expect(Kimera::RUNTIME.during(hidden) { held.private_method_defined?(:gated) }).to(be(true)) }
         expect(written.first.to_s).to(include("#{runtime}.active?(#{hidden}); nil; else; nil; end"))
       end
     end
@@ -314,7 +313,7 @@ RSpec.describe(Kimera::Overlay) do
       end
       let(:written) { woven(program, %w[rescue_clause default_argument visibility]) }
 
-      def kept = Module.new.tap { |mod| mod.module_eval(written.first.to_s) }::Kept
+      def kept = Kimera::RUNTIME.contained { yield(Module.new.tap { it.module_eval(written.first.to_s) }::Kept) }
 
       it "is guarded in place, every mutant live, on its lines", :aggregate_failures do
         expect(written.first.to_h.fetch(:mutant_ids)).to(eq(written.last.to_a.flat_map(&:ids).sort))
@@ -323,8 +322,9 @@ RSpec.describe(Kimera::Overlay) do
       end
 
       it "answers as written, and raises once its clause is dropped", :aggregate_failures do
-        expect(kept.new.gated(->(_) { raise(TypeError) })).to(eq([0, 5]))
-        expect { flip(written.last, "drop `rescue TypeError`") { kept.new.gated(->(_) { raise(TypeError) }) } }
+        raising = ->(_) { raise(TypeError) }
+        expect(kept { |held| held.new.gated(raising) }).to(eq([0, 5]))
+        expect { kept { |held| flip(written.last, "drop `rescue TypeError`") { held.new.gated(raising) } } }
           .to(raise_error(TypeError))
       end
     end

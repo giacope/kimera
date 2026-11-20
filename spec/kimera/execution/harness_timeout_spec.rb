@@ -32,7 +32,7 @@ RSpec.describe(Kimera::Execution::Harness) do
         Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
       end
 
-      def wedge = sleep(30)
+      def wedge = sleep
     end.new
   end
 

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module DescriptorCapture
-  def descriptor_one
+  def descriptor
     reader, writer = IO.pipe
     saved = $stdout.dup
     $stdout.reopen(writer)

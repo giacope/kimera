@@ -170,12 +170,12 @@ RSpec.describe(Kimera::Execution::Shift) do
   end
 
   describe "the soft timeout" do
-    def swallowing(delay)
+    def swallowing
       Class.new do
         define_method(:test_ids) { %w[t1 t2] }
         define_method(:run) do |ids|
           on = Kimera::RUNTIME.active
-          sleep(delay) if ids == ["t1"] && on
+          sleep if ids == ["t1"] && on
           Kimera::Frameworks::RunOutcome.new(passed: !on, failed: ids, failures: { ids.first => "interrupted" })
         rescue Timeout::ExitException
           Kimera::Frameworks::RunOutcome.new(passed: false, failed: ids, failures: { ids.first => "interrupted" })
@@ -185,7 +185,7 @@ RSpec.describe(Kimera::Execution::Shift) do
 
     it "scores a test failing past the deadline as a timeout, not a kill", :aggregate_failures do
       target = ids.first
-      result = worker(swallowing(1.0), { target => %w[t1 t2] }, soft: 0.1).evaluate(target)
+      result = worker(swallowing, { target => %w[t1 t2] }, soft: 0.1).evaluate(target)
 
       expect(result.status).to(eq(:timeout))
       expect(result.failing_tests).to(be_nil)
@@ -194,7 +194,7 @@ RSpec.describe(Kimera::Execution::Shift) do
 
     it "keeps taking work after a timeout", :aggregate_failures do
       first, second = ids.first(2)
-      sent = serve(swallowing(1.0), { first => %w[t1], second => %w[t2] }, [first, second], soft: 0.1)
+      sent = serve(swallowing, { first => %w[t1], second => %w[t2] }, [first, second], soft: 0.1)
       expect(sent.map { |m| m["t"] }).to(eq(%w[result ready result ready done]))
       expect(sent.first).to(include("id" => first, "status" => "timeout"))
     end
@@ -206,12 +206,12 @@ RSpec.describe(Kimera::Execution::Shift) do
     end
 
     def idle
-      sleep(1.0)
+      sleep
     rescue Timeout::ExitException
       nil
     end
 
-    def slow_off
+    def sluggish
       runs = Hash.new(0)
       nap = method(:idle)
       scripted({ "t0" => [], "t1" => [] }).tap do |adapter|
@@ -225,7 +225,7 @@ RSpec.describe(Kimera::Execution::Shift) do
     end
 
     it "lays no timeout on the mutant when the deadline passes during a run with it off", :aggregate_failures do
-      result = worker(slow_off, { ids.first => %w[t0 t1] }, soft: 0.1).evaluate(ids.first)
+      result = worker(sluggish, { ids.first => %w[t0 t1] }, soft: 0.1).evaluate(ids.first)
       expect(result.status).to(eq(:harness_error))
       expect(result.detail).to(include("also failed with the mutant switched off (soft timeout (0.1s) expired"))
     end

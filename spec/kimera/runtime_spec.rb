@@ -53,7 +53,7 @@ RSpec.describe(Kimera::Runtime) do
   end
 
   describe "inside a non-main Ractor" do
-    def in_ractor(shared, *ids)
+    def remote(shared, *ids)
       child = fork { exit!(asked(shared, *ids) ? 0 : 7) }
       { 0 => true, 7 => false }.fetch(Process.wait2(child).last.exitstatus)
     end
@@ -61,21 +61,21 @@ RSpec.describe(Kimera::Runtime) do
     it "is shareable, and answers which mutant is active", :aggregate_failures do
       runtime.active = 4
       expect(Ractor.shareable?(runtime)).to(be(true))
-      expect(in_ractor(runtime, 4)).to(be(true))
-      expect(in_ractor(runtime, 5)).to(be(false))
+      expect(remote(runtime, 4)).to(be(true))
+      expect(remote(runtime, 5)).to(be(false))
     end
 
     it "records what it reaches in the main Ractor's open ledger, once per id", :aggregate_failures do
       ledger = runtime.start!
       runtime.active = 4
-      expect([in_ractor(runtime, 4), in_ractor(runtime, 9)]).to(eq([true, false]))
+      expect([remote(runtime, 4), remote(runtime, 9)]).to(eq([true, false]))
       expect(runtime.stop!(ledger)).to(contain_exactly(4, 9))
-      expect(in_ractor(runtime, 4)).to(be(true))
+      expect(remote(runtime, 4)).to(be(true))
     end
 
     it "writes an id it reaches twice to the open ledger's spill once" do
       ledger = runtime.start!
-      in_ractor(runtime, 4, 4)
+      remote(runtime, 4, 4)
       expect(spilled(ledger).map { File.read(it) }).to(eq(["4\n"]))
     ensure
       runtime.stop!(ledger)
@@ -395,11 +395,15 @@ RSpec.describe(Kimera::Runtime) do
       [walks { hidden = Kimera::RUNTIME.during(990_001) { visible(holders, :size) } }, hidden]
     end
 
+    def forks(holders)
+      Kimera::RUNTIME.privatize(990_001, mixin, :sized)
+      walks { yield(Array.new(5) { Kimera::Execution::Zygote.new.call { switched(holders) } }) }
+    end
+
     it "walks once for the flips registered before many forks, and never in a child" do
       holders = [Class.new.include(mixin).tap { it.alias_method(:size, :sized) }]
-      Kimera::RUNTIME.privatize(990_001, mixin, :sized)
       children = nil
-      parent = walks { children = Array.new(5) { Kimera::Execution::Zygote.new.call { switched(holders) } } }
+      parent = Kimera::RUNTIME.contained { forks(holders) { children = it } }
       expect([parent, children.uniq]).to(eq([1, [[0, [false]]]]))
     end
 

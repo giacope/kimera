@@ -290,14 +290,14 @@ RSpec.describe(Kimera::Overlay) do
     return unless %w[drop_rescue drop_ensure].include?(mutant.to_h.fetch("directive")["type"])
     mutated = Kimera::Guardrail.new(Kimera::SourceMap.new(source), []).changes(point, mutant.rewrite(Kimera::Rewrite::Directive)).last.last
     method = holder(mutated, point)
-    method && (baked_lines(bake, method) || warm_lines(bake, weave, mutant, point))
+    method && (displaced(bake, method) || shifted(bake, weave, mutant, point))
   end
 
-  def baked_lines(bake, method)
+  def displaced(bake, method)
     "moves a line of the method it bakes" unless Kimera::Unwoven.new(Kimera::Scribe.parse(bake)).keeps?([method])
   end
 
-  def warm_lines(bake, weave, mutant, point)
+  def shifted(bake, weave, mutant, point)
     on = SchemataProjection.project(read(weave), mutant.to_i)
     "runs on other lines warm than baked" unless placed(holder(on, point)) == placed(holder(read(bake), point))
   end

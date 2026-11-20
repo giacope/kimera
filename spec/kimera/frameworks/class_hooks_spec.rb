@@ -4,10 +4,10 @@ require "kimera/frameworks/class_hooks"
 require "minitest"
 
 RSpec.describe(Kimera::Frameworks::ClassHooks) do
-  around do |example|
+  def ordered
     saved = Minitest.seed
     Minitest.seed ||= 1
-    example.run
+    yield([])
   ensure
     Minitest.seed = saved
   end
@@ -26,14 +26,15 @@ RSpec.describe(Kimera::Frameworks::ClassHooks) do
   end
 
   it "runs the one test it names inside its class's handler, and answers its result", :aggregate_failures do
-    seen = []
-    result = described_class.new(noted(seen)).test("test_ok")
-    expect([result.passed?, result.name, seen]).to(eq([true, "test_ok", %i[around ok]]))
-    expect(described_class.new(noted(seen)).test("test_bad").failures.first.message).to(eq("bad"))
+    ordered do |seen|
+      result = described_class.new(noted(seen)).test("test_ok")
+      expect([result.passed?, result.name, seen]).to(eq([true, "test_ok", %i[around ok]]))
+      expect(described_class.new(noted(seen)).test("test_bad").failures.first.message).to(eq("bad"))
+    end
   end
 
   it "answers nil for a test its class does not run" do
-    expect(described_class.new(noted([])).test("test_ok_too")).to(be_nil)
+    ordered { |seen| expect(described_class.new(noted(seen)).test("test_ok_too")).to(be_nil) }
   end
 
   def suited(seen)
@@ -46,15 +47,17 @@ RSpec.describe(Kimera::Frameworks::ClassHooks) do
   end
 
   it "runs the test through its class's run_suite where Minitest has one (R6B5-M3)" do
-    seen = []
-    described_class.new(suited(seen)).test("test_ok")
-    expect(seen).to(eq(%i[suite around ok]))
+    ordered do |seen|
+      described_class.new(suited(seen)).test("test_ok")
+      expect(seen).to(eq(%i[suite around ok]))
+    end
   end
 
   it "prepares the test once it runs, after the suite drew its order" do
-    seen = []
-    described_class.new(noted(seen)).test("test_ok") { seen << :prepared }
-    expect(seen).to(eq(%i[around prepared ok]))
+    ordered do |seen|
+      described_class.new(noted(seen)).test("test_ok") { seen << :prepared }
+      expect(seen).to(eq(%i[around prepared ok]))
+    end
   end
 
   def hooked(before: false, after: false)
@@ -68,17 +71,20 @@ RSpec.describe(Kimera::Frameworks::ClassHooks) do
   end
 
   it "reports a failed class hook as the test's result", :aggregate_failures do
-    expect(described_class.new(hooked(before: true)).test("test_ok").name).to(eq("before_all"))
-    expect(described_class.new(hooked(after: true)).test("test_ok").name).to(eq("after_all"))
-    expect(described_class.new(hooked(after: true)).test("test_bad").name).to(eq("test_bad"))
+    ordered do
+      expect(described_class.new(hooked(before: true)).test("test_ok").name).to(eq("before_all"))
+      expect(described_class.new(hooked(after: true)).test("test_ok").name).to(eq("after_all"))
+      expect(described_class.new(hooked(after: true)).test("test_bad").name).to(eq("test_bad"))
+    end
   end
 
   it "runs a test its class runs in parallel in place, and leaves the executor as it was", :aggregate_failures do
-    seen = []
-    executor = Minitest.parallel_executor
-    parallel = described_class.new(noted(seen) { parallelize_me! })
-    expect(parallel.test("test_ok") { seen << :prepared }&.passed?).to(be(true))
-    expect([seen, Minitest.parallel_executor]).to(eq([%i[around prepared ok], executor]))
+    ordered do |seen|
+      executor = Minitest.parallel_executor
+      expect(described_class.new(noted(seen) { parallelize_me! }).test("test_ok") { seen << :prepared }&.passed?)
+        .to(be(true))
+      expect([seen, Minitest.parallel_executor]).to(eq([%i[around prepared ok], executor]))
+    end
   end
 
   def asking(asked)
@@ -92,9 +98,10 @@ RSpec.describe(Kimera::Frameworks::ClassHooks) do
   end
 
   it "hands the suite a reporter that has passed until a result fails" do
-    asked = []
-    described_class.new(asking(asked)).test("test_bad")
-    expect(asked).to(eq([true, [], false, :held]))
+    ordered do |asked|
+      described_class.new(asking(asked)).test("test_bad")
+      expect(asked).to(eq([true, [], false, :held]))
+    end
   end
 
   it "lets a test the transcript has not seen pass, and a passing or skipped one too", :aggregate_failures do

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 RSpec.describe("kimera run --attribution unit (end-to-end)", :aggregate_failures) do
-  def shop_files
+  def tree
     {
       "app/shop.rb" => "module Shop; end\nrequire_relative \"shop/price\"\nrequire_relative \"shop/cart\"\n",
       "app/shop/price.rb" => "class Shop::Price\n  def gross(amount)\n    amount > 0 ? amount + 1 : 0\n  end\nend\n",
@@ -25,10 +25,10 @@ RSpec.describe("kimera run --attribution unit (end-to-end)", :aggregate_failures
   end
 
   def shop(arguments)
-    test_tree(shop_files, "kimera-attribution") { |root| test_outcome(cwd: root, arguments: arguments) }
+    test_tree(tree, "kimera-attribution") { |root| test_outcome(cwd: root, arguments: arguments) }
   end
 
-  def unit_facts(run, price)
+  def facts(run, price)
     {
       statuses: price.map { |r| r["status"] }.uniq, covering: price.first["covering_tests"],
       detail: price.first["detail"], cart: run.statuses("app/shop/cart.rb"),
@@ -45,7 +45,7 @@ RSpec.describe("kimera run --attribution unit (end-to-end)", :aggregate_failures
   it "reports Price's mutants uncovered_by_unit, gated as survivors, under --attribution unit" do
     run = shop(%w[--attribution unit])
     price = run.results.select { |r| r["file"] == "app/shop/price.rb" }
-    expect(unit_facts(run, price)).to(
+    expect(facts(run, price)).to(
       match(
         statuses: ["uncovered_by_unit"], covering: all(start_with("./spec/shop/cart_spec.rb")),
         detail: include("spec/shop/price_spec.rb, test/shop/price_test.rb"), cart: ["killed"],

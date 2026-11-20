@@ -15,14 +15,14 @@ RSpec.describe(Kimera::GuardSplice) do
     comparisons.source(source, file: "x.rb").to_a
   end
 
-  def first_only(index)
+  def narrowed(index)
     first = points.first
     Class.new { define_method(:anchored) { |point| point.equal?(first) ? index.anchored(point) : [] } }.new
   end
 
   it "applies the mutants of the points it placed and leaves the rest", :aggregate_failures do
     index = Kimera::SpliceIndex.new(map.ast)
-    splice = described_class.new(map, points, index: first_only(index), sites: Kimera::GuardSite.new(index))
+    splice = described_class.new(map, points, index: narrowed(index), sites: Kimera::GuardSite.new(index))
     expect(splice.applied).to(eq(points.first.ids))
     expect(splice.rest).to(eq([points.last]))
   end

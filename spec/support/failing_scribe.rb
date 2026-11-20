@@ -3,7 +3,7 @@
 require "kimera/scribe"
 
 module FailingScribe
-  def failing_scribe(&refusal) = stub_const("Kimera::Scribe", refusing(refusal))
+  def balked(&refusal) = stub_const("Kimera::Scribe", refusing(refusal))
 
   def refusing(refusal)
     Class.new(Kimera::Scribe) do

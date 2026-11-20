@@ -40,10 +40,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   end
 
   def blocked
-    forked do |_request, _response|
-      sleep(30)
-      exit!(0)
-    end
+    forked { |_request, _response| sleep }
   end
 
   def single
@@ -68,8 +65,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
         response.puts(JSON.generate(t: "ready"))
         response.flush
       end
-      sleep(30)
-      exit!(0)
+      sleep
     end
   end
 
@@ -190,7 +186,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
   def hang(request, _response)
     request.gets
-    sleep(30)
+    sleep
   end
 
   def reaped?(pid)
@@ -207,7 +203,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     expect(witness.outlived?).to(be(false))
   end
 
-  def crash_once(witness)
+  def fragile(witness)
     spawned = 0
     lambda do |_slot|
       spawned += 1
@@ -217,7 +213,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
   it "kills what a worker left running when it crashed or exited" do
     witness = self.witness
-    resolved, lost = pool(queue: [1, 2], spawner: crash_once(witness))
+    resolved, lost = pool(queue: [1, 2], spawner: fragile(witness))
     expect([lost, resolved.select { |m| m["t"] == "result" }.map { |m| m["id"] }, witness.outlived?])
       .to(eq([[[1, :crash]], [2], false]))
   end
@@ -296,24 +292,37 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     expect(resolved.select { |m| m["t"] == "result" }.map { |m| m["id"] }).to(eq([2]))
   end
 
-  def halting(*writes, linger: 30)
+  def halting(*writes)
     forked do |request, response|
       request.gets
-      writes.each do |text|
-        response.write(text)
-        response.flush
-        sleep(0.05)
-      end
-      sleep(linger)
+      written(response, writes)
       exit!(0)
     end
   end
+
+  def hanging(*writes)
+    forked do |request, response|
+      request.gets
+      written(response, writes)
+      sleep
+    end
+  end
+
+  def written(response, writes)
+    writes.each do |text|
+      response.write(text)
+      response.flush
+      sleep(0.001) until unread(response).zero?
+    end
+  end
+
+  def unread(pipe) = [0].pack("L").tap { |count| pipe.ioctl(0x541B, count) }.unpack1("L")
 
   def result(id) = JSON.generate(t: "result", id: id, status: "killed", ms: 1, fails: [])
 
   it "watchdogs a worker that writes half a line and hangs", :aggregate_failures do
     resolved = lost = nil
-    spawner = ->(_slot) { halting('{"t":"res') }
+    spawner = ->(_slot) { hanging('{"t":"res') }
     Timeout.timeout(10) { resolved, lost = pool(queue: [1], spawner: spawner, deadline: 0.3) }
 
     expect(lost).to(eq([[1, :timeout]]))
@@ -322,7 +331,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
   it "joins a line split across writes and splits lines that share one", :aggregate_failures do
     line = result(1)
-    spawner = ->(_slot) { halting(line[0, 9], "#{line[9..]}\n#{JSON.generate(t: "ready")}\n", linger: 0) }
+    spawner = ->(_slot) { halting(line[0, 9], "#{line[9..]}\n#{JSON.generate(t: "ready")}\n") }
     resolved, lost = pool(queue: [1, 2], spawner: spawner)
 
     expect(resolved.map { |m| m["id"] }).to(eq([1]))
@@ -348,7 +357,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   end
 
   it "reads a last line the worker wrote without a newline before it exited", :aggregate_failures do
-    resolved, lost = pool(queue: [1], spawner: ->(_slot) { halting(result(1), linger: 0) })
+    resolved, lost = pool(queue: [1], spawner: ->(_slot) { halting(result(1)) })
 
     expect(resolved.map { |m| m["id"] }).to(eq([1]))
     expect(lost).to(be_empty)
@@ -370,13 +379,18 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   end
 
   describe "a crashed worker's pipes" do
-    let(:pipes) { [] }
-
-    after { pipes.each { |pipe| pipe.close unless pipe.closed? } }
+    def leftover
+      pipes = []
+      yield(pipes)
+    ensure
+      pipes.each { |pipe| pipe.close unless pipe.closed? }
+    end
 
     it "are closed at both parent ends" do
-      pool(queue: [1], spawner: ->(_slot) { crashed.tap { |connection| pipes.concat(connection.drop(1)) } })
-      expect(pipes).to(all(be_closed))
+      leftover do |pipes|
+        pool(queue: [1], spawner: ->(_slot) { crashed.tap { |connection| pipes.concat(connection.drop(1)) } })
+        expect(pipes).to(all(be_closed))
+      end
     end
   end
 

@@ -141,12 +141,18 @@ module SchemataProjection
 
   def lone(node)
     case node.type
-    when :statements_node then (kept(node.body) in [only]) ? lone(only) : node
-    when :parentheses_node then node.body ? lone(node.body) : node
-    when :begin_node then clauses?(node) ? node : lone(node.statements)
+    when :statements_node then single(node)
+    when :parentheses_node then wrapped(node)
+    when :begin_node then opened(node)
     else node
     end
   end
+
+  def single(node) = (kept(node.body) in [only]) ? lone(only) : node
+
+  def wrapped(node) = node.body ? lone(node.body) : node
+
+  def opened(node) = clauses?(node) ? node : lone(node.statements)
 
   def clauses?(node) = !node.statements || [node.rescue_clause, node.ensure_clause, node.else_clause].any?
 
@@ -155,10 +161,10 @@ module SchemataProjection
     clauses?(bare) ? tree(bare) : normal(bare.statements)
   end
 
-  def caught_clauses(node) = Kimera::Rescues.new(node.rescue_clause).to_a.filter_map { |clause| caught(clause) }
+  def rescues(node) = Kimera::Rescues.new(node.rescue_clause).to_a.filter_map { |clause| caught(clause) }
 
   def settled(node)
-    linked = caught_clauses(node).reverse.reduce(nil) { |rest, clause| clause.copy(subsequent: rest) }
+    linked = rescues(node).reverse.reduce(nil) { |rest, clause| clause.copy(subsequent: rest) }
     ensured = node.ensure_clause if ran?(node.ensure_clause)
     return node.copy(rescue_clause: linked, ensure_clause: ensured) if linked || !node.else_clause
     folded(node.copy(ensure_clause: ensured))

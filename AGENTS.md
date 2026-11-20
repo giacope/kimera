@@ -60,9 +60,12 @@ the coverage map later `--since` runs reuse), `bin/model-check --deep`, and
 `.rubocop.yml` inherits sekisho's dogmatic profile, its strictest: the
 strict Elegant Objects profile plus one-word names, one level of nesting, and
 tests with no hooks, sleeps or reflection. `lib` and `exe` keep zero
-offenses. The specs written before it carry a backlog that
-`.sekisho_baseline.json` records per cop and file: `sekisho lint --ratchet`
-fails when a cop gains an offense, and exits 3 when one is fixed until
+offenses. The specs keep 10, which `.sekisho_baseline.json` records per cop
+and file: seven sleeps that make a fake test take real time against a clock
+no spec can reach, the two `spec_helper` hooks that put back the `KIMERA`
+variable and RSpec's quit flags an in-process run changes, and the
+`after(:suite)` gate on ignored blocks. `sekisho lint --ratchet` fails when a
+cop gains an offense, and exits 3 when one is fixed until
 `bundle exec sekisho lint --update-baseline` records the lower count. Run
 `bundle exec rubocop` on the files you touch before the suite. The cops hit
 most often:

@@ -1,39 +1,38 @@
 # frozen_string_literal: true
 
-require "fileutils"
 require "kimera/cli/run/bench"
 require "open3"
 require "tmpdir"
 
 RSpec.describe(Kimera::CLI::Run::Bench) do
-  let(:dir) { Dir.mktmpdir }
-
-  after { FileUtils.remove_entry(dir) }
-
-  def git(*arguments)
+  def git(dir, *arguments)
     _out, error, status = Open3.capture3("git", "-C", dir, *arguments)
     raise(RuntimeError, "git #{arguments.join(" ")} failed: #{error}") unless status.success?
   end
 
   def identity = %w[-c user.email=t@example.com -c user.name=Test -c commit.gpgsign=false]
 
-  def changed
-    git("init", "-q")
+  def changed(dir)
+    git(dir, "init", "-q")
     %w[x.rb y.rb].each { |file| File.write(File.join(dir, file), "a = 1\n") }
-    git("add", "-A")
-    git(*identity, "commit", "-q", "-m", "x")
+    git(dir, "add", "-A")
+    git(dir, *identity, "commit", "-q", "-m", "x")
     File.write(File.join(dir, "x.rb"), "a = 2\n")
   end
 
   it "scopes a run to the files changed since the ref, in the source root" do
-    changed
-    change = described_class.new.change("HEAD", dir)
-    expect(change.files(%w[x.rb y.rb]) { it }).to(eq(%w[x.rb]))
+    Dir.mktmpdir do |dir|
+      changed(dir)
+      change = described_class.new.change("HEAD", dir)
+      expect(change.files(%w[x.rb y.rb]) { it }).to(eq(%w[x.rb]))
+    end
   end
 
   it "covers every file without --since" do
-    change = described_class.new.change(nil, dir)
-    expect(change.files(%w[x.rb y.rb]) { it }).to(eq(%w[x.rb y.rb]))
+    Dir.mktmpdir do |dir|
+      change = described_class.new.change(nil, dir)
+      expect(change.files(%w[x.rb y.rb]) { it }).to(eq(%w[x.rb y.rb]))
+    end
   end
 
   it "loads the suite of the run's framework, without the tests whose names it leaves out", :aggregate_failures do

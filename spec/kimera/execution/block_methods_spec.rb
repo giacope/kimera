@@ -51,15 +51,14 @@ RSpec.describe(Kimera::Execution::BlockMethods) do
     RUBY
   end
 
-  before do
+  def loaded
     refinements.each { |name, refinement| stub_const(name, refinement) }
     stub_const("BlockMethodsDsl", dsl)
     stub_const("BlockMethodsScope", Module.new)
     File.write(file, source)
     require(file)
-  end
-
-  after do
+    yield
+  ensure
     $LOADED_FEATURES.delete(file)
     FileUtils.remove_entry(dir)
   end
@@ -78,60 +77,83 @@ RSpec.describe(Kimera::Execution::BlockMethods) do
   def blocks(woven = source, text = source) = described_class.new(file, text, woven, registry.each.map { _2 })
 
   it "defines the woven method on each module the block ran on", :aggregate_failures do
-    overlay!
-    expect([made.new.over(2), flipped("> => <", 10) { made.new.over(2) }]).to(eq([true, false]))
-    expect(made.instance_method(:over).source_location).to(eq([file, 9]))
+    loaded do
+      overlay!
+      expect([made.new.over(2), flipped("> => <", 10) { made.new.over(2) }]).to(eq([true, false]))
+      expect(made.instance_method(:over).source_location).to(eq([file, 9]))
+    end
   end
 
   it "gives each block's module its own def, by line", :aggregate_failures do
-    overlay!
-    expect([made(1).new.over(6), flipped("> => <", 21) { made(1).new.over(6) }]).to(eq([true, false]))
-    expect(flipped("> => <", 10) { made(1).new.over(6) }).to(be(true))
+    loaded do
+      overlay!
+      expect([made(1).new.over(6), flipped("> => <", 21) { made(1).new.over(6) }]).to(eq([true, false]))
+      expect(flipped("> => <", 10) { made(1).new.over(6) }).to(be(true))
+    end
   end
+
+  def reach = Class.new(made) { def reach(value) = under(value) }.new
 
   it "keeps the method's lexical scope and its visibility", :aggregate_failures do
-    overlay!
-    reach = Class.new(made) { def reach(value) = under(value) }.new
-    expect([reach.reach(0), flipped("< => >", 13) { reach.reach(0) }]).to(eq([true, false]))
-    expect(made.private_method_defined?(:under)).to(be(true))
+    loaded do
+      overlay!
+      expect([reach.reach(0), flipped("< => >", 13) { reach.reach(0) }]).to(eq([true, false]))
+      expect(made.private_method_defined?(:under)).to(be(true))
+    end
   end
 
+  def defs = [made.instance_method(:plain), made.singleton_class.instance_method(:made)]
+
   it "leaves a def with no mutant in it, and one with a receiver, as loaded", :aggregate_failures do
-    plain = made.instance_method(:plain)
-    singleton = made.singleton_class.instance_method(:made)
-    overlay!
-    expect(made.instance_method(:plain)).to(eq(plain))
-    expect(made.singleton_class.instance_method(:made)).to(eq(singleton))
+    loaded do
+      plain, singleton = defs
+      overlay!
+      expect(defs).to(eq([plain, singleton]))
+    end
   end
 
   it "leaves a def with no mutant in it as loaded when it is handed the file untrimmed" do
-    plain = made.instance_method(:plain)
-    blocks.adopt { :installed }
-    expect(made.instance_method(:plain)).to(eq(plain))
+    loaded do
+      plain = made.instance_method(:plain)
+      blocks.adopt { :installed }
+      expect(made.instance_method(:plain)).to(eq(plain))
+    end
   end
 
   it "defines nothing on a subclass of a module the block ran on" do
-    heir = Class.new(made)
-    overlay!
-    expect(heir.instance_method(:over).owner).to(eq(made))
+    loaded do
+      heir = Class.new(made)
+      overlay!
+      expect(heir.instance_method(:over).owner).to(eq(made))
+    end
   end
 
-  it "leaves alone a method another file defined" do
+  def elsewhere
     other = File.join(dir, "other.rb")
     File.write(other, "BlockMethodsDsl.made.first.class_eval { def over(_value) = :elsewhere }\n")
     load(other)
-    overlay!
-    expect(made.new.over(2)).to(eq(:elsewhere))
+  end
+
+  it "leaves alone a method another file defined" do
+    loaded do
+      elsewhere
+      overlay!
+      expect(made.new.over(2)).to(eq(:elsewhere))
+    end
   end
 
   it "leaves alone a def it cannot pair with the overlay's" do
-    held = made.instance_method(:over)
-    blocks(source.sub("def over(value)\n", "def other(value)\n")).adopt { :installed }
-    expect(made.instance_method(:over)).to(eq(held))
+    loaded do
+      held = made.instance_method(:over)
+      blocks(source.sub("def over(value)\n", "def other(value)\n")).adopt { :installed }
+      expect(made.instance_method(:over)).to(eq(held))
+    end
   end
 
   it "answers what the overlay answers" do
-    expect(blocks.adopt { :installed }).to(eq(:installed))
+    loaded do
+      expect(blocks.adopt { :installed }).to(eq(:installed))
+    end
   end
 
   describe "in a file that refines what its block's defs call" do
@@ -167,20 +189,26 @@ RSpec.describe(Kimera::Execution::BlockMethods) do
     end
 
     it "keeps the refinements the file and its class had activated by the def", :aggregate_failures do
-      overlay!
-      expect([made.new.said("abc"), made.new.said("AB")]).to(eq(["ABC!", "ab"]))
-      expect(flipped("> => <", 11) { made.new.said("abc") }).to(eq("abc"))
+      loaded do
+        overlay!
+        expect([made.new.said("abc"), made.new.said("AB")]).to(eq(["ABC!", "ab"]))
+        expect(flipped("> => <", 11) { made.new.said("abc") }).to(eq("abc"))
+      end
     end
 
     it "compiles the def under the file's magic comments, on its own line", :aggregate_failures do
-      overlay!
-      expect(made.new.measure("abc")).to(be_frozen)
-      expect(made.instance_method(:measure).source_location).to(eq([file, 13]))
+      loaded do
+        overlay!
+        expect(made.new.measure("abc")).to(be_frozen)
+        expect(made.instance_method(:measure).source_location).to(eq([file, 13]))
+      end
     end
 
     it "runs no call named using that has a receiver again" do
-      blocks.adopt { :installed }
-      expect(BlockMethodsDsl.used).to(eq([:early]))
+      loaded do
+        blocks.adopt { :installed }
+        expect(BlockMethodsDsl.used).to(eq([:early]))
+      end
     end
   end
 
@@ -206,9 +234,11 @@ RSpec.describe(Kimera::Execution::BlockMethods) do
     end
 
     it "keeps the overlay's def, which calls its neighbours through the refinement", :aggregate_failures do
-      overlay!
-      expect(BlockMethodsScope.said("abc")).to(eq("ABC!"))
-      expect(flipped("> => <", 4) { BlockMethodsScope.said("abc") }).to(eq("abc"))
+      loaded do
+        overlay!
+        expect(BlockMethodsScope.said("abc")).to(eq("ABC!"))
+        expect(flipped("> => <", 4) { BlockMethodsScope.said("abc") }).to(eq("abc"))
+      end
     end
   end
 
@@ -222,8 +252,10 @@ RSpec.describe(Kimera::Execution::BlockMethods) do
   end
 
   it "searches the heap only for a file with a def inside a block", :aggregate_failures do
-    expect(searched("class Host\n  def over(value) = value > 1\nend\n", "Dsl.shared { def self.made = 1 > 0 }\n"))
-      .to(eq(0))
-    expect(searched(source)).to(be_positive)
+    loaded do
+      expect(searched("class Host\n  def over(value) = value > 1\nend\n", "Dsl.shared { def self.made = 1 > 0 }\n"))
+        .to(eq(0))
+      expect(searched(source)).to(be_positive)
+    end
   end
 end

@@ -27,7 +27,7 @@ RSpec.describe(Supervised) do
   def overdue
     IO.pipe do |reader, writer|
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      expect { described_class.run(deadline: 0.5) { writer.puts(fork { sleep(60) }) || sleep(60) } }
+      expect { described_class.run(deadline: 0.5) { writer.puts(fork { sleep }) || sleep } }
         .to(raise_error(Supervised::Overdue))
       writer.close
       [Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, Integer(reader.read)]
@@ -41,7 +41,7 @@ RSpec.describe(Supervised) do
   end
 
   def ensured(writer)
-    sleep(60)
+    sleep
   ensure
     writer.puts("stopped")
   end

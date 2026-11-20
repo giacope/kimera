@@ -350,7 +350,7 @@ RSpec.describe(Kimera::Report::Progress) do
     io
   end
 
-  def painted_flushes
+  def flushed
     io = watched(tty: true)
     bar = described_class.new(io: io, enabled: true, cadence: ->(_surface) { 0 })
     bar.during(2, "mutants") do |tick|
@@ -360,7 +360,7 @@ RSpec.describe(Kimera::Report::Progress) do
   end
 
   it "flushes the stream after every frame it paints" do
-    expect(painted_flushes).to(eq(2))
+    expect(flushed).to(eq(2))
   end
 
   it "flushes once more when a heartbeat run finishes", :aggregate_failures do

@@ -11,7 +11,10 @@ RSpec.describe(Kimera::Execution::Schemata) do
   let(:dir) { Dir.mktmpdir }
   let(:notices) { StringIO.new }
 
-  after do
+  def project(files = {})
+    files.each { |relative, body| write(relative, body) }
+    yield
+  ensure
     FileUtils.remove_entry(dir)
   end
 
@@ -23,6 +26,8 @@ RSpec.describe(Kimera::Execution::Schemata) do
   end
 
   def loaded(relative, body) = require(File.join(dir, write(relative, body)))
+
+  def counting(name) = "class #{name}\n  def total(s)\n    s >= 10 ? s - 1 : s\n  end\nend\n"
 
   def greater(name) = "class #{name}\n  def gt(a, b)\n    a > b\n  end\nend\n"
 
@@ -45,15 +50,21 @@ RSpec.describe(Kimera::Execution::Schemata) do
 
   def overlaying(&) = Kimera::Execution::OverlayGuards.new.overlay(&)
 
-  it "overlays schema-safe files and returns the live mutant ids", :aggregate_failures do
+  def targeted
     stub_const("SchemataTarget", Class.new)
     write("sl_target.rb", greater("SchemataTarget"))
-    registry, live = overlaid("sl_target.rb")
-    expect(live).to(match_array(registry.each.map { |m, _p| m.to_i }))
-    expect(outcomes(registry) { SchemataTarget.new.gt(2, 1) }).to(eq([true, false]))
+    overlaid("sl_target.rb")
   end
 
-  it "re-runs only the mutated code of a file that was already required", :aggregate_failures do
+  it "overlays schema-safe files and returns the live mutant ids", :aggregate_failures do
+    project do
+      registry, live = targeted
+      expect(live).to(match_array(registry.each.map { |m, _p| m.to_i }))
+      expect(outcomes(registry) { SchemataTarget.new.gt(2, 1) }).to(eq([true, false]))
+    end
+  end
+
+  def required
     stub_const("SchemataRequired", Class.new)
     loaded("sl_required.rb", <<~RUBY)
       class SchemataRequired
@@ -64,16 +75,28 @@ RSpec.describe(Kimera::Execution::Schemata) do
         end
       end
     RUBY
-    registry, = overlaid("sl_required.rb")
-    expect(SchemataRequired.loads).to(eq(1))
-    expect(flipped(registry) { SchemataRequired.new.gt(2, 1) }).to(be(false))
+    overlaid("sl_required.rb").first
+  end
+
+  it "re-runs only the mutated code of a file that was already required", :aggregate_failures do
+    project do
+      registry = required
+      expect(SchemataRequired.loads).to(eq(1))
+      expect(flipped(registry) { SchemataRequired.new.gt(2, 1) }).to(be(false))
+    end
+  end
+
+  def aliased
+    stub_const("SchemataAliased", Module.new)
+    loaded("sl_aliased.rb", "module SchemataAliased\n  def gt(a, b)\n    a > b\n  end\nend\n")
+    Class.new { include SchemataAliased }.tap { |klass| klass.alias_method(:above, :gt) }
   end
 
   it "re-points an alias declared in another file at the guarded method" do
-    stub_const("SchemataAliased", Module.new)
-    loaded("sl_aliased.rb", "module SchemataAliased\n  def gt(a, b)\n    a > b\n  end\nend\n")
-    holder = Class.new { include SchemataAliased }.tap { |klass| klass.alias_method(:above, :gt) }
-    expect(flipped(overlaid("sl_aliased.rb").first) { holder.new.above(2, 1) }).to(be(false))
+    project do
+      holder = aliased
+      expect(flipped(overlaid("sl_aliased.rb").first) { holder.new.above(2, 1) }).to(be(false))
+    end
   end
 
   def memoized
@@ -87,9 +110,11 @@ RSpec.describe(Kimera::Execution::Schemata) do
   end
 
   it "judges again the mutants of a method another file's wrapper holds", :aggregate_failures do
-    registry = memoized
-    expect(registry.to_a.map { PointVerdict.new(it).revisit }.uniq).to(eq([Kimera::Execution::Overrides::Held::WRAPPED]))
-    expect(flipped(registry) { SchemataMemo.new.gt(2, 1) }).to(be(true))
+    project do
+      registry = memoized
+      expect(registry.to_a.map { PointVerdict.new(it).revisit }.uniq).to(eq([Kimera::Execution::Overrides::Held::WRAPPED]))
+      expect(flipped(registry) { SchemataMemo.new.gt(2, 1) }).to(be(true))
+    end
   end
 
   def chained
@@ -101,12 +126,12 @@ RSpec.describe(Kimera::Execution::Schemata) do
   end
 
   it "leaves the mutants an alias of the wrapped method reaches as warm judges them" do
-    expect(chained.to_a.map { PointVerdict.new(it).revisit }.uniq).to(eq([nil]))
+    project do
+      expect(chained.to_a.map { PointVerdict.new(it).revisit }.uniq).to(eq([nil]))
+    end
   end
 
   describe "a file the suite requires only later" do
-    after { $LOADED_FEATURES.reject! { |feature| feature.end_with?("sl_lazy.rb") } }
-
     def lazily(root)
       registry = Kimera::RegistryScan.new(root: root).build([File.join(root, "sl_lazy.rb")])
       described_class.new(registry, root: root).overlay!
@@ -114,36 +139,40 @@ RSpec.describe(Kimera::Execution::Schemata) do
     end
 
     def lazy
-      stub_const("SchemataLazy", Class.new)
-      write("real/sl_lazy.rb", greater("SchemataLazy"))
-      File.symlink(File.join(dir, "real"), File.join(dir, "linked"))
-      [lazily(File.join(dir, "linked")), %w[linked real].map { |root| File.join(dir, root, "sl_lazy.rb") }]
+      project do
+        stub_const("SchemataLazy", Class.new)
+        write("real/sl_lazy.rb", greater("SchemataLazy"))
+        File.symlink(File.join(dir, "real"), File.join(dir, "linked"))
+        yield(lazily(File.join(dir, "linked")), %w[linked real].map { |root| File.join(dir, root, "sl_lazy.rb") })
+      end
+    ensure
+      $LOADED_FEATURES.reject! { |feature| feature.end_with?("sl_lazy.rb") }
     end
 
     it "counts as already required by either path" do
-      _, paths = lazy
-      expect(paths.map { |path| require(path) }).to(eq([false, false]))
+      lazy { |_, paths| expect(paths.map { |path| require(path) }).to(eq([false, false])) }
     end
 
     it "keeps its guards when the suite requires it" do
-      id, paths = lazy
-      paths.each { |path| require(path) }
-      expect(Kimera::RUNTIME.during(id) { SchemataLazy.new.gt(2, 1) }).to(be(false))
+      lazy do |id, paths|
+        paths.each { |path| require(path) }
+        expect(Kimera::RUNTIME.during(id) { SchemataLazy.new.gt(2, 1) }).to(be(false))
+      end
     end
   end
 
   it "skips files that have no schema-safe points", :aggregate_failures do
-    write("sl_memo.rb", <<~RUBY)
+    project("sl_memo.rb" => <<~RUBY) do
       class SchemataMemo
         def total(a, b)
           @total ||= compute(a > b)
         end
       end
     RUBY
-    registry = Kimera::RegistryScan.new(root: dir).build([File.join(dir, "sl_memo.rb")])
-    live = described_class.new(registry, root: dir).overlay!
-    expect(live).to(eq([]))
-    expect(defined?(SchemataMemo)).to(be_nil)
+      registry = Kimera::RegistryScan.new(root: dir).build([File.join(dir, "sl_memo.rb")])
+      expect(described_class.new(registry, root: dir).overlay!).to(eq([]))
+      expect(defined?(SchemataMemo)).to(be_nil)
+    end
   end
 
   def shielded
@@ -152,12 +181,18 @@ RSpec.describe(Kimera::Execution::Schemata) do
   end
 
   it "never overlays a self-protected file" do
-    registry = shielded
-    expect([registry.to_a.empty?, schemata(registry).overlay!]).to(eq([false, []]))
+    project do
+      registry = shielded
+      expect([registry.to_a.empty?, schemata(registry).overlay!]).to(eq([false, []]))
+    end
   end
 
   describe "a top-level script that aborts when overlaid" do
-    def scripted
+    def scripted(&)
+      project { prepared(&) }
+    end
+
+    def prepared
       stub_const("SchemataAfter", Class.new)
       write("sl_script.rb", <<~RUBY)
         abort("usage: nope") unless ARGV.include?("--never-there")
@@ -168,30 +203,33 @@ RSpec.describe(Kimera::Execution::Schemata) do
       RUBY
       write("sl_after.rb", greater("SchemataAfter"))
       registry = scan("sl_script.rb", "sl_after.rb")
-      [registry, schemata(registry)]
+      yield(registry, schemata(registry))
     end
 
     it "is diagnosed on stderr, without its own output", :aggregate_failures do
-      _, loader = scripted
-      expect { loader.overlay! }.not_to(output.to_stderr)
-      diagnosis = /\Akimera: sl_script\.rb cannot run in warm workers.*\(SystemExit: usage: nope\)/
-      expect(notices.string).to(match(diagnosis))
+      scripted do |_, loader|
+        expect { loader.overlay! }.not_to(output.to_stderr)
+        diagnosis = /\Akimera: sl_script\.rb cannot run in warm workers.*\(SystemExit: usage: nope\)/
+        expect(notices.string).to(match(diagnosis))
+      end
     end
 
     it "does not stop the files after it" do
-      registry, loader = scripted
-      point = registry.to_a.find { |p| p.file == "sl_after.rb" }
-      expect(noisily(loader)).to(include(*point.ids))
+      scripted do |registry, loader|
+        point = registry.to_a.find { |p| p.file == "sl_after.rb" }
+        expect(noisily(loader)).to(include(*point.ids))
+      end
     end
 
     it "is skipped with its reason" do
-      _, loader = scripted
-      noisily(loader)
-      expect(loader.skipped).to(include("sl_script.rb" => "SystemExit: usage: nope"))
+      scripted do |_, loader|
+        noisily(loader)
+        expect(loader.skipped).to(include("sl_script.rb" => "SystemExit: usage: nope"))
+      end
     end
   end
 
-  it "replays what a successful overlay wrote to stderr", :aggregate_failures do
+  def noisy
     stub_const("SchemataWarny", Class.new)
     write("sl_warny.rb", <<~RUBY)
       class SchemataWarny
@@ -202,48 +240,69 @@ RSpec.describe(Kimera::Execution::Schemata) do
         end
       end
     RUBY
-    loader = schemata(scan("sl_warny.rb"))
-    expect { loader.overlay! }.to(output("sl_warny loading\n").to_stderr)
-    expect(loader.skipped).to(be_empty)
+    schemata(scan("sl_warny.rb"))
+  end
+
+  it "replays what a successful overlay wrote to stderr", :aggregate_failures do
+    project do
+      loader = noisy
+      expect { loader.overlay! }.to(output("sl_warny loading\n").to_stderr)
+      expect(loader.skipped).to(be_empty)
+    end
   end
 
   describe "a file whose synthesis raises" do
-    def synthesized
+    def synthesized(&)
+      project { prepared(&) }
+    end
+
+    def prepared
       stub_const("SchemataSynthOk", Class.new)
       write("sl_synth_bad.rb", greater("SchemataSynthBad"))
       write("sl_synth_ok.rb", greater("SchemataSynthOk"))
       registry = scan("sl_synth_bad.rb", "sl_synth_ok.rb")
       write("sl_synth_bad.rb", "class SchemataSynthBad\nend\n")
-      [registry, schemata(registry)]
+      yield(registry, schemata(registry))
     end
 
     it "is diagnosed on stderr" do
-      _, loader = synthesized
-      loader.overlay!
-      expect(notices.string).to(match(/sl_synth_bad\.rb cannot run in warm workers.*Kimera::Scribe::Unreadable/))
+      synthesized do |_, loader|
+        loader.overlay!
+        expect(notices.string).to(match(/sl_synth_bad\.rb cannot run in warm workers.*Kimera::Scribe::Unreadable/))
+      end
     end
 
     it "does not stop the rest from being overlaid", :aggregate_failures do
-      registry, loader = synthesized
-      point = registry.to_a.find { |p| p.file == "sl_synth_ok.rb" }
-      expect(noisily(loader)).to(include(*point.ids))
-      expect(point).to(satisfy(&:safe?))
+      synthesized do |registry, loader|
+        point = registry.to_a.find { |p| p.file == "sl_synth_ok.rb" }
+        expect(noisily(loader)).to(include(*point.ids))
+        expect(point).to(satisfy(&:safe?))
+      end
+    end
+
+    def reasons(registry)
+      registry.to_a.select { |p| p.file == "sl_synth_bad.rb" }.map { PointVerdict.new(it).hazard }.uniq
     end
 
     it "leaves its points unmutatable, with the reason" do
-      registry, loader = synthesized
-      noisily(loader)
-      reasons = registry.to_a.select { |p| p.file == "sl_synth_bad.rb" }.map { PointVerdict.new(it).unsafe_reason }.uniq
-      reason = "unmutatable: schemata setup failed (Kimera::Scribe::Unreadable: kimera could not write its guard)"
-      expect(reasons).to(eq([reason]))
+      synthesized do |registry, loader|
+        noisily(loader)
+        reason = "unmutatable: schemata setup failed (Kimera::Scribe::Unreadable: kimera could not write its guard)"
+        expect(reasons(registry)).to(eq([reason]))
+      end
     end
   end
 
+  def vanished
+    schemata(Kimera::RegistryScan.new(root: dir).source("def m(a, b)\n  a > b\nend\n", file: "vanished.rb"))
+  end
+
   it "ignores registry files that no longer exist on disk", :aggregate_failures do
-    loader = schemata(Kimera::RegistryScan.new(root: dir).source("def m(a, b)\n  a > b\nend\n", file: "vanished.rb"))
-    live = nil
-    expect { live = loader.overlay! }.not_to(output.to_stderr)
-    expect([live, loader.skipped, notices.string]).to(eq([[], {}, ""]))
+    project do
+      loader = vanished
+      expect { expect(loader.overlay!).to(eq([])) }.not_to(output.to_stderr)
+      expect([loader.skipped, notices.string]).to(eq([{}, ""]))
+    end
   end
 
   describe "enum overlay guard" do
@@ -264,30 +323,38 @@ RSpec.describe(Kimera::Execution::Schemata) do
     end
 
     it "drops a re-declared enum, by name or by values" do
-      guarded(declared).enum(:status)
-      declared.enum(status: { active: 0 })
-      expect(declared.calls).to(be_empty)
+      project do
+        guarded(declared).enum(:status)
+        declared.enum(status: { active: 0 })
+        expect(declared.calls).to(be_empty)
+      end
     end
 
     it "passes a new enum through" do
-      guarded(declared).enum(:role)
-      expect(declared.calls).to(eq([[:role]]))
+      project do
+        guarded(declared).enum(:role)
+        expect(declared.calls).to(eq([[:role]]))
+      end
     end
 
     it "passes enum through when the model class has no defined_enums" do
-      guarded(plain).enum(:status)
-      expect(plain.calls).to(eq([[:status]]))
+      project do
+        guarded(plain).enum(:status)
+        expect(plain.calls).to(eq([[:status]]))
+      end
     end
 
     it "is installed only once per process" do
-      ancestors = guarded(declared).singleton_class.ancestors.size
-      guarded(declared)
-      expect(declared.singleton_class.ancestors.size).to(eq(ancestors))
+      project do
+        ancestors = guarded(declared).singleton_class.ancestors.size
+        guarded(declared)
+        expect(declared.singleton_class.ancestors.size).to(eq(ancestors))
+      end
     end
   end
 
   describe "serialized attribute types" do
-    before do
+    def serial
       stub_const("ActiveRecord", Module.new)
       stub_const("ActiveRecord::Type::Serialized", Class.new)
     end
@@ -296,23 +363,25 @@ RSpec.describe(Kimera::Execution::Schemata) do
 
     it "are found through cast_type wrapper chains" do
       wrapper = Struct.new(:cast_type)
-      serialized = ActiveRecord::Type::Serialized.new
+      serialized = serial.new
       types = [serialized, wrapper.new(serialized), wrapper.new(wrapper.new(serialized))]
       expect(types.map { |type| serialized?(type) }).to(eq([true, true, true]))
     end
 
     it "are not found in an empty wrapper, a plain object or nil" do
+      serial
       types = [Struct.new(:cast_type).new(nil), Object.new, nil]
       expect(types.map { |type| serialized?(type) }).to(eq([false, false, false]))
     end
 
     it "are found through a subtype wrapper" do
       subtyped = Struct.new(:subtype)
-      types = [subtyped.new(ActiveRecord::Type::Serialized.new), subtyped.new(Object.new)]
+      types = [subtyped.new(serial.new), subtyped.new(Object.new)]
       expect(types.map { |type| serialized?(type) }).to(eq([true, false]))
     end
 
     it "are not found in a wrapper that wraps itself" do
+      serial
       looped = Struct.new(:cast_type).new.tap { |wrapper| wrapper.cast_type = wrapper }
       expect(serialized?(looped)).to(be(false))
     end
@@ -519,7 +588,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
       [own, Class.new(base), redeclared]
     end
 
-    def overlaid_heirs
+    def inheritors
       reflection, base = records(:primary)
       [base, *heirs(base, :primary)].tap do
         overlaying { reflection.add_reflection(base, "primary", :new) }
@@ -527,15 +596,15 @@ RSpec.describe(Kimera::Execution::Schemata) do
     end
 
     it "hands an overlaid reflection to subclasses holding a stale private copy" do
-      expect(overlaid_heirs.map { |k| k._reflections[:primary] }).to(eq(%i[new new new theirs]))
+      expect(inheritors.map { |k| k._reflections[:primary] }).to(eq(%i[new new new theirs]))
     end
 
     it "keeps the rest of a subclass's private copy" do
-      expect(overlaid_heirs[1]._reflections[:other]).to(eq(:x))
+      expect(inheritors[1]._reflections[:other]).to(eq(:x))
     end
 
     it "clears the reflection cache of the subclasses it hands the reflection to" do
-      _, own, _, redeclared = overlaid_heirs
+      _, own, _, redeclared = inheritors
       expect([own.cleared, redeclared.cleared]).to(eq([1, 0]))
     end
 
@@ -612,19 +681,19 @@ RSpec.describe(Kimera::Execution::Schemata) do
       concern
     end
 
-    def fresh_concern = Module.new.tap { |concern| concern.extend(test_concern) }
+    def minted = Module.new.tap { |concern| concern.extend(test_concern) }
 
     def reruns(concern, hook = :included)
       [].tap { |ran| overlaying { concern.public_send(hook) { ran << self } } }
     end
 
     it "accepts an overlaid included block instead of raising" do
-      concern = fresh_concern.tap { |m| m.included { :original } }
+      concern = minted.tap { |m| m.included { :original } }
       expect { overlaying { concern.included { :overlaid } } }.not_to(raise_error)
     end
 
     def chained(ran)
-      fresh_concern.tap do |concern|
+      minted.tap do |concern|
         concern.included { ran << [:original, self] }
         overlaying { concern.included { |base| ran << [:overlaid, base] } }
       end
@@ -637,23 +706,23 @@ RSpec.describe(Kimera::Execution::Schemata) do
     end
 
     it "still raises on a genuine double included block outside overlay" do
-      concern = fresh_concern.tap { |m| m.included { :original } }
+      concern = minted.tap { |m| m.included { :original } }
       expect { concern.included { :again } }.to(raise_error("MultipleIncludedBlocks"))
     end
 
     it "replaces the prepended block during overlay" do
-      concern = fresh_concern.tap { |m| m.prepended { :original } }
+      concern = minted.tap { |m| m.prepended { :original } }
       expect { overlaying { concern.prepended { :overlaid } } }.not_to(raise_error)
     end
 
     it "still raises on a genuine double prepended block outside overlay" do
-      concern = fresh_concern.tap { |m| m.prepended { :original } }
+      concern = minted.tap { |m| m.prepended { :original } }
       expect { concern.prepended { :again } }.to(raise_error("MultiplePrependBlocks"))
     end
 
     %i[included prepended].each do |hook|
       it "stores a first-time #{hook} block even during overlay" do
-        concern = fresh_concern
+        concern = minted
         ran = []
         overlaying { concern.public_send(hook) { ran << :first } }
         Class.new.public_send(hook == :included ? :include : :prepend, concern)
@@ -662,7 +731,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
     end
 
     it "re-runs an overlaid included block on each direct includer, not its subclasses" do
-      concern = fresh_concern.tap { |m| m.included { :original } }
+      concern = minted.tap { |m| m.included { :original } }
       includer = Class.new.tap { |k| k.include(concern) }
       outsiders = [Class.new(includer), Class.new]
       ran = reruns(concern)
@@ -670,20 +739,20 @@ RSpec.describe(Kimera::Execution::Schemata) do
     end
 
     it "does not re-run a first-time block during overlay" do
-      concern = fresh_concern
+      concern = minted
       Class.new.include(concern)
       expect(reruns(concern)).to(be_empty)
     end
 
     it "re-runs an overlaid prepended block on the classes that prepended it" do
-      concern = fresh_concern.tap { |m| m.prepended { :original } }
+      concern = minted.tap { |m| m.prepended { :original } }
       prepender = Class.new.tap { |k| k.prepend(concern) }
       expect(reruns(concern, :prepended)).to(eq([prepender]))
     end
 
     def invitation
       stub_const("SchemataSpace", Module.new)
-      stub_const("SchemataExpiring", fresh_concern.tap { |m| m.included { :original } })
+      stub_const("SchemataExpiring", minted.tap { |m| m.included { :original } })
       load(File.join(dir, write("schemata_invitation.rb", <<~RUBY)))
         class SchemataSpace::Invitation
           def self.defined = @defined ||= {}
@@ -702,9 +771,11 @@ RSpec.describe(Kimera::Execution::Schemata) do
     end
 
     it "skips a scope or association the includer redeclares after the include" do
-      model = invitation
-      overlaying { SchemataExpiring.included(&mutated) }
-      expect(model.defined).to(eq(expired: :override, before: :mutated, notes: :has_many, fresh: :mutated))
+      project do
+        model = invitation
+        overlaying { SchemataExpiring.included(&mutated) }
+        expect(model.defined).to(eq(expired: :override, before: :mutated, notes: :has_many, fresh: :mutated))
+      end
     end
 
     it "installs the concern guard only once per process" do
@@ -723,28 +794,31 @@ RSpec.describe(Kimera::Execution::Schemata) do
     end
 
     it "is retried quietly", :aggregate_failures do
-      loader = retried
-      expect { loader.overlay! }.not_to(output.to_stderr)
-      expect(notices.string).to(be_empty)
+      project do
+        loader = retried
+        expect { loader.overlay! }.not_to(output.to_stderr)
+        expect(notices.string).to(be_empty)
+      end
     end
 
     it "is not skipped, and its class is defined" do
-      loader = retried.tap(&:overlay!)
-      expect([loader.skipped, SchemataLater::Child.new.gt(2, 1)]).to(eq([{}, true]))
+      project do
+        loader = retried.tap(&:overlay!)
+        expect([loader.skipped, SchemataLater::Child.new.gt(2, 1)]).to(eq([{}, true]))
+      end
     end
   end
 
   it "reports a constant that stays missing once, after the retry", :aggregate_failures do
-    write("sl_orphan.rb", "class SchemataOrphan < SchemataNowhere\n  def gt(a, b) = a > b\nend\n")
-    loader = schemata(Kimera::RegistryScan.new(root: dir).build([File.join(dir, "sl_orphan.rb")]))
-    loader.overlay!
-    expect(notices.string).to(match(/\Akimera: sl_orphan\.rb cannot run[^\n]*NameError[^\n]*\n\z/))
-    expect(loader.skipped.keys).to(eq(["sl_orphan.rb"]))
+    project("sl_orphan.rb" => "class SchemataOrphan < SchemataNowhere\n  def gt(a, b) = a > b\nend\n") do
+      loader = schemata(Kimera::RegistryScan.new(root: dir).build([File.join(dir, "sl_orphan.rb")])).tap(&:overlay!)
+      expect(notices.string).to(match(/\Akimera: sl_orphan\.rb cannot run[^\n]*NameError[^\n]*\n\z/))
+      expect(loader.skipped.keys).to(eq(["sl_orphan.rb"]))
+    end
   end
 
   it "overlays files in the order they were loaded, keeping a later file's wrapper" do
-    write("sl_wrap_order.rb", "class SchemataWrapped\n  def total(s)\n    s >= 10 ? s - 1 : s\n  end\nend\n")
-    write("sl_a_wrap.rb", <<~RUBY)
+    project("sl_wrap_order.rb" => counting("SchemataWrapped"), "sl_a_wrap.rb" => <<~RUBY) do
       class SchemataWrapped
         alias_method :plain, :total
 
@@ -754,14 +828,18 @@ RSpec.describe(Kimera::Execution::Schemata) do
         end
       end
     RUBY
-    files = %w[sl_wrap_order.rb sl_a_wrap.rb].each { |name| require(File.join(dir, name)) }
-    expect(outcomes(overlaid(*files.sort).first, ">= => >") { SchemataWrapped.new.total(10) }).to(eq([18, 20]))
+      files = %w[sl_wrap_order.rb sl_a_wrap.rb].each { |name| require(File.join(dir, name)) }
+      expect(outcomes(overlaid(*files.sort).first, ">= => >") { SchemataWrapped.new.total(10) }).to(eq([18, 20]))
+    end
   end
 
   it "keeps a wrapper that a file it doesn't mutate defined after the overlaid one" do
-    write("sl_kept_order.rb", "class SchemataKept\n  def total(s)\n    s >= 10 ? s - 1 : s\n  end\nend\n")
-    write("sl_kept_wrap.rb", "class SchemataKept\n  alias_method :plain, :total\n  def total(s) = plain(s).succ\nend\n")
-    files = %w[sl_kept_order.rb sl_kept_wrap.rb].each { |name| require(File.join(dir, name)) }
-    expect(outcomes(overlaid(files.first).first, ">= => >") { SchemataKept.new.total(10) }).to(eq([10, 11]))
+    project(
+      "sl_kept_order.rb" => counting("SchemataKept"),
+      "sl_kept_wrap.rb" => "class SchemataKept\n  alias_method :plain, :total\n  def total(s) = plain(s).succ\nend\n"
+    ) do
+      files = %w[sl_kept_order.rb sl_kept_wrap.rb].each { |name| require(File.join(dir, name)) }
+      expect(outcomes(overlaid(files.first).first, ">= => >") { SchemataKept.new.total(10) }).to(eq([10, 11]))
+    end
   end
 end

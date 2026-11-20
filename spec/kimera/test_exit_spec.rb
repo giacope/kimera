@@ -8,10 +8,6 @@ require "stringio"
 require "tmpdir"
 
 RSpec.describe(Kimera::TestExit) do
-  let(:dir) { Dir.mktmpdir }
-
-  after { FileUtils.remove_entry(dir) }
-
   def raised(status, message, frames)
     SystemExit.new(status, message).tap { |error| error.set_backtrace(frames) }
   end
@@ -34,17 +30,17 @@ RSpec.describe(Kimera::TestExit) do
   end
 
   describe "under RSpec" do
-    around do |example|
+    def contained(&)
       groups = RSpec.world.example_groups.dup
       streams = %i[output_stream error_stream deprecation_stream].map { |name| RSpec.configuration.public_send(name) }
-      example.run
+      Dir.mktmpdir(&)
     ensure
       (RSpec.world.example_groups - groups).each { |group| RSpec.world.example_groups.delete(group) }
       config = RSpec.configuration
       config.output_stream, config.error_stream, config.deprecation_stream = streams
     end
 
-    def fixture
+    def fixture(dir)
       File.join(dir, "exits_spec.rb").tap do |path|
         File.write(path, <<~RUBY)
           RSpec.describe "KimeraExits" do
@@ -64,10 +60,10 @@ RSpec.describe(Kimera::TestExit) do
       end
     end
 
-    def adapter
+    def adapter(dir)
       original = $stderr
       $stderr = StringIO.new
-      Kimera::Frameworks::RSpecSuite.build.source([fixture])
+      Kimera::Frameworks::RSpecSuite.build.source([fixture(dir)])
     ensure
       $stderr = original
     end
@@ -81,7 +77,7 @@ RSpec.describe(Kimera::TestExit) do
     end
 
     it "fails the example that exits, after its after hooks ran", :aggregate_failures do
-      id, outcome = run(adapter, "exits")
+      id, outcome, dir = contained { |root| [*run(adapter(root), "exits"), root] }
       expect(outcome).to(be_a(Kimera::Frameworks::RunOutcome).and(have_attributes(to_h: include("failed_ids" => [id]))))
       expect(outcome.to_h.fetch("failures")[id].lines(chomp: true).first(2)).to(
         match(
@@ -94,20 +90,22 @@ RSpec.describe(Kimera::TestExit) do
       expect(probed).to(eq([:after]))
     end
 
+    def again(dir) = adapter(dir).then { |loaded| run(loaded, "exits") && run(loaded, "passes") }
+
     it "runs the next example normally" do
-      loaded = adapter
-      run(loaded, "exits")
-      expect(run(loaded, "passes").last.passed?).to(be(true))
+      expect(contained { again(it) }.last.passed?).to(be(true))
     end
 
     it "lets an interrupt through" do
-      loaded = adapter
-      expect { run(loaded, "is interrupted", group: "KimeraInterrupts") }.to(raise_error(Interrupt))
+      contained do |dir|
+        loaded = adapter(dir)
+        expect { run(loaded, "is interrupted", group: "KimeraInterrupts") }.to(raise_error(Interrupt))
+      end
     end
   end
 
   describe "under Minitest" do
-    def fixture
+    def fixture(dir)
       File.join(dir, "exits_test.rb").tap do |path|
         File.write(path, <<~RUBY)
           require "minitest"
@@ -120,11 +118,11 @@ RSpec.describe(Kimera::TestExit) do
       end
     end
 
-    def run(id)
+    def run(dir, id)
       PROBE.clear
       original = $stderr
       $stderr = StringIO.new
-      Kimera::Frameworks::MinitestSuite.build.source([fixture]).run([id])
+      Kimera::Frameworks::MinitestSuite.build.source([fixture(dir)]).run([id])
     rescue SystemExit => error
       error
     ensure
@@ -133,7 +131,7 @@ RSpec.describe(Kimera::TestExit) do
 
     it "fails the test that aborts, after its teardown ran", :aggregate_failures do
       id = "KimeraExitsTest#test_aborts"
-      outcome = run(id)
+      outcome, dir = Dir.mktmpdir { |root| [run(root, id), root] }
       expect(outcome).to(be_a(Kimera::Frameworks::RunOutcome).and(have_attributes(to_h: include("failed_ids" => [id]))))
       expect(outcome.to_h.fetch("failures")[id].lines(chomp: true).first(2)).to(
         eq(
@@ -147,7 +145,7 @@ RSpec.describe(Kimera::TestExit) do
     end
 
     it "lets an interrupt through" do
-      expect { run("KimeraExitsTest#test_interrupted") }.to(raise_error(Interrupt))
+      expect { Dir.mktmpdir { |dir| run(dir, "KimeraExitsTest#test_interrupted") } }.to(raise_error(Interrupt))
     end
   end
 end

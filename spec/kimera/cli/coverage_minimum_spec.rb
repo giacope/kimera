@@ -17,7 +17,7 @@ RSpec.describe(Kimera::CLI::CoverageMinimum) do
     expect(ungated?("SimpleCov.maximum_coverage_drop 5 # not a minimum_coverage\n")).to(be(false))
   end
 
-  def env_conditions
+  def conditions
     [
       <<~RUBY,
         if ENV["COVERAGE"]
@@ -37,7 +37,7 @@ RSpec.describe(Kimera::CLI::CoverageMinimum) do
 
   # giacope/kimera#19: pundit's spec/spec_helper.rb.
   it "passes over a floor under a condition that reads ENV, whatever the key" do
-    expect(env_conditions.select { |source| ungated?(source) }).to(be_empty)
+    expect(conditions.select { |source| ungated?(source) }).to(be_empty)
   end
 
   it "passes over a floor in a case on ENV", :aggregate_failures do
@@ -47,7 +47,7 @@ RSpec.describe(Kimera::CLI::CoverageMinimum) do
     expect(ungated?(%(case RUBY_ENGINE\nwhen "ruby" then minimum_coverage 100\nend\n))).to(be(true))
   end
 
-  def early_exits
+  def exits
     [
       %(return unless ENV["COVERAGE"]\n\nSimpleCov.minimum_coverage 90\n),
       %(exit if ENV["NO_COVERAGE"]\nminimum_coverage 90\n),
@@ -60,7 +60,7 @@ RSpec.describe(Kimera::CLI::CoverageMinimum) do
   end
 
   it "passes over a floor after an early exit guarded by ENV" do
-    expect(early_exits.select { |source| ungated?(source) }).to(be_empty)
+    expect(exits.select { |source| ungated?(source) }).to(be_empty)
   end
 
   it "flags a floor before the guard, or after a guard that doesn't exit or doesn't read ENV", :aggregate_failures do

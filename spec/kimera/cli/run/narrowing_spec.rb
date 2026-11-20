@@ -6,13 +6,14 @@ require "stringio"
 require "tmpdir"
 
 RSpec.describe(Kimera::CLI::Run::Narrowing) do
-  around do |example|
-    Dir.mktmpdir { |dir| Dir.chdir(dir) { example.run } }
-  end
-
-  before do
-    FileUtils.mkdir_p("spec/slow")
-    %w[spec/a_spec.rb spec/b_spec.rb spec/slow/c_spec.rb].each { |file| File.write(file, "") }
+  def inside
+    Dir.mktmpdir do |dir|
+      Dir.chdir(dir) do
+        FileUtils.mkdir_p("spec/slow")
+        %w[spec/a_spec.rb spec/b_spec.rb spec/slow/c_spec.rb].each { |file| File.write(file, "") }
+        yield
+      end
+    end
   end
 
   def narrowing(tests, configured = ["spec/**/*_spec.rb"], exclude: [])
@@ -25,42 +26,62 @@ RSpec.describe(Kimera::CLI::Run::Narrowing) do
   end
 
   it "counts the configured test files the run kept", :aggregate_failures do
-    narrowed = narrowing(["spec/a_spec.rb"])
-    expect(narrowed.notes).to(eq([note]))
-    expect(narrowed.provenance).to(eq("narrowed" => true, "configured_tests" => ["spec/**/*_spec.rb"]))
+    inside do
+      narrowed = narrowing(["spec/a_spec.rb"])
+      expect(narrowed.notes).to(eq([note]))
+      expect(narrowed.provenance).to(eq("narrowed" => true, "configured_tests" => ["spec/**/*_spec.rb"]))
+    end
   end
 
   it "leaves excluded test files out of both counts" do
-    expect(narrowing(["spec/a_spec.rb"], exclude: ["spec/slow/**"]).notes.join).to(include("matched 1 of 2 test files"))
+    notes = inside { narrowing(["spec/a_spec.rb"], exclude: ["spec/slow/**"]).notes.join }
+    expect(notes).to(include("matched 1 of 2 test files"))
   end
 
   it "matches a file however its glob spells the path" do
-    expect(narrowing([File.expand_path("spec/*_spec.rb")]).notes.join).to(include("matched 2 of 3"))
+    inside do
+      expect(narrowing([File.expand_path("spec/*_spec.rb")]).notes.join).to(include("matched 2 of 3"))
+    end
   end
 
   it "is silent when --tests keeps every configured test file", :aggregate_failures do
-    wider = narrowing(["spec/**/*_spec.rb", "test/**/*_test.rb"])
-    expect(wider.notes).to(eq([]))
-    expect(wider.provenance).to(eq("narrowed" => false))
+    inside do
+      wider = narrowing(["spec/**/*_spec.rb", "test/**/*_test.rb"])
+      expect(wider.notes).to(eq([]))
+      expect(wider.provenance).to(eq("narrowed" => false))
+    end
   end
 
   it "doesn't expand the globs when --tests is the configured glob", :aggregate_failures do
-    expect(narrowing(["spec/**/*_spec.rb"]).notes).to(eq([]))
-    expect(narrowing(["spec/\0"], ["spec/\0"]).provenance).to(eq("narrowed" => false))
-    expect { narrowing(["spec/\0"]).notes }.to(raise_error(ArgumentError, /null byte/))
+    inside do
+      expect(narrowing(["spec/**/*_spec.rb"]).notes).to(eq([]))
+      expect(narrowing(["spec/\0"], ["spec/\0"]).provenance).to(eq("narrowed" => false))
+      expect { narrowing(["spec/\0"]).notes }.to(raise_error(ArgumentError, /null byte/))
+    end
+  end
+
+  def many
+    FileUtils.mkdir_p("many")
+    1_120.times { |index| File.write("many/#{index}_spec.rb", "") }
   end
 
   it "groups thousands in the counts" do
-    FileUtils.mkdir_p("many")
-    1_120.times { |index| File.write("many/#{index}_spec.rb", "") }
-    kept = %w[many/1_spec.rb many/2_spec.rb many/3_spec.rb]
-    expect(narrowing(kept, ["many/*_spec.rb"]).notes.join).to(include("matched 3 of 1,120 test files"))
+    inside do
+      many
+      kept = %w[many/1_spec.rb many/2_spec.rb many/3_spec.rb]
+      expect(narrowing(kept, ["many/*_spec.rb"]).notes.join).to(include("matched 3 of 1,120 test files"))
+    end
   end
 
   describe "kimera run" do
     let(:suite) { FakeSuite.new(["root only", "unreadable file", "kept"]) }
 
-    before { File.write("calc.rb", "def m(a, b)\n  a > b\nend\n") }
+    def inside
+      super do
+        File.write("calc.rb", "def m(a, b)\n  a > b\nend\n")
+        yield
+      end
+    end
 
     def run(*argv)
       out = StringIO.new
@@ -70,16 +91,18 @@ RSpec.describe(Kimera::CLI::Run::Narrowing) do
     end
 
     it "prints the note above the summary and records the narrowing", :aggregate_failures do
-      lines, provenance = run("--tests", "spec/a_spec.rb")
+      lines, provenance = inside { run("--tests", "spec/a_spec.rb") }
       summary = "mutants=0 killed=0 survived=0 timeout=0 error=0 no_coverage=0 score=n/a (nothing to mutate)"
       expect(lines.first(2)).to(eq([note, summary]))
       expect(provenance).to(include("narrowed" => true, "configured_tests" => ["spec/**/*_spec.rb"]))
     end
 
     it "prints nothing extra for the configured glob", :aggregate_failures do
-      lines, provenance = run
-      expect(lines.first).to(start_with("mutants=0"))
-      expect(provenance).to(include("narrowed" => false))
+      inside do
+        lines, provenance = run
+        expect(lines.first).to(start_with("mutants=0"))
+        expect(provenance).to(include("narrowed" => false))
+      end
     end
 
     def adapter_for(*argv)
@@ -91,14 +114,18 @@ RSpec.describe(Kimera::CLI::Run::Narrowing) do
     end
 
     it "leaves out the tests --exclude-test-name names, and records the pattern", :aggregate_failures do
-      adapter, provenance = adapter_for("--exclude-test-name", "unreadable", "--exclude-test-name", "root only")
-      expect(adapter.test_ids).to(eq(["kept"]))
-      expect(provenance).to(include("exclude_test_names" => ["unreadable", "root only"]))
+      inside do
+        adapter, provenance = adapter_for("--exclude-test-name", "unreadable", "--exclude-test-name", "root only")
+        expect(adapter.test_ids).to(eq(["kept"]))
+        expect(provenance).to(include("exclude_test_names" => ["unreadable", "root only"]))
+      end
     end
 
     it "leaves the suite whole without --exclude-test-name" do
-      plain, = adapter_for
-      expect(plain).to(equal(suite))
+      inside do
+        plain, = adapter_for
+        expect(plain).to(equal(suite))
+      end
     end
 
     def uncovered(*argv)
@@ -110,15 +137,19 @@ RSpec.describe(Kimera::CLI::Run::Narrowing) do
       out.string
     end
 
+    def headings
+      [
+        %w[--tests spec/a_spec.rb --no-count-no-coverage], %w[--no-count-no-coverage],
+        %w[--tests spec/a_spec.rb --fail-on-no-coverage], %w[--fail-on-no-coverage]
+      ].map { uncovered(*it) }
+    end
+
     it "heads a narrowed run's uncovered mutants as not covered by the narrowed tests", :aggregate_failures do
-      expect(uncovered("--tests", "spec/a_spec.rb", "--no-count-no-coverage")).to(
-        include("1 mutant(s) not covered by the narrowed tests; list them with")
-      )
-      expect(uncovered("--no-count-no-coverage")).to(include("1 mutant(s) have no covering test; list them with"))
-      expect(uncovered("--tests", "spec/a_spec.rb", "--fail-on-no-coverage")).to(
-        include("Mutants not covered by the narrowed tests (1):")
-      )
-      expect(uncovered("--fail-on-no-coverage")).to(include("Mutants with no covering test (1):"))
+      narrowed, plain, listed, full = inside { headings }
+      expect(narrowed).to(include("1 mutant(s) not covered by the narrowed tests; list them with"))
+      expect(plain).to(include("1 mutant(s) have no covering test; list them with"))
+      expect(listed).to(include("Mutants not covered by the narrowed tests (1):"))
+      expect(full).to(include("Mutants with no covering test (1):"))
     end
   end
 end

@@ -15,12 +15,6 @@ require "kimera"
 
 Dir[File.join(__dir__, "support", "**", "*.rb")].each { |f| require f }
 
-module RuntimeFlips
-  def flips = hidden.to_h.fetch(:flips)
-end
-
-Kimera::Runtime.include(RuntimeFlips)
-
 RSpec.configure do |config|
   config.expect_with(:rspec) { |c| c.syntax = :expect }
   config.disable_monkey_patching!
@@ -30,14 +24,6 @@ RSpec.configure do |config|
     example.run
   ensure
     ENV["KIMERA"] = before
-  end
-  config.around { |example| Kimera::RUNTIME.during(Kimera::RUNTIME.active) { example.run } }
-  config.around do |example|
-    flips = Kimera::RUNTIME.flips
-    kept = flips.dup
-    example.run
-  ensure
-    flips.replace(kept)
   end
   config.around do |example|
     world = RSpec.world

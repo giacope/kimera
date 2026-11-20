@@ -9,7 +9,13 @@ require_relative "../../examples/operators/kimera_plugin"
 Kimera::Operators::ROSTER.reset!
 
 RSpec.describe(Kimera::Plugins) do
-  after { Kimera::Operators::ROSTER.reset! }
+  def roster
+    yield
+  ensure
+    Kimera::Operators::ROSTER.reset!
+  end
+
+  def plugged(&) = roster { Dir.mktmpdir(&) }
 
   def plugin(dir, body)
     File.join(dir, "plugin.rb").tap { |path| File.write(path, body) }
@@ -17,7 +23,7 @@ RSpec.describe(Kimera::Plugins) do
 
   describe "#load!" do
     it "loads a plugin relative to the source root and returns what it registered" do
-      Dir.mktmpdir do |dir|
+      plugged do |dir|
         plugin(dir, <<~RUBY)
           class Sentinel < Kimera::Operators::Base
             def key = "sentinel"
@@ -30,14 +36,14 @@ RSpec.describe(Kimera::Plugins) do
     end
 
     it "raises a usage error naming a plugin that does not exist" do
-      Dir.mktmpdir do |dir|
+      plugged do |dir|
         expect { described_class.new(["nope.rb"], root: dir).load! }
           .to(raise_error(Kimera::UsageError, /cannot load nope\.rb: LoadError: cannot load such file/))
       end
     end
 
     it "raises a usage error carrying the parse error from a broken plugin" do
-      Dir.mktmpdir do |dir|
+      plugged do |dir|
         path = plugin(dir, "def broken(")
         expect { described_class.new([path], root: dir).load! }
           .to(raise_error(Kimera::UsageError, /cannot load .*plugin\.rb: SyntaxError: .+/))
@@ -45,7 +51,7 @@ RSpec.describe(Kimera::Plugins) do
     end
 
     it "lets a usage error raised by the plugin itself through untouched" do
-      Dir.mktmpdir do |dir|
+      plugged do |dir|
         path = plugin(dir, "Kimera::Operators.register(Object)")
         expect { described_class.new([path], root: dir).load! }
           .to(raise_error(Kimera::UsageError, "not an operator class: Object"))
@@ -58,8 +64,6 @@ RSpec.describe(Kimera::Plugins) do
   end
 
   describe "the shipped example plugin" do
-    before { Kimera::Operators.register(MyApp::Operators::ALL) }
-
     let(:keys) do
       %w[
         authorization background_dispatch bang_call cache_expiry
@@ -67,32 +71,51 @@ RSpec.describe(Kimera::Plugins) do
       ]
     end
 
+    def shipped
+      roster do
+        Kimera::Operators.register(MyApp::Operators::ALL)
+        yield
+      end
+    end
+
     it "registers one operator per example file" do
-      expect(Kimera::Operators::ROSTER.custom.map { it.new.key }).to(match_array(keys))
+      shipped do
+        expect(Kimera::Operators::ROSTER.custom.map { it.new.key }).to(match_array(keys))
+      end
     end
 
     it "builds host operators alongside the built-ins under 'custom'" do
-      built = Kimera::Operators.build(keys: %w[comparison custom])
-      expect(built.map(&:key)).to(include("comparison", "authorization", "money_rounding"))
+      shipped do
+        built = Kimera::Operators.build(keys: %w[comparison custom])
+        expect(built.map(&:key)).to(include("comparison", "authorization", "money_rounding"))
+      end
     end
 
     it "includes host operators in 'all'" do
-      expect(Kimera::Operators.build(keys: ["all"]).map(&:key)).to(include("http_status"))
+      shipped do
+        expect(Kimera::Operators.build(keys: ["all"]).map(&:key)).to(include("http_status"))
+      end
     end
 
     it "refuses a second operator claiming a registered key" do
-      expect { Kimera::Operators.register(MyApp::Operators::Authorization) }
-        .to(raise_error(Kimera::UsageError, /operator key already registered: authorization/))
+      shipped do
+        expect { Kimera::Operators.register(MyApp::Operators::Authorization) }
+          .to(raise_error(Kimera::UsageError, /operator key already registered: authorization/))
+      end
     end
 
     it "refuses anything that is not an operator class, naming what it was handed" do
-      error = "not an operator class: Object"
-      expect { Kimera::Operators.register(Object) }.to(raise_error(Kimera::UsageError, error))
+      shipped do
+        error = "not an operator class: Object"
+        expect { Kimera::Operators.register(Object) }.to(raise_error(Kimera::UsageError, error))
+      end
     end
 
     it "refuses the abstract base class itself" do
-      expect { Kimera::Operators.register(Kimera::Operators::Base) }
-        .to(raise_error(Kimera::UsageError, /not an operator class: Kimera::Operators::Base/))
+      shipped do
+        expect { Kimera::Operators.register(Kimera::Operators::Base) }
+          .to(raise_error(Kimera::UsageError, /not an operator class: Kimera::Operators::Base/))
+      end
     end
   end
 end

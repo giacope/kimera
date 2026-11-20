@@ -1,21 +1,21 @@
 # frozen_string_literal: true
 
 RSpec.describe("kimera run --since (incremental CI mode)") do
-  def test_build_repository(dir)
+  def repository(dir)
     FileUtils.mkdir_p(File.join(dir, "app", "models"))
     FileUtils.mkdir_p(File.join(dir, "spec"))
-    test_write_calculation(dir, body: "x < y")
-    test_write_spec(dir, operator: :<)
+    calculation(dir, body: "x < y")
+    examples(dir, operator: :<)
     git(dir, "init -q")
     git(dir, "config user.email a@b.c")
     git(dir, "config user.name test")
     git(dir, "add -A")
     git(dir, "commit -q -m initial")
-    test_write_calculation(dir, body: "x <= y")
-    test_write_spec(dir, operator: :<=)
+    calculation(dir, body: "x <= y")
+    examples(dir, operator: :<=)
   end
 
-  def test_write_calculation(dir, body:)
+  def calculation(dir, body:)
     File.write(File.join(dir, "app", "models", "calc.rb"), <<~RUBY)
       # frozen_string_literal: true
       class Calc
@@ -38,7 +38,7 @@ RSpec.describe("kimera run --since (incremental CI mode)") do
     end
   end
 
-  def test_write_spec(dir, operator:)
+  def examples(dir, operator:)
     File.write(File.join(dir, "spec", "calc_spec.rb"), <<~RUBY)
       # frozen_string_literal: true
       require_relative "../app/models/calc"
@@ -60,7 +60,7 @@ RSpec.describe("kimera run --since (incremental CI mode)") do
 
   def resumed(*scope)
     Dir.mktmpdir("kimera-incr") do |dir|
-      test_build_repository(dir)
+      repository(dir)
       arguments = ["--since", "HEAD", *scope, "--session", File.join(dir, "session.json")]
       first = test_outcome(cwd: dir, arguments: arguments)
       [first, File.exist?(File.join(dir, "session.json")), test_outcome(cwd: dir, arguments: arguments)]

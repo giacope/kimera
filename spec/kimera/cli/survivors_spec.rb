@@ -40,8 +40,12 @@ RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
     }
   end
 
-  before { File.write(report_path, JSON.generate(report)) }
-  after { FileUtils.remove_entry(dir) }
+  def written(contents = report)
+    File.write(report_path, JSON.generate(contents))
+    yield
+  ensure
+    FileUtils.remove_entry(dir)
+  end
 
   def run(*argv)
     out = StringIO.new
@@ -53,14 +57,14 @@ RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
   end
 
   it "lists survivors with location and diff" do
-    out, status = run(report_path)
+    out, status = written { run(report_path) }
     expect(status).to(eq(0))
     expect(out).to(include("2 survived mutant(s):", "#7  app/models/user.rb:13  [delete `where(active: true)`]"))
     expect(out).to(include("- where(active: true)", "+ (statement deleted)"))
   end
 
   it "shows the coverage count and sorts survivors by file" do
-    out, = run(report_path)
+    out, = written { run(report_path) }
     expect(out).to(include("covered by 2 test(s)"))
     # #9 is in book.rb, #7 in user.rb.
     expect(out.index("#9")).to(be < out.index("#7"))
@@ -73,60 +77,56 @@ RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
   end
 
   it "lists the default operators' survivors first, then the extended ones under their own heading" do
-    File.write(report_path, JSON.generate(report.merge("results" => report["results"] + [extended])))
-    out, = run(report_path)
+    out, = written(report.merge("results" => report["results"] + [extended])) { run(report_path) }
     expect(out).to(include("1 from the extended operators, which more often mark code no test can tell apart:"))
     positions = ["#9", "#7", "extended operators", "#21"].map { out.index(it) }
     expect(positions).to(eq(positions.compact.sort))
   end
 
   it "colors the diff's signs with --color, and not by default off a terminal or with --no-color" do
-    colored = run(report_path, "--color").first
+    colored, plain, bare = written { [["--color"], [], ["--no-color"]].map { run(report_path, *it).first } }
     expect(colored).to(include("\e[31m-\e[0m where(active: true)", "\e[32m+\e[0m (statement deleted)"))
-    expect([run(report_path).first, run(report_path, "--no-color").first]).to(all(satisfy { !it.include?("\e[") }))
+    expect([plain, bare]).to(all(satisfy { !it.include?("\e[") }))
   end
 
   it "prints the no-mutants line, not an empty section, for a status with none" do
-    out, status = run(report_path, "--status", "error")
+    (out, status), (filtered,) = written { [run(report_path, "--status", "error"), run(report_path, "zzz")] }
     expect(status).to(eq(0))
     expect(out).to(eq("no error mutants\n"))
-
-    filtered, = run(report_path, "zzz")
     expect(filtered).to(eq("no survived mutants matching zzz\n"))
   end
 
   it "says it could not write the mutant's text for a mutant with no mutated source" do
-    out, = run(report_path, "--status", "no_coverage")
+    out, = written { run(report_path, "--status", "no_coverage") }
     expect(out).to(include("- x?\n    + #{Kimera::MutatedText.new([])}\n"))
   end
 
   it "filters by file substring" do
-    out, = run(report_path, "book")
+    out, = written { run(report_path, "book") }
     expect(out).to(include("#9"))
     expect(out).not_to(include("#7"))
   end
 
   it "lists the report's harness_error rows by their text name, unjudged" do
-    out, = run(report_path, "--status", "unjudged")
+    out, = written { run(report_path, "--status", "unjudged") }
     expect(out).to(include("#13"))
   end
 
   it "lists another status with --status" do
-    out, = run(report_path, "--status", "no_coverage")
+    out, = written { run(report_path, "--status", "no_coverage") }
     expect(out).to(include("1 no_coverage mutant(s):"))
     expect(out).to(include("#11"))
   end
 
   it "says a narrowed run's uncovered mutants are not covered by the narrowed tests", :aggregate_failures do
-    File.write(report_path, JSON.generate(report.merge("run" => { "narrowed" => true })))
-    out, = run(report_path, "--status", "no_coverage")
+    narrowed = report.merge("run" => { "narrowed" => true })
+    out, survived = written(narrowed) { [run(report_path, "--status", "no_coverage"), run(report_path)].map(&:first) }
     expect(out).to(include("1 no_coverage mutant(s), not covered by the narrowed tests:"))
-    survived, = run(report_path)
     expect(survived).to(include("2 survived mutant(s):"))
   end
 
   it "shows one mutant's header and body with --id" do
-    out, status = run(report_path, "--id", "7")
+    out, status = written { run(report_path, "--id", "7") }
     expect(status).to(eq(0))
     expect(out).to(include("#7  survived  app/models/user.rb:13", "operator: statement_deletion"))
     expect(out).to(include("label:    delete `where(active: true)`", "duration: 400ms", "detail:   sample detail"))
@@ -134,17 +134,17 @@ RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
   end
 
   it "shows one mutant's test lists with --id" do
-    out, = run(report_path, "--id", "7")
+    out, = written { run(report_path, "--id", "7") }
     expect(out).to(include("covering tests (2):", "failing tests (1):", "UserTest#test_active"))
   end
 
   it "prints no diff for a result that carries no code" do
-    File.write(report_path, JSON.generate("results" => [{ "mutant_id" => 14, "status" => "error", "file" => "a.rb" }]))
-    expect(run(report_path, "--id", "14").first).not_to(include("+ "))
+    lone = { "results" => [{ "mutant_id" => 14, "status" => "error", "file" => "a.rb" }] }
+    expect(written(lone) { run(report_path, "--id", "14").first }).not_to(include("+ "))
   end
 
   it "omits the optional lines for a bare result with --id" do
-    out, status = run(report_path, "--id", "12")
+    out, status = written { run(report_path, "--id", "12") }
     expect([status, out]).to(eq([0, "#12  timeout  app/models/bare.rb\n  - z\n  + #{Kimera::MutatedText.new([])}\n"]))
   end
 
@@ -162,13 +162,13 @@ RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
     end
 
     it "indents continuation lines in the list view" do
-      out, = run(report_path)
+      out, = written { run(report_path) }
       expect(out).to(include("    - if x\n        :yes\n      end\n"))
       expect(out).to(include("    + if true\n        :yes\n      end\n"))
     end
 
     it "indents continuation lines in the --id view" do
-      out, = run(report_path, "--id", "3")
+      out, = written { run(report_path, "--id", "3") }
       expect(out).to(include("  - if x\n      :yes\n    end\n"))
       expect(out).to(include("  + if true\n      :yes\n    end\n"))
     end
@@ -197,58 +197,61 @@ RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
       File.write(File.join(dir, "app/user.rb"), text)
     end
 
+    def user = "class User\n  def active\n    where(active: true)\n  end\nend\n"
+
+    def shown(contents = report) = written(contents) { run(report_path, "--id", "7").first }
+
+    def sourced(text, contents = report)
+      written(contents) do
+        source(text)
+        run(report_path, "--id", "7").first
+      end
+    end
+
+    def listing
+      lines = ["    1 | class User", "    2 |   def active", "  > 3 |     where(active: true)", "    4 |   end"]
+      ["", *lines, "    5 | end", "", ""].join("\n")
+    end
+
     it "shows where a mutant outside any method sits, naming no method" do
-      report["results"].first.delete("method")
-      File.write(report_path, JSON.generate(report))
-      out, = run(report_path, "--id", "7")
+      out = shown(report.tap { |contents| contents["results"].first.delete("method") })
       expect(out).to(include("  at:       app/user.rb:3:5\n"))
     end
 
     it "shows where the mutant sits and the enclosing method", :aggregate_failures do
-      out, = run(report_path, "--id", "7")
+      out, listed = written { [run(report_path, "--id", "7"), run(report_path, "--status", "killed")].map(&:first) }
       expect(out).to(include("  at:       app/user.rb:3:5  in active\n"))
-      listed, = run(report_path, "--status", "killed")
       expect(listed).to(include("#7  app/user.rb:3  in active  [delete]"))
     end
 
     it "prints the lines around the mutant, marking its own" do
-      source("class User\n  def active\n    where(active: true)\n  end\nend\n")
-      out, = run(report_path, "--id", "7")
-      lines = ["    1 | class User", "    2 |   def active", "  > 3 |     where(active: true)", "    4 |   end"]
-      expect(out).to(include(["", *lines, "    5 | end", "", ""].join("\n")))
+      expect(sourced(user)).to(include(listing))
     end
 
     it "marks every line a multi-line mutant spans" do
-      report["results"].first["end_line"] = 4
-      File.write(report_path, JSON.generate(report))
-      source("class User\n  def active\n    where(active: true)\n  end\nend\n")
-      out, = run(report_path, "--id", "7")
+      out = sourced(user, report.tap { |contents| contents["results"].first["end_line"] = 4 })
       expect(out).to(include("  > 3 |     where(active: true)\n  > 4 |   end\n"))
     end
 
     it "marks the mutant's line alone when the report has no end line" do
-      report["results"].first.delete("end_line")
-      File.write(report_path, JSON.generate(report))
-      source("class User\n  def active\n    where(active: true)\n  end\nend\n")
-      out, = run(report_path, "--id", "7")
+      out = sourced(user, report.tap { |contents| contents["results"].first.delete("end_line") })
       expect(out).to(include("  > 3 |     where(active: true)\n    4 |   end\n"))
     end
 
     it "says so instead of printing context when the file has changed since the report", :aggregate_failures do
-      source("class User\nend\n")
-      out, = run(report_path, "--id", "7")
+      out = sourced("class User\nend\n")
       expect(out).to(include("  (app/user.rb changed since the report; no source context)\n"))
       expect(out).not_to(include(" | "))
     end
 
     it "lays a multi-line detail out under its label, without blank lines or trailing spaces" do
-      out, = run(report_path, "--id", "7")
+      out = shown
       detail = "  detail:   Minitest::Assertion:\n            Expected true\n                test/user_test.rb:5\n"
       expect(out).to(include(detail))
     end
 
     it "names the tests it knows and lists the rest by id" do
-      out, = run(report_path, "--id", "7")
+      out = shown
       expect(out).to(include("    test/user_test.rb:4  UserTest#test_active\n    UserTest#test_other\n"))
     end
   end
@@ -274,43 +277,46 @@ RSpec.describe(Kimera::CLI::Survivors, :aggregate_failures) do
     end
 
     it "sorts by line, with a line-less result first" do
-      out, = run(report_path)
+      out, = written { run(report_path) }
       expect(out.index("#3")).to(be < out.index("#2"))
       expect(out.index("#2")).to(be < out.index("#1"))
     end
   end
 
   it "fails cleanly for an unreadable report" do
-    File.write(report_path, "{ not json")
     expect do
-      _, status = run(report_path)
+      _, status = written { File.write(report_path, "{ not json") && run(report_path) }
       expect(status).to(eq(1))
     end.to(output(/unreadable report #{Regexp.escape(report_path)}: \S+/).to_stderr)
   end
 
   it "fails cleanly for an unknown id" do
     expect do
-      _, status = run(report_path, "--id", "999")
+      _, status = written { run(report_path, "--id", "999") }
       expect(status).to(eq(1))
     end.to(output(/no mutant #999/).to_stderr)
   end
 
   it "reads the default report when none is named, and says how to make one when it is missing" do
     expect do
-      _, status = Dir.chdir(dir) { run }
+      _, status = written { Dir.chdir(dir) { run } }
       expect(status).to(eq(1))
     end.to(output(%r{no such report: tmp/kimera/report\.json \(run kimera run first, or pass REPORT\.json\)}).to_stderr)
   end
 
-  it "reads the default report, taking a lone non-report argument as the file filter", :aggregate_failures do
+  def defaulted
     FileUtils.mkdir_p(File.join(dir, "tmp/kimera"))
     FileUtils.cp(report_path, File.join(dir, "tmp/kimera/report.json"))
-    out, status = Dir.chdir(dir) { run("book") }
+    Dir.chdir(dir) { run("book") }
+  end
+
+  it "reads the default report, taking a lone non-report argument as the file filter", :aggregate_failures do
+    out, status = written { defaulted }
     expect([status, out.include?("#9"), out.include?("#7")]).to(eq([0, true, false]))
   end
 
   it "reads the report named by --report, taking a positional argument as the file filter", :aggregate_failures do
-    out, status = run("--report", report_path, "book")
+    out, status = written { run("--report", report_path, "book") }
     expect(status).to(eq(0))
     expect(out).to(include("#9"))
     expect(out).not_to(include("#7"))

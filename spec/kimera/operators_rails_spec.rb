@@ -80,7 +80,7 @@ RSpec.describe(Kimera::Operators) do
           "delete `after_commit :notify`"
         )
       )
-      expect(catalog.to_a.map { |point| PointVerdict.new(point).then { [it.safe?, it.unsafe_reason] } }.uniq)
+      expect(catalog.to_a.map { |point| PointVerdict.new(point).then { [it.safe?, it.hazard] } }.uniq)
         .to(eq([[false, Kimera::Reason::CLASS_BODY_REASON]]))
     end
 

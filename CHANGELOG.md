@@ -32,10 +32,17 @@
   rubocop-kata and hashira, instead of the two gems. kimera holds itself to
   sekisho's dogmatic lint profile, its strictest: 674 offenses on the code
   as it was, of which `lib` and `exe` had 54 (two-word names, nested
-  branches) and now have none. The 620 in the specs (265 calls to private
-  methods, 138 hooks, 46 timed sleeps, the rest two-word names) are recorded
-  in `.sekisho_baseline.json`, and `sekisho lint --ratchet` fails when one
-  grows. The design check (`.sekisho.yml`, formerly `.hashira.yml`) turns on
+  branches) and now have none. The specs had 620 (265 calls to private
+  methods, 138 hooks, 46 timed sleeps, the rest two-word names) and now have
+  10: every spec reaches an object through its public methods, cleans up in
+  the example that made the mess, and waits for an event instead of a guessed
+  time. The 10 left are recorded in `.sekisho_baseline.json`, and
+  `sekisho lint --ratchet` fails when one grows: seven sleeps that make a
+  fake test take real time against a stopwatch no spec can reach, two
+  `spec_helper` hooks that put back `ENV["KIMERA"]` and RSpec's quit flags,
+  which about 100 in-process runs change, and the suite-wide gate on blocks
+  `lib` ignores. Names a library dictates to the fakes (`db_config`,
+  `with_info_handler`, `normalize_callback_params`) join `AllowedNames`. The design check (`.sekisho.yml`, formerly `.hashira.yml`) turns on
   every kind, `change_coupling` and `crap` among them, with no finding
   suppressed; the specs record method coverage (SimpleCov 1.x) for `crap`.
   No behavior of the gem changes.

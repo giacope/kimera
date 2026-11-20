@@ -46,14 +46,13 @@ RSpec.describe("processes a test starts") do
     RUBY
   end
 
-  def released?(path)
-    File.open(path) do |lock|
-      50.times do
-        return true if lock.flock(File::LOCK_EX | File::LOCK_NB)
-        sleep(0.1)
-      end
-    end
-    false
+  def now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+  def released?(path) = File.open(path) { |lock| free?(lock, now + 5) }
+
+  def free?(lock, deadline)
+    sleep(0.1) until (taken = lock.flock(File::LOCK_EX | File::LOCK_NB)) || now > deadline
+    taken == 0
   end
 
   def stop(servers)
@@ -66,7 +65,7 @@ RSpec.describe("processes a test starts") do
     nil
   end
 
-  def warm_run
+  def warm
     Dir.mktmpdir("kimera-process-group") do |fixture|
       scaffold(fixture)
       run = test_outcome(cwd: fixture, arguments: %w[--soft-timeout 30 --hard-timeout 1])
@@ -77,7 +76,7 @@ RSpec.describe("processes a test starts") do
   end
 
   it "go with a warm worker the watchdog kills", :aggregate_failures do
-    run, released = warm_run
+    run, released = warm
     statuses = run.results.to_h { |row| [row["label"], row["status"]] }
     expect(statuses).to(include("delete `ticks.push(:tick)`" => "timeout"), run.output)
     expect(released).to(be(true), "a server outlived the run")

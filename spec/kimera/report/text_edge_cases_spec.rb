@@ -91,7 +91,7 @@ RSpec.describe(Kimera::Report::Text) do
     expect(io.string).to(include("survived ##{found.to_i}  l.rb:1:14  [#{found}]"))
   end
 
-  def mixed_results(both)
+  def outcomes(both)
     uncovered = both.each.find { |_, point| point.file == "b.rb" }.first.to_i
     [
       Kimera::MutantResult.new(mutant_id: uncovered, status: :no_coverage, file: "b.rb"),
@@ -102,7 +102,7 @@ RSpec.describe(Kimera::Report::Text) do
   def mixed
     other = Kimera::RegistryScan.new.source("def b(x)\n  x > 1\nend\n", file: "b.rb")
     both = PointRegistry.of(registry.to_a + other.to_a)
-    results = mixed_results(both)
+    results = outcomes(both)
     io = StringIO.new
     described_class.new(both, io: io, color: false).report(Kimera::RunReport.new(results: results))
     io.string

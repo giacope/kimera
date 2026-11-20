@@ -19,6 +19,14 @@ module RuntimeControls
   def ledgers = @sink.fan
 
   def leaks = ledgers.map(&:spilled)
+
+  def contained
+    flips = hidden.to_h.fetch(:flips)
+    kept = flips.dup
+    yield
+  ensure
+    flips.replace(kept)
+  end
 end
 
 Kimera::Runtime.include(RuntimeControls)

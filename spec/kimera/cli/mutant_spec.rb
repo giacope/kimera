@@ -30,6 +30,7 @@ RSpec.describe(Kimera::CLI::Mutant, :aggregate_failures) do
   end
 
   def focused(options)
+    stub_const("ENV", ENV.to_h)
     registry = Kimera::CLI::Run::Sources.new.load(options)
     harness = FakeHarness.new
     Kimera::CLI::Run::Cycle.new(options, registry, digest: FakeDigest.new, alerts: FakeAlerts.new)
@@ -38,22 +39,26 @@ RSpec.describe(Kimera::CLI::Mutant, :aggregate_failures) do
     [registry, *registry[id]]
   end
 
-  def later_rerun
+  def later
     full = Kimera::RegistryScan.new.build(Dir["app/**/*.rb"])
     mutant, point = full.each.find { |found, spot| spot.file.end_with?("pricing.rb") && found.to_s == "> => >=" }
     [full, mutant, point, rerun(mutant.to_i, reported(full, mutant, point))]
   end
 
   describe "a multi-file report" do
-    around { |example| Dir.chdir(sample) { example.run } }
+    def refocused
+      full, mutant, point, argv = later
+      alone, again, spot = focused(Kimera::CLI::Run::Arguments.new.parse(argv))
+      found = [again.to_s, spot.location.range.begin, Kimera::MutantKeys.of(alone)[again.to_i], mutant.to_i, again.to_i]
+      [argv.first(3), found, Kimera::MutantKeys.of(full)[mutant.to_i], mutant, point]
+    end
 
     it "reruns a mutant from a later file", :aggregate_failures do
-      full, mutant, point, argv = later_rerun
-      alone, again, spot = focused(Kimera::CLI::Run::Arguments.new.parse(argv))
-      key = Kimera::MutantKeys.of(full)[mutant.to_i]
-      expect(argv.first(3)).to(eq(["app/services/pricing.rb", "--focus", key]))
-      expect([again.to_s, spot.location.range.begin, Kimera::MutantKeys.of(alone)[again.to_i], mutant.to_i, again.to_i])
-        .to(eq([mutant.to_s, point.location.range.begin, key, 25, 3]))
+      Dir.chdir(sample) do
+        head, found, key, mutant, point = refocused
+        expect(head).to(eq(["app/services/pricing.rb", "--focus", key]))
+        expect(found).to(eq([mutant.to_s, point.location.range.begin, key, 25, 3]))
+      end
     end
   end
 end

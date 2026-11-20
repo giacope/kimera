@@ -79,7 +79,7 @@ RSpec.describe(Kimera::Overlay) do
       Kimera::RUNTIME.during(id) { calls.map { |call| outcome(receiver, call) } }
     end
 
-    def unlike_bakes(schemata, calls)
+    def divergent(schemata, calls)
       live = woven(schemata.result.to_s)
       schemata.result.to_h.fetch(:mutant_ids).reject do |id|
         bake = loaded(schemata.overlay.bake("x.rb", schemata.source, id))
@@ -89,7 +89,7 @@ RSpec.describe(Kimera::Overlay) do
 
     it "behaves exactly like its bake on every input" do
       for_all(programs, inputs, runs: 40) do |program, calls|
-        expect(unlike_bakes(SchemataProjection.check(render(program)), calls)).to(be_empty)
+        expect(divergent(SchemataProjection.check(render(program)), calls)).to(be_empty)
       end
     end
 
@@ -100,7 +100,7 @@ RSpec.describe(Kimera::Overlay) do
       ) do |closure, value, prefix|
         source = "def m; #{prefix} (#{format(closure, value)} || (x = 50)); [x, @v]; end"
         operators = Kimera::Operators.build(keys: ["boolean_connective"])
-        expect(unlike_bakes(SchemataProjection.check(source, operators: operators), [[[], :omitted]])).to(be_empty)
+        expect(divergent(SchemataProjection.check(source, operators: operators), [[[], :omitted]])).to(be_empty)
       end
     end
   end

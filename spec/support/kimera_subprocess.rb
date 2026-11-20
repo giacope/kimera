@@ -7,12 +7,12 @@ require "shellwords"
 require "tmpdir"
 
 module KimeraSubprocess
-  def test_repository_root
+  def test_root
     File.expand_path("../..", __dir__)
   end
 
   def test_sample
-    File.join(test_repository_root, "examples", "sample_app")
+    File.join(test_root, "examples", "sample_app")
   end
 
   def test_run(cwd:, arguments: [], tests: "spec/**/*_spec.rb", report: "report.json")
@@ -61,13 +61,13 @@ module KimeraSubprocess
   end
 
   def test_gemfile
-    File.join(test_repository_root, "Gemfile").shellescape
+    File.join(test_root, "Gemfile").shellescape
   end
 
   def test_command(json, tests, arguments)
     [
-      "bundle", "exec", "ruby", "-I", File.join(test_repository_root, "lib"),
-      File.join(test_repository_root, "exe", "kimera"), "run", "app",
+      "bundle", "exec", "ruby", "-I", File.join(test_root, "lib"),
+      File.join(test_root, "exe", "kimera"), "run", "app",
       "--tests", tests, "--source-root", ".",
       "--report", json, *arguments
     ].shelljoin

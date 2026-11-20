@@ -210,7 +210,7 @@ RSpec.describe(Kimera::Overlay) do
 
       def unwritable(method = nil)
         writer =
-          failing_scribe { |node| RuntimeError.new("unwritable") unless node.type == :def_node && node.name != :banner }
+          balked { |node| RuntimeError.new("unwritable") unless node.type == :def_node && node.name != :banner }
         stub_const("Kimera::Scribe", Class.new(writer) { define_method(:text) { method } }) if method
       end
 
@@ -250,7 +250,7 @@ RSpec.describe(Kimera::Overlay) do
 
     it "raises Unbakeable, naming the failure, when kimera can't write the bake" do
       mutant = registry.each.first.first
-      failing_scribe { KeyError.new("key not found: :lvar") }
+      balked { KeyError.new("key not found: :lvar") }
       expect { synth.bake("x.rb", source, mutant.to_i) }.to(
         raise_error(described_class::Unbakeable, "kimera could not write its bake (KeyError: key not found: :lvar)")
       )

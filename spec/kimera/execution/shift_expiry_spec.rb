@@ -18,10 +18,9 @@ RSpec.describe(Kimera::Execution::Shift) do
   let(:target) { registry.each.first.first.to_i }
   let(:clock) { [0.0] }
 
-  before { stub_const("Kimera::Execution::Stopwatch::CLOCK", -> { clock.first }) }
-
   def timed(script)
     now = clock
+    stub_const("Kimera::Execution::Stopwatch::CLOCK", -> { now.first })
     Class.new do
       attr_reader :log
 

@@ -314,20 +314,25 @@ RSpec.describe(Kimera::BodyTrim) do
     let(:source) { "class Trimmed\n  include Comparable\n  def ok?(n) = n > 1\nend\n" }
     let(:locations) { live(source, ["n > 1"]) }
 
-    after { FileUtils.remove_entry(dir) }
+    def inside
+      yield
+    ensure
+      FileUtils.remove_entry(dir)
+    end
 
     def write(name)
       File.join(dir, name).tap { |path| File.write(path, "# #{name}\n") }
     end
 
     it "trims a file that has been required, and leaves one nothing required whole", :aggregate_failures do
-      path = write("required.rb")
-      require(path)
-      expect(described_class.new(source, locations).trim(path)).not_to(include("Comparable"))
-      expect(described_class.new(source, locations).trim(write("never.rb"))).to(eq(source))
+      inside do
+        path = write("required.rb").tap { |file| require(file) }
+        expect(described_class.new(source, locations).trim(path)).not_to(include("Comparable"))
+        expect(described_class.new(source, locations).trim(write("never.rb"))).to(eq(source))
+      end
     end
 
-    def linked_requires
+    def symlinked
       real = write("real.rb")
       linked = write("linked.rb")
       FileUtils.ln_s(dir, File.join(dir, "link"))
@@ -337,10 +342,11 @@ RSpec.describe(Kimera::BodyTrim) do
     end
 
     it "finds a required file under its real path or the path it was required by" do
-      linked = linked_requires
-      paths = [File.join(dir, "link", "real.rb"), File.join(dir, "link", "linked.rb"), linked]
-        .push(File.join(dir, "missing.rb"))
-      expect(paths.map { |path| loaded?(path) }).to(eq([true, true, false, false]))
+      inside do
+        paths = [File.join(dir, "link", "real.rb"), File.join(dir, "link", "linked.rb"), symlinked]
+          .push(File.join(dir, "missing.rb"))
+        expect(paths.map { |path| loaded?(path) }).to(eq([true, true, false, false]))
+      end
     end
   end
 end

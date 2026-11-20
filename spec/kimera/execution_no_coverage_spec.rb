@@ -39,7 +39,11 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
   describe "a malformed report" do
     let(:dir) { Dir.mktmpdir }
 
-    after { FileUtils.remove_entry(dir) }
+    def inside
+      yield
+    ensure
+      FileUtils.remove_entry(dir)
+    end
 
     def broken = File.join(dir, "broken.json").tap { |path| File.write(path, "{") }
 
@@ -47,23 +51,36 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
 
     def mutant(*argv) = kimera("mutant", *argv)
 
-    it "is explained with the parser's detail when creating a baseline" do
+    def baseline
       argv = ["create", broken, "--reason", "legacy", "--output", File.join(dir, "baseline.yml")]
-      status = Dir.chdir(dir) { kimera("baseline", *argv) }
-      expect(status).to(eq(1))
-      expect(errors.string).to(include("unreadable report #{broken}", malformation("{")))
+      Dir.chdir(dir) { kimera("baseline", *argv) }
+    end
+
+    def listed
+      File.join(dir, "listed.json").tap do |path|
+        File.write(path, JSON.generate("results" => [{ "mutant_id" => 1, "status" => "killed" }]))
+      end
+    end
+
+    it "is explained with the parser's detail when creating a baseline" do
+      inside do
+        expect(baseline).to(eq(1))
+        expect(errors.string).to(include("unreadable report #{broken}", malformation("{")))
+      end
     end
 
     it "is explained with the parser's detail on a rerun" do
-      expect(mutant("1", "--report", broken, "--rerun")).to(eq(1))
-      expect(errors.string).to(include("unreadable report #{broken}", malformation("{")))
+      inside do
+        expect(mutant("1", "--report", broken, "--rerun")).to(eq(1))
+        expect(errors.string).to(include("unreadable report #{broken}", malformation("{")))
+      end
     end
 
     it "is not needed to reject an unknown mutant ID" do
-      listed = File.join(dir, "listed.json")
-      File.write(listed, JSON.generate("results" => [{ "mutant_id" => 1, "status" => "killed" }]))
-      expect(mutant("not-an-id", "--report", listed)).to(eq(1))
-      expect(errors.string).to(include("no mutant #not-an-id in this report"))
+      inside do
+        expect(mutant("not-an-id", "--report", listed)).to(eq(1))
+        expect(errors.string).to(include("no mutant #not-an-id in this report"))
+      end
     end
   end
 
@@ -88,7 +105,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     end
   end
 
-  def silenced_output
+  def silenced
     IO.popen("-") do |pipe|
       next pipe.read if pipe
       IO.for_fd(2, autoclose: false).reopen(IO.for_fd(1, autoclose: false))
@@ -100,7 +117,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
   end
 
   it "points the child's descriptors 1 and 2, and Ruby's streams, at the null device" do
-    expect(silenced_output).to(eq("before|"))
+    expect(silenced).to(eq("before|"))
   end
 
   describe "worker databases" do
@@ -110,30 +127,27 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
       "kimera: per-worker test databases unavailable (LoadError: missing helper); workers share one database\n"
     end
 
-    def parallelization(loading = nil)
+    def parallelization(loading = nil, &)
       par = Module.new
       par.define_singleton_method(:after_fork_hooks) { [->(_index) {}] }
       par.define_singleton_method(:run_cleanup_hooks) { [->(_index) { raise(RuntimeError, "teardown boom") }] }
       stub_const("ActiveSupport::Testing::Parallelization", par)
-      fake_feature("active_record/test_databases", loading ? "raise(#{loading})" : "")
+      fake_feature("active_record/test_databases", loading ? "raise(#{loading})" : "", &)
     end
 
     it "report teardown failures with the injected error stream" do
-      parallelization
-      databases.before_exit(1)
+      parallelization { databases.before_exit(1) }
       expect(errors.string).to(eq("kimera: parallelize_teardown failed (RuntimeError: teardown boom)\n"))
     end
 
     it "report to standard error by default" do
-      parallelization
-      expect { Kimera::Execution::WorkerDatabases.new(jobs: 2).before_exit(1) }
+      expect { parallelization { Kimera::Execution::WorkerDatabases.new(jobs: 2).before_exit(1) } }
         .to(output("kimera: parallelize_teardown failed (RuntimeError: teardown boom)\n").to_stderr)
     end
 
     it "report unavailable per-worker database support with exception detail" do
       FakeRails.unconnected(self)
-      parallelization('LoadError, "missing helper"')
-      databases.before_fork(FakeConnections.new)
+      parallelization('LoadError, "missing helper"') { databases.before_fork(FakeConnections.new) }
       expect(errors.string).to(start_with(unavailable))
     end
   end
@@ -227,7 +241,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
     let(:notes) { IO.pipe }
 
     it "takes the child's pipe ends and silences it" do
-      expect(descriptor_one { noted(notes) { $stdout.print("loud") } }).to(eq(""))
+      expect(descriptor { noted(notes) { $stdout.print("loud") } }).to(eq(""))
     end
 
     it "gives the worker its database, runs the duty through a shift and always retires it" do
@@ -305,7 +319,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
 
     it "silences the child and emits the report on its errand" do
       result = nil
-      expect(descriptor_one { result = worked(noisy) }).to(eq(""))
+      expect(descriptor { result = worked(noisy) }).to(eq(""))
       expect([result.mutant_id, result.status]).to(eq([9, :error]))
     end
 
@@ -375,17 +389,17 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
   end
 
   describe "the syntax type installer" do
-    def node_name = Kimera::SyntaxTypes.constants.grep(/Node\z/).first
+    def node = Kimera::SyntaxTypes.constants.grep(/Node\z/).first
 
     it "installs each syntax node constant" do
       target = Module.new.tap { |space| Kimera::SyntaxTypes::Import.new(space).call }
-      expect(target.const_get(node_name, false)).to(equal(Kimera::SyntaxTypes.const_get(node_name)))
+      expect(target.const_get(node, false)).to(equal(Kimera::SyntaxTypes.const_get(node)))
     end
 
     it "keeps a constant already there" do
-      existing = Module.new.tap { |space| space.const_set(node_name, :sentinel) }
+      existing = Module.new.tap { |space| space.const_set(node, :sentinel) }
       Kimera::SyntaxTypes::Import.new(existing).call
-      expect(existing.const_get(node_name, false)).to(eq(:sentinel))
+      expect(existing.const_get(node, false)).to(eq(:sentinel))
     end
   end
 

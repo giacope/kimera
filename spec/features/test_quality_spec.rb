@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 RSpec.describe("kimera run --test-quality (end-to-end)", :aggregate_failures) do
-  def app(name) = File.join(test_repository_root, "examples", name)
+  def app(name) = File.join(test_root, "examples", name)
 
   def both(cwd, tests, arguments = [])
     [[], ["--test-quality"]].map { |flags| test_outcome(cwd: cwd, tests: tests, arguments: arguments + flags) }
@@ -9,7 +9,7 @@ RSpec.describe("kimera run --test-quality (end-to-end)", :aggregate_failures) do
 
   def keyed(run) = run.results.to_h { |row| [row["key"], row["status"]] }
 
-  def quality_facts(run)
+  def traits(run)
     killed, others = run.results.partition { |row| row["status"] == "killed" }
     {
       unnamed: killed.reject { |row| (row["failing_tests"] - row["killing_tests"]).empty? },
@@ -22,7 +22,7 @@ RSpec.describe("kimera run --test-quality (end-to-end)", :aggregate_failures) do
 
   it "names every test that kills each mutant on RSpec, judging every mutant as a plain run does" do
     plain, quality = both(app("sample_app"), "spec/**/*_spec.rb")
-    expect(quality_facts(quality)).to(match(unnamed: [], most: be > 1, stray: []), quality.output)
+    expect(traits(quality)).to(match(unnamed: [], most: be > 1, stray: []), quality.output)
     expect(quality.report).to(include("test_quality" => summary, "run" => include("test_quality" => true)))
     expect(quality.output).to(include("Test quality (10 tests):"))
     expect(keyed(quality)).to(eq(keyed(plain)))

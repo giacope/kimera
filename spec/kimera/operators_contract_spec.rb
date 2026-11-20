@@ -61,7 +61,7 @@ RSpec.describe(Kimera::Operators) do
 
   def active(id, &) = Kimera::RUNTIME.during(id, &)
 
-  def contract_keys = %w[index_fetch kernel_coercion respond_to_guard symbol_literal default_argument]
+  def contracts = %w[index_fetch kernel_coercion respond_to_guard symbol_literal default_argument]
 
   describe "index_fetch" do
     it "has one label" do
@@ -349,11 +349,11 @@ RSpec.describe(Kimera::Operators) do
     def safe(catalog) = catalog.to_a.select(&:safe?).flat_map(&:ids)
 
     it "hold more than ten schema-safe points" do
-      expect(safe(scan(contract_keys, awkward, "awkward.rb")).size).to(be > 10)
+      expect(safe(scan(contracts, awkward, "awkward.rb")).size).to(be > 10)
     end
 
     it "are all applied by the overlay, into source that parses", :aggregate_failures do
-      catalog = scan(contract_keys, awkward, "awkward.rb")
+      catalog = scan(contracts, awkward, "awkward.rb")
       result = Kimera::Overlay.new(catalog).synthesize("awkward.rb", awkward)
       expect(result.to_h.fetch(:mutant_ids)).to(match_array(safe(catalog)))
       expect { RubyVM::AbstractSyntaxTree.parse(result.to_s) }.not_to(raise_error)
@@ -368,7 +368,7 @@ RSpec.describe(Kimera::Operators) do
   end
 
   it "bakes every contract mutant into source that still parses", :aggregate_failures do
-    catalog = scan(contract_keys)
+    catalog = scan(contracts)
     overlay = Kimera::Overlay.new(catalog)
     expect(catalog.each.count).to(be > 5)
     baked = catalog.each.to_h { |found, _| [found.to_s, overlay.bake("contracts.rb", contract_src, found.to_i)] }

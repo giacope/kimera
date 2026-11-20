@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 RSpec.describe("kimera run on code reached through another file (end-to-end)", :aggregate_failures) do
-  def shop_files
+  def tree
     {
       "app/shop.rb" => <<~RUBY,
         module Shop; end
@@ -47,7 +47,7 @@ RSpec.describe("kimera run on code reached through another file (end-to-end)", :
   end
 
   def reached(arguments)
-    test_tree(shop_files, "kimera-reach") { |root| test_outcome(cwd: root, arguments: arguments) }
+    test_tree(tree, "kimera-reach") { |root| test_outcome(cwd: root, arguments: arguments) }
   end
 
   it "kills the aliased mutants and sends the macro's to the isolated tier, never uncovered", :aggregate_failures do

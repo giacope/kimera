@@ -2,6 +2,7 @@
 
 require "kimera/execution/suite_capture"
 require "stringio"
+require "timeout"
 require "tmpdir"
 
 RSpec.describe(Kimera::Execution::SuiteCapture, :aggregate_failures) do
@@ -31,12 +32,7 @@ RSpec.describe(Kimera::Execution::SuiteCapture, :aggregate_failures) do
   def orphan(limit)
     Dir.mktmpdir do |root|
       output, = suite(said, limit, "sh", "-c", "sleep 30 & echo $!", chdir: root)
-      pid = Integer(output.lines.first)
-      sleep(0.2)
-      state = File.read("/proc/#{pid}/stat").split[2]
-      return state == "Z" ? :gone : :alive
-    rescue Errno::ENOENT
-      return :gone
+      gone?(Integer(output.lines.first)) ? :gone : :alive
     end
   end
 
@@ -55,24 +51,38 @@ RSpec.describe(Kimera::Execution::SuiteCapture, :aggregate_failures) do
   def interrupted(limit)
     Dir.mktmpdir do |root|
       pidfile = File.join(root, "pid")
-      waiter = Thread.current
-      Thread.new do
-        sleep(0.05) until File.size?(pidfile)
-        waiter.raise(Interrupt)
-      end
-      begin
-        script = "sleep 30 & echo $! > #{pidfile}; wait"
-        suite(said, limit, "sh", "-c", script, chdir: root)
-      rescue Interrupt
-        return gone?(Integer(File.read(pidfile))) ? :stopped : :running
-      end
+      alarm(pidfile)
+      halted(limit, pidfile, root)
     end
   end
 
+  def alarm(pidfile)
+    waiter = Thread.current
+    Thread.new do
+      sleep(0.05) until File.size?(pidfile)
+      waiter.raise(Interrupt)
+    end
+  end
+
+  def halted(limit, pidfile, root)
+    suite(said, limit, "sh", "-c", "sleep 30 & echo $! > #{pidfile}; wait", chdir: root)
+    :finished
+  rescue Interrupt
+    settled(Integer(File.read(pidfile)))
+  end
+
+  def settled(pid) = gone?(pid) ? :stopped : :running
+
   def gone?(pid)
-    sleep(0.2)
+    Timeout.timeout(5) { sleep(0.01) until dead?(pid) }
+    true
+  rescue Timeout::Error
+    false
+  end
+
+  def dead?(pid)
     File.read("/proc/#{pid}/stat").split[2] == "Z"
-  rescue Errno::ENOENT
+  rescue Errno::ENOENT, Errno::ESRCH
     true
   end
 

@@ -196,14 +196,17 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
   end
 
   describe "the run cycle's setup" do
-    around { |example| Dir.mktmpdir { |dir| Dir.chdir(dir) { example.run } } }
-
-    before do
-      File.write("a.rb", "def a(x)\n  x > 1\nend\n")
-      File.write("b.rb", "def b(x)\n  x < 1\nend\n")
-      FileUtils.mkdir_p("spec")
-      File.write("spec/a_spec.rb", "")
-      File.write("plugin.rb", "File.write(File.join(__dir__, \"plugged\"), \"\")\n")
+    def inside
+      Dir.mktmpdir do |dir|
+        Dir.chdir(dir) do
+          File.write("a.rb", "def a(x)\n  x > 1\nend\n")
+          File.write("b.rb", "def b(x)\n  x < 1\nend\n")
+          FileUtils.mkdir_p("spec")
+          File.write("spec/a_spec.rb", "")
+          File.write("plugin.rb", "File.write(File.join(__dir__, \"plugged\"), \"\")\n")
+          yield
+        end
+      end
     end
 
     def ran(*flags)
@@ -215,13 +218,17 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     end
 
     it "narrows the run to the lines changed since the reference, and runs everything without one" do
-      narrowed = ran("--since", "main")
-      expect([narrowed.size * 2, narrowed.empty?]).to(eq([ran.size, false]))
+      inside do
+        narrowed = ran("--since", "main")
+        expect([narrowed.size * 2, narrowed.empty?]).to(eq([ran.size, false]))
+      end
     end
 
     it "loads the configured plugins from the source root" do
-      ran("--require", "plugin.rb")
-      expect(File).to(exist("plugged"))
+      inside do
+        ran("--require", "plugin.rb")
+        expect(File).to(exist("plugged"))
+      end
     end
   end
 

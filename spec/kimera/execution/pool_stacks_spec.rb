@@ -59,7 +59,11 @@ RSpec.describe(Kimera::Execution::Pool) do
   end
 
   describe "its own workers' stack dump" do
-    after { Process.waitall }
+    def reaped
+      yield
+    ensure
+      Process.waitall
+    end
 
     def dirs(made)
       Object.new.tap do |dirs|
@@ -67,18 +71,21 @@ RSpec.describe(Kimera::Execution::Pool) do
       end
     end
 
-    def fleet(made, launched)
+    def fleet
+      made = []
+      launched = []
       pool = driver(dirs: dirs(made))
       launch = launching(pool, launched)
       pool.drive([1], ->(slot) { launch.call(slot).tap { launched << Dir.exist?(made.first) } }, listeners)
+      [made, launched]
     end
 
     it "lives as long as the fleet", :aggregate_failures do
-      made = []
-      launched = []
-      fleet(made, launched)
-      expect([launched.first.class, launched.last, made.map { Dir.exist?(it) }])
-        .to(eq([Kimera::Execution::StackDump, true, [false]]))
+      reaped do
+        made, launched = fleet
+        expect([launched.first.class, launched.last, made.map { Dir.exist?(it) }])
+          .to(eq([Kimera::Execution::StackDump, true, [false]]))
+      end
     end
   end
 

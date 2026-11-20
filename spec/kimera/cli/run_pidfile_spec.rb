@@ -5,14 +5,15 @@ require "stringio"
 require "tmpdir"
 
 RSpec.describe(Kimera::CLI::Run) do
-  around do |example|
-    Dir.mktmpdir { |dir| Dir.chdir(dir) { example.run } }
-  end
-
-  before do
-    File.write("calc.rb", "def m(a, b)\n  a > b\nend\n")
-    FileUtils.mkdir_p("spec")
-    File.write("spec/calc_spec.rb", "")
+  def inside
+    Dir.mktmpdir do |dir|
+      Dir.chdir(dir) do
+        File.write("calc.rb", "def m(a, b)\n  a > b\nend\n")
+        FileUtils.mkdir_p("spec")
+        File.write("spec/calc_spec.rb", "")
+        yield
+      end
+    end
   end
 
   def run(*argv, &)
@@ -21,7 +22,7 @@ RSpec.describe(Kimera::CLI::Run) do
     ended(outcome, StringIO.new, StringIO.new)
   end
 
-  def held_pid
+  def pid
     held = nil
     status =
       run("--pidfile", "kimera.pid") do
@@ -32,28 +33,44 @@ RSpec.describe(Kimera::CLI::Run) do
   end
 
   it "holds the run's pid in the file while it runs, then removes it" do
-    expect([*held_pid, File.exist?("kimera.pid")]).to(eq(["#{Process.pid}\n", 0, false]))
+    inside do
+      expect([*pid, File.exist?("kimera.pid")]).to(eq(["#{Process.pid}\n", 0, false]))
+    end
   end
 
   it "removes the file when the run stops on an error", :aggregate_failures do
-    expect(run("--pidfile", "kimera.pid", "--tests", "nope/*_spec.rb")).to(eq(1))
-    expect(File).not_to(exist("kimera.pid"))
+    inside do
+      expect(run("--pidfile", "kimera.pid", "--tests", "nope/*_spec.rb")).to(eq(1))
+      expect(File).not_to(exist("kimera.pid"))
+    end
   end
 
   it "removes the file when the run crashes", :aggregate_failures do
-    expect { run("--pidfile", "kimera.pid") { raise(ArgumentError, "boom") } }.to(raise_error(ArgumentError))
-    expect(File).not_to(exist("kimera.pid"))
+    inside do
+      expect { run("--pidfile", "kimera.pid") { raise(ArgumentError, "boom") } }.to(raise_error(ArgumentError))
+      expect(File).not_to(exist("kimera.pid"))
+    end
+  end
+
+  def reported(*argv) = run(*argv) { Kimera::RunReport.new(results: []) }
+
+  def saved
+    reported
+    JSON.parse(File.read("tmp/kimera/report.json"))
   end
 
   it "saves the JSON report to tmp/kimera/report.json unless told otherwise", :aggregate_failures do
-    run { Kimera::RunReport.new(results: []) }
-    expect(JSON.parse(File.read("tmp/kimera/report.json"))).to(include("schema_version" => 2))
-    run("--report", "elsewhere.json") { Kimera::RunReport.new(results: []) }
-    expect(File).to(exist("elsewhere.json"))
+    inside do
+      expect(saved).to(include("schema_version" => 2))
+      reported("--report", "elsewhere.json")
+      expect(File).to(exist("elsewhere.json"))
+    end
   end
 
   it "writes no file without --pidfile" do
-    run("--no-report") { Kimera::RunReport.new(results: []) }
-    expect(Dir.children(".").sort).to(eq(%w[calc.rb spec]))
+    inside do
+      reported("--no-report")
+      expect(Dir.children(".").sort).to(eq(%w[calc.rb spec]))
+    end
   end
 end

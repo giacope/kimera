@@ -17,7 +17,7 @@ RSpec.describe(Kimera::Execution) do
   end
 
   describe Kimera::Execution::TransactionIsolation do
-    def test_transaction_owner
+    def transacting
       events = []
       [
         Class.new do
@@ -35,13 +35,13 @@ RSpec.describe(Kimera::Execution) do
     end
 
     it "rolls back by raising inside the transaction and returns the value", :aggregate_failures do
-      owner, events = test_transaction_owner
+      owner, events = transacting
       result = described_class.new(owner).around { record(events, :ran, :value) }
       expect(result).to(eq(:value))
       expect(events).to(eq(%i[begin ran rolled_back]))
     end
 
-    def test_capturing_owner
+    def capturing
       captured = [nil]
       [
         Class.new do
@@ -59,7 +59,7 @@ RSpec.describe(Kimera::Execution) do
     end
 
     it "opens the transaction with requires_new: true" do
-      owner, captured = test_capturing_owner
+      owner, captured = capturing
       described_class.new(owner).around { :x }
       expect(captured[0]).to(eq(requires_new: true))
     end

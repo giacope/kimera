@@ -154,19 +154,19 @@ RSpec.describe(Kimera::Report::Text) do
     expect(render(killed)).not_to(include("Test quality"))
   end
 
-  def idle_tests = Array.new(12) { |index| "idle#{index}" }
+  def bystanders = Array.new(12) { |index| "idle#{index}" }
 
-  def idle_mutant
-    killed.with(covering_tests: idle_tests).with(killing_tests: [])
+  def idle
+    killed.with(covering_tests: bystanders).with(killing_tests: [])
   end
 
-  def idle_report
-    report = Kimera::RunReport.new(results: [idle_mutant]).annotate(suite: idle_tests)
+  def truncated
+    report = Kimera::RunReport.new(results: [idle]).annotate(suite: bystanders)
     StringIO.new.tap { |io| described_class.new(registry, io: io, color: false).report(report) }.string
   end
 
   it "names at most ten tests of each kind, pointing at the JSON report for the rest", :aggregate_failures do
-    shown = idle_report
+    shown = truncated
     expect(shown).to(
       include(
         "  Kill nothing:\n    idle0\n", "    idle9\n    (+2 more; the JSON report's test_quality lists them all)\n"

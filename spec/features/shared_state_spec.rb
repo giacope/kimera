@@ -59,13 +59,13 @@ RSpec.describe("a suite that shares a path between tests (end-to-end)") do
 
   def test_doctor(root, config = "")
     File.write(File.join(root, ".kimera.yml"), config, mode: "a")
-    doctor = [File.join(test_repository_root, "exe", "kimera"), "doctor", "--check-baseline"]
-    command = ["bundle", "exec", "ruby", "-I", File.join(test_repository_root, "lib"), *doctor].shelljoin
+    doctor = [File.join(test_root, "exe", "kimera"), "doctor", "--check-baseline"]
+    command = ["bundle", "exec", "ruby", "-I", File.join(test_root, "lib"), *doctor].shelljoin
     `cd #{root.shellescape} && BUNDLE_GEMFILE=#{test_gemfile} #{command} 2>&1`
       .force_encoding(Encoding::UTF_8).then { |text| [text, $CHILD_STATUS.exitstatus] }
   end
 
-  def shared_run(*flags)
+  def shared(*flags)
     Dir.mktmpdir("kimera-shared") do |root|
       test_shared(root, test_store)
       test_outcome(cwd: root, arguments: [*flags, "--no-progress"])
@@ -81,26 +81,26 @@ RSpec.describe("a suite that shares a path between tests (end-to-end)") do
 
   let(:red) { "! Parallel baseline: red split across 2 processes (jobs: 2), green in one: " }
 
-  def forked_hint = "likely cause: they ran in workers forked from the one process that loaded the suite"
+  def hint = "likely cause: they ran in workers forked from the one process that loaded the suite"
 
   it "names --jobs 1 as the check when the baseline is red on two workers", :aggregate_failures do
-    run = shared_run("--jobs", "2")
+    run = shared("--jobs", "2")
     expect(run.status).to(eq(1))
     expect(run.output).to(
       match(%r{fail under kimera but pass in a plain run[^\n]*:\n  \./spec/[ab]_spec\.rb\[1:\d\]: })
-        .and(include(forked_hint, "compare with --jobs 1"))
+        .and(include(hint, "compare with --jobs 1"))
     )
   end
 
   it "is green on one worker", :aggregate_failures do
-    run = shared_run("--jobs", "1")
+    run = shared("--jobs", "1")
     expect(run.output).not_to(include("not green"))
     expect(run.counts["killed"]).to(be_positive)
   end
 
   it "names --jobs 1 when the coverage pass of an --isolated run is red on two workers" do
-    run = shared_run("--isolated", "--jobs", "2")
-    expect([run.status, run.output]).to(match([1, a_string_including(forked_hint, "compare with --jobs 1")]))
+    run = shared("--isolated", "--jobs", "2")
+    expect([run.status, run.output]).to(match([1, a_string_including(hint, "compare with --jobs 1")]))
   end
 
   it "has doctor warn that the suite is red split across the configured jobs (RSpec)", :aggregate_failures do

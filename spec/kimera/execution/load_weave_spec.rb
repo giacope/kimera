@@ -12,9 +12,12 @@ RSpec.describe(Kimera::Execution::LoadWeave, :aggregate_failures) do
   let(:registry) { Kimera::RegistryScan.new(root: dir).build([path]) }
   let(:weave) { described_class.new(registry) }
 
-  before { File.write(path, "module WeaveHeld\n  CHECK = ->(n) { n > 10 }\nend\n") }
-
-  after { FileUtils.remove_entry(dir) }
+  def inside
+    File.write(path, "module WeaveHeld\n  CHECK = ->(n) { n > 10 }\nend\n")
+    yield
+  ensure
+    FileUtils.remove_entry(dir)
+  end
 
   def forked
     reader, writer = IO.pipe
@@ -58,35 +61,47 @@ RSpec.describe(Kimera::Execution::LoadWeave, :aggregate_failures) do
   def flips = [WeaveHeld::CHECK.call(10), Kimera::RUNTIME.during(boundary) { WeaveHeld::CHECK.call(10) }]
 
   it "guards a file as it first loads, so a lambda a constant took then flips with its mutant" do
-    held = forked { weave.during(handed) { require(path) }.then { [flips, weave.woven("weave_held.rb") { [] }] } }
-    expect(held.first).to(eq([false, true]))
-    expect(held.last).to(include(boundary))
+    inside do
+      held = forked { weave.during(handed) { require(path) }.then { [flips, weave.woven("weave_held.rb") { [] }] } }
+      expect(held.first).to(eq([false, true]))
+      expect(held.last).to(include(boundary))
+    end
   end
 
   it "keeps the line every node stood on" do
-    expect(forked { weave.during(handed) { require(path) }.then { WeaveHeld::CHECK.source_location } })
-      .to(eq([path, 2]))
+    inside do
+      expect(forked { weave.during(handed) { require(path) }.then { WeaveHeld::CHECK.source_location } })
+        .to(eq([path, 2]))
+    end
   end
 
   it "leaves a file it is not handed, or one loaded after the block, as Ruby loads it" do
-    expect(forked { weave.during({}) { load(path) } && flips.last }).to(be(false))
-    expect(forked { weave.during(handed) { nil }.then { load(path) && flips.last } }).to(be(false))
-    expect(weave.woven("weave_held.rb") { :unwoven }).to(eq(:unwoven))
+    inside do
+      expect(forked { weave.during({}) { load(path) } && flips.last }).to(be(false))
+      expect(forked { weave.during(handed) { nil }.then { load(path) && flips.last } }).to(be(false))
+      expect(weave.woven("weave_held.rb") { :unwoven }).to(eq(:unwoven))
+    end
   end
 
   def loading(overlays, *paths) = described_class.new(registry, overlays).during(handed) { paths.all? { load(it) } }
 
   it "asks the overlay about the files it is handed, and no other" do
-    other = File.join(dir, "other.rb").tap { |file| File.write(file, "1\n") }
-    expect(forked { [].tap { |files| loading(asking(files), other, path) } }).to(eq(["weave_held.rb"]))
+    inside do
+      other = File.join(dir, "other.rb").tap { |file| File.write(file, "1\n") }
+      expect(forked { [].tap { |files| loading(asking(files), other, path) } }).to(eq(["weave_held.rb"]))
+    end
   end
 
   it "loads a file it cannot weave as Ruby does" do
-    expect(forked { loading(unwritable, path) && WeaveHeld::CHECK.call(11) }).to(be(true))
+    inside do
+      expect(forked { loading(unwritable, path) && WeaveHeld::CHECK.call(11) }).to(be(true))
+    end
   end
 
   it "hands the files it does not weave to a load_iseq hook prepended before it" do
-    seen = forked { [].tap { |paths| underneath(paths) && weave.during({}) { load(path) } } }
-    expect(seen).to(eq([path]))
+    inside do
+      seen = forked { [].tap { |paths| underneath(paths) && weave.during({}) { load(path) } } }
+      expect(seen).to(eq([path]))
+    end
   end
 end

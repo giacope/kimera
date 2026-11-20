@@ -15,7 +15,7 @@ RSpec.describe("synthesized baseline") do
   def green(dir)
     synthesized(dir)
     script = <<~RUBY
-      $LOAD_PATH.unshift(#{File.join(test_repository_root, "lib").inspect})
+      $LOAD_PATH.unshift(#{File.join(test_root, "lib").inspect})
       require "kimera/runtime"
       require "rspec/core"
       Dir.glob(#{dir.inspect} + "/spec/**/*_spec.rb").sort.each { |f| require f }

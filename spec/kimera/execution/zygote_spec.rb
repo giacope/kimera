@@ -26,7 +26,7 @@ RSpec.describe(Kimera::Execution::Zygote) do
   end
 
   def beside
-    bystander = fork { sleep(30) }
+    bystander = fork { sleep }
     yield
   ensure
     Process.kill("KILL", bystander)

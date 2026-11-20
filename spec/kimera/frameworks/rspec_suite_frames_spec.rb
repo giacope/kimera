@@ -8,12 +8,15 @@ require "tmpdir"
 RSpec.describe(Kimera::Frameworks::RSpecSuite) do
   let(:dir) { Dir.mktmpdir }
 
-  around do |example|
-    groups = RSpec.world.example_groups.dup
+  def isolated
+    world = RSpec.world
+    groups = world.example_groups.dup
+    failed = world.non_example_failure
     streams = %i[output_stream error_stream deprecation_stream].map { |name| RSpec.configuration.public_send(name) }
-    example.run
+    yield
   ensure
-    (RSpec.world.example_groups - groups).each { |group| RSpec.world.example_groups.delete(group) }
+    world.non_example_failure = failed
+    (world.example_groups - groups).each { |group| world.example_groups.delete(group) }
     restore(streams)
     FileUtils.remove_entry(dir)
   end
@@ -45,17 +48,22 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
     $stderr = original
   end
 
-  it "follows the exception with the example's own frames" do
+  def failure
     loaded = adapter
     id = loaded.test_ids.find { |test| loaded[test].name == "KimeraFrames raises" }
-    lines = loaded.run([id]).to_h.fetch("failures")[id].lines(chomp: true)
-    expect(lines.first(3)).to(
-      match(
-        [
-          eq("RuntimeError: kaboom"), match(/\A    \S*frames_spec\.rb:2:in '\S*explode'\z/),
-          match(/\A    \S*frames_spec\.rb:5:in /)
-        ]
+    loaded.run([id]).to_h.fetch("failures")[id].lines(chomp: true)
+  end
+
+  it "follows the exception with the example's own frames" do
+    isolated do
+      expect(failure.first(3)).to(
+        match(
+          [
+            eq("RuntimeError: kaboom"), match(/\A    \S*frames_spec\.rb:2:in '\S*explode'\z/),
+            match(/\A    \S*frames_spec\.rb:5:in /)
+          ]
+        )
       )
-    )
+    end
   end
 end

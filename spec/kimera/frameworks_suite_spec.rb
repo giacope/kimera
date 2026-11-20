@@ -2,6 +2,7 @@
 
 require "kimera/execution/shift"
 require "kimera/frameworks/suite"
+require "prism"
 
 using PointFields
 
@@ -46,8 +47,6 @@ RSpec.describe(Kimera::Frameworks) do
     rescue Kimera::Error => error
       error.message
     end
-
-    before { require "prism" }
 
     it "names the constant and the gem that defines it", :aggregate_failures do
       message = loaded(TypeError.new("Prism is not a class"))

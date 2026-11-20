@@ -3,8 +3,6 @@
 require "kimera/execution/database_copies"
 
 RSpec.describe(Kimera::Execution::DatabaseCopies::Postgres) do
-  subject(:engine) { described_class.new(config) }
-
   let(:config) do
     Struct.new(:env_name, :name, :database, :configuration_hash)
       .new("test", "primary", "app_test", { adapter: "postgresql", database: "app_test", host: "db" })
@@ -12,10 +10,11 @@ RSpec.describe(Kimera::Execution::DatabaseCopies::Postgres) do
   let(:log) { [] }
   let(:named) { [] }
 
-  before do
-    stub_const("ActiveRecord::Base", base(log))
+  def engine(server: base(log), runner: tasks(log))
+    stub_const("ActiveRecord::Base", server)
     stub_const("ActiveRecord::DatabaseConfigurations::HashConfig", configs(named))
-    stub_const("ActiveRecord::Tasks::PostgreSQLDatabaseTasks", tasks(log))
+    stub_const("ActiveRecord::Tasks::PostgreSQLDatabaseTasks", runner)
+    described_class.new(config)
   end
 
   def base(sink, listed = nil)
@@ -58,8 +57,7 @@ RSpec.describe(Kimera::Execution::DatabaseCopies::Postgres) do
 
   it "restores the parent's settings when the copy fails" do
     refusing = Class.new { def initialize(_config) = raise(RuntimeError) }
-    stub_const("ActiveRecord::Tasks::PostgreSQLDatabaseTasks", refusing)
-    expect { engine.copy("app_test_1") }.to(raise_error(RuntimeError).and(change(log, :size).by(1)))
+    expect { engine(runner: refusing).copy("app_test_1") }.to(raise_error(RuntimeError).and(change(log, :size).by(1)))
   end
 
   it "names the copy apart from the parent's config" do
@@ -73,7 +71,7 @@ RSpec.describe(Kimera::Execution::DatabaseCopies::Postgres) do
   end
 
   it "finds a copy the server lists, and no other" do
-    stub_const("ActiveRecord::Base", base(log, "app_test_1"))
-    expect(%w[app_test_1 app_test_2].map { |name| engine.exist?(name) }).to(eq([true, false]))
+    listing = engine(server: base(log, "app_test_1"))
+    expect(%w[app_test_1 app_test_2].map { |name| listing.exist?(name) }).to(eq([true, false]))
   end
 end

@@ -22,8 +22,9 @@ RSpec.describe(Kimera::Execution::MirrorDatabase, :aggregate_failures) do
   def test_adopted(slot, parallel: true, rails: %i[record testing], answers: true)
     calls = []
     test_rails(rails, parallel, answers, calls)
-    databases = fake_feature("active_record/test_databases")
-    [described_class.new(slot, copies: FakeCopies.new).adopt, calls, loaded?(databases)]
+    fake_feature("active_record/test_databases") do |databases|
+      [described_class.new(slot, copies: FakeCopies.new).adopt, calls, loaded?(databases)]
+    end
   end
 
   it "leaves the database alone when there is no schema file to load the mirror's copy from" do

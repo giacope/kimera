@@ -24,7 +24,11 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
   let(:out) { StringIO.new }
   let(:errors) { StringIO.new }
 
-  after { FileUtils.remove_entry(dir) }
+  def inside
+    yield
+  ensure
+    FileUtils.remove_entry(dir)
+  end
 
   def result(id, status, **attributes)
     Kimera::MutantResult.new(mutant_id: id, status: status, file: "app/x.rb", duration: 0.0, **attributes)
@@ -104,11 +108,17 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect(Kimera::CLI::Suggestion.new(%w[run baseline]).hint("basel")).to(eq('; did you mean "baseline"?'))
     end
 
-    it "loads report and mutant handlers when the base CLI is loaded alone" do
+    def loaded
       path = fixture("mutant_id" => 1, "status" => "survived", "file" => "x.rb", "label" => "x", "original" => "x")
-      output, status = Open3.capture2e(Gem.ruby, "-I", File.expand_path("../../lib", __dir__), "-e", standalone, path)
-      expect(status).to(be_success, output)
-      expect(output).to(include("1 survived mutant(s):", "#1  survived"))
+      Open3.capture2e(Gem.ruby, "-I", File.expand_path("../../lib", __dir__), "-e", standalone, path)
+    end
+
+    it "loads report and mutant handlers when the base CLI is loaded alone" do
+      inside do
+        output, status = loaded
+        expect(status).to(be_success, output)
+        expect(output).to(include("1 survived mutant(s):", "#1  survived"))
+      end
     end
   end
 
@@ -122,28 +132,38 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     it "rejects every invalid create input" do
-      expect(baseline(%w[create --reason why])[2]).to(include("no such report: tmp/kimera/report.json"))
-      expect(baseline(["create", source])[2]).to(include("requires --reason"))
-      expect(baseline(["create", "missing.json", "--reason", "why"])[2]).to(include("no such report"))
+      inside do
+        expect(baseline(%w[create --reason why])[2]).to(include("no such report: tmp/kimera/report.json"))
+        expect(baseline(["create", source])[2]).to(include("requires --reason"))
+        expect(baseline(["create", "missing.json", "--reason", "why"])[2]).to(include("no such report"))
+      end
     end
 
     it "creates a baseline and refuses to replace it implicitly" do
-      status, output, = baseline(["create", source, "--reason", "why", "--output", target])
-      expect(status).to(eq(0))
-      expect(output)
-        .to(include("Created #{target} with 1 accepted survivor(s).", "Add `baseline: #{target}` to .kimera.yml"))
-      expect(baseline(["create", source, "--reason", "why", "--output", target])[2]).to(include("already exists"))
+      inside do
+        status, output, = baseline(["create", source, "--reason", "why", "--output", target])
+        expect([status, output]).to(
+          match(
+            [0, include("Created #{target} with 1 accepted survivor(s).", "Add `baseline: #{target}` to .kimera.yml")]
+          )
+        )
+        expect(baseline(["create", source, "--reason", "why", "--output", target])[2]).to(include("already exists"))
+      end
     end
 
     it "rejects incomplete reports" do
-      bad = fixture("mutant_id" => 1, "status" => "survived", "file" => "x.rb")
-      expect(baseline(["create", bad, "--reason", "why", "--output", target])[2])
-        .to(include("report is missing line for mutant #1"))
+      inside do
+        bad = fixture("mutant_id" => 1, "status" => "survived", "file" => "x.rb")
+        expect(baseline(["create", bad, "--reason", "why", "--output", target])[2])
+          .to(include("report is missing line for mutant #1"))
+      end
     end
 
     it "rejects invalid review invocations" do
-      expect(baseline(["review"])[2]).to(include("Usage: kimera baseline review BASELINE.yml"))
-      expect(baseline(["review", "missing.yml"])[2]).to(include("no such baseline"))
+      inside do
+        expect(baseline(["review"])[2]).to(include("Usage: kimera baseline review BASELINE.yml"))
+        expect(baseline(["review", "missing.yml"])[2]).to(include("no such baseline"))
+      end
     end
   end
 
@@ -164,25 +184,32 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     it "requires a report" do
-      expect(Dir.chdir(dir) { mutant("7") }).to(eq(1))
-      expect(errors.string).to(include("no such report: tmp/kimera/report.json (run kimera run first"))
+      inside do
+        expect(Dir.chdir(dir) { mutant("7") }).to(eq(1))
+        expect(errors.string).to(include("no such report: tmp/kimera/report.json (run kimera run first"))
+      end
     end
 
     it "preserves coverage and isolation provenance" do
-      arguments = rerun(
-        "framework" => "minitest", "source_root" => "src", "tests" => ["test/a_test.rb"],
-        "operators" => ["comparison"], "coverage" => false, "isolated" => true
-      )
-      expect(arguments).to(include("--no-coverage", "--isolated", "--framework", "minitest", "--source-root", "src"))
-      expect(arguments.first(3)).to(eq(["app/x.rb", "--focus", "app/x.rb:1:0123abcd"]))
+      inside do
+        arguments = rerun(
+          "framework" => "minitest", "source_root" => "src", "tests" => ["test/a_test.rb"],
+          "operators" => ["comparison"], "coverage" => false, "isolated" => true
+        )
+        expect(arguments).to(include("--no-coverage", "--isolated", "--framework", "minitest", "--source-root", "src"))
+        expect(arguments.first(3)).to(eq(["app/x.rb", "--focus", "app/x.rb:1:0123abcd"]))
+      end
     end
 
+    def predating = written("run" => {}, "results" => [{ "mutant_id" => 7, "file" => "x.rb" }])
+
     it "asks for a fresh report when the rerun row predates mutant keys" do
-      path = written("run" => {}, "results" => [{ "mutant_id" => 7, "file" => "x.rb" }])
-      expect(mutant("7", "--report", path, "--rerun")).to(eq(1))
-      expect(errors.string)
-        .to(eq("kimera: report has no mutant keys; regenerate it with kimera run --report, then rerun\n"))
-      expect(out.string).to(be_empty)
+      inside do
+        expect(mutant("7", "--report", predating, "--rerun")).to(eq(1))
+        expect(errors.string)
+          .to(eq("kimera: report has no mutant keys; regenerate it with kimera run --report, then rerun\n"))
+        expect(out.string).to(be_empty)
+      end
     end
 
     {
@@ -190,8 +217,10 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       "has no run provenance" => [{ "mutant_id" => 7, "file" => "x.rb" }]
     }.each do |message, rows|
       it "rejects a report whose mutant row says: #{message}" do
-        expect(mutant("7", "--report", written("results" => rows), "--rerun")).to(eq(1))
-        expect(errors.string).to(include(message))
+        inside do
+          expect(mutant("7", "--report", written("results" => rows), "--rerun")).to(eq(1))
+          expect(errors.string).to(include(message))
+        end
       end
     end
   end
@@ -243,11 +272,17 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect(JSON.parse(output.string).fetch("run")).to(eq("framework" => "rspec"))
     end
 
-    it "chooses the error stream for a machine format" do
+    def verbose
       project("x.rb" => "def x; 1; end\n", "spec/x_spec.rb" => "")
       cli = Kimera::CLI::Run.new(io: out, errors: errors, bench: FakeBench.new)
       Dir.chdir(dir) { cli.run(%w[x.rb --format json --no-report --verbose]) }
-      expect([JSON.parse(out.string).keys.first, errors.string]).to(match(["schema_version", start_with("Kimera: ")]))
+    end
+
+    it "chooses the error stream for a machine format" do
+      inside do
+        verbose
+        expect([JSON.parse(out.string).keys.first, errors.string]).to(match(["schema_version", start_with("Kimera: ")]))
+      end
     end
 
     it "gates by default, and hints at uncovered mutants" do
@@ -284,8 +319,10 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     it "writes report metadata only when supplied" do
-      expect(emitted("plain.json")).not_to(have_key("run"))
-      expect(emitted("annotated.json", metadata: { "jobs" => 2 }).fetch("run")).to(eq("jobs" => 2))
+      inside do
+        expect(emitted("plain.json")).not_to(have_key("run"))
+        expect(emitted("annotated.json", metadata: { "jobs" => 2 }).fetch("run")).to(eq("jobs" => 2))
+      end
     end
 
     def colored?(**) = Kimera::CLI::Run::Emission.new(**).rendered(report, tiny).include?("\e[")
@@ -413,53 +450,81 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       Kimera::CLI::Doctor.new(io: out, errors: errors, root: dir, instruments: instruments)
     end
 
-    it "initializes a minitest project under --dry-run, writing nothing" do
+    def dry
       directories("test") && project("thing.rb" => "class Thing; end\n")
-      expect(initialized("--dry-run")).to(eq(0))
-      expect(out.string).to(include("framework: minitest", "paths:", "lib/**/*.rb", "count_no_coverage: true"))
-      expect(YAML.safe_load(out.string).fetch("tests")).to(eq(["test/**/*_test.rb"]))
-      expect(File).not_to(exist(File.join(dir, ".kimera.yml")))
+      initialized("--dry-run")
+    end
+
+    it "initializes a minitest project under --dry-run, writing nothing" do
+      inside do
+        expect(dry).to(eq(0))
+        expect([out.string, YAML.safe_load(out.string).fetch("tests")]).to(
+          match(
+            [include("framework: minitest", "paths:", "lib/**/*.rb", "count_no_coverage: true"), ["test/**/*_test.rb"]]
+          )
+        )
+        expect(File).not_to(exist(File.join(dir, ".kimera.yml")))
+      end
     end
 
     it "rejects an unknown init option" do
-      expect(initialized("--bogus")).to(eq(1))
+      inside do
+        expect(initialized("--bogus")).to(eq(1))
+      end
+    end
+
+    def detected
+      directories("test", "spec", "app") && project("app/x.rb" => "class X; end\n")
+      initialized
     end
 
     it "detects RSpec when both test directories exist and names the chosen framework" do
-      directories("test", "spec", "app") && project("app/x.rb" => "class X; end\n")
-      expect(initialized).to(eq(0))
-      expect(out.string).to(eq("Created .kimera.yml for rspec.\nNext: kimera doctor\n"))
-      expect(YAML.safe_load_file(File.join(dir, ".kimera.yml")).fetch("tests")).to(eq(["spec/**/*_spec.rb"]))
+      inside do
+        expect(detected).to(eq(0))
+        expect(out.string).to(eq("Created .kimera.yml for rspec.\nNext: kimera doctor\n"))
+        expect(YAML.safe_load_file(File.join(dir, ".kimera.yml")).fetch("tests")).to(eq(["spec/**/*_spec.rb"]))
+      end
     end
 
     it "reports broken doctor checks" do
-      expect(doctored).to(eq(1))
-      expect(out.string).to(
-        include(
-          "Configuration: none found", "Source scope: no Ruby files",
-          "Test discovery: no test files", "not a repository", "no Rails-specific"
+      inside do
+        expect(doctored).to(eq(1))
+        expect(out.string).to(
+          include(
+            "Configuration: none found", "Source scope: no Ruby files",
+            "Test discovery: no test files", "not a repository", "no Rails-specific"
+          )
         )
-      )
-      expect(errors.string).to(include("doctor found 2 blocking issue(s)"))
+        expect(errors.string).to(include("doctor found 2 blocking issue(s)"))
+      end
     end
 
-    it "reports healthy doctor checks" do
+    def healthy
       directories(".git")
       project(
         "app/x.rb" => "class X; end\n", "spec/x_spec.rb" => "RSpec.describe(\"x\") { it { } }\n",
         "config/application.rb" => "# rails\n"
       )
       project(".kimera.yml" => "framework: rspec\npaths: [app/**/*.rb]\ntests: [spec/**/*_spec.rb]\n")
-      expect(doctored).to(eq(0))
-      expect(out.string)
-        .to(include("Configuration: .kimera.yml (rspec)", "Git: incremental runs are available", "Rails detected"))
     end
 
+    it "reports healthy doctor checks" do
+      inside do
+        healthy
+        expect(doctored).to(eq(0))
+        expect(out.string)
+          .to(include("Configuration: .kimera.yml (rspec)", "Git: incremental runs are available", "Rails detected"))
+      end
+    end
+
+    def broken = FakeCapture.new { ["x_spec.rb:1: boom (RuntimeError)\n", ProcessStatuses.exited(1)] }
+
     it "fails when a test file cannot load, and accepts a worktree's .git file" do
-      project("spec/x_spec.rb" => "# spec\n", ".git" => "gitdir: /elsewhere\n")
-      broken = FakeCapture.new { ["x_spec.rb:1: boom (RuntimeError)\n", ProcessStatuses.exited(1)] }
-      expect(doctored(suite: broken)).to(eq(1))
-      expect(out.string).to(include("✗ Test loading: x_spec.rb:1: boom (RuntimeError)", "✓ Git: incremental"))
+      inside do
+        project("spec/x_spec.rb" => "# spec\n", ".git" => "gitdir: /elsewhere\n")
+        expect(doctored(suite: broken)).to(eq(1))
+        expect(out.string).to(include("✗ Test loading: x_spec.rb:1: boom (RuntimeError)", "✓ Git: incremental"))
+      end
     end
 
     describe "doctor's baseline check" do
@@ -480,23 +545,29 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       def baselined? = suite.commands.any? { |command| !command.include?("--dry-run") }
 
       it "is skipped unless requested" do
-        expect(ended(doctor.run([]), out, errors)).to(eq(1))
-        expect(baselined?).to(be(false))
+        inside do
+          expect(ended(doctor.run([]), out, errors)).to(eq(1))
+          expect(baselined?).to(be(false))
+        end
       end
 
       it "runs under --check-baseline" do
-        expect(ended(doctor.run(["--check-baseline"]), out, errors)).to(eq(1))
-        expect(baselined?).to(be(true))
-        expect(out.string).to(include("Baseline: configured test suite is green"))
+        inside do
+          expect(ended(doctor.run(["--check-baseline"]), out, errors)).to(eq(1))
+          expect(baselined?).to(be(true))
+          expect(out.string).to(include("Baseline: configured test suite is green"))
+        end
       end
 
       it "discovers each framework's default tests" do
-        expect(defaults("minitest")).to(eq(["Test discovery: 2 files"]))
-        expect(defaults("rspec")).to(eq(["Test discovery: 1 files"]))
+        inside do
+          expect(defaults("minitest")).to(eq(["Test discovery: 2 files"]))
+          expect(defaults("rspec")).to(eq(["Test discovery: 1 files"]))
+        end
       end
     end
 
-    def ci_arguments(argv)
+    def forwarded(argv)
       run = FakeRun.new
       Kimera::CLI::CI.new(io: out, errors: errors, env: {}, run: run).run(argv)
       run.runs.fetch(0)
@@ -504,11 +575,11 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
     it "applies CI defaults only when neither spelling of an override is present" do
       argv = ["--no-fail-on-no-coverage", "--report", "out.json", "--format=ndjson", "--max-survivors=4"]
-      expect(ci_arguments(argv)).to(eq(argv))
+      expect(forwarded(argv)).to(eq(argv))
     end
 
     it "adds every CI default when no override is given" do
-      expect(ci_arguments([])).to(eq(["--max-survivors", "0", "--fail-on-no-coverage", "--format", "github"]))
+      expect(forwarded([])).to(eq(["--max-survivors", "0", "--fail-on-no-coverage", "--format", "github"]))
     end
 
     it "rejects an invalid completion request" do
@@ -729,23 +800,32 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
     def baselined(suite, **settings) = examination(suite, settings).checks(check_baseline: true).last(1)
 
-    it "builds and diagnoses a successful minitest baseline command" do
-      command = [
+    def loader
+      [
         "bundle", "exec", "ruby", "-I", "test", "-I", "spec",
         "-e", Kimera::CLI::TestCommand::LOADER, File.join(dir, "test", "x_test.rb")
       ]
-      suite = FakeCapture.new
-      expect(baselined(suite, framework: "minitest", tests: ["test/**/*_test.rb"]))
-        .to(eq([["✓", "Baseline: configured test suite is green"]]))
-      expect(suite.ran.last).to(eq([command, dir, 125]))
     end
 
+    it "builds and diagnoses a successful minitest baseline command" do
+      inside do
+        suite = FakeCapture.new
+        expect(baselined(suite, framework: "minitest", tests: ["test/**/*_test.rb"]))
+          .to(eq([["✓", "Baseline: configured test suite is green"]]))
+        expect(suite.ran.last).to(eq([loader, dir, 125]))
+      end
+    end
+
+    def failing = FakeCapture.new { ["noise\n3 examples, 1 failure\n", ProcessStatuses.exited(1)] }
+
+    def failure = "Baseline: 3 examples, 1 failure (fix it, then rerun `kimera doctor --check-baseline`)"
+
     it "builds and diagnoses a failing RSpec baseline command" do
-      command = ["bundle", "exec", "rspec", File.join(dir, "spec", "x_spec.rb")]
-      suite = FakeCapture.new { ["noise\n3 examples, 1 failure\n", ProcessStatuses.exited(1)] }
-      message = "Baseline: 3 examples, 1 failure (fix it, then rerun `kimera doctor --check-baseline`)"
-      expect(baselined(suite, framework: "rspec", tests: ["spec/**/*_spec.rb"])).to(eq([["✗", message]]))
-      expect(suite.ran.last).to(eq([command, dir, 125]))
+      inside do
+        suite = failing
+        expect(baselined(suite, framework: "rspec", tests: ["spec/**/*_spec.rb"])).to(eq([["✗", failure]]))
+        expect(suite.ran.last).to(eq([["bundle", "exec", "rspec", File.join(dir, "spec", "x_spec.rb")], dir, 125]))
+      end
     end
 
     def repository(*refs)
@@ -763,12 +843,16 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     it "uses the changed-workflow reference" do
-      repository("origin/main", "main")
-      expect(changed(["app"])).to(eq(["--since", "origin/main", "app"]))
+      inside do
+        repository("origin/main", "main")
+        expect(changed(["app"])).to(eq(["--since", "origin/main", "app"]))
+      end
     end
 
     it "keeps an explicit --since=REF" do
-      expect(changed(["--since=HEAD", "app"])).to(eq(["--since=HEAD", "app"]))
+      inside do
+        expect(changed(["--since=HEAD", "app"])).to(eq(["--since=HEAD", "app"]))
+      end
     end
 
     it "reads --since in either spelling" do
@@ -777,17 +861,24 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect(Kimera::CLI::Argv.new(["app"]).option?("--since")).to(be(false))
     end
 
+    def preferred(ref)
+      repository(ref)
+      changed(["app"]).first(2)
+    end
+
     it "prefers origin/main, then main" do
-      repository("main")
-      expect(changed(["app"]).first(2)).to(eq(["--since", "main"]))
-      repository("origin/main")
-      expect(changed(["app"]).first(2)).to(eq(["--since", "origin/main"]))
+      inside do
+        expect(preferred("main")).to(eq(["--since", "main"]))
+        expect(preferred("origin/main")).to(eq(["--since", "origin/main"]))
+      end
     end
 
     it "explains a missing reference" do
-      repository
-      expect { changed(["app"]) }
-        .to(raise_error(Kimera::UsageError, "cannot find origin/main or main; pass --since REF"))
+      inside do
+        repository
+        expect { changed(["app"]) }
+          .to(raise_error(Kimera::UsageError, "cannot find origin/main or main; pass --since REF"))
+      end
     end
   end
 
@@ -799,8 +890,10 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
   end
 
   it "rejects a configured baseline path that does not exist" do
-    path = File.join(dir, ".kimera.yml")
-    File.write(path, "baseline: missing.yml\n")
-    expect { Kimera::Config.new(path).options }.to(raise_error(Kimera::UsageError, /no such baseline file/))
+    inside do
+      path = File.join(dir, ".kimera.yml")
+      File.write(path, "baseline: missing.yml\n")
+      expect { Kimera::Config.new(path).options }.to(raise_error(Kimera::UsageError, /no such baseline file/))
+    end
   end
 end

@@ -7,7 +7,7 @@ RSpec.describe(Kimera) do
     end.uniq
   end
 
-  def test_wrong_case(feature)
+  def misspelled(feature)
     _kind, path = $LOAD_PATH.resolve_feature_path(feature)
     return "#{feature} (unresolvable)" unless path
     "#{feature} (resolves to #{path})" unless File.basename(path, ".*") == File.basename(feature)
@@ -16,6 +16,6 @@ RSpec.describe(Kimera) do
   end
 
   it "spells every library require with its on-disk case" do
-    expect(test_features.filter_map { |feature| test_wrong_case(feature) }).to(eq([]))
+    expect(test_features.filter_map { |feature| misspelled(feature) }).to(eq([]))
   end
 end

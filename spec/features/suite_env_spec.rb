@@ -31,16 +31,13 @@ RSpec.describe("KIMERA in the suite's environment") do
   end
 
   def launch(dir, *)
-    env = { "KIMERA" => nil, "BUNDLE_GEMFILE" => File.join(test_repository_root, "Gemfile") }
-    command = [
-      "bundle", "exec", "ruby", "-I", File.join(test_repository_root, "lib"),
-      File.join(test_repository_root, "exe", "kimera")
-    ]
+    env = { "KIMERA" => nil, "BUNDLE_GEMFILE" => File.join(test_root, "Gemfile") }
+    command = ["bundle", "exec", "ruby", "-I", File.join(test_root, "lib"), File.join(test_root, "exe", "kimera")]
     output, status = Open3.capture2e(env, *command, *, chdir: dir)
     [output.force_encoding(Encoding::UTF_8), status]
   end
 
-  def suite_env(*)
+  def environment(*)
     Dir.mktmpdir("kimera-suite-env") do |dir|
       project(dir)
       specs(dir)
@@ -49,14 +46,14 @@ RSpec.describe("KIMERA in the suite's environment") do
   end
 
   it "keeps a gated floor quiet in a warm run", :aggregate_failures do
-    output, status = suite_env("run", "app", "--tests", "spec/**/*_spec.rb", "--jobs", "1")
+    output, status = environment("run", "app", "--tests", "spec/**/*_spec.rb", "--jobs", "1")
     expect(status.exitstatus).to(eq(0), output)
     expect(output).to(include("survived=0"))
     expect(output).not_to(include("SimpleCov failed"))
   end
 
   it "keeps a gated floor quiet in doctor" do
-    output, = suite_env("doctor")
+    output, = environment("doctor")
     expect(output).to(include("✓ Test loading: every test file loads"))
   end
 end

@@ -137,7 +137,7 @@ RSpec.describe(Kimera::GuardClause) do
     expect(woven(code)).to(eq(code.sub("  begin\n    n += 1\n  ensure\n  end\n", guarded)))
   end
 
-  def emptied_loop
+  def emptied
     code = "def m(n)\n  begin\n    n += 1\n  ensure\n  end while n < 3\n  n\nend\n"
     catalog = Kimera::RegistryScan.new(operators: Kimera::Operators.build(keys: %w[ensure_clause comparison]))
       .source(code, file: "c.rb")
@@ -148,7 +148,7 @@ RSpec.describe(Kimera::GuardClause) do
   end
 
   it "leaves unguarded the empty ensure of a loop's begin, which still runs once" do
-    result, dropped = emptied_loop
+    result, dropped = emptied
     looping = Object.new.extend(Module.new.tap { |mod| mod.module_eval(result.to_s) })
     expect([result.to_h.fetch(:skipped_unsafe), looping.m(5)]).to(eq([dropped.ids, 6]))
   end

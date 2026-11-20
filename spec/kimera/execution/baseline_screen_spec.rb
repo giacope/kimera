@@ -48,14 +48,14 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
     expect([argv.first(3), chdir]).to(eq([%w[plain t1 t2], "/project"]))
   end
 
-  def harness_error(**)
+  def refusal(**)
     screen(**).call(failures)
   rescue Kimera::Execution::BaselineFailure => error
     error.message
   end
 
   it "stops the run, naming them, when they pass plainly", :aggregate_failures do
-    message = harness_error
+    message = refusal
     expect(message).to(start_with("harness error: 2 test(s) fail under kimera but pass in a plain run"))
     expect(message).to(include("\n  t1: SystemStackError: stack level too deep\n  t2\n"))
     expect(message).to(include("\n  plain run: rspec t1 t2 --order defined\n"))
@@ -71,19 +71,19 @@ RSpec.describe(Kimera::Execution::BaselineScreen) do
   it "names a method the suite took at load before any other cause", :aggregate_failures do
     Dir.mktmpdir do |root|
       taken = captured(root)
-      expect(harness_error(jobs: 2, root: root))
+      expect(refusal(jobs: 2, root: root))
         .to(match(/\n  likely cause: kimera redefined 1 method\(s\).*ScreenCoerce\.to_int at coerce\.rb:1/))
       expect(taken).to(be_a(Method))
     end
   end
 
   it "blames the forked workers when there were several, else what kimera changes", :aggregate_failures do
-    expect(harness_error(jobs: 2)).to(end_with(described_class::CAUSES.fetch(:parallel)))
-    expect(harness_error(jobs: 1)).to(end_with(described_class::CAUSES.fetch(:serial)))
+    expect(refusal(jobs: 2)).to(end_with(described_class::CAUSES.fetch(:parallel)))
+    expect(refusal(jobs: 1)).to(end_with(described_class::CAUSES.fetch(:serial)))
   end
 
   it "stops on those that pass plainly even when others fail plainly too", :aggregate_failures do
-    message = harness_error(red: ["t2"])
+    message = refusal(red: ["t2"])
     expect(message).to(start_with("harness error: 1 test(s)"))
     expect(message).to(include("\n  t1: SystemStackError"))
     expect(message).not_to(include("\n  t2"))

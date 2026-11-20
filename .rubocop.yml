@@ -56,6 +56,12 @@ Sekisho/GoodMethodName:
     # Active Record calls ConnectionHandler#discard_pool! on each pool a fork inherits; kimera's override keeps
     # the in-memory one, so the name is Active Record's (lib/kimera/execution/memory_databases.rb).
     - discard_pool!
+    # The spec fakes answer the calls the real objects get: Active Record's PoolConfig#db_config (from
+    # discard_pool!), ActiveSupport::Concern's normalize_callback_params (lib/kimera/execution/guard_modules.rb)
+    # and the Runnable.with_info_handler Minitest calls around a run, so the names are theirs (protocol).
+    - db_config
+    - normalize_callback_params
+    - with_info_handler
 
 # Each inline disable is a reviewed exception: raise this in the change that adds one.
 Sekisho/JustifiedDirective:

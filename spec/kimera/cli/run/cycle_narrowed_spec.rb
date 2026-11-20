@@ -8,11 +8,14 @@ require "tmpdir"
 using ResultFields
 
 RSpec.describe(Kimera::CLI::Run::Cycle, "#narrowed") do
-  around { |example| Dir.mktmpdir { |dir| Dir.chdir(dir) { example.run } } }
-
-  before do
-    FileUtils.mkdir_p("spec")
-    %w[a b].each { |name| File.write("spec/#{name}_spec.rb", "") }
+  def inside
+    Dir.mktmpdir do |dir|
+      Dir.chdir(dir) do
+        FileUtils.mkdir_p("spec")
+        %w[a b].each { |name| File.write("spec/#{name}_spec.rb", "") }
+        yield
+      end
+    end
   end
 
   def report
@@ -37,10 +40,14 @@ RSpec.describe(Kimera::CLI::Run::Cycle, "#narrowed") do
   def registry = Kimera::RegistryScan.new.source("def m(a, b)\n  a > b && a < 9\nend\n", file: "a.rb")
 
   it "says an uncovered mutant is not covered by the narrowed tests, keeping a reason it already has" do
-    expect(details(true)).to(eq([described_class::NARROWED, "reached only at load", nil]))
+    inside do
+      expect(details(true)).to(eq([described_class::NARROWED, "reached only at load", nil]))
+    end
   end
 
   it "leaves a full run's rows as they are" do
-    expect(details(false)).to(eq([nil, "reached only at load", nil]))
+    inside do
+      expect(details(false)).to(eq([nil, "reached only at load", nil]))
+    end
   end
 end

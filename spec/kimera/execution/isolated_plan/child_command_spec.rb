@@ -19,11 +19,11 @@ RSpec.describe(Kimera::Execution::IsolatedPlan::ChildCommand) do
     RUBY
   end
 
-  def failing(source, first_failure)
+  def failing(source, first)
     Dir.mktmpdir do |dir|
       File.write(File.join(dir, "a_spec.rb"), source)
       ledger = File.join(dir, "ledger.json")
-      File.write("#{ledger}.request", JSON.generate("tests" => ["./a_spec.rb"], "first_failure" => first_failure))
+      File.write("#{ledger}.request", JSON.generate("tests" => ["./a_spec.rb"], "first_failure" => first))
       env = { "BUNDLE_GEMFILE" => File.expand_path("../../../../Gemfile", __dir__) }
       child = [RbConfig.ruby, "-rbundler/setup", described_class::CHILD, ledger, "#{ledger}.request"]
       Open3.capture2e(env, *child, chdir: dir)
@@ -72,12 +72,12 @@ RSpec.describe(Kimera::Execution::IsolatedPlan::ChildCommand) do
     :aggregate_failures do
     source = "require 'minitest'\nclass TwoTest < Minitest::Test\n  def test_a = flunk\n  def test_b = flunk\nend\n"
     request = { "tests" => %w[TwoTest#test_a TwoTest#test_b], "files" => ["two_test.rb"] }
-    ran = ->(first) { minitest_ledger(source, request.merge("first_failure" => first)) }
+    ran = ->(first) { minitest(source, request.merge("first_failure" => first)) }
     expect(ran.call(false)).to(eq([2, %w[TwoTest#test_a TwoTest#test_b]]))
     expect([ran.call(true), ran.call(nil)]).to(eq([[1, ["TwoTest#test_a"]]] * 2))
   end
 
-  def minitest_ledger(source, request)
+  def minitest(source, request)
     Dir.mktmpdir do |dir|
       File.write(File.join(dir, "two_test.rb"), source)
       ledger = File.join(dir, "ledger.json")

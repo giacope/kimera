@@ -42,7 +42,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   def act(behavior, id, response)
     case behavior
     when :crash then exit!(1)
-    when :hang then sleep(60)
+    when :hang then sleep
     when :partial then halt(response, JSON.generate(t: "result", id: id)[0, 12])
     else report(behavior, id, response)
     end
@@ -51,7 +51,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   def halt(response, text)
     response.write(text)
     response.flush
-    sleep(60)
+    sleep
   end
 
   def status(behavior) = behavior == :tainted ? "timeout" : "killed"
@@ -172,7 +172,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   end
 
   shared_examples("a pool the model describes") do
-    def scripted_runs
+    def trials
       runs = []
       for_all(scripts, Pbt.integer(min: 1, max: 3), runs: 30) do |script, jobs|
         tally = supervised(script, jobs)
@@ -183,7 +183,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     end
 
     it "gives each mutant the one verdict its script calls for, and steps as formal/WorkerPool.tla does" do
-      accepted, report = conforming(scripted_runs)
+      accepted, report = conforming(trials)
       expect(accepted).to(be(true), "a run is not a behavior of the model:\n#{report}")
     end
   end

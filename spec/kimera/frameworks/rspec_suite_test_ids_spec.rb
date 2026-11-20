@@ -7,14 +7,14 @@ require "tmpdir"
 RSpec.describe(Kimera::Frameworks::RSpecSuite, "#test_ids") do
   let(:dir) { Dir.mktmpdir }
 
-  around do |example|
+  def isolated
     config = RSpec.configuration
     world = RSpec.world
     groups = world.example_groups.dup
     manager = config.filter_manager
     fallback = config.run_all_when_everything_filtered?
     config.filter_manager = RSpec::Core::FilterManager.new
-    example.run
+    yield
   ensure
     world.example_groups.replace(groups)
     config.filter_manager = manager
@@ -42,22 +42,30 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite, "#test_ids") do
   end
 
   it "selects every example when the focus filter matches none and the suite asks for that" do
-    adapter, ids = filtered(fallback: true)
-    expect(ids.map { |id| adapter[id].name }).to(eq(["KimeraFiltered passes", "KimeraFiltered fails"]))
+    isolated do
+      adapter, ids = filtered(fallback: true)
+      expect(ids.map { |id| adapter[id].name }).to(eq(["KimeraFiltered passes", "KimeraFiltered fails"]))
+    end
   end
 
   it "runs an example the fallback selected" do
-    adapter, ids = filtered(fallback: true)
-    expect(adapter.run([ids.last]).to_h.fetch("failed_ids")).to(eq([ids.last]))
+    isolated do
+      adapter, ids = filtered(fallback: true)
+      expect(adapter.run([ids.last]).to_h.fetch("failed_ids")).to(eq([ids.last]))
+    end
   end
 
   it "keeps only the focused examples when the filter matches some" do
-    adapter, ids = filtered(fallback: true, focus: true)
-    expect(ids.map { |id| adapter[id].name }).to(eq(["KimeraFiltered fails"]))
+    isolated do
+      adapter, ids = filtered(fallback: true, focus: true)
+      expect(ids.map { |id| adapter[id].name }).to(eq(["KimeraFiltered fails"]))
+    end
   end
 
   it "selects nothing when the filter matches none and the suite does not ask for the fallback" do
-    expect(filtered(fallback: false).last).to(eq([]))
+    isolated do
+      expect(filtered(fallback: false).last).to(eq([]))
+    end
   end
 
   def unfocused
@@ -69,14 +77,18 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite, "#test_ids") do
   end
 
   it "forgets the examples the filter had selected before it fell back" do
-    adapter = unfocused
-    failing = adapter.test_ids.find { |id| adapter[id].name == "KimeraFiltered fails" }
-    expect(adapter.run([failing]).to_h.fetch("failed_ids")).to(eq([failing]))
+    isolated do
+      adapter = unfocused
+      failing = adapter.test_ids.find { |id| adapter[id].name == "KimeraFiltered fails" }
+      expect(adapter.run([failing]).to_h.fetch("failed_ids")).to(eq([failing]))
+    end
   end
 
   it "selects nothing, and stops, when there is no example and no filter" do
-    RSpec.world.example_groups.clear
-    RSpec.configuration.run_all_when_everything_filtered = true
-    expect(described_class.new.source([]).test_ids).to(eq([]))
+    isolated do
+      RSpec.world.example_groups.clear
+      RSpec.configuration.run_all_when_everything_filtered = true
+      expect(described_class.new.source([]).test_ids).to(eq([]))
+    end
   end
 end

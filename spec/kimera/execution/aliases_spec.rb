@@ -9,7 +9,11 @@ RSpec.describe(Kimera::Execution::Aliases) do
   let(:dir) { Dir.mktmpdir }
   let(:path) { File.join(dir, "pricing.rb").tap { |file| File.write(file, "") } }
 
-  after { FileUtils.remove_entry(dir) }
+  def inside
+    yield
+  ensure
+    FileUtils.remove_entry(dir)
+  end
 
   def define(mod, factor, file) = mod.module_eval(["def price(a) = a * ", factor].join, file)
 
@@ -33,24 +37,34 @@ RSpec.describe(Kimera::Execution::Aliases) do
   end
 
   it "re-points an alias declared in another file at the redefined method", :aggregate_failures do
-    origin, aliased = costing
-    expect(described_class.new([path]).follow { overlay(origin) && :done }).to(eq(:done))
-    expect(aliased.new.cost(1)).to(eq(3))
+    inside do
+      origin, aliased = costing
+      expect(described_class.new([path]).follow { overlay(origin) && :done }).to(eq(:done))
+      expect(aliased.new.cost(1)).to(eq(3))
+    end
   end
 
   it "re-points again after a later redefinition, without looking anew", :aggregate_failures do
-    origin, aliased = costing
-    aliases = described_class.new([path]).tap { |tracker| tracker.follow { overlay(origin) } }
-    expect(aliases.again { define(origin, 4, path) && :again }).to(eq(:again))
-    expect(aliased.new.cost(1)).to(eq(4))
+    inside do
+      origin, aliased = costing
+      expect(followed(origin).again { define(origin, 4, path) && :again }).to(eq(:again))
+      expect(aliased.new.cost(1)).to(eq(4))
+    end
+  end
+
+  def followed(origin) = described_class.new([path]).tap { |tracker| tracker.follow { overlay(origin) } }
+
+  def stripped
+    origin, aliased = costing.tap { |(declaring, _)| declaring.remove_method(:price) }
+    [origin, aliased, followed(origin)]
   end
 
   it "follows no alias whose method is gone from its holder" do
-    origin, aliased = costing.tap { |(declaring, _)| declaring.remove_method(:price) }
-    aliases = described_class.new([path]).tap { |tracker| tracker.follow { overlay(origin) } }
-    definition = origin.instance_method(:price)
-    aliases.witness([held(origin, :price, definition)])
-    expect([aliases.reaches?(definition), aliased.instance_method(:cost).original_name]).to(eq([false, :price]))
+    inside do
+      origin, aliased, aliases = stripped
+      definition = origin.instance_method(:price).tap { |found| aliases.witness([held(origin, :price, found)]) }
+      expect([aliases.reaches?(definition), aliased.instance_method(:cost).original_name]).to(eq([false, :price]))
+    end
   end
 
   def wrapped(origin) = define(origin, 5, File.join(dir, "memo.rb").tap { |file| File.write(file, "") })
@@ -78,20 +92,26 @@ RSpec.describe(Kimera::Execution::Aliases) do
     end
 
     it "is kept", :aggregate_failures do
-      expect(aliased.public_method_defined?(:shown)).to(be(true))
-      expect(aliased.protected_method_defined?(:kept)).to(be(true))
-      expect(aliased.private_method_defined?(:hidden)).to(be(true))
+      inside do
+        expect(aliased.public_method_defined?(:shown)).to(be(true))
+        expect(aliased.protected_method_defined?(:kept)).to(be(true))
+        expect(aliased.private_method_defined?(:hidden)).to(be(true))
+      end
     end
 
     it "does not stop a private alias from reaching the redefined method" do
-      expect(Class.new(aliased) { def reach(amount) = hidden(amount) }.new.reach(1)).to(eq(3))
+      inside do
+        expect(Class.new(aliased) { def reach(amount) = hidden(amount) }.new.reach(1)).to(eq(3))
+      end
     end
   end
 
   it "re-points an alias of a private method" do
-    origin, aliased = costing(declared.tap { |mod| mod.module_eval { private :price } })
-    described_class.new([path]).follow { overlay(origin) }
-    expect(Class.new(aliased) { def reach(amount) = cost(amount) }.new.reach(1)).to(eq(3))
+    inside do
+      origin, aliased = costing(declared.tap { |mod| mod.module_eval { private :price } })
+      described_class.new([path]).follow { overlay(origin) }
+      expect(Class.new(aliased) { def reach(amount) = cost(amount) }.new.reach(1)).to(eq(3))
+    end
   end
 
   def chained(origin)
@@ -102,17 +122,21 @@ RSpec.describe(Kimera::Execution::Aliases) do
   end
 
   it "follows the original past an override in the alias's own class" do
-    origin = declared
-    klass = chained(origin)
-    described_class.new([path]).follow { overlay(origin) }
-    expect([klass.new.plain(1), klass.new.price(1)]).to(eq([3, 4]))
+    inside do
+      klass = chained(origin = declared)
+      described_class.new([path]).follow { overlay(origin) }
+      expect([klass.new.plain(1), klass.new.price(1)]).to(eq([3, 4]))
+    end
   end
 
+  def singleton = Class.new.tap { |klass| declared(klass.singleton_class).alias_method(:cost, :price) }
+
   it "re-points an alias on a singleton class" do
-    klass = Class.new
-    declared(klass.singleton_class).alias_method(:cost, :price)
-    described_class.new([path]).follow { overlay(klass.singleton_class) }
-    expect(klass.cost(1)).to(eq(3))
+    inside do
+      klass = singleton
+      described_class.new([path]).follow { overlay(klass.singleton_class) }
+      expect(klass.cost(1)).to(eq(3))
+    end
   end
 
   def opened?(klass)
@@ -120,9 +144,11 @@ RSpec.describe(Kimera::Execution::Aliases) do
   end
 
   it "opens no singleton class to look for an alias" do
-    klass = Class.new
-    described_class.new([path]).follow { :looked }
-    expect(opened?(klass)).to(be(false))
+    inside do
+      klass = Class.new
+      described_class.new([path]).follow { :looked }
+      expect(opened?(klass)).to(be(false))
+    end
   end
 
   def reclaim(origin, aliased)
@@ -131,36 +157,45 @@ RSpec.describe(Kimera::Execution::Aliases) do
   end
 
   it "leaves an alias the block itself redefined" do
-    origin, aliased = costing
-    described_class.new([path]).follow { reclaim(origin, aliased) }
-    expect(aliased.new.cost(1)).to(eq(:mine))
+    inside do
+      origin, aliased = costing
+      described_class.new([path]).follow { reclaim(origin, aliased) }
+      expect(aliased.new.cost(1)).to(eq(:mine))
+    end
   end
 
+  def watched(added) = costing.each { |mod| mod.define_singleton_method(:method_added) { |name| added << name } }
+
   it "redefines nothing the block left alone" do
-    added = []
-    origin, aliased = costing
-    [origin, aliased].each { |mod| mod.define_singleton_method(:method_added) { |name| added << name } }
-    described_class.new([path]).follow { :untouched }
-    expect(added).to(be_empty)
+    inside do
+      added = [].tap { |names| watched(names) }
+      described_class.new([path]).follow { :untouched }
+      expect(added).to(be_empty)
+    end
   end
 
   it "leaves an alias of a method from a file it does not watch" do
-    origin, aliased = costing
-    described_class.new([File.join(dir, "other.rb")]).follow { overlay(origin) }
-    expect(aliased.new.cost(1)).to(eq(2))
+    inside do
+      origin, aliased = costing
+      described_class.new([File.join(dir, "other.rb")]).follow { overlay(origin) }
+      expect(aliased.new.cost(1)).to(eq(2))
+    end
   end
 
   it "skips an alias whose original was redefined before it looked" do
-    origin, aliased = costing
-    overlay(origin)
-    witnessing(described_class.new([path])) { define(origin, 4, path) }
-    expect(aliased.new.cost(1)).to(eq(2))
+    inside do
+      origin, aliased = costing.tap { |(declaring, _)| overlay(declaring) }
+      witnessing(described_class.new([path])) { define(origin, 4, path) }
+      expect(aliased.new.cost(1)).to(eq(2))
+    end
   end
 
   it "re-points an alias it tracks whether or not each file is witnessed" do
-    origin, aliased = costing
-    witnessing(described_class.new([path])) { overlay(origin) }
-    expect(aliased.new.cost(1)).to(eq(3))
+    inside do
+      origin, aliased = costing
+      witnessing(described_class.new([path])) { overlay(origin) }
+      expect(aliased.new.cost(1)).to(eq(3))
+    end
   end
 
   def linked
@@ -169,15 +204,23 @@ RSpec.describe(Kimera::Execution::Aliases) do
     File.realpath(File.join(dir, "real", "pricing.rb").tap { |file| File.write(file, "") })
   end
 
-  it "matches a file loaded through its real path when given a symlinked one" do
+  def symlinked
     real = linked
-    origin, aliased = costing(declared(Module.new, real))
-    described_class.new([File.join(dir, "linked", "pricing.rb")]).follow { overlay(origin, real) }
-    expect(aliased.new.cost(1)).to(eq(3))
+    [real, *costing(declared(Module.new, real))]
+  end
+
+  it "matches a file loaded through its real path when given a symlinked one" do
+    inside do
+      real, origin, aliased = symlinked
+      described_class.new([File.join(dir, "linked", "pricing.rb")]).follow { overlay(origin, real) }
+      expect(aliased.new.cost(1)).to(eq(3))
+    end
   end
 
   it "accepts a file that does not exist" do
-    expect(described_class.new([File.join(dir, "missing.rb")]).follow { :ok }).to(eq(:ok))
+    inside do
+      expect(described_class.new([File.join(dir, "missing.rb")]).follow { :ok }).to(eq(:ok))
+    end
   end
 
   describe "an alias whose original another file wrapped" do
@@ -202,22 +245,30 @@ RSpec.describe(Kimera::Execution::Aliases) do
     def held(name, method) = super(klass, name, method)
 
     it "follows the overlaid original it is handed" do
-      aliases.follow { aliases.witness([held(:price, rewrapped)]) }
-      expect([klass.new.plain(1), klass.new.price(1)]).to(eq([3, 4]))
+      inside do
+        aliases.follow { aliases.witness([held(:price, rewrapped)]) }
+        expect([klass.new.plain(1), klass.new.price(1)]).to(eq([3, 4]))
+      end
     end
 
     it "says which overlaid original an alias it tracks now reaches", :aggregate_failures do
-      overlaid = nil
-      aliases.follow { aliases.witness([held(:price, overlaid = rewrapped)]) }
-      expect([aliases.reaches?(overlaid), aliases.reaches?(klass.instance_method(:price))]).to(eq([true, false]))
+      inside do
+        overlaid = nil
+        aliases.follow { aliases.witness([held(:price, overlaid = rewrapped)]) }
+        expect([aliases.reaches?(overlaid), aliases.reaches?(klass.instance_method(:price))]).to(eq([true, false]))
+      end
+    end
+
+    def handed
+      overlaid = rewrapped
+      aliases.witness([held(:plain, klass.instance_method(:plain)), held(:price, overlaid)])
     end
 
     it "takes the overlaid original of its own name, not another one handed over with it" do
-      aliases.follow do
-        overlaid = rewrapped
-        aliases.witness([held(:plain, klass.instance_method(:plain)), held(:price, overlaid)])
+      inside do
+        aliases.follow { handed }
+        expect(klass.new.plain(1)).to(eq(3))
       end
-      expect(klass.new.plain(1)).to(eq(3))
     end
 
     def witnessed
@@ -227,13 +278,17 @@ RSpec.describe(Kimera::Execution::Aliases) do
     end
 
     it "follows the original it finds in its own file again" do
-      aliases.follow { witnessed }
-      expect(klass.new.plain(1)).to(eq(3))
+      inside do
+        aliases.follow { witnessed }
+        expect(klass.new.plain(1)).to(eq(3))
+      end
     end
 
     it "leaves the alias alone when nothing hands it a new original" do
-      aliases.follow { aliases.witness }
-      expect([klass.new.plain(1), klass.new.price(1)]).to(eq([2, 3]))
+      inside do
+        aliases.follow { aliases.witness }
+        expect([klass.new.plain(1), klass.new.price(1)]).to(eq([2, 3]))
+      end
     end
   end
 end

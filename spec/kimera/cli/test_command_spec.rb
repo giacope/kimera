@@ -371,11 +371,11 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     def suite(root, framework)
       spec = framework == "rspec"
       File.join(root, spec ? "gauge_spec.rb" : "gauge_test.rb").tap do |file|
-        File.write(file, spec ? rspec_suite : minitest_suite)
+        File.write(file, spec ? rspec : minitest)
       end
     end
 
-    def rspec_suite
+    def rspec
       <<~RUBY
         RSpec.describe("Gauge") do
           it("reads") { expect(1).to(eq(1)) }
@@ -384,7 +384,7 @@ RSpec.describe(Kimera::CLI::TestCommand) do
       RUBY
     end
 
-    def minitest_suite
+    def minitest
       <<~RUBY
         require "minitest/autorun"
         class GaugeTest < Minitest::Test

@@ -43,24 +43,24 @@ RSpec.describe("kimera run re-judges what the warm pass could not (end-to-end)",
     RUBY
   end
 
-  def test_catalog_run(arguments)
+  def rejudged(arguments)
     Dir.mktmpdir("kimera-rejudge") do |root|
       test_catalog(root)
       test_outcome(cwd: root, arguments: ["--no-progress", *arguments])
     end
   end
 
-  def mirror_note = "judged in a fresh isolated mirror; the warm pass could not: worker crashed before result: exited 3"
+  def mirrored = "judged in a fresh isolated mirror; the warm pass could not: worker crashed before result: exited 3"
 
   it "judges the poisoning mutants warm, and re-judges the one that ends its process" do
-    run = test_catalog_run([])
+    run = rejudged([])
     expect(run.verdicts.values_at(1, 2, 3, 4)).to(eq(%w[killed killed killed harness_error]), run.output)
-    expect(run.results.first(4).map { |row| row.slice("note") }).to(eq([{}, {}, {}, { "note" => mirror_note }]))
+    expect(run.results.first(4).map { |row| row.slice("note") }).to(eq([{}, {}, {}, { "note" => mirrored }]))
     expect(run.output).to(include("the warm pass could not judge, judged again in fresh mirrors: 1 unjudged."))
   end
 
   it "leaves it unjudged with the warm detail under --no-rejudge" do
-    run = test_catalog_run(["--no-rejudge"])
+    run = rejudged(["--no-rejudge"])
     expect(run.verdicts.values_at(1, 2, 3, 4)).to(eq(%w[killed killed killed harness_error]), run.output)
     expect(run.results.dig(3, "detail")).to(eq("worker crashed before result: exited 3"))
     expect([run.output, run.status]).to(match([a_string_including("gate failed: unjudged=1 > max_errors=0"), 2]))

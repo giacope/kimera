@@ -21,6 +21,7 @@ RSpec.describe(Kimera::Operators) do
 
   def live(code, *keys)
     catalog = scan(code, *keys)
+    stubbed
     Kimera::Overlay::Source.new(Kimera::Overlay.new(catalog).synthesize("c.rb", code).to_s).evaluate("c.rb")
     yield(catalog.each.to_h { |m, _p| [m.to_s, m.to_i] })
   end
@@ -47,7 +48,7 @@ RSpec.describe(Kimera::Operators) do
       end
     RUBY
 
-    before { stub_const("ClauseTier", Class.new) }
+    def stubbed = stub_const("ClauseTier", Class.new)
 
     it "drops each `when` of a case that has another, and none of a case with one" do
       expect(labels(code, "when_clause")).to(eq(["drop `when 0..999 then \"low\"`", "drop `when 1000..2999`"]))
@@ -75,7 +76,7 @@ RSpec.describe(Kimera::Operators) do
       end
     RUBY
 
-    before { stub_const("ClauseLog", Class.new) }
+    def stubbed = stub_const("ClauseLog", Class.new)
 
     it "deletes a statement that appends with <<, not an operand" do
       expect(labels(code, "append_deletion")).to(eq(["delete `log << name`", "delete `a << b`"]))
@@ -110,7 +111,7 @@ RSpec.describe(Kimera::Operators) do
       end
     RUBY
 
-    before do
+    def stubbed
       stub_const("ClauseParent", Class.new)
       stub_const("ClauseChild", Class.new(ClauseParent))
     end
@@ -170,7 +171,7 @@ RSpec.describe(Kimera::Operators) do
       end
     RUBY
 
-    before { stub_const("ClauseRisky", Class.new) }
+    def stubbed = stub_const("ClauseRisky", Class.new)
 
     it "drops each rescue clause of a method body, an explicit begin, and a rescue modifier", :aggregate_failures do
       expect(labels(code, "rescue_clause"))

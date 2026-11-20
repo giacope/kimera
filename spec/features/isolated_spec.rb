@@ -13,7 +13,7 @@ RSpec.describe("kimera run --isolated (end-to-end)") do
 
   def minitest(*arguments)
     test_outcome(
-      cwd: File.join(test_repository_root, "examples", "minitest_app"), tests: "test/**/*_test.rb",
+      cwd: File.join(test_root, "examples", "minitest_app"), tests: "test/**/*_test.rb",
       arguments: ["--framework", "minitest", *arguments]
     )
   end
@@ -31,7 +31,7 @@ RSpec.describe("kimera run --isolated (end-to-end)") do
   end
 
   def test_unloadable(root)
-    FileUtils.cp_r(File.join(test_repository_root, "examples", "minitest_app", "."), root)
+    FileUtils.cp_r(File.join(test_root, "examples", "minitest_app", "."), root)
     FileUtils.mkdir_p(File.join(root, "coverage"))
     test = File.join(root, "test", "scorer_test.rb")
     guard = %(raise ArgumentError, "needs coverage/" unless Dir.exist?(File.expand_path("../coverage", __dir__))\n)

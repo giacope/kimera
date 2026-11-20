@@ -24,11 +24,11 @@ RSpec.describe(Kimera::Overlay) do
     Object.new.extend(mod)
   end
 
-  def unspliced = unspliced_where { true }
+  def unspliced = unstitched { true }
 
-  def unspliced_at(line) = unspliced_where { |points| points.any? { |point| point.location.range.begin == line } }
+  def unspliced_at(line) = unstitched { |points| points.any? { |point| point.location.range.begin == line } }
 
-  def unspliced_where(&picked) = stub_const("Kimera::Overlay::Stitch", stitching(picked))
+  def unstitched(&picked) = stub_const("Kimera::Overlay::Stitch", stitching(picked))
 
   def stitching(picked)
     Class.new(Kimera::Overlay::Stitch) do
@@ -39,8 +39,6 @@ RSpec.describe(Kimera::Overlay) do
       define_method(:results) { @refused ? [] : super() }
     end
   end
-
-  def spliced_again = stub_const("Kimera::Overlay::Stitch", Kimera::Overlay::Stitch.superclass)
 
   def flipped(registry, label, &) = Kimera::RUNTIME.during(registry.each.find { |m, _p| m.to_s == label }.first.to_i, &)
 
@@ -465,7 +463,7 @@ RSpec.describe(Kimera::Overlay) do
     it "excludes mutants inside a ||= memoization from the schema path", :aggregate_failures do
       result, registry = synth(total_source)
       point = registry.to_a.find { |p| p.original_source == "a > b" }
-      expect(PointVerdict.new(point)).to(have_attributes(safe?: false, unsafe_reason: a_string_matching(/memoized/)))
+      expect(PointVerdict.new(point)).to(have_attributes(safe?: false, hazard: a_string_matching(/memoized/)))
       expect(result.to_s).not_to(include("active?"))
       expect(result.to_h.fetch(:skipped_unsafe)).to(include(*point.ids))
     end
@@ -653,8 +651,6 @@ RSpec.describe(Kimera::Overlay) do
   end
 
   describe "write fallback" do
-    before { unspliced }
-
     let(:source) { "class MatchRepro\n  def extract(limit)\n    alias c d\n    limit > 1\n  end\nend\n" }
     let(:unguardable) do
       /match_repro\.rb: 2 mutation point\(s\) at line 3 are unguardable \(kimera could not write them\)/
@@ -686,11 +682,12 @@ RSpec.describe(Kimera::Overlay) do
       registry, result = fallback
       dropped = registry.to_a.reject(&:safe?)
       expect(dropped.flat_map(&:ids)).to(eq(result.to_h.fetch(:skipped_unsafe)))
-      reasons = dropped.map { PointVerdict.new(it).unsafe_reason }.uniq
+      reasons = dropped.map { PointVerdict.new(it).hazard }.uniq
       expect(reasons).to(eq(["unmutatable: kimera could not write its guard"]))
     end
 
     def unweavable
+      unspliced
       stub_const("Kimera::Overlay::FileWeave", Class.new(Kimera::Overlay::FileWeave) { def attempt(_) = [] })
     end
 
@@ -746,7 +743,8 @@ RSpec.describe(Kimera::Overlay) do
       end
 
       def unwritable!
-        failing_scribe do |node|
+        unspliced
+        balked do |node|
           RuntimeError.new("Could not find a round tripping solution for regexp") unless node.type == :def_node
         end
       end
@@ -787,13 +785,14 @@ RSpec.describe(Kimera::Overlay) do
         expect(Prism.parse(result.to_s)).to(be_success)
       end
 
-      def unparsing_methods
-        failing_scribe { |node| RuntimeError.new("boom") if node.type != :def_node || node.name == :compare }
+      def unparsable
+        unspliced
+        balked { |node| RuntimeError.new("boom") if node.type != :def_node || node.name == :compare }
       end
 
       def partial
         registry = Kimera::RegistryScan.new.source(splice_source, file: "spliced.rb")
-        unparsing_methods
+        unparsable
         result = nil
         expect { result = described_class.new(registry).synthesize("spliced.rb", splice_source) }
           .to(output(/2 mutant\(s\) spliced per method, 2 reported unmutatable/).to_stderr)
@@ -812,13 +811,13 @@ RSpec.describe(Kimera::Overlay) do
         expect { described_class.new(registry).synthesize("spliced.rb", source) }
           .to(output(/2 mutant\(s\) spliced per method, 2 reported unmutatable/).to_stderr)
         lambda = registry.to_a.find { |point| point.original_source == "n > 10" }
-        expect(PointVerdict.new(lambda).unsafe_reason).to(eq("unmutatable: kimera could not write its method"))
+        expect(PointVerdict.new(lambda).hazard).to(eq("unmutatable: kimera could not write its method"))
       end
 
       it "reports the points of a method it could not re-emit as unmutatable", :aggregate_failures do
         registry, = partial
         dropped, kept = registry.to_a.partition { |point| point.method_name.to_s == "compare" }
-        reasons = dropped.map { PointVerdict.new(it).unsafe_reason }.uniq
+        reasons = dropped.map { PointVerdict.new(it).hazard }.uniq
         expect(reasons).to(eq(["unmutatable: kimera could not write its method"]))
         expect(kept).to(all(satisfy(&:safe?)))
       end
@@ -831,6 +830,7 @@ RSpec.describe(Kimera::Overlay) do
               super
             end
           end
+        unspliced
         stub_const("Kimera::Guardrail", failing)
       end
 
@@ -852,6 +852,7 @@ RSpec.describe(Kimera::Overlay) do
 
             def text = "def broken("
           end
+        unspliced
         stub_const("Kimera::Scribe", failing)
       end
 
@@ -899,7 +900,7 @@ RSpec.describe(Kimera::Overlay) do
         [registry, source]
       end
 
-      def made_before(source)
+      def earlier(source)
         stub_const("Spliced", Module.new)
         stub_const("SplicedTop", nil)
         Kimera::Warnings.silenced.during { TOPLEVEL_BINDING.eval(value_source) }
@@ -917,13 +918,13 @@ RSpec.describe(Kimera::Overlay) do
 
       it "reopens value-object constants instead of redefining them" do
         _registry, source = reopened
-        made = made_before(source)
+        made = earlier(source)
         expect([Spliced::Point, SplicedTop, Spliced::Nested]).to(eq(made.map(&:class)))
       end
 
       it "keeps the mutants of the reopened constants' methods live" do
         registry, source = reopened
-        point, top, nested = made_before(source)
+        point, top, nested = earlier(source)
         asks = [
           ["> => <", 3, -> { point.big? }], ["< => >", 5, -> { top.small? }], ["== => !=", 7, -> { nested.same? }]
         ]
@@ -958,7 +959,8 @@ RSpec.describe(Kimera::Overlay) do
       it "leaves a file with nothing to splice unreopened" do
         code = "Point = Data.define(:x) do\n  def big? = x > 10\nend\n"
         registry = Kimera::RegistryScan.new.source(code, file: "p.rb")
-        failing_scribe { RuntimeError.new("Could not find a round tripping solution") }
+        unspliced
+        balked { RuntimeError.new("Could not find a round tripping solution") }
         expect { described_class.new(registry).synthesize("p.rb", code) }
           .to(raise_error(Kimera::Scribe::Unreadable, Kimera::Overlay::FileWeave::UNGUARDABLE))
       end
@@ -982,7 +984,6 @@ RSpec.describe(Kimera::Overlay) do
       end
 
       def woven
-        spliced_again
         registry = Kimera::RegistryScan.new.source(code, file: "bid.rb")
         result = nil
         expect { result = described_class.new(registry).synthesize("bid.rb", code) }.not_to(output.to_stderr)
@@ -1002,7 +1003,6 @@ RSpec.describe(Kimera::Overlay) do
     end
 
     it "does not warn when every point is guardable" do
-      spliced_again
       code = "def m(a, b)\n  a > b\nend\n"
       registry = Kimera::RegistryScan.new.source(code, file: "clean.rb")
       expect { described_class.new(registry).synthesize("clean.rb", code) }.not_to(output.to_stderr)
@@ -1114,11 +1114,18 @@ RSpec.describe(Kimera::Overlay) do
       expect(sites.first.edit(sites, [probe]).last).to(eq("#{guards.join} : (nil)))) : (nil))"))
     end
 
+    def boxed
+      Kimera::RUNTIME.contained do
+        yield(Module.new.tap { it.module_eval(described_class.new(registry).synthesize("x.rb", source).to_s) }::Box)
+      end
+    end
+
     it "makes the class the hook builds answer as the original, and each mutant as itself", :aggregate_failures do
-      mod = Module.new.tap { it.module_eval(described_class.new(registry).synthesize("x.rb", source).to_s) }
-      built = Class.new.include(mod::Box)
-      expect([built.build(1).class, built.build(0), built.new.big?(4)]).to(eq([built, nil, true]))
-      expect(flipped(registry, "> => >=") { Class.new.include(mod::Box).build(0) }).not_to(be_nil)
+      boxed do |box|
+        built = Class.new.include(box)
+        expect([built.build(1).class, built.build(0), built.new.big?(4)]).to(eq([built, nil, true]))
+        expect(flipped(registry, "> => >=") { Class.new.include(box).build(0) }).not_to(be_nil)
+      end
     end
   end
 end

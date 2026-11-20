@@ -5,15 +5,17 @@ module FakeRails
 
   class Base
     attr_accessor :configurations
-    attr_reader :connection_handler, :connection, :established
+    attr_reader :connection, :established
 
     def initialize(config, configurations: Configurations.new([config]), handler: Pools.new, connection: nil)
       @config = config
       @configurations = configurations
-      @connection_handler = handler
+      @handler = handler
       @connection = connection
       @established = []
     end
+
+    def connection_handler = @handler
 
     def connection_db_config = @config
 
@@ -25,9 +27,9 @@ module FakeRails
       @configs = configs
     end
 
-    def configs_for(env_name:, name: nil)
-      found = env_name == "test" ? @configs : []
-      name ? found.find { |config| config.name == name } : found
+    def configs_for(**query)
+      found = query.fetch(:env_name) == "test" ? @configs : []
+      query.key?(:name) ? found.find { |config| config.name == query.fetch(:name) } : found
     end
   end
 
@@ -62,14 +64,16 @@ module FakeRails
   end
 
   class Connection
-    attr_reader :adapter_name, :tables, :said
+    attr_reader :tables, :said
 
-    def initialize(adapter_name, tables, truncate: nil)
-      @adapter_name = adapter_name
+    def initialize(adapter, tables, truncate: nil)
+      @adapter = adapter
       @tables = tables
       @truncate = truncate
       @said = []
     end
+
+    def adapter_name = @adapter
 
     def execute(statement) = @said.push([:execute, statement])
 
@@ -121,15 +125,15 @@ module FakeRails
 end
 
 class FakeApplication
-  attr_reader :eager_loads
-
   def initialize(failure = nil)
     @failure = failure
-    @eager_loads = 0
+    @loads = 0
   end
+
+  def loaded = @loads
 
   def eager_load!
     raise(@failure) if @failure
-    @eager_loads += 1
+    @loads += 1
   end
 end

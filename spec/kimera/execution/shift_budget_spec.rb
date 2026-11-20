@@ -21,10 +21,9 @@ RSpec.describe(Kimera::Execution::Shift) do
   let(:clock) { [0.0] }
   let(:budget) { Kimera::Execution::TimeBudget.new({ "t1" => 0.01, "t2" => 0.01 }, factor: 10.0, slack: 1.0) }
 
-  before { stub_const("Kimera::Execution::Stopwatch::CLOCK", -> { clock.first }) }
-
   def timed(script)
     now = clock
+    stub_const("Kimera::Execution::Stopwatch::CLOCK", -> { now.first })
     Class.new do
       attr_reader :log
 
