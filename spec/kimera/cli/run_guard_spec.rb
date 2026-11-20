@@ -7,18 +7,23 @@ require "stringio"
 require "tmpdir"
 
 RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
-  def guarded(root, &)
+  def guarded(root, results = [])
     errors = StringIO.new
-    outcome = described_class.new(io: StringIO.new, errors: errors).__send__(:guarded, { source_root: root }, &)
+    harness = FakeHarness.new { yield.then { Kimera::RunReport.new(results: results) } }
+    run = described_class.new(io: StringIO.new, errors: errors, bench: FakeBench.new(harness: harness))
+    outcome = run.run([File.join(root, "calc.rb"), "--source-root", root, "--report", File.join(root, "report.json")])
     [ended(outcome, StringIO.new, errors), errors.string]
   end
 
+  def project(root)
+    FileUtils.mkdir_p(File.join(root, "spec"))
+    { "calc.rb" => "def m(a, b)\n  a > b\nend\n", "spec/calc_spec.rb" => "", "fixture.rb" => "1\n" }
+      .each { |path, body| File.write(File.join(root, path), body) }
+    root
+  end
+
   def deleting(root)
-    File.write(File.join(root, "fixture.rb"), "1\n")
-    guarded(root) do
-      File.delete(File.join(root, "fixture.rb"))
-      2
-    end
+    guarded(project(root)) { File.delete(File.join(root, "fixture.rb")) }
   end
 
   it "fails a run that changed the project's files, naming them", :aggregate_failures do
@@ -31,8 +36,9 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
 
   it "keeps the run's own exit code when the project is as it was" do
     Dir.mktmpdir do |root|
-      File.write(File.join(root, "fixture.rb"), "1\n")
-      expect(guarded(root) { 2 }).to(eq([2, ""]))
+      survivor = Kimera::MutantResult.new(mutant_id: 1, status: :survived, file: "calc.rb")
+      expect(guarded(project(root)) { 0 }).to(eq([0, ""]))
+      expect(guarded(root, [survivor]) { 0 }).to(eq([2, "kimera: gate failed: survivors=1 > max_survivors=0\n"]))
     end
   end
 end

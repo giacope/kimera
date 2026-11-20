@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "fileutils"
+require "kimera/execution/zygote"
 require "kimera/frameworks/rspec_suite"
 require "stringio"
 require "tmpdir"
@@ -19,7 +20,6 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
   subject(:adapter) { quietly { described_class.build.source([fixture]) } }
 
   let(:dir) { Dir.mktmpdir }
-  let(:attributes) { %i[@before_suite_hooks @after_suite_hooks].freeze }
 
   after { FileUtils.remove_entry(dir) }
 
@@ -28,10 +28,6 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
     out = RSpec.configuration.output_stream
     error = RSpec.configuration.error_stream
     deprecation = RSpec.configuration.deprecation_stream
-    hooks =
-      attributes.to_h do |attribute|
-        [attribute, RSpec.configuration.instance_variable_get(attribute).dup]
-      end
     example.run
   ensure
     (RSpec.world.example_groups - groups).each do |group|
@@ -40,7 +36,6 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
     RSpec.configuration.output_stream = out
     RSpec.configuration.error_stream = error
     RSpec.configuration.deprecation_stream = deprecation
-    hooks.each { |attribute, callbacks| RSpec.configuration.instance_variable_set(attribute, callbacks) }
   end
 
   def fixture
@@ -133,10 +128,16 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
     ran
   end
 
+  def recorded
+    Kimera::Execution::Zygote.new.call do
+      ran = recorder
+      yield
+      ran
+    end
+  end
+
   it "does not fire suite hooks merely from finishing without starting" do
-    ran = recorder
-    described_class.build.hooks.finish
-    expect(ran).to(be_empty)
+    expect(recorded { described_class.build.hooks.finish }).to(be_empty)
   end
 
   def twice
@@ -146,15 +147,20 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite) do
   end
 
   it "fires before(:suite) once and after(:suite) only once starting has happened" do
-    ran = recorder
-    twice
-    expect(ran).to(eq(%i[before after]))
+    expect(recorded { twice }).to(eq(%w[before after]))
+  end
+
+  def started
+    Kimera::Execution::Zygote.new.call do
+      RSpec.configuration.before(:suite) { raise(RuntimeError, "backend unavailable") }
+      described_class.build.hooks.start
+    rescue RuntimeError => error
+      error.message
+    end
   end
 
   it "propagates a raising before(:suite) hook instead of running the suite" do
-    RSpec.configuration.before(:suite) { raise(RuntimeError, "backend unavailable") }
-
-    expect { described_class.build.hooks.start }.to(raise_error(RuntimeError, "backend unavailable"))
+    expect(started).to(eq("backend unavailable"))
   end
 
   it "passes when running a green example" do

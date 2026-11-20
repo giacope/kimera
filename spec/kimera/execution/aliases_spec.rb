@@ -84,14 +84,14 @@ RSpec.describe(Kimera::Execution::Aliases) do
     end
 
     it "does not stop a private alias from reaching the redefined method" do
-      expect(aliased.new.__send__(:hidden, 1)).to(eq(3))
+      expect(Class.new(aliased) { def reach(amount) = hidden(amount) }.new.reach(1)).to(eq(3))
     end
   end
 
   it "re-points an alias of a private method" do
-    origin, aliased = costing(declared.tap { |mod| mod.__send__(:private, :price) })
+    origin, aliased = costing(declared.tap { |mod| mod.module_eval { private :price } })
     described_class.new([path]).follow { overlay(origin) }
-    expect(aliased.new.__send__(:cost, 1)).to(eq(3))
+    expect(Class.new(aliased) { def reach(amount) = cost(amount) }.new.reach(1)).to(eq(3))
   end
 
   def chained(origin)

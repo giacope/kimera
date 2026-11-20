@@ -29,8 +29,9 @@ class Kimera::CLI::ConfigTemplate
     #     reason: why no test can tell the two apart
   YAML
 
-  def initialize(settings)
+  def initialize(settings, path = PATH)
     @settings = settings
+    @path = path
   end
 
   def render = [*HEADER, *@settings.map { |key, value| entry(key, value) }, "", FOOTER].join("\n")
@@ -49,5 +50,5 @@ class Kimera::CLI::ConfigTemplate
     end
   end
 
-  def properties = @_properties ||= JSON.parse(File.read(PATH, encoding: Encoding::UTF_8)).fetch("properties")
+  def properties = @_properties ||= JSON.parse(File.read(@path, encoding: Encoding::UTF_8)).fetch("properties")
 end

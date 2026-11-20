@@ -31,16 +31,16 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
 
   def failed(id, touched = ids) = passed(id, touched).merge("passed" => false, "failure" => "boom in #{id}")
 
-  def measure(first, alone = {}, meter: progress, jobs: 1)
+  def measure(first, alone = {}, meter: progress, jobs: 1, **)
     rounds = []
-    pass = described_class.new(adapter: adapter, registry: registry, progress: meter)
+    pass = described_class.new(adapter: adapter, registry: registry, progress: meter, **)
     [pass.parallel!(jobs) { |queue, jobs, listeners| round(queue, jobs, listeners, [first, alone], rounds) }, rounds]
   end
 
   def round(queue, jobs, listeners, scripts, rounds)
     script = scripts.fetch(rounds.size)
-    rounds << { queue: queue, jobs: jobs, trace: listeners.instance_variable_get(:@trace) }
-    queue.each { |id| play(id, script.fetch(id, :pass), listeners) }
+    rounds << { queue: queue, jobs: jobs }
+    queue.each { |id| play(id, script.fetch(id, :pass), listeners.traced(0, id)) }
   end
 
   def play(id, outcome, listeners)
@@ -49,6 +49,7 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     when :fail then listeners.resolved(failed(id))
     when :stray then listeners.resolved(failed(id, []))
     when :timeout then listeners.lost(id, :timeout, ["stacks of #{id}"])
+    when :hung then listeners.lost(id, :timeout, ["stacks alone"])
     when :crash then listeners.lost(id, :crash, [])
     when :died then listeners.lost(id, :crash, ["exited 1\nworker 0's after-fork setup raised RuntimeError: no index"])
     end
@@ -58,14 +59,18 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
     result, rounds = measure({})
 
     expect(rounds.size).to(eq(1))
-    expect(rounds.first).to(include(queue: %w[t1 t2 t3], jobs: nil))
-    expect(rounds.first[:trace]).to(respond_to(:call))
+    expect(rounds.first).to(eq(queue: %w[t1 t2 t3], jobs: nil))
     expect(result.to_h.fetch(:recovered)).to(eq({}))
   end
 
   it "reruns only the tests that hit the hard timeout, alone and untraced", :aggregate_failures do
     _, rounds = measure({ "t1" => :timeout, "t3" => :timeout })
-    expect(rounds.last).to(eq(queue: %w[t1 t3], jobs: 1, trace: nil))
+    expect(rounds.last).to(eq(queue: %w[t1 t3], jobs: 1))
+  end
+
+  it "traces each worker's tests in the parallel round, not in the rerun alone" do
+    expect { measure({ "t1" => :timeout }, { "t1" => :fail }) }
+      .to(raise_error(Kimera::Execution::BaselineFailure, /worker 0: ran 3; failed #1 t1 \(first test/))
   end
 
   it "keeps a test that passes alone, with its stacks, and its coverage", :aggregate_failures do
@@ -89,16 +94,11 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
       .to(raise_error(Kimera::Execution::BaselineFailure, Regexp.new(Regexp.escape(text))))
   end
 
-  def relapsed(pass, tick = Kimera::Execution::NullProgress::UNSEEN)
-    pass.__send__(:lost, tick, "t1", :timeout, ["parallel stacks"])
-    pass.__send__(:relapse, tick, "t1", :timeout, ["stacks alone"])
-    pass.__send__(:relapse, tick, "t2", :crash)
-    pass
-  end
-
   it "keeps the stacks of the run that lost the test", :aggregate_failures do
-    pass = relapsed(described_class.new(adapter: adapter, registry: registry))
-    expect(pass.__send__(:losses).to_h.fetch(:stacks)).to(eq("t1" => ["stacks alone"], "t2" => []))
+    losses = Kimera::Execution::BaselineLosses.new
+    expect { measure({ "t1" => :timeout, "t2" => :crash }, { "t1" => :hung }, losses: losses) }
+      .to(raise_error(Kimera::Execution::BaselineFailure))
+    expect(losses.to_h.fetch(:stacks)).to(eq("t1" => ["stacks alone"], "t2" => []))
   end
 
   it "doesn't count a test that fails alone as recovered", :aggregate_failures do
@@ -123,9 +123,8 @@ RSpec.describe(Kimera::Execution::BaselinePass) do
   end
 
   it "counts a crash as the parallel loss it was, not a rerun one" do
-    pass = described_class.new(adapter: adapter, registry: registry)
-    pass.__send__(:lost, Kimera::Execution::NullProgress::UNSEEN, "t1", :crash)
-    expect(pass.__send__(:tally).to_h.fetch(:messages)["t1"]).to(eq("its worker died before reporting a result"))
+    expect { measure({ "t1" => :crash }) }
+      .to(raise_error(Kimera::Execution::BaselineFailure, /  t1:\n    its worker died before reporting a result\n/))
   end
 
   it "names --jobs 1 as the check when a baseline on several workers is red", :aggregate_failures do

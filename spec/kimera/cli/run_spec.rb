@@ -1158,10 +1158,11 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       expect(harness.asked.first[1]).to(eq(["spec/good_spec.rb"]))
     end
 
-    it "stamps no session when the run keeps none" do
-      registry = Kimera::RegistryScan.new.source("def m(a, b)\n  a > b\nend\n", file: "calc.rb")
-      cycle = Kimera::CLI::Run::Cycle.new({ since: "main", source_root: "." }, registry, digest: nil)
-      expect(cycle.__send__(:stamp)).to(be_nil)
+    it "stamps no session when the run keeps none, so it never reads the files a stamp digests", :aggregate_failures do
+      fixtures
+      File.write("Gemfile.lock", "").then { File.chmod(0, "Gemfile.lock") }
+      expect(capture(["calc.rb"]).first).to(eq(0))
+      expect { capture(["calc.rb", "--session", "session.json"]) }.to(raise_error(Errno::EACCES, /Gemfile.lock/))
     end
 
     it "still passes quietly when an incremental diff selects zero mutants" do

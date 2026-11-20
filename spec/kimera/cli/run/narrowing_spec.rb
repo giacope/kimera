@@ -45,14 +45,16 @@ RSpec.describe(Kimera::CLI::Run::Narrowing) do
   end
 
   it "doesn't expand the globs when --tests is the configured glob", :aggregate_failures do
-    same = narrowing(["spec/**/*_spec.rb"])
-    expect(same.notes).to(eq([]))
-    expect(same.__send__(:counts)).to(eq([0, 0]))
+    expect(narrowing(["spec/**/*_spec.rb"]).notes).to(eq([]))
+    expect(narrowing(["spec/\0"], ["spec/\0"]).provenance).to(eq("narrowed" => false))
+    expect { narrowing(["spec/\0"]).notes }.to(raise_error(ArgumentError, /null byte/))
   end
 
   it "groups thousands in the counts" do
-    counts = [3, 1_120, 1_234_567].map { |number| narrowing([]).__send__(:count, number) }
-    expect(counts).to(eq(%w[3 1,120 1,234,567]))
+    FileUtils.mkdir_p("many")
+    1_120.times { |index| File.write("many/#{index}_spec.rb", "") }
+    kept = %w[many/1_spec.rb many/2_spec.rb many/3_spec.rb]
+    expect(narrowing(kept, ["many/*_spec.rb"]).notes.join).to(include("matched 3 of 1,120 test files"))
   end
 
   describe "kimera run" do

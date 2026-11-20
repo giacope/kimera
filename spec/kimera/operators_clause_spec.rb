@@ -236,10 +236,17 @@ RSpec.describe(Kimera::Operators) do
       end
     end
 
-    it "follows a rescue clause to the next under either of Prism's names", :aggregate_failures do
-      clauses = Kimera::Operators::Clauses.new(nil)
-      expect(clauses.__send__(:following, Struct.new(:subsequent).new(:next))).to(eq(:next))
-      expect(clauses.__send__(:following, Struct.new(:consequent).new(:next))).to(eq(:next))
+    def chained(name)
+      link = Struct.new(name)
+      chain = link.new(link.new(nil))
+      begun = Kimera::Syntax.parse("def m\n  1\nrescue\n  2\nend\n").value.statements.body.first.body
+      begun.define_singleton_method(:rescue_clause) { chain }
+      found = Kimera::Operators::Clauses.new(begun).rescues
+      found.zip([chain, *chain.to_a]).map { |clause, expected| clause.equal?(expected) }
+    end
+
+    it "follows a rescue clause to the next under either of Prism's names" do
+      expect(%i[subsequent consequent].map { chained(it) }).to(eq([[true, true], [true, true]]))
     end
 
     it "leaves a block's own rescue alone: it has no node to guard" do

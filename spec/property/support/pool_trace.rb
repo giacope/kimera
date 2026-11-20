@@ -18,6 +18,8 @@ module PoolTrace
   class << self
     attr_accessor :recorder
 
+    def traced(slot, _id) = slot
+
     def record(queue, jobs)
       [Pool, Fleet, Requests].each(&:install)
       self.recorder = Recorder.new(queue, (0...jobs).to_a, [], [], ["none"])
@@ -41,7 +43,7 @@ module PoolTrace
       trace = PoolTrace.recorder
       return super unless trace&.unassigned&.delete(worker)
       trace.sent = ["none"]
-      super.tap { trace.log("spawn", worker.__send__(:slot), reply: trace.sent) }
+      super.tap { trace.log("spawn", worker.trace(PoolTrace, nil), reply: trace.sent) }
     end
 
     private
@@ -50,8 +52,8 @@ module PoolTrace
       trace = PoolTrace.recorder
       return super unless trace
       worker = fleet[pipe]
-      before = [trace.steps.size, partial?(worker)]
-      super.tap { trace.log("read", worker.__send__(:slot), kind: "part") if started?(worker, *before) }
+      before = [trace.steps.size, worker.partial?]
+      super.tap { trace.log("read", worker.trace(PoolTrace, nil), kind: "part") if started?(worker, *before) }
     end
 
     def deliver(worker, line)
@@ -59,13 +61,12 @@ module PoolTrace
       return super unless trace
       message = parse(line) { return super }
       trace.sent = ["none"]
-      super.tap { trace.log("read", worker.__send__(:slot), kind: message["t"], id: message["id"], reply: trace.sent) }
+      slot = worker.trace(PoolTrace, nil)
+      super.tap { trace.log("read", slot, kind: message["t"], id: message["id"], reply: trace.sent) }
     end
 
-    def partial?(worker) = !worker.__send__(:unread).to_s.empty?
-
     def started?(worker, steps, partial)
-      partial?(worker) && (!partial || PoolTrace.recorder.steps.size > steps)
+      worker.partial? && (!partial || PoolTrace.recorder.steps.size > steps)
     end
   end
 
@@ -75,7 +76,9 @@ module PoolTrace
     def remove(pipe, reason: :crash, stacks: [])
       worker = workers.fetch(pipe)
       act, kind = reason == :timeout ? ["expire", ""] : %w[read eof]
-      PoolTrace.recorder&.log(act, worker.__send__(:slot), kind: kind, id: worker.__send__(:inflight))
+      held = nil
+      worker.forfeit { |id| held = id }
+      PoolTrace.recorder&.log(act, worker.trace(PoolTrace, nil), kind: kind, id: held)
       super
     end
 
@@ -98,5 +101,7 @@ module PoolTrace
       PoolTrace.recorder&.sent = ["close"]
       super
     end
+
+    def partial? = !unread.to_s.empty?
   end
 end

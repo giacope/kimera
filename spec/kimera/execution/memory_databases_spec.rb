@@ -5,7 +5,7 @@ require "kimera/frameworks/suite"
 require "kimera/execution/memory_databases"
 
 RSpec.describe(Kimera::Execution::MemoryDatabases) do
-  let(:boot) { Kimera::Execution::Boot.new(adapter: nil, isolate: false) }
+  def booted = Kimera::Execution::Boot.new(adapter: FakeSuite.new, isolate: false).suite([])
 
   def pools
     Class.new do
@@ -20,7 +20,7 @@ RSpec.describe(Kimera::Execution::MemoryDatabases) do
   def discarded?(adapter, database)
     kind = pools
     stub_const("ActiveRecord::ConnectionAdapters::PoolConfig", kind)
-    boot.__send__(:keep!)
+    booted
     kind.new(Struct.new(:adapter, :database).new(adapter, database)).tap(&:discard_pool!).discarded
   end
 
@@ -45,6 +45,6 @@ RSpec.describe(Kimera::Execution::MemoryDatabases) do
 
   it "does nothing without ActiveRecord" do
     hide_const("ActiveRecord")
-    expect(boot.__send__(:keep!)).to(be_nil)
+    expect(booted).to(be_nil)
   end
 end

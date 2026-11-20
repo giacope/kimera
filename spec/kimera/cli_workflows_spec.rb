@@ -595,15 +595,17 @@ RSpec.describe(Kimera::CLI, :aggregate_failures) do
     expect(out.string).to(include("--judge-isolated-only"))
   end
 
-  def effective(options)
-    Kimera::CLI::Run::Cycle.new(options, nil, digest: nil).__send__(:provenance)
-      .slice("judge_isolated_only", "confirm_survivors")
+  def effective(*argv)
+    project("calc.rb" => "def m(a, b)\n  a > b\nend\n", "spec/calc_spec.rb" => "")
+    run = Kimera::CLI::Run.new(io: out, errors: error, bench: FakeBench.new)
+    Dir.chdir(dir) { run.run(["calc.rb", "--report", "report.json", *argv]) }
+    JSON.parse(File.read(File.join(dir, "report.json"))).fetch("run").slice("judge_isolated_only", "confirm_survivors")
   end
 
   it "records the effective survivor confirmation and DSL judging", :aggregate_failures do
-    expect(effective(since: "HEAD~1")).to(eq("judge_isolated_only" => true, "confirm_survivors" => true))
-    expect(effective({})).to(eq("judge_isolated_only" => false, "confirm_survivors" => true))
-    expect(effective(confirm_survivors: false)).to(include("confirm_survivors" => false))
+    expect(effective("--since", "HEAD~1")).to(eq("judge_isolated_only" => true, "confirm_survivors" => true))
+    expect(effective).to(eq("judge_isolated_only" => false, "confirm_survivors" => true))
+    expect(effective("--no-confirm-survivors")).to(include("confirm_survivors" => false))
   end
 
   it "prints shell completion scripts" do

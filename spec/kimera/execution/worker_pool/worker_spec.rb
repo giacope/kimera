@@ -30,9 +30,9 @@ RSpec.describe Kimera::Execution::WorkerPool::Worker do
   it "stays on the clock while it retires", :aggregate_failures do
     worker = described_class.new(request: :pipe, inflight: 5, deadline: nil)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    expect([worker.retire(3.0), worker.__send__(:inflight)]).to(eq([:pipe, nil]))
-    expect(worker.__send__(:deadline)).to(be_within(1.0).of(started + 3.0))
-    expect(worker.expired?(started + 4.0)).to(be(true))
+    forfeited = []
+    expect([worker.retire(3.0), worker.forfeit { |id| forfeited << id }]).to(eq([:pipe, nil]))
+    expect([worker.expired?(started + 2.0), worker.expired?(started + 4.0), forfeited]).to(eq([false, true, []]))
   end
 
   it "offers a mutant as one line naming its id" do
@@ -47,17 +47,17 @@ RSpec.describe Kimera::Execution::WorkerPool::Worker do
     worker = described_class.new
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     expect(worker.heard({ "t" => "tick" }, 3.0)).to(equal(worker))
-    expect(worker.__send__(:deadline)).to(be_within(1.0).of(started + 3.0))
+    expect([worker.expired?(started + 2.0), worker.expired?(started + 4.0)]).to(eq([false, true]))
   end
 
   it "keeps a crash's last words, and only a crash's" do
     worker = described_class.new
     words = [
-      worker.__send__(:last_words),
-      worker.heard({ "t" => "result", "detail" => "Assertion: no" }, 3.0).__send__(:last_words),
-      worker.heard({ "t" => "crash", "detail" => "Boom: x" }, 3.0).__send__(:last_words)
+      worker.obituary(nil),
+      worker.heard({ "t" => "result", "detail" => "Assertion: no" }, 3.0).obituary(nil),
+      worker.heard({ "t" => "crash", "detail" => "Boom: x" }, 3.0).obituary(nil)
     ]
-    expect(words).to(eq([nil, nil, "Boom: x"]))
+    expect(words).to(eq([[], [], ["Boom: x"]]))
   end
 
   describe "#obituary" do

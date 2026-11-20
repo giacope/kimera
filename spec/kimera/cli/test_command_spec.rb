@@ -339,10 +339,16 @@ RSpec.describe(Kimera::CLI::TestCommand) do
       expect(suite.ran.map(&:last)).to(eq([130]))
     end
 
-    it "says the suite is still running every half minute" do
+    def ticked(clock)
       said = StringIO.new
-      Kimera::Execution::SuiteCapture.new(said).__send__(:tick, 30.1)
-      expect(said.string).to(eq("kimera: the suite is still running (30 s)…\n"))
+      capture = Kimera::Execution::SuiteCapture.new(said, Kimera::Execution::SuiteEnv.new, clock)
+      Dir.mktmpdir { |root| capture.timed("sleep", "30", chdir: root, limit: 30.5) }
+      said.string
+    end
+
+    it "says the suite is still running every half minute" do
+      clock = FakeClock.new(0.0, *Array.new(149, 1.0), 30.1, 31.0)
+      expect(ticked(clock)).to(eq("kimera: the suite is still running (30 s)…\n"))
     end
   end
 

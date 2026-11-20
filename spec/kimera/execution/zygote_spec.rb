@@ -113,14 +113,18 @@ RSpec.describe(Kimera::Execution::Zygote) do
     end
   end
 
-  describe "the child's half, run here" do
-    let(:exits) { FakeExits.new }
+  describe "the child's half" do
+    def exits(writer)
+      Object.new.tap do |exits|
+        exits.define_singleton_method(:exit!) { |code| writer.puts(code) && Kernel.exit!(code) }
+      end
+    end
 
     it "replies and exits without unwinding", :aggregate_failures do
       reader, writer = IO.pipe
-      described_class.new(exits).__send__(:spawned, described_class::Pipe.new(reader.dup, writer)) { 7 }
-      expect(JSON.parse(reader.read)).to(eq("value" => 7))
-      expect(exits.codes).to(eq([0]))
+      value = described_class.new(exits(writer)).call { 7 }
+      writer.close
+      expect([value, reader.readlines(chomp: true)]).to(eq([7, ["0"]]))
     end
   end
 

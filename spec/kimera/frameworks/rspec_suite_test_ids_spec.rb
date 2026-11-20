@@ -13,11 +13,11 @@ RSpec.describe(Kimera::Frameworks::RSpecSuite, "#test_ids") do
     groups = world.example_groups.dup
     manager = config.filter_manager
     fallback = config.run_all_when_everything_filtered?
-    config.instance_variable_set(:@filter_manager, RSpec::Core::FilterManager.new)
+    config.filter_manager = RSpec::Core::FilterManager.new
     example.run
   ensure
     world.example_groups.replace(groups)
-    config.instance_variable_set(:@filter_manager, manager)
+    config.filter_manager = manager
     config.run_all_when_everything_filtered = fallback
     world.filtered_examples.clear
     FileUtils.remove_entry(dir)

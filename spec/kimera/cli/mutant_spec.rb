@@ -31,7 +31,10 @@ RSpec.describe(Kimera::CLI::Mutant, :aggregate_failures) do
 
   def focused(options)
     registry = Kimera::CLI::Run::Sources.new.load(options)
-    Kimera::CLI::Run::Cycle.new(options, registry, digest: nil).__send__(:focus, registry.index.keys) => [id]
+    harness = FakeHarness.new
+    Kimera::CLI::Run::Cycle.new(options, registry, digest: FakeDigest.new, alerts: FakeAlerts.new)
+      .call(Kimera::CLI::Run::NullSelection.new, FakeBench.new(harness: harness))
+    harness.asked.first.last => [id]
     [registry, *registry[id]]
   end
 

@@ -18,6 +18,6 @@ end
 using ResultFields
 
 RSpec::Matchers.define(:have_fields) do |expected|
-  match { |actual| expected.all? { |field, value| values_match?(value, actual.send(field)) } }
+  match { |actual| expected.all? { |field, value| values_match?(value, actual.public_send(field)) } }
   failure_message { |actual| "expected #{actual.inspect} to have fields #{expected.inspect}" }
 end

@@ -86,7 +86,7 @@ class Kimera::CLI::Run
     )
   end
 
-  def digest(options = {})
+  def digest(options)
     narration = options.to_h.fetch(:format, "text") == "text" ? @io : @errors
     emission = Kimera::CLI::Run::Emission.new(io: narration, output: @io, **options.to_h.slice(:color, :quiet))
     Kimera::CLI::Run::Digest.new(io: narration, emission: emission)

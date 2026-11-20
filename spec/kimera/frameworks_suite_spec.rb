@@ -41,7 +41,8 @@ RSpec.describe(Kimera::Frameworks) do
 
   describe "a test file that clashes with a dependency's constant" do
     def loaded(error)
-      Kimera::Frameworks::Suite.new.__send__(:guarded, "test/x_test.rb") { raise(error) }
+      suite = Class.new(Kimera::Frameworks::Suite) { def source(file, &) = guarded(file, &) }
+      suite.new.source("test/x_test.rb") { raise(error) }
     rescue Kimera::Error => error
       error.message
     end

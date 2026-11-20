@@ -62,7 +62,6 @@ module Kimera
     private
 
     def visit(node)
-      return [] unless node.is_a?(SyntaxTypes::Node)
       taint = taint(node)
       (taint ? [taint] : []) + node.compact_child_nodes.flat_map { |child| visit(child) }
     end
@@ -76,10 +75,7 @@ module Kimera
       end
     end
 
-    def value(node, reason)
-      expression = node.value
-      range(expression, reason) if expression
-    end
+    def value(node, reason) = range(node.value, reason)
 
     def keyed(node)
       value(node, "memoized via `cache[key] ||=`") if CACHE_READS.include?(bare(node.receiver).class)
@@ -114,7 +110,6 @@ module Kimera
     end
 
     def holes(node)
-      return [] unless node.is_a?(SyntaxTypes::Node)
       found = HOLE_NODES.any? { |kind| node.is_a?(kind) } ? [node] : Kimera::Deferral.new(node).blocks
       return found.flat_map { |hole| body(hole) } if found.any?
       node.compact_child_nodes.flat_map { |child| holes(child) }

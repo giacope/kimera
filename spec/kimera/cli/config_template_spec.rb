@@ -37,9 +37,16 @@ RSpec.describe(Kimera::CLI::ConfigTemplate, :aggregate_failures) do
   end
 
   it "keeps a line of exactly 78 characters whole, so each comment fits in 80 columns" do
-    wrap = ->(text) { described_class.new({}).__send__(:wrap, text) }
-    expect(wrap.call("#{"a" * 76} b")).to(eq(["#{"a" * 76} b"]))
-    expect(wrap.call("#{"a" * 76} bc")).to(eq(["a" * 76, "bc"]))
+    expect(note("#{"a" * 76} b")).to(eq(["# #{"a" * 76} b"]))
+    expect(note("#{"a" * 76} bc")).to(eq(["# #{"a" * 76}", "# bc"]))
+  end
+
+  def note(description)
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "schema.json")
+      File.write(path, JSON.generate("properties" => { "key" => { "description" => description } }))
+      described_class.new({ "key" => 1 }, path).render.split("\n\n").fetch(1).lines(chomp: true)[0...-1]
+    end
   end
 
   it "wraps each key's description into comment lines that fit" do

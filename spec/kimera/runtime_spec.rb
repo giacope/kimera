@@ -38,6 +38,14 @@ RSpec.describe(Kimera::Runtime) do
     expect(Kimera::RUNTIME).to(equal(bound))
   end
 
+  def spilled(ledger) = Dir.glob(File.join(Dir.tmpdir, "kimera-ledger-#{Process.pid}-#{ledger.object_id}-*"))
+
+  def pushes(&)
+    count = 0
+    TracePoint.new(:call) { |call| count += 1 if call.method_id == :push }.enable(&)
+    count
+  end
+
   def asked(shared, *ids)
     Warning[:experimental] = false
     ractor = Ractor.new(shared, ids) { |runtime, mutants| mutants.map { runtime.active?(it) }.last }
@@ -68,7 +76,7 @@ RSpec.describe(Kimera::Runtime) do
     it "writes an id it reaches twice to the open ledger's spill once" do
       ledger = runtime.start!
       in_ractor(runtime, 4, 4)
-      expect(File.read(ledger.__send__(:spill))).to(eq("4\n"))
+      expect(spilled(ledger).map { File.read(it) }).to(eq(["4\n"]))
     ensure
       runtime.stop!(ledger)
     end
@@ -91,12 +99,6 @@ RSpec.describe(Kimera::Runtime) do
       runtime.active = "7"
       expect(runtime.active).to(eq(7))
       expect(runtime.active?(7)).to(be(true))
-    end
-
-    def pushes(&)
-      count = 0
-      TracePoint.new(:call) { |call| count += 1 if call.method_id == :push }.enable(&)
-      count
     end
 
     it "asks nothing of its sink while no ledger is open, before the first one and after the last" do
@@ -158,7 +160,7 @@ RSpec.describe(Kimera::Runtime) do
     it "keeps one entry per mutant however often its guard runs" do
       ledger = runtime.start!
       100_000.times { runtime.active?(7) }
-      expect(ledger.__send__(:ids).size).to(eq(1))
+      expect(ledger.drain!).to(eq([7]))
     ensure
       runtime.stop!(ledger)
     end
@@ -240,9 +242,9 @@ RSpec.describe(Kimera::Runtime) do
 
     it "records straight on the one open ledger, and on nothing once it closes", :aggregate_failures do
       ledger = runtime.start!
-      expect(runtime.instance_variable_get(:@sink)).to(equal(ledger))
+      expect(pushes { runtime.active?(1) }).to(eq(1))
       runtime.stop!(ledger)
-      expect(runtime.instance_variable_get(:@sink)).to(equal(described_class::MUTE))
+      expect(runtime.ledgers).to(be_empty)
     end
 
     def reset
@@ -264,7 +266,7 @@ RSpec.describe(Kimera::Runtime) do
     def forked(&)
       ledger = Kimera::RUNTIME.start!
       Process.wait(fork(&))
-      [ledger.drain!, ledger.__send__(:spill)]
+      [ledger.drain!, spilled(ledger)]
     ensure
       Kimera::RUNTIME.stop!(ledger)
     end
@@ -286,7 +288,7 @@ RSpec.describe(Kimera::Runtime) do
     it "reach the parent's ledger, and leave no spill file behind", :aggregate_failures do
       touched, spill = forked(&child(41))
       expect(touched).to(include(41))
-      expect(File.exist?(spill)).to(be(false))
+      expect(spill).to(be_empty)
     end
 
     it "reach it from a grandchild too" do
@@ -317,7 +319,7 @@ RSpec.describe(Kimera::Runtime) do
       Dir.mktmpdir do |dir|
         spill = described_class::Spill.new(File.join(dir, "spill"), {})
         [3, 3, 4].each { spill.push(it) }
-        expect(File.read(spill.__send__(:leak))).to(eq("3\n4\n"))
+        expect(File.read(File.join(dir, "spill"))).to(eq("3\n4\n"))
       end
     end
   end
@@ -377,7 +379,7 @@ RSpec.describe(Kimera::Runtime) do
     it "leaves the flips of the active mutant as they are when it is switched on again" do
       runtime.privatize(3, owner, :shown)
       runtime.active = 3
-      owner.__send__(:public, :shown)
+      owner.class_eval { public(:shown) }
       runtime.active = 3
       expect(owner.public_method_defined?(:shown)).to(be(true))
     end
@@ -433,12 +435,17 @@ RSpec.describe(Kimera::Runtime) do
       expect(owner.public_method_defined?(:shown)).to(be(true))
     end
 
-    it "clears a Rails controller's cached actions with each flip" do
-      controller = Class.new(owner) { def self.clear_action_methods! = (@cleared = (@cleared || 0) + 1) }
+    def cleared
+      count = 0
+      controller = Class.new(owner).tap { it.define_singleton_method(:clear_action_methods!) { count += 1 } }
       runtime.privatize(5, controller, :shown)
       runtime.active = 5
       runtime.active = nil
-      expect(controller.instance_variable_get(:@cleared)).to(eq(2))
+      count
+    end
+
+    it "clears a Rails controller's cached actions with each flip" do
+      expect(cleared).to(eq(2))
     end
   end
 end

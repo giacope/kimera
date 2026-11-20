@@ -72,6 +72,12 @@ RSpec.describe(Kimera::Execution::Overrides) do
       found.tap { |each| held.each { it.revisit!(each) } }.map { it.reasons(Kimera::Reason.revisiting).first }
     end
 
+    def marked(held)
+      text = "class Revisited\n#{(2..10).map { |line| "  def at#{line} = a > b\n" }.join}end\n"
+      found = Kimera::RegistryScan.new.source(text, file: "x.rb").to_h.fetch("x.rb")
+      revisits(held, found).each_with_index.filter_map { |reason, index| index + 2 if reason }
+    end
+
     def spanning(lines) = Data.define(:start_line, :end_line).new(lines.first, lines.last)
 
     def kept(lines) = described_class::Held.new(nil, nil, :public, spanning(lines))
@@ -79,7 +85,7 @@ RSpec.describe(Kimera::Execution::Overrides) do
     it "judges again the mutants on the lines of a method another file keeps", :aggregate_failures do
       boot
       _, displaced = overlay(described_class.new(own, source))
-      expect(displaced.map { |held| held.instance_variable_get(:@span).start_line }).to(contain_exactly(2, 4, 7))
+      expect(marked(displaced)).to(eq([2, 4, 7]))
       expect(revisits(displaced)).to(eq([described_class::Held::WRAPPED, nil]))
     end
 
@@ -97,7 +103,7 @@ RSpec.describe(Kimera::Execution::Overrides) do
   end
 
   describe "a later file's top-level method" do
-    after { Object.__send__(:remove_method, :overrides_top) }
+    after { Object.class_eval { remove_method(:overrides_top) } }
 
     it "is kept" do
       { own => :own, later => :later }.each { |file, value| evaluate(Object, "def overrides_top = :#{value}", file) }

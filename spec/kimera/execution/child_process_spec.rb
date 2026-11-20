@@ -5,9 +5,15 @@ require "kimera/execution/child_process"
 require "tmpdir"
 
 RSpec.describe(Kimera::Execution::ChildProcess) do
-  let(:reader) { Object.new.extend(described_class) }
+  let(:reader) do
+    Class.new do
+      include Kimera::Execution::ChildProcess
 
-  def parse(line, &) = reader.__send__(:parse, line, &)
+      public(:parse, :discard, :lead, :kill, :bury, :signal)
+    end.new
+  end
+
+  def parse(line, &) = reader.parse(line, &)
 
   it "parses a worker's UTF-8 line whatever encoding the pipe tagged it with" do
     line = "{\"detail\":\"caf\xC3\xA9 \xE2\x80\xA6\"}\n".b.force_encoding(Encoding::US_ASCII)
@@ -28,7 +34,7 @@ RSpec.describe(Kimera::Execution::ChildProcess) do
   def discarded
     Dir.mktmpdir do |dir|
       File.open(File.join(dir, "out.txt"), "w") do |file|
-        stream = reader.__send__(:discard, file.fileno)
+        stream = reader.discard(file.fileno)
         [stream.fileno == file.fileno, File.readlink("/proc/self/fd/#{file.fileno}"), stream.write("x")]
       end
     end
@@ -43,7 +49,7 @@ RSpec.describe(Kimera::Execution::ChildProcess) do
   end
 
   describe "process groups" do
-    def call(name, *) = reader.__send__(name, *)
+    def call(name, *) = reader.public_send(name, *)
 
     def led
       group, report = IO.pipe

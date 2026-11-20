@@ -70,17 +70,17 @@ RSpec.describe(Kimera::Overlay) do
 
     def plain(value) = value.instance_of?(Object) ? Object : value
 
-    def loaded(source)
-      Object.new.extend(Module.new.tap { |mod| Kimera::Warnings.silenced.during { mod.module_eval(source) } })
-    end
+    def woven(source) = Module.new.tap { |mod| Kimera::Warnings.silenced.during { mod.module_eval(source) } }
+
+    def loaded(source) = Object.new.extend(woven(source))
 
     def flipped(live, id, calls)
-      live.instance_variables.each { |name| live.remove_instance_variable(name) }
-      Kimera::RUNTIME.during(id) { calls.map { |call| outcome(live, call) } }
+      receiver = Object.new.extend(live)
+      Kimera::RUNTIME.during(id) { calls.map { |call| outcome(receiver, call) } }
     end
 
     def unlike_bakes(schemata, calls)
-      live = loaded(schemata.result.to_s)
+      live = woven(schemata.result.to_s)
       schemata.result.to_h.fetch(:mutant_ids).reject do |id|
         bake = loaded(schemata.overlay.bake("x.rb", schemata.source, id))
         flipped(live, id, calls) == calls.map { |call| outcome(bake, call) }

@@ -91,7 +91,8 @@ RSpec.describe(Kimera::Execution::BlockMethods) do
 
   it "keeps the method's lexical scope and its visibility", :aggregate_failures do
     overlay!
-    expect([made.new.__send__(:under, 0), flipped("< => >", 13) { made.new.__send__(:under, 0) }]).to(eq([true, false]))
+    reach = Class.new(made) { def reach(value) = under(value) }.new
+    expect([reach.reach(0), flipped("< => >", 13) { reach.reach(0) }]).to(eq([true, false]))
     expect(made.private_method_defined?(:under)).to(be(true))
   end
 

@@ -43,8 +43,8 @@ RSpec.describe(Kimera::RunReport) do
       results = [result(1, :harness_error), result(2, :killed)]
       warm = described_class.new(results: results, registry: registry)
       revised = warm.revise([result(1, :survived)])
-      expect(revised.map { |r| [r.mutant_id, r.status] }).to(eq([[1, :survived], [2, :killed]]))
-      expect(revised.instance_variable_get(:@registry)).to(eq(registry))
+      rows = revised.to_h.fetch("results").map { |row| row.values_at("mutant_id", "status", "original") }
+      expect(rows).to(eq([[1, "survived", "a > b"], [2, "killed", "a > b"]]))
     end
 
     it "adds the revised results it did not hold, after the rest" do

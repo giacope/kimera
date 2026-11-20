@@ -71,7 +71,6 @@ module Kimera::RegistryWalking
   private
 
   def walk(node, cursor, &)
-    return unless node.is_a?(Kimera::SyntaxTypes::Node)
     cursor = cursor.enter(node)
     yield(node, cursor) if cursor.open?
     shape = shape(node, cursor)

@@ -11,7 +11,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     slots = Kimera::Execution::MirrorSlots.new(jobs, connections: connections, numbered: numbers, mirror: mirror)
     Dir.mktmpdir do |root|
       execution = described_class.new(registry: nil, root: root, tests: [], jobs: jobs, slots: slots)
-      2.times { execution.__send__(:with_mirror, &:itself) }
+      execution.run(ids: [])
     end
     mirror.prepared
   end

@@ -50,8 +50,7 @@ RSpec.describe(Kimera::SelfProtection) do
 
   describe "#canonical" do
     it "falls back to expand_path when realpath cannot resolve the path" do
-      canonical = described_class.new(nil).__send__(:canonical, "no/such/dir/../file.rb")
-      expect(canonical).to(eq(File.expand_path("no/such/file.rb")))
+      Dir.chdir(described_class::HOME) { expect(protected?("no/such/../../runtime.rb")).to(be(true)) }
     end
   end
 

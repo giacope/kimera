@@ -29,6 +29,12 @@ RSpec.describe(Kimera::Execution::StackDump) do
 
   def interrupted = armed { dump.take(Process.pid) }.fetch(0)
 
+  def dumped(*threads)
+    seen = described_class.new(dir, threads: -> { threads })
+    text = trapped("IGNORE") { seen.tap(&:arm!).take(Process.pid) }.fetch(0)
+    text.delete_prefix("#{described_class::HEADER}\n")
+  end
+
   it "answers the signal with the interrupted thread's own frames", :aggregate_failures do
     lines = interrupted.lines(chomp: true)
 
@@ -45,18 +51,18 @@ RSpec.describe(Kimera::Execution::StackDump) do
   it "stops a thread's frames at Kimera's own runner" do
     harness = Kimera::Execution::Frames::HARNESS
     frames = ["app/x.rb:1:in 'a'", "#{harness}/execution/shift.rb:9:in 'b'", "app/y.rb:2:in 'c'"]
-    text = dump.__send__(:describe, thread("w", frames: frames, status: "run"))
+    text = dumped(thread("w", frames: frames, status: "run"))
     expect(text).to(eq("thread w (run):\n  app/x.rb:1:in 'a'"))
   end
 
   it "skips the dump's own frames on the thread it interrupted" do
     frames = ["#{Kimera::Execution::Frames::HARNESS}/execution/stack_dump.rb:40:in 'write'", "app/x.rb:1:in 'a'"]
-    expect(dump.__send__(:describe, thread("w", frames: frames))).to(eq("thread w (sleep):\n  app/x.rb:1:in 'a'"))
+    expect(dumped(thread("w", frames: frames))).to(eq("thread w (sleep):\n  app/x.rb:1:in 'a'"))
   end
 
   it "shows frames relative to the project and caps them per thread", :aggregate_failures do
     frames = Array.new(Kimera::Execution::Frames::MAX_FRAMES + 2) { |i| "#{Dir.pwd}/app/m.rb:#{i}:in 'm'" }
-    lines = dump.__send__(:describe, thread(nil, frames: frames)).lines(chomp: true)
+    lines = dumped(thread(nil, frames: frames)).lines(chomp: true)
     expect([lines.first, lines[1], lines.size, lines.last]).to(
       match(
         [
@@ -68,19 +74,19 @@ RSpec.describe(Kimera::Execution::StackDump) do
   end
 
   it "labels a dead thread and one with no backtrace", :aggregate_failures do
-    expect(dump.__send__(:describe, thread("gone", frames: nil, status: nil))).to(eq("thread gone (dead):"))
-    expect(dump.__send__(:describe, thread("done", frames: nil, status: false))).to(eq("thread done (dead):"))
+    expect(dumped(thread("gone", frames: nil, status: nil))).to(eq("thread gone (dead):"))
+    expect(dumped(thread("done", frames: nil, status: false))).to(eq("thread done (dead):"))
   end
 
   it "caps the threads it shows and counts the rest", :aggregate_failures do
-    text = dump.__send__(:render, Array.new(described_class::MAX_THREADS + 3) { |i| thread("t#{i}") })
+    text = dumped(*Array.new(described_class::MAX_THREADS + 3) { |i| thread("t#{i}") })
 
     expect(text.scan(/^thread t\d+ /).size).to(eq(described_class::MAX_THREADS))
     expect(text).to(end_with("\n(3 more thread(s))"))
   end
 
   it "shows every thread when there are no more than the cap" do
-    text = dump.__send__(:render, Array.new(described_class::MAX_THREADS) { |i| thread("t#{i}") })
+    text = dumped(*Array.new(described_class::MAX_THREADS) { |i| thread("t#{i}") })
     expect(text).not_to(include("more thread"))
   end
 
@@ -127,8 +133,7 @@ RSpec.describe(Kimera::Execution::StackDump) do
     after { Process.waitall }
 
     it "is waited for" do
-      folder = dir
-      expect(dump.__send__(:collect, File.join(folder, "#{late_writer(folder)}.txt"))).to(eq("late"))
+      expect(trapped("IGNORE") { dump.take(late_writer(dir)) }).to(eq(["late"]))
     end
   end
 
@@ -168,7 +173,8 @@ RSpec.describe(Kimera::Execution::StackDump) do
     def asked
       workers = [fork { listen("member") }, fork { family }]
       3.times { ready.first.gets }
-      workers.each { |pid| dump.__send__(:ask, pid) }
+      hasty = described_class.new(dir, clock: -> { Float::INFINITY })
+      workers.each { |pid| hasty.take(pid) }
       names
     end
 

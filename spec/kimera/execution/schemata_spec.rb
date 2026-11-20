@@ -213,23 +213,14 @@ RSpec.describe(Kimera::Execution::Schemata) do
       write("sl_synth_bad.rb", greater("SchemataSynthBad"))
       write("sl_synth_ok.rb", greater("SchemataSynthOk"))
       registry = scan("sl_synth_bad.rb", "sl_synth_ok.rb")
-      [registry, schemata(registry).tap { |loader| unparseable(loader) }]
-    end
-
-    def unparseable(loader)
-      synth = loader.__send__(:synth)
-      original = synth.method(:synthesize)
-      synth.define_singleton_method(:synthesize) do |file, source|
-        raise(ArgumentError, "kimera cannot write a foo node") if file == "sl_synth_bad.rb"
-
-        original.call(file, source)
-      end
+      write("sl_synth_bad.rb", "class SchemataSynthBad\nend\n")
+      [registry, schemata(registry)]
     end
 
     it "is diagnosed on stderr" do
       _, loader = synthesized
       loader.overlay!
-      expect(notices.string).to(match(/sl_synth_bad\.rb cannot run in warm workers.*ArgumentError/))
+      expect(notices.string).to(match(/sl_synth_bad\.rb cannot run in warm workers.*Kimera::Scribe::Unreadable/))
     end
 
     it "does not stop the rest from being overlaid", :aggregate_failures do
@@ -243,7 +234,8 @@ RSpec.describe(Kimera::Execution::Schemata) do
       registry, loader = synthesized
       noisily(loader)
       reasons = registry.to_a.select { |p| p.file == "sl_synth_bad.rb" }.map { PointVerdict.new(it).unsafe_reason }.uniq
-      expect(reasons).to(eq(["unmutatable: schemata setup failed (ArgumentError: kimera cannot write a foo node)"]))
+      reason = "unmutatable: schemata setup failed (Kimera::Scribe::Unreadable: kimera could not write its guard)"
+      expect(reasons).to(eq([reason]))
     end
   end
 
@@ -601,6 +593,18 @@ RSpec.describe(Kimera::Execution::Schemata) do
               super
             end
           end
+
+          def append_features(base)
+            super
+            stored = :@_included_block
+            base.class_eval(&instance_variable_get(stored)) if instance_variable_defined?(stored)
+          end
+
+          def prepend_features(base)
+            super
+            stored = :@_prepended_block
+            base.class_eval(&instance_variable_get(stored)) if instance_variable_defined?(stored)
+          end
         end
       stub_const("ActiveSupport", Module.new) unless defined?(ActiveSupport)
       stub_const("ActiveSupport::Concern", concern)
@@ -628,8 +632,7 @@ RSpec.describe(Kimera::Execution::Schemata) do
 
     it "chains the overlaid included block after the original" do
       ran = []
-      later = Class.new
-      later.class_eval(&chained(ran).instance_variable_get(:@_included_block))
+      later = Class.new.tap { |klass| klass.include(chained(ran)) }
       expect(ran).to(eq([[:original, later], [:overlaid, later]]))
     end
 
@@ -651,8 +654,10 @@ RSpec.describe(Kimera::Execution::Schemata) do
     %i[included prepended].each do |hook|
       it "stores a first-time #{hook} block even during overlay" do
         concern = fresh_concern
-        overlaying { concern.public_send(hook) { :first } }
-        expect(concern.instance_variable_get(:"@_#{hook}_block").call).to(eq(:first))
+        ran = []
+        overlaying { concern.public_send(hook) { ran << :first } }
+        Class.new.public_send(hook == :included ? :include : :prepend, concern)
+        expect(ran).to(eq([:first]))
       end
     end
 

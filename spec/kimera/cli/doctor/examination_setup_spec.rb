@@ -11,6 +11,8 @@ RSpec.describe(Kimera::CLI::Doctor::Examination, :aggregate_failures) do
     described_class.new({}, root, Kimera::CLI::Instruments.new, Kimera::CLI::Checklist.new(StringIO.new))
   end
 
+  def rails(root) = doctor(root).checks({}).find { |_, text| text.start_with?("R") }
+
   def engine(root)
     { "lib/blog/core.rb" => "class Blog::Core < Rails::Engine\nend\n", "spec/dummy/config/application.rb" => "" }
       .each do |path, body|
@@ -21,13 +23,13 @@ RSpec.describe(Kimera::CLI::Doctor::Examination, :aggregate_failures) do
   end
 
   it "treats an engine with a dummy app as Rails" do
-    Dir.mktmpdir { |root| expect(doctor(engine(root)).__send__(:rails).first).to(eq("!")) }
+    Dir.mktmpdir { |root| expect(rails(engine(root)).first).to(eq("!")) }
   end
 
   it "does not take a dummy app alone for Rails" do
     Dir.mktmpdir do |root|
       FileUtils.rm(File.join(engine(root), "lib/blog/core.rb"))
-      expect(doctor(root).__send__(:rails).first).to(eq("✓"))
+      expect(rails(root).first).to(eq("✓"))
     end
   end
 end

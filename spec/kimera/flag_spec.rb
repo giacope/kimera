@@ -60,7 +60,7 @@ RSpec.describe(Kimera::Flag) do
   describe "the run table" do
     it "writes only keys the defaults declare" do
       declared = Dir.mktmpdir do |dir|
-        Dir.chdir(dir) { Kimera::CLI::Run.new.__send__(:parse, []) }
+        Dir.chdir(dir) { Kimera::CLI::Run::Arguments.new.parse([]) }
       end.to_h.keys
 
       keys = Kimera::CLI::RunOptions::OPTIONS.to_a.map { it.to_h[:key] }

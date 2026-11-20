@@ -16,7 +16,7 @@ RSpec.describe(Kimera::BodyTrim) do
 
   def trim(source, *snippets) = described_class.new(source, live(source, snippets)).trimmed
 
-  def loaded?(path) = described_class.new("", []).__send__(:loaded?, path)
+  def loaded?(path) = described_class.new(source, locations).trim(path) != source
 
   def lines(text) = text.lines.map(&:strip).reject(&:empty?)
 

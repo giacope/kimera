@@ -118,23 +118,6 @@ RSpec.describe(Kimera::Execution::Harness) do
     expect(harness(adapter(coverage: { "t1" => [], "t2" => [] })).survey.coverage.fetch(ids.first)).to(eq(%w[t1 t2]))
   end
 
-  describe "hard_timeout default" do
-    it "derives from soft_timeout when not given" do
-      h = harness(adapter, soft_timeout: 5.0)
-      expect(h.__send__(:hard)).to(eq((5.0 * 3) + 1))
-    end
-
-    it "falls back to 30s when soft_timeout is nil" do
-      h = harness(adapter, soft_timeout: nil)
-      expect(h.__send__(:hard)).to(eq(30.0))
-    end
-
-    it "clamps jobs to at least 1", :aggregate_failures do
-      expect(harness(adapter, jobs: 0).__send__(:jobs)).to(eq(1))
-      expect(harness(adapter, jobs: 4).__send__(:jobs)).to(eq(4))
-    end
-  end
-
   describe "#measure!" do
     it "builds a mutant => covering-tests map from the touch-log", :aggregate_failures do
       h = harness(adapter(coverage: { "t1" => [ids.first], "t2" => ids }))
@@ -471,7 +454,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       described_class.build(
         registry: registry, jobs: 2, progress: progress,
         adapter: adapter(coverage: { "t1" => [], "t2" => [] })
-      ).__send__(:measure!)
+      ).warm!([])
       progress
     end
 
@@ -724,18 +707,6 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(app.eager_loads).to(eq(1))
     end
 
-    def database(name)
-      FakeRails.unconnected(self)
-      inline(registry: catalog(name), adapter: green, source_root: dir, isolate_db: true)
-    end
-
-    it "wires DB isolation during warm-up when isolate_db is on" do
-      stub_const("Warmiso", Class.new)
-      h = database("warmiso")
-      h.without_coverage!(["t1"])
-      expect(h.__send__(:isolation)).to(be_a(Kimera::Execution::CompositeIsolation))
-    end
-
     def first(registry) = registry.each.map { |m, _p| m.to_i }.first
 
     def ungated(name)
@@ -761,30 +732,6 @@ RSpec.describe(Kimera::Execution::Harness) do
       stub_const("Warmquiet", Class.new)
       h = quiet("warmquiet")
       expect { h.warm!(["t1"]) }.not_to(output.to_stderr)
-    end
-  end
-
-  describe "#isolate!" do
-    it "wraps isolation in a rolled-back transaction when isolate_db is on" do
-      FakeRails.unconnected(self)
-      h = harness(adapter, isolate_db: true)
-      h.__send__(:isolate!)
-      expect(h.__send__(:isolation)).to(be_a(Kimera::Execution::CompositeIsolation))
-    end
-
-    it "leaves isolation alone by default even with ActiveRecord loaded", :aggregate_failures do
-      FakeRails.unconnected(self)
-      h = harness(adapter)
-      h.__send__(:isolate!)
-      expect(h.__send__(:isolation)).to(be_a(Kimera::Execution::Isolation))
-      expect(h.__send__(:isolation)).not_to(be_a(Kimera::Execution::CompositeIsolation))
-    end
-
-    it "stays a no-op when isolate_db is on but ActiveRecord is absent", :aggregate_failures do
-      hide_const("ActiveRecord") if defined?(ActiveRecord)
-      h = harness(adapter, isolate_db: true)
-      expect { h.__send__(:isolate!) }.not_to(raise_error)
-      expect(h.__send__(:isolation)).not_to(be_a(Kimera::Execution::CompositeIsolation))
     end
   end
 
@@ -1045,10 +992,6 @@ RSpec.describe(Kimera::Execution::Harness) do
       expect(database(jobs: 2).active?).to(be(false))
     end
 
-    it "registers nothing, and warns nothing, when ActiveRecord is absent" do
-      expect { database(jobs: 2).__send__(:register!) }.not_to(output.to_stderr)
-    end
-
     def cleanup
       cleaned = []
       stub(after: [], cleanup: -> { cleaned << :cleaned })
@@ -1136,9 +1079,34 @@ RSpec.describe(Kimera::Execution::Harness) do
   describe "result helpers" do
     let(:verdicts) { Kimera::Execution::Verdicts.new(registry) }
 
-    def heard(report)
-      told = Class.new { define_method(:report) { |_id, _errand| report.call } }.new
-      Kimera::Execution::Reload.new(registry: registry, adapter: adapter, trial: told).run(7, deadline: 5.0)
+    def heard(report, deadline: 5.0)
+      told = Class.new { define_method(:report) { |_id, errand| report.call(errand) } }.new
+      Kimera::Execution::Reload.new(registry: registry, adapter: adapter, trial: told).run(7, deadline: deadline)
+    end
+
+    def ticking(errand)
+      IO.pipe do |never, _held|
+        4.times do
+          errand.tick("t1")
+          never.wait_readable(0.2)
+        end
+      end
+      JSON.generate(id: 7, status: "survived", ms: 1, fails: [])
+    end
+
+    it "gives a reload worker that keeps ticking a fresh deadline after each tick" do
+      expect(heard(method(:ticking), deadline: 0.5).status).to(eq(:survived))
+    end
+
+    def unreaped
+      previous = Signal.trap("CHLD", "IGNORE")
+      heard(->(_errand) { exit!(1) })
+    ensure
+      Signal.trap("CHLD", previous || "DEFAULT")
+    end
+
+    it "says only that a reload worker gave no result when its exit status is gone" do
+      expect(unreaped.detail).to(eq("reload worker produced no result"))
     end
 
     it "builds a timeout result carrying the file", :aggregate_failures do
@@ -1154,24 +1122,24 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     it "treats a reload worker that exits without a line as a harness_error: no result", :aggregate_failures do
-      v = heard(-> { exit!(1) })
+      v = heard(->(_errand) { exit!(1) })
       expect(v.status).to(eq(:harness_error))
       expect(v.detail).to(eq("reload worker produced no result (exited 1)"))
     end
 
     it "names the signal that killed a reload worker with no result" do
-      v = heard(-> { Process.kill(:KILL, Process.pid) })
+      v = heard(->(_errand) { Process.kill(:KILL, Process.pid) })
       expect(v.detail).to(eq("reload worker produced no result (died on signal 9)"))
     end
 
     it "treats a torn output line as a harness_error: unparseable", :aggregate_failures do
-      v = heard(-> { "{torn" })
+      v = heard(->(_errand) { "{torn" })
       expect(v.status).to(eq(:harness_error))
       expect(v.detail).to(include("unparseable"))
     end
 
     it "maps valid JSON to a killed result with the mutant id", :aggregate_failures do
-      v = heard(-> { JSON.generate(id: 7, status: "killed", ms: 1, fails: []) })
+      v = heard(->(_errand) { JSON.generate(id: 7, status: "killed", ms: 1, fails: []) })
       expect(v.status).to(eq(:killed))
       expect(v.mutant_id).to(eq(7))
     end

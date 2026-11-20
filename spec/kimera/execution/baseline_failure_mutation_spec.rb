@@ -223,32 +223,29 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
       ran("--require", "plugin.rb")
       expect(File).to(exist("plugged"))
     end
-
-    it "builds a digest" do
-      expect(Kimera::CLI::Run.new.__send__(:digest)).to(be_a(Kimera::CLI::Run::Digest))
-    end
   end
 
   describe "the isolated runner contract" do
     let(:registry) { Object.new }
     let(:adapter) { FakeSuite.new(%w[t1 t2], files: { "t1" => "spec/t1_spec.rb" }) }
-    let(:harness) { FakeHarness.new }
-    let(:pass) do
+    let(:isolation) { FakeIsolation.new }
+    let(:harness) { FakeHarness.new(isolation: isolation) }
+
+    def judged(**over)
       options = {
         source_root: "/root", jobs: 3, framework: "rspec", hard_timeout: 9,
-        progress: false, tests: [], exclude_tests: []
-      }
-      Kimera::CLI::Run::Pass.new(registry, options, adapter, FakeBench.new(harness: harness)).tap do |pass|
-        pass.instance_variable_set(:@_files, ["a_spec.rb"])
-      end
+        progress: false, tests: [__FILE__], exclude_tests: [], isolated: true
+      }.merge(over)
+      Kimera::CLI::Run::Pass.new(registry, options, adapter, FakeBench.new(harness: harness)).call([1])
+      isolation.settings
     end
 
     it "is handed to the harness without lossy intermediate hashes" do
-      expect(pass.__send__(:isolation).settings).to(
+      expect(judged).to(
         match(
           registry: registry, root: "/root", tests: %w[t1 t2],
-          progress: pass.__send__(:progress), jobs: 3, framework: "rspec", test_files: ["a_spec.rb"],
-          filter: pass.__send__(:filter), test_paths: an_instance_of(Proc), warnings: [], hard_timeout: 9
+          progress: harness.settings.fetch(:progress), jobs: 3, framework: "rspec", test_files: [__FILE__],
+          filter: harness.settings.fetch(:filter), test_paths: an_instance_of(Proc), warnings: [], hard_timeout: 9
         )
       )
     end
@@ -264,8 +261,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     def warnings(framework)
       Dir.mktmpdir do |root|
         File.write(File.join(root, "Rakefile"), "Rake::TestTask.new\n")
-        options = { source_root: root, framework: framework, progress: false, tests: [], exclude_tests: [] }
-        Kimera::CLI::Run::Pass.new(registry, options, adapter).__send__(:warnings)
+        judged(source_root: root, framework: framework).fetch(:warnings)
       end
     end
 
@@ -275,7 +271,7 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
     end
 
     it "finds each test's file through the suite" do
-      expect(pass.__send__(:core).fetch(:test_paths).call("t1")).to(eq("spec/t1_spec.rb"))
+      expect(judged.fetch(:test_paths).call("t1")).to(eq("spec/t1_spec.rb"))
     end
   end
 
@@ -351,9 +347,15 @@ RSpec.describe(Kimera::Execution::BaselineFailure, :aggregate_failures) do
 
     def guard = Kimera::Execution::WorkerPool::StillbornGuard.new(1)
 
+    def died(status)
+      Kimera::Execution::WorkerPool::StillbornGuard.new(0).track(status)
+    rescue Kimera::Error => error
+      error.message[/last exit: (.*?)\)/, 1]
+    end
+
     it "describes missing, signaled, and exited worker statuses" do
       signaled = Struct.new(:signaled?, :termsig).new(true, 9)
-      described = [nil, exited, signaled].map { |status| guard.__send__(:describe, status) }
+      described = [nil, exited, signaled].map { |status| died(status) }
       expect(described).to(eq(["unknown", "status 3", "signal 9"]))
     end
 

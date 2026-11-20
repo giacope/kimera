@@ -124,40 +124,30 @@ RSpec.describe(Kimera::RegistryScan) do
     end
   end
 
-  describe "#walk" do
-    def walker
-      Kimera::RegistryScan::SourceFile.new("", file: "x.rb", operators: [], numbering: nil)
+  describe "the tail of a def" do
+    def nils(code)
+      operators = Kimera::Operators.build(keys: ["nil_literal"])
+      scanned = described_class.new(operators: operators).source(code, file: "x.rb")
+      scanned.to_a.flat_map { |point| point.mutants.map(&:to_s) }
     end
 
-    def cursor(**overrides)
-      Kimera::RegistryWalking::Cursor.new(
-        position: false, inside_def: false, in_pattern: false, def_body: false, defname: nil, embedded: false,
-        block: nil,
-        **overrides
-      )
-    end
-
-    it "ignores a non-node argument" do
-      yielded = []
-      walker.__send__(:walk, :not_a_node, cursor) { |n, *| yielded << n }
-      expect(yielded).to(eq([]))
-    end
-
-    it "does not treat a bare statements list as a def body by default" do
-      body = Prism.parse("a.b\nc.d\n").value.statements
-      positions = []
-      cur = cursor(inside_def: true)
-      walker.__send__(:walk, body, cur) { |_n, c| positions << c.to_h.fetch(:position) }
-      expect(positions).not_to(include(:tail))
+    it "is the def body's last statement, not the last of a statement list inside it", :aggregate_failures do
+      expect(nils("def m(x)\n  a\n  nil\nend\n")).to(eq(["nil => Object.new"]))
+      expect(nils("def m(x)\n  if x\n    a\n    nil\n  end\nend\n")).to(eq([]))
     end
   end
 
-  describe "#relative path boundary" do
-    it "only strips the root at a directory boundary", :aggregate_failures do
-      builder = described_class.new(root: "/app")
-      expect(builder.__send__(:relative, "/application/x.rb")).to(eq("/application/x.rb"))
-      expect(builder.__send__(:relative, "/app/models/x.rb")).to(eq("models/x.rb"))
-      expect(builder.__send__(:relative, "/app")).to(eq("."))
+  describe "the file names it records" do
+    def named(dir)
+      app = File.join(dir, "app")
+      files = [File.join(dir, "application", "x.rb"), File.join(app, "models", "x.rb")]
+      files.each { |file| FileUtils.mkdir_p(File.dirname(file)) && File.write(file, "def a(x, y) = x > y\n") }
+      registry = described_class.new(root: app).build([*files, app])
+      [*registry.to_a.map(&:file), *JSON.parse(registry.to_json).fetch("unmutated").map { it.fetch("file") }]
+    end
+
+    it "strips the root only at a directory boundary, and names the root itself `.`" do
+      Dir.mktmpdir { |dir| expect(named(dir)).to(eq(["models/x.rb", File.join(dir, "application", "x.rb"), "."])) }
     end
   end
 
@@ -288,13 +278,9 @@ RSpec.describe(Kimera::RegistryScan) do
       )
     end
 
-    def range(from, to) = Kimera::Memoization::Range.new(from, to, "memoized via ||=", [])
-
-    def taints(from, to)
-      file = Kimera::RegistryScan::SourceFile.new("x = 1 + 2 + 3 + 4\n", file: "x.rb", operators: [], numbering: nil)
-      file.instance_variable_set(:@_tainted, [range(from, to)])
-      node = Prism.parse("x = 1 + 2 + 3 + 4\n").value.statements.body.first.value
-      file.__send__(:taints, node).to_a
+    def taints(code)
+      scanned = described_class.new(operators: Kimera::Operators.build(keys: ["comparison"])).source(code, file: "x.rb")
+      scanned.to_a.map { |point| point.reasons(Kimera::Reason.unsafety) }
     end
 
     it "records the reason it is tainted with", :aggregate_failures do
@@ -303,9 +289,8 @@ RSpec.describe(Kimera::RegistryScan) do
       expect(tainted.safe?).to(be(false))
     end
 
-    it "finds the reason of a range covering the node, and none outside it", :aggregate_failures do
-      expect(taints(0, 100)).to(eq(["memoized via ||="]))
-      expect(taints(100, 200)).to(eq([]))
+    it "finds the reason of a range covering the node, and none outside it" do
+      expect(taints("def m\n  @x ||= a > b\nend\n\ndef n = c > d\n")).to(eq([["memoized via ||="], []]))
     end
 
     it "keeps an unsafe reason it already carries" do

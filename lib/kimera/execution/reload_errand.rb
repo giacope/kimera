@@ -16,11 +16,6 @@ Kimera::Execution::Reload::Errand =
     def parent!
       writer.close
     end
-
-    def child!
-      reader.close
-      writer.sync = true
-    end
     define_method(:tick) do |test|
       ran << test
       writer.write(tick)

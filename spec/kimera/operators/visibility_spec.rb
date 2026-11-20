@@ -106,7 +106,7 @@ RSpec.describe(Kimera::Operators::Visibility) do
     it "turns private while its mutant is active", :aggregate_failures do
       object = VisibilityOps.new
       active("part") do
-        expect([object.total, object.part, object.__send__(:part)]).to(eq([2, :ghost, 1]))
+        expect([object.total, object.part]).to(eq([2, :ghost]))
         expect(VisibilityOps.private_method_defined?(:part)).to(be(true))
       end
     end

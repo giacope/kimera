@@ -3,9 +3,9 @@
 require "kimera/frameworks/suite"
 
 RSpec.describe(Kimera::Frameworks::Suite) do
-  let(:adapter) { described_class.new }
+  let(:adapter) { Class.new(described_class) { def run(backtrace) = frames(backtrace) }.new }
 
-  def frames(backtrace) = adapter.__send__(:frames, backtrace)
+  def frames(backtrace) = adapter.run(backtrace)
 
   it "keeps the frames above Kimera's runner, and no more than five", :aggregate_failures do
     own = Array.new(7) { |i| "test/x_test.rb:#{i}:in 'x'" }

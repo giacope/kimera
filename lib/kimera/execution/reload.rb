@@ -40,7 +40,6 @@ class Kimera::Execution::Reload
 
   def work(id, errand)
     lead
-    errand.child!
     silence!
     errand.emit(@trial.report(id, errand))
     exit!(0)

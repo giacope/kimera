@@ -190,8 +190,10 @@ RSpec.describe(Kimera::Execution::Shift) do
     end
 
     it "runs each test in a forked zygote unless told otherwise" do
-      worker = described_class.new(adapter: test_adapter_class.new, registry: registry)
-      expect(worker.__send__(:zygote)).to(be_an_instance_of(Kimera::Execution::Zygote))
+      adapter = test_adapter_class.new(catches: { "t1" => [ids.first] })
+      result = described_class.new(adapter: adapter, registry: registry, coverage: { ids.first => ["t1"] })
+        .evaluate(ids.first)
+      expect([result.status, adapter.runs]).to(eq([:killed, []]))
     end
 
     it "classifies a soft-timeout hang as :timeout carrying the soft-timeout" do

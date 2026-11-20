@@ -19,7 +19,7 @@ module Kimera
       end
 
       def scan(sweep, mirror)
-        bay = Kimera::Execution::Bay.new(mirror, nil, Overlay.new(registry))
+        bay = Kimera::Execution::Bay.new(mirror, nil, overlay)
         sweep.each { |id| charge(sweep, evaluate(id, bay)) }
       end
 
@@ -34,7 +34,7 @@ module Kimera
       end
 
       def work(sweep, slot)
-        synth = Overlay.new(registry)
+        synth = overlay
         with_mirror { |mirror| drain(sweep, Kimera::Execution::Bay.new(mirror, slot, synth)) }
       end
 

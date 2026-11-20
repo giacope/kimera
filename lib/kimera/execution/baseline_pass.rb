@@ -87,12 +87,12 @@ class Kimera::Execution::BaselinePass
     tick.call
   end
 
-  def lost(tick, test_id, reason, stacks = [])
+  def lost(tick, test_id, reason, stacks)
     return losses.stall(test_id, stacks) if reason == :timeout
     relapse(tick, test_id, reason, stacks)
   end
 
-  def relapse(tick, test_id, reason, stacks = [])
+  def relapse(tick, test_id, reason, stacks)
     tally.charge(test_id, losses.charge(test_id, reason, stacks))
     tick.call
   end

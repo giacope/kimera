@@ -85,6 +85,8 @@ class Kimera::Execution::IsolatedExecution
 
   def rulings = @options.fetch(:rulings, Kimera::Execution::IsolatedOutcome::Ruling)
 
+  def overlay = @options.fetch(:overlays, Kimera::Overlay).new(@registry)
+
   def layout = @_layout ||= @options.fetch(:layout) { Kimera::Execution::MirrorLayout.new(@root, @registry) }
 
   def quality? = @options[:test_quality] == true

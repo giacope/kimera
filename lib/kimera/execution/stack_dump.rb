@@ -15,13 +15,15 @@ class Kimera::Execution::StackDump
   HEADER = "threads in the worker when it was killed:"
   PAUSE = Kernel.method(:sleep)
   CLOCK = ->(reading = Process.clock_gettime(Process::CLOCK_MONOTONIC)) { reading }
+  THREADS = Thread.method(:list)
   UNANSWERED = "no backtraces: the worker did not answer SIG#{SIGNAL} within #{GRACE}s " \
     "(blocked in native code without releasing the GVL?)".freeze
 
-  def initialize(dir, pause: PAUSE, clock: CLOCK)
+  def initialize(dir, pause: PAUSE, clock: CLOCK, threads: THREADS)
     @dir = dir
     @pause = pause
     @clock = clock
+    @threads = threads
   end
 
   def arm!
@@ -60,7 +62,7 @@ class Kimera::Execution::StackDump
 
   def write(target)
     staging = "#{target}.tmp"
-    File.write(staging, render(Thread.list))
+    File.write(staging, render(@threads.call))
     File.rename(staging, target)
   end
 

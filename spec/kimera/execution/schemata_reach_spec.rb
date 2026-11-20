@@ -67,11 +67,11 @@ RSpec.describe(Kimera::Execution::Schemata, :aggregate_failures) do
   def unsafe_reason(registry, file) = PointVerdict.new(point(registry, file)).unsafe_reason
 
   it "never evaluates a file the suite did not load when a class body in it runs code", :aggregate_failures do
-    stub_const("ReachCore", Module.new)
-    registry, loader = unasked("reach_plugin.rb", "module ReachCore\n  @limit = 100\n  def self.big?(n) = n > 1\nend\n")
+    stub_const("ReachCore", Module.new) && stub_const("ReachRan", [])
+    registry, loader = unasked("reach_hook.rb", "module ReachCore\n  ReachRan << 1\n  def self.big?(n) = n > 1\nend\n")
     loader.overlay!
-    expect(ReachCore.instance_variable_get(:@limit)).to(be_nil)
-    expect(unsafe_reason(registry, "reach_plugin.rb")).to(eq(Kimera::Reason::NEVER_LOADED))
+    expect(ReachRan).to(be_empty)
+    expect(unsafe_reason(registry, "reach_hook.rb")).to(eq(Kimera::Reason::NEVER_LOADED))
   end
 
   it "reports a file the suite did not load, and kimera could not, uncovered with the error", :aggregate_failures do

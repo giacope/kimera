@@ -149,8 +149,11 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
   describe "mutant reruns" do
     def rerun(settings)
-      row = { "file" => "app/x.rb", "key" => "app/x.rb:1:0123abcd" }
-      Kimera::CLI::Mutant.new.__send__(:arguments_for, row, settings)
+      row = { "mutant_id" => 7, "file" => "app/x.rb", "key" => "app/x.rb:1:0123abcd" }
+      path = written("run" => settings, "results" => [row])
+      run = FakeRun.new
+      Kimera::CLI::Mutant.new(io: out, run: run).run(["7", "--report", path, "--rerun"])
+      run.runs.fetch(0)
     end
 
     def mutant(*argv) = commanded("mutant", *argv)
@@ -194,23 +197,28 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
   end
 
   describe "run argument, cycle, and digest boundaries" do
-    def counting(statuses) = satisfy { |report| report.instance_variable_get(:@context).fetch(:counted) == statuses }
+    def counting(percent) = satisfy { |report| report.score.percent == percent }
 
-    let(:tiny) { Kimera::RegistryScan.new.source("def x; 1; end\n", file: "x.rb") }
+    let(:tiny) { Kimera::RegistryScan.new.source("def x(a)\n  a > 1\nend\n", file: "x.rb") }
     let(:digest) { FakeDigest.new }
 
     def options
       {
         report: nil, json: nil, format: "text", fail_on_no_coverage: false, quiet: false, log: nil,
-        framework: "rspec", source_root: ".", tests: [], exclude_tests: [], operators: [],
+        framework: "rspec", source_root: ".", tests: [__FILE__], exclude_tests: [], ignore: [], operators: [],
         coverage: true, isolated: false, jobs: 1
       }
     end
 
+    def cycled(settings, registry = tiny, digest: self.digest, alerts: FakeAlerts.new, bench: FakeBench.new)
+      cycle = Kimera::CLI::Run::Cycle.new(options.merge(settings), registry, digest:, alerts:)
+      cycle.call(Kimera::CLI::Run::NullSelection.new, bench)
+    end
+
     def concluded(settings, gate: 0)
       alerts = FakeAlerts.new(gate)
-      cycle = Kimera::CLI::Run::Cycle.new(settings, tiny, digest: digest, alerts: alerts)
-      [cycle.__send__(:conclude, [], [], Kimera::Incremental::Session.new), alerts]
+      uncovered = FakeHarness.new(report(result(tiny.index.keys.first, :no_coverage)))
+      [cycled(settings, alerts: alerts, bench: FakeBench.new(harness: uncovered)), alerts]
     end
 
     def emission(coverage)
@@ -236,8 +244,10 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     it "chooses the error stream for a machine format" do
-      cli = Kimera::CLI::Run.new(io: out, errors: errors)
-      expect(cli.__send__(:digest, format: "json").instance_variable_get(:@io)).to(equal(errors))
+      project("x.rb" => "def x; 1; end\n", "spec/x_spec.rb" => "")
+      cli = Kimera::CLI::Run.new(io: out, errors: errors, bench: FakeBench.new)
+      Dir.chdir(dir) { cli.run(%w[x.rb --format json --no-report --verbose]) }
+      expect([JSON.parse(out.string).keys.first, errors.string]).to(match(["schema_version", start_with("Kimera: ")]))
     end
 
     it "gates by default, and hints at uncovered mutants" do
@@ -254,7 +264,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
     it "lists and scores uncovered mutants under count_no_coverage" do
       concluded(options.merge(count_no_coverage: true))
-      expect(digest.emitted).to(match([[counting([:no_coverage]), tiny, emission(:list)]]))
+      expect(digest.emitted).to(match([[counting("0.0%"), tiny, emission(:list)]]))
     end
 
     it "records count_no_coverage in the report metadata" do
@@ -264,7 +274,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
     it "neither lists nor scores them without count_no_coverage" do
       concluded(options.merge(count_no_coverage: false))
-      expect(digest.emitted).to(match([[counting([]), tiny, emission(:hint)]]))
+      expect(digest.emitted).to(match([[counting("n/a"), tiny, emission(:hint)]]))
     end
 
     def emitted(name, **settings)
@@ -308,8 +318,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       end
 
       it "records complete provenance" do
-        cycle = Kimera::CLI::Run::Cycle.new(base.merge(gate: true), tiny, digest: digest)
-        expect(cycle.__send__(:provenance)).to(
+        cycled(base.merge(gate: true))
+        expect(digest.emitted.fetch(0).last[:metadata]).to(
           eq(
             "framework" => "rspec", "source_root" => ".", "tests" => ["spec/**/*_spec.rb"],
             "exclude_tests" => [], "operators" => ["comparison"], "coverage" => true,
@@ -321,10 +331,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     def called(verbose)
-      settings = options.merge(verbose: verbose, ignore: [], tests: [__FILE__])
-      digest = FakeDigest.new
-      cycle = Kimera::CLI::Run::Cycle.new(settings, tiny, digest: digest, alerts: FakeAlerts.new)
-      cycle.call(Kimera::CLI::Run::NullSelection.new, FakeBench.new)
+      cycled({ verbose: verbose })
       digest.said.filter_map { |kind, heard| heard if kind == :verbose }
     end
 
@@ -333,14 +340,16 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect(called(true)).to(eq([options.merge(verbose: true, ignore: [], tests: [__FILE__])]))
     end
 
-    def focused(settings, ids, registry = tiny)
-      Kimera::CLI::Run::Cycle.new(settings, registry, digest: nil).__send__(:focus, ids)
+    def focused(settings, registry = tiny)
+      harness = FakeHarness.new
+      cycled(settings, registry, bench: FakeBench.new(harness: harness))
+      harness.asked.first.last
     end
 
     it "validates focused IDs" do
-      expect(focused({ verbose: true }, [1, 2])).to(eq([1, 2]))
-      expect(focused({ focus: [1] }, [1, 2])).to(eq([1]))
-      expect { focused({ focus: [3] }, [1, 2]) }.to(raise_error(Kimera::UsageError, /3/))
+      expect(focused({ verbose: true })).to(eq([1, 2]))
+      expect(focused({ focus: [1] })).to(eq([1]))
+      expect { focused({ focus: [3] }) }.to(raise_error(Kimera::UsageError, /3/))
     end
 
     describe "focus by key" do
@@ -349,42 +358,48 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       it "focuses by ordinal or key" do
         key = Kimera::MutantKeys.of(keyed)[1]
         expect(key).to(start_with("x.rb:2:"))
-        expect(focused({ focus: [key, "2"] }, [1, 2, 3], keyed)).to(eq([1, 2]))
+        expect(focused({ focus: [key, "2"] }, keyed)).to(eq([1, 2]))
       end
 
       it "follows a key whose line moved, and rejects an unknown key" do
-        expect(focused({ focus: [Kimera::MutantKeys.of(keyed)[1].sub(":2:", ":7:")] }, [1, 2, 3], keyed)).to(eq([1]))
-        expect { focused({ focus: ["x.rb:2:ffffffff", "3"] }, [1, 2, 3], keyed) }
+        expect(focused({ focus: [Kimera::MutantKeys.of(keyed)[1].sub(":2:", ":7:")] }, keyed)).to(eq([1]))
+        expect { focused({ focus: ["x.rb:2:ffffffff", "2"] }, keyed) }
           .to(raise_error(Kimera::UsageError, "focused mutant(s) not in scope: x.rb:2:ffffffff"))
       end
     end
 
-    def harnessed(settings, env, &)
-      cycle = Kimera::CLI::Run::Cycle.new(settings.merge(source_root: ".", tests: [__FILE__]), tiny, digest: nil)
-      cycle.__send__(:harness, tiny.index.keys, FakeBench.new(&), env: env)
+    def harnessed(settings, &) = cycled(settings, bench: FakeBench.new(&))
+
+    def restored(names = %w[KIMERA KIMERA_SEED KIMERA_LOAD_PATH])
+      kept = ENV.to_h.slice(*names)
+      yield
+    ensure
+      names.each { |name| ENV.delete(name) }
+      ENV.update(kept)
+    end
+
+    def seen(*runs)
+      [].tap { |found| runs.each { |settings| harnessed(settings) { found << yield } } }
     end
 
     it "sets KIMERA before loading the framework adapter" do
-      env = {}
-      seen = nil
-      harnessed({ framework: "rspec" }, env) { seen = env["KIMERA"] }
-      expect(seen).to(eq("1"))
+      expect(restored { ENV.delete("KIMERA").then { seen({}) { ENV.fetch("KIMERA", nil) } } }).to(eq(["1"]))
+    end
+
+    def seeds
+      restored do
+        ENV["KIMERA_SEED"] = "3"
+        [seen({ seed: 42 }, {}) { ENV.fetch("KIMERA_SEED", nil) }, ENV.key?("KIMERA_SEED")]
+      end
     end
 
     it "exports the run's seed to the environment before loading the adapter, and clears a stale one" do
-      seen = []
-      env = { "KIMERA_SEED" => "3" }
-      [{ framework: "rspec", seed: 42 }, { framework: "rspec" }]
-        .each { |settings| harnessed(settings, env) { seen << env["KIMERA_SEED"] } }
-      expect([seen, env.key?("KIMERA_SEED")]).to(eq([["42", nil], false]))
+      expect(seeds).to(eq([["42", nil], false]))
     end
 
     it "exports the configured load path to the environment before loading the adapter" do
-      seen = []
-      env = {}
-      [{ framework: "rspec", load_path: %w[support test/helpers] }, { framework: "rspec" }]
-        .each { |settings| harnessed(settings, env) { seen << env["KIMERA_LOAD_PATH"] } }
-      expect(seen).to(eq(["support#{File::PATH_SEPARATOR}test/helpers", ""]))
+      paths = restored { seen({ load_path: %w[support test/helpers] }, {}) { ENV.fetch("KIMERA_LOAD_PATH", nil) } }
+      expect(paths).to(eq(["support#{File::PATH_SEPARATOR}test/helpers", ""]))
     end
   end
 
@@ -455,10 +470,11 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       end
 
       def defaults(framework)
+        project("test/a_test.rb" => "# test\n", "test/b_test.rb" => "# test\n", "spec/x_spec.rb" => "# spec\n")
         examination = Kimera::CLI::Doctor::Examination.new(
           { framework: framework }, dir, Kimera::CLI::Instruments.new(suite: suite), Kimera::CLI::Checklist.new(out)
         )
-        examination.__send__(:tests_for)
+        examination.checks({}).filter_map { |_, text| text[/\ATest discovery: \d+ files/] }
       end
 
       def baselined? = suite.commands.any? { |command| !command.include?("--dry-run") }
@@ -475,8 +491,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       end
 
       it "discovers each framework's default tests" do
-        expect(defaults("minitest")).to(eq(["test/**/*_test.rb"]))
-        expect(defaults("rspec")).to(eq(["spec/**/*_spec.rb"]))
+        expect(defaults("minitest")).to(eq(["Test discovery: 2 files"]))
+        expect(defaults("rspec")).to(eq(["Test discovery: 1 files"]))
       end
     end
 
@@ -688,20 +704,20 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       let(:handlers) { FakeHandlers.new }
       let(:cli) { described_class.new(io: StringIO.new, errors: StringIO.new, handlers: handlers) }
 
-      def wrappers = %i[configure doctor changed ci completion baseline]
+      def wrappers = %w[init doctor changed ci completion baseline]
 
       it "dispatch every workflow and the baseline to its runner" do
-        expect(wrappers.map { |name| ended(cli.__send__(name, [])) }).to(eq([0] * 6))
+        expect(wrappers.map { |name| ended(cli.run([name])) }).to(eq([0] * 6))
         expect(handlers.ran.size).to(eq(6))
       end
 
       it "load the workflows file for each workflow, and the baseline file for baseline" do
-        wrappers.each { |name| cli.__send__(name, []) }
+        wrappers.each { |name| cli.run([name]) }
         expect(handlers.ran.map(&:first)).to(eq([*["workflows"] * 5, "baseline"]))
       end
 
       it "look each workflow's class up by its name" do
-        %i[configure completion].each { |name| cli.__send__(name, []) }
+        %w[init completion].each { |name| cli.run([name]) }
         expect(handlers.ran.map { |_file, name, _argv| name }).to(eq(%i[Init Completion]))
       end
     end
@@ -711,7 +727,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       expect(errors.string).to(include("kimera: invalid option: --unknown"))
     end
 
-    def baselined(suite, **settings) = examination(suite, settings).__send__(:test_command).baselines(1)
+    def baselined(suite, **settings) = examination(suite, settings).checks(check_baseline: true).last(1)
 
     it "builds and diagnoses a successful minitest baseline command" do
       command = [
@@ -721,7 +737,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       suite = FakeCapture.new
       expect(baselined(suite, framework: "minitest", tests: ["test/**/*_test.rb"]))
         .to(eq([["✓", "Baseline: configured test suite is green"]]))
-      expect(suite.ran).to(eq([[command, dir, 125]]))
+      expect(suite.ran.last).to(eq([command, dir, 125]))
     end
 
     it "builds and diagnoses a failing RSpec baseline command" do
@@ -729,7 +745,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       suite = FakeCapture.new { ["noise\n3 examples, 1 failure\n", ProcessStatuses.exited(1)] }
       message = "Baseline: 3 examples, 1 failure (fix it, then rerun `kimera doctor --check-baseline`)"
       expect(baselined(suite, framework: "rspec", tests: ["spec/**/*_spec.rb"])).to(eq([["✗", message]]))
-      expect(suite.ran).to(eq([[command, dir, 125]]))
+      expect(suite.ran.last).to(eq([command, dir, 125]))
     end
 
     def repository(*refs)
@@ -777,8 +793,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
   describe "machine-format escaping" do
     it "percent-encodes every GitHub annotation property delimiter" do
-      formats = Kimera::Report::Formats.new(io: StringIO.new)
-      expect(formats.__send__(:property, "%\r\n,:")).to(eq("%25%0D%0A%2C%3A"))
+      row = { "mutant_id" => 1, "status" => "survived", "file" => "%\r\n,:", "line" => 2, "label" => "x" }
+      expect(machine([row]).first.string).to(include("file=%25%0D%0A%2C%3A,line=2"))
     end
   end
 

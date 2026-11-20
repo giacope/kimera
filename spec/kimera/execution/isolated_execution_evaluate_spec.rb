@@ -18,40 +18,39 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#evaluate", :aggregate_fai
 
   def killed(*tests) = Kimera::Execution::IsolatedOutcome.new(:killed, tests)
 
-  def test_bay(mirror) = Kimera::Execution::Bay.new(mirror, 3, Kimera::Overlay.new(registry))
-
   def test_runner(root, outcomes, seen)
     seated = method(:seat)
     Class.new(described_class) do
       define_method(:verdict) do |bay, _tests, first: false|
         mirror, slot = seated.call(bay)
-        seen << [slot, File.basename(mirror).start_with?("kimera-isolated"), first]
+        seen << [slot, mirror, first]
         outcomes.shift
       end
-    end.new(registry: registry, root: root, tests: ["t1"], coverage: { id => ["t1"] })
+    end.new(registry: registry, root: root, tests: ["t1"], coverage: { id => ["t1"] }, jobs: 2)
+  end
+
+  def seats(seen)
+    slot, home = seen.first
+    seen.map { |held, mirror, first| [held.is_a?(Integer) && held == slot, mirror != home, first] }
   end
 
   def test_settled(*outcomes)
     seen = []
     Dir.mktmpdir do |root|
       File.write(File.join(root, "calc.rb"), "def a(x, y)\n  x > y\nend\n")
-      runner = test_runner(root, outcomes, seen)
-      Dir.mktmpdir do |mirror|
-        FileUtils.cp(File.join(root, "calc.rb"), mirror)
-        [runner.__send__(:evaluate, id, test_bay(mirror)), seen]
-      end
+      [test_runner(root, outcomes, seen).run(ids: [id]).to_a.first, seats(seen)]
     end
   end
 
   it "takes the second run's verdict when the first broke outside every test" do
     result, seen = test_settled(outside, Kimera::Execution::IsolatedOutcome.new(:survived))
-    expect([result.status, seen]).to(eq([:survived, [[3, false, true], [3, false, true]]]))
+    expect([result.status, seen]).to(eq([:survived, [[true, false, true], [true, false, true]]]))
     expect(test_settled(outside, killed("t1"), clean).first.failing_tests).to(eq(["t1"]))
   end
 
   it "kills the mutant when the error recurs and a fresh mirror without the mutant runs clean", :aggregate_failures do
     result, seen = test_settled(outside, outside, Kimera::Execution::IsolatedOutcome.new(:survived))
-    expect([result.status, seen]).to(eq([:killed, [[3, false, true], [3, false, true], [3, true, false]]]))
+    expect([result.status, seen]).to(eq([:killed, [[true, false, true], [true, false, true], [true, true, false]]]))
     expect(result.detail).to(
       eq("an error outside every test: boom (it recurred with the mutant on; a fresh mirror without it runs clean)")
     )
@@ -70,12 +69,13 @@ RSpec.describe(Kimera::Execution::IsolatedExecution, "#evaluate", :aggregate_fai
 
   it "runs once when the first verdict is inside a test" do
     _result, seen = test_settled(Kimera::Execution::IsolatedOutcome.new(:survived))
-    expect(seen).to(eq([[3, false, true]]))
+    expect(seen).to(eq([[true, false, true]]))
   end
 
   it "keeps a kill once the same tests run clean without the mutant in a fresh mirror" do
     result, seen = test_settled(killed("t1"), clean)
-    expect([result.status, result.failing_tests, seen]).to(eq([:killed, ["t1"], [[3, false, true], [3, true, false]]]))
+    expect([result.status, result.failing_tests, seen])
+      .to(eq([:killed, ["t1"], [[true, false, true], [true, true, false]]]))
   end
 
   it "leaves it unjudged when its failing test fails without the mutant too, after the same tests" do

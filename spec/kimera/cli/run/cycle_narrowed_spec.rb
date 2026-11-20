@@ -27,9 +27,14 @@ RSpec.describe(Kimera::CLI::Run::Cycle, "#narrowed") do
 
   def details(narrowed)
     tests = narrowed ? ["spec/a_spec.rb"] : ["spec/*_spec.rb"]
-    options = { tests: tests, configured_tests: ["spec/*_spec.rb"], exclude_tests: [] }
-    described_class.new(options, nil, digest: nil).__send__(:narrowed, report).to_a.map(&:detail)
+    options = { tests: tests, configured_tests: ["spec/*_spec.rb"], exclude_tests: [], ignore: [], source_root: "." }
+    digest = FakeDigest.new
+    described_class.new(options.merge(coverage: true, gate: false), registry, digest: digest)
+      .call(Kimera::CLI::Run::NullSelection.new, FakeBench.new(harness: FakeHarness.new(report)))
+    digest.emitted.fetch(0).first.to_a.map(&:detail)
   end
+
+  def registry = Kimera::RegistryScan.new.source("def m(a, b)\n  a > b && a < 9\nend\n", file: "a.rb")
 
   it "says an uncovered mutant is not covered by the narrowed tests, keeping a reason it already has" do
     expect(details(true)).to(eq([described_class::NARROWED, "reached only at load", nil]))

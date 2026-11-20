@@ -22,17 +22,22 @@ RSpec.describe(Kimera::CLI::Run) do
 
   def cli(io: $stdout) = described_class.new(io: io, errors: $stderr, bench: FakeBench.new)
 
-  def machine?(format, io: $stdout) = cli(io: io).__send__(:machine?, { format: format }, Kimera::CLI::Run::Streams.new)
+  def machine?(*format, io: $stdout)
+    project { cli(io: io).run(["calc.rb", "--no-report", *format]) }
+    report.last.write("probe")
+    report.last.flush
+    diagnostics.first.read_nonblock(100_000, exception: false).to_s.end_with?("probe")
+  end
 
   it "detaches stdout for a machine format written to the real stdout", :aggregate_failures do
-    expect(machine?("json")).to(be(true))
-    expect(machine?("text")).to(be(false))
-    expect(cli.__send__(:machine?, {}, Kimera::CLI::Run::Streams.new)).to(be(false))
+    expect(machine?("--format", "text")).to(be(false))
+    expect(machine?).to(be(false))
+    expect(machine?("--format", "json")).to(be(true))
   end
 
   it "leaves a report stream it was handed alone", :aggregate_failures do
-    expect(machine?("json", io: StringIO.new)).to(be(false))
-    expect(machine?("json", io: diagnostics.last)).to(be(false))
+    expect(machine?("--format", "json", io: StringIO.new)).to(be(false))
+    expect(machine?("--format", "json", io: diagnostics.last)).to(be(false))
   end
 
   def full(*argv) = ended(cli.run(["calc.rb", *argv]))

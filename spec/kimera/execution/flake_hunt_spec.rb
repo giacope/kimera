@@ -84,9 +84,17 @@ RSpec.describe(Kimera::Execution::FlakeHunt, :aggregate_failures) do
     expect(log.map(&:first)).to(eq([0, 1]))
   end
 
+  def watching(seen)
+    Class.new do
+      define_method(:spawner) { |entry| entry }
+      define_method(:drive) { |*| seen << ENV.fetch("KIMERA_SEED") }
+    end.new
+  end
+
   it "seeds the workers through the environment its pool forks with by default" do
-    hunt = described_class.new(adapter, nil, progress)
-    expect(hunt.instance_variable_get(:@env)).to(equal(ENV))
+    seen = []
+    described_class.new(adapter, watching(seen), progress).call({ 1 => %w[t1] }, nil, runs(seed: 11, flaky_runs: 1))
+    expect(seen).to(eq(["12"]))
   end
 
   it "labels each rerun's progress with its round and seed, and ticks each test, lost ones too" do

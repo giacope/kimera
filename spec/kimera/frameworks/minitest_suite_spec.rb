@@ -152,8 +152,7 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
 
   it "falls back to the test method's file for a class with no constant name" do
     anonymous = Class.new(Minitest::Test) { define_method(:test_it) { true } }
-    adapter.instance_variable_get(:@_indexed)["anon#test_it"] = [anonymous, :test_it]
-    expect(adapter["anon#test_it"].file).to(eq(__FILE__.delete_prefix("#{Dir.pwd}/")))
+    expect(adapter["#{anonymous}#test_it"].file).to(eq(__FILE__.delete_prefix("#{Dir.pwd}/")))
   ensure
     Minitest::Runnable.runnables.delete(anonymous)
   end
@@ -167,8 +166,8 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     after { Minitest::Runnable.runnables.delete(named) }
 
     it "falls back to the test method's file" do
-      adapter.instance_variable_get(:@_indexed)["named#test_it"] = [named, :test_it]
-      expect(adapter["named#test_it"].file).to(eq(__FILE__.delete_prefix("#{Dir.pwd}/")))
+      id = "#{named}#test_it"
+      expect(adapter[id].file).to(eq(__FILE__.delete_prefix("#{Dir.pwd}/")))
     end
   end
 
@@ -390,8 +389,8 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     after { Minitest::Runnable.runnables.delete(silent) }
 
     it "passes" do
-      adapter.instance_variable_get(:@_indexed)["silent#test_it"] = [silent, :test_it]
-      expect(adapter.run(["silent#test_it"]).passed?).to(be(true))
+      id = "#{silent}#test_it"
+      expect(adapter.run([id]).passed?).to(be(true))
     end
   end
 
@@ -404,7 +403,7 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
     end
 
     def paths(instance, files)
-      instance.__send__(:paths, files)
+      instance.source(files)
     end
 
     def root
@@ -433,7 +432,8 @@ RSpec.describe(Kimera::Frameworks::MinitestSuite) do
 
     it "leaves the load path alone for files outside test/ and spec/", :aggregate_failures do
       before = $LOAD_PATH.dup
-      expect { paths(described_class.build, ["/kimera-nowhere/thing_test.rb"]) }.not_to(raise_error)
+      outside = File.join(dir, "thing_test.rb").tap { File.write(it, "") }
+      expect { paths(described_class.build, [outside]) }.not_to(raise_error)
       expect($LOAD_PATH).to(eq(before))
     end
 

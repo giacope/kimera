@@ -149,11 +149,9 @@ RSpec.describe(Kimera::Incremental::GitDiff) do
   end
 
   describe "#run_diff" do
-    it "returns a falsey status when git is unavailable (ENOENT)" do
+    it "fails a name listing as a diff error, not ENOENT, when git is unavailable" do
       previous = ENV.fetch("PATH", nil).tap { ENV["PATH"] = "/nonexistent-dir-for-kimera" }
-      out, ok = described_class.new(since: "HEAD", root: dir).__send__(:read, %w[diff])
-
-      expect([out, ok]).to(eq(["", false]))
+      expect { described_class.new(since: "HEAD", root: dir).names }.to(raise_error(Kimera::Incremental::DiffError))
     ensure
       ENV["PATH"] = previous
     end

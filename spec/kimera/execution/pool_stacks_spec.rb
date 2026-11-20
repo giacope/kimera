@@ -13,10 +13,10 @@ RSpec.describe(Kimera::Execution::Pool) do
     RUBY
   end
 
-  def driver(jobs: 2, databases: Kimera::Execution::WorkerDatabases.new(jobs: jobs))
+  def driver(jobs: 2, databases: Kimera::Execution::WorkerDatabases.new(jobs: jobs), **)
     described_class.new(
       adapter: nil, registry: registry, isolation: Kimera::Execution::Isolation.new, jobs: jobs,
-      hard: 5.0, soft: nil, paralleldb: databases
+      hard: 5.0, soft: nil, paralleldb: databases, **
     )
   end
 
@@ -61,12 +61,24 @@ RSpec.describe(Kimera::Execution::Pool) do
   describe "its own workers' stack dump" do
     after { Process.waitall }
 
+    def dirs(made)
+      Object.new.tap do |dirs|
+        dirs.define_singleton_method(:mktmpdir) { |*prefix, &block| Dir.mktmpdir(*prefix) { block.call(made << it) } }
+      end
+    end
+
+    def fleet(made, launched)
+      pool = driver(dirs: dirs(made))
+      launch = launching(pool, launched)
+      pool.drive([1], ->(slot) { launch.call(slot).tap { launched << Dir.exist?(made.first) } }, listeners)
+    end
+
     it "lives as long as the fleet", :aggregate_failures do
-      pool = driver
+      made = []
       launched = []
-      pool.drive([1], launching(pool, launched), listeners)
-      expect(launched.first).to(be_a(Kimera::Execution::StackDump))
-      expect(File.exist?(launched.first.instance_variable_get(:@dir))).to(be(false))
+      fleet(made, launched)
+      expect([launched.first.class, launched.last, made.map { Dir.exist?(it) }])
+        .to(eq([Kimera::Execution::StackDump, true, [false]]))
     end
   end
 
@@ -79,16 +91,19 @@ RSpec.describe(Kimera::Execution::Pool) do
     end.new(notes)
   end
 
-  def arming(notes) = driver(databases: FakeDatabases.new).tap { |pool| pool.__send__(:armed).stacks = armed(notes) }
+  def arming(notes)
+    databases = FakeDatabases.new { notes.puts(JSON.generate(["prepared"])) && notes.flush }
+    driver(databases: databases, armed: Kimera::Execution::Pool::Armed.new(nil, nil, nil, armed(notes)))
+  end
 
   def spawned
     reader, writer = IO.pipe
-    pid = arming(writer).__send__(:spawn, FakeDuty.new(1, writer))
-    writer.close
+    pid, request, = arming(writer).spawner(:serve).call(1)
+    [writer, request].each(&:close)
     [reader.readlines(chomp: true).map { |line| JSON.parse(line).first }, Process.wait2(pid).last.exitstatus]
   end
 
   it "arms the stack dump inside the fork, before the worker boots" do
-    expect(spawned).to(eq([%w[armed run retire], 0]))
+    expect(spawned).to(eq([%w[armed prepared], 0]))
   end
 end

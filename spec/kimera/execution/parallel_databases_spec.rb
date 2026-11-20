@@ -96,17 +96,17 @@ RSpec.describe(Kimera::Execution::ParallelDatabases, :aggregate_failures) do
 
     def forked(handles)
       closed = []
-      safety = Module.new
-      safety.instance_variable_set(:@databases, handles)
+      safety = Module.new { @databases = handles }
+      safety.define_singleton_method(:databases) { instance_variable_get(:@databases) }
       safety.define_singleton_method(:discard) do
         handles = instance_variable_get(:@databases)
         handles.each { |db| closed << db.filename }
         handles.clear
       end
       stub_const("SQLite3::ForkSafety", safety)
-      Kimera::Execution::Boot.new(adapter: nil, isolate: false).__send__(:keep!)
+      Kimera::Execution::Boot.new(adapter: FakeSuite.new, isolate: false).suite([])
       safety.discard
-      [closed, safety.instance_variable_get(:@databases).map(&:filename)]
+      [closed, safety.databases.map(&:filename)]
     end
 
     it "lets a fork keep its in-memory handles, closing the rest as sqlite3 does" do

@@ -13,11 +13,6 @@ RSpec.describe(Kimera::Memoization) do
     described_class.new(source).ranges.any? { |r| r.reasons(at, finish).any? }
   end
 
-  def find(node, klass)
-    return node if node.is_a?(klass)
-    node.compact_child_nodes.filter_map { |child| find(child, klass) }.first
-  end
-
   describe Kimera::Memoization::Range do
     subject(:range) { described_class.new(10, 20, "memoized") }
 
@@ -163,33 +158,8 @@ RSpec.describe(Kimera::Memoization) do
     end
 
     it "requires the or-left to be the matching read node itself, not one in parentheses" do
-      result = Prism.parse("def m\n  @x = (@x) || compute(1)\nend\n")
-      write = find(result.value, Prism::InstanceVariableWriteNode)
-      expect(described_class.new("").__send__(:cached, write)).to(be_nil)
-    end
-  end
-
-  describe "non-node and value-less inputs" do
-    it "visit tolerates a non-node argument" do
-      expect(described_class.new("").__send__(:visit, :not_a_node)).to(eq([]))
-    end
-
-    it "holes finds none in a non-node" do
-      expect(described_class.new("").__send__(:holes, :not_a_node)).to(eq([]))
-    end
-
-    it "taints nothing for an or-write node without a value" do
-      fake = Class.new(Prism::InstanceVariableOrWriteNode) do
-        def value; end
-      end.allocate
-      expect(described_class.new("").__send__(:taint, fake)).to(be_nil)
-    end
-
-    it "taints nothing for a constant write without a value" do
-      fake = Class.new(Prism::ConstantWriteNode) do
-        def value; end
-      end.allocate
-      expect(described_class.new("").__send__(:taint, fake)).to(be_nil)
+      code = "def m\n  @x = (@x) || compute(1)\nend\n"
+      expect(reasons(code)).to(eq([]))
     end
   end
 end

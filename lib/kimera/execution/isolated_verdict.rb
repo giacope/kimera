@@ -23,7 +23,7 @@ module Kimera
       end
 
       def single(id, slot = nil)
-        synth = Overlay.new(registry)
+        synth = overlay
         result = with_mirror { |mirror| evaluate(id, Kimera::Execution::Bay.new(mirror, slot, synth)) }
         return unstaged(result) if result.status?(:error)
         result.killed? ? confirmed(result, slot) : result
