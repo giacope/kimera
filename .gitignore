@@ -4,9 +4,6 @@
 tmp/
 /coverage/
 *.gem
-.kimera/
-.kimera_session.json
-/tmp_self_report.json
 Gemfile.lock
-*.gemfile.lock
+/eval/results/latest.json
 .amp/portals/

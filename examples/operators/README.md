@@ -52,7 +52,7 @@ representative snippet:
 ```ruby
 require "kimera/operators/audit"
 
-faults = Kimera::Operators::Audit.faults(MyApp::Operators::ALL.map(&:new), File.read("app/controllers/orders_controller.rb"))
+faults = Kimera::Operators::Audit.new(MyApp::Operators::ALL.map(&:new)).faults(File.read("app/controllers/orders_controller.rb"))
 raise(faults.map(&:to_s).join("\n")) if faults.any?
 ```
 

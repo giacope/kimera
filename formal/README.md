@@ -9,7 +9,7 @@ would silently drop a mutant from the gate, or record two verdicts for one.
 the model relates to the code").
 
 ```sh
-bin/model-check              # the instances CI checks (about 2 minutes)
+bin/model-check              # the instances the pre-push gate checks (about 2 minutes)
 bin/model-check --deep       # larger instances, run by hand
 bin/model-check 4 2          # any N (mutants) and Jobs: invariants and Termination
 bin/model-check --safety 5 3 # invariants only, with symmetry reduction
@@ -27,7 +27,7 @@ each batch of traces as a generated `TraceData` module instead of JSON.
 TLC explores every reachable state of the model, but only for the finite
 instances it's run on. In each, every interleaving of parent and children
 satisfies the properties below, including crashes, hangs and watchdog kills at
-any step. CI checks:
+any step. `bin/model-check`, part of the pre-push gate, checks:
 
 | N, Jobs | Checks | Distinct states | Time (4 cores) |
 | --- | --- | --- | --- |
@@ -38,7 +38,7 @@ any step. CI checks:
 | 5, 2 | invariants, symmetry | 164,282 | 14 s |
 | 4, 3 | invariants, symmetry | 944,723 | 80 s |
 
-`bin/model-check --deep` (the `model-check-deep` job) adds:
+`bin/model-check --deep` adds:
 
 | N, Jobs | Checks | Distinct states | Time (4 cores) |
 | --- | --- | --- | --- |
@@ -47,7 +47,7 @@ any step. CI checks:
 | 5, 3 | invariants, symmetry | 2,549,814 | 12 min |
 
 "All" is every invariant and `Termination`, with no reduction. The
-symmetry runs check the invariants only (see below). CI also checks that
+symmetry runs check the invariants only (see below). `bin/model-check` also checks that
 the parent as it was before #2 (`Blocking = TRUE`, below) violates
 `Termination` at (1, 1), so the model can't silently lose the ability to
 see that bug.
@@ -129,8 +129,8 @@ stuck (`blocked`) until the rest or EOF arrives, and in the meantime it reads
 no other pipe and runs no watchdog. TLC then finds the hang in 107 states at
 (1, 1): the child tears its result line, the parent reads the start, the
 child hangs, and the parent waits forever. With `Blocking = FALSE`
-(`read_nonblock` and a line buffer, as the code is now) every CI instance
-passes. Only tears before a child's first line of a reply are modeled; a
+(`read_nonblock` and a line buffer, as the code is now) every instance
+`bin/model-check` runs passes. Only tears before a child's first line of a reply are modeled; a
 tear later in the reply is handled by the same buffer, and a long line read
 in pieces from a healthy child is a stuttering step (trace validation maps
 it so).
@@ -175,7 +175,7 @@ again on a recheck. The children come in two kinds:
 - scripts that speak `Shift`'s pipe protocol, drawn from the model's child
   actions (result, leak, tainted, requeue, crash, hang, and half a line then
   silence);
-- the real `Shift`, driven by an adapter (`spec/property/support/faulty_adapter.rb`)
+- the real `Shift`, driven by a suite (`spec/property/support/faulty_suite.rb`)
   whose one test kills the mutant, lets it survive, leaks (killed, then
   survives `LeakGuard`'s re-run), fails with the mutant off too (a `Suspect`),
   outlasts the soft timeout, crashes the process, or hangs through the soft
@@ -212,7 +212,7 @@ the whole run. With `Shift` as the child, its side is checked too: every
 line it wrote, in order, must be one the model's child actions write. 30
 random runs of each kind are checked per `bin/spec` (about 7 s of TLC each,
 one TLC run per pool size; the whole file takes under a minute), 300 in the
-`properties-deep` job; the trace examples skip when Java is missing.
+property specs' 10x run (`PBT_SCALE=10`); the trace examples skip when Java is missing.
 
 The check has teeth. Each change below to the Ruby code was run with the
 property's seed fixed; a rejected trace is reported at the first step where
@@ -256,6 +256,6 @@ with a counterexample trace:
 - a result that leaves the worker in flight: `Conservation`
 - a removed worker's slot not returned: `SlotsExclusive`
 - the parent blocking in `pipe.gets` (`Blocking = TRUE`): `Termination`,
-  checked by CI at (1, 1)
+  checked by `bin/model-check` at (1, 1)
 
 They are also caught at (3, 2) with symmetry reduction.

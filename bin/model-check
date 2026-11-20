@@ -13,7 +13,7 @@ class Kimera::ModelCheck
   USAGE = <<~TEXT
     Model-checks formal/WorkerPool.tla with TLC (needs Java 11+).
 
-      bin/model-check                the checks CI runs (about 2 minutes), and one
+      bin/model-check                the pre-push checks (about 2 minutes), and one
                                      that must fail: the parent before #2, which
                                      read lines with a blocking pipe.gets
       bin/model-check --deep         larger instances (several minutes)

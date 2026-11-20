@@ -27,8 +27,8 @@ bundle exec kimera run app --tests 'spec/**/*_spec.rb' --report /tmp/report.json
 cd examples/minitest_app
 bundle exec kimera run app --framework minitest --tests 'test/**/*_test.rb'
 
-# Self-host (about 7,400 mutants, gated at max_survivors: 0, so exit 0; CI's
-# job took 63 minutes at b701df4, before the runtime and the two child
+# Self-host (about 7,400 mutants, gated at max_survivors: 0, so exit 0; the
+# former CI job took 63 minutes at b701df4, before the runtime and the two child
 # entrypoints were in scope, so run it only when asked):
 bundle exec kimera run --report /tmp/self.json
 

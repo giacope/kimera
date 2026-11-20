@@ -11,8 +11,6 @@ AllCops:
   Exclude:
     # Fixture apps: specs pin their exact source (lines, operators, mutant counts).
     - examples/**/*
-    # CI matrix bundles: each reads the one gem version its job sets.
-    - gemfiles/**/*
     # Evaluation fixtures hold the code under test, bad on purpose (one does
     # not parse); eval/tmp caches cloned projects.
     - eval/fixtures/**/*
@@ -22,7 +20,7 @@ AllCops:
     - eval/tmp/**/*
     # unparser's round-trip corpus, kept as its authors wrote it (three files do not parse).
     - spec/property/corpus/**/*
-    # CI installs the bundle here; replacing Exclude drops RuboCop's default.
+    # A vendored bundle (bundle config path vendor/bundle); replacing Exclude drops RuboCop's default.
     - vendor/**/*
 
 Kata/FrozenState:
