@@ -7,10 +7,7 @@ class OfferTap
   def initialize(io, log)
     @io = io
     @log = log
-    @served = 0
   end
-
-  def recheck? = @offer.fetch("recheck", false)
 
   def id = @offer.fetch("id")
 
@@ -22,18 +19,16 @@ class OfferTap
 
   def note(offer)
     @offer = offer
-    File.write(@log, "#{offer["id"]} #{recheck?} #{@served.zero?}\n", mode: "a")
-    @served += 1
+    File.write(@log, "#{offer["id"]}\n", mode: "a")
   end
 end
 
 class FaultySuite
-  FAILING = %i[killed requeue].freeze
+  FAILING = %i[killed suspect].freeze
 
   def initialize(script, offers)
     @script = script
     @offers = offers
-    @behaviors = {}
     @runs = Hash.new(0)
   end
 
@@ -41,13 +36,13 @@ class FaultySuite
 
   def run(ids)
     active = Kimera::RUNTIME.active
-    failed = active ? on(active) : behavior(@offers.id) == :requeue
+    failed = active ? on(active) : behavior(@offers.id) == :suspect
     Kimera::Frameworks::RunOutcome.new(passed: !failed, failed_ids: failed ? ids : [])
   end
 
   private
 
-  def behavior(id) = @behaviors[id] ||= @script.fetch(id - 1)[@offers.recheck? ? 1 : 0]
+  def behavior(id) = @script.fetch(id - 1)
 
   def on(id)
     @runs[id] += 1
@@ -55,7 +50,7 @@ class FaultySuite
     when :crash then exit!(1)
     when :hang then Thread.handle_interrupt(Object => :never) { sleep(60) }
     when :tainted then sleep(5)
-    when :leak then @runs[id] <= 2
+    when :fading then @runs[id] <= 2
     else FAILING.include?(behavior(id))
     end
   end

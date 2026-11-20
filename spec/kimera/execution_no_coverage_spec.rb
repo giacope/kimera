@@ -133,7 +133,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
   def pool(database: FakeDatabases.new)
     Kimera::Execution::Pool.new(
       adapter: Object.new, registry: Object.new, isolation: Object.new,
-      coverage: {}, paralleldb: database, soft: 1.0, hard: 2.0, leak: 3, jobs: 1
+      coverage: {}, paralleldb: database, soft: 1.0, hard: 2.0, jobs: 1
     )
   end
 

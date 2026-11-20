@@ -47,7 +47,7 @@ RSpec.describe(Kimera::CLI::Run) do
 
   it "saves the JSON report to tmp/kimera/report.json unless told otherwise", :aggregate_failures do
     run { Kimera::RunReport.new(results: []) }
-    expect(JSON.parse(File.read("tmp/kimera/report.json"))).to(include("schema_version" => 1))
+    expect(JSON.parse(File.read("tmp/kimera/report.json"))).to(include("schema_version" => 2))
     run("--report", "elsewhere.json") { Kimera::RunReport.new(results: []) }
     expect(File).to(exist("elsewhere.json"))
   end

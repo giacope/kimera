@@ -9,14 +9,13 @@
     "counts",
     "mutation_score",
     "results",
-    "leaks",
     "unmutated"
   ],
   "additionalProperties": false,
   "properties": {
     "schema_version": {
       "description": "Version of this document's shape.",
-      "const": 1
+      "const": 2
     },
     "counts": {
       "description": "Mutants per status. killed counts every detected mutant (killed, timeout, error).",
@@ -25,7 +24,6 @@
       "required": [
         "total",
         "killed",
-        "leaks",
         "survived",
         "timeout",
         "error",
@@ -45,11 +43,6 @@
           "type": "integer",
           "minimum": 0,
           "description": "Detected mutants: killed, timeout and error."
-        },
-        "leaks": {
-          "type": "integer",
-          "minimum": 0,
-          "description": "State-leak warnings."
         },
         "survived": {
           "type": "integer",
@@ -247,24 +240,6 @@
           },
           "mutated": {
             "description": "The mutated code, when it renders.",
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
-      }
-    },
-    "leaks": {
-      "description": "State-leak warnings.",
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "mutant_id": {
-            "type": "integer"
-          },
-          "detail": {
             "type": [
               "string",
               "null"

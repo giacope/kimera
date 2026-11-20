@@ -61,13 +61,13 @@ RSpec.describe("kimera run on a suite whose state outlives a test (end-to-end)",
 
   def telling(run)
     plugins = verdicts(run.report).values_at("app/plugins.rb condition => true", "app/plugins.rb condition => false")
-    [run.statuses("app/rate.rb"), plugins, run.report.fetch("leaks")]
+    [run.statuses("app/rate.rb"), plugins]
   end
 
   [1, 2].each do |jobs|
     it "judges each mutant as a fresh run of the suite would, at --jobs #{jobs}" do
       run = ran(jobs)
-      expect(telling(run)).to(eq([["killed"], %w[survived killed], []]), run.output)
+      expect(telling(run)).to(eq([["killed"], %w[survived killed]]), run.output)
     end
   end
 end

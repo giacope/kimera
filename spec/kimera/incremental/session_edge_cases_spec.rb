@@ -14,19 +14,17 @@ RSpec.describe(Kimera::Incremental::Session) do
     Dir.mktmpdir { |dir| expect(stored(described_class.from(File.join(dir, "absent.json")))).to(eq([])) }
   end
 
-  it "tolerates a file with no results or leaks keys" do
+  it "tolerates a file with no results key" do
     Dir.mktmpdir do |dir|
       path = File.join(dir, "s.json").tap { |p| File.write(p, JSON.generate("version" => 1, "meta" => {})) }
-      report = described_class.from(path).report([1], [], Kimera::Registry.new)
-      expect([report.to_a, report.notes.to_h["leaks"]]).to(eq([[], []]))
+      expect(described_class.from(path).report([1], [], Kimera::Registry.new).to_a).to(eq([]))
     end
   end
 
-  it "accepts seeded results and leaks via the constructor" do
+  it "accepts seeded results via the constructor" do
     result = Kimera::MutantResult.new(mutant_id: 1, status: :killed, file: "x.rb", duration: 0.0)
-    leak = Kimera::LeakReport.new(mutant_id: 2, detail: "leak")
-    report = described_class.new(results: { 1 => result }, leaks: [leak]).report([1], [], Kimera::Registry.new)
-    expect([report.to_a.map(&:killed?), report.notes.to_h["leaks"]]).to(eq([[true], [leak]]))
+    report = described_class.new(results: { 1 => result }).report([1], [], Kimera::Registry.new)
+    expect(report.to_a.map(&:killed?)).to(eq([true]))
   end
 
   def resaved(path, registry = Kimera::Registry.new)

@@ -61,7 +61,7 @@ module KimeraEval
     end
 
     def notes(report)
-      { "leaks" => Array(report["leaks"]).size, "rejudged" => report.fetch("results").count { |row| row["note"] } }
+      { "rejudged" => report.fetch("results").count { |row| row["note"] } }
     end
 
     def bake(ids) = @target.baked(@checkout, File.join(__dir__, "bake.rb"), ids)

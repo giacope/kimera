@@ -197,19 +197,4 @@ RSpec.describe(Kimera::MutantResult) do
       expect(timeless.inspect).to(include("duration=nil"))
     end
   end
-
-  describe Kimera::LeakReport do
-    let(:leak) { described_class.new(mutant_id: 3, detail: "state") }
-
-    it "prints its line, tells whether a table holds its mutant, and keeps its fields", :aggregate_failures do
-      expect(leak.line).to(eq("- #3  state"))
-      expect([leak.among?(3 => :kept), leak.among?(4 => :kept)]).to(eq([true, false]))
-      expect(
-        [
-          leak.public_methods.intersect?(%i[mutant_id detail]),
-          leak.to_h
-        ]
-      ).to(eq([false, { mutant_id: 3, detail: "state" }]))
-    end
-  end
 end

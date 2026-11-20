@@ -64,14 +64,13 @@ module KimeraEval
     def measured(runs)
       flat = runs.values.flat_map(&:values)
       total = totals(flat)
-      leaks = flat.sum { |run| run["leaks"].to_i }
-      { "pass" => total.values_at("false_survived", "false_killed", "errors").sum.zero? && leaks.zero? }
-        .merge("summary" => summary(total, flat, leaks), "totals" => total, "runs" => runs)
+      { "pass" => total.values_at("false_survived", "false_killed", "errors").sum.zero? }
+        .merge("summary" => summary(total, flat), "totals" => total, "runs" => runs)
     end
 
-    def summary(total, flat, leaks)
+    def summary(total, flat)
       rejudged = flat.sum { it["rejudged"].to_i }
-      headline(total).merge("errors" => total["errors"], "leaks" => leaks, "rejudged" => rejudged)
+      headline(total).merge("errors" => total["errors"], "rejudged" => rejudged)
         .merge("wall_s" => flat.sum { |run| run["wall_s"].to_f }.round(1))
     end
   end

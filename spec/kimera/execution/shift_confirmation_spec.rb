@@ -162,18 +162,10 @@ RSpec.describe(Kimera::Execution::Shift) do
   end
 
   describe "the pool protocol" do
-    it "answers every mutant, doubtful or not, and asks for no recheck" do
+    it "answers every mutant, doubtful or not, with a result and then ready" do
       a, b = ids.first(2)
       sent = serve(scripted({ "t1" => %i[fail pass fail fail fail] }), { a => ["t1"], b => ["t1"] }, [a, b])
       expect(sent.map { |message| message["t"] }).to(eq(%w[result ready result ready done]))
-    end
-
-    it "ignores a recheck flag: every mutant is judged in fresh processes anyway" do
-      target = ids.first
-      request = StringIO.new("#{JSON.generate(id: target, recheck: true)}\n")
-      response = StringIO.new
-      worker(scripted({ "t1" => %i[fail fail] }), { target => ["t1"] }).serve(request, response)
-      expect(messages(response).first).to(include("t" => "result", "status" => "killed"))
     end
   end
 

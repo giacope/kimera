@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Removed: the report's `leaks`, and the worker protocol's `leak` and
+  `requeue` replies.** Since 15ebd63 judged every mutant in a process forked
+  from a clean one and dropped the per-worker leak re-check, a warm worker
+  has answered each offer with `result` and `ready` only, a soft timeout
+  included, so the JSON report's `leaks` list and `counts.leaks` were always
+  empty and NDJSON never streamed a `leak` record. They are gone, and the
+  report's `schema_version` is 2. A tool that reads `leaks` or
+  `counts.leaks` gets nothing in their place: there was never anything in
+  them. The pool's recheck queue, which only a `requeue` fed, went with them,
+  and so did the TLA+ model's recheck state and the child actions the code
+  no longer takes (`ChildTainted`, `ChildRequeue`, a leak after a result).
+  Its two invariants about rechecks went too. The others and `Termination`
+  still hold, the parent before #2 is still caught, and trace validation
+  still accepts the real `Shift`. With less to explore, `bin/model-check`
+  takes 13 s instead of 1 min 48 s on 4 vCPUs (5,790 distinct states at N=3,
+  Jobs=2, down from 160,621), and `--deep` takes 20 s, where its largest
+  instance alone took 12 minutes.
 - **Fixed: the bake of a dropped `when` moved the branches after it.** It
   rewrote the whole `case` and padded the missing lines after its `end`, so
   dropping a two-line `when 1` from a `case` with an `else` baked

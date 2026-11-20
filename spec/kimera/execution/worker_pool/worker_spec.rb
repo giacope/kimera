@@ -27,13 +27,6 @@ RSpec.describe Kimera::Execution::WorkerPool::Worker do
     expect(chunks).to(eq([["a"], ["bc", "", "d"], "", [], "e", ""]))
   end
 
-  it "is fresh until it claims a mutant", :aggregate_failures do
-    worker = described_class.new(pid: 1)
-    expect(worker.fresh?).to(be(true))
-    worker.claim(5, 1.0)
-    expect(worker.fresh?).to(be(false))
-  end
-
   it "stays on the clock while it retires", :aggregate_failures do
     worker = described_class.new(request: :pipe, inflight: 5, deadline: nil)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
@@ -42,11 +35,11 @@ RSpec.describe Kimera::Execution::WorkerPool::Worker do
     expect(worker.expired?(started + 4.0)).to(be(true))
   end
 
-  it "offers a recheck with its flag, and plain work without one" do
+  it "offers a mutant as one line naming its id" do
     IO.pipe do |reader, writer|
-      described_class.new(request: writer).tap { |worker| worker.offer(5, recheck: true) }.offer(6)
+      described_class.new(request: writer).tap { |worker| worker.offer(5) }.offer(6)
       writer.close
-      expect(reader.each_line.map { |line| JSON.parse(line) }).to(eq([{ "id" => 5, "recheck" => true }, { "id" => 6 }]))
+      expect(reader.each_line.map { |line| JSON.parse(line) }).to(eq([{ "id" => 5 }, { "id" => 6 }]))
     end
   end
 
@@ -61,7 +54,7 @@ RSpec.describe Kimera::Execution::WorkerPool::Worker do
     worker = described_class.new
     words = [
       worker.__send__(:last_words),
-      worker.heard({ "t" => "requeue", "detail" => "state leak" }, 3.0).__send__(:last_words),
+      worker.heard({ "t" => "result", "detail" => "Assertion: no" }, 3.0).__send__(:last_words),
       worker.heard({ "t" => "crash", "detail" => "Boom: x" }, 3.0).__send__(:last_words)
     ]
     expect(words).to(eq([nil, nil, "Boom: x"]))

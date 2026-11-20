@@ -13,8 +13,6 @@ class Kimera::Report::Remarks
 
   def regions(found) = listing(@palette.bold("Not mutated (#{found.size} region(s)):"), found)
 
-  def leaks(leaks) = listing(@palette.yellow("State-leak warnings (#{leaks.size}):"), leaks)
-
   def waivers(report)
     judged = report.select { |result| result.status?(:ignored) && result.to_h.key?("verdict") }
     return if judged.empty?

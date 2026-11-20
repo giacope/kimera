@@ -13,9 +13,8 @@ end
 class Kimera::Incremental::Session
   VERSION = 3
 
-  def initialize(results: {}, leaks: [], meta: {}, fingerprints: {})
+  def initialize(results: {}, meta: {}, fingerprints: {})
     @results = results
-    @leaks = leaks
     @meta = meta
     @fingerprints = fingerprints
   end
@@ -29,9 +28,7 @@ class Kimera::Incremental::Session
 
   def pruned(registry)
     kept = @results.reject { |id, _| stale?(id, registry) }
-    self.class.new(
-      results: kept, leaks: @leaks.select { |leak| leak.among?(kept) }, meta: @meta, fingerprints: @fingerprints
-    )
+    self.class.new(results: kept, meta: @meta, fingerprints: @fingerprints)
   end
 
   def judged(todo)
@@ -42,7 +39,7 @@ class Kimera::Incremental::Session
   def report(evaluated, waived, registry)
     results = evaluated.filter_map { |id| @results[id] }
     results += waived.map { |id| waiver(id, registry) }
-    Kimera::RunReport.new(results: results, leaks: @leaks, registry: registry, tests: tests)
+    Kimera::RunReport.new(results: results, registry: registry, tests: tests)
       .annotate(flaky: @meta["flaky"], suite: @meta["suite"], phases: @meta["phases"])
   end
 
@@ -64,8 +61,7 @@ class Kimera::Incremental::Session
     meta = named.empty? ? @meta : @meta.merge("tests" => tests.merge(named))
     self.class.new(
       results: @results.merge(report.to_a.to_h(&:entry)),
-      leaks: @leaks + noted.fetch("leaks"), meta: meta.merge(noted.slice("flaky", "suite", "phases")),
-      fingerprints: @fingerprints
+      meta: meta.merge(noted.slice("flaky", "suite", "phases")), fingerprints: @fingerprints
     )
   end
 
@@ -77,7 +73,7 @@ class Kimera::Incremental::Session
   end
 
   def payload(meta, fingerprints)
-    base(meta).merge("fingerprints" => fingerprints.transform_keys(&:to_s), "leaks" => @leaks.map(&:to_h))
+    base(meta).merge("fingerprints" => fingerprints.transform_keys(&:to_s))
   end
 
   def base(meta)

@@ -16,8 +16,8 @@ RSpec.describe(Kimera::Incremental::Session) do
     Kimera::MutantResult.new(mutant_id: id, status: status, file: "x.rb", duration: 0.1)
   end
 
-  def report(results, leaks = [])
-    Kimera::RunReport.new(results: results, leaks: leaks)
+  def report(results)
+    Kimera::RunReport.new(results: results)
   end
 
   def judged(report, session = described_class.new) = session.judged(report.to_a.map(&:mutant_id)) { report }
@@ -35,8 +35,6 @@ RSpec.describe(Kimera::Incremental::Session) do
   end
 
   def done?(session, id) = pending(session, [id]).empty?
-
-  def leaks(session) = session.report([], [], Kimera::Registry.new).notes.to_h["leaks"]
 
   def stamped(stamp) = described_class.new(meta: { "stamp" => stamp })
 
@@ -87,14 +85,6 @@ RSpec.describe(Kimera::Incremental::Session) do
     path = File.join(dir, "session.json")
     judged(report([result(id, :killed)]), described_class.from(path, stamp: "one")).save(path, registry)
     expect(done?(described_class.from(path, stamp: "one").pruned(registry), id)).to(be(true))
-  end
-
-  it "drops leaks saved under another stamp with the verdicts they explain", :aggregate_failures do
-    path = File.join(dir, "session.json")
-    leak = Kimera::LeakReport.new(mutant_id: 1, detail: "leaked")
-    judged(report([result(1, :killed)], [leak]), stamped("one")).save(path, Kimera::Registry.new)
-    expect(leaks(described_class.from(path, stamp: "two"))).to(eq([]))
-    expect(leaks(described_class.from(path, stamp: "one")).map(&:mutant_id)).to(eq([1]))
   end
 
   it "records, persists, and resumes results" do
@@ -173,14 +163,6 @@ RSpec.describe(Kimera::Incremental::Session) do
       expect(done?(described_class.from(path).pruned(Kimera::Registry.new), id)).to(be(false))
     end
 
-    it "drops leaks whose result was dropped as stale" do
-      id = first(registry("def m(a, b)\n  a > b\nend\n"))
-      leak = Kimera::LeakReport.new(mutant_id: id, detail: "leaked")
-      path = seed(dir, report([result(id, :killed)], [leak]), registry: registry("def m(a, b)\n  a > b\nend\n"))
-      resumed = described_class.from(path).pruned(registry("def m(a, b)\n  a < b\nend\n"))
-      expect([done?(resumed, id), leaks(resumed)]).to(eq([false, []]))
-    end
-
     it "records no fingerprint for a result whose id is not in the registry" do
       registry = registry("def m(a, b)\n  a > b\nend\n")
       path = seed(dir, report([result(999_999, :killed)]), registry: registry)
@@ -194,11 +176,5 @@ RSpec.describe(Kimera::Incremental::Session) do
       matched = done?(described_class.from(path).pruned(registry), id)
       expect([matched, done?(described_class.from(path), id)]).to(eq([false, true]))
     end
-  end
-
-  it "preserves leaks across persistence" do
-    leak = Kimera::LeakReport.new(mutant_id: 5, detail: "leaked")
-    path = seed(dir, report([result(1, :killed)], [leak]))
-    expect(leaks(described_class.from(path)).first.mutant_id).to(eq(5))
   end
 end

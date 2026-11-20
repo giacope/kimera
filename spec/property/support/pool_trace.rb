@@ -2,9 +2,9 @@
 
 module PoolTrace
   Step =
-    Struct.new(:act, :w, :kind, :id, :reply, :offer, :recheck) do
+    Struct.new(:act, :w, :kind, :id, :reply, :offer) do
       def self.of(act, slot, kind: "", id: nil, reply: ["none"])
-        new(act, slot, kind, id || 0, reply[0], reply[1] || 0, reply[2] || false)
+        new(act, slot, kind, id || 0, reply[0], reply[1] || 0)
       end
     end
 
@@ -89,8 +89,8 @@ module PoolTrace
   module Requests
     def self.install = Kimera::Execution::WorkerPool::Worker.prepend(self)
 
-    def offer(id, recheck: false)
-      PoolTrace.recorder&.sent = ["offer", id, recheck]
+    def offer(id)
+      PoolTrace.recorder&.sent = ["offer", id]
       super
     end
 

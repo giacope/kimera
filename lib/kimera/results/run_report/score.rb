@@ -1,19 +1,18 @@
 # frozen_string_literal: true
 
 class Kimera::RunReport::Score
-  CONDITIONAL = %i[uncovered_by_unit harness_error ignored isolated_only unmutatable leaks].freeze
+  CONDITIONAL = %i[uncovered_by_unit harness_error ignored isolated_only unmutatable].freeze
   REPORTED = %i[
     survived timeout error no_coverage uncovered_by_unit harness_error ignored isolated_only unmutatable
   ].freeze
   LABELS = { total: "mutants", harness_error: "unjudged" }.freeze
 
-  def initialize(results, leaks, counted)
+  def initialize(results, counted)
     @results = results
-    @leaks = leaks
     @counted = counted
   end
 
-  def to_h = { total: @results.size, killed: killed.size, leaks: @leaks.size, **reported }
+  def to_h = { total: @results.size, killed: killed.size, **reported }
 
   def to_f
     total = covered.size
@@ -25,7 +24,7 @@ class Kimera::RunReport::Score
 
   def by_file
     @results.group_by { |result| result.to_h.fetch("file").to_s }
-      .transform_values { |part| self.class.new(part, @leaks, @counted) }
+      .transform_values { |part| self.class.new(part, @counted) }
   end
 
   def to_s

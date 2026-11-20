@@ -37,15 +37,14 @@ RSpec.describe(Kimera::RunReport) do
   end
 
   describe "#revise" do
-    let(:leak) { Kimera::LeakReport.new(mutant_id: 3, detail: "state") }
     let(:registry) { Kimera::RegistryScan.new.source("def gt(a, b)\n  a > b\nend\n", file: "cmp.rb") }
 
-    it "replaces the revised results in place, keeping the rest, the leaks and the registry", :aggregate_failures do
+    it "replaces the revised results in place, keeping the rest and the registry", :aggregate_failures do
       results = [result(1, :harness_error), result(2, :killed)]
-      warm = described_class.new(results: results, leaks: [leak], registry: registry)
+      warm = described_class.new(results: results, registry: registry)
       revised = warm.revise([result(1, :survived)])
       expect(revised.map { |r| [r.mutant_id, r.status] }).to(eq([[1, :survived], [2, :killed]]))
-      expect([revised.notes.to_h["leaks"], revised.instance_variable_get(:@registry)]).to(eq([[leak], registry]))
+      expect(revised.instance_variable_get(:@registry)).to(eq(registry))
     end
 
     it "adds the revised results it did not hold, after the rest" do
@@ -66,30 +65,27 @@ RSpec.describe(Kimera::RunReport) do
   end
 
   describe "#counts and #summary" do
-    let(:leak) { Kimera::LeakReport.new(mutant_id: 1, detail: "leak") }
-    let(:rep_with_leak) { described_class.new(results: results, leaks: [leak]) }
-
     def counts
       {
         total: 7, killed: 4, survived: 1, timeout: 1, error: 1,
-        no_coverage: 1, uncovered_by_unit: 0, harness_error: 0, ignored: 1, isolated_only: 0, unmutatable: 0, leaks: 1
+        no_coverage: 1, uncovered_by_unit: 0, harness_error: 0, ignored: 1, isolated_only: 0, unmutatable: 0
       }
     end
 
     def tokens
-      ["mutants=7", "killed=4", "survived=1", "timeout=1", "error=1", "no_coverage=1", "ignored=1", "leaks=1"]
+      ["mutants=7", "killed=4", "survived=1", "timeout=1", "error=1", "no_coverage=1", "ignored=1"]
     end
 
-    it "counts each status plus leaks" do
-      expect(rep_with_leak.score.to_h).to(eq(counts))
+    it "counts each status" do
+      expect(report.score.to_h).to(eq(counts))
     end
 
     it "renders a summary line naming each status count" do
-      expect(rep_with_leak.score.to_s).to(include(*tokens))
+      expect(report.score.to_s).to(include(*tokens))
     end
 
     it "renders a summary line with the score" do
-      expect(rep_with_leak.score.to_s).to(include("score=80.0%"))
+      expect(report.score.to_s).to(include("score=80.0%"))
     end
 
     it "annotates the score with the uncovered count" do
@@ -166,10 +162,9 @@ RSpec.describe(Kimera::RunReport) do
       expect(rep.score.to_s).to(include("score=n/a (0 of 2 mutants evaluated)"))
     end
 
-    it "omits ignored, isolated_only, and leaks from the summary when there are none", :aggregate_failures do
+    it "omits ignored, isolated_only, unmutatable and unjudged from the summary when there are none" do
       summary = described_class.new(results: [result(1, :killed)]).score.to_s
-      expect(%w[ignored= isolated_only= unmutatable= leaks= unjudged=].select { |field| summary.include?(field) })
-        .to(be_empty)
+      expect(%w[ignored= isolated_only= unmutatable= unjudged=].select { |field| summary.include?(field) }).to(be_empty)
     end
 
     describe "unjudged mutants" do
@@ -193,18 +188,16 @@ RSpec.describe(Kimera::RunReport) do
 
   describe "#to_h" do
     describe "top-level fields" do
-      let(:leak) { Kimera::LeakReport.new(mutant_id: 1, detail: "leak") }
-      let(:h) { described_class.new(results: [result(1, :killed)], leaks: [leak]).to_h }
+      let(:h) { described_class.new(results: [result(1, :killed)]).to_h }
 
       it "includes the schema version and counts", :aggregate_failures do
         expect(h["schema_version"]).to(eq(described_class::SCHEMA_VERSION))
         expect(h["counts"][:killed]).to(eq(1))
       end
 
-      it "includes the score, results, and leaks", :aggregate_failures do
+      it "includes the score and results", :aggregate_failures do
         expect(h["mutation_score"]).to(eq(1.0))
         expect(h["results"].first["mutant_id"]).to(eq(1))
-        expect(h["leaks"].first[:detail]).to(eq("leak"))
       end
     end
 

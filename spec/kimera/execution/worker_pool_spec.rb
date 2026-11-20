@@ -118,7 +118,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     ]
   end
 
-  def leak
+  def lingering
     counter = [0]
     [
       counter,
@@ -322,11 +322,11 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
   it "joins a line split across writes and splits lines that share one", :aggregate_failures do
     line = result(1)
-    spawner = ->(_slot) { halting(line[0, 9], "#{line[9..]}\n#{JSON.generate(t: "leak", id: 1)}\n", linger: 0) }
-    resolved, lost = pool(queue: [1], spawner: spawner)
+    spawner = ->(_slot) { halting(line[0, 9], "#{line[9..]}\n#{JSON.generate(t: "ready")}\n", linger: 0) }
+    resolved, lost = pool(queue: [1, 2], spawner: spawner)
 
-    expect(resolved.map { |m| m["t"] }).to(eq(%w[result leak]))
-    expect(lost).to(be_empty)
+    expect(resolved.map { |m| m["id"] }).to(eq([1]))
+    expect(lost).to(eq([[2, :crash]]))
   end
 
   def spurious(response)
@@ -380,8 +380,8 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     end
   end
 
-  it "extends the deadline through the post-result leak-check", :aggregate_failures do
-    counter, spawner = leak
+  it "extends the deadline when a result arrives, through the wait for ready", :aggregate_failures do
+    counter, spawner = lingering
     _, lost = pool(queue: [1, 2], spawner: spawner, deadline: 1.0)
 
     expect(lost).to(be_empty)

@@ -20,9 +20,9 @@ module WorkerPipes
     response.close
   end
 
-  def judged(response, id, status, *extra)
+  def judged(response, id, status)
     result = JSON.generate(t: "result", id: id, status: status, ms: 1, fails: [])
-    response.puts(JSON.generate(t: "start", id: id), result, *extra, JSON.generate(t: "ready"))
+    response.puts(JSON.generate(t: "start", id: id), result, JSON.generate(t: "ready"))
     response.flush
   end
 end

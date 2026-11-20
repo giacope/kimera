@@ -8,14 +8,12 @@ require_relative "verdicts"
 
 class Kimera::Execution::Schedule
   Ledger =
-    Struct.new(:results, :leaks) do
+    Struct.new(:results) do
       private(*members)
       def record(id, result) = results.store(id, result)
 
-      def leak(report) = leaks << report
-
       def report(triage, registry)
-        Kimera::RunReport.new(results: triage.reclassified(results).values, leaks: leaks, registry: registry)
+        Kimera::RunReport.new(results: triage.reclassified(results).values, registry: registry)
       end
     end
 
@@ -59,7 +57,7 @@ class Kimera::Execution::Schedule
     [prioritized(safe, coverage), reloadable, deferred]
   end
 
-  def settle(settled, tick, ledger = Ledger.new({}, []))
+  def settle(settled, tick, ledger = Ledger.new({}))
     ledger.tap { settled.each { |id, result| record(ledger, id, result, tick) } }
   end
 
@@ -95,17 +93,10 @@ class Kimera::Execution::Schedule
 
   def pool(queue, ledger, tick)
     listeners = Kimera::Execution::WorkerPool::Listeners.new(
-      resolve: ->(message) { resolve(message, ledger, tick) },
+      resolve: ->(message) { parse(message, ledger, tick) },
       lost: ->(id, reason, stacks) { record(ledger, id, lost(id, reason, stacks), tick) }, trace: nil
     )
     @driver.drive(queue, @spawner, listeners)
-  end
-
-  def resolve(message, ledger, tick)
-    case message["t"]
-    when "result" then parse(message, ledger, tick)
-    when "leak", "requeue" then ledger.leak(Kimera::LeakReport.new(mutant_id: message["id"], detail: message["detail"]))
-    end
   end
 
   def parse(message, ledger, tick)

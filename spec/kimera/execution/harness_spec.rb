@@ -90,11 +90,10 @@ RSpec.describe(Kimera::Execution::Harness) do
     end.new
   end
 
-  def responder(status:, extra: nil)
-    leaks = ->(id) { extra ? [JSON.generate(t: "leak", id: id, detail: extra)] : [] }
+  def responder(status:)
     lambda do |_slot|
       forked do |request, response|
-        serving(request, response) { |id| judged(response, id, status, *leaks.call(id)) }
+        serving(request, response) { |id| judged(response, id, status) }
         exit!(0)
       end
     end
@@ -533,7 +532,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       path = File.join(dir, "harness_macro.rb")
       File.write(path, "module HarnessMacro\n  def self.charges(flag)\n    flag ? 1 : 2\n  end\nend\n")
       registry = Kimera::RegistryScan.new(root: dir).build([path])
-      h = described_class.build(registry: registry, adapter: loading(path), source_root: dir, leak_every: 0)
+      h = described_class.build(registry: registry, adapter: loading(path), source_root: dir)
       h.warm!(["t1"])
       h.run.to_a
     end
@@ -1536,14 +1535,6 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
   end
 
-  describe "leak reporting in the scheduler" do
-    it "records a leak message emitted by a pool worker" do
-      spawner = responder(status: "killed", extra: "state leaked")
-      report = harness(adapter, spawner: spawner).run(ids: ids)
-      expect(report.notes.to_h["leaks"].map(&:detail)).to(include("state leaked"))
-    end
-  end
-
   describe "self-verdict reclassification in #run" do
     def survivor
       registry = Kimera::RegistryScan.new.source(<<~RUBY, file: "kimera/execution/shift.rb")
@@ -1604,7 +1595,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     def outcome
       h = described_class.build(
         registry: writing(dir, "HarnessE2E"), adapter: observer("HarnessE2E"),
-        source_root: dir, soft_timeout: nil, leak_every: 0
+        source_root: dir, soft_timeout: nil
       )
       h.warm!(["t1"])
       h.run
@@ -1963,7 +1954,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       progress = journal
       h = described_class.build(
         registry: registry, adapter: observer("HarnessUnsafe"),
-        source_root: dir, soft_timeout: nil, leak_every: 0,
+        source_root: dir, soft_timeout: nil,
         progress: progress
       )
       h.warm!(["t1"])
@@ -1980,7 +1971,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     def reached(registry)
       h = described_class.build(
-        registry: registry, adapter: observer("HarnessReaching"), source_root: dir, soft_timeout: nil, leak_every: 0
+        registry: registry, adapter: observer("HarnessReaching"), source_root: dir, soft_timeout: nil
       )
       h.warm!(["t1"])
       unsafe = registry.each.find { |m, p| !p.safe? && m.to_s == "< => >" }.first.to_i

@@ -7,12 +7,11 @@ require "kimera/execution/worker_pool"
 require_relative "../../property_helper"
 
 RSpec.describe(Kimera::Execution::WorkerPool) do
-  let(:warm) { Pbt.one_of(:result, :result, :result, :leak, :tainted, :requeue, :requeue, :crash, :hang, :partial) }
-  let(:recheck) { Pbt.one_of(:result, :leak, :tainted, :crash, :hang, :partial) }
-  let(:scripts) { Pbt.array(Pbt.tuple(warm, recheck), min: 1, max: 6) }
+  let(:behaviors) { Pbt.one_of(:result, :result, :result, :tainted, :crash, :hang, :partial) }
+  let(:scripts) { Pbt.array(behaviors, min: 1, max: 6) }
   let(:mutant) do
     Module.new do
-      def chosen(worker) = following || (worker.fresh? && rechecks.shift)
+      def take = queue.pop
     end
   end
 
@@ -29,14 +28,11 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   end
 
   def child(script, log, grandchildren)
-    served = 0
     founded(grandchildren) do |request, response|
       while (line = request.gets)
-        offer = JSON.parse(line)
-        id = offer["id"]
-        File.write(log, "#{id} #{offer.fetch("recheck", false)} #{served.zero?}\n", mode: "a")
-        served += 1
-        break unless act(script.fetch(id - 1)[offer["recheck"] ? 1 : 0], id, response)
+        id = JSON.parse(line)["id"]
+        File.write(log, "#{id}\n", mode: "a")
+        act(script.fetch(id - 1), id, response)
       end
       say(response, t: "done")
       exit!(0)
@@ -48,7 +44,6 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     when :crash then exit!(1)
     when :hang then sleep(60)
     when :partial then halt(response, JSON.generate(t: "result", id: id)[0, 12])
-    when :requeue then say(response, t: "requeue", id: id, detail: "suspect")
     else report(behavior, id, response)
     end
   end
@@ -63,8 +58,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
   def report(behavior, id, response)
     say(response, t: "result", id: id, status: status(behavior), ms: 1, fails: [])
-    say(response, t: "leak", id: id, detail: "leak") if behavior == :leak
-    say(response, t: "ready") unless behavior == :tainted
+    say(response, t: "ready")
   end
 
   def say(io, **message)
@@ -113,8 +107,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
   def resolver(tally)
     lambda do |message|
-      kind = message["t"]
-      tally[:events] << [kind.to_sym, message["id"], message["status"]] if %w[result requeue].include?(kind)
+      tally[:events] << [:result, message["id"], message["status"]] if message["t"] == "result"
     end
   end
 
@@ -128,23 +121,15 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
   def outcome(behavior) = { crash: :crash, hang: :timeout, partial: :timeout }.fetch(behavior, :result)
 
-  def final(script) = script.map { |warm, recheck| warm == :requeue ? recheck : warm }
-
-  def expected(script) = final(script).each_with_index.map { |behavior, index| [index + 1, outcome(behavior)] }
+  def expected(script) = script.each_with_index.map { |behavior, index| [index + 1, outcome(behavior)] }
 
   def statuses(events) = events.filter_map { |kind, id, status| [id, status] if kind == :result }
 
-  def verdicts(events)
-    events.filter_map { |kind, id, reason| [id, kind == :lost ? reason : :result] unless kind == :requeue }
-  end
-
-  def requeues(events) = events.filter_map { |kind, id| id if kind == :requeue }
-
-  def requeued(script) = script.each_index.select { |i| script[i][0] == :requeue }.map { it + 1 }
+  def verdicts(events) = events.map { |kind, id, reason| [id, kind == :lost ? reason : :result] }
 
   def stillborn?(tally, script, jobs)
     events = tally[:events]
-    crashes = tally[:offers].count { |id, recheck| script[Integer(id) - 1][recheck == "true" ? 1 : 0] == :crash }
+    crashes = tally[:offers].count { |(id)| script[Integer(id) - 1] == :crash }
     events.none? { it.first == :result } && events.count { it.last == :crash } == jobs && crashes > jobs
   end
 
@@ -158,16 +143,11 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     expect(stillborn?(tally, script, jobs)).to(be(true), "aborted though StillbornGuard's condition did not hold")
   end
 
-  def completed(events, script)
-    expect(verdicts(events)).to(match_array(expected(script)))
-    expect(requeues(events)).to(match_array(requeued(script)))
-  end
+  def completed(events, script) = expect(verdicts(events)).to(match_array(expected(script)))
 
   def safe(tally, script)
     released(tally)
     once(tally[:events], script)
-    requeued_once(requeues(tally[:events]), script)
-    expect(tally[:offers]).not_to(include([anything, "true", "false"]), "a recheck reached a used worker")
   end
 
   def released(tally)
@@ -184,11 +164,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     expect(facts).to(eq(unscripted: [], repeated: 0, unfinished: []))
   end
 
-  def unfinished(events, script) = statuses(events).reject { |id, status| status == status(final(script)[id - 1]) }
-
-  def requeued_once(requeues, script)
-    expect(requeues).to(eq(requeues.uniq).and(all(satisfy { requeued(script).include?(it) })))
-  end
+  def unfinished(events, script) = statuses(events).reject { |id, status| status == status(script[id - 1]) }
 
   def conforming(runs)
     skip("trace validation runs TLC, which needs Java") unless TraceCheck.available?
@@ -214,35 +190,31 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
   it_behaves_like("a pool the model describes")
 
-  it "rejects the trace of a parent that serves the queue before a recheck", :aggregate_failures do
-    script = [%i[requeue result], %i[result result]]
+  it "rejects the trace of a parent that serves the queue from its tail", :aggregate_failures do
+    script = %i[result result]
     tally = supervised(script, 1, mutant: mutant)
     safe(tally, script)
     expect(verdicts(tally[:events])).to(match_array(expected(script)))
     expect(conforming([[1, tally[:trace]]]).then { |accepted, report| [accepted, report[/REJECTED at step \d+/]] })
-      .to(eq([false, "REJECTED at step 5"]))
+      .to(eq([false, "REJECTED at step 1"]))
   end
 
   it "times out a worker that flushes half a line and hangs with its pipe open" do
-    tally = supervised([%i[partial result], %i[result result]], 1)
+    tally = supervised(%i[partial result], 1)
     expect([tally[:error], verdicts(tally[:events])]).to(eq([nil, [[1, :timeout], [2, :result]]]))
   end
 
   context("with Shift as the child") do
-    let(:warm) { Pbt.one_of(:killed, :killed, :survived, :leak, :tainted, :requeue, :requeue, :crash, :hang) }
-    let(:recheck) { Pbt.one_of(:killed, :survived, :leak, :tainted, :requeue, :crash, :hang) }
+    let(:behaviors) { Pbt.one_of(:killed, :killed, :survived, :fading, :tainted, :suspect, :crash, :hang) }
 
     def soft = 0.25
 
     def watchdog = 1.0
 
     def status(behavior)
-      { killed: "killed", leak: "killed", survived: "survived", tainted: "timeout", requeue: "killed" }.fetch(behavior)
+      { killed: "killed", fading: "killed", survived: "survived", tainted: "timeout", suspect: "killed" }
+        .fetch(behavior)
     end
-
-    def final(script) = script.map(&:first)
-
-    def requeued(_script) = []
 
     def child(script, log, grandchildren)
       founded(grandchildren) do |request, response|

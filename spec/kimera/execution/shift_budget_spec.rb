@@ -119,8 +119,8 @@ RSpec.describe(Kimera::Execution::Shift) do
     expect(shift.evaluate(target).status).to(eq(:survived))
   end
 
-  it "settles a mutant offered with a recheck flag the same way" do
-    request = StringIO.new("#{JSON.generate(id: target, recheck: true)}\n")
+  it "settles a mutant offered over the pipe the same way" do
+    request = StringIO.new("#{JSON.generate(id: target)}\n")
     response = StringIO.new
     worker(timed({ "t1" => [slow, fast, slow] }), %w[t1]).serve(request, response)
     expect(JSON.parse(response.string.lines.first)).to(include("status" => "timeout"))

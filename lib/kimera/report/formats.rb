@@ -18,7 +18,6 @@ class Kimera::Report::Formats
   }.freeze
   SURVIVING = %w[survived uncovered_by_unit].freeze
   SUMMARY = %w[schema_version counts mutation_score run].freeze
-  RECORDS = { "result" => "results", "leak" => "leaks" }.freeze
 
   def initialize(io: $stdout)
     @io = io
@@ -40,7 +39,7 @@ class Kimera::Report::Formats
 
   def ndjson(document)
     write(JSON.generate(type: "summary", **document.slice(*SUMMARY)))
-    RECORDS.each { |type, key| document.fetch(key).each { |row| write(JSON.generate(type: type, **row)) } }
+    document.fetch("results").each { |row| write(JSON.generate(type: "result", **row)) }
   end
 
   def markdown(document) = @io.write(Kimera::Report::Markdown.new(document, FINDINGS).render)

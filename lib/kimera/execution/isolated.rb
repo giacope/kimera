@@ -111,8 +111,7 @@ class Kimera::Execution::IsolatedExecution
 
   def report(ids, tick)
     Kimera::RunReport.new(
-      results: (jobs > 1 ? concurrently(ids, tick) : serially(ids, tick)),
-      leaks: [], registry: @registry
+      results: (jobs > 1 ? concurrently(ids, tick) : serially(ids, tick)), registry: @registry
     )
   end
 end

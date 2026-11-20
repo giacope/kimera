@@ -3,7 +3,7 @@
 require_relative "../child_process"
 
 Kimera::Execution::WorkerPool::Worker =
-  Struct.new(:pid, :request, :response, :inflight, :deadline, :slot, :stacks, :served, :last_words, :unread) do
+  Struct.new(:pid, :request, :response, :inflight, :deadline, :slot, :stacks, :last_words, :unread) do
     include Kimera::Execution::ChildProcess
     private(*members)
     def feed(chunk, &)
@@ -25,13 +25,8 @@ Kimera::Execution::WorkerPool::Worker =
     end
 
     def claim(id, limit)
-      self.served = true
       busy!(id)
       renew(limit)
-    end
-
-    def fresh?
-      !served
     end
 
     def autopsy
@@ -93,8 +88,8 @@ Kimera::Execution::WorkerPool::Worker =
       stop(pid)
     end
 
-    def offer(id, recheck: false)
-      request.puts(JSON.generate(recheck ? { id: id, recheck: true } : { id: id }))
+    def offer(id)
+      request.puts(JSON.generate(id: id))
     rescue Errno::EPIPE, IOError
       nil
     end

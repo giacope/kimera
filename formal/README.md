@@ -9,7 +9,7 @@ would silently drop a mutant from the gate, or record two verdicts for one.
 the model relates to the code").
 
 ```sh
-bin/model-check              # the instances the pre-push gate checks (about 2 minutes)
+bin/model-check              # the instances the pre-push gate checks (about 15 seconds)
 bin/model-check --deep       # larger instances, run by hand
 bin/model-check 4 2          # any N (mutants) and Jobs: invariants and Termination
 bin/model-check --safety 5 3 # invariants only, with symmetry reduction
@@ -31,20 +31,20 @@ any step. `bin/model-check`, part of the pre-push gate, checks:
 
 | N, Jobs | Checks | Distinct states | Time (4 cores) |
 | --- | --- | --- | --- |
-| 2, 2 | all | 15,103 | 3 s |
-| 3, 1 | all | 2,011 | 1 s |
-| 1, 3 | all | 130 | < 1 s |
-| 3, 2 | all | 160,621 | 18 s |
-| 5, 2 | invariants, symmetry | 164,282 | 14 s |
-| 4, 3 | invariants, symmetry | 944,723 | 80 s |
+| 2, 2 | all | 1,177 | 1 s |
+| 3, 1 | all | 211 | < 1 s |
+| 1, 3 | all | 36 | < 1 s |
+| 3, 2 | all | 5,790 | 1 s |
+| 5, 2 | invariants, symmetry | 5,174 | 2 s |
+| 4, 3 | invariants, symmetry | 17,956 | 2 s |
 
 `bin/model-check --deep` adds:
 
 | N, Jobs | Checks | Distinct states | Time (4 cores) |
 | --- | --- | --- | --- |
-| 4, 2 | all | 876,491 | 103 s |
-| 6, 2 | invariants, symmetry | 263,659 | 94 s |
-| 5, 3 | invariants, symmetry | 2,549,814 | 12 min |
+| 4, 2 | all | 18,166 | 2 s |
+| 6, 2 | invariants, symmetry | 6,923 | 4 s |
+| 5, 3 | invariants, symmetry | 33,889 | 11 s |
 
 "All" is every invariant and `Termination`, with no reduction. The
 symmetry runs check the invariants only (see below). `bin/model-check` also checks that
@@ -70,8 +70,10 @@ and its process reaped, so the parent never looks at it again). A state
 therefore holds only what can still influence the run. Before this, workers
 were numbered by spawn order and a dead worker's leftovers stayed in the
 state: (3, 2) passed 39.7 million distinct states without finishing, where
-it now has 45,498 with atomic messages and 160,621 with the framing below.
-The seeded bugs below are still caught.
+it then had 45,498 with atomic messages and 160,621 with the framing below.
+It has 5,790 since the child lost its requeue, leak and tainted replies
+(they went with the per-worker leak re-check in 15ebd63), and the parent the
+rechecks those replies fed. The seeded bugs below are still caught.
 
 Nothing in the spec compares, orders or singles out an id or a slot: the
 queue and `Fleet#slots` are sequences, the initial orders are one `CHOOSE`n
@@ -89,9 +91,7 @@ without it.
 | --- | --- |
 | `CompleteOnExit` | When `WorkerPool#run` returns normally, every mutant has exactly one verdict. |
 | `VerdictAtMostOnce` | No mutant is recorded twice (`Schedule#record` never overwrites). |
-| `Conservation` | At every step each mutant is in exactly one place: queued, awaiting a recheck, in flight on one live worker, or done. |
-| `RequeueAtMostOnce` | A rechecked mutant never returns to a warm run that could requeue it again. |
-| `RecheckOnFreshWorker` | A recheck only runs on a worker that has served nothing yet. |
+| `Conservation` | At every step each mutant is in exactly one place: queued, in flight on one live worker, or recorded in the ledger. |
 | `Framed` | A worker's line buffer holds only the start of the next line: its rest is next in the pipe, or the child is still writing it, hung or dead. |
 | `FleetWithinJobs`, `SlotsExclusive`, `CanSpawn` | At most `--jobs` workers are live; the live workers and `Fleet#slots` hold every slot exactly once between them, so no two live workers share a test database; a slot is free whenever the pool spawns. |
 | `Reaped` | A worker leaves the fleet only with its process reaped. |
@@ -105,8 +105,7 @@ without it.
   holds a whole line or EOF. Nothing obliges the parent to read the start of
   a line whose rest may never come;
 - each healthy child keeps taking steps (reads its offer, then answers,
-  requeues, crashes or exits, possibly pausing partway through its first
-  line);
+  crashes or exits, possibly pausing partway through its first line);
 - a hung child is eventually killed by the watchdog. Healthy children are
   never assumed to be killed.
 
@@ -126,7 +125,7 @@ a child that wrote half a line and hung left it blocked in the read, before
 its watchdog could run. Fault injection found that, not the model. The
 constant `Blocking` puts the old parent back: reading a `Part` leaves it
 stuck (`blocked`) until the rest or EOF arrives, and in the meantime it reads
-no other pipe and runs no watchdog. TLC then finds the hang in 107 states at
+no other pipe and runs no watchdog. TLC then finds the hang in 36 states at
 (1, 1): the child tears its result line, the parent reads the start, the
 child hangs, and the parent waits forever. With `Blocking = FALSE`
 (`read_nonblock` and a line buffer, as the code is now) every instance
@@ -139,6 +138,9 @@ The model abstracts away:
 - **Time.** A deadline is "may fire at any step"; there are no clocks.
 - Message payloads beyond kind and mutant id, verdict details, and the tiers
   `Schedule` runs after the pool (reload and quarantine).
+- Duplicate ids: the model's queue holds each id once, so `Backlog#take`
+  never meets a finished one to skip, and a child answers only for the id it
+  was offered.
 - Worker identity beyond the slot: two workers that held the same slot at
   different times share a name. `Fleet#slots` is modeled as the FIFO it is
   (spawn takes the head, remove appends).
@@ -156,13 +158,12 @@ The model abstracts away:
 | TLA+ | Ruby |
 | --- | --- |
 | `Init`, `RefillStep` | `Fleet#bootstrap`, `Fleet#refill`, `Fleet#replace`, `Fleet#spawn` |
-| `Assign`, `Take`, `Following` | `WorkerPool#assign`, `Backlog#take`, `Backlog#following`, `Worker#claim`, `Worker#offer`, `WorkerPool#close` |
-| `Service` | `WorkerPool#service`, `Worker#lines`, `#hangup` and `#dispatch`: `#finish`, `#relay`, `Backlog#requeue` |
+| `Assign`, `Pending` | `WorkerPool#assign`, `Backlog#take`, `Backlog#pending?`, `Worker#claim`, `Worker#offer`, `WorkerPool#close` |
+| `Service` | `WorkerPool#service`, `Worker#feed`, `#hangup` and `#dispatch`: `#finish` |
 | `Remove` | `Fleet#remove`, `Fleet#retire`, `ChildProcess#bury`, `Fleet#charge`, `StillbornGuard#track` |
 | `Expire` | `WorkerPool#watch`, `Worker#halt` (`ChildProcess#kill`) |
 | `ChildRead` | `Shift::Channel#ids` (EOF means retired) |
-| `ChildResult`, `ChildTainted` | `Shift#judging`, `Shift#process`, `Shift#tainted?`, `Shift::LeakGuard#check` |
-| `ChildRequeue` | `Shift::Suspect#message` (warm only: `Attempt#recheck` settles on a `Doubt`) |
+| `ChildResult` | `Shift#judging`: a verdict, a soft timeout's included, then `ready` |
 | `ChildTear` | a write cut short: the start of a line, flushed |
 | `ChildCrash`, `ChildHang` | a process that dies, or stops answering |
 
@@ -170,26 +171,24 @@ The model abstracts away:
 
 `spec/property/kimera/execution/worker_pool_spec.rb` runs the real parent
 (`WorkerPool`, `Fleet`, `Worker`, `StillbornGuard`) against forked children,
-each mutant with a random script: what happens when it is offered warm, and
-again on a recheck. The children come in two kinds:
+each mutant with a random script: what happens when it is offered. The
+children come in two kinds:
 - scripts that speak `Shift`'s pipe protocol, drawn from the model's child
-  actions (result, leak, tainted, requeue, crash, hang, and half a line then
-  silence);
+  actions (a result, a soft timeout's result, a crash, a hang, and half a
+  line then silence);
 - the real `Shift`, driven by a suite (`spec/property/support/faulty_suite.rb`)
-  whose one test kills the mutant, lets it survive, leaks (killed, then
-  survives `LeakGuard`'s re-run), fails with the mutant off too (a `Suspect`),
-  outlasts the soft timeout, crashes the process, or hangs through the soft
-  timeout. `Shift`, `Attempt`, `Trial` and `LeakGuard` then decide what goes
-  down the pipe: a requeue, or on a recheck a `Doubt` ruled `harness_error`.
+  whose one test kills the mutant, lets it survive, fails twice with it and
+  then passes, fails with the mutant off too, outlasts the soft timeout,
+  crashes the process, or hangs through the soft timeout. `Shift` and
+  `Attempt` then decide what verdict goes down the pipe.
 
 Each run is supervised in its own process group with an external deadline,
 and the random scripts are drawn from the property seed (`PBT_SEED` replays
 a run). Two kinds of evidence come out of it.
 
 **Outcomes.** The model's safety invariants hold of what actually happened:
-one verdict per mutant, of the kind and status its script calls for; one
-requeue per requeued mutant, and none for a recheck; rechecks only on fresh
-workers; slots reused only after their holder is reaped; an abort only when
+one verdict per mutant, of the kind and status its script calls for; slots
+reused only after their holder is reaped; an abort only when
 `StillbornGuard`'s condition held. Below the model, too: every child leads
 its own process group and starts a grandchild first, and no grandchild
 outlives the run, whether its parent finished, crashed, hung or was still
@@ -205,9 +204,9 @@ and the loop's end or abort. TLC then checks each log against the model with
 `WorkerPool` from the state the model has reached, with the same outcome.
 The model's children are not logged; between two logged steps they may take
 any steps that explain what the parent read. So each real step is a model
-transition, and the model's deterministic parent logic (`Take`,
-`Following`, `Pending`, `Remove`, the refill count, the FIFO of slots,
-`StillbornGuard`) makes the same choice the code made, every time, along
+transition, and the model's deterministic parent logic (`Assign`,
+`Pending`, `Remove`, the refill count, the FIFO of slots, `StillbornGuard`)
+makes the same choice the code made, every time, along
 the whole run. With `Shift` as the child, its side is checked too: every
 line it wrote, in order, must be one the model's child actions write. 30
 random runs of each kind are checked per `bin/spec` (about 7 s of TLC each,
@@ -220,17 +219,15 @@ the code and the model diverge:
 
 | Change to the code | Outcome checks | Trace validation |
 | --- | --- | --- |
-| `Backlog#take` serves the queue before a recheck | pass | rejected (a spawn offers 2, the model offers the recheck of 1) |
-| `Fleet#remove` returns a slot to the front of `Fleet#slots` | pass | rejected (a spawn takes the wrong slot) |
+| `Backlog#take` serves the queue from its tail | pass | rejected (the first spawn offers 2, the model offers 1) |
 | `StillbornGuard` aborts one crash early | fail | rejected (an abort the model doesn't take) |
-| a `leak` message closes the worker | fail | rejected (a read that sends a close) |
-| `Shift#process` runs `LeakGuard` before it reports the result | pass | rejected (a leak read before the result) |
-| `Shift` ignores an offer's recheck flag | fail (the recheck requeues forever) | fail (the run never ends) |
 
 The first is also a permanent example in the property spec: the mutant runs
-with correct verdicts, and its trace must be rejected at step 5. The model's
-earlier slot choice (the lowest free slot, where `Fleet#slots` is a FIFO)
-is rejected by 3 of the 23 multi-job traces of one run.
+with correct verdicts, and its trace must be rejected at step 1. The order
+of `Fleet#slots` is no longer observable: a refill spawns only right after a
+removal while mutants are still queued, so the one slot it takes is the one
+just returned. When a requeue could leave work queued with two slots free,
+returning a slot to the front of the list was rejected too.
 
 What trace validation does not establish:
 - that the code refines the model on runs the property doesn't generate
@@ -246,13 +243,12 @@ What trace validation does not establish:
 
 ## Evidence the invariants have teeth
 
-Each bug below, seeded into the model, fails `bin/model-check` at N=2, Jobs=2
-with a counterexample trace:
+Each bug below, seeded into the model, fails `bin/model-check` at N=3, Jobs=2
+with a counterexample trace (all but the missing refill at N=2, Jobs=2 too,
+where every mutant is offered at bootstrap and nothing is left to refill):
 
-- rechecks handed to any worker: `RecheckOnFreshWorker`
 - a removed worker's in-flight mutant not charged: `Conservation`
 - no refill after a removal: `CompleteOnExit`
-- a recheck allowed to requeue: `RequeueAtMostOnce`
 - a result that leaves the worker in flight: `Conservation`
 - a removed worker's slot not returned: `SlotsExclusive`
 - the parent blocking in `pipe.gets` (`Blocking = TRUE`): `Termination`,

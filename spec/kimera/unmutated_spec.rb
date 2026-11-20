@@ -15,10 +15,10 @@ RSpec.describe(Kimera::Unmutated) do
 
   let(:report) { Kimera::RunReport.new(results: [], registry: registry) }
 
-  it "lists each region with its reason in the text report" do
+  it "lists each region with its reason in the text report, after a blank line" do
     io = StringIO.new
     Kimera::Report::Text.new(registry, io: io, color: false).report(report)
-    expect(io.string).to(include("\nNot mutated (1 region(s)):\n  w.rb:2  #{block_reason}\n"))
+    expect(io.string).to(include("\n\nNot mutated (1 region(s)):\n  w.rb:2  #{block_reason}\n"))
   end
 
   it "lists them in the JSON report" do

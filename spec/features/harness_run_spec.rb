@@ -4,11 +4,11 @@ RSpec.describe("kimera run (end-to-end)") do
   def test_counts
     {
       "total" => 28, "killed" => (be >= 8), "survived" => (be >= 1),
-      "timeout" => 0, "error" => 0, "leaks" => 0
+      "timeout" => 0, "error" => 0
     }
   end
 
-  it "produces correct killed/survived results with no leaks, timeouts, or errors", :aggregate_failures do
+  it "produces correct killed/survived results with no timeouts or errors", :aggregate_failures do
     test_run(cwd: test_sample) do |output, report, status|
       expect(report).not_to(be_nil, "no JSON report; output:\n#{output}")
       expect(report["counts"]).to(include(test_counts))

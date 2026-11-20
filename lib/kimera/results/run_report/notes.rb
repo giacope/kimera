@@ -3,9 +3,8 @@
 require_relative "../test_quality"
 
 class Kimera::RunReport::Notes
-  def initialize(results, leaks, registry, context)
+  def initialize(results, registry, context)
     @results = results
-    @leaks = leaks
     @registry = registry
     @context = context
   end
@@ -22,11 +21,10 @@ class Kimera::RunReport::Notes
 
   def remark(remarks)
     @registry.regions { |found| remarks.regions(found) }
-    remarks.leaks(@leaks)
   end
 
   def to_h
-    { "tests" => tests, "leaks" => @leaks, "flaky" => @context[:flaky], "suite" => @context[:suite] }
+    { "tests" => tests, "flaky" => @context[:flaky], "suite" => @context[:suite] }
       .merge("phases" => @context[:phases]).compact
   end
 

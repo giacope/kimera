@@ -5,8 +5,8 @@ using ResultFields
 RSpec.describe("kimera run --isolated (end-to-end)") do
   it "reproduces the fast-path verdicts with fully out-of-process evaluation", :aggregate_failures do
     run = test_outcome(cwd: test_sample, arguments: ["--isolated"])
-    expect(run.counts.slice("total", "timeout", "error", "leaks"))
-      .to(eq({ "total" => 28, "timeout" => 0, "error" => 0, "leaks" => 0 }), run.output)
+    expect(run.counts.slice("total", "timeout", "error"))
+      .to(eq({ "total" => 28, "timeout" => 0, "error" => 0 }), run.output)
     expect([run.counts["killed"], run.counts["survived"], run.verdicts[3], run.status])
       .to(match([be >= 8, be >= 1, "survived", 2]))
   end

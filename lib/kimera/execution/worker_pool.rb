@@ -25,11 +25,11 @@ class Kimera::Execution::WorkerPool
   end
 
   def assign(worker)
-    id, recheck = backlog.take(worker)
+    id = backlog.take
     return close(worker) unless id
     worker.claim(id, limit)
     worker.trace(listeners, id)
-    worker.offer(id, recheck: recheck)
+    worker.offer(id)
   end
 
   def lost(id, reason, stacks = []) = listeners.lost(id, reason, stacks)
@@ -77,23 +77,13 @@ class Kimera::Execution::WorkerPool
     case message["t"]
     when "result" then finish(worker, message)
     when "ready" then assign(worker)
-    when "leak" then relay(message)
-    when "requeue" then requeue(worker, message)
     end
-  end
-
-  def relay(message) = listeners.resolved(message)
-
-  def requeue(worker, message)
-    relay(message)
-    backlog.requeue(message["id"])
-    close(worker)
   end
 
   def finish(worker, message)
     backlog.done!(message["id"])
     fleet.progress!
-    relay(message)
+    listeners.resolved(message)
     worker.idle!
   end
 

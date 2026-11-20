@@ -10,10 +10,6 @@ module ResultFields
     def duration = super || 0.0
   end
 
-  refine Kimera::LeakReport do
-    Kimera::LeakReport.members.each { |field| define_method(field) { super() } }
-  end
-
   refine Kimera::Frameworks::RunOutcome do
     Kimera::Frameworks::RunOutcome.members.each { |field| define_method(field) { super() } }
   end

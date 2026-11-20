@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "json"
 require "kimera/execution/harness"
 require "kimera/frameworks/suite"
 require "kimera/registry/builder"
@@ -43,42 +42,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     expect([report.to_a.first.status, report.to_a.first.duration]).to(eq([:timeout, 0.5]))
     expect(detail).to(start_with("hard watchdog timeout\nthreads in the worker when it was killed:\nmain thread ("))
-    expect(detail).to(match(/harness_recheck_spec\.rb:\d+:in '[^']*wedge'/))
-  end
-
-  def doubting
-    calls = 0
-    lambda do |_slot|
-      calls += 1
-      doubter = calls == 1
-      forked { |request, response| serve(request, response, doubter) }
-    end
-  end
-
-  def serve(request, response, doubter)
-    while (line = request.gets)
-      ask = JSON.parse(line)
-      break response.puts(JSON.generate(t: "requeue", id: ask["id"], detail: "t9 also failed")) if doubter
-      answer(response, ask)
-    end
-    response.puts(JSON.generate(t: "done"))
-    exit!(0)
-  end
-
-  def answer(response, ask)
-    detail = ask["recheck"] ? "rechecked" : nil
-    response.puts(JSON.generate(t: "result", id: ask["id"], status: "killed", fails: ["t1"], detail: detail))
-    response.puts(JSON.generate(t: "ready"))
-    response.flush
-  end
-
-  it "judges a requeued mutant on a fresh worker and reports the doubt as a leak", :aggregate_failures do
-    report = Timeout.timeout(20) { harness(nil, spawner: doubting, hard_timeout: 5.0).run(ids: ids) }
-
-    expect(report.to_a.map(&:status)).to(all(eq(:killed)))
-    expect(report.to_a.count { |result| result.detail == "rechecked" }).to(eq(1))
-    expect(report.notes.to_h["leaks"].map(&:detail)).to(eq(["t9 also failed"]))
-    expect(report.notes.to_h["leaks"].map(&:mutant_id)).to(eq([ids.first]))
+    expect(detail).to(match(/harness_timeout_spec\.rb:\d+:in '[^']*wedge'/))
   end
 
   describe(Kimera::Execution::Verdicts) do

@@ -18,12 +18,9 @@ RSpec.describe(Kimera::Report::Text) do
   end
   let(:mutant) { registry.each.find { |m, _| m.to_s == "<= => <" }.first }
 
-  def render(results: [], leaks: [], scope: [], color: false)
+  def render(results: [], scope: [], color: false)
     io = StringIO.new
-    described_class.new(registry, io: io, color: color).report(
-      Kimera::RunReport.new(results: results, leaks: leaks),
-      scope: scope
-    )
+    described_class.new(registry, io: io, color: color).report(Kimera::RunReport.new(results: results), scope: scope)
     io.string
   end
 
@@ -40,17 +37,6 @@ RSpec.describe(Kimera::Report::Text) do
 
   it "starts with the summary line when no scope is given" do
     expect(render).to(start_with("mutants="))
-  end
-
-  it "prints state-leak warnings", :aggregate_failures do
-    leak = Kimera::LeakReport.new(mutant_id: 5, detail: "leaked badly")
-    out = render(results: [survivor], leaks: [leak])
-    expect(out).to(match(/\n\nState-leak warnings \(1\):/))
-    expect(out).to(include("- #5  leaked badly"))
-  end
-
-  it "omits the leak section when there are no leaks" do
-    expect(render(results: [survivor])).not_to(include("State-leak warnings"))
   end
 
   def result(id)

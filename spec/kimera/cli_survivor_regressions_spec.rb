@@ -60,8 +60,8 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
 
   def machine(rows)
     document = {
-      "schema_version" => 1, "counts" => { total: 4 }, "mutation_score" => 0.0,
-      "results" => rows, "leaks" => [{ "mutant_id" => 1, "detail" => "leak" }], "run" => { "jobs" => 2 }
+      "schema_version" => 2, "counts" => { total: 4 }, "mutation_score" => 0.0,
+      "results" => rows, "run" => { "jobs" => 2 }
     }
     outputs = Array.new(3) { StringIO.new }
     %w[github sarif ndjson].zip(outputs).each { |format, output| Kimera::Report::Formats.new(io: output).render(format, document) }
@@ -581,9 +581,9 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
         expect(parsed.first.dig("locations", 0, "physicalLocation", "region", "startLine")).to(eq(0))
       end
 
-      it "stream the summary, every result and the leaks as NDJSON, with the metadata" do
+      it "stream the summary and every result as NDJSON, with the metadata" do
         records = outputs.last.string.lines.map { |line| JSON.parse(line) }
-        expect(records.map { |entry| entry.fetch("type") }).to(eq(%w[summary result result result result leak]))
+        expect(records.map { |entry| entry.fetch("type") }).to(eq(%w[summary result result result result]))
         expect(records.first.fetch("run")).to(eq("jobs" => 2))
       end
     end

@@ -18,10 +18,10 @@
 (*   act    "spawn" | "read" | "expire" | "finish" | "abort"               *)
 (*   w      the worker's slot                                              *)
 (*   kind   for a read: "part", "eof", or the message's kind               *)
-(*   id     for a read of a result or requeue, its id; for "eof" and       *)
-(*          "expire", the id charged (Worker#inflight), None if none       *)
+(*   id     for a read of a result, its id; for "eof" and "expire", the    *)
+(*          id charged (Worker#inflight), None if none                     *)
 (*   reply  what the parent sent w in the same step: "offer", "close" or   *)
-(*          "none"; offer and recheck describe the offer                   *)
+(*          "none"; offer is the id offered                                *)
 (***************************************************************************)
 EXTENDS WorkerPool, TraceData  \* TraceData: Traces == <<[queue, slots, steps], ...>>
 
@@ -31,7 +31,7 @@ T == Traces[tr].steps
 
 \* What the parent wrote to w's request pipe in this step.
 Sent(w, e) ==
-  req'[w] = CASE e.reply = "offer" -> Append(req[w], Offer(e.offer, e.recheck))
+  req'[w] = CASE e.reply = "offer" -> Append(req[w], Offer(e.offer))
               [] e.reply = "close" -> Append(req[w], EOF)
               [] OTHER             -> req[w]
 
@@ -39,7 +39,7 @@ Sent(w, e) ==
 Read(w, e) ==
   LET m == Head(resp[w]) IN
   /\ m.kind = e.kind
-  /\ m.kind \in {"result", "requeue"} => m.id = e.id
+  /\ m.kind = "result" => m.id = e.id
 
 \* A healthy child's long line read in pieces: the parent buffers the start
 \* of a line that is already whole in the model. Nothing it can observe
