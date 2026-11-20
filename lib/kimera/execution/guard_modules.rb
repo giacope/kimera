@@ -67,7 +67,7 @@ module Kimera
       end
 
       def chained(trimmed)
-        # rubocop:disable-next Kata/NoReflection -- ActiveSupport::Concern keeps the included block it replays in this field and answers it nowhere else
+        # rubocop:disable-next Sekisho/NoReflection -- ActiveSupport::Concern keeps the included block it replays in this field and answers it nowhere else
         original = concern.instance_variable_get(stored)
         proc do |*words|
           class_exec(*words, &original)

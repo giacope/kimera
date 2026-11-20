@@ -8,7 +8,7 @@ require_relative "../exits/test_exit"
 require_relative "mirror_database"
 
 Minitest.seed ||= 1
-# rubocop:disable-next Kata/NoMonkeyPatch -- a mutant that calls exit inside a test is a failure of that test, and only Minitest::Test#capture_exceptions, which lets SystemExit through, can record it as one
+# rubocop:disable-next Sekisho/NoMonkeyPatch -- a mutant that calls exit inside a test is a failure of that test, and only Minitest::Test#capture_exceptions, which lets SystemExit through, can record it as one
 Minitest::Test.prepend(Kimera::TestExit::Test)
 Minitest.class_variable_set(:@@installed_at_exit, :installed)
 

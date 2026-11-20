@@ -3,7 +3,7 @@
 module Kimera
 end
 
-# rubocop:disable-next Kata/FrozenState -- the process-wide mutation switch every thread and Ractor reads
+# rubocop:disable-next Sekisho/FrozenState -- the process-wide mutation switch every thread and Ractor reads
 class Kimera::Runtime < Module
   SOURCE_PATH = File.expand_path(__FILE__)
 
@@ -51,7 +51,7 @@ class Kimera::Runtime < Module
   end
 
   def active?(id)
-    record(id) unless @idle # rubocop:disable Kata/CommandQuery -- the woven guard's one call marks its mutant reached and answers whether it is on; two calls would double every guard's cost
+    record(id) unless @idle # rubocop:disable Sekisho/CommandQuery -- the woven guard's one call marks its mutant reached and answers whether it is on; two calls would double every guard's cost
     @active == id
   end
 
@@ -188,7 +188,7 @@ Kimera::Runtime::Flip =
     def reveal = expose(:public)
     private
     def expose(visibility)
-      # rubocop:disable-next Kata/NoReflection -- a visibility mutant makes the project's own method private in its class, as the mutated source would
+      # rubocop:disable-next Sekisho/NoReflection -- a visibility mutant makes the project's own method private in its class, as the mutated source would
       names.each { |holder, name| holder.__send__(visibility, name) }
       [owner, *names.map(&:first)].uniq.each { |holder| cleared(holder) }
     end

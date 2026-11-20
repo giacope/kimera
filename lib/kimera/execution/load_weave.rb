@@ -22,7 +22,7 @@ class Kimera::Execution::LoadWeave
     weave = self
     below = beneath
     hook = Module.new { define_method(:load_iseq) { |path| weave.compiled(path) { below.call(path) } } }
-    # rubocop:disable-next Kata/NoMonkeyPatch -- Ruby asks RubyVM::InstructionSequence alone for load_iseq as it loads a file, so a refinement or a decorator is never called
+    # rubocop:disable-next Sekisho/NoMonkeyPatch -- Ruby asks RubyVM::InstructionSequence alone for load_iseq as it loads a file, so a refinement or a decorator is never called
     RubyVM::InstructionSequence.singleton_class.prepend(hook)
     yield
   ensure

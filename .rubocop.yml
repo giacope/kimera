@@ -1,10 +1,10 @@
 
 plugins:
-  - rubocop-kata
+  - sekisho
 
-# kimera holds itself to kata's whole profile, the strict one included.
+# kimera holds itself to sekisho's strict profile.
 inherit_gem:
-  rubocop-kata: config/strict.yml
+  sekisho: config/strict.yml
 
 AllCops:
   TargetRubyVersion: 3.4
@@ -23,7 +23,7 @@ AllCops:
     # A vendored bundle (bundle config path vendor/bundle); replacing Exclude drops RuboCop's default.
     - vendor/**/*
 
-Kata/FrozenState:
+Sekisho/FrozenState:
   inherit_mode:
     merge:
       - Exclude
@@ -38,7 +38,7 @@ Kata/FrozenState:
     # handed (framework hook).
     - lib/kimera/frameworks/class_hooks.rb
 
-Kata/RealWords:
+Sekisho/RealWords:
   inherit_mode:
     merge:
       - AllowedNames

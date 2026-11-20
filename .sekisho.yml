@@ -1,7 +1,7 @@
 # Every kind on but change_coupling, which reads git history: the pre-push gate
 # runs in an orb, whose checkout may be shallow, so it would see none of it.
 # Run it on a full clone instead.
-# The strict set too: kimera holds itself to every kind and reading hashira has.
+# The strict set too: kimera holds itself to every kind and reading sekisho design has.
 strict: true
 checks:
   all: true
