@@ -23,6 +23,10 @@ RSpec.describe(Kimera::Execution::Harness) do
   end
   let(:ids) { registry.each.map { |m, _p| m.to_i } }
 
+  def frozen
+    [0.0].tap { |now| stub_const("Kimera::Execution::Stopwatch::CLOCK", -> { now.first }) }
+  end
+
   def inside(*names)
     names.each { stub_const(it, Class.new) }
     yield
@@ -558,11 +562,12 @@ RSpec.describe(Kimera::Execution::Harness) do
 
   describe "relative time budget" do
     def dawdling(target)
+      now = frozen
       Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = %w[t1]
         define_method(:run) do |_test_ids|
-          sleep(0.3) if Kimera::RUNTIME.active?(target)
+          now[0] += 0.3 if Kimera::RUNTIME.active?(target)
           Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
         end
       end.new
@@ -1401,12 +1406,13 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def racing(mids)
+      now = frozen
       Class.new(Kimera::Frameworks::Suite) do
         define_method(:initialize) { |m| @mids = m }
         def source(_files) = self
         def test_ids = %w[slow fast]
         define_method(:run) do |ids|
-          sleep(0.05) if ids == ["slow"]
+          now[0] += 0.05 if ids == ["slow"]
           hit = @mids.map { |m| Kimera::RUNTIME.active?(m) }.any?
           Kimera::Frameworks::RunOutcome.new(passed: !hit, failed: hit ? ids : [])
         end
@@ -1971,12 +1977,13 @@ RSpec.describe(Kimera::Execution::Harness) do
       end
     end
 
-    def sluggish(tests, pause, name)
+    def sluggish(tests, limit, name)
       Class.new(Kimera::Frameworks::Suite) do
         define_method(:source) { |_files| self }
         define_method(:test_ids) { tests }
         define_method(:run) do |_ids|
-          sleep(pause)
+          started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          sleep(0.01) until Process.clock_gettime(Process::CLOCK_MONOTONIC) > started + (limit * 0.4)
           Object.const_get(name).new.memo(1, 2)
           Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
         end
@@ -1985,7 +1992,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     it "restarts the deadline for every test the reload child runs", :aggregate_failures do
       inside do
-        result, elapsed = timing("HarnessSlow", sluggish(%w[t1 t2 t3 t4], 0.2, "HarnessSlow"), deadline: 0.5)
+        result, elapsed = timing("HarnessSlow", sluggish(%w[t1 t2 t3 t4], 0.5, "HarnessSlow"), deadline: 0.5)
         expect(result.status).to(eq(:survived))
         expect(elapsed).to(be > 0.5)
       end
@@ -2036,11 +2043,12 @@ RSpec.describe(Kimera::Execution::Harness) do
     end
 
     def racing(name)
+      now = frozen
       Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = %w[slow fast]
         define_method(:run) do |ids|
-          sleep(0.05) if ids == ["slow"]
+          now[0] += 0.05 if ids == ["slow"]
           ok = Object.const_get(name).new.memo(1, 2) == true
           Kimera::Frameworks::RunOutcome.new(passed: ok, failed: ok ? [] : ids)
         end

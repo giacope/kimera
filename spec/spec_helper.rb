@@ -19,19 +19,4 @@ RSpec.configure do |config|
   config.expect_with(:rspec) { |c| c.syntax = :expect }
   config.disable_monkey_patching!
   config.order = :defined
-  config.around do |example|
-    before = ENV.fetch("KIMERA", nil)
-    example.run
-  ensure
-    ENV["KIMERA"] = before
-  end
-  config.around do |example|
-    world = RSpec.world
-    quitting = world.wants_to_quit
-    failed = world.non_example_failure
-    example.run
-  ensure
-    world.wants_to_quit = quitting
-    world.non_example_failure = failed
-  end
 end

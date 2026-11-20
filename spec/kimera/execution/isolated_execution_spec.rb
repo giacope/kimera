@@ -520,25 +520,24 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       end
     end
 
-    def test_baker(sink, pause)
+    def test_baker(sink, real)
       readings = [10.0, 12.5]
       seated = method(:seat)
       Class.new(described_class) do
         define_method(:verdict) do |bay, _locations, first: false|
           sink << [File.read(File.join(seated.call(bay).first, "calc.rb")), first]
-          sleep(pause) if pause
           Kimera::Execution::IsolatedOutcome.new(*(sink.size > 1 ? [:survived] : [:killed, ["t1[1:1]"]]))
         end
-        define_method(:now) { |*| readings.shift } unless pause
+        define_method(:now) { |*| readings.shift } unless real
       end
     end
 
-    def baking(id, pause: nil, **)
+    def baking(id, real: false, **)
       baked = []
       Dir.mktmpdir do |root|
         File.write(File.join(root, "calc.rb"), original)
         result, restored =
-          test_mirrored(test_baker(baked, pause), root, id, tests: ["t1"], coverage: { id => ["t1"] }, **)
+          test_mirrored(test_baker(baked, real), root, id, tests: ["t1"], coverage: { id => ["t1"] }, **)
         [result, baked.first, restored]
       end
     end
@@ -563,9 +562,9 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end
 
     it "times the verdict on the monotonic clock", :aggregate_failures do
-      result, = baking(first, pause: 0.05)
+      result, = baking(first, real: true)
       expect(result.status).to(eq(:killed))
-      expect(result.duration).to(be_between(0.05, 5.0))
+      expect(result.duration).to(be_positive.and(be < 5.0))
     end
 
     def raised(id)

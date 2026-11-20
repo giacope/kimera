@@ -15,9 +15,16 @@ end
 
 Warning.singleton_class.prepend(StrictBlocks)
 
-RSpec.configure do |config|
-  config.after(:suite) do
+class StrictGate
+  def initialize(reporter)
+    @reporter = reporter
+  end
+
+  def stop(_notification)
     ignored = Array.new(StrictBlocks::IGNORED.size) { StrictBlocks::IGNORED.pop }.uniq
-    raise(RuntimeError, "blocks ignored in lib:\n#{ignored.join}") if ignored.any?
+    return if ignored.empty?
+    @reporter.notify_non_example_exception(RuntimeError.new("blocks ignored in lib:\n#{ignored.join}"), "the suite")
   end
 end
+
+RSpec.configure { |config| config.reporter.register_listener(StrictGate.new(config.reporter), :stop) }

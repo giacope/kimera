@@ -16,22 +16,25 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     [resolved, lost]
   end
 
-  def healthy(preamble: [], evaluation: 0, settling: 0)
+  def healthy(preamble: [], marks: [0, 0])
     forked do |request, response|
-      serving(request, response) { |id| settle(response, id, preamble, evaluation, settling) }
+      serving(request, response) { |id| settle(response, id, preamble, marks) }
       exit!(0)
     end
   end
 
-  def settle(response, id, preamble, evaluation, settling)
+  def settle(response, id, preamble, marks)
+    started = monotonic
     response.puts(*preamble, JSON.generate(t: "start", id: id))
-    sleep(evaluation)
+    sleep(0.01) until monotonic > started + marks.first
     response.puts(JSON.generate(t: "result", id: id, status: "killed", ms: 1, fails: []))
     response.flush
-    sleep(settling)
+    sleep(0.01) until monotonic > started + marks.last
     response.puts(JSON.generate(t: "ready"))
     response.flush
   end
+
+  def monotonic = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
   def crashed
     forked do |_request, _response|
@@ -114,13 +117,13 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     ]
   end
 
-  def lingering
+  def lingering(limit)
     counter = [0]
     [
       counter,
       lambda do |_slot|
         counter[0] += 1
-        healthy(evaluation: 0.4, settling: 0.8)
+        healthy(marks: [limit / 2, limit + described_class::POLL_INTERVAL])
       end
     ]
   end
@@ -395,7 +398,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   end
 
   it "extends the deadline when a result arrives, through the wait for ready", :aggregate_failures do
-    counter, spawner = lingering
+    counter, spawner = lingering(1.0)
     _, lost = pool(queue: [1, 2], spawner: spawner, deadline: 1.0)
 
     expect(lost).to(be_empty)

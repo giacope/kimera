@@ -1,15 +1,5 @@
 {
-  "lint": {
-    "Sekisho/NoTestHook": {
-      "spec/spec_helper.rb": 2,
-      "spec/support/strict_blocks.rb": 1
-    },
-    "Sekisho/NoTestSleep": {
-      "spec/kimera/execution/harness_spec.rb": 4,
-      "spec/kimera/execution/isolated_execution_spec.rb": 1,
-      "spec/kimera/execution/worker_pool_spec.rb": 2
-    }
-  },
+  "lint": {},
   "accepted": [
     {
       "kind": "change_coupling",

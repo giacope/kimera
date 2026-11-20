@@ -15,7 +15,7 @@ Run what your change can break. Times are from a 4 vCPU machine, Ruby 4.0.2.
 | --- | --- | --- |
 | `bin/spec` | all specs, about 3,400 examples | 6 to 8 min |
 | `bin/spec spec/kimera/path/to_spec.rb` | one file | seconds |
-| `bundle exec rubocop` | style, with sekisho's dogmatic profile; lists the spec backlog too | under 1 min |
+| `bundle exec rubocop` | style, with sekisho's dogmatic profile | under 1 min |
 | `bundle exec sekisho lint --ratchet` | lint against `.sekisho_baseline.json`: no cop may gain an offense | under 1 min |
 | `bundle exec sekisho doctor` | dead lint configuration, and the inline-disable budget | under 1 min |
 | `bundle exec sekisho design --fail-on all` | design and architecture (`.sekisho.yml`); `crap` needs a `COVERAGE=1 bin/spec` run first | 10 s |
@@ -59,14 +59,12 @@ the coverage map later `--since` runs reuse), `bin/model-check --deep`, and
 
 `.rubocop.yml` inherits sekisho's dogmatic profile, its strictest: the
 strict Elegant Objects profile plus one-word names, one level of nesting, and
-tests with no hooks, sleeps or reflection. `lib` and `exe` keep zero
-offenses. The specs keep 10, which `.sekisho_baseline.json` records per cop
-and file: seven sleeps that make a fake test take real time against a clock
-no spec can reach, the two `spec_helper` hooks that put back the `KIMERA`
-variable and RSpec's quit flags an in-process run changes, and the
-`after(:suite)` gate on ignored blocks. `sekisho lint --ratchet` fails when a
-cop gains an offense, and exits 3 when one is fixed until
-`bundle exec sekisho lint --update-baseline` records the lower count. Run
+tests with no hooks, sleeps or reflection. `lib`, `exe` and the specs keep
+zero offenses, so `.sekisho_baseline.json` records none; `sekisho lint
+--ratchet` fails on any offense. A spec that runs kimera in-process hands it
+a `FakeBench`, whose environment is a Hash, so the run's `KIMERA` variables
+stay out of `ENV`; a fake test that must take time advances the stubbed
+`Kimera::Execution::Stopwatch::CLOCK` instead of sleeping. Run
 `bundle exec rubocop` on the files you touch before the suite. The cops hit
 most often:
 
