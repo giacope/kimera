@@ -164,7 +164,7 @@ RSpec.describe(Kimera::WorkTree, :aggregate_failures) do
     project(git: true) do |root|
       report = File.join(root, "report.json").tap { |file| File.write(file, "{}") }.tap { commit(root) }
       expect(changes(root, ignored: [report, nil]) { File.write(report, "{\"x\": 1}") }).to(be_empty)
-      expect(changes(root, ignored: [nil]) { File.write(report, "{\"x\": 2}") }).to(eq(["report.json"]))
+      expect(changes(root, ignored: [nil, false]) { File.write(report, "{\"x\": 2}") }).to(eq(["report.json"]))
     end
   end
 

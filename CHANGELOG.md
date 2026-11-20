@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Fixed: `kimera run --no-report` crashed with a `TypeError` when the run
+  changed a project file.** `--no-report` sets the report path to `false`,
+  which the check for files kimera itself writes passed to
+  `File.expand_path`. It now skips anything that is not a path, so the run
+  ends with its warning about the changed file and exit status 1.
 - **Removed: the report's `leaks`, and the worker protocol's `leak` and
   `requeue` replies.** Since 15ebd63 judged every mutant in a process forked
   from a clean one and dropped the per-worker leak re-check, a warm worker

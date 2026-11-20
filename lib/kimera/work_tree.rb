@@ -78,7 +78,7 @@ module Kimera
 
     def ignored?(path)
       full = File.expand_path(path, root)
-      SKIPPED.include?(path.split("/").first) || @ignored.compact.any? { |kept| File.expand_path(kept, root) == full }
+      SKIPPED.include?(path.split("/").first) || @ignored.grep(String).any? { File.expand_path(it, root) == full }
     end
   end
 end
