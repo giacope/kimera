@@ -1161,7 +1161,8 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     (`rescue *(active ? [] : [IndexError])`, a bare `rescue` as one of
     `::StandardError`), an `ensure` body under `if !active` on the body's
     lines. Its bake blanks the clause's lines (an `else` it leaves runs after
-    the body). So with the mutant on, in either tier, the method runs its own
+    the body), and so does the bake of a dropped `when`, so the branches
+    after it keep their lines. So with the mutant on, in either tier, the method runs its own
     body on its own lines: a test that reads a line (`__LINE__`, a backtrace,
     `caller_locations`) sees the mutation and nothing else. A rescue's
     guard runs when an exception reaches the clause, so its covering tests

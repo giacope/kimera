@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Fixed: the bake of a dropped `when` moved the branches after it.** It
+  rewrote the whole `case` and padded the missing lines after its `end`, so
+  dropping a two-line `when 1` from a `case` with an `else` baked
+  `[:two, __LINE__]` on line 4 instead of 6, and the isolated tier judged a
+  test that reads the line against the wrong one. The bake now blanks the
+  clause's lines and leaves every other branch where it was. The warm guard
+  still writes the mutant's `case` on one line, as every guard writes its
+  alternatives.
 - **Fixed: the isolated tier counted a test that fails without the mutant as
   a kill.** It orders a mutant's tests by their baseline time, which varies
   from run to run, while its baseline ran them in plan order, so a test that

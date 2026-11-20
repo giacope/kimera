@@ -9,6 +9,7 @@ require_relative "readback"
 require_relative "line_pad"
 require_relative "splice_diff"
 require_relative "splice_reopening"
+require_relative "when_cut"
 
 class Kimera::BakeSplice
   INTERPOLATED = %i[interpolated_string_node interpolated_x_string_node].freeze
@@ -36,8 +37,9 @@ class Kimera::BakeSplice
   end
 
   def cut(node, rebuilt)
-    attempts = Kimera::ClauseCut.new(@map, node, rebuilt).attempts
-    attempts.lazy.flat_map { |head, rest| read(Attempt.new(*head), rest) }.first(1)
+    clauses = Kimera::ClauseCut.new(@map, node, rebuilt).attempts.map { |head, rest| [Attempt.new(*head), rest] }
+    whens = Kimera::WhenCut.new(@map, node).edits.map { |edit| [Attempt.plain(*edit), []] }
+    [*clauses, *whens].lazy.flat_map { |attempt, rest| read(attempt, rest) }.first(1)
   end
 
   def worded(node, rebuilt)
