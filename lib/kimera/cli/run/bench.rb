@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../../execution/harness"
+require_relative "../../execution/suite_env"
 require_relative "../../frameworks/name_exclusion"
 require_relative "../../frameworks/suite"
 require_relative "../../incremental/selection"
@@ -8,11 +9,13 @@ require_relative "null_selection"
 
 class Kimera::CLI::Run::Bench
   def initialize(
-    suites: Kimera::Frameworks::SuiteRegistry.new, harnesses: Kimera::Execution::Harness, diffs: Kimera::Incremental::Selection
+    suites: Kimera::Frameworks::SuiteRegistry.new, harnesses: Kimera::Execution::Harness,
+    diffs: Kimera::Incremental::Selection, variables: Kimera::Execution::SuiteEnv.new
   )
     @suites = suites
     @harnesses = harnesses
     @diffs = diffs
+    @variables = variables
   end
 
   def change(since, root, scope = "lines")
@@ -25,4 +28,6 @@ class Kimera::CLI::Run::Bench
   end
 
   def harness(**) = @harnesses.build(**)
+
+  def install(seed, paths) = @variables.install(seed, paths)
 end

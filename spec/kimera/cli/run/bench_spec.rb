@@ -46,4 +46,10 @@ RSpec.describe(Kimera::CLI::Run::Bench) do
     harness = FakeHarness.new
     expect(described_class.new(harnesses: harness).harness(jobs: 3).settings).to(eq(jobs: 3))
   end
+
+  it "installs the run's seed and load path into the environment it was given" do
+    env = {}
+    described_class.new(variables: Kimera::Execution::SuiteEnv.new(env)).install(7, %w[support])
+    expect(env).to(eq("KIMERA" => "1", "KIMERA_SEED" => "7", "KIMERA_LOAD_PATH" => "support"))
+  end
 end

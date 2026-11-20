@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "../../execution/suite_env"
 require_relative "bench"
 require_relative "null_selection"
 require_relative "../../incremental/session"
@@ -114,8 +113,8 @@ class Kimera::CLI::Run::Cycle
       .merge("judge_isolated_only" => route.judging?, "confirm_survivors" => route.confirming?)
   end
 
-  def harness(remaining, bench, env: ENV, variables: Kimera::Execution::SuiteEnv.new(env))
-    variables.install(@options[:seed], @options[:load_path])
+  def harness(remaining, bench)
+    bench.install(@options[:seed], @options[:load_path])
     suite = bench.suite(@options[:framework], Array(@options[:exclude_test_names]))
     Kimera::CLI::Run::Pass.new(@registry, @options, suite, bench).call(remaining)
   end

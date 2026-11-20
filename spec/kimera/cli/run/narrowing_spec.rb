@@ -107,7 +107,7 @@ RSpec.describe(Kimera::CLI::Run::Narrowing) do
 
     def adapter_for(*argv)
       harness = FakeHarness.new
-      bench = Kimera::CLI::Run::Bench.new(suites: FakeSuites.new(suite), harnesses: harness)
+      bench = Kimera::CLI::Run::Bench.new(suites: FakeSuites.new(suite), harnesses: harness, variables: Kimera::Execution::SuiteEnv.new({}))
       Kimera::CLI::Run.new(io: StringIO.new, errors: StringIO.new, bench: bench)
         .run(["calc.rb", "--report", "report.json", *argv])
       [harness.settings[:adapter], JSON.parse(File.read("report.json"))["run"]]

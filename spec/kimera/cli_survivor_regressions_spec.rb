@@ -405,29 +405,19 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
       end
     end
 
-    def harnessed(settings, &) = cycled(settings, bench: FakeBench.new(&))
+    def harnessed(settings, env, &) = cycled(settings, bench: FakeBench.new(env: env, &))
 
-    def restored(names = %w[KIMERA KIMERA_SEED KIMERA_LOAD_PATH])
-      kept = ENV.to_h.slice(*names)
-      yield
-    ensure
-      names.each { |name| ENV.delete(name) }
-      ENV.update(kept)
-    end
-
-    def seen(*runs)
-      [].tap { |found| runs.each { |settings| harnessed(settings) { found << yield } } }
+    def seen(*runs, env: {})
+      [].tap { |found| runs.each { |settings| harnessed(settings, env) { found << yield(env) } } }
     end
 
     it "sets KIMERA before loading the framework adapter" do
-      expect(restored { ENV.delete("KIMERA").then { seen({}) { ENV.fetch("KIMERA", nil) } } }).to(eq(["1"]))
+      expect(seen({}) { it["KIMERA"] }).to(eq(["1"]))
     end
 
     def seeds
-      restored do
-        ENV["KIMERA_SEED"] = "3"
-        [seen({ seed: 42 }, {}) { ENV.fetch("KIMERA_SEED", nil) }, ENV.key?("KIMERA_SEED")]
-      end
+      env = { "KIMERA_SEED" => "3" }
+      [seen({ seed: 42 }, {}, env: env) { it["KIMERA_SEED"] }, env.key?("KIMERA_SEED")]
     end
 
     it "exports the run's seed to the environment before loading the adapter, and clears a stale one" do
@@ -435,7 +425,7 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     end
 
     it "exports the configured load path to the environment before loading the adapter" do
-      paths = restored { seen({ load_path: %w[support test/helpers] }, {}) { ENV.fetch("KIMERA_LOAD_PATH", nil) } }
+      paths = seen({ load_path: %w[support test/helpers] }, {}) { it["KIMERA_LOAD_PATH"] }
       expect(paths).to(eq(["support#{File::PATH_SEPARATOR}test/helpers", ""]))
     end
   end

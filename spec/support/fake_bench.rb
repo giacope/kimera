@@ -124,8 +124,9 @@ class FakeSuites
   def load(_name) = @suite
 end
 
-class FakeBench
-  def initialize(harness: FakeHarness.new, suite: FakeSuite.new, changed: {}, &loading)
+class FakeBench < Kimera::CLI::Run::Bench
+  def initialize(harness: FakeHarness.new, suite: FakeSuite.new, changed: {}, env: {}, &loading)
+    super(variables: Kimera::Execution::SuiteEnv.new(env))
     @harness = harness
     @suite = suite
     @changed = changed
