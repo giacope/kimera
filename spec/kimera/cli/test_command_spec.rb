@@ -327,7 +327,7 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     end
 
     it "fails doctor's baseline with the reason" do
-      overdue = Kimera::Execution::SuiteCapture::Overdue.new(125)
+      overdue = Kimera::Execution::SuiteCapture::Overdue.new
       note = format(Kimera::Execution::SuiteCapture::OVERDUE, 125)
       hung = FakeCapture.new { ["1 example\n#{note}\n", overdue] }
       expect(command("rspec", suite: hung).baseline.last).to(include("the suite did not exit within 125 s"))
@@ -346,10 +346,10 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     end
   end
 
-  it "runs the suite with KIMERA set" do
+  it "runs the suite with KIMERA set, and hands back how it exited" do
     Dir.mktmpdir do |root|
-      output, = Kimera::Execution::SuiteCapture.new(StringIO.new).call("ruby", "-e", "print ENV['KIMERA']", chdir: root)
-      expect(output).to(eq("1"))
+      output, status = Kimera::Execution::SuiteCapture.new.call("ruby", "-e", "print ENV['KIMERA'];exit 3", chdir: root)
+      expect([output, status.exitstatus]).to(eq(["1", 3]))
     end
   end
 

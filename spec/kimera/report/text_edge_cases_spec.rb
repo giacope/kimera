@@ -71,8 +71,8 @@ RSpec.describe(Kimera::Report::Text) do
   it "truncates the covering-test list and notes the remainder", :aggregate_failures do
     tests = (1..8).map { |i| "spec[#{i}]" }
     out = render(results: [survivor(covering: tests)])
-    expect(out).to(include("covered by 8 test(s):"))
-    expect(out).to(include("(+5 more)"))
+    expect(out).to(include("covered by 8 test(s):", "spec[3]", "(+5 more)"))
+    expect(out).not_to(include("spec[4]"))
   end
 
   it "points the truncation note at the full list when the report is saved" do

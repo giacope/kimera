@@ -369,4 +369,11 @@ RSpec.describe(Kimera::Report::Progress) do
     painted = bar.during(1, "mutants") { io.flushes }
     expect([painted, io.flushes]).to(eq([1, 2]))
   end
+
+  describe Kimera::Report::Frame do
+    it "counts a line exactly as wide as the terminal as one row, and one more character as two" do
+      rows = [20, 21].map { |length| described_class.new(0, 0, "x" * length).rows(20) }
+      expect(rows).to(eq([1, 2]))
+    end
+  end
 end

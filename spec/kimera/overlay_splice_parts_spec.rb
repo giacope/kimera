@@ -208,6 +208,7 @@ RSpec.describe(Kimera::Overlay) do
     nested = "def m(mod, c)\n  mod.class_eval <<~RUBY, __FILE__, __LINE__ + 1\n    \#{if c\n      <<~INNER\n        " \
       "def a = 1\n      INNER\n    end}\n  RUBY\n  __LINE__\nend\n"
     later = "def m(a)\n  x = a > 1\n  <<~T\n    b\n  T\nend\n"
+    commented = "# frozen_string_literal: true\ndef m(a)\n  puts(<<~T, a > 1)\n    body\n  T\n  a\nend\n"
     guarded = "def m(a)\n  if a\n    log <<~T\n      b\n    T\n  end\n  __LINE__\nend\n"
     sql = "def u(t)\n  run %{\n    UPDATE \#{t}\n    SET a = 1\n  }\n  __LINE__\nend\n"
     {
@@ -222,6 +223,7 @@ RSpec.describe(Kimera::Overlay) do
         "def m(a)\n  puts(<<~T)\n    body\n  T\nend\n",
       ["def m(a)\n  puts(<<~T, a > 1)\n    body\n  T\n  a\nend\n", %w[argument_drop], "drop arg `a > 1`"] =>
         "def m(a)\n  puts(<<~T)\n    body\n  T\n  a\nend\n",
+      [commented, %w[argument_drop], "drop arg `a > 1`"] => commented.sub("puts(<<~T, a > 1)", "puts(<<~T)"),
       [
         "def m(a)\n  x = begin\n    a.call\n    a.size\n  rescue ArgumentError\n    0\n  end\n  x\nend\n",
         %w[rescue_clause], "drop `rescue ArgumentError`"

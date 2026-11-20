@@ -303,6 +303,7 @@ RSpec.describe(Kimera::Operators) do
 
     it "conditional and boolean_literal skip a guard-style memo", :aggregate_failures do
       expect(mutants("def m\n  return @x if @x\n\n  @x = compute\nend\n", "conditional")).to(be_empty)
+      expect(mutants("def m\n  return @x if @x\n  y = compute\n  @x = y\nend\n", "conditional")).to(be_empty)
       expect(mutants(flag, "conditional")).to(be_empty)
       expect(mutants(flag, "boolean_literal")).to(be_empty)
     end

@@ -97,6 +97,11 @@ RSpec.describe Kimera::CLI, :aggregate_failures do
     it "suggests nothing for a distant one" do
       commanded("completely-unknown")
       expect(errors.string).not_to(include("did you mean"))
+      expect(Kimera::CLI::Suggestion.new(["run"]).hint("nnxx")).to(eq(""))
+    end
+
+    it "suggests a command three letters short" do
+      expect(Kimera::CLI::Suggestion.new(%w[run baseline]).hint("basel")).to(eq('; did you mean "baseline"?'))
     end
 
     it "loads report and mutant handlers when the base CLI is loaded alone" do

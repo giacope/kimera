@@ -115,6 +115,7 @@ RSpec.describe(Kimera::Operators) do
         validates :email, presence: true
         validates :login, uniqueness: true, allow_nil: true
         validates :code, presence: true, **STRICT
+        validates :token, presence: true, uniqueness: true, **STRICT
         validate :sane, on: :create
       end
     RUBY
@@ -127,7 +128,9 @@ RSpec.describe(Kimera::Operators) do
           "validates: drop presence:", "validates: drop length:", "validates: drop if:",
           "delete `validates :email, presence: true`",
           "delete `validates :login, uniqueness: true, allow_nil: true`", "validates: drop allow_nil:",
-          "delete `validates :code, presence: true, **STRICT`", "delete `validate :sane, on: :create`"
+          "delete `validates :code, presence: true, **STRICT`",
+          "delete `validates :token, presence: true, uniqueness: true, **STRICT`",
+          "validates: drop presence:", "validates: drop uniqueness:", "delete `validate :sane, on: :create`"
         )
       )
     end

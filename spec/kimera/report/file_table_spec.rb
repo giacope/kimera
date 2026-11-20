@@ -14,6 +14,17 @@ RSpec.describe(Kimera::Report::FileTable) do
     io.string
   end
 
+  def ranked(*found)
+    results = found.each_with_index.map { |(file, status), id| Kimera::MutantResult.new(mutant_id: id + 1, status:, file:) }
+    described_class.new(io: io = StringIO.new).show(Kimera::RunReport.new(results:))
+    io.string.lines.drop(3).map { it.split.last }
+  end
+
+  it "ranks files by survivors, then uncovered mutants, then name" do
+    found = [%w[b.rb survived], %w[a.rb survived], %w[c.rb survived], %w[c.rb no_coverage], %w[d.rb killed]]
+    expect(ranked(*found.map { |file, status| [file, status.to_sym] })).to(eq(%w[c.rb a.rb b.rb d.rb]))
+  end
+
   it "lists up to fifteen files with no remainder note", :aggregate_failures do
     shown = table(15)
     expect(shown).to(include("Files (15, most survivors first):", "f15.rb"))

@@ -2,15 +2,11 @@
 
 module Kimera
   class Warnings
-    def self.silenced = new(nil)
-
-    def initialize(level)
-      @level = level
-    end
+    def self.silenced = new
 
     def during
       previous = $VERBOSE
-      $VERBOSE = @level
+      $VERBOSE = nil
       yield
     ensure
       $VERBOSE = previous

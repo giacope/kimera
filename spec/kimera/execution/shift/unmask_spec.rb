@@ -82,6 +82,27 @@ RSpec.describe(Kimera::Execution::Shift::Unmask) do
     expect([result.status, result.detail]).to(eq([:error, "ArgumentError: broken fixture"]))
   end
 
+  def raising_once(error)
+    Class.new do
+      define_method(:initialize) { @runs = 0 }
+
+      define_method(:run) do |_ids|
+        raise(error) if (@runs += 1) == 3
+        Kimera::Frameworks::RunOutcome.new(passed: true, failed_ids: [])
+      end
+    end.new
+  end
+
+  it "judges the next mutant as usual after a test raised while one ran alone" do
+    ids = registry.each.map { |mutant, _point| mutant.to_i }.first(2)
+    shift = Kimera::Execution::Shift.new(
+      adapter: raising_once(ArgumentError.new("broken fixture")), registry:, coverage: ids.to_h { [it, %w[t1 t2]] },
+      soft_timeout: nil, zygote: InlineZygote.new, confirm: true
+    )
+    shift.run(ids, io = StringIO.new)
+    expect(io.string.lines.map { JSON.parse(it)["status"] }).to(eq(["error", "survived", nil]))
+  end
+
   it "lets a test process's death through, for the worker to die of" do
     expect { judged(raising(SignalException.new("TERM")), %w[t1 t2]) }
       .to(raise_error(Kimera::Execution::Zygote::Died, /\ASignalException: SIGTERM/))

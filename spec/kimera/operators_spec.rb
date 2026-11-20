@@ -56,8 +56,9 @@ RSpec.describe(Kimera::Operators) do
     end
 
     it "suggests the nearest operator or group for each misspelled key" do
-      pattern = /unknown operator\(s\): comparsion, rials, zzzzzz; did you mean comparison, rails\? \(valid:/
-      expect { described_class.build(keys: %w[comparsion rials zzzzzz]) }.to(raise_error(Kimera::UsageError, pattern))
+      pattern = /comparsion, rials, escue_clause, zzzzzz; did you mean comparison, rails, rescue_clause\? \(valid:/
+      keys = %w[comparsion rials escue_clause zzzzzz]
+      expect { described_class.build(keys:) }.to(raise_error(Kimera::UsageError, pattern))
     end
   end
 

@@ -111,8 +111,16 @@ RSpec.describe(Kimera::Execution::Overrides) do
   it "puts a method back without a warning under $VERBOSE" do
     boot
     overrides = described_class.new(own, source)
-    quietly = -> { Kimera::Warnings.new(true).during { overrides.keep { silently { evaluate(Object, source, own) } } } }
+    quietly = -> { verbosely { overrides.keep { silently { evaluate(Object, source, own) } } } }
     expect(&quietly).not_to(output.to_stderr)
+  end
+
+  def verbosely
+    previous = $VERBOSE
+    $VERBOSE = true
+    yield
+  ensure
+    $VERBOSE = previous
   end
 
   def silently(&) = Kimera::Warnings.silenced.during(&)

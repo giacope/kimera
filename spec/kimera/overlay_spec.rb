@@ -806,6 +806,15 @@ RSpec.describe(Kimera::Overlay) do
         expect(result.to_h.fetch(:mutant_ids) & result.to_h.fetch(:skipped_unsafe)).to(be_empty)
       end
 
+      it "reports a point outside every method as unmutatable when it splices per method", :aggregate_failures do
+        source = "class Spliced\n  CHECK = ->(n) { n > 10 }\n\n  def compare(a, b) = a > b\nend\n"
+        registry = Kimera::RegistryScan.new.source(source, file: "spliced.rb").tap { unwritable! }
+        expect { described_class.new(registry).synthesize("spliced.rb", source) }
+          .to(output(/2 mutant\(s\) spliced per method, 2 reported unmutatable/).to_stderr)
+        lambda = registry.to_a.find { |point| point.original_source == "n > 10" }
+        expect(PointVerdict.new(lambda).unsafe_reason).to(eq("unmutatable: kimera could not write its method"))
+      end
+
       it "reports the points of a method it could not re-emit as unmutatable", :aggregate_failures do
         registry, = partial
         dropped, kept = registry.to_a.partition { |point| point.method_name.to_s == "compare" }

@@ -143,6 +143,8 @@ RSpec.describe(Kimera::Scribe) do
     it "writes a modifier where the body binds a local its condition reads", :aggregate_failures do
       expect(reemit("a = 1 if a.nil?")).to(eq("a = 1 if a.nil?"))
       expect(reemit("a = b while a")).to(eq("a = b while a"))
+      expect(%w[l.any?{a} f(->{a})].map { reemit("a = 1 while #{it}") })
+        .to(eq(["a = 1 while l.any? {\n  a\n}", "a = 1 while f(-> {\n  a\n})"]))
       expect(reemit("if a.nil?\n  b = 1\nend")).to(eq("if a.nil?\n  b = 1\nend"))
     end
 

@@ -53,6 +53,16 @@ RSpec.describe(Kimera::Execution::Aliases) do
     expect([aliases.reaches?(definition), aliased.instance_method(:cost).original_name]).to(eq([false, :price]))
   end
 
+  def wrapped(origin) = define(origin, 5, File.join(dir, "memo.rb").tap { |file| File.write(file, "") })
+
+  it "takes back a method another file wrapped only from a module its holder includes", :aggregate_failures do
+    origin, aliased = costing.tap { |(declaring, _)| wrapped(declaring) }
+    unrelated, overlaid = [declared, Module.new.tap { overlay(it) }].map { it.instance_method(:price) }
+    aliases = described_class.new([path]).tap { |tracker| tracker.follow { aliased } }
+    aliases.witness([held(unrelated.owner, :price, unrelated), held(origin, :price, overlaid)])
+    expect([aliases.reaches?(unrelated), aliases.reaches?(overlaid)]).to(eq([false, true]))
+  end
+
   describe "an alias's visibility" do
     let(:aliased) do
       origin = declared

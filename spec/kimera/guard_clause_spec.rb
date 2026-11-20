@@ -127,7 +127,8 @@ RSpec.describe(Kimera::GuardClause) do
     modifier = Kimera::Syntax.parse("x rescue y").value.statements.body.first
     mutant = Kimera::Mutant.new(id: 1, label: "drop `rescue` modifier", directive: { "type" => "drop_rescue" })
     expect(described_class.new(modifier, mutant).edits).to(be_nil)
-    expect(woven("def m\n  work\nensure\nend\n")).to(include("(!(#{guard(1)}) ? (begin; work"))
+    expect(["", "x = 1\n"].map { woven("#{it}def m\n  work\nensure\nend\n") })
+      .to(all(include("(!(#{guard(1)}) ? (begin; work\n")))
   end
 
   it "guards an explicit begin with an empty ensure where it stands, on its lines" do

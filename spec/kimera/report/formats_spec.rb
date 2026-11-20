@@ -47,6 +47,7 @@ RSpec.describe(Kimera::Report::Formats, :aggregate_failures) do
     expect([sarif["version"], result.fetch("ruleId"), result.dig("locations", 0, "physicalLocation", "region")]).to(
       eq(["2.1.0", "kimera/comparison", { "startLine" => 2, "startColumn" => 3, "endLine" => 2, "endColumn" => 8 }])
     )
+    expect(sarif.dig("runs", 0, "tool", "driver", "name")).to(eq("Kimera"))
     expect(result.dig("message", "text")).to(end_with("> => >=\n- a > b\n+ a >= b"))
   end
 

@@ -109,7 +109,7 @@ RSpec.describe(Kimera::Execution::BlockUse) do
   end
 
   it "counts no yield in the else of a truthy literal condition" do
-    truthy = ["true", "1", "1.5", "1r", "1i", '"s"', ":a", "->{}", "__LINE__", "@x||true", "true&&1"]
+    truthy = ["true", "1", "1.5", "1r", "1i", '"s"', ":a", "->{}", "__LINE__", "@x||true", "true||@x", "true&&1"]
     expect([*truthy.map { |literal| guarded("#{literal} ? 1 : yield") }, guarded("yield unless true")].uniq).to(
       eq([[[4, "statement_deletion"]]])
     )
@@ -133,7 +133,7 @@ RSpec.describe(Kimera::Execution::BlockUse) do
     ]
     used = [
       "defined?(yield)", "defined?(super.x)", "defined?(yield.x)", "defined?(foo(yield))", "defined?([yield])",
-      "defined?(super[1])", "defined?((yield))"
+      "defined?(super[1])", "defined?((yield))", "defined?(super.x(yield))"
     ]
     expect(looked.map { guarded(it) }.uniq).to(eq([[[4, "statement_deletion"]]]))
     expect(used.map { guarded(it) }.uniq).to(eq([[]]))

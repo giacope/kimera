@@ -14,15 +14,7 @@ class Kimera::Execution::SuiteCapture
     "run it yourself to see where it stops"
 
   class Overdue
-    def initialize(limit)
-      @limit = limit
-    end
-
     def success? = false
-
-    private
-
-    attr_reader :limit
   end
 
   def initialize(errors = $stderr, env = Kimera::Execution::SuiteEnv.new, clock = Kimera::Execution::Clock.new(POLL))
@@ -58,7 +50,7 @@ class Kimera::Execution::SuiteCapture
       _, status = Process.wait2(pid, Process::WNOHANG)
       return status.tap { signal(-pid) } if status
       elapsed = @clock.now - started
-      return Overdue.new(limit).tap { overrun(pid, limit, log) } if elapsed > limit
+      return Overdue.new.tap { overrun(pid, limit, log) } if elapsed > limit
       @clock.pause
       tick(elapsed) if (poll % TICKS).zero?
     end
