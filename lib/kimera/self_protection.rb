@@ -17,6 +17,7 @@ module Kimera
 
     HARNESS_CRITICAL_SUFFIXES = %w[
       kimera/frameworks/suite.rb
+      kimera/frameworks/seed.rb
       kimera/frameworks/rspec_suite.rb
       kimera/frameworks/suite_registry.rb
       kimera/frameworks/group_scope.rb

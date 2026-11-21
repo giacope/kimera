@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Fixed: kimera could not judge mutants of its own `frameworks/seed.rb`.**
+  The warm workers reseed every test through `Kimera::Seed`, so a mutant
+  that broke it broke the worker judging it: a self-host run reported two
+  of its three mutants as `error` (`NoMethodError ... for nil`). The file is
+  harness-critical now, its mutants go to the isolated tier, and all three
+  are killed.
 - **Fixed: `kimera run --no-report` crashed with a `TypeError` when the run
   changed a project file.** `--no-report` sets the report path to `false`,
   which the check for files kimera itself writes passed to

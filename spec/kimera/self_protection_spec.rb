@@ -60,6 +60,7 @@ RSpec.describe(Kimera::SelfProtection) do
         lib/kimera/frameworks/rspec_suite.rb
         lib/kimera/frameworks/minitest_suite.rb
         lib/kimera/frameworks/suite.rb
+        lib/kimera/frameworks/seed.rb
         lib/kimera/exits/test_exit.rb
         lib/kimera/execution/shift.rb
         lib/kimera/execution/harness.rb
