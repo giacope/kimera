@@ -9,6 +9,7 @@ class Kimera::Execution::WorkerPool
 
   POLL_INTERVAL = 0.2
   CHUNK = 65_536
+  CLOCK = ->(reading = Process.clock_gettime(Process::CLOCK_MONOTONIC)) { reading }
 
   def initialize(queue, spawner, listeners, options)
     @queue = queue
@@ -27,7 +28,7 @@ class Kimera::Execution::WorkerPool
   def assign(worker)
     id = backlog.take
     return close(worker) unless id
-    worker.claim(id, limit)
+    worker.claim(id, due)
     worker.trace(listeners, id)
     worker.offer(id)
   end
@@ -38,7 +39,9 @@ class Kimera::Execution::WorkerPool
 
   attr_reader :listeners
 
-  def limit = @options.fetch(:hard_timeout)
+  def due = clock.call + @options.fetch(:hard_timeout)
+
+  def clock = @options.fetch(:clock, CLOCK)
 
   def backlog = @_backlog ||= @options.fetch(:backlog) { Kimera::Execution::WorkerPool::Backlog.new(@queue) }
 
@@ -70,7 +73,7 @@ class Kimera::Execution::WorkerPool
 
   def deliver(worker, line)
     message = parse(line) { return }
-    dispatch(worker.heard(message, limit), message)
+    dispatch(worker.heard(message, due), message)
   end
 
   def dispatch(worker, message)
@@ -87,10 +90,10 @@ class Kimera::Execution::WorkerPool
     worker.idle!
   end
 
-  def close(worker) = shut(worker.retire(limit))
+  def close(worker) = shut(worker.retire(due))
 
   def watch
-    current = now
+    current = clock.call
     fleet.to_a.each { |pipe, worker| expire(pipe, worker.halt) if worker.expired?(current) }
   end
 

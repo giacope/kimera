@@ -16,25 +16,27 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     [resolved, lost]
   end
 
-  def healthy(preamble: [], marks: [0, 0])
+  def healthy(preamble: [])
     forked do |request, response|
-      serving(request, response) { |id| settle(response, id, preamble, marks) }
+      serving(request, response) do |id|
+        response.puts(*preamble)
+        judged(response, id, "killed")
+      end
       exit!(0)
     end
   end
 
-  def settle(response, id, preamble, marks)
-    started = monotonic
-    response.puts(*preamble, JSON.generate(t: "start", id: id))
-    sleep(0.01) until monotonic > started + marks.first
-    response.puts(JSON.generate(t: "result", id: id, status: "killed", ms: 1, fails: []))
-    response.flush
-    sleep(0.01) until monotonic > started + marks.last
-    response.puts(JSON.generate(t: "ready"))
-    response.flush
+  def gated(gate)
+    forked do |request, response|
+      serving(request, response) do |id|
+        response.puts(JSON.generate(t: "result", id: id, status: "killed", ms: 1, fails: []))
+        response.flush
+        gate.read(1)
+        response.puts(JSON.generate(t: "ready"))
+      end
+      exit!(0)
+    end
   end
-
-  def monotonic = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
   def crashed
     forked do |_request, _response|
@@ -117,15 +119,30 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     ]
   end
 
-  def lingering(limit)
-    counter = [0]
-    [
-      counter,
-      lambda do |_slot|
-        counter[0] += 1
-        healthy(marks: [limit / 2, limit + described_class::POLL_INTERVAL])
-      end
-    ]
+  def paced(now, opener)
+    lambda do
+      opener.write(".") if now.last
+      now[1] = false
+      now.first
+    end
+  end
+
+  def pacing(now, lost)
+    described_class::Listeners.new(
+      resolve: ->(_message) { now.replace([now.first + 0.6, true]) },
+      lost: ->(id, reason, _stacks) { lost << [id, reason] }, trace: ->(*) { now[0] += 0.6 }
+    )
+  end
+
+  def lingering
+    IO.pipe do |gate, opener|
+      now = [0.0, false]
+      lost = []
+      spawned = []
+      options = { jobs: 1, hard_timeout: 1.0, clock: paced(now, opener) }
+      described_class.new([1, 2], ->(slot) { gated(gate).tap { spawned << slot } }, pacing(now, lost), options).run
+      [spawned, lost]
+    end
   end
 
   def ticking
@@ -397,11 +414,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     end
   end
 
-  it "extends the deadline when a result arrives, through the wait for ready", :aggregate_failures do
-    counter, spawner = lingering(1.0)
-    _, lost = pool(queue: [1, 2], spawner: spawner, deadline: 1.0)
-
-    expect(lost).to(be_empty)
-    expect(counter[0]).to(eq(1))
+  it "extends the deadline when a result arrives, through the wait for ready" do
+    expect(lingering).to(eq([[0], []]))
   end
 end

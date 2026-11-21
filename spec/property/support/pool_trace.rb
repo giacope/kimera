@@ -97,7 +97,7 @@ module PoolTrace
       super
     end
 
-    def retire(limit)
+    def retire(due)
       PoolTrace.recorder&.sent = ["close"]
       super
     end

@@ -29,10 +29,9 @@ RSpec.describe Kimera::Execution::WorkerPool::Worker do
 
   it "stays on the clock while it retires", :aggregate_failures do
     worker = described_class.new(request: :pipe, inflight: 5, deadline: nil)
-    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     forfeited = []
     expect([worker.retire(3.0), worker.forfeit { |id| forfeited << id }]).to(eq([:pipe, nil]))
-    expect([worker.expired?(started + 2.0), worker.expired?(started + 4.0), forfeited]).to(eq([false, true, []]))
+    expect([worker.expired?(2.9), worker.expired?(3.0), forfeited]).to(eq([false, true, []]))
   end
 
   it "offers a mutant as one line naming its id" do
@@ -44,10 +43,9 @@ RSpec.describe Kimera::Execution::WorkerPool::Worker do
   end
 
   it "renews its deadline on every message", :aggregate_failures do
-    worker = described_class.new
-    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    worker = described_class.new(deadline: 1.0)
     expect(worker.heard({ "t" => "tick" }, 3.0)).to(equal(worker))
-    expect([worker.expired?(started + 2.0), worker.expired?(started + 4.0)]).to(eq([false, true]))
+    expect([worker.expired?(2.9), worker.expired?(3.0)]).to(eq([false, true]))
   end
 
   it "keeps a crash's last words, and only a crash's" do

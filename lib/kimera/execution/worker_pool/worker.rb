@@ -24,9 +24,9 @@ Kimera::Execution::WorkerPool::Worker =
       self.inflight = id
     end
 
-    def claim(id, limit)
+    def claim(id, due)
       busy!(id)
-      renew(limit)
+      renew(due)
     end
 
     def autopsy
@@ -37,22 +37,22 @@ Kimera::Execution::WorkerPool::Worker =
       autopsy.tap { kill(pid) }
     end
 
-    def renew(limit, now = Process.clock_gettime(Process::CLOCK_MONOTONIC))
-      self.deadline = now + limit
+    def renew(due)
+      self.deadline = due
     end
 
     def expired?(now)
       deadline && !(deadline - now).positive?
     end
 
-    def retire(limit)
+    def retire(due)
       self.inflight = nil
-      renew(limit)
+      renew(due)
       request
     end
 
-    def heard(message, limit)
-      renew(limit)
+    def heard(message, due)
+      renew(due)
       self.last_words = message["detail"] if message["t"] == "crash"
       self
     end
