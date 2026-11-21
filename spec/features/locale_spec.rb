@@ -4,7 +4,7 @@ require "English"
 require "json"
 require "shellwords"
 
-RSpec.describe("kimera under the C locale (end-to-end)", :aggregate_failures) do
+RSpec.describe("kimera without a UTF-8 locale (end-to-end)", :aggregate_failures) do
   def menu
     <<~RUBY
       # Prix en euros
@@ -20,32 +20,37 @@ RSpec.describe("kimera under the C locale (end-to-end)", :aggregate_failures) do
 
       RSpec.describe Cafe do
         it("trouve 12 € « cher »") { expect(Cafe.libellé(12)).to eq("cher — 12 €") }
-        it("trouve 10 € abordable ✓") { expect(Cafe.libellé(10)).to eq("abordable ✓") }
+        it("trouve 5 € abordable ✓") { expect(Cafe.libellé(5)).to eq("abordable ✓") }
       end
     RUBY
   end
 
-  def cli(root, *arguments)
+  def cli(root, locale, *arguments)
     command = ["bundle", "exec", "ruby", File.join(test_root, "exe", "kimera"), *arguments].shelljoin
     gemfile = File.join(test_root, "Gemfile").shellescape
-    `cd #{root.shellescape} && env LANG=C LC_ALL=C BUNDLE_GEMFILE=#{gemfile} #{command} 2>&1`
+    `cd #{root.shellescape} && env #{locale} BUNDLE_GEMFILE=#{gemfile} #{command} 2>&1`
       .force_encoding(Encoding::UTF_8).then { |text| [text, $CHILD_STATUS.exitstatus] }
   end
 
-  def facts(root)
-    output, status = cli(root, "run", "app", "--tests", "spec/**/*_spec.rb", "--jobs", "2", "--no-progress")
-    expect(status).to(eq(0), output)
+  def facts(root, locale)
+    output, status = cli(root, locale, "run", "app", "--tests", "spec/**/*_spec.rb", "--jobs", "2", "--no-progress")
+    expect(status).to(eq(2), output)
     report = JSON.parse(File.read(File.join(root, "tmp", "kimera", "report.json"), encoding: Encoding::UTF_8))
     {
-      statuses: report["results"].map { |row| row["status"] }.uniq,
+      statuses: report["results"].map { |row| row["status"] }.uniq.sort,
       names: report["tests"].values.map { |test| test["name"] }
     }
   end
 
-  it "runs, reports and shows a mutant with UTF-8 names and source, at --jobs 2" do
-    test_tree({ "app/cafe.rb" => menu, "spec/cafe_spec.rb" => examples }, "kimera-locale") do |root|
-      expect(facts(root)).to(match(statuses: ["killed"], names: include("Cafe trouve 12 € « cher »")))
-      expect(cli(root, "mutant", "1").first).to(include("in libellé"))
+  def shown(root, locale) = [cli(root, locale, "report", "tmp/kimera/report.json"), cli(root, locale, "mutant", "1")]
+
+  { "the C locale" => "LANG=C LC_ALL=C", "no locale" => "-u LANG -u LC_ALL -u LC_CTYPE" }.each do |name, locale|
+    it "runs, reports and shows a mutant with UTF-8 names and source under #{name}, at --jobs 2" do
+      test_tree({ "app/cafe.rb" => menu, "spec/cafe_spec.rb" => examples }, "kimera-locale") do |root|
+        names = include("Cafe trouve 12 € « cher »")
+        expect(facts(root, locale)).to(match(statuses: %w[killed survived], names: names))
+        expect(shown(root, locale).map(&:first)).to(all(include("in libellé")))
+      end
     end
   end
 end

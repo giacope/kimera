@@ -120,16 +120,16 @@ first.
 | K2 | Lines in `define_method`/`lambda`/`proc` bodies and class-level blocks that are neither mutated nor reported; unparseable files not reported | 8 of 10 silent, 1 unparseable file unreported, 9 mutants | 0 of 10 silent, 0 unreported, 28 mutants, 0 false verdicts |
 | K3 | Rails 8.1 app, Minitest and RSpec, `--jobs 1/4`, `--isolate-db`, `--isolated`, vs expected verdicts and the oracle | 0 false verdicts, 79 state-leak warnings, `--isolated` with a relative `path:` gem errors | 0 false verdicts, 0 warnings, 0 errors |
 | K4 | Peak RSS of a covering test that loops 3M times | 441.0 MB | 45.9 MB |
-| K5 | `--since main` on a branch that main moved past | mutates main's later lines too | only the branch's lines |
-| K6 | `--session` resumed after a test changes | 2 stale verdicts | 0 |
-| K7 | `LANG` unset and `LANG=C` | 4 failed steps, 10 suite failures | 0, 0 |
+| K5 | `--since main` on a branch that main moved past (retired: `spec/kimera/incremental/git_diff_run_spec.rb` checks it) | mutates main's later lines too | only the branch's lines |
+| K6 | `--session` resumed after a test changes (retired: `spec/features/session_resume_spec.rb` checks it) | 2 stale verdicts | 0 |
+| K7 | `LANG` unset and `LANG=C` (retired: `spec/features/locale_spec.rb` checks it) | 4 failed steps, 10 suite failures | 0, 0 |
 | K8 | `bin/model-check` fetch, model check, trace validation | all fail (checksum of a re-published jar) | all pass (v1.7.4 pinned) |
 | K9 | unparser releases the gemspec allows, and the suite on each (retired: kimera writes its own Ruby, `Kimera::Scribe`, and no longer depends on unparser) | 0.9.0 only | 0.8.1, 0.8.2, 0.9.0, none broken |
-| K10 | Runtime closure named in the README | parser, racc unnamed | all 6 named |
-| K11 | Two overlaid files sharing a top-level local name | baseline red, run fails | 0 false verdicts |
-| K12 | Top-level constants kimera adds; a project defining `MutantRuntime` | `Kimera`, `MutantRuntime`; collision run errors | `Kimera` only; collision run ok |
+| K10 | Runtime closure named in the README (retired: `spec/kimera/usage_drift_spec.rb` checks it) | parser, racc unnamed | all 6 named |
+| K11 | Two overlaid files sharing a top-level local name (retired: `spec/kimera/overlay/source_spec.rb` checks it; the case no longer failed with the shared scope put back) | baseline red, run fails | 0 false verdicts |
+| K12 | Top-level constants kimera adds; a project defining `MutantRuntime` (retired: `spec/kimera/runtime_spec.rb` and `spec/features/constant_collision_spec.rb` check it) | `Kimera`, `MutantRuntime`; collision run errors | `Kimera` only; collision run ok |
 | K13 | Overlay-time `ObjectSpace` scan on the Rails app | 0.229 s, 16 deprecation warnings | 0.114 s, 0 warnings |
-| X1 | `--session` into a missing directory | crash, nothing saved | saved |
+| X1 | `--session` into a missing directory (retired: `spec/kimera/incremental/session_spec.rb` checks it) | crash, nothing saved | saved |
 
 ## Speed (S1, and K3's per-mode wall time)
 
@@ -279,18 +279,18 @@ on machine speed:
 
 ```sh
 gem install rspec -v "~> 3.13"   # H1's oracle runs plain rspec, outside the bundle
-ruby eval/run --kimera . --only H1,K1,K2,K4,K5,K6,K7,K11,K12,X1 \
+ruby eval/run --kimera . --only H1,K1,K2,K4 \
   --baseline eval/results/after.json --out tmp/eval.json
 ```
 
 It exits 1 when one of them fails that `after.json` records passing: a false
-survivor, false kill or false `no_coverage`, a silent line, a stale verdict, a
-wrong `--since` selection. About 5 minutes on a
-4-vCPU machine. K4 passes under 150 MB of peak RSS (46 MB measured), far from
+survivor, false kill or false `no_coverage`, a silent line, or a peak RSS past
+the limit. About 90 seconds on a 4-vCPU machine. K4 passes under 150 MB of peak RSS (46 MB measured), far from
 the 441 MB it guards against. Left out: S1 measures wall time; K3 and K13 need
 `examples/rails_app` (`examples/rails_app/bin/e2e` runs it end to end); K8 needs Java and
-downloads tla2tools.jar (`bin/model-check` covers it); K10 resolves gems from
-rubygems.org; K9 is retired. H2 takes 2 minutes, but it fails today, and a
+downloads tla2tools.jar (`bin/model-check` covers it); K9 is retired. K5, K6,
+K7, K10, K11, K12 and X1 each checked one behavior with a known answer, which a
+spec now checks on every `bin/spec` (see the Gaps table). H2 takes 2 minutes, but it fails today, and a
 pass/fail gate cannot hold a case that already fails; once kimera passes it,
 record it in `after.json` and add it to the gate's `--only` list in `AGENTS.md`. What it still
 gets wrong comes from suites whose examples depend on the order they run in

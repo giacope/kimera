@@ -2,7 +2,6 @@
 
 require "fileutils"
 require "tmpdir"
-require_relative "repository"
 
 module KimeraEval
   class Sandbox
@@ -18,8 +17,6 @@ module KimeraEval
       FileUtils.cp_r(File.join(source, "."), target)
       target
     end
-
-    def repository(dir) = Repository.new(dir).started
 
     def remove! = FileUtils.rm_rf(root)
 

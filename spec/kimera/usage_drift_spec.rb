@@ -18,6 +18,16 @@ RSpec.describe(UsageDrift, :aggregate_failures) do
     expect(described_class.new(read("README.md"), spans: false).problems).to(eq([]))
   end
 
+  def closure
+    found = Gem.loaded_specs.fetch("kimera").runtime_dependencies.map(&:name)
+    found.each { |name| found.concat(Gem.loaded_specs.fetch(name).runtime_dependencies.map(&:name) - found) }
+    found
+  end
+
+  it "names in the README every gem kimera needs at runtime, and the gems those need" do
+    expect(closure.reject { |name| read("README.md").match?(/\b#{Regexp.escape(name)}\b/i) }).to(eq([]))
+  end
+
   it "knows every command's options, so a new command is checked too" do
     expect(described_class::TABLES.keys).to(include(*Kimera::CLI::COMMAND_NAMES))
   end

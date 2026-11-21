@@ -42,8 +42,8 @@ calling it not yours, and say so.
 3. `bundle exec kimera run --since origin/main --fail-on-no-coverage`
 4. `examples/rails_app/bin/e2e`
 5. `gem install rspec -v "~> 3.13" --no-document` (once per orb), then
-   `ruby eval/run --kimera . --only H1,K1,K2,K4,K5,K6,K7,K11,K12,X1 --baseline eval/results/after.json --out tmp/eval.json`
-   (about 5 minutes; `eval/results/README.md` says why these cases)
+   `ruby eval/run --kimera . --only H1,K1,K2,K4 --baseline eval/results/after.json --out tmp/eval.json`
+   (about 90 seconds; `eval/results/README.md` says why these cases)
 6. `bin/model-check`
 
 A change to Markdown files only needs `bin/spec spec/kimera/usage_drift_spec.rb`.
@@ -96,7 +96,7 @@ most often:
 is mutated, and no `ignore:` entry or `kimera:disable` comment is accepted.
 
 `lib/kimera/runtime.rb` is loaded into every project kimera tests. Requiring
-it may define no constant outside `Kimera` (eval case K12 checks this).
+it may define no constant outside `Kimera` (`spec/kimera/runtime_spec.rb` checks this).
 
 ## Things that are easy to get wrong
 
