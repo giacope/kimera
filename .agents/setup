@@ -23,6 +23,19 @@ toolcache() { echo "/opt/hostedtoolcache/Ruby/$1"; }
 ruby_bin="$(toolcache "$ruby_version")/$arch/bin"
 oldest_ruby_bin="$(toolcache "$oldest_ruby_version")/$arch/bin"
 
+# sekisho, a development gem, lives in a private repository, and setup has no
+# GitHub credential for it. The Amp project lists it as an additional
+# repository, which Amp clones into ../repos/sekisho with the owner's GitHub
+# connection, so bundler fetches it from that clone while setup runs. The
+# rewrite lives in this process only: later fetches go to GitHub.
+sekisho="$(cd .. && pwd)/repos/sekisho"
+if [[ -d "$sekisho/.git" ]]; then
+  index="${GIT_CONFIG_COUNT:-0}"
+  export GIT_CONFIG_COUNT=$((index + 1))
+  export "GIT_CONFIG_KEY_$index=url.$sekisho.insteadOf"
+  export "GIT_CONFIG_VALUE_$index=https://github.com/giacope/sekisho.git"
+fi
+
 step() {
   local name="$1" started=$SECONDS
   shift
