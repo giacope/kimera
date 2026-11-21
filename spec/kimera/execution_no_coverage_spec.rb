@@ -191,7 +191,6 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
   def ledger(notes, &setup)
     Class.new do
       define_method(:after_fork) do |index|
-        Lifeline.new.watch
         notes.puts(JSON.generate(["fork", index]))
         setup&.call
       end

@@ -21,3 +21,11 @@ class Lifeline
     false
   end
 end
+
+module Forks
+  def _fork
+    super.tap { |pid| Lifeline.new.watch if pid.zero? }
+  end
+end
+
+Process.singleton_class.prepend(Forks)
