@@ -19,7 +19,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
   it "hands a timed-out worker's stacks to the loss" do
     worker = nil
-    spawner = ->(_slot) { worker = forked { sleep }.push(stacks) }
+    spawner = ->(_slot) { worker = forked { Lifeline.new.hold }.push(stacks) }
     _, lost = Timeout.timeout(10) { pool(queue: [1], spawner: spawner, deadline: 0.3) }
     expect(lost).to(eq([[1, :timeout, ["stacks of #{worker.first}"]]]))
   end

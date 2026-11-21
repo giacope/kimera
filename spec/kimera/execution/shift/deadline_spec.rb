@@ -27,7 +27,7 @@ RSpec.describe(Kimera::Execution::Shift::Deadline) do
   end
 
   it "interrupts a run that outlasts the budget" do
-    expect { described_class.build(0.05).guard("t1") { sleep } }.to(raise_error(Timeout::Error))
+    expect { described_class.build(0.05).guard("t1") { Lifeline.new.hold } }.to(raise_error(Timeout::Error))
   end
 
   it "beats before each test run" do

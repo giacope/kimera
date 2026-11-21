@@ -48,8 +48,8 @@ class FaultySuite
     @runs[id] += 1
     case behavior(id)
     when :crash then exit!(1)
-    when :hang then Thread.handle_interrupt(Object => :never) { sleep }
-    when :tainted then sleep
+    when :hang then Thread.handle_interrupt(Object => :never) { Lifeline.new.hold }
+    when :tainted then Lifeline.new.hold
     when :fading then @runs[id] <= 2
     else FAILING.include?(behavior(id))
     end

@@ -1926,7 +1926,7 @@ RSpec.describe(Kimera::Execution::Harness) do
       Class.new(Kimera::Frameworks::Suite) do
         def source(_files) = self
         def test_ids = ["t1"]
-        def run(_ids) = sleep
+        def run(_ids) = Lifeline.new.hold
       end.new
     end
 
@@ -2118,7 +2118,7 @@ RSpec.describe(Kimera::Execution::Harness) do
             response.puts(JSON.generate(t: "start", id: JSON.parse(line)["id"]))
             response.flush
           end
-          sleep
+          Lifeline.new.hold
         end
       end
     end
@@ -2151,7 +2151,7 @@ RSpec.describe(Kimera::Execution::Harness) do
 
         def run(_ids)
           Process.kill("TERM", Process.pid)
-          sleep
+          Lifeline.new.hold
         end
       end.new
     end
@@ -2220,7 +2220,7 @@ RSpec.describe(Kimera::Execution::Harness) do
             response.puts(JSON.generate(t: "result", id: id, status: "killed", ms: 1, fails: []))
             response.flush
           end
-          sleep
+          Lifeline.new.hold
         end
       end
     end
@@ -2244,7 +2244,7 @@ RSpec.describe(Kimera::Execution::Harness) do
             response.puts(JSON.generate(t: "start", id: JSON.parse(line)["id"]))
             response.flush
           end
-          sleep
+          Lifeline.new.hold
         end
       end
     end

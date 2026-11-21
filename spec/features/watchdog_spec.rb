@@ -37,7 +37,7 @@ RSpec.describe("Harness watchdog") do
   def answer(response, id, timeout, crash, statuses)
     response.puts(JSON.generate(t: "start", id: id))
     response.flush
-    sleep if id == timeout
+    Lifeline.new.hold if id == timeout
     exit!(0) if id == crash
     response.puts(JSON.generate(t: "result", id: id, status: statuses[id], ms: 1, fails: []), JSON.generate(t: "ready"))
     response.flush

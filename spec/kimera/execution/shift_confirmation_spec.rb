@@ -175,7 +175,7 @@ RSpec.describe(Kimera::Execution::Shift) do
         define_method(:test_ids) { %w[t1 t2] }
         define_method(:run) do |ids|
           on = Kimera::RUNTIME.active
-          sleep if ids == ["t1"] && on
+          Lifeline.new.hold if ids == ["t1"] && on
           Kimera::Frameworks::RunOutcome.new(passed: !on, failed: ids, failures: { ids.first => "interrupted" })
         rescue Timeout::ExitException
           Kimera::Frameworks::RunOutcome.new(passed: false, failed: ids, failures: { ids.first => "interrupted" })
@@ -206,7 +206,7 @@ RSpec.describe(Kimera::Execution::Shift) do
     end
 
     def idle
-      sleep
+      Lifeline.new.hold
     rescue Timeout::ExitException
       nil
     end

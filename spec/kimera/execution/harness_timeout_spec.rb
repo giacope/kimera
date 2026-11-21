@@ -32,7 +32,7 @@ RSpec.describe(Kimera::Execution::Harness) do
         Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
       end
 
-      def wedge = sleep
+      def wedge = Lifeline.new.hold
     end.new
   end
 

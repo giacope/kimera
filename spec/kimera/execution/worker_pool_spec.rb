@@ -45,7 +45,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   end
 
   def blocked
-    forked { |_request, _response| sleep }
+    forked { |_request, _response| Lifeline.new.hold }
   end
 
   def single
@@ -70,7 +70,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
         response.puts(JSON.generate(t: "ready"))
         response.flush
       end
-      sleep
+      Lifeline.new.hold
     end
   end
 
@@ -206,7 +206,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
 
   def hang(request, _response)
     request.gets
-    sleep
+    Lifeline.new.hold
   end
 
   def reaped?(pid)
@@ -324,7 +324,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
     forked do |request, response|
       request.gets
       written(response, writes)
-      sleep
+      Lifeline.new.hold
     end
   end
 

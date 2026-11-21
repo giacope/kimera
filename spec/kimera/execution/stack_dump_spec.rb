@@ -177,7 +177,7 @@ RSpec.describe(Kimera::Execution::StackDump) do
         exit!(0)
       end
       ready.last.puts(name)
-      sleep
+      Lifeline.new.hold
     end
 
     def family

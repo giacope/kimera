@@ -28,7 +28,7 @@ RSpec.describe(Kimera::Execution::Shift) do
         active = Kimera::RUNTIME.active
         (active ? @runs : @controls) << ids
         raise(RuntimeError, "boom") if active && active == @failure
-        sleep if active && active == @timeout
+        Lifeline.new.hold if active && active == @timeout
         failed = ids.select { |id| Array(@catches[id]).include?(active) }
         Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed: failed)
       end

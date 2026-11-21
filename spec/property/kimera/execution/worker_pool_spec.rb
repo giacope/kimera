@@ -42,7 +42,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   def act(behavior, id, response)
     case behavior
     when :crash then exit!(1)
-    when :hang then sleep
+    when :hang then Lifeline.new.hold
     when :partial then halt(response, JSON.generate(t: "result", id: id)[0, 12])
     else report(behavior, id, response)
     end
@@ -51,7 +51,7 @@ RSpec.describe(Kimera::Execution::WorkerPool) do
   def halt(response, text)
     response.write(text)
     response.flush
-    sleep
+    Lifeline.new.hold
   end
 
   def status(behavior) = behavior == :tainted ? "timeout" : "killed"

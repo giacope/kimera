@@ -60,7 +60,7 @@ RSpec.describe Kimera::Execution::WorkerPool::Worker do
 
   describe "#obituary" do
     def status(fate)
-      pid = fork { fate == :signal ? Process.kill("TERM", Process.pid) && sleep : exit!(3) }
+      pid = fork { fate == :signal ? Process.kill("TERM", Process.pid) && Lifeline.new.hold : exit!(3) }
       Process.wait2(pid).last
     end
 
@@ -115,7 +115,7 @@ RSpec.describe Kimera::Execution::WorkerPool::Worker do
   end
 
   it "is dismissed: its pipes closed, its process killed and reaped", :aggregate_failures do
-    pid = fork { sleep }
+    pid = fork { Lifeline.new.hold }
     request, response = IO.pipe.reverse
     described_class.new(pid: pid, request: request, response: response).dismiss
     expect([request.closed?, response.closed?]).to(eq([true, true]))

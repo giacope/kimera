@@ -97,7 +97,7 @@ RSpec.describe(Kimera::Execution::ChildProcess) do
     end
 
     it "kills a child that never led a group of its own" do
-      pid = fork { sleep }
+      pid = fork { Lifeline.new.hold }
       call(:kill, pid)
       expect(Process.wait2(pid).last.termsig).to(eq(9))
     end

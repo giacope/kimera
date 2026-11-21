@@ -18,7 +18,7 @@ RSpec.describe(Kimera::Execution::Shift::Census) do
       define_method(:run) do |ids|
         runs << [Kimera::RUNTIME.active, ids]
         raise(ArgumentError, "boom") if ids == ["raise"]
-        sleep if ids == ["hang"]
+        Lifeline.new.hold if ids == ["hang"]
         failed = ids & %w[t1 t2]
         Kimera::Frameworks::RunOutcome.new(passed: failed.empty?, failed: failed)
       end
