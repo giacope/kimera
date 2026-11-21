@@ -6,7 +6,7 @@ module ProcessStatuses
   def exited(code) = Process.wait2(Process.spawn("sh", "-c", "exit #{code}")).last
 
   def killed(signal)
-    pid = Process.spawn("sleep", "30")
+    pid = Process.spawn(*Lifeline.new.command)
     Process.kill(signal, pid)
     Process.wait2(pid).last
   end

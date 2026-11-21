@@ -99,7 +99,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end
 
     def wedged(timeout)
-      pid = Process.spawn("sleep", "30", pgroup: true)
+      pid = Process.spawn(*Lifeline.new.command, pgroup: true)
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       [
         watchdog(limit: timeout).waitfor(pid),
@@ -126,7 +126,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     it "kills what a child left running in its group once it exits", :aggregate_failures do
       witness = self.witness
-      pid = Process.spawn("sh", "-c", "sleep 30 & exit 3", pgroup: true, out: witness.holder)
+      pid = Process.spawn("sh", "-c", "(#{Lifeline.new.shell}) & exit 3", pgroup: true, out: witness.holder)
       expect(watchdog(limit: 5.0).waitfor(pid).exitstatus).to(eq(3))
       expect(witness.outlived?).to(be(false))
     end
@@ -141,7 +141,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end
 
     it "takes a child's group down with it when kimera is interrupted", :aggregate_failures do
-      pid = Process.spawn("sleep", "300", pgroup: true, out: File::NULL)
+      pid = Process.spawn(*Lifeline.new.command, pgroup: true, out: File::NULL)
       interrupting
       expect { Timeout.timeout(10) { watchdog(limit: 5.0).waitfor(pid) } }.to(raise_error(Interrupt))
       expect { Process.kill(0, pid) }.to(raise_error(Errno::ESRCH))
@@ -151,7 +151,7 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
   describe "#verdict" do
     def timeout
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      status = judged(first, hard_timeout: 0.3, plan: scripted(%w[sleep 30])).status
+      status = judged(first, hard_timeout: 0.3, plan: scripted(Lifeline.new.command)).status
       [status, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started]
     end
 
@@ -638,13 +638,13 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
     end
 
     it "maps a child that overruns the hard deadline to :timeout" do
-      expect(test_verdict_of(%w[sleep 30], hard_timeout: 0.3).status).to(eq(:timeout))
+      expect(test_verdict_of(Lifeline.new.command, hard_timeout: 0.3).status).to(eq(:timeout))
     end
 
     it "lets a test whose baseline outlasts the hard timeout run to its own limit", :aggregate_failures do
       slow = judged(first, plan: scripted(%w[sleep 0.6], tests: ["t"]), hard_timeout: 0.3, timings: { "t" => 0.1 })
       expect(slow.status).to(eq(:harness_error))
-      expect(test_verdict_of(%w[sleep 30], hard_timeout: 0.3).detail)
+      expect(test_verdict_of(Lifeline.new.command, hard_timeout: 0.3).detail)
         .to(eq("timed out after 0.3s without a test finishing"))
     end
 

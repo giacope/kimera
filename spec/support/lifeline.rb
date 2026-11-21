@@ -13,6 +13,10 @@ class Lifeline
 
   def watch = Thread.new { hold.then { exit!(1) } }
 
+  def shell = "while kill -0 #{@root} 2>/dev/null; do sleep 0.1; done"
+
+  def command = ["sh", "-c", shell]
+
   private
 
   def alive?

@@ -314,7 +314,7 @@ RSpec.describe(Kimera::CLI::TestCommand) do
   describe "a suite that never exits" do
     def hung
       Dir.mktmpdir do |root|
-        return Kimera::Execution::SuiteCapture.new(StringIO.new).timed("sleep", "30", chdir: root, limit: 0.6)
+        return Kimera::Execution::SuiteCapture.new(StringIO.new).timed(*Lifeline.new.command, chdir: root, limit: 0.6)
       end
     end
 
@@ -342,7 +342,7 @@ RSpec.describe(Kimera::CLI::TestCommand) do
     def ticked(clock)
       said = StringIO.new
       capture = Kimera::Execution::SuiteCapture.new(said, Kimera::Execution::SuiteEnv.new, clock)
-      Dir.mktmpdir { |root| capture.timed("sleep", "30", chdir: root, limit: 30.5) }
+      Dir.mktmpdir { |root| capture.timed(*Lifeline.new.command, chdir: root, limit: 30.5) }
       said.string
     end
 

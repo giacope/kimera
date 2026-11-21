@@ -32,6 +32,8 @@ RSpec.describe(Lifeline) do
     end
   end
 
+  def spawning = ->(line) { system(*line.command) }
+
   def watching = ->(line) { line.watch.then { IO.pipe { |reader, _writer| reader.read } } }
 
   def stop(pid)
@@ -66,5 +68,13 @@ RSpec.describe(Lifeline) do
 
   it "ends that process once the process that loaded the specs is gone" do
     expect(rooted(watching) { |held, writer| writer.close.then { lives?(held, 5) } }).to(be(false))
+  end
+
+  it "keeps the shell stand-in waiting while the process that loaded the specs lives" do
+    expect(rooted(spawning) { |held, _writer| lives?(held, 0.5) }).to(be(true))
+  end
+
+  it "ends the shell stand-in once the process that loaded the specs is gone" do
+    expect(rooted(spawning) { |held, writer| writer.close.then { lives?(held, 5) } }).to(be(false))
   end
 end

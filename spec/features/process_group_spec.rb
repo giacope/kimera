@@ -31,7 +31,7 @@ RSpec.describe("processes a test starts") do
         before do
           @lock = File.open(File.expand_path("../server.lock", __dir__), File::CREAT | File::WRONLY)
           @lock.flock(File::LOCK_SH)
-          @server = Process.spawn("sleep", "600", out: @lock, err: File::NULL)
+          @server = Process.spawn("sh", "-c", #{Lifeline.new.shell.dump}, out: @lock, err: File::NULL)
           File.write(File.expand_path("../servers.txt", __dir__), "\#{@server}\\n", mode: "a")
         end
 

@@ -3,7 +3,7 @@
 module ProcessFamily
   Witness =
     Struct.new(:reader, :holder) do
-      def spawn = Process.spawn("sleep", "30", out: holder)
+      def spawn = Process.spawn(*Lifeline.new.command, out: holder)
 
       def outlived?(within: 5)
         holder.close unless holder.closed?

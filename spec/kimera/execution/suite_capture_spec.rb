@@ -10,7 +10,7 @@ RSpec.describe(Kimera::Execution::SuiteCapture, :aggregate_failures) do
 
   def polled(*elapsed, limit:, clock: FakeClock.new(0.0, *elapsed))
     capture = described_class.new(said, Kimera::Execution::SuiteEnv.new, clock)
-    Dir.mktmpdir { |root| capture.timed("sleep", "30", chdir: root, limit: limit) }
+    Dir.mktmpdir { |root| capture.timed(*Lifeline.new.command, chdir: root, limit: limit) }
   end
 
   it "polls until the limit, sleeping between polls, then stops the suite" do
@@ -31,14 +31,15 @@ RSpec.describe(Kimera::Execution::SuiteCapture, :aggregate_failures) do
 
   def orphan(limit)
     Dir.mktmpdir do |root|
-      output, = suite(said, limit, "sh", "-c", "sleep 30 & echo $!", chdir: root)
+      output, = suite(said, limit, "sh", "-c", "(#{Lifeline.new.shell}) & echo $!", chdir: root)
       gone?(Integer(output.lines.first)) ? :gone : :alive
     end
   end
 
   it "kills a suite that outlives its limit" do
     Dir.mktmpdir do |root|
-      described_class.new(said).timed("sh", "-c", "echo $$ > #{root}/pid; exec sleep 30", chdir: root, limit: 0.5)
+      script = "echo $$ > #{root}/pid; #{Lifeline.new.shell}"
+      described_class.new(said).timed("sh", "-c", script, chdir: root, limit: 0.5)
       expect(File.exist?("/proc/#{Integer(File.read(File.join(root, "pid")))}")).to(be(false))
     end
   end
@@ -65,7 +66,7 @@ RSpec.describe(Kimera::Execution::SuiteCapture, :aggregate_failures) do
   end
 
   def halted(limit, pidfile, root)
-    suite(said, limit, "sh", "-c", "sleep 30 & echo $! > #{pidfile}; wait", chdir: root)
+    suite(said, limit, "sh", "-c", "(#{Lifeline.new.shell}) & echo $! > #{pidfile}; wait", chdir: root)
     :finished
   rescue Interrupt
     settled(Integer(File.read(pidfile)))
