@@ -11,6 +11,8 @@ class Lifeline
     sleep(0.1) while alive?
   end
 
+  def watch = Thread.new { hold.then { exit!(1) } }
+
   private
 
   def alive?

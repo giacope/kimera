@@ -12,11 +12,11 @@ RSpec.describe(Lifeline) do
     pid
   end
 
-  def rooted
+  def rooted(action = :hold.to_proc)
     reader, writer = IO.pipe
     loader = root(reader, writer)
     reader.close
-    held = waiter(loader, writer)
+    held = waiter(loader, writer, action)
     Process.detach(held)
     yield(held, writer)
   ensure
@@ -24,13 +24,15 @@ RSpec.describe(Lifeline) do
     stop(held)
   end
 
-  def waiter(loader, writer)
+  def waiter(loader, writer, action)
     fork do
       writer.close
-      Lifeline.new(loader).hold
+      action.call(Lifeline.new(loader))
       exit!(0)
     end
   end
+
+  def watching = ->(line) { line.watch.then { IO.pipe { |reader, _writer| reader.read } } }
 
   def stop(pid)
     Process.kill(:KILL, pid)
@@ -56,5 +58,13 @@ RSpec.describe(Lifeline) do
 
   it "ends a stand-in once the process that loaded the specs is gone" do
     expect(rooted { |held, writer| writer.close.then { lives?(held, 5) } }).to(be(false))
+  end
+
+  it "lets a process blocked on a pipe that never closes go on while the process that loaded the specs lives" do
+    expect(rooted(watching) { |held, _writer| lives?(held, 0.5) }).to(be(true))
+  end
+
+  it "ends that process once the process that loaded the specs is gone" do
+    expect(rooted(watching) { |held, writer| writer.close.then { lives?(held, 5) } }).to(be(false))
   end
 end

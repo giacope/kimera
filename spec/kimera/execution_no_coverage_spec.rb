@@ -191,6 +191,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
   def ledger(notes, &setup)
     Class.new do
       define_method(:after_fork) do |index|
+        Lifeline.new.watch
         notes.puts(JSON.generate(["fork", index]))
         setup&.call
       end
@@ -204,6 +205,7 @@ RSpec.describe Kimera::Execution, :aggregate_failures do
         Class.new do
           define_method(:serve) do |requests, _responses|
             $stdout.print("loud")
+            at_exit { notes.puts(JSON.generate(["at_exit"])) }
             requests.read
             options.fetch(:pulse).call
             notes.puts(JSON.generate(["run", Process.getpgrp == Process.pid, options.fetch(:hard).to_s]))
