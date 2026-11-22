@@ -111,8 +111,9 @@ class Kimera::CLI::Run::Pass
   end
 
   def revisited(report)
-    reason = ->(result) { result.from(@registry.index).reasons(Kimera::Reason.revisiting).first }
-    %i[survived no_coverage].flat_map { |status| report.select { |result| result.status?(status) } }
+    kind = ->(result) { result.status?(:killed) ? Kimera::Reason.masked : Kimera::Reason.revisiting }
+    reason = ->(result) { result.from(@registry.index).reasons(kind.call(result)).first }
+    report.select { |result| result.status?(:survived, :no_coverage, :killed) }
       .filter_map { |result| reason.call(result)&.then { result.with(detail: it) } }
   end
 
@@ -121,9 +122,7 @@ class Kimera::CLI::Run::Pass
     isolation.run(ids: ids, label: "mutants (isolated)")
   end
 
-  def isolation
-    @_isolation ||= harness.survey.isolated(**core, **limits)
-  end
+  def isolation = @_isolation ||= harness.survey.isolated(**core, **limits)
 
   def core
     { registry: @registry, root: @options[:source_root], tests: @adapter.test_ids }

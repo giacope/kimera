@@ -112,6 +112,29 @@ killed, as the oracle says, and q04's mutant is killed on every run, where
 the oracle, which runs the suite in file order, never runs that example
 first.
 
+The run of the whole suite in order that kimera starts beside the mutants
+now runs one test after another and notes what each reaches, so it can tell
+when the suite's order changes what reaches a mutant. That fixed q01 and
+q02. q01's survivor is reached in order from `overdraft_spec.rb:15` and
+`:21` as well as from the `audit_spec.rb` example that covers it alone;
+q02's three kills sit on a line that no test reaches in order. Both kinds
+are judged again in a fresh mirror against the whole suite in its own
+order (no longer cheapest file first, which had let `audit_spec.rb` run
+before `account_spec.rb`), and now agree with the oracle. H2 at this
+commit: 1,422 mutants, 1,376 compared, 0 false survived, 1 false killed,
+q01 124 of 124 and q02 146 of 146. The one left is q04's: re-judging a
+kill that `--confirm-survivors` found alone in the suite's order would
+agree with the oracle there, but it would undo what confirming survivors
+is for (`spec/features/masked_survivor_spec.rb`), so it was tried and not
+kept. Kimera's kill is the one we want: the mutant breaks
+"restores the outer state after an exception" whenever that example runs
+first, and only the oracle's fixed file order hides it. So H2 lists that one
+mutant in `KNOWN` (`eval/lib/kimera_eval/cases/h2_holdout.rb`, matched by
+project, file, line, mutated code and both verdicts) and counts it as
+`known`, not `false_killed`; any other disagreement still fails the case.
+With that H2 passes, is recorded in `after.json`, and runs in the pre-push
+gate.
+
 ## Gaps
 
 | Gap | What is measured | main | branch |
@@ -279,22 +302,21 @@ on machine speed:
 
 ```sh
 gem install rspec -v "~> 3.13"   # H1's oracle runs plain rspec, outside the bundle
-ruby eval/run --kimera . --only H1,K1,K2,K4 \
+ruby eval/run --kimera . --only H1,H2,K1,K2,K4 \
   --baseline eval/results/after.json --out tmp/eval.json
 ```
 
 It exits 1 when one of them fails that `after.json` records passing: a false
 survivor, false kill or false `no_coverage`, a silent line, or a peak RSS past
-the limit. About 90 seconds on a 4-vCPU machine. K4 passes under 150 MB of peak RSS (46 MB measured), far from
+the limit. About 3.5 minutes on a 4-vCPU machine, 2 of them H2's. K4 passes under 150 MB of peak RSS (46 MB measured), far from
 the 441 MB it guards against. Left out: S1 measures wall time; K3 and K13 need
 `examples/rails_app` (`examples/rails_app/bin/e2e` runs it end to end); K8 needs Java and
 downloads tla2tools.jar (`bin/model-check` covers it); K9 is retired. K5, K6,
 K7, K10, K11, K12 and X1 each checked one behavior with a known answer, which a
-spec now checks on every `bin/spec` (see the Gaps table). H2 takes 2 minutes, but it fails today, and a
-pass/fail gate cannot hold a case that already fails; once kimera passes it,
-record it in `after.json` and add it to the gate's `--only` list in `AGENTS.md`. What it still
-gets wrong comes from suites whose examples depend on the order they run in
-(see H2 above).
+spec now checks on every `bin/spec` (see the Gaps table). A pass/fail gate
+cannot hold a case that already fails; once kimera passes a new one, record
+it in `after.json` and add it to the gate's `--only` list in `AGENTS.md`, as
+H2 was once its q01 and q02 agreed (see H2 above).
 
 A case whose oracle judged none of its mutants fails with an error. From
 1de8a8f until the baker was repaired it did not: every mutant came back
@@ -312,7 +334,6 @@ ruby eval/run --kimera . --baseline eval/results/after.json --out eval/results/a
 
 The full run needs network access, Java 21 and `rspec` outside the bundle;
 the last command exits 1 if a case regressed against the recorded
-`after.json`, which it reads before replacing (until H2 passes, it fails
-on H2, which `after.json` does not hold). Wall times and memory (S1, K3's
+`after.json`, which it reads before replacing. Wall times and memory (S1, K3's
 per-mode times, K4, K13) compare only between runs on the same machine;
 across machines, compare verdicts.

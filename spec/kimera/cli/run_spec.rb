@@ -1095,6 +1095,17 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
         expect(isolation.asked).to(match([[:rejudge, [rejudged], "mutants (re-judged)"]]))
       end
 
+      def rejudged(reason)
+        harness, isolation, kept, reached = rejudging({ 1 => ["t1"], 2 => ["t1"] }, :killed, reason)
+        pass(registry, settings, [kept, reached], harness: harness)
+        isolation.asked.map { |_, results, _| results.map(&:mutant_id) }
+      end
+
+      it "re-judges a warm kill the suite run in order steers its tests away from, and no other warm kill" do
+        expect([Kimera::Reason::MASK_REASON, Kimera::Reason::TRAIL_REASON].map { rejudged(it) })
+          .to(eq([[[per_method.last]], []]))
+      end
+
       it "says why such a mutant has no covering test under --no-rejudge", :aggregate_failures do
         harness, isolation, plain, reached = ordered
         report = pass(registry, settings(rejudge: false), [plain, reached], harness: harness)

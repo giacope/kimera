@@ -11,6 +11,13 @@ class Kimera::Reason
   ORDER_REASON =
     "no single test reaches it in a fresh process, but the suite does when its tests run in order " \
       "(an earlier test leaves the state it needs), so it is judged in a fresh mirror against the whole suite"
+  TRAIL_REASON =
+    "the suite reaches it, when its tests run in order, from more tests than reach it in a fresh process " \
+      "(an earlier test leaves the state that leads them there), so a warm survivor is judged again in a fresh " \
+      "mirror against the whole suite"
+  MASK_REASON =
+    "the tests that reach it in a fresh process do not when the suite runs in order (an earlier test leaves " \
+      "state that steers them elsewhere), so a warm kill is judged again in a fresh mirror against the whole suite"
   LOAD_REASON =
     "runs only while the suite loads (a macro or hook called from a class body), " \
       "so warm coverage cannot see it; evaluate with --isolated"
@@ -37,6 +44,7 @@ class Kimera::Reason
   EXACT = ->(text) { /\A#{Regexp.escape(text)}\z/ }
   STUCK = Regexp.union(*[CLASS_BODY_REASON, LOAD_REASON, MACRO_REASON, BOUND_REASON].map(&EXACT), UNLOADED, UNWRITTEN)
   WARM = Regexp.union(*[BLOCK_REASON, MACRO_KEPT].map(&EXACT))
+  ORDER = Regexp.union(*[ORDER_REASON, TRAIL_REASON, MASK_REASON].map(&EXACT))
 
   class << self
     def body = new(:reason, CLASS_BODY_REASON)
@@ -62,6 +70,12 @@ class Kimera::Reason
     def blocked = new(:revisit, BLOCK_REASON)
 
     def ordered = new(:revisit, ORDER_REASON)
+
+    def trailed = new(:revisit, TRAIL_REASON)
+
+    def masked = new(:revisit, MASK_REASON)
+
+    def sequential = new(:revisit, "", ORDER)
 
     def revisit(text) = new(:revisit, text)
 

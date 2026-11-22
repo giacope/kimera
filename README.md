@@ -690,7 +690,8 @@ bar redrawn in place, and completed phases stay visible:
 - `mutants (re-judged)` judges again what the warm pass could not.
 - `baseline (in order)` waits, once the mutants are done, for the run of the
   whole suite in order that started beside them (when a mutant in scope has
-  no covering test).
+  no covering test, or when that run costs no more than judging the mutants
+  in scope).
 
 The warm and isolated labels appear only when a run uses both strategies. Output the
 suite prints during mutant evaluation is swallowed, since mutated code warns,
@@ -1078,12 +1079,18 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
    sets up its own test database on Rails). For the baseline, each worker
    forks a child per test, which runs it and reports its coverage; so a
    cache an earlier test filled can't hide a later caller. The whole suite
-   then runs once more, in order, in one fresh process, beside the mutants
-   (its wait, once they are done, is the `baseline (in order)` phase): code
-   that run reaches
-   but no single test does (a cache hit only an earlier test's state sets up)
-   is judged in the isolated tier against the whole suite (skipped when
-   every mutant in scope has a covering test: it could change no verdict).
+   then runs once more, in order, one test after another in one fresh
+   process, beside the mutants (its wait, once they are done, is the
+   `baseline (in order)` phase), and kimera notes what each test reaches.
+   Three kinds of mutant are then judged again in the isolated tier, against
+   the whole suite in its own order: code that run reaches but no single
+   test does (a cache hit only an earlier test's state sets up); a survivor
+   that more tests reach in order than alone, while each test that covers
+   it alone still does (an earlier test prepended a wrapper the later ones
+   call through); and a kill whose code no test reaches in order (an earlier
+   test leaves state that steers its covering tests elsewhere). The run is
+   skipped when every mutant in scope has a covering test and the suite
+   takes longer than judging those mutants on every worker would.
    For each mutant, a worker forks a child that flips
    `Kimera::RUNTIME.active` and runs the mutant's covering tests, the
    worker's recent killers first, then the rest fastest first by their
@@ -1261,7 +1268,9 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     process, as in a plain run of the suite. Code reached only through state
     an earlier test leaves is found by the in-order run and judged against
     the whole suite in a fresh mirror (under `--no-rejudge` it stays
-    `no_coverage`, with that reason in its detail). A test that only fails
+    `no_coverage`, with that reason in its detail), and so are a survivor
+    that state leads more tests to and a kill whose code no test reaches in
+    order. A test that only fails
     when an earlier test ran first with the mutant, and that does not run
     the mutated code itself, does not kill it.
   - Order-dependent suites: a test that passes when the suite runs in order
@@ -1270,8 +1279,8 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     tests; make each set up the state it needs.
   - The cost: one fork per baseline test and per mutant, each forked
     process starting cold (a Rails test reloads its fixtures in each), and,
-    when a mutant in scope has no covering test, one more run of the whole
-    suite in order. See the numbers in
+    when a mutant in scope has no covering test or the run costs no more
+    than judging the mutants, one more run of the whole suite in order. See the numbers in
     `eval/results/README.md`.
   - Selector-induced hangs: a soft timeout on each covering test a mutant runs
     (`--soft-timeout`, 5s), plus a watchdog that SIGKILLs a worker whose test

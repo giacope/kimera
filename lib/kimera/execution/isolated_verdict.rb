@@ -45,16 +45,20 @@ module Kimera
         return settled.fetch(0) unless settled.empty?
         tests = plan.tests(id, point)
         return result(id, file, status: :no_coverage, detail: point.reasons(Kimera::Reason.unsafety).first) unless tests
-        outcome, duration = measure(id, bay, tests, file)
+        outcome, duration = measure(id, bay, paced(point, tests), file)
         result(id, file, duration: duration, covering_tests: tests, **outcome.to_h, **outcome.killing(quality?))
       end
 
       def measure(id, bay, tests, file)
         started = now
-        ordered = Kimera::Execution::Pace.new(timings).cheapest(tests)
-        [cleared(bay, ordered, with_mutant(id, bay, file) { settle(bay, ordered) }), now - started]
+        [cleared(bay, tests, with_mutant(id, bay, file) { settle(bay, tests) }), now - started]
       rescue Kimera::Overlay::Unbakeable => error
         [IsolatedOutcome.new(:unmutatable, nil, Kimera::Reason.unmutatable(error.message).to_s), nil]
+      end
+
+      def paced(point, tests)
+        return tests if point.reasons(Kimera::Reason.sequential).any?
+        Kimera::Execution::Pace.new(timings).cheapest(tests)
       end
 
       def settle(bay, tests)

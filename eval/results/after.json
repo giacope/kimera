@@ -151,6 +151,145 @@
         }
       }
     },
+    "H2": {
+      "title": "External holdout, batch 2: 10 projects and H1's oracle, written blind to kimera",
+      "wall_s": 129.1,
+      "pass": true,
+      "summary": {
+        "mutants": 1422,
+        "compared": 1376,
+        "false_survived": 0,
+        "false_killed": 0,
+        "false_no_coverage": 0,
+        "errors": 0,
+        "known": 1,
+        "agreement_pct": 99.9
+      },
+      "totals": {
+        "mutants": 1422,
+        "compared": 1376,
+        "agree": 1375,
+        "skipped": 14,
+        "false_survived": 0,
+        "false_killed": 0,
+        "known": 1,
+        "no_coverage": 27,
+        "false_no_coverage": 0,
+        "errors": 0
+      },
+      "projects": {
+        "q01_prepend_guard": {
+          "compared": 124,
+          "agree": 124,
+          "mutants": 136,
+          "skipped": 0,
+          "false_survived": 0,
+          "false_killed": 0,
+          "known": 0,
+          "no_coverage": 12,
+          "false_no_coverage": 0
+        },
+        "q02_ghost_methods": {
+          "compared": 146,
+          "agree": 146,
+          "mutants": 149,
+          "skipped": 1,
+          "false_survived": 0,
+          "false_killed": 0,
+          "known": 0,
+          "no_coverage": 2,
+          "false_no_coverage": 0
+        },
+        "q03_refinements": {
+          "compared": 152,
+          "agree": 152,
+          "mutants": 155,
+          "skipped": 3,
+          "false_survived": 0,
+          "false_killed": 0,
+          "known": 0,
+          "no_coverage": 0,
+          "false_no_coverage": 0
+        },
+        "q04_thread_local_rates": {
+          "compared": 88,
+          "agree": 87,
+          "mutants": 89,
+          "skipped": 1,
+          "false_survived": 0,
+          "false_killed": 0,
+          "known": 1,
+          "no_coverage": 0,
+          "false_no_coverage": 0
+        },
+        "q05_sorted_versions": {
+          "compared": 210,
+          "agree": 210,
+          "mutants": 220,
+          "skipped": 1,
+          "false_survived": 0,
+          "false_killed": 0,
+          "known": 0,
+          "no_coverage": 4,
+          "false_no_coverage": 0
+        },
+        "q06_unit_classes": {
+          "compared": 152,
+          "agree": 152,
+          "mutants": 156,
+          "skipped": 0,
+          "false_survived": 0,
+          "false_killed": 0,
+          "known": 0,
+          "no_coverage": 4,
+          "false_no_coverage": 0
+        },
+        "q07_autoload_tariffs": {
+          "compared": 69,
+          "agree": 69,
+          "mutants": 70,
+          "skipped": 1,
+          "false_survived": 0,
+          "false_killed": 0,
+          "known": 0,
+          "no_coverage": 0,
+          "false_no_coverage": 0
+        },
+        "q08_dynamic_dispatch": {
+          "compared": 133,
+          "agree": 133,
+          "mutants": 136,
+          "skipped": 3,
+          "false_survived": 0,
+          "false_killed": 0,
+          "known": 0,
+          "no_coverage": 0,
+          "false_no_coverage": 0
+        },
+        "q09_before_all_catalog": {
+          "compared": 191,
+          "agree": 191,
+          "mutants": 196,
+          "skipped": 0,
+          "false_survived": 0,
+          "false_killed": 0,
+          "known": 0,
+          "no_coverage": 5,
+          "false_no_coverage": 0
+        },
+        "q10_catch_throw_outline": {
+          "compared": 111,
+          "agree": 111,
+          "mutants": 115,
+          "skipped": 4,
+          "false_survived": 0,
+          "false_killed": 0,
+          "known": 0,
+          "no_coverage": 0,
+          "false_no_coverage": 0
+        }
+      }
+    },
     "K1": {
       "title": "Verdicts agree with a fresh-process oracle on stateful suites",
       "wall_s": 56.7,

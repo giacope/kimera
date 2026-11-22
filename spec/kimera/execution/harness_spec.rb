@@ -1358,7 +1358,8 @@ RSpec.describe(Kimera::Execution::Harness) do
         def source(_files) = self
         def test_ids = %w[t1 t2]
         define_method(:run) do |ids|
-          @mids.each { |m| Kimera::RUNTIME.active?(m) } if ids.size > 1
+          @mids.each { |m| Kimera::RUNTIME.active?(m) } if ids == ["t2"] && @primed
+          @primed = true if ids == ["t1"]
           Kimera::Frameworks::RunOutcome.new(passed: true, failed: [])
         end
       end.new(mids)
@@ -1369,7 +1370,7 @@ RSpec.describe(Kimera::Execution::Harness) do
     def sequenced
       registry, ids = stubbed("WarmOrdered")
       progress = journal
-      h = inline(registry: registry, adapter: ordered(ids), source_root: dir, progress: progress)
+      h = inline(registry:, adapter: ordered(ids), source_root: dir, progress:, measured: :reverse.to_proc)
       h.warm!(%w[t1 t2])
       h.run(ids: [])
       { events: progress.events, covered: h.survey.coverage.slice(*ids).values.flatten, revisits: revisits(registry) }
@@ -1389,7 +1390,8 @@ RSpec.describe(Kimera::Execution::Harness) do
 
     def sifted(**)
       registry, ids = stubbed("WarmOrdered")
-      inline(registry: registry, adapter: ordered(ids), source_root: dir, progress: journal, **).warm!(%w[t1 t2])
+      inline(registry:, adapter: ordered(ids), source_root: dir, progress: journal, measured: :reverse.to_proc, **)
+        .warm!(%w[t1 t2])
       revisits(registry)
     end
 
@@ -1522,13 +1524,15 @@ RSpec.describe(Kimera::Execution::Harness) do
       registry = fixture(name)
       progress = journal
       ids = registry.each.map { |m, _p| m.to_i }
-      harness = described_class.build(registry:, adapter: adapter.call(ids), source_root: dir, progress:)
+      harness = described_class.build(registry:, adapter: adapter.call(ids), source_root: dir, progress:, measured:)
       harness.warm!(%w[t1 t2], scope: scope.call(registry))
       harness.run(ids: [])
       [progress.events, revisits(registry)]
     end
 
     def whole = ->(registry) { registry.each.map { |m, _p| m.to_i } }
+
+    def measured = :reverse.to_proc
 
     it "runs the suite in order when a mutant in scope has no single test's coverage", :aggregate_failures do
       inside("WarmScoped") do
@@ -1538,10 +1542,10 @@ RSpec.describe(Kimera::Execution::Harness) do
       end
     end
 
-    it "skips the run in order when every mutant in scope is covered", :aggregate_failures do
+    it "runs the suite in order when that costs no more than judging the mutants in scope", :aggregate_failures do
       inside("WarmCovered") do
         events, reasons = scoped("WarmCovered", method(:touching), whole)
-        expect(events).not_to(include([:note, "baseline (whole suite, in order, beside the mutants)"]))
+        expect(events).to(include([:note, "baseline (whole suite, in order, beside the mutants)"]))
         expect(reasons).to(eq([nil]))
       end
     end

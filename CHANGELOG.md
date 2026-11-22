@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- **Fixed: a verdict the suite's own order changes no longer goes
+  unchecked when the mutant has a covering test.** The run of the whole
+  suite in order beside the mutants only looked for code no single test
+  covers. It now runs one test after another and notes what each reaches,
+  and two more kinds of mutant are judged again in a fresh mirror against
+  the whole suite: a survivor that more tests reach in order than alone
+  (H2's q01, where an earlier test prepends a wrapper), and a kill whose
+  code no test reaches in order (q02, where an earlier test defines the
+  method the covering test then calls instead). These re-judges, and the
+  existing ones for code only the order reaches, run the suite in its own
+  order, where they used to run the cheapest file first. The run in order
+  also starts when it costs no more than judging the mutants in scope on
+  every worker, not only when a mutant in scope has no covering test. H2
+  goes from 1 false survived and 4 false killed to 0 and 1 (1,376
+  compared); the kill left is q04's, which confirming survivors finds on
+  purpose. The H2 case counts that one mutant as a known disagreement, so H2
+  passes, is recorded in `eval/results/after.json`, and runs in the pre-push
+  gate.
+
 - **Fixed: kimera could not judge mutants of its own `frameworks/seed.rb`.**
   The warm workers reseed every test through `Kimera::Seed`, so a mutant
   that broke it broke the worker judging it: a self-host run reported two

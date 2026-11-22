@@ -45,7 +45,7 @@ class Kimera::Execution::IsolatedPlan
   def candidates(id, point)
     return @tests if own?(id)
     return if point.reasons(Kimera::Reason.unloaded).any?
-    return @tests if point.reasons(Kimera::Reason.ordered).any?
+    return @tests if point.reasons(Kimera::Reason.sequential).any?
     whole?(point) ? kin.tests(file(id)) : selection.recorded(id) { return }
   end
 

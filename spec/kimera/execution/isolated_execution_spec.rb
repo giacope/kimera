@@ -472,10 +472,10 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
 
     def paced = { coverage: { first => %w[slow fast] }, timings: { "fast" => 0.1, "slow" => 2.0 } }
 
-    def trial(given, **)
+    def trial(given, tests: [], **)
       Dir.mktmpdir do |root|
         File.write(File.join(root, "calc.rb"), original)
-        test_mirrored(test_paced(given), root, first, tests: [], **).first
+        test_mirrored(test_paced(given), root, first, tests:, **).first
       end
     end
 
@@ -483,6 +483,13 @@ RSpec.describe(Kimera::Execution::IsolatedExecution) do
       given = []
       result = trial(given, **paced)
       expect([given, result.covering_tests]).to(eq([%w[fast slow], %w[slow fast]]))
+    end
+
+    it "hands the child the whole suite in the suite's own order when that order decides the mutant" do
+      given = []
+      registry.index.fetch(first).mark!(Kimera::Reason.trailed)
+      trial(given, tests: %w[slow fast], **paced)
+      expect(given).to(eq(%w[slow fast]))
     end
 
     def filed

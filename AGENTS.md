@@ -42,8 +42,8 @@ calling it not yours, and say so.
 3. `bundle exec kimera run --since origin/main --fail-on-no-coverage`
 4. `examples/rails_app/bin/e2e`
 5. `gem install rspec -v "~> 3.13" --no-document` (once per orb), then
-   `ruby eval/run --kimera . --only H1,K1,K2,K4 --baseline eval/results/after.json --out tmp/eval.json`
-   (about 90 seconds; `eval/results/README.md` says why these cases)
+   `ruby eval/run --kimera . --only H1,H2,K1,K2,K4 --baseline eval/results/after.json --out tmp/eval.json`
+   (about 3.5 minutes; `eval/results/README.md` says why these cases)
 6. `bin/model-check`
 
 A change to Markdown files only needs `bin/spec spec/kimera/usage_drift_spec.rb`.

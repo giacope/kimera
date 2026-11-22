@@ -132,7 +132,8 @@ class Kimera::Execution::Harness
   end
 
   def ordering(scope, traces = Kimera::Execution::OrderTrace)
-    -> { traces.new(registry).follow!(baseline, coverage, scope:, progress:) }
+    trace = traces.new(registry, adapter, timings: options.fetch(:timings, {}), jobs:)
+    -> { trace.follow!(coverage, scope:, progress:) }
   end
 
   def follow! = options.delete(:ordering) { -> { proc {} } }.call
