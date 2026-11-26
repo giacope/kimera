@@ -30,7 +30,9 @@ RSpec.describe(Kimera::Incremental::Stamp) do
   {
     "a source it mutates" => "app/a.rb", "a test file" => "spec/a_spec.rb",
     "a support file under the test root" => "spec/support/h.rb", "the lockfile" => "Gemfile.lock",
-    "the .rspec options" => ".rspec"
+    "the .rspec options" => ".rspec", "the local RSpec options" => ".rspec-local",
+    "application configuration" => "config/settings.rb", "a nested initializer" => "config/initializers/rates.rb",
+    "the Ruby database schema" => "db/schema.rb", "the SQL database schema" => "db/structure.sql"
   }.each do |what, path|
     it "changes when #{what} changes" do
       tree do
@@ -45,6 +47,14 @@ RSpec.describe(Kimera::Incremental::Stamp) do
     tree do
       before = stamp
       File.delete(File.join(root, "spec", "a_spec.rb"))
+      expect(stamp).not_to(eq(before))
+    end
+  end
+
+  it "changes when a configuration file is deleted" do
+    tree do
+      before = write("config/settings.rb", "1") && stamp
+      File.delete(File.join(root, "config", "settings.rb"))
       expect(stamp).not_to(eq(before))
     end
   end

@@ -219,7 +219,8 @@ bundle exec kimera run app --framework minitest --tests 'test/**/*_test.rb'
 
 # Incremental: mutate the files changed since the merge-base with main, gate
 # CI, resume on retry (a session is resumed only while the sources, every file
-# under the test roots, .rspec, Gemfile.lock and the judging settings match)
+# under the test roots, .rspec/.rspec-local, Gemfile.lock, config/**/*,
+# db/schema.rb/db/structure.sql and the judging settings match)
 bundle exec kimera run app --since origin/main \
   --session tmp/kimera.json --max-survivors 0 --report tmp/report.json
 

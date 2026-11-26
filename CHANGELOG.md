@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Fixed: a resumed session could pass after application configuration
+  changed which mutants the tests kill.** Session fingerprints now read
+  the same configuration paths as coverage fingerprints: `.rspec`,
+  `.rspec-local`, `Gemfile.lock`, `config/**/*`, `db/schema.rb` and
+  `db/structure.sql`, alongside the sources and test roots. Adding, changing
+  or deleting those files discards saved verdicts. In the regression fixture,
+  changing a configured boundary from 5 to 6 left the tests green, but the
+  resumed run kept 4 cached kills and exited 0. It now reports 3 killed and
+  1 survived and exits 2, matching a fresh run.
+
 - **Fixed: a verdict the suite's own order changes no longer goes
   unchecked when the mutant has a covering test.** The run of the whole
   suite in order beside the mutants only looked for code no single test

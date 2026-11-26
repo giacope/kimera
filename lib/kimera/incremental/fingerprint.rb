@@ -10,7 +10,6 @@ module Kimera
 end
 
 class Kimera::Incremental::Fingerprint
-  CONFIG = %w[.rspec .rspec-local Gemfile.lock config/**/* db/schema.rb db/structure.sql].freeze
   SETTINGS = %i[
     framework paths exclude tests exclude_tests exclude_test_names operators require load_path seed isolated
   ].freeze
@@ -31,7 +30,7 @@ class Kimera::Incremental::Fingerprint
   private
 
   def suite
-    globs = Kimera::Incremental::SuiteFiles.new(@options[:tests]).globs + CONFIG
+    globs = Kimera::Incremental::SuiteFiles.new(@options[:tests]).globs
     found = Dir.glob(globs, base: @root).uniq.select { |path| File.file?(File.join(@root, path)) }
     found - git("check-ignore", "-z", "--stdin", input: found.join("\0")) { "" }.split("\0")
   end

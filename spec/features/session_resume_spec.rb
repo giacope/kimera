@@ -27,4 +27,28 @@ RSpec.describe("kimera run --session after the tests change (end-to-end)", :aggr
     expect(again).to(eq(fresh))
     expect(first).not_to(eq(fresh))
   end
+
+  def configuration(value) = "module Settings; MIN = #{value}; end\n"
+
+  def configured
+    source = "require_relative \"../config/settings\"\n#{gate.sub("> 5", "> Settings::MIN")}"
+    { "app/gate.rb" => source, "spec/gate_spec.rb" => examples(checks.keys), "config/settings.rb" => configuration(5) }
+  end
+
+  def reconfigured
+    test_tree(configured, "kimera-session-config") do |root|
+      flags = ["--operators", "comparison", "--no-reuse-coverage"]
+      session = [*flags, "--session", File.join(root, "session.json")]
+      first = test_outcome(cwd: root, arguments: session)
+      File.write(File.join(root, "config", "settings.rb"), configuration(6))
+      [first, test_outcome(cwd: root, arguments: session), test_outcome(cwd: root, arguments: flags)]
+    end
+  end
+
+  it "fails the resumed gate when changed configuration leaves a boundary untested" do
+    first, again, fresh = reconfigured
+    expect([first.status, again.status, fresh.status]).to(eq([0, 2, 2]))
+    expect([first.counts["survived"], again.counts["survived"]]).to(eq([0, 1]))
+    expect(again.verdicts).to(eq(fresh.verdicts))
+  end
 end

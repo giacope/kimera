@@ -9,8 +9,6 @@ module Kimera
 end
 
 class Kimera::Incremental::Stamp
-  ROOTS = %w[.rspec Gemfile.lock].freeze
-
   def initialize(root:, sources:, settings:)
     @given = root
     @sources = sources
@@ -24,7 +22,7 @@ class Kimera::Incremental::Stamp
   def root = @_root ||= File.expand_path(@given)
 
   def entries
-    read = @sources + ROOTS + Kimera::Incremental::SuiteFiles.new(@settings[:tests]).files(root)
+    read = @sources + Kimera::Incremental::SuiteFiles.new(@settings[:tests]).files(root)
     paths = read.map { |path| File.expand_path(path, root) }.uniq.sort
     paths.map { |path| "#{path.delete_prefix(root)}\0#{digest(path)}" }
   end

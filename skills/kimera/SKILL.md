@@ -76,7 +76,7 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
 - Progress goes to stderr: a bar on a tty; redirected/CI runs get a plain
   `kimera: <phase> done/total …` line per phase start, at most every 30s, and at
   the end. `--no-progress` silences it.
-- `--session FILE` persists per-mutant verdicts and resumes interrupted runs.
+- `--session FILE` persists per-mutant verdicts and resumes interrupted runs. Changes to the sources, test roots, `.rspec`/`.rspec-local`, `Gemfile.lock`, `config/**/*`, `db/schema.rb`/`db/structure.sql`, or the recorded judging settings discard the saved verdicts.
 - Every run writes the machine-readable report to tmp/kimera/report.json
   (`--report FILE` moves it, `--no-report` skips it), and `kimera report` and
   `kimera mutant` read it by default. Each result carries `mutant_id`, `key`,
