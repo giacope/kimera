@@ -43,9 +43,7 @@ bundle exec kimera doctor --check-baseline  # discovery, git, and a green suite
   the PR's or `kimera run some/file.rb`, reruns only the baseline tests that
   reach its files and the tests of the test files it changed; when a support
   or config file changed it says so and measures every test.
-- Exit codes: 0 pass; 1 invalid invocation or unmutated suite not green (fix
-  the suite, not kimera); 2 gate failure (survivors, uncovered, ignore budget,
-  or unjudged).
+- Exit codes: 0 pass; 1 invalid invocation or unmutated suite not green (fix the suite, not kimera); 2 gate failure (survivors, uncovered, ignore budget, unjudged, or skipped code).
 - The green check covers only tests that *cover* an in-scope mutant. A test
   that fails in the baseline is rerun plainly: if it passes there, the run
   stops with a harness error naming it (kimera, not the test, is at fault:
@@ -159,10 +157,7 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   may then be killed on another run.
 - `unjudged` in the text report and gate is the JSON status `harness_error`;
   `kimera report --status unjudged` lists them.
-- "Not mutated" (`unmutated` in the JSON report) lists code the scan holds
-  no mutant for, with the reason: the lines of code in a block outside any
-  method that isn't `define_method`/`lambda`/`proc`, or a file that does not
-  parse. It is not a survivor; it's a place no verdict covers.
+- "Not mutated" (`unmutated` in the JSON report) lists code the scan holds no mutant for: unsupported blocks, or files it could not parse, read or scan. Any reported region fails the gate even if every generated mutant was killed; `--max-errors` does not waive it. Read the reason and fix the source or report a Kimera limitation. Incremental runs only report and gate regions in their selected scope. `--no-gate` is for exploration, not a passing CI result.
 - On a Rails app that uses `parallelize`, `--jobs > 1` gives each worker its
   own database, so there's no shared-DB fixture/RLS deadlock. With no schema
   file to load (a suite that migrates as it loads), each worker and mirror
@@ -206,11 +201,7 @@ bundle exec kimera run --isolated --jobs 4      # oracle mode (see Strengthen)
   where nothing else could be evaluated fails the gate. A method reached through an
   `alias` or `alias_method` declared in another file is judged warm like any
   other.
-- Rails `enum` models overlay warm (the re-declaration is idempotent), so
-  their method-body mutants are judged like any other. A file labeled
-  `unmutatable` could not be overlaid (a distinct, reported reason); it is not
-  an `--isolated` case. Its mutants report as `unmutatable` (never gating,
-  never scored, with the reason in the detail), not `no_coverage`.
+- Rails `enum` models overlay warm (the re-declaration is idempotent), so their method-body mutants are judged like any other. A file labeled `unmutatable` could not be overlaid (a distinct, reported reason); it is not an `isolated_only` deferral. Its mutants fail the gate regardless of other kills or `--max-errors`, stay out of the score, and carry the reason in the detail. A 100% score does not mean the gate passed.
 
 ## Burn down a baseline
 

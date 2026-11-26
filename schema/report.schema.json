@@ -87,7 +87,7 @@
         "unmutatable": {
           "type": "integer",
           "minimum": 0,
-          "description": "Mutants whose status is unmutatable."
+          "description": "Mutants Kimera could not instrument. Any positive count fails the gate regardless of kills or max_errors; these mutants remain excluded from the score."
         }
       }
     },
@@ -249,7 +249,7 @@
       }
     },
     "unmutated": {
-      "description": "Code the scan holds no mutant for, with the reason.",
+      "description": "Code the scan holds no mutant for, with the reason: unsupported blocks or files it could not parse, read or scan. Any reported region fails the gate regardless of kills or max_errors.",
       "type": "array",
       "items": {
         "type": "object",

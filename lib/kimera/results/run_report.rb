@@ -25,6 +25,8 @@ class Kimera::RunReport
 
   def notes = Kimera::RunReport::Notes.new(@results, @registry, @context)
 
+  def unmutated = @registry.regions(&:size)
+
   def to_h
     rows = Kimera::ReportRows.new(@registry)
     tally = score

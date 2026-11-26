@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Fixed: skipped code could leave the gate green.** Any reported
+  `unmutated` region (unsupported blocks or files that could not be parsed,
+  read or scanned) and any `unmutatable` mutant now fails the gate, even
+  when other mutants were killed. A regression fixture with 2 killed
+  mutants and 1 unparseable file used to exit 0 at a 100% score; it now
+  exits 2 and names the skipped region. The same check covers unsupported
+  blocks. Skipped code stays out of the score and cannot be waived with
+  `--max-errors`; `--no-gate` still permits exploratory runs. The existing
+  full-run deferral of `isolated_only` mutants is unchanged.
+
 - **Fixed: a resumed session could pass after application configuration
   changed which mutants the tests kill.** Session fingerprints now read
   the same configuration paths as coverage fingerprints: `.rspec`,

@@ -73,10 +73,11 @@ RSpec.describe(Kimera::RunReport) do
     end
 
     def untested?(outcomes)
-      outcomes.intersect?(%i[isolated_only unmutatable]) && !outcomes.intersect?(Kimera::Status::KILLING)
+      outcomes.include?(:unmutatable) ||
+        (outcomes.include?(:isolated_only) && !outcomes.intersect?(Kimera::Status::KILLING))
     end
 
-    it "exits 2 exactly when a documented threshold is crossed, and 0 otherwise" do
+    it "exits 2 when a documented threshold is crossed or a mutant is skipped, and 0 otherwise" do
       for_all(results, options, runs: 500) do |outcomes, options|
         expect(status(outcomes, options)).to(eq(failing?(outcomes, options) ? 2 : 0))
       end

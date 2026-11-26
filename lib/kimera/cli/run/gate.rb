@@ -14,7 +14,7 @@ class Kimera::CLI::Run::Gate
 
   private
 
-  def reasons = @_reasons ||= [*survivors, *coverage, *ignored, *unjudged, *untested]
+  def reasons = @_reasons ||= [*survivors, *coverage, *ignored, *unjudged, *skipped, *untested]
 
   def survivors
     max = @options[:max_survivors]
@@ -47,8 +47,15 @@ class Kimera::CLI::Run::Gate
     count > cap ? ["unjudged=#{count} > max_errors=#{cap} (status harness_error in the JSON report)"] : []
   end
 
+  def skipped
+    counts = { unmutatable: tally(:unmutatable), unmutated: @report.unmutated }
+    counts.filter_map do |kind, count|
+      "#{kind}=#{count}: code was not mutation-tested (see report for reasons)" if count.positive?
+    end
+  end
+
   def untested
-    pending = tally(:isolated_only) + tally(:unmutatable)
+    pending = tally(:isolated_only)
     return [] unless pending.positive? && tally(:killed).zero?
     ["0 of #{tally(:total)} mutants killed: #{pending} only the isolated tier can judge (run with --isolated)"]
   end

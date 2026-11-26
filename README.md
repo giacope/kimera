@@ -336,7 +336,10 @@ Exit codes:
 - **`2`**: the gate failed. Survivors (with `uncovered_by_unit` mutants)
   exceed the threshold (default: any survivor), or a mutant in scope has no covering test under
   `--fail-on-no-coverage` or `--count-no-coverage`, ignored mutants exceed `max_ignored`, or more
-  mutants than `--max-errors` (default 0) could not be judged.
+  mutants than `--max-errors` (default 0) have `harness_error` verdicts.
+  Any reported `unmutated` region or `unmutatable` mutant also fails the gate,
+  even if every evaluated mutant was killed. `--max-errors` does not waive
+  skipped code; `--no-gate` disables gating for exploratory runs only.
 - **`1`**: the baseline is not green, a test fails under Kimera but passes
   when rerun plainly (a harness error that names the tests and the likely
   cause), the pool cannot keep a worker alive, or the invocation is invalid. Paths that match no source files, `--tests` that
@@ -1205,7 +1208,10 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
   not parse, cannot be read, or that the scan itself trips on (a Kimera bug,
   reported as one with the error, never a crash of the run), are listed
   under "Not mutated" in the text report and `unmutated` in the JSON report
-  and the registry, with the reason.
+  and the registry, with the reason. Any such region in the report fails
+  the gate, including unsupported blocks: no generated mutant means no
+  verdict covers that code. An incremental run only reports and gates
+  regions within its selected scope.
 - **Schema-unsafe mutants.** Code that runs once at load (class/module bodies,
   constants) or is memoized can't be toggled in a warm process. Kimera mutates
   only inside method bodies and routes memoized points to a fork-per-mutant
@@ -1369,7 +1375,9 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     killed.
   - An `unmutatable` mutant is one Kimera could not instrument for the warm
     run (its file or method failed to re-emit or load); the detail says why.
-    It never gates, and it is not `no_coverage`: a test may well run it.
+    It fails the gate regardless of kills elsewhere, and it is not
+    `no_coverage`: a test may well run it. It stays out of the score because
+    it was not judged; a 100% score does not mean the gate passed.
   - A `harness_error` is a mutant Kimera could not judge: its worker died, or
     its reply was unreadable, and a fresh mirror could not judge it either.
     It is not a kill. It gates via `--max-errors`
@@ -1383,9 +1391,10 @@ source ──Prism──▶ registry (mutation points, JSON) ──┬─▶ syn
     (`--no-count-no-coverage`) reports them without scoring them;
     `--fail-on-no-coverage` still fails the gate on them. The report's `run`
     section records the setting.
-  - A gate that killed nothing while `isolated_only` or `unmutatable`
+  - A gate that killed nothing while `isolated_only`
     mutants were in scope fails ("0 of N mutants killed"), naming
-    `--isolated`.
+    `--isolated`. Full runs still defer these mutants by default; use
+    `--judge-isolated-only` to judge them alongside the warm run.
 - **No constant outside `Kimera`.** Every synthesized guard dispatches through
   `::Kimera::RUNTIME`, the process's one `Kimera::Runtime`, bound once: a
   second copy of `kimera/runtime.rb` keeps the runtime it finds. Kimera's

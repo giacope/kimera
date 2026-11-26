@@ -447,10 +447,22 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
     end
 
     it "fails a gate that killed nothing while isolated-only mutants were in scope" do
-      unmutatable = [Kimera::MutantResult.new(mutant_id: 2, status: :unmutatable, file: "x.rb")]
-      message = /gate failed: 0 of 2 mutants killed: 2 only the isolated tier can judge \(run with --isolated\)/
-      expect { expect(alerts.gate(Kimera::RunReport.new(results: waiting + unmutatable), {})).to(eq(2)) }
+      message = /gate failed: 0 of 1 mutants killed: 1 only the isolated tier can judge \(run with --isolated\)/
+      expect { expect(alerts.gate(Kimera::RunReport.new(results: waiting), {})).to(eq(2)) }
         .to(output(message).to_stderr)
+    end
+
+    it "fails on unmutatable mutants even with kills and a harness-error allowance" do
+      unwritten = Kimera::MutantResult.new(mutant_id: 2, status: :unmutatable, file: "x.rb")
+      report = Kimera::RunReport.new(results: [kill, unwritten])
+      expect { expect(alerts.gate(report, { max_errors: 10 })).to(eq(2)) }
+        .to(output(/gate failed: unmutatable=1/).to_stderr)
+    end
+
+    it "fails on skipped regions even when no mutants were generated" do
+      registry = Kimera::RegistryScan.new.source("def broken(\n", file: "x.rb")
+      report = Kimera::RunReport.new(results: [], registry: registry)
+      expect { expect(alerts.gate(report, {})).to(eq(2)) }.to(output(/gate failed: unmutated=1/).to_stderr)
     end
 
     it "passes that gate once a mutant was killed, or when the only verdict was ignored" do
@@ -786,20 +798,19 @@ RSpec.describe(Kimera::CLI::Run, :aggregate_failures) do
       File.write("calc.rb", "def m(a, b)\n  a > b\nend\n\nPOSITIVE = [1].select { |x| x > 0 }\n")
       journal = File.join(dir, "session.json")
       saved(Kimera::RegistryScan.new.build(["calc.rb"]), journal)
-      capture(["calc.rb", "--session", journal, *flags]).first
+      capture(["calc.rb", "--session", journal, *flags])
     end
 
-    it "lists the code it leaves unmutated" do
-      inside do
-        expect(unmutated).to(include("Not mutated (1 region(s)):", "calc.rb:5"))
-      end
+    it "lists and gates the code it leaves unmutated even when the session supplies every kill" do
+      out, status = inside { unmutated }
+      expect(out).to(include("Not mutated (1 region(s)):", "calc.rb:5"))
+      expect(status).to(eq(2))
     end
 
-    it "lists unmutated code in an incremental run only where the diff reaches it" do
-      inside do
-        out = unmutated("--since", "main")
-        expect([out.include?("Incremental:"), out.include?("Not mutated")]).to(eq([true, false]))
-      end
+    it "does not list or gate unmutated code outside an incremental run's scope" do
+      out, status = inside { unmutated("--since", "main") }
+      expect([out.include?("Incremental:"), out.include?("Not mutated")]).to(eq([true, false]))
+      expect(status).to(eq(0))
     end
 
     it "announces the incremental scope precisely and builds only changed files" do

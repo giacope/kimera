@@ -25,7 +25,7 @@ module Kimera::CLI::RunOptions
     Kimera::Flag.build("--no-baseline", :baseline, "Skip the config's baseline: file (its mutants are judged)"),
     Kimera::Flag.build(
       "--max-errors N", :max_errors,
-      "Gate: fail if more than N mutants could not be judged (default 0)", type: Integer
+      "Gate: fail above N harness_error verdicts (default 0; does not waive skipped code)", type: Integer
     ),
     Kimera::Flag.build(
       "--[no-]fail-on-no-coverage", :fail_on_no_coverage,

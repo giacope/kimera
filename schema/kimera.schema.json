@@ -215,7 +215,7 @@
       "minimum": 0
     },
     "max_errors": {
-      "description": "Gate: fail when more mutants than this could not be judged (default: 0).",
+      "description": "Gate: fail when more mutants than this have harness_error verdicts (default: 0). Does not waive skipped code: any reported unmutated region or unmutatable mutant fails the gate regardless of kills.",
       "type": "integer",
       "minimum": 0
     },
